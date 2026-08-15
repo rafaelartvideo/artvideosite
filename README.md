@@ -1,7 +1,7 @@
 
-  # Rodar site artvideo
+  # ArtVideo
 
-  This is a code bundle for Implementar conteúdo do markdown. The original project is available at https://www.figma.com/design/HsrXas4BifRyZWKyyC5bc4/Implementar-conte%C3%BAdo-do-markdown.
+  This is a code bundle for ArtVideo. The original project is available at https://www.figma.com/design/HsrXas4BifRyZWKyyC5bc4/ArtVideo.
 
   ## Running the code
 

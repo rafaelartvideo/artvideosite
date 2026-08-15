@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { AdminLogin, AdminDashboard } from "@/app/Admin";
 import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
 import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
 import {
@@ -208,6 +211,261 @@ function Footer({ setPage }: { setPage: (p: Page) => void }) {
   );
 }
 
+/* ─── Tracking Section ─── */
+function ServiceTrackingSection() {
+  const [osNumber, setOsNumber] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [order, setOrder] = useState<any>(null);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleTrack = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanOs = osNumber.trim();
+    if (!cleanOs) return;
+
+    setLoading(true);
+    setSearched(true);
+    setOrder(null);
+    setErrorMsg("");
+
+    try {
+      // Direct exact or prefix/id search on orders
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, status, total, created_at, updated_at, description, service_name, public_notes, history")
+        .or(`id.eq.${cleanOs},id.ilike.${cleanOs}%`)
+        .maybeSingle();
+
+      if (error) {
+        // If query fails or format is invalid UUID/id
+        console.error("Error fetching order:", error);
+        setErrorMsg("Não foi possível localizar a OS informada. Verifique o número e tente novamente.");
+      } else if (data) {
+        setOrder(data);
+      } else {
+        setErrorMsg("Ordem de Serviço não encontrada. Por favor, verifique o número digitado e tente novamente.");
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Ocorreu um erro ao consultar a OS. Tente novamente em alguns instantes.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper to map status to friendly label and step index
+  const statusSteps = [
+    "Solicitação recebida",
+    "Em análise",
+    "Aguardando aprovação",
+    "Em manutenção",
+    "Pronto",
+    "Finalizado"
+  ];
+
+  const getStatusIndex = (st: string) => {
+    if (!st) return 0;
+    const lower = st.toLowerCase();
+    if (lower.includes("receb") || lower.includes("abert") || lower.includes("pend")) return 0;
+    if (lower.includes("anál") || lower.includes("anal")) return 1;
+    if (lower.includes("aprov") || lower.includes("orç")) return 2;
+    if (lower.includes("manuten") || lower.includes("exec") || lower.includes("anda")) return 3;
+    if (lower.includes("pront") || lower.includes("conclu")) return 4;
+    if (lower.includes("finaliz") || lower.includes("entreg")) return 5;
+    return 0;
+  };
+
+  const currentStepIdx = order ? getStatusIndex(order.status) : 0;
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return "-";
+    try {
+      return new Date(dateStr).toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  return (
+    <section id="acompanhar-servico" className="py-16 bg-white border-y border-[#0d1b2e]/10 scroll-mt-20">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+        <div className="text-center mb-8">
+          <SectionLabel>Consulta de OS</SectionLabel>
+          <H2 className="mb-3">Acompanhe seu serviço</H2>
+          <p className="text-[#5a6a82] text-sm sm:text-base max-w-xl mx-auto">
+            Consulte o andamento do seu serviço ou pedido usando o número da OS.
+          </p>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleTrack} className="max-w-xl mx-auto mb-10">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+              <input
+                type="text"
+                value={osNumber}
+                onChange={(e) => setOsNumber(e.target.value)}
+                placeholder="Digite o número da OS (ex: OS-12345)"
+                className="w-full bg-[#f5f7fa] border border-[#0d1b2e]/15 rounded-md pl-10 pr-4 py-3 text-sm font-semibold text-[#0d1b2e] placeholder-[#5a6a82]/70 focus:outline-none focus:ring-2 focus:ring-[#0057e7] focus:border-transparent transition-all"
+                required
+              />
+            </div>
+            <Btn variant="primary" className="py-3 px-7 text-sm whitespace-nowrap" disabled={loading}>
+              {loading ? (
+                <>
+                  <Clock size={16} className="animate-spin" /> Buscando...
+                </>
+              ) : (
+                "Acompanhar"
+              )}
+            </Btn>
+          </div>
+        </form>
+
+        {/* Loading state */}
+        {loading && (
+          <div className="bg-[#f5f7fa] border border-[#0d1b2e]/10 rounded-xl p-8 text-center">
+            <Clock size={32} className="animate-spin text-[#0057e7] mx-auto mb-3" />
+            <p className="font-semibold text-[#0d1b2e] text-sm">Consultando informações da sua Ordem de Serviço...</p>
+          </div>
+        )}
+
+        {/* Error / Not found state */}
+        {!loading && searched && errorMsg && (
+          <div className="bg-[#fff5f5] border border-[#f87171]/30 rounded-xl p-6 text-center max-w-xl mx-auto">
+            <div className="w-12 h-12 bg-[#fee2e2] text-[#ef4444] rounded-full flex items-center justify-center mx-auto mb-3">
+              <X size={24} />
+            </div>
+            <h3 className="font-bold text-[#0d1b2e] text-base mb-1">OS não encontrada</h3>
+            <p className="text-sm text-[#5a6a82] leading-relaxed">{errorMsg}</p>
+          </div>
+        )}
+
+        {/* Result state */}
+        {!loading && order && (
+          <div className="bg-[#f5f7fa] border border-[#0d1b2e]/10 rounded-xl p-6 sm:p-8 shadow-sm">
+            {/* Header info */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[#0d1b2e]/10 gap-4">
+              <div>
+                <span className="text-xs font-bold text-[#0057e7] uppercase tracking-wider block mb-1">Ordem de Serviço</span>
+                <h3 className="text-2xl font-black text-[#0d1b2e]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+                  #{order.id}
+                </h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 bg-[#0057e7]/10 text-[#0057e7] font-bold text-xs px-3 py-1.5 rounded-full border border-[#0057e7]/20">
+                  <CheckCircle size={14} />
+                  Status: {order.status || "Em andamento"}
+                </span>
+              </div>
+            </div>
+
+            {/* General details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-6 border-b border-[#0d1b2e]/10 text-sm">
+              <div>
+                <span className="text-xs text-[#5a6a82] font-semibold block uppercase">Serviço / Produto</span>
+                <span className="font-bold text-[#0d1b2e]">{order.service_name || order.description || "Assistência Técnica / Manutenção"}</span>
+              </div>
+              <div>
+                <span className="text-xs text-[#5a6a82] font-semibold block uppercase">Data da solicitação</span>
+                <span className="font-medium text-[#0d1b2e]">{formatDate(order.created_at)}</span>
+              </div>
+              <div>
+                <span className="text-xs text-[#5a6a82] font-semibold block uppercase">Última atualização</span>
+                <span className="font-medium text-[#0d1b2e]">{formatDate(order.updated_at || order.created_at)}</span>
+              </div>
+              {order.estimated_delivery && (
+                <div>
+                  <span className="text-xs text-[#5a6a82] font-semibold block uppercase">Previsão de conclusão</span>
+                  <span className="font-medium text-[#0d1b2e]">{formatDate(order.estimated_delivery)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Status Timeline */}
+            <div className="py-6 border-b border-[#0d1b2e]/10">
+              <h4 className="text-sm font-bold text-[#0d1b2e] uppercase tracking-wide mb-6">Andamento do serviço</h4>
+              
+              {/* Desktop timeline */}
+              <div className="hidden md:block relative">
+                <div className="absolute top-1/2 left-0 right-0 h-1 bg-[#0d1b2e]/10 -translate-y-1/2 z-0" />
+                <div 
+                  className="absolute top-1/2 left-0 h-1 bg-[#0057e7] -translate-y-1/2 z-0 transition-all duration-500"
+                  style={{ width: `${(currentStepIdx / (statusSteps.length - 1)) * 100}%` }}
+                />
+                <div className="grid grid-cols-6 relative z-10 text-center">
+                  {statusSteps.map((step, idx) => {
+                    const isDone = idx <= currentStepIdx;
+                    const isCurrent = idx === currentStepIdx;
+                    return (
+                      <div key={step} className="flex flex-col items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors mb-2 ${
+                          isCurrent
+                            ? "bg-[#0057e7] text-white ring-4 ring-[#0057e7]/20"
+                            : isDone
+                            ? "bg-[#0057e7] text-white"
+                            : "bg-white text-[#5a6a82] border-2 border-[#0d1b2e]/20"
+                        }`}>
+                          {isDone ? <CheckCircle size={14} /> : idx + 1}
+                        </div>
+                        <span className={`text-xs font-semibold px-1 leading-tight ${isDone ? "text-[#0d1b2e]" : "text-[#5a6a82]/70"}`}>
+                          {step}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Mobile timeline */}
+              <div className="md:hidden space-y-3">
+                {statusSteps.map((step, idx) => {
+                  const isDone = idx <= currentStepIdx;
+                  const isCurrent = idx === currentStepIdx;
+                  return (
+                    <div key={step} className="flex items-center gap-3">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                        isCurrent
+                          ? "bg-[#0057e7] text-white ring-2 ring-[#0057e7]/20"
+                          : isDone
+                          ? "bg-[#0057e7] text-white"
+                          : "bg-white text-[#5a6a82] border border-[#0d1b2e]/20"
+                      }`}>
+                        {isDone ? <CheckCircle size={12} /> : idx + 1}
+                      </div>
+                      <span className={`text-xs font-semibold ${isDone ? "text-[#0d1b2e]" : "text-[#5a6a82]/70"}`}>
+                        {step}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Public messages / Custom History if present */}
+            {order.public_notes && (
+              <div className="pt-6">
+                <h4 className="text-sm font-bold text-[#0d1b2e] uppercase tracking-wide mb-2">Observações ao cliente</h4>
+                <div className="bg-white border border-[#0d1b2e]/10 rounded-lg p-4 text-xs text-[#3a4a5e] leading-relaxed">
+                  {order.public_notes}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /* ─── Home Page ─── */
 function HomePage({ setPage }: { setPage: (p: Page) => void }) {
   return (
@@ -242,9 +500,9 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
           <H2 className="mb-10">O que você precisa?</H2>
           <div className="grid sm:grid-cols-3 gap-5">
             {[
-              { label: "COMPRAR", icon: ShoppingCart, desc: "Encontre produtos eletrônicos, acessórios e equipamentos.", cta: "Ver loja", dark: false, dest: "home" as Page },
-              { label: "CONSERTAR", icon: Wrench, desc: "Diagnóstico, manutenção e reparo para seus equipamentos.", cta: "Conhecer assistência", dark: true, dest: "servicos" as Page },
-              { label: "INSTALAR", icon: Settings, desc: "Instalação e configuração de equipamentos.", cta: "Ver serviços", dark: false, dest: "servicos" as Page },
+              { label: "COMPRAR", icon: ShoppingCart, desc: "Encontre produtos eletrônicos, acessórios e equipamentos.", cta: "Ver loja", dark: false, dest: "home" as const },
+              { label: "CONSERTAR", icon: Wrench, desc: "Diagnóstico, manutenção e reparo para seus equipamentos.", cta: "Conhecer assistência", dark: true, dest: "servicos" as const },
+              { label: "ACOMPANHAR SERVIÇO", icon: Search, desc: "Consulte o andamento do seu serviço ou pedido usando o número da OS.", cta: "Acompanhar serviço", dark: false, dest: "tracking" as const },
             ].map((c) => {
               const Icon = c.icon;
               return (
@@ -252,15 +510,24 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
                   <Icon size={32} className={c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} />
                   <h3 className={`text-2xl font-black ${c.dark ? "text-white" : "text-[#0d1b2e]"}`} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{c.label}</h3>
                   <p className={`text-sm leading-relaxed ${c.dark ? "text-white/70" : "text-[#5a6a82]"}`}>{c.desc}</p>
-                  <button onClick={() => setPage(c.dest)} className={`flex items-center gap-1 text-sm font-semibold mt-auto ${c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} hover:gap-2 transition-all`}>
-                    {c.cta} <ChevronRight size={16} />
-                  </button>
+                  {c.dest === "tracking" ? (
+                    <a href="#acompanhar-servico" className={`flex items-center gap-1 text-sm font-semibold mt-auto ${c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} hover:gap-2 transition-all`}>
+                      {c.cta} <ChevronRight size={16} />
+                    </a>
+                  ) : (
+                    <button onClick={() => setPage(c.dest as Page)} className={`flex items-center gap-1 text-sm font-semibold mt-auto ${c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} hover:gap-2 transition-all`}>
+                      {c.cta} <ChevronRight size={16} />
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
       </section>
+
+      {/* Acompanhe seu Serviço */}
+      <ServiceTrackingSection />
 
       {/* Categorias */}
       <section className="py-16 bg-white">
@@ -1302,11 +1569,66 @@ function AssistenciaPage({ setPage }: { setPage: (p: Page) => void }) {
 /* ─── App ─── */
 export default function App() {
   const [page, setPageState] = useState<Page>("home");
+  const [isAdminRoute, setIsAdminRoute] = useState(false);
+
+  useEffect(() => {
+    const handleLocation = () => {
+      const path = window.location.pathname;
+      if (path.startsWith("/admin")) {
+        setIsAdminRoute(true);
+      } else {
+        setIsAdminRoute(false);
+      }
+    };
+    handleLocation();
+    window.addEventListener("popstate", handleLocation);
+    return () => window.removeEventListener("popstate", handleLocation);
+  }, []);
 
   const setPage = (p: Page) => {
+    setIsAdminRoute(false);
     setPageState(p);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  return (
+    <AuthProvider>
+      <AppContent
+        isAdminRoute={isAdminRoute}
+        page={page}
+        setPage={setPage}
+        setIsAdminRoute={setIsAdminRoute}
+      />
+    </AuthProvider>
+  );
+}
+
+function AppContent({
+  isAdminRoute,
+  page,
+  setPage,
+  setIsAdminRoute,
+}: {
+  isAdminRoute: boolean;
+  page: Page;
+  setPage: (p: Page) => void;
+  setIsAdminRoute: (val: boolean) => void;
+}) {
+  const { session, loading } = useAuth();
+
+  if (isAdminRoute) {
+    if (loading) {
+      return (
+        <div className="min-h-screen bg-[#0d1b2e] flex items-center justify-center text-white font-bold text-sm">
+          Carregando painel...
+        </div>
+      );
+    }
+    if (!session) {
+      return <AdminLogin onLoginSuccess={() => setIsAdminRoute(true)} />;
+    }
+    return <AdminDashboard onBackToSite={() => { window.history.pushState({}, "", "/"); setIsAdminRoute(false); }} />;
+  }
 
   return (
     <div className="min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
