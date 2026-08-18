@@ -476,7 +476,7 @@ function HomePage({ setPage, onSelectService, onSelectProduct }: { setPage: (p: 
       <section className="bg-[#0d1b2e] py-16 sm:py-20 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-center">
           <div>
-            <SectionLabel light>Artvideo · Aracaju, SE</SectionLabel>
+            <SectionLabel light>Eletrônica Artvideo · Aracaju, SE</SectionLabel>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight mb-5" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
               Tecnologia, produtos e serviços em um só lugar.
             </h1>
