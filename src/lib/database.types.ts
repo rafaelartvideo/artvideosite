@@ -183,11 +183,22 @@ export interface Product {
   updated_at: string;
 }
 
+// ── Customers ────────────────────────────────────────────────────
+export interface Customer {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  document: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Quote Requests & Status ──────────────────────────────────
 export interface RequestStatus {
   id: string;
   name: string;
-  description: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -195,16 +206,17 @@ export interface RequestStatus {
 
 export interface QuoteRequest {
   id: string;
-  service_id: string | null;
+  protocol: string | null;
   customer_id: string | null;
-  name: string;
-  whatsapp: string;
-  email: string | null;
+  service_id: string | null;
+  product_id: string | null;
   brand_id: string | null;
-  model: string | null;
-  problem_description: string | null;
-  cep: string | null;
   status_id: string | null;
+  estimated_price: number | null;
+  final_price: number | null;
+  customer_message: string | null;
+  assigned_to: string | null;
+  requested_at: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -240,16 +252,41 @@ export interface OrderStatus {
   updated_at: string;
 }
 
+export interface OsSituation {
+  id: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ServiceOrder {
   id: string;
   quote_request_id: string | null;
   customer_id: string | null;
   status_id: string | null;
+  situation_id: string | null;
   title: string;
   description: string | null;
+  diagnosis: string | null;
+  solution: string | null;
+  notes: string | null;
+  protocol: string | null;
+  priority: "baixa" | "normal" | "alta" | "urgente";
+  origin: string | null;
+  brand_id: string | null;
+  product_id: string | null;
+  model: string | null;
+  serial_number: string | null;
+  accessories: string | null;
+  equipment_condition: string | null;
+  assigned_to: string | null;
+  estimated_price: number | null;
+  final_price: number | null;
   scheduled_date: string | null;
   completion_date: string | null;
-  notes: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;

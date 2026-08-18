@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { useServices, useServiceCategories, useFeaturedProducts, useBrands, useMediaUrl, useServiceDetailBySlug, useSiteSettings } from "@/lib/hooks";
+import { useServices, useServiceCategories, useFeaturedProducts, useBrands, useServiceDetailBySlug, useSiteSettings } from "@/lib/hooks";
 import { AdminLogin, AdminDashboard } from "@/app/Admin";
 import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
 import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
@@ -29,6 +29,12 @@ const HOME_STEPS = [
 const ASSIST_CATS = ["TVs", "Computadores", "Eletrodomésticos", "Videogames", "Eletrônicos"];
 
 /* ─── shared components ─── */
+function inlineMediaUrl(media: { bucket_name: string; storage_path: string } | null | undefined): string | null {
+  if (!media?.bucket_name || !media?.storage_path) return null;
+  const { data } = supabase.storage.from(media.bucket_name).getPublicUrl(media.storage_path);
+  return data.publicUrl;
+}
+
 function Btn({ children, variant = "primary", className = "", ...props }: {
   children: React.ReactNode; variant?: "primary" | "outline" | "ghost" | "whatsapp"; className?: string; [k: string]: unknown;
 }) {
@@ -636,13 +642,11 @@ function HomePage({ setPage, onSelectService }: { setPage: (p: Page) => void; on
 
 /* ─── Brand Card Component ─── */
 function BrandCard({ brand }: { brand: any }) {
-  const { url: logoUrl, loading: logoLoading } = useMediaUrl(brand.logo_media_id);
+  const logoUrl = inlineMediaUrl(brand.logo_media);
 
   return (
     <div className="bg-[#f5f7fa] border border-[#0d1b2e]/10 rounded-lg h-14 flex items-center justify-center hover:border-[#0057e7]/40 transition-colors group">
-      {logoLoading ? (
-        <span className="text-xs text-[#5a6a82]">Carregando...</span>
-      ) : logoUrl ? (
+      {logoUrl ? (
         <img src={logoUrl} alt={brand.name} className="max-h-10 max-w-[90%] object-contain" />
       ) : (
         <span className="text-xs font-bold text-[#5a6a82]">{brand.name}</span>
@@ -653,14 +657,12 @@ function BrandCard({ brand }: { brand: any }) {
 
 /* ─── Product Card Component ─── */
 function ProductCard({ product, setPage }: { product: any; setPage: (p: Page) => void }) {
-  const { url: imageUrl, loading: imageLoading } = useMediaUrl(product.cover_media_id);
+  const imageUrl = inlineMediaUrl(product.cover_media);
 
   return (
     <div className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md transition-shadow group">
       <div className="bg-[#f5f7fa] h-44 overflow-hidden">
-        {imageLoading ? (
-          <div className="w-full h-full flex items-center justify-center"><div className="text-[#5a6a82] text-sm">Carregando...</div></div>
-        ) : imageUrl ? (
+        {imageUrl ? (
           <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={32} /></div>
@@ -680,15 +682,13 @@ function ProductCard({ product, setPage }: { product: any; setPage: (p: Page) =>
 
 /* ─── Service Card Component ─── */
 function ServiceCard({ service, onSelectService }: { service: any; onSelectService: (slug: string) => void }) {
-  const { url: imageUrl, loading: imageLoading } = useMediaUrl(service.cover_media_id);
+  const imageUrl = inlineMediaUrl(service.cover_media);
   const cardPrice = service.price_mode === "HIDDEN" ? null : service.price_mode === "STARTING_FROM" && service.base_price ? `A partir de R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : service.price_mode === "FIXED" && service.base_price ? `R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte o valor";
 
   return (
     <div className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md hover:border-[#0057e7]/30 transition-all group">
       <div className="h-40 overflow-hidden bg-[#e8eef8]">
-        {imageLoading ? (
-          <div className="w-full h-full flex items-center justify-center"><div className="text-[#5a6a82] text-sm">Carregando...</div></div>
-        ) : imageUrl ? (
+        {imageUrl ? (
           <img src={imageUrl} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={32} /></div>
@@ -825,7 +825,7 @@ function ServicosPage({ setPage, onSelectService }: { setPage: (p: Page) => void
 
 function ServicoDetalhePage({ slug, setPage }: { slug: string | null; setPage: (p: Page) => void }) {
   const { detail, loading, error } = useServiceDetailBySlug(slug);
-  const { url: imageUrl } = useMediaUrl(detail?.service.cover_media_id);
+  const imageUrl = inlineMediaUrl(detail?.media);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   if (loading) return <div className="min-h-[55vh] flex items-center justify-center text-[#5a6a82] text-sm"><Clock size={20} className="animate-spin mr-2 text-[#0057e7]" /> Carregando serviço...</div>;
@@ -1341,37 +1341,91 @@ function CepChecker() {
 
 /* ─── Orçamento Page ─── */
 
+function normalizeCpf(v: string) { return v.replace(/\D/g, ""); }
+function formatCpf(v: string) {
+  const d = normalizeCpf(v).slice(0, 11);
+  return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+}
+function validateCpf(cpf: string) {
+  const d = normalizeCpf(cpf);
+  if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(d[i]) * (10 - i);
+  let r = (sum * 10) % 11;
+  if (r === 10 || r === 11) r = 0;
+  if (r !== parseInt(d[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(d[i]) * (11 - i);
+  r = (sum * 10) % 11;
+  if (r === 10 || r === 11) r = 0;
+  return r === parseInt(d[10]);
+}
+
+function generateProtocol() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const rand = Math.floor(Math.random() * 9000) + 1000;
+  return `ORC-${y}${m}${day}-${rand}`;
+}
+
 function OrcamentoPage() {
   const { services, loading: servicesLoading } = useServices();
   const { categories } = useServiceCategories();
   const { brands, loading: brandsLoading } = useBrands();
-  const [f, setF] = useState({ servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", cep: "", nome: "", whatsapp: "", email: "" });
+  const [f, setF] = useState({ servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", whatsapp: "", email: "" });
   const [sent, setSent] = useState(false);
+  const [protocol, setProtocol] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const up = (k: string, v: string) => setF(prev => ({ ...prev, [k]: v }));
-  const fmtCep = (v: string) => v.replace(/\D/g, "").replace(/^(\d{5})(\d)/, "$1-$2").slice(0, 9);
 
   const inputCls = "w-full bg-[#f5f7fa] border border-[#0d1b2e]/15 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#0057e7] transition-all";
   const selectCls = inputCls + " cursor-pointer";
   const selectedService = services.find((service) => service.id === f.servico);
+  const selectedBrand = brands.find(b => b.id === f.marca);
+
   const submitQuote = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitError(null);
-    const { error } = await supabase.from("quote_requests").insert({
-      service_id: f.servico,
-      name: f.nome,
-      status_id: "cf386fad-07ca-40f5-a915-5f7495344188",
-      whatsapp: f.whatsapp,
-      brand_id: f.marca === "Outra marca" ? null : f.marca || null,
-      model: f.modelo || null,
-      problem_description: f.descricao || null,
-    });
-    if (error) {
-      console.error("[PUBLIC] Quote request error:", error);
-      setSubmitError(error.message);
+    const cpfRaw = normalizeCpf(f.cpf);
+    if (cpfRaw.length > 0 && !validateCpf(cpfRaw)) {
+      setSubmitError("CPF inválido. Verifique o número informado.");
       return;
     }
-    setSent(true);
+
+    setSubmitting(true);
+    try {
+      const newProtocol = generateProtocol();
+      const brandNote = f.marca === "Outra marca" && f.outraMarca ? `Marca: ${f.outraMarca}` : null;
+      const modelNote = f.modelo ? `Modelo: ${f.modelo}` : null;
+      const extraNotes = [brandNote, modelNote].filter(Boolean).join(" | ");
+      const fullMessage = [f.descricao, extraNotes].filter(Boolean).join("\n") || null;
+
+      const { data, error } = await supabase.rpc("submit_public_quote_request", {
+        p_full_name:        f.nome.trim(),
+        p_whatsapp:         f.whatsapp || null,
+        p_email:            f.email || null,
+        p_document:         cpfRaw.length === 11 ? cpfRaw : null,
+        p_service_id:       f.servico || null,
+        p_brand_id:         f.marca && f.marca !== "Outra marca" ? f.marca : null,
+        p_customer_message: fullMessage,
+        p_protocol:         newProtocol,
+      });
+
+      if (error) throw new Error(`Erro ao enviar solicitação: ${error.message}`);
+      const result = data as { success: boolean; error?: string };
+      if (!result.success) throw new Error(result.error || "Erro ao processar solicitação.");
+
+      setProtocol(newProtocol);
+      setSent(true);
+    } catch (err) {
+      console.error("[PUBLIC] Quote request error:", err);
+      setSubmitError(err instanceof Error ? err.message : "Erro ao enviar solicitação. Tente novamente.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (sent) return (
@@ -1380,8 +1434,15 @@ function OrcamentoPage() {
         <div className="max-w-xl mx-auto px-4 sm:px-6 text-center">
           <div className="w-16 h-16 bg-[#0057e7] rounded-2xl flex items-center justify-center mx-auto mb-6"><CheckCircle size={32} className="text-white" /></div>
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Solicitação enviada!</h1>
+          {protocol && (
+            <div className="bg-white/10 border border-white/20 rounded-xl px-6 py-4 mb-6">
+              <p className="text-white/60 text-xs uppercase tracking-widest mb-1">Protocolo</p>
+              <p className="text-2xl font-black text-white font-mono">{protocol}</p>
+              <p className="text-white/50 text-xs mt-1">Guarde este número para acompanhar sua solicitação.</p>
+            </div>
+          )}
           <p className="text-white/70 text-base mb-8">Nossa equipe entrará em contato para avaliar sua solicitação.</p>
-          <Btn variant="primary" className="px-7 py-3 text-base" onClick={() => setSent(false)}>Nova solicitação</Btn>
+          <Btn variant="primary" className="px-7 py-3 text-base" onClick={() => { setSent(false); setProtocol(null); setF({ servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", whatsapp: "", email: "" }); }}>Nova solicitação</Btn>
         </div>
       </section>
     </>
@@ -1426,20 +1487,12 @@ function OrcamentoPage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Marca</label>
-                    <select
-                      className={selectCls}
-                      value={f.marca}
-                      onChange={e => up("marca", e.target.value)}
-                    >
-                      <option value="">Selecione a marca...</option>
-                      {brands
-                        .filter(brand => brand.is_active)
-                        .map(brand => (
-                          <option key={brand.id} value={brand.id}>
-                            {brand.name}
-                          </option>
-                        ))}
-                      <option value="Outra marca">Outra marca</option>
+                  <select className={selectCls} value={f.marca} onChange={e => up("marca", e.target.value)}>
+                    <option value="">Selecione a marca...</option>
+                    {brands.filter(brand => brand.is_active).map(brand => (
+                      <option key={brand.id} value={brand.id}>{brand.name}</option>
+                    ))}
+                    <option value="Outra marca">Outra marca</option>
                   </select>
                 </div>
                 <div>
@@ -1459,21 +1512,10 @@ function OrcamentoPage() {
               </div>
             </div>
 
-            {/* 3 — CEP */}
-            <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 p-6">
-              <h2 className="text-lg font-black text-[#0d1b2e] mb-4 flex items-center gap-2" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                <span className="w-6 h-6 bg-[#0057e7] rounded-md flex items-center justify-center text-white text-xs font-black">3</span>
-                Local do serviço
-              </h2>
-              <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CEP *</label>
-              <input className={inputCls} placeholder="00000-000" value={f.cep} onChange={e => up("cep", fmtCep(e.target.value))} required />
-              <p className="text-xs text-[#5a6a82] mt-2">Utilizaremos o CEP para verificar a disponibilidade do serviço na sua região.</p>
-            </div>
-
-            {/* 4 — Dados */}
+            {/* 3 — Dados pessoais */}
             <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 p-6 space-y-4">
               <h2 className="text-lg font-black text-[#0d1b2e] mb-1 flex items-center gap-2" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                <span className="w-6 h-6 bg-[#0057e7] rounded-md flex items-center justify-center text-white text-xs font-black">4</span>
+                <span className="w-6 h-6 bg-[#0057e7] rounded-md flex items-center justify-center text-white text-xs font-black">3</span>
                 Seus dados
               </h2>
               {/* WhatsApp em destaque */}
@@ -1487,39 +1529,28 @@ function OrcamentoPage() {
                   <input className={inputCls} placeholder="Seu nome" value={f.nome} onChange={e => up("nome", e.target.value)} required />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">E-mail</label>
-                  <input type="email" className={inputCls} placeholder="seu@email.com" value={f.email} onChange={e => up("email", e.target.value)} />
+                  <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CPF</label>
+                  <input className={inputCls} placeholder="000.000.000-00" value={f.cpf} maxLength={14} onChange={e => up("cpf", formatCpf(e.target.value))} />
+                  <p className="text-xs text-[#5a6a82] mt-1">Usado para identificar seu cadastro.</p>
                 </div>
               </div>
-            </div>
-
-            {/* 5 — Fotos */}
-            <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 p-6">
-              <h2 className="text-lg font-black text-[#0d1b2e] mb-1 flex items-center gap-2" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                <span className="w-6 h-6 bg-[#eef1f6] rounded-md flex items-center justify-center text-[#5a6a82] text-xs font-black">5</span>
-                Fotos do equipamento <span className="text-xs font-normal text-[#5a6a82] normal-case" style={{ fontFamily: "'Inter', sans-serif" }}>(opcional)</span>
-              </h2>
-              <p className="text-xs text-[#5a6a82] mb-4">Se quiser, envie fotos do equipamento ou do local para ajudar nossa equipe a entender melhor o serviço.</p>
-              <div className="grid grid-cols-3 gap-3">
-                {[0, 1, 2].map(i => (
-                  <div key={i} className="aspect-square border-2 border-dashed border-[#0d1b2e]/20 rounded-xl flex flex-col items-center justify-center gap-1 text-[#5a6a82] hover:border-[#0057e7]/50 hover:bg-[#f5f7fa] transition-colors cursor-pointer">
-                    <Package size={20} className="text-[#0057e7]/40" />
-                    <span className="text-xs">Adicionar foto</span>
-                  </div>
-                ))}
+              <div>
+                <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">E-mail</label>
+                <input type="email" className={inputCls} placeholder="seu@email.com" value={f.email} onChange={e => up("email", e.target.value)} />
               </div>
             </div>
 
-            {/* 6 — Resumo */}
+            {/* 4 — Resumo */}
             <div className="bg-[#0d1b2e] rounded-2xl p-6">
               <h2 className="text-lg font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Revise sua solicitação</h2>
               <div className="space-y-2">
                 {[
                   { label: "Serviço", val: selectedService?.title || "—" },
-                  { label: "Marca", val: f.marca === "Outra marca" ? f.outraMarca || "Outra marca" : f.marca || "—" },
+                  { label: "Marca", val: f.marca === "Outra marca" ? f.outraMarca || "Outra marca" : selectedBrand?.name || "—" },
                   { label: "Modelo", val: f.modelo || "—" },
-                  { label: "CEP", val: f.cep || "—" },
                   { label: "Descrição", val: f.descricao ? f.descricao.slice(0, 80) + (f.descricao.length > 80 ? "…" : "") : "—" },
+                  { label: "Nome", val: f.nome || "—" },
+                  { label: "WhatsApp", val: f.whatsapp || "—" },
                 ].map(({ label, val }) => (
                   <div key={label} className="flex items-start gap-3 text-sm">
                     <span className="text-white/40 w-20 flex-shrink-0 font-semibold">{label}:</span>
@@ -1531,8 +1562,10 @@ function OrcamentoPage() {
 
             {/* Submit */}
             <div className="text-center space-y-3">
-              {submitError && <p className="text-sm text-red-600">{submitError}</p>}
-              <Btn variant="primary" className="w-full py-4 text-base">Solicitar orçamento</Btn>
+              {submitError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{submitError}</p>}
+              <Btn variant="primary" className="w-full py-4 text-base" disabled={submitting}>
+                {submitting ? "Enviando..." : "Solicitar orçamento"}
+              </Btn>
               <p className="text-xs text-[#5a6a82]">Após o envio, nossa equipe entrará em contato para avaliar sua solicitação.</p>
               <p className="text-xs text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg px-4 py-3 leading-relaxed">
                 Os valores apresentados ou informados previamente podem variar conforme as condições do equipamento, local e serviço necessário. O orçamento final será confirmado pela equipe.

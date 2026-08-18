@@ -12,7 +12,7 @@ import {
 
 type AdminTab =
   | "dashboard" | "services" | "categories" | "products" | "brands"
-  | "quotes" | "orders" | "employees" | "settings" | "contact";
+  | "quotes" | "orders" | "customers" | "employees" | "settings" | "contact";
 
 /* ─────────────────────────── SHARED PRIMITIVES ─────────────────────────── */
 
@@ -29,6 +29,15 @@ function slugify(value: string) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function generateOsProtocol() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const rand = Math.floor(Math.random() * 9000) + 1000;
+  return `OS-${y}${m}${d}-${rand}`;
 }
 
 async function generateUniqueSlug(table: "service_categories" | "product_categories" | "products" | "brands", value: string, excludeId?: string) {
@@ -375,6 +384,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     { id: "brands", label: "Marcas", icon: Tag },
     { id: "quotes", label: "Orçamentos", icon: FileText },
     { id: "orders", label: "Ordens de Serviço", icon: ClipboardList },
+    { id: "customers", label: "Clientes", icon: Users },
     { id: "employees", label: "Funcionários", icon: Users, gestorOnly: true },
     { id: "settings", label: "Configurações", icon: Settings },
     { id: "contact", label: "Contato", icon: Phone },
@@ -480,8 +490,9 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
           {activeTab === "categories" && <TabCategories />}
           {activeTab === "products" && <TabProducts />}
           {activeTab === "brands" && <TabBrands />}
-          {activeTab === "quotes" && <TabQuotes />}
-          {activeTab === "orders" && <TabOrders />}
+          {activeTab === "quotes" && <TabQuotes onNavigate={setActiveTab} />}
+          {activeTab === "orders" && <TabOrders onNavigate={setActiveTab} />}
+          {activeTab === "customers" && <TabCustomers />}
           {activeTab === "employees" && <TabEmployees />}
           {activeTab === "settings" && <TabSettings />}
           {activeTab === "contact" && <TabContact />}
@@ -502,20 +513,20 @@ function TabDashboard() {
   const load = async () => {
     setLoading(true);
     const [qAll, oAll, sActive, pActive, rQuotes, rOrders] = await Promise.all([
-      supabase.from("quote_requests").select("id, status"),
-      supabase.from("service_orders").select("id, status"),
+      supabase.from("quote_requests").select("id, status_id, request_status:request_statuses(name)"),
+      supabase.from("service_orders").select("id, status_id, order_status:order_statuses(name)"),
       supabase.from("services").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
-      supabase.from("quote_requests").select("*").order("created_at", { ascending: false }).limit(5),
-      supabase.from("service_orders").select("*").order("created_at", { ascending: false }).limit(5),
+      supabase.from("quote_requests").select("id, protocol, created_at, customer_id, service_id, brand_id, request_status:request_statuses(name), customer:customers(full_name), service:services(title), brand:brands(name)").order("created_at", { ascending: false }).limit(5),
+      supabase.from("service_orders").select("id, title, description, created_at, updated_at, status_id, order_status:order_statuses(name), customer:customers(full_name)").order("created_at", { ascending: false }).limit(5),
     ]);
     const quotes = qAll.data || [];
     const orders = oAll.data || [];
     setStats({
-      quotesPending: quotes.filter((q: any) => (q.status || "").toLowerCase().includes("pend")).length,
-      quotesAnalysis: quotes.filter((q: any) => (q.status || "").toLowerCase().includes("anál") || (q.status || "").toLowerCase().includes("analise")).length,
-      ordersActive: orders.filter((o: any) => ["em manutenção", "em análise", "em andamento", "em execução"].some(s => (o.status || "").toLowerCase().includes(s.split(" ")[1]))).length,
-      ordersWaiting: orders.filter((o: any) => (o.status || "").toLowerCase().includes("aguard") || (o.status || "").toLowerCase().includes("client")).length,
+      quotesPending: quotes.filter((q: any) => ((q.request_status as any)?.name || "").toLowerCase().includes("pend")).length,
+      quotesAnalysis: quotes.filter((q: any) => { const n = ((q.request_status as any)?.name || "").toLowerCase(); return n.includes("anál") || n.includes("analise") || n.includes("análise"); }).length,
+      ordersActive: orders.filter((o: any) => { const n = ((o.order_status as any)?.name || "").toLowerCase(); return n.includes("manutenç") || n.includes("andamento") || n.includes("execuç"); }).length,
+      ordersWaiting: orders.filter((o: any) => { const n = ((o.order_status as any)?.name || "").toLowerCase(); return n.includes("aguard") || n.includes("client"); }).length,
       servicesActive: sActive.count || 0,
       productsActive: pActive.count || 0,
     });
@@ -578,11 +589,11 @@ function TabDashboard() {
                   {recentQuotes.map(q => (
                     <div key={q.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-bold text-[#0d1b2e] text-sm truncate">{q.name}</p>
-                        <p className="text-xs text-[#5a6a82] truncate">{q.brand || "—"} {q.model ? `/ ${q.model}` : ""}</p>
+                        <p className="font-bold text-[#0d1b2e] text-sm truncate">{(q.customer as any)?.full_name || "Cliente"}</p>
+                        <p className="text-xs text-[#5a6a82] truncate">{(q.service as any)?.title || (q.brand as any)?.name || q.protocol || "—"}</p>
                       </div>
                       <div className="flex-shrink-0 text-right">
-                        <StatusBadge status={q.status || "Pendente"} />
+                        <StatusBadge status={(q.request_status as any)?.name || "Pendente"} />
                         <p className="text-[10px] text-[#5a6a82] mt-1">{fmtDate(q.created_at)}</p>
                       </div>
                     </div>
@@ -605,10 +616,10 @@ function TabDashboard() {
                     <div key={o.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-bold text-[#0057e7] text-sm">#{typeof o.id === "string" ? o.id.slice(0, 8) : o.id}</p>
-                        <p className="text-xs text-[#5a6a82] truncate">{o.service_name || o.description || "Assistência Técnica"}</p>
+                        <p className="text-xs text-[#5a6a82] truncate">{(o.customer as any)?.full_name || o.title || o.description || "Assistência Técnica"}</p>
                       </div>
                       <div className="flex-shrink-0 text-right">
-                        <StatusBadge status={o.status || "Em andamento"} />
+                        <StatusBadge status={(o.order_status as any)?.name || "Em andamento"} />
                         <p className="text-[10px] text-[#5a6a82] mt-1">{fmtDate(o.updated_at || o.created_at)}</p>
                       </div>
                     </div>
@@ -1347,8 +1358,8 @@ function TabCategories() {
         <div className="p-5 space-y-4">
           <Section title="Informações">
             <div className="space-y-4">
-              <FInput label="Nome" value={form.name} required onChange={(e: any) => { setForm({ ...form, name: e.target.value, slug: form.slug || autoSlug(e.target.value) }); }} placeholder="Ex: Ar-condicionado" />
-              <FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} placeholder="ar-condicionado" hint="Usado na URL e filtros do site." />
+              <FInput label="Nome" value={form.name} required onChange={(e: any) => { setForm({ ...form, name: e.target.value, slug: editItem ? form.slug : autoSlug(e.target.value) }); }} placeholder="Ex: Ar-condicionado" />
+              <FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} placeholder="ar-condicionado" hint="Gerado automaticamente ao digitar o nome. Pode ser editado manualmente." />
             </div>
           </Section>
           <Section title="Publicação">
@@ -1492,7 +1503,7 @@ function TabProducts() {
           <Section title="Informações Principais">
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2"><FInput label="Nome do produto" value={form.name} required onChange={(e: any) => { setForm({ ...form, name: e.target.value, slug: form.slug || autoSlug(e.target.value) }); }} placeholder="Nome do produto" /></div>
+                <div className="sm:col-span-2"><FInput label="Nome do produto" value={form.name} required onChange={(e: any) => { setForm({ ...form, name: e.target.value, slug: editItem ? form.slug : autoSlug(e.target.value) }); }} placeholder="Nome do produto" /></div>
                 <FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} placeholder="slug-do-produto" />
                 <FSelect label="Categoria" value={form.category_id} onChange={(e: any) => setForm({ ...form, category_id: e.target.value })} options={catOptions} />
               </div>
@@ -1598,7 +1609,7 @@ function TabBrands() {
         <div className="p-5 space-y-4">
           <Section title="Informações">
             <div className="space-y-4">
-              <FInput label="Nome da marca" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value, slug: form.slug || autoSlug(e.target.value) })} placeholder="Ex: Samsung" />
+              <FInput label="Nome da marca" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value, slug: editItem ? form.slug : autoSlug(e.target.value) })} placeholder="Ex: Samsung" />
               <FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} />
               <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={2} />
               <FInput label="Site" value={form.website_url} onChange={(e: any) => setForm({ ...form, website_url: e.target.value })} />
@@ -1623,7 +1634,7 @@ function TabBrands() {
 
 /* ─────────────────────────── TAB: QUOTES ─────────────────────────── */
 
-function TabQuotes() {
+function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const { user } = useAuth();
   const [quotes, setQuotes] = useState<any[]>([]);
   const [statuses, setStatuses] = useState<any[]>([]);
@@ -1636,11 +1647,11 @@ function TabQuotes() {
   const load = async () => {
     setLoading(true);
     const [quotesResult, statusResult] = await Promise.all([
-      supabase.from("quote_requests").select("*, services(title), request_status:request_statuses(name), quote_request_items(*) ").order("created_at", { ascending: false }),
-      supabase.from("request_statuses").select("*").order("sort_order"),
+      supabase.from("quote_requests").select("id, protocol, created_at, updated_at, status_id, customer_id, service_id, brand_id, product_id, customer_message, estimated_price, final_price, request_status:request_statuses(id,name), customer:customers(id,full_name,whatsapp,email,document,phone), service:services(title), brand:brands(name)").order("created_at", { ascending: false }),
+      supabase.from("request_statuses").select("id, name, sort_order").order("sort_order"),
     ]);
     if (quotesResult.error) setToast({ msg: `Erro ao carregar orçamentos: ${quotesResult.error.message}`, type: "error" });
-    else setQuotes((quotesResult.data || []).map((quote: any) => ({ ...quote, status: quote.request_status?.name || "Sem status" })));
+    else setQuotes((quotesResult.data || []).map((q: any) => ({ ...q, statusName: q.request_status?.name || "Sem status" })));
     if (statusResult.error) setToast({ msg: `Erro ao carregar status: ${statusResult.error.message}`, type: "error" });
     else setStatuses(statusResult.data || []);
     setLoading(false);
@@ -1652,8 +1663,8 @@ function TabQuotes() {
     const { error: updateError } = await supabase.from("quote_requests").update({ status_id: statusId }).eq("id", id);
     if (updateError) { console.error("[ADMIN] quote status update error:", updateError); setToast({ msg: `Erro ao atualizar status: ${updateError.message}`, type: "error" }); return; }
     const { error: historyError } = await supabase.from("quote_status_history").insert({ quote_request_id: id, status_id: statusId, created_by: user?.id || null });
-    if (historyError) { console.error("[ADMIN] quote status history error:", historyError); setToast({ msg: `Status atualizado, mas o histórico falhou: ${historyError.message}`, type: "error" }); return; }
-    if (detail?.id === id) setDetail({ ...detail, status_id: statusId, status: selectedStatus?.name || "Sem status" });
+    if (historyError) console.warn("[ADMIN] quote status history warning:", historyError.message);
+    if (detail?.id === id) setDetail({ ...detail, status_id: statusId, statusName: selectedStatus?.name || "Sem status" });
     setToast({ msg: "Status atualizado!", type: "success" });
     load();
   };
@@ -1661,7 +1672,11 @@ function TabQuotes() {
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 
   const filtered = quotes.filter(q => {
-    const matchSearch = !search || q.name?.toLowerCase().includes(search.toLowerCase()) || q.whatsapp?.includes(search);
+    const customerName = (q.customer as any)?.full_name || "";
+    const customerWa = (q.customer as any)?.whatsapp || "";
+    const customerDoc = (q.customer as any)?.document || "";
+    const protocol = q.protocol || "";
+    const matchSearch = !search || customerName.toLowerCase().includes(search.toLowerCase()) || customerWa.includes(search) || customerDoc.includes(search) || protocol.includes(search);
     const matchStatus = !filterStatus || q.status_id === filterStatus;
     return matchSearch && matchStatus;
   });
@@ -1680,7 +1695,7 @@ function TabQuotes() {
         <div className="px-4 py-3 border-b border-[#0d1b2e]/8 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou WhatsApp..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por cliente, CPF, protocolo..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={cn(INPUT, "py-2 text-xs sm:w-48")}>
             <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -1694,9 +1709,9 @@ function TabQuotes() {
             <table className="w-full text-sm min-w-[700px]">
               <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
                 <tr>
+                  <th className="px-4 py-3 text-left">Protocolo</th>
                   <th className="px-4 py-3 text-left">Cliente</th>
-                  <th className="px-4 py-3 text-left">Contato</th>
-                  <th className="px-4 py-3 text-left">Equipamento</th>
+                  <th className="px-4 py-3 text-left">Serviço / Marca</th>
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-left">Data</th>
                   <th className="px-4 py-3 text-right">Ação</th>
@@ -1705,14 +1720,17 @@ function TabQuotes() {
               <tbody className="divide-y divide-[#0d1b2e]/5">
                 {filtered.map(q => (
                   <tr key={q.id} className="hover:bg-[#f8fafc]/80">
-                    <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{q.name}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">
-                      <div>{q.whatsapp}</div>
-                      {q.email && <div>{q.email}</div>}
+                    <td className="px-4 py-3.5">
+                      <span className="font-mono text-xs font-bold text-[#0057e7]">{q.protocol || q.id.slice(0, 8)}</span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <p className="font-bold text-[#0d1b2e] text-sm">{(q.customer as any)?.full_name || "—"}</p>
+                      <p className="text-xs text-[#5a6a82]">{(q.customer as any)?.whatsapp || ""}</p>
                     </td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">
-                      <div className="font-medium text-[#0d1b2e]">{q.brand || "—"} {q.model ? `/ ${q.model}` : ""}</div>
-                      {q.services?.title && <div className="text-[#0057e7]">{q.services.title}</div>}
+                      {(q.service as any)?.title && <div className="font-medium text-[#0d1b2e]">{(q.service as any).title}</div>}
+                      {(q.brand as any)?.name && <div>{(q.brand as any).name}</div>}
+                      {!(q.service as any)?.title && !(q.brand as any)?.name && "—"}
                     </td>
                     <td className="px-4 py-3.5">
                       <select value={q.status_id || ""} onChange={e => updateStatus(q.id, e.target.value)}
@@ -1737,22 +1755,34 @@ function TabQuotes() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl my-4">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-black text-[#0d1b2e] text-xl" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Detalhes do Orçamento</h3>
+              <div>
+                <h3 className="font-black text-[#0d1b2e] text-xl" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Orçamento</h3>
+                {detail.protocol && <p className="text-xs text-[#0057e7] font-mono font-bold">{detail.protocol}</p>}
+              </div>
               <button onClick={() => setDetail(null)} className="p-1.5 text-[#5a6a82] hover:text-[#0d1b2e] rounded-lg"><X size={20} /></button>
             </div>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Cliente</p><p className="font-bold text-[#0d1b2e]">{detail.name}</p></div>
-                <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">WhatsApp</p><p className="font-bold text-[#0d1b2e]">{detail.whatsapp}</p></div>
-                {detail.email && <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">E-mail</p><p className="font-medium text-[#0d1b2e]">{detail.email}</p></div>}
-                {detail.cep && <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">CEP</p><p className="font-medium text-[#0d1b2e]">{detail.cep}</p></div>}
-                <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Marca</p><p className="font-medium text-[#0d1b2e]">{detail.brand || "—"}</p></div>
-                <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Modelo</p><p className="font-medium text-[#0d1b2e]">{detail.model || "—"}</p></div>
+              {/* Customer info */}
+              <div className="bg-[#f8fafc] rounded-lg p-3 border border-[#0d1b2e]/8">
+                <p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Dados do cliente</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><p className="text-[10px] text-[#5a6a82]">Nome</p><p className="font-bold text-[#0d1b2e]">{(detail.customer as any)?.full_name || "—"}</p></div>
+                  <div><p className="text-[10px] text-[#5a6a82]">WhatsApp</p><p className="font-medium text-[#0d1b2e]">{(detail.customer as any)?.whatsapp || "—"}</p></div>
+                  {(detail.customer as any)?.email && <div><p className="text-[10px] text-[#5a6a82]">E-mail</p><p className="font-medium text-[#0d1b2e] text-xs">{(detail.customer as any).email}</p></div>}
+                  {(detail.customer as any)?.document && <div><p className="text-[10px] text-[#5a6a82]">CPF</p><p className="font-medium text-[#0d1b2e]">{(detail.customer as any).document}</p></div>}
+                </div>
               </div>
-              {detail.description && (
+              {/* Service / Brand */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Serviço</p><p className="font-medium text-[#0d1b2e]">{(detail.service as any)?.title || "—"}</p></div>
+                <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Marca</p><p className="font-medium text-[#0d1b2e]">{(detail.brand as any)?.name || "—"}</p></div>
+                {detail.estimated_price && <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Valor estimado</p><p className="font-bold text-[#0d1b2e]">R$ {Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p></div>}
+                {detail.final_price && <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Valor final</p><p className="font-bold text-[#0d1b2e]">R$ {Number(detail.final_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p></div>}
+              </div>
+              {detail.customer_message && (
                 <div className="bg-[#f8fafc] rounded-lg p-3 border border-[#0d1b2e]/8">
-                  <p className="text-xs text-[#5a6a82] font-semibold uppercase mb-1">Descrição do problema</p>
-                  <p className="text-sm text-[#0d1b2e]">{detail.description}</p>
+                  <p className="text-xs text-[#5a6a82] font-semibold uppercase mb-1">Mensagem do cliente</p>
+                  <p className="text-sm text-[#0d1b2e]">{detail.customer_message}</p>
                 </div>
               )}
               <div>
@@ -1763,7 +1793,27 @@ function TabQuotes() {
                 </select>
               </div>
             </div>
-            <div className="mt-5 pt-4 border-t border-[#0d1b2e]/8 text-right">
+            <div className="mt-5 pt-4 border-t border-[#0d1b2e]/8 flex items-center justify-between gap-3">
+              <button onClick={async () => {
+                if (!detail) return;
+                const { data: existing } = await supabase.from("service_orders").select("id, protocol").eq("quote_request_id", detail.id).maybeSingle();
+                if (existing) { setToast({ msg: `OS ${existing.protocol || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
+                const protocol = generateOsProtocol();
+                const { data: status } = await supabase.from("order_statuses").select("id").order("sort_order").limit(1).maybeSingle();
+                const { error } = await supabase.from("service_orders").insert({
+                  protocol, title: (detail.service as any)?.title || detail.customer_message || "Ordem de Serviço",
+                  description: detail.customer_message || null, quote_request_id: detail.id,
+                  customer_id: detail.customer_id, brand_id: detail.brand_id, product_id: detail.product_id,
+                  status_id: status?.id || null, priority: "normal", origin: "orcamento",
+                  estimated_price: detail.estimated_price || null, created_by: user?.id || null, updated_by: user?.id || null,
+                });
+                if (error) { setToast({ msg: `Erro ao criar OS: ${error.message}`, type: "error" }); return; }
+                setDetail(null);
+                setToast({ msg: `OS criada com protocolo ${protocol}! Acesse a aba Ordens de Serviço.`, type: "success" });
+                if (onNavigate) setTimeout(() => onNavigate("orders"), 1200);
+              }} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
+                <ClipboardList size={13} /> Converter em OS
+              </button>
               <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
             </div>
           </div>
@@ -1775,118 +1825,312 @@ function TabQuotes() {
 
 /* ─────────────────────────── TAB: ORDERS ─────────────────────────── */
 
-function TabOrders() {
+const PRIORITY_COLORS: Record<string, string> = {
+  baixa:   "bg-[#e8eef8] text-[#5a6a82]",
+  normal:  "bg-[#e8f5e9] text-[#2e7d32]",
+  alta:    "bg-[#fff3e0] text-[#e65100]",
+  urgente: "bg-[#ffebee] text-[#c62828]",
+};
+const PRIORITY_LABELS: Record<string, string> = { baixa: "Baixa", normal: "Normal", alta: "Alta", urgente: "Urgente" };
+
+function PriorityBadge({ priority }: { priority?: string }) {
+  const p = priority || "normal";
+  return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap", PRIORITY_COLORS[p] || PRIORITY_COLORS.normal)}>{PRIORITY_LABELS[p] || p}</span>;
+}
+
+function OSSituationsView({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
-  const [orders, setOrders] = useState<any[]>([]);
-  const [statuses, setStatuses] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [detail, setDetail] = useState<any>(null);
-  const [newStatus, setNewStatus] = useState("");
-  const [newNote, setNewNote] = useState("");
+  const [editItem, setEditItem] = useState<any>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "", is_active: true, sort_order: 0 });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [ordersResult, statusResult] = await Promise.all([
-      supabase.from("service_orders").select("*, order_status:order_statuses(name), service_order_items(*) ").order("created_at", { ascending: false }),
-      supabase.from("order_statuses").select("*").order("sort_order"),
+    const { data } = await supabase.from("os_situations").select("*").order("sort_order");
+    setItems(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const openNew = () => { setEditItem(null); setForm({ name: "", description: "", is_active: true, sort_order: items.length }); setDrawerOpen(true); };
+  const openEdit = (s: any) => { setEditItem(s); setForm({ name: s.name, description: s.description || "", is_active: s.is_active, sort_order: s.sort_order }); setDrawerOpen(true); };
+
+  const save = async () => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    const payload = { name: form.name.trim(), description: form.description || null, is_active: form.is_active, sort_order: Number(form.sort_order) };
+    const { error } = editItem
+      ? await supabase.from("os_situations").update(payload).eq("id", editItem.id)
+      : await supabase.from("os_situations").insert(payload);
+    setSaving(false);
+    if (error) { setToast({ msg: `Erro: ${error.message}`, type: "error" }); return; }
+    setToast({ msg: "Situação salva!", type: "success" });
+    setDrawerOpen(false);
+    load();
+  };
+
+  const del = async (id: string) => {
+    if (!confirm("Remover esta situação?")) return;
+    await supabase.from("os_situations").delete().eq("id", id);
+    load();
+  };
+
+  return (
+    <div className="space-y-5">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      <PageHeader title="Situações da OS" subtitle="Etapas de progresso das ordens de serviço" actions={
+        <div className="flex gap-2">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-[#5a6a82] border border-[#0d1b2e]/20 px-3 py-2 rounded-lg hover:bg-[#f5f7fa] transition-colors"><ArrowLeft size={13} /> Voltar</button>
+          <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Nova Situação</button>
+        </div>
+      } />
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+        {loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={List} title="Nenhuma situação" message="Crie situações para acompanhar as etapas das OS." /> : (
+          <table className="w-full text-sm">
+            <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
+              <tr><th className="px-4 py-3 text-left">Ordem</th><th className="px-4 py-3 text-left">Nome</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-right">Ações</th></tr>
+            </thead>
+            <tbody className="divide-y divide-[#0d1b2e]/5">
+              {items.map(s => (
+                <tr key={s.id} className="hover:bg-[#f8fafc]/80">
+                  <td className="px-4 py-3 text-[#5a6a82] text-xs font-mono">{s.sort_order}</td>
+                  <td className="px-4 py-3"><p className="font-semibold text-[#0d1b2e]">{s.name}</p>{s.description && <p className="text-xs text-[#5a6a82]">{s.description}</p>}</td>
+                  <td className="px-4 py-3"><span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", s.is_active ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{s.is_active ? "Ativa" : "Inativa"}</span></td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => openEdit(s)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#e8eef8] rounded-lg"><Edit2 size={14} /></button>
+                      <button onClick={() => del(s.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {drawerOpen && (
+        <Drawer open={true} onClose={() => setDrawerOpen(false)} title={editItem ? "Editar Situação" : "Nova Situação"} maxW="max-w-md">
+          <div className="p-5 space-y-4">
+            <FInput label="Nome" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Em análise" />
+            <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={2} />
+            <FInput label="Ordem de exibição" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} />
+            <FToggle label="Situação ativa" checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} />
+          </div>
+          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+            <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
+            <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>
+          </div>
+        </Drawer>
+      )}
+    </div>
+  );
+}
+
+function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
+  const { user } = useAuth();
+  const [subView, setSubView] = useState<"list" | "situations">("list");
+  const [orders, setOrders] = useState<any[]>([]);
+  const [statuses, setStatuses] = useState<any[]>([]);
+  const [situations, setSituations] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterSituation, setFilterSituation] = useState("");
+  const [filterPriority, setFilterPriority] = useState("");
+  const [detail, setDetail] = useState<any>(null);
+  const [detailHistory, setDetailHistory] = useState<any[]>([]);
+  const [detailNewStatus, setDetailNewStatus] = useState("");
+  const [detailNewNote, setDetailNewNote] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingOS, setEditingOS] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerResults, setCustomerResults] = useState<any[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+
+  const emptyForm = { title: "", description: "", diagnosis: "", solution: "", notes: "", status_id: "", situation_id: "", priority: "normal", origin: "manual", customer_id: "", brand_id: "", product_id: "", model: "", serial_number: "", accessories: "", equipment_condition: "", assigned_to: "", scheduled_date: "", completion_date: "", estimated_price: "", final_price: "" };
+  const [form, setForm] = useState(emptyForm);
+  const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const load = async () => {
+    setLoading(true);
+    const [ordRes, statRes, sitRes, profRes, brandRes, prodRes] = await Promise.all([
+      supabase.from("service_orders").select("*, order_status:order_statuses(id,name), situation:os_situations(id,name), customer:customers(id,full_name,phone,whatsapp,document,email), brand:brands(id,name), product:products(id,name), assigned_profile:profiles!assigned_to(id,full_name)").order("created_at", { ascending: false }),
+      supabase.from("order_statuses").select("id,name,sort_order").order("sort_order"),
+      supabase.from("os_situations").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
+      supabase.from("profiles").select("id,full_name").order("full_name"),
+      supabase.from("brands").select("id,name").eq("is_active", true).order("name"),
+      supabase.from("products").select("id,name").eq("is_active", true).order("name"),
     ]);
-    if (ordersResult.error) setToast({ msg: `Erro ao carregar OS: ${ordersResult.error.message}`, type: "error" });
-    else setOrders((ordersResult.data || []).map((order: any) => ({ ...order, status: order.order_status?.name || "Sem status" })));
-    if (statusResult.error) setToast({ msg: `Erro ao carregar status: ${statusResult.error.message}`, type: "error" });
-    else setStatuses(statusResult.data || []);
+    if (ordRes.error) setToast({ msg: `Erro ao carregar OS: ${ordRes.error.message}`, type: "error" });
+    else setOrders(ordRes.data || []);
+    setStatuses(statRes.data || []);
+    setSituations(sitRes.data || []);
+    setProfiles(profRes.data || []);
+    setBrands(brandRes.data || []);
+    setProducts(prodRes.data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
   const openDetail = async (o: any) => {
-    const { data: history, error } = await supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at");
-    if (error) { setToast({ msg: `Erro ao carregar histórico: ${error.message}`, type: "error" }); return; }
-    setDetail({ ...o, history: history || [] }); setNewStatus(o.status_id || ""); setNewNote("");
+    const { data: hist } = await supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false });
+    setDetailHistory(hist || []);
+    setDetailNewStatus(o.status_id || "");
+    setDetailNewNote("");
+    setDetail(o);
   };
 
-  const handleUpdate = async () => {
-    if (!detail) return;
+  const openNew = () => {
+    setEditingOS(null); setForm(emptyForm); setSelectedCustomer(null); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
+  };
+
+  const openEdit = (o: any) => {
+    setEditingOS(o);
+    setForm({ title: o.title || "", description: o.description || "", diagnosis: o.diagnosis || "", solution: o.solution || "", notes: o.notes || "", status_id: o.status_id || "", situation_id: o.situation_id || "", priority: o.priority || "normal", origin: o.origin || "manual", customer_id: o.customer_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", assigned_to: o.assigned_to || "", scheduled_date: o.scheduled_date ? o.scheduled_date.slice(0, 10) : "", completion_date: o.completion_date ? o.completion_date.slice(0, 10) : "", estimated_price: o.estimated_price ?? "", final_price: o.final_price ?? "" });
+    setSelectedCustomer((o.customer as any) || null);
+    setCustomerSearch(""); setCustomerResults([]);
+    setFormOpen(true);
+  };
+
+  const saveOS = async () => {
+    if (!form.title.trim()) { setToast({ msg: "Informe o título da OS.", type: "error" }); return; }
+    const cid = selectedCustomer?.id || form.customer_id;
+    if (!cid) { setToast({ msg: "Selecione um cliente.", type: "error" }); return; }
     setSaving(true);
-    if (!newStatus) { setToast({ msg: "Selecione um status.", type: "error" }); setSaving(false); return; }
-    const { error: updateError } = await supabase.from("service_orders").update({ status_id: newStatus, updated_by: user?.id || null }).eq("id", detail.id);
-    if (updateError) { console.error("[ADMIN] service_orders update error:", updateError); setSaving(false); setToast({ msg: `Erro ao atualizar OS: ${updateError.message}`, type: "error" }); return; }
-    const { error: historyError } = await supabase.from("service_order_status_history").insert({ service_order_id: detail.id, status_id: newStatus, notes: newNote || null, is_visible_to_customer: Boolean(newNote), created_by: user?.id || null });
-    if (historyError) { console.error("[ADMIN] service order history error:", historyError); setSaving(false); setToast({ msg: `Status atualizado, mas o histórico falhou: ${historyError.message}`, type: "error" }); return; }
+    const protocol = editingOS?.protocol || generateOsProtocol();
+    const payload: any = { protocol, title: form.title.trim(), description: form.description || null, diagnosis: form.diagnosis || null, solution: form.solution || null, notes: form.notes || null, status_id: form.status_id || null, situation_id: form.situation_id || null, priority: form.priority, origin: form.origin, customer_id: cid, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, serial_number: form.serial_number || null, accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, assigned_to: form.assigned_to || null, scheduled_date: form.scheduled_date || null, completion_date: form.completion_date || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, final_price: form.final_price ? Number(form.final_price) : null, updated_by: user?.id || null };
+    let error;
+    if (editingOS) {
+      const r = await supabase.from("service_orders").update(payload).eq("id", editingOS.id);
+      error = r.error;
+    } else {
+      const r = await supabase.from("service_orders").insert({ ...payload, created_by: user?.id || null });
+      error = r.error;
+    }
     setSaving(false);
-    setToast({ msg: "OS atualizada com sucesso!", type: "success" });
-    setDetail(null);
-    load();
+    if (error) { setToast({ msg: `Erro ao salvar OS: ${error.message}`, type: "error" }); return; }
+    setToast({ msg: `OS ${editingOS ? "atualizada" : "criada"} com sucesso!`, type: "success" });
+    setFormOpen(false); setDetail(null); load();
   };
 
-  const fmtDate = (d?: string) => {
+  const updateStatus = async (statusId: string, note: string) => {
+    if (!detail) return;
+    const { error: e1 } = await supabase.from("service_orders").update({ status_id: statusId, updated_by: user?.id || null }).eq("id", detail.id);
+    if (e1) { setToast({ msg: `Erro: ${e1.message}`, type: "error" }); return; }
+    await supabase.from("service_order_status_history").insert({ service_order_id: detail.id, status_id: statusId, notes: note || null, is_visible_to_customer: Boolean(note), created_by: user?.id || null });
+    setToast({ msg: "Status atualizado!", type: "success" });
+    const updated = orders.map(o => o.id === detail.id ? { ...o, status_id: statusId } : o);
+    setOrders(updated);
+    setDetail(null); load();
+  };
+
+  const searchCustomers = async (q: string) => {
+    setCustomerSearch(q);
+    if (q.length < 2) { setCustomerResults([]); return; }
+    const { data } = await supabase.from("customers").select("id,full_name,document,whatsapp,phone").or(`full_name.ilike.%${q}%,document.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
+    setCustomerResults(data || []);
+  };
+
+  const fmtDate = (d?: string | null, time = false) => {
     if (!d) return "—";
-    return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", ...(time ? { hour: "2-digit", minute: "2-digit" } : {}) });
   };
-
-  const uniqueStatuses = statuses;
 
   const filtered = orders.filter(o => {
-    const matchSearch = !search || (o.id + "").toLowerCase().includes(search.toLowerCase()) || (o.service_name || "").toLowerCase().includes(search.toLowerCase()) || (o.description || "").toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchSearch = !search || (o.protocol || "").toLowerCase().includes(q) || (o.title || "").toLowerCase().includes(q) || ((o.customer as any)?.full_name || "").toLowerCase().includes(q) || (o.model || "").toLowerCase().includes(q);
     const matchStatus = !filterStatus || o.status_id === filterStatus;
-    return matchSearch && matchStatus;
+    const matchSituation = !filterSituation || o.situation_id === filterSituation;
+    const matchPriority = !filterPriority || o.priority === filterPriority;
+    return matchSearch && matchStatus && matchSituation && matchPriority;
   });
 
-  const ORDER_STATUS_STEPS = ["Solicitação recebida", "Em análise", "Aguardando aprovação", "Em manutenção", "Pronto", "Finalizado"];
+  if (subView === "situations") return <OSSituationsView onBack={() => setSubView("list")} />;
+
+  const InfoRow = ({ label, value }: { label: string; value?: string | null }) =>
+    value ? <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-0.5">{label}</p><p className="text-sm font-medium text-[#0d1b2e]">{value}</p></div> : null;
 
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <PageHeader title="Ordens de Serviço" subtitle={`${orders.length} OS cadastrada${orders.length !== 1 ? "s" : ""}`} actions={
-        <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
-          <RefreshCw size={13} /> Atualizar
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setSubView("situations")} className="flex items-center gap-1.5 text-xs text-[#5a6a82] border border-[#0d1b2e]/20 px-3 py-2 rounded-lg hover:bg-[#f5f7fa]"><List size={13} /> Situações</button>
+          <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0]"><Plus size={13} /> Nova OS</button>
+          <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5"><RefreshCw size={13} /> Atualizar</button>
+        </div>
       } />
 
-      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#0d1b2e]/8 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nº da OS, serviço..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
-          </div>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={cn(INPUT, "py-2 text-xs sm:w-52")}>
-            <option value="">Todos os status</option>{uniqueStatuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar OS, cliente, modelo..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
         </div>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={cn(INPUT, "py-2 text-xs")}>
+          <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <select value={filterSituation} onChange={e => setFilterSituation(e.target.value)} className={cn(INPUT, "py-2 text-xs")}>
+          <option value="">Todas as situações</option>{situations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className={cn(INPUT, "py-2 text-xs")}>
+          <option value="">Todas as prioridades</option>
+          {[["baixa","Baixa"],["normal","Normal"],["alta","Alta"],["urgente","Urgente"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </div>
 
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message="Ordens de serviço criadas aparecerão aqui." />
+          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={search || filterStatus || filterSituation || filterPriority ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão + Nova OS."} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[700px]">
+            <table className="w-full text-sm min-w-[900px]">
               <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
                 <tr>
-                  <th className="px-4 py-3 text-left">OS</th>
-                  <th className="px-4 py-3 text-left">Serviço / Descrição</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Criada em</th>
-                  <th className="px-4 py-3 text-left">Atualizada</th>
-                  <th className="px-4 py-3 text-right">Ação</th>
+                  <th className="px-4 py-3 text-left w-28">Protocolo</th>
+                  <th className="px-4 py-3 text-left">Cliente</th>
+                  <th className="px-4 py-3 text-left">Título / Equipamento</th>
+                  <th className="px-4 py-3 text-left w-28">Status</th>
+                  <th className="px-4 py-3 text-left w-32">Situação</th>
+                  <th className="px-4 py-3 text-left w-24">Prioridade</th>
+                  <th className="px-4 py-3 text-left w-28">Abertura</th>
+                  <th className="px-4 py-3 text-right w-28">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
                 {filtered.map(o => (
                   <tr key={o.id} className="hover:bg-[#f8fafc]/80">
                     <td className="px-4 py-3.5">
-                      <span className="font-black text-[#0057e7] text-sm">#{typeof o.id === "string" ? o.id.slice(0, 8) : o.id}</span>
+                      <span className="font-mono text-xs font-black text-[#0057e7]">{o.protocol || o.id.slice(0, 8)}</span>
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="font-semibold text-[#0d1b2e]">{o.service_name || o.description || "Assistência Técnica"}</p>
+                      <p className="font-semibold text-[#0d1b2e] text-sm">{(o.customer as any)?.full_name || "—"}</p>
+                      <p className="text-[11px] text-[#5a6a82]">{(o.customer as any)?.whatsapp || (o.customer as any)?.phone || ""}</p>
                     </td>
-                    <td className="px-4 py-3.5"><StatusBadge status={o.status || "Em andamento"} /></td>
+                    <td className="px-4 py-3.5">
+                      <p className="font-medium text-[#0d1b2e] text-sm">{o.title || "—"}</p>
+                      <p className="text-[11px] text-[#5a6a82]">{[(o.brand as any)?.name, o.model].filter(Boolean).join(" · ") || ""}</p>
+                    </td>
+                    <td className="px-4 py-3.5"><StatusBadge status={(o.order_status as any)?.name || "—"} /></td>
+                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{(o.situation as any)?.name || "—"}</td>
+                    <td className="px-4 py-3.5"><PriorityBadge priority={o.priority} /></td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(o.created_at)}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(o.updated_at)}</td>
                     <td className="px-4 py-3.5">
-                      <button onClick={() => openDetail(o)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Gerenciar</button>
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => openDetail(o)} className="p-1.5 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Ver detalhes"><AlertCircle size={14} /></button>
+                        <button onClick={() => openEdit(o)} className="p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa] rounded-lg" title="Editar"><Edit2 size={14} /></button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1896,78 +2140,392 @@ function TabOrders() {
         )}
       </div>
 
-      {/* Order Detail Drawer */}
+      {/* OS Detail Drawer */}
       {detail && (
-        <Drawer open={true} onClose={() => setDetail(null)} title={`OS #${typeof detail.id === "string" ? detail.id.slice(0, 8) : detail.id}`} subtitle={detail.service_name || detail.description || "Ordem de Serviço"} maxW="max-w-2xl">
-          <div className="p-5 space-y-4">
-            {/* Info cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#f8fafc] rounded-lg p-3 border border-[#0d1b2e]/8">
-                <p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Status atual</p>
-                <StatusBadge status={detail.status || "—"} />
+        <Drawer open={true} onClose={() => setDetail(null)} title={detail.protocol || `OS #${detail.id.slice(0,8)}`} subtitle={detail.title || "Ordem de Serviço"} maxW="max-w-2xl">
+            <div className="p-5 space-y-5">
+              <div className="flex flex-wrap gap-2 items-center">
+                <StatusBadge status={(detail.order_status as any)?.name || "—"} />
+                <PriorityBadge priority={detail.priority} />
+                {(detail.situation as any)?.name && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#e8eef8] text-[#0057e7]">{(detail.situation as any).name}</span>}
+                {detail.origin === "orcamento" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Via Orçamento</span>}
               </div>
-              <div className="bg-[#f8fafc] rounded-lg p-3 border border-[#0d1b2e]/8">
-                <p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Criada em</p>
-                <p className="text-sm font-semibold text-[#0d1b2e]">{fmtDate(detail.created_at)}</p>
-              </div>
-            </div>
-
-            {/* Status Timeline */}
-            <Section title="Linha do tempo">
-              <div className="space-y-0">
-                {ORDER_STATUS_STEPS.map((step, idx) => {
-                  const history: any[] = Array.isArray(detail.history) ? detail.history : [];
-                  const historyEntry = history.find((h: any) => h.order_status?.name === step);
-                  const currentIdx = ORDER_STATUS_STEPS.findIndex(s => s === detail.status);
-                  const done = idx <= currentIdx;
-                  const isCurrent = idx === currentIdx;
-                  return (
-                    <div key={step} className="flex gap-3 pb-4 last:pb-0">
-                      <div className="flex flex-col items-center">
-                        <div className={cn("w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold transition-colors",
-                          isCurrent ? "bg-[#0057e7] text-white ring-4 ring-[#0057e7]/20" : done ? "bg-[#0057e7] text-white" : "bg-[#f5f7fa] text-[#5a6a82] border-2 border-[#0d1b2e]/15")}>
-                          {done ? <CheckCircle size={14} /> : idx + 1}
-                        </div>
-                        {idx < ORDER_STATUS_STEPS.length - 1 && <div className={cn("w-0.5 flex-1 min-h-4 mt-1", done ? "bg-[#0057e7]" : "bg-[#0d1b2e]/10")} />}
-                      </div>
-                      <div className="flex-1 pb-1">
-                        <p className={cn("font-semibold text-sm", done ? "text-[#0d1b2e]" : "text-[#5a6a82]")}>{step}</p>
-                        {historyEntry?.created_at && <p className="text-[10px] text-[#5a6a82]">{fmtDate(historyEntry.created_at)}</p>}
-                        {historyEntry?.notes && <p className="text-xs text-[#5a6a82] mt-0.5 italic">{historyEntry.notes}</p>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
-
-            {/* Update status */}
-            <Section title="Atualizar status">
-              <div className="space-y-3">
-                <FSelect label="Novo status" value={newStatus} onChange={(e: any) => setNewStatus(e.target.value)}
-                  options={[{ value: "", label: "Selecionar status..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
-                <FTextarea label="Observação para o cliente (visível na consulta pública)" value={newNote} onChange={(e: any) => setNewNote(e.target.value)} rows={3} placeholder="Mensagem que o cliente verá ao consultar a OS..." />
-              </div>
-            </Section>
-
-            {/* Extra info */}
-            {(detail.description || detail.service_name) && (
-              <Section title="Dados da OS">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  {detail.service_name && <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Serviço</p><p className="font-medium text-[#0d1b2e]">{detail.service_name}</p></div>}
-                  {detail.description && <div className="sm:col-span-2"><p className="text-xs text-[#5a6a82] font-semibold uppercase">Descrição</p><p className="font-medium text-[#0d1b2e]">{detail.description}</p></div>}
-                  {detail.total && <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Valor</p><p className="font-bold text-[#0d1b2e]">R$ {Number(detail.total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p></div>}
+              <Section title="Cliente">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <InfoRow label="Nome" value={(detail.customer as any)?.full_name} />
+                  <InfoRow label="CPF/Documento" value={(detail.customer as any)?.document} />
+                  <InfoRow label="WhatsApp" value={(detail.customer as any)?.whatsapp} />
+                  <InfoRow label="Telefone" value={(detail.customer as any)?.phone} />
+                  <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
                 </div>
               </Section>
+              {(detail.brand_id || detail.product_id || detail.model || detail.serial_number || detail.accessories || detail.equipment_condition) && (
+                <Section title="Equipamento">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <InfoRow label="Marca" value={(detail.brand as any)?.name} />
+                    <InfoRow label="Produto" value={(detail.product as any)?.name} />
+                    <InfoRow label="Modelo" value={detail.model} />
+                    <InfoRow label="Nº de Série" value={detail.serial_number} />
+                    <InfoRow label="Acessórios recebidos" value={detail.accessories} />
+                    <InfoRow label="Estado do equipamento" value={detail.equipment_condition} />
+                  </div>
+                </Section>
+              )}
+              <Section title="Problema e Diagnóstico">
+                <div className="space-y-3">
+                  <InfoRow label="Problema relatado" value={detail.description} />
+                  <InfoRow label="Diagnóstico" value={detail.diagnosis} />
+                  <InfoRow label="Solução aplicada" value={detail.solution} />
+                </div>
+              </Section>
+              {(detail.estimated_price || detail.final_price) && (
+                <Section title="Valores">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {detail.estimated_price && <InfoRow label="Valor estimado" value={`R$ ${Number(detail.estimated_price).toLocaleString("pt-BR",{minimumFractionDigits:2})}`} />}
+                    {detail.final_price && <InfoRow label="Valor final" value={`R$ ${Number(detail.final_price).toLocaleString("pt-BR",{minimumFractionDigits:2})}`} />}
+                  </div>
+                </Section>
+              )}
+              <Section title="Datas e Responsável">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <InfoRow label="Abertura" value={fmtDate(detail.created_at, true)} />
+                  <InfoRow label="Previsão" value={fmtDate(detail.scheduled_date)} />
+                  <InfoRow label="Conclusão" value={fmtDate(detail.completion_date)} />
+                  <InfoRow label="Responsável" value={(detail.assigned_profile as any)?.full_name} />
+                </div>
+              </Section>
+              <Section title="Histórico">
+                {detailHistory.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum registro de alteração.</p> : (
+                  <div className="space-y-2">
+                    {detailHistory.map((h: any) => (
+                      <div key={h.id} className="flex gap-3 text-xs">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#0057e7] mt-1.5 flex-shrink-0" />
+                        <div>
+                          <span className="font-bold text-[#0d1b2e]">{(h.order_status as any)?.name || "Status alterado"}</span>
+                          {h.notes && <span className="text-[#5a6a82] ml-1">— {h.notes}</span>}
+                          <p className="text-[#5a6a82] text-[10px]">{fmtDate(h.created_at, true)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+              {detail.notes && <Section title="Observações"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.notes}</p></Section>}
+              <Section title="Atualizar Status">
+                <div className="space-y-3">
+                  <FSelect label="Novo status" value={detailNewStatus} onChange={(e: any) => setDetailNewStatus(e.target.value)} options={[{ value: "", label: "Selecionar..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
+                  <FTextarea label="Observação (visível ao cliente)" value={detailNewNote} onChange={(e: any) => setDetailNewNote(e.target.value)} rows={2} placeholder="Mensagem opcional..." />
+                </div>
+              </Section>
+            </div>
+            <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
+              <button onClick={() => { setDetail(null); openEdit(detail); }} className="flex items-center gap-1.5 text-xs font-bold text-[#5a6a82] border border-[#0d1b2e]/20 px-3 py-2 rounded-lg hover:bg-[#f5f7fa]"><Edit2 size={13} /> Editar OS</button>
+              <div className="flex gap-2">
+                <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
+                <BtnPrimary onClick={() => updateStatus(detailNewStatus, detailNewNote)} disabled={!detailNewStatus || saving}><CheckCircle size={14} /> Salvar Status</BtnPrimary>
+              </div>
+            </div>
+        </Drawer>
+      )}
+
+      {/* OS Create/Edit Form Drawer */}
+      {formOpen && (
+        <Drawer open={true} onClose={() => setFormOpen(false)} title={editingOS ? `Editar OS — ${editingOS.protocol || editingOS.id.slice(0,8)}` : "Nova Ordem de Serviço"} maxW="max-w-2xl">
+          <div className="p-5 space-y-5">
+            {/* Cliente */}
+            <Section title="Cliente">
+              {selectedCustomer ? (
+                <div className="flex items-start justify-between bg-[#f8fafc] rounded-lg p-3 border border-[#0d1b2e]/8">
+                  <div>
+                    <p className="font-bold text-[#0d1b2e]">{selectedCustomer.full_name}</p>
+                    <p className="text-xs text-[#5a6a82]">{selectedCustomer.document} {selectedCustomer.whatsapp && `· ${selectedCustomer.whatsapp}`}</p>
+                  </div>
+                  <button onClick={() => { setSelectedCustomer(null); upF("customer_id", ""); }} className="text-xs text-red-500 hover:underline">Trocar</button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+                    <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+                  </div>
+                  {customerResults.length > 0 && (
+                    <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
+                      {customerResults.map(c => (
+                        <button key={c.id} onClick={() => { setSelectedCustomer(c); upF("customer_id", c.id); setCustomerResults([]); setCustomerSearch(""); }} className="w-full text-left px-3 py-2 hover:bg-[#e8eef8] border-b last:border-b-0 border-[#0d1b2e]/5">
+                          <p className="font-semibold text-sm text-[#0d1b2e]">{c.full_name}</p>
+                          <p className="text-xs text-[#5a6a82]">{c.document} {c.whatsapp && `· ${c.whatsapp}`}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </Section>
+
+            {/* Informações Básicas */}
+            <Section title="Informações da OS">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2"><FInput label="Título" value={form.title} required onChange={(e: any) => upF("title", e.target.value)} placeholder="Ex: Manutenção de ar-condicionado" /></div>
+                <FSelect label="Status" value={form.status_id} onChange={(e: any) => upF("status_id", e.target.value)} options={[{ value: "", label: "Selecionar status..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
+                <FSelect label="Situação" value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...situations.map(s => ({ value: s.id, label: s.name }))]} />
+                <FSelect label="Prioridade" value={form.priority} onChange={(e: any) => upF("priority", e.target.value)} options={[["baixa","Baixa"],["normal","Normal"],["alta","Alta"],["urgente","Urgente"]].map(([v,l]) => ({ value: v, label: l }))} />
+                <FSelect label="Responsável" value={form.assigned_to} onChange={(e: any) => upF("assigned_to", e.target.value)} options={[{ value: "", label: "Sem responsável" }, ...profiles.map(p => ({ value: p.id, label: p.full_name || p.id }))]} />
+                <FInput label="Data prevista" type="date" value={form.scheduled_date} onChange={(e: any) => upF("scheduled_date", e.target.value)} />
+                <FInput label="Data de conclusão" type="date" value={form.completion_date} onChange={(e: any) => upF("completion_date", e.target.value)} />
+              </div>
+            </Section>
+
+            {/* Equipamento */}
+            <Section title="Equipamento">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <FSelect label="Marca" value={form.brand_id} onChange={(e: any) => upF("brand_id", e.target.value)} options={[{ value: "", label: "Selecionar marca..." }, ...brands.map(b => ({ value: b.id, label: b.name }))]} />
+                <FSelect label="Produto" value={form.product_id} onChange={(e: any) => upF("product_id", e.target.value)} options={[{ value: "", label: "Selecionar produto..." }, ...products.map(p => ({ value: p.id, label: p.name }))]} />
+                <FInput label="Modelo" value={form.model} onChange={(e: any) => upF("model", e.target.value)} placeholder="Ex: Split 12.000 BTU" />
+                <FInput label="Nº de Série" value={form.serial_number} onChange={(e: any) => upF("serial_number", e.target.value)} placeholder="SN123456" />
+                <FInput label="Acessórios recebidos" value={form.accessories} onChange={(e: any) => upF("accessories", e.target.value)} placeholder="Controle remoto, cabo..." />
+                <FInput label="Estado do equipamento" value={form.equipment_condition} onChange={(e: any) => upF("equipment_condition", e.target.value)} placeholder="Amassado, riscado..." />
+              </div>
+            </Section>
+
+            {/* Problema / Diagnóstico / Solução */}
+            <Section title="Problema e Diagnóstico">
+              <div className="space-y-4">
+                <FTextarea label="Problema relatado" value={form.description} onChange={(e: any) => upF("description", e.target.value)} rows={3} placeholder="Descrição do problema informado pelo cliente..." />
+                <FTextarea label="Diagnóstico" value={form.diagnosis} onChange={(e: any) => upF("diagnosis", e.target.value)} rows={3} placeholder="Diagnóstico técnico após análise..." />
+                <FTextarea label="Solução aplicada" value={form.solution} onChange={(e: any) => upF("solution", e.target.value)} rows={3} placeholder="Solução ou serviço realizado..." />
+              </div>
+            </Section>
+
+            {/* Valores */}
+            <Section title="Valores">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <FInput label="Valor estimado (R$)" type="number" min="0" step="0.01" value={form.estimated_price} onChange={(e: any) => upF("estimated_price", e.target.value)} placeholder="0,00" />
+                <FInput label="Valor final (R$)" type="number" min="0" step="0.01" value={form.final_price} onChange={(e: any) => upF("final_price", e.target.value)} placeholder="0,00" />
+              </div>
+            </Section>
+
+            {/* Observações */}
+            <Section title="Observações Internas">
+              <FTextarea label="Observações" value={form.notes} onChange={(e: any) => upF("notes", e.target.value)} rows={3} placeholder="Informações internas sobre esta OS..." />
+            </Section>
+          </div>
+          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+            <BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>
+            <BtnPrimary onClick={saveOS} disabled={saving}>{saving ? <Clock size={14} className="animate-spin" /> : <CheckCircle size={14} />}{saving ? "Salvando..." : editingOS ? "Salvar alterações" : "Criar OS"}</BtnPrimary>
+          </div>
+        </Drawer>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────── TAB: CUSTOMERS ─────────────────────────── */
+
+function TabCustomers() {
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [detail, setDetail] = useState<any>(null);
+  const [detailQuotes, setDetailQuotes] = useState<any[]>([]);
+  const [detailOrders, setDetailOrders] = useState<any[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({ full_name: "", email: "", phone: "", whatsapp: "", document: "" });
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+    if (error) setToast({ msg: `Erro ao carregar clientes: ${error.message}`, type: "error" });
+    else setCustomers(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const openDetail = async (c: any) => {
+    setDetail(c);
+    setEditForm({ full_name: c.full_name || "", email: c.email || "", phone: c.phone || "", whatsapp: c.whatsapp || "", document: c.document || "" });
+    setEditMode(false);
+    setDetailLoading(true);
+    const [quotesRes, ordersRes] = await Promise.all([
+      supabase.from("quote_requests").select("id, protocol, created_at, status_id, estimated_price, final_price, customer_message, request_status:request_statuses(name), service:services(title), brand:brands(name)").eq("customer_id", c.id).order("created_at", { ascending: false }),
+      supabase.from("service_orders").select("id, title, description, created_at, scheduled_date, completion_date, notes, status_id, order_status:order_statuses(name)").eq("customer_id", c.id).order("created_at", { ascending: false }),
+    ]);
+    setDetailQuotes(quotesRes.data || []);
+    setDetailOrders(ordersRes.data || []);
+    setDetailLoading(false);
+  };
+
+  const handleSave = async () => {
+    if (!editForm.full_name.trim()) { setToast({ msg: "Nome é obrigatório.", type: "error" }); return; }
+    setSaving(true);
+    const { error } = await supabase.from("customers").update({ full_name: editForm.full_name.trim(), email: editForm.email || null, phone: editForm.phone || null, whatsapp: editForm.whatsapp || null, document: editForm.document ? editForm.document.replace(/\D/g, "") : null }).eq("id", detail.id);
+    if (error) { setToast({ msg: `Erro ao salvar: ${error.message}`, type: "error" }); setSaving(false); return; }
+    setToast({ msg: "Cliente atualizado!", type: "success" });
+    setSaving(false);
+    setEditMode(false);
+    load();
+    openDetail({ ...detail, ...editForm, document: editForm.document ? editForm.document.replace(/\D/g, "") : null });
+  };
+
+  const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
+
+  const normalizeDoc = (doc: string) => doc.replace(/\D/g, "");
+
+  const filtered = customers.filter(c => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (c.full_name || "").toLowerCase().includes(s) || (c.whatsapp || "").includes(search) || (c.email || "").toLowerCase().includes(s) || normalizeDoc(c.document || "").includes(normalizeDoc(search));
+  });
+
+  return (
+    <div className="space-y-5">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+      <PageHeader title="Clientes" subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`} actions={
+        <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
+          <RefreshCw size={13} /> Atualizar
+        </button>
+      } />
+
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#0d1b2e]/8">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+          </div>
+        </div>
+
+        {loading ? <LoadingState /> : filtered.length === 0 ? (
+          <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
+              <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
+                <tr>
+                  <th className="px-4 py-3 text-left">Nome</th>
+                  <th className="px-4 py-3 text-left">CPF</th>
+                  <th className="px-4 py-3 text-left">WhatsApp</th>
+                  <th className="px-4 py-3 text-left">E-mail</th>
+                  <th className="px-4 py-3 text-left">Cadastrado em</th>
+                  <th className="px-4 py-3 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#0d1b2e]/5">
+                {filtered.map(c => (
+                  <tr key={c.id} className="hover:bg-[#f8fafc]/80">
+                    <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{c.full_name}</td>
+                    <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]">{c.document ? c.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "—"}</td>
+                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{c.whatsapp || "—"}</td>
+                    <td className="px-4 py-3.5 text-xs text-[#5a6a82] truncate max-w-[160px]">{c.email || "—"}</td>
+                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(c.created_at)}</td>
+                    <td className="px-4 py-3.5">
+                      <button onClick={() => openDetail(c)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Customer Detail Drawer */}
+      {detail && (
+        <Drawer open={true} onClose={() => setDetail(null)} title={detail.full_name} subtitle={detail.document ? detail.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "Cliente"} maxW="max-w-2xl">
+          <div className="p-5 space-y-5">
+            {/* Customer info */}
+            <Section title="Informações do cliente">
+              {editMode ? (
+                <div className="space-y-3">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <FInput label="Nome completo" value={editForm.full_name} required onChange={(e: any) => setEditForm({ ...editForm, full_name: e.target.value })} />
+                    <FInput label="CPF" value={editForm.document} onChange={(e: any) => setEditForm({ ...editForm, document: e.target.value })} placeholder="000.000.000-00" />
+                    <FInput label="WhatsApp" value={editForm.whatsapp} onChange={(e: any) => setEditForm({ ...editForm, whatsapp: e.target.value })} />
+                    <FInput label="Telefone" value={editForm.phone} onChange={(e: any) => setEditForm({ ...editForm, phone: e.target.value })} />
+                    <div className="sm:col-span-2"><FInput label="E-mail" type="email" value={editForm.email} onChange={(e: any) => setEditForm({ ...editForm, email: e.target.value })} /></div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</BtnPrimary>
+                    <BtnSecondary onClick={() => setEditMode(false)}>Cancelar</BtnSecondary>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="grid sm:grid-cols-2 gap-3 text-sm mb-3">
+                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Nome</p><p className="font-bold text-[#0d1b2e]">{detail.full_name}</p></div>
+                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">CPF</p><p className="font-medium text-[#0d1b2e]">{detail.document ? detail.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "—"}</p></div>
+                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">WhatsApp</p><p className="font-medium text-[#0d1b2e]">{detail.whatsapp || "—"}</p></div>
+                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Telefone</p><p className="font-medium text-[#0d1b2e]">{detail.phone || "—"}</p></div>
+                    <div className="sm:col-span-2"><p className="text-[10px] text-[#5a6a82] font-bold uppercase">E-mail</p><p className="font-medium text-[#0d1b2e]">{detail.email || "—"}</p></div>
+                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Cadastrado em</p><p className="font-medium text-[#0d1b2e]">{fmtDate(detail.created_at)}</p></div>
+                  </div>
+                  <button onClick={() => setEditMode(true)} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
+                    <Edit2 size={12} /> Editar dados
+                  </button>
+                </div>
+              )}
+            </Section>
+
+            {detailLoading ? <LoadingState text="Carregando histórico..." /> : (
+              <>
+                {/* Quotes */}
+                <Section title={`Orçamentos (${detailQuotes.length})`}>
+                  {detailQuotes.length === 0 ? (
+                    <p className="text-xs text-[#5a6a82]">Nenhum orçamento para este cliente.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {detailQuotes.map(q => (
+                        <div key={q.id} className="bg-[#f8fafc] border border-[#0d1b2e]/8 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-mono text-xs font-bold text-[#0057e7]">{q.protocol || q.id.slice(0, 8)}</span>
+                            <StatusBadge status={(q.request_status as any)?.name || "—"} />
+                          </div>
+                          <p className="text-xs text-[#5a6a82]">{(q.service as any)?.title || "Serviço não informado"}{(q.brand as any)?.name ? ` — ${(q.brand as any).name}` : ""}</p>
+                          {q.customer_message && <p className="text-xs text-[#0d1b2e] mt-1 italic">&quot;{q.customer_message}&quot;</p>}
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-[#5a6a82]">
+                            <span>{fmtDate(q.created_at)}</span>
+                            {q.estimated_price && <span>Est: R$ {Number(q.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>}
+                            {q.final_price && <span>Final: R$ {Number(q.final_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Section>
+
+                {/* Orders */}
+                <Section title={`Ordens de Serviço (${detailOrders.length})`}>
+                  {detailOrders.length === 0 ? (
+                    <p className="text-xs text-[#5a6a82]">Nenhuma OS para este cliente.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {detailOrders.map(o => (
+                        <div key={o.id} className="bg-[#f8fafc] border border-[#0d1b2e]/8 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-black text-xs text-[#0057e7]">#{o.id.slice(0, 8)}</span>
+                            <StatusBadge status={(o.order_status as any)?.name || "—"} />
+                          </div>
+                          <p className="text-xs font-semibold text-[#0d1b2e]">{o.title}</p>
+                          {o.description && <p className="text-xs text-[#5a6a82] mt-0.5">{o.description}</p>}
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-[#5a6a82]">
+                            <span>Criada: {fmtDate(o.created_at)}</span>
+                            {o.scheduled_date && <span>Agendado: {fmtDate(o.scheduled_date)}</span>}
+                            {o.completion_date && <span>Concluído: {fmtDate(o.completion_date)}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Section>
+              </>
             )}
           </div>
 
-          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-6 py-4 flex justify-end gap-3">
+          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-6 py-4 text-right">
             <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
-            <BtnPrimary onClick={handleUpdate} disabled={saving}>
-              {saving ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
-              {saving ? "Salvando..." : "Atualizar OS"}
-            </BtnPrimary>
           </div>
         </Drawer>
       )}
