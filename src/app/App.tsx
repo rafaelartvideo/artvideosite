@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { useServices, useServiceCategories, useFeaturedProducts, useBrands, useMediaUrl, useServiceDetailBySlug, useSiteSettings } from "@/lib/hooks";
 import { AdminLogin, AdminDashboard } from "@/app/Admin";
 import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
 import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
@@ -8,83 +9,24 @@ import {
   ShoppingCart, Menu, X, Tv, Wind, Monitor, Headphones, Cpu, Plug,
   Package, Gamepad2, Wrench, Settings, ArrowRight, Phone, Instagram,
   ChevronRight, Zap, CheckCircle, MessageCircle, ChevronDown, Search,
-  MapPin, Mail, Clock, Star, Shield, Users, Layers,
+  MapPin, Mail, Clock, Star, Shield, Users, Layers, AlertCircle,
 } from "lucide-react";
 
 /* ─── types ─── */
-type Page = "home" | "servicos" | "servico-ac" | "sobre" | "contato" | "orcamento" | "assistencia";
+type Page = "home" | "servicos" | "servico" | "sobre" | "contato" | "orcamento" | "assistencia";
 
 /* ─── shared data ─── */
 const NAV_LINKS = ["Início", "Loja", "Serviços", "Assistência Técnica", "Sobre nós", "Contato"];
 const NAV_MAP: Record<string, Page> = { "Serviços": "servicos", "Assistência Técnica": "assistencia", "Sobre nós": "sobre", "Contato": "contato", "Início": "home" };
 
-/* ─── services data ─── */
-const SVC_CATS = [
-  { label: "Ar-condicionado", icon: Wind },
-  { label: "TVs", icon: Tv },
-  { label: "Eletrodomésticos", icon: Package },
-  { label: "Eletrônicos", icon: Cpu },
-  { label: "Informática", icon: Monitor },
-  { label: "Instalação", icon: Plug },
-  { label: "Manutenção e reparos", icon: Wrench },
-];
-
-const ALL_SERVICES = [
-  { id: "ac-inst", cat: "Ar-condicionado", name: "Instalação de ar-condicionado", desc: "Instalação profissional de aparelhos split com segurança e organização.", img: "https://images.unsplash.com/photo-1631567091966-fce555d05d93?w=600&h=400&fit=crop&auto=format", page: "servico-ac" as Page },
-  { id: "ac-hig", cat: "Ar-condicionado", name: "Higienização de ar-condicionado", desc: "Limpeza profunda para eliminar fungos, bactérias e impurezas.", img: "https://images.unsplash.com/photo-1631567091966-fce555d05d93?w=600&h=400&fit=crop&auto=format&sat=-100" },
-  { id: "ac-prev", cat: "Ar-condicionado", name: "Manutenção preventiva", desc: "Verificação periódica para prevenir falhas e garantir eficiência.", img: "https://images.unsplash.com/photo-1581092160562-40aa08e16b4e?w=600&h=400&fit=crop&auto=format" },
-  { id: "ac-cor", cat: "Ar-condicionado", name: "Manutenção corretiva", desc: "Diagnóstico e reparo de falhas no seu ar-condicionado.", img: "https://images.unsplash.com/photo-1581092160562-40aa08e16b4e?w=600&h=400&fit=crop&auto=format&sat=-50" },
-  { id: "tv-inst", cat: "TVs", name: "Instalação de TV", desc: "Fixação profissional com suporte adequado e cabeamento organizado.", img: "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=600&h=400&fit=crop&auto=format" },
-  { id: "tv-conf", cat: "TVs", name: "Configuração de TV", desc: "Smart TV configurada com redes, streaming e ajuste de imagem.", img: "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=600&h=400&fit=crop&auto=format&sat=-50" },
-  { id: "tv-sup", cat: "TVs", name: "Suporte técnico para TV", desc: "Atendimento especializado para resolver problemas na sua televisão.", img: "https://images.unsplash.com/photo-1584905066893-7d5c142ba4e1?w=600&h=400&fit=crop&auto=format" },
-  { id: "tv-rep", cat: "TVs", name: "Diagnóstico e reparo de TV", desc: "Análise completa e reparo de defeitos em televisores.", img: "https://images.unsplash.com/photo-1550041473-d296a3a8a18a?w=600&h=400&fit=crop&auto=format" },
-  { id: "el-man", cat: "Eletrodomésticos", name: "Manutenção de eletrodomésticos", desc: "Manutenção preventiva e corretiva para linha branca.", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop&auto=format" },
-  { id: "el-diag", cat: "Eletrodomésticos", name: "Diagnóstico de eletrodomésticos", desc: "Análise técnica para identificar a causa do problema.", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop&auto=format&sat=-50" },
-  { id: "el-rep", cat: "Eletrodomésticos", name: "Reparo eletrônico", desc: "Reparo de componentes eletrônicos após aprovação do orçamento.", img: "https://images.unsplash.com/photo-1517420704952-d9f39e95b43e?w=600&h=400&fit=crop&auto=format" },
-  { id: "ex-diag", cat: "Eletrônicos", name: "Diagnóstico eletrônico", desc: "Análise técnica de equipamentos eletrônicos para identificar falhas.", img: "https://images.unsplash.com/photo-1563770660941-20978e870e26?w=600&h=400&fit=crop&auto=format" },
-  { id: "ex-plac", cat: "Eletrônicos", name: "Reparo de placas", desc: "Diagnóstico e reparo de placas eletrônicas por técnicos especializados.", img: "https://images.unsplash.com/photo-1517420704952-d9f39e95b43e?w=600&h=400&fit=crop&auto=format" },
-  { id: "ex-man", cat: "Eletrônicos", name: "Manutenção eletrônica", desc: "Verificação e manutenção de equipamentos eletrônicos gerais.", img: "https://images.unsplash.com/photo-1550041473-d296a3a8a18a?w=600&h=400&fit=crop&auto=format&sat=-30" },
-  { id: "in-comp", cat: "Informática", name: "Manutenção de computadores", desc: "Limpeza, atualização e reparo em desktops.", img: "https://images.unsplash.com/photo-1587831990711-23ca6441447b?w=600&h=400&fit=crop&auto=format" },
-  { id: "in-note", cat: "Informática", name: "Manutenção de notebooks", desc: "Limpeza, troca de pasta térmica e verificação de hardware.", img: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=600&h=400&fit=crop&auto=format" },
-  { id: "in-conf", cat: "Informática", name: "Configuração de equipamentos", desc: "Configuração completa de sistemas, redes e softwares.", img: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=600&h=400&fit=crop&auto=format" },
-  { id: "inst-tv", cat: "Instalação", name: "Instalação de TV", desc: "Fixação e organização profissional com suporte adequado.", img: "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=600&h=400&fit=crop&auto=format" },
-  { id: "inst-eq", cat: "Instalação", name: "Instalação de equipamentos", desc: "Instalação de diversos tipos de equipamentos eletrônicos.", img: "https://images.unsplash.com/photo-1581092160562-40aa08e16b4e?w=600&h=400&fit=crop&auto=format" },
-  { id: "inst-cf", cat: "Instalação", name: "Configuração de equipamentos", desc: "Configuração e parametrização pós-instalação.", img: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=600&h=400&fit=crop&auto=format&sat=-30" },
-  { id: "mr-prev", cat: "Manutenção e reparos", name: "Manutenção preventiva", desc: "Verificação periódica para prevenir falhas em equipamentos.", img: "https://images.unsplash.com/photo-1581092160562-40aa08e16b4e?w=600&h=400&fit=crop&auto=format&sat=-20" },
-  { id: "mr-cor", cat: "Manutenção e reparos", name: "Manutenção corretiva", desc: "Diagnóstico e reparo de defeitos em equipamentos eletrônicos.", img: "https://images.unsplash.com/photo-1550041473-d296a3a8a18a?w=600&h=400&fit=crop&auto=format&sat=-20" },
-  { id: "mr-diag", cat: "Manutenção e reparos", name: "Diagnóstico técnico", desc: "Análise técnica para identificar o problema no seu equipamento.", img: "https://images.unsplash.com/photo-1517420704952-d9f39e95b43e?w=600&h=400&fit=crop&auto=format&sat=-30" },
-];
-
-/* home data */
-const PRODUCTS = [
-  { name: 'Smart TV 55" 4K UHD', category: "TVs", price: "R$ 2.499,00", img: "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=400&h=300&fit=crop&auto=format" },
-  { name: "Ar-condicionado Split 12.000 BTUs", category: "Ar-condicionado", price: "R$ 1.349,00", img: "https://images.unsplash.com/photo-1631567091966-fce555d05d93?w=400&h=300&fit=crop&auto=format" },
-  { name: "Notebook Core i5 16GB", category: "Informática", price: "R$ 3.199,00", img: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=300&fit=crop&auto=format" },
-  { name: "Soundbar 2.1 Bluetooth", category: "Áudio", price: "R$ 799,00", img: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=300&fit=crop&auto=format" },
-  { name: "Console de Videogame", category: "Videogames", price: "R$ 4.299,00", img: "https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=400&h=300&fit=crop&auto=format" },
-  { name: "Fritadeira Elétrica 5L", category: "Eletrodomésticos", price: "R$ 449,00", img: "https://images.unsplash.com/photo-1648170519786-3a45e7c01c0a?w=400&h=300&fit=crop&auto=format" },
-];
-const BRANDS = ["AOC", "Britânia", "Electrolux", "Genis Fitness", "LG", "Panasonic", "Philco", "Philips", "Semp", "TCL", "Walita", "Samsung"];
-const ASSIST_CATS = ["TVs", "Computadores", "Eletrodomésticos", "Videogames", "Eletrônicos"];
+/* ─── Constants (UI-only, not content) ─── */
 const HOME_STEPS = [
   { n: "01", title: "Solicite", desc: "Conte o que aconteceu com seu equipamento." },
   { n: "02", title: "Avaliamos", desc: "Nossa equipe analisa o problema." },
   { n: "03", title: "Orçamento", desc: "Você recebe as informações antes do serviço." },
   { n: "04", title: "Reparo", desc: "Após aprovação, realizamos o serviço." },
 ];
-const HOME_CATS = [
-  { label: "TVs", icon: Tv }, { label: "Ar-condicionado", icon: Wind },
-  { label: "Eletrodomésticos", icon: Package }, { label: "Informática", icon: Monitor },
-  { label: "Áudio", icon: Headphones }, { label: "Eletrônicos", icon: Cpu },
-  { label: "Acessórios", icon: Plug }, { label: "Videogames", icon: Gamepad2 },
-];
-const HOME_SVCS = [
-  { icon: Wind, name: "Instalação de Ar-condicionado", desc: "Instalação profissional com organização dos dutos e configuração para funcionamento correto." },
-  { icon: Tv, name: "Instalação de TV", desc: "Suporte, cabeamento e configuração para você aproveitar sua TV da melhor forma." },
-  { icon: Wrench, name: "Manutenção Preventiva", desc: "Limpeza e verificação de componentes para prolongar a vida útil dos seus equipamentos." },
-  { icon: Settings, name: "Configuração de Equipamentos", desc: "Setup completo de redes, dispositivos e sistemas para uso doméstico ou comercial." },
-  { icon: Zap, name: "Reparos Eletrônicos", desc: "Diagnóstico e reparo de circuitos, placas-mãe, fontes e outros componentes eletrônicos." },
-];
+const ASSIST_CATS = ["TVs", "Computadores", "Eletrodomésticos", "Videogames", "Eletrônicos"];
 
 /* ─── shared components ─── */
 function Btn({ children, variant = "primary", className = "", ...props }: {
@@ -100,6 +42,36 @@ function Btn({ children, variant = "primary", className = "", ...props }: {
   return <button className={`${base} ${v[variant]} ${className}`} {...props}>{children}</button>;
 }
 
+function getSettingText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function getBusinessHours(value: unknown): string[] {
+  let hours: unknown = value;
+  if (typeof value === "string") {
+    try { hours = JSON.parse(value); } catch { return value ? [value] : []; }
+  }
+  if (!hours || typeof hours !== "object" || Array.isArray(hours)) return [];
+
+  const labels: Record<string, string> = { monday: "Segunda-feira", tuesday: "Terça-feira", wednesday: "Quarta-feira", thursday: "Quinta-feira", friday: "Sexta-feira", saturday: "Sábado", sunday: "Domingo" };
+  return Object.entries(labels).flatMap(([key, label]) => {
+    const dayValue = (hours as Record<string, unknown>)[key];
+    const text = getSettingText(dayValue);
+    return text ? [`${label}: ${text}`] : [];
+  });
+}
+
+function WhatsAppAction({ className = "" }: { className?: string }) {
+  const { settings } = useSiteSettings();
+  const rawNumber = getSettingText(settings.whatsapp) || getSettingText(settings.whatsapp_number);
+  const digits = rawNumber.replace(/\D/g, "");
+  const number = digits.startsWith("55") ? digits : digits ? `55${digits}` : "";
+  if (!number) return null;
+  return <a href={`https://wa.me/${number}?text=${encodeURIComponent("Olá! Gostaria de saber mais sobre os serviços da Artvideo.")}`} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center justify-center gap-2 bg-[#25d366] text-white font-semibold rounded-md px-5 py-2.5 text-sm hover:bg-[#1db954] transition-all ${className}`}><MessageCircle size={16} /> Falar pelo WhatsApp</a>;
+}
+
 function SectionLabel({ children, light = false }: { children: React.ReactNode; light?: boolean }) {
   return <span className={`text-xs font-bold tracking-widest uppercase block mb-3 ${light ? "text-[#00b4ff]" : "text-[#0057e7]"}`}>{children}</span>;
 }
@@ -110,9 +82,15 @@ function H2({ children, className = "" }: { children: React.ReactNode; className
 
 /* ─── WhatsApp floating button ─── */
 function WhatsAppFloat() {
+  const { settings } = useSiteSettings();
+  const rawNumber = getSettingText(settings.whatsapp) || getSettingText(settings.whatsapp_number);
+  const digits = rawNumber.replace(/\D/g, "");
+  const whatsappNumber = digits.startsWith("55") ? digits : digits ? `55${digits}` : "";
+  if (!whatsappNumber) return null;
+
   return (
     <a
-      href="https://wa.me/55"
+      href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Olá! Gostaria de saber mais sobre os serviços da Artvideo.")}`}
       target="_blank"
       rel="noopener noreferrer"
       className="fixed bottom-6 right-6 z-50 group flex items-center gap-2 bg-[#25d366] text-white rounded-full shadow-lg shadow-[#25d366]/40 hover:shadow-[#25d366]/60 hover:pr-5 px-4 py-4 transition-all duration-300 overflow-hidden"
@@ -163,6 +141,14 @@ function Header({ cur, setPage }: { cur: Page; setPage: (p: Page) => void; }) {
 
 /* ─── Footer ─── */
 function Footer({ setPage }: { setPage: (p: Page) => void }) {
+  const { settings } = useSiteSettings();
+  const contactItems = [
+    ["Telefone", getSettingText(settings.phone) || getSettingText(settings.telefone)],
+    ["WhatsApp", getSettingText(settings.whatsapp) || getSettingText(settings.whatsapp_number)],
+    ["E-mail", getSettingText(settings.email)],
+    ["Endereço", getSettingText(settings.address) || [settings.street, settings.number, settings.complement, settings.neighborhood, settings.city, settings.state].map(getSettingText).filter(Boolean).join(", ")],
+  ].filter(([, value]) => Boolean(value));
+  const businessHours = getBusinessHours(settings.business_hours);
   return (
     <footer className="bg-[#0d1b2e] pt-12 pb-6 border-t border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -188,17 +174,15 @@ function Footer({ setPage }: { setPage: (p: Page) => void }) {
           <div>
             <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wide">Informações</h4>
             <ul className="space-y-2 text-sm text-white/50">
-              <li>Endereço: <span className="italic">em breve</span></li>
-              <li>Telefone: <span className="italic">em breve</span></li>
-              <li>WhatsApp: <span className="italic">em breve</span></li>
-              <li>Horário: <span className="italic">em breve</span></li>
+              {contactItems.map(([label, value]) => <li key={String(label)}>{label}: {value}</li>)}
+              {businessHours.map((hours, index) => <li key={hours}>{index === 0 ? "Horário: " : ""}{hours}</li>)}
             </ul>
           </div>
           <div>
             <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wide">Contato</h4>
             <div className="flex gap-3">
               <button onClick={() => setPage("contato")} className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-colors"><Phone size={16} /></button>
-              <a href="#" className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-colors"><Instagram size={16} /></a>
+              {getSettingText(settings.instagram) && <a href={getSettingText(settings.instagram).startsWith("http") ? getSettingText(settings.instagram) : `https://instagram.com/${getSettingText(settings.instagram).replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer" className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-colors"><Instagram size={16} /></a>}
             </div>
           </div>
         </div>
@@ -230,11 +214,10 @@ function ServiceTrackingSection() {
     setErrorMsg("");
 
     try {
-      // Direct exact or prefix/id search on orders
       const { data, error } = await supabase
-        .from("orders")
-        .select("id, status, total, created_at, updated_at, description, service_name, public_notes, history")
-        .or(`id.eq.${cleanOs},id.ilike.${cleanOs}%`)
+        .from("service_orders")
+        .select("id, title, description, created_at, updated_at, status_id, order_status:order_statuses(name)")
+        .eq("id", cleanOs)
         .maybeSingle();
 
       if (error) {
@@ -242,7 +225,14 @@ function ServiceTrackingSection() {
         console.error("Error fetching order:", error);
         setErrorMsg("Não foi possível localizar a OS informada. Verifique o número e tente novamente.");
       } else if (data) {
-        setOrder(data);
+        const { data: history, error: historyError } = await supabase
+          .from("service_order_status_history")
+          .select("created_at, notes, order_status:order_statuses(name)")
+          .eq("service_order_id", data.id)
+          .eq("is_visible_to_customer", true)
+          .order("created_at", { ascending: true });
+        if (historyError) throw historyError;
+        setOrder({ ...data, status: (data.order_status as any)?.name || "Em andamento", history: history || [] });
       } else {
         setErrorMsg("Ordem de Serviço não encontrada. Por favor, verifique o número digitado e tente novamente.");
       }
@@ -372,7 +362,7 @@ function ServiceTrackingSection() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-6 border-b border-[#0d1b2e]/10 text-sm">
               <div>
                 <span className="text-xs text-[#5a6a82] font-semibold block uppercase">Serviço / Produto</span>
-                <span className="font-bold text-[#0d1b2e]">{order.service_name || order.description || "Assistência Técnica / Manutenção"}</span>
+                <span className="font-bold text-[#0d1b2e]">{order.title || order.description || "Assistência Técnica / Manutenção"}</span>
               </div>
               <div>
                 <span className="text-xs text-[#5a6a82] font-semibold block uppercase">Data da solicitação</span>
@@ -451,11 +441,11 @@ function ServiceTrackingSection() {
             </div>
 
             {/* Public messages / Custom History if present */}
-            {order.public_notes && (
+            {order.history?.some((entry: any) => entry.notes) && (
               <div className="pt-6">
                 <h4 className="text-sm font-bold text-[#0d1b2e] uppercase tracking-wide mb-2">Observações ao cliente</h4>
                 <div className="bg-white border border-[#0d1b2e]/10 rounded-lg p-4 text-xs text-[#3a4a5e] leading-relaxed">
-                  {order.public_notes}
+                  {order.history.filter((entry: any) => entry.notes).map((entry: any) => <p key={entry.created_at} className="mb-2 last:mb-0">{entry.notes}</p>)}
                 </div>
               </div>
             )}
@@ -467,7 +457,12 @@ function ServiceTrackingSection() {
 }
 
 /* ─── Home Page ─── */
-function HomePage({ setPage }: { setPage: (p: Page) => void }) {
+function HomePage({ setPage, onSelectService }: { setPage: (p: Page) => void; onSelectService: (slug: string) => void }) {
+  // Buscar dados reais do Supabase
+  const { products: featuredProducts, loading: productsLoading } = useFeaturedProducts();
+  const { brands, loading: brandsLoading } = useBrands();
+  const { services, loading: servicesLoading } = useServices();
+
   return (
     <>
       {/* Hero */}
@@ -529,21 +524,6 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
       {/* Acompanhe seu Serviço */}
       <ServiceTrackingSection />
 
-      {/* Categorias */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <SectionLabel>Loja Artvideo</SectionLabel>
-          <H2 className="mb-10">Encontre o que você precisa</H2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {HOME_CATS.map(({ label, icon: Icon }) => (
-              <button key={label} className="flex items-center gap-3 bg-[#f5f7fa] hover:bg-[#e8eef8] border border-[#0d1b2e]/10 rounded-lg px-4 py-4 text-sm font-semibold text-[#0d1b2e] transition-colors text-left">
-                <Icon size={18} className="text-[#0057e7] flex-shrink-0" />{label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Loja */}
       <section className="py-16 bg-[#f5f7fa]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -552,28 +532,20 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
             <H2>Destaques da loja</H2>
             <Btn variant="ghost" className="flex-shrink-0">Ver todos <ArrowRight size={15} /></Btn>
           </div>
-          <div className="mb-6 flex items-center gap-2 text-xs text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg px-4 py-2">
-            <Package size={14} className="text-[#0057e7]" />
-            Produtos de exemplo — serão substituídos pelos produtos reais da Nuvemshop.
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {PRODUCTS.map((p) => (
-              <div key={p.name} className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md transition-shadow group">
-                <div className="bg-[#f5f7fa] h-44 overflow-hidden">
-                  <img src={p.img} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                </div>
-                <div className="p-4">
-                  <span className="text-xs font-bold text-[#0057e7] uppercase tracking-wide">{p.category}</span>
-                  <h3 className="font-semibold text-[#0d1b2e] mt-1 mb-3 text-sm leading-snug">{p.name}</h3>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-black text-[#0d1b2e]">{p.price}</span>
-                    <Btn variant="outline" className="text-xs px-3 py-1.5">Ver produto</Btn>
-                  </div>
-                </div>
+          {productsLoading ? (
+            <div className="text-center py-12 text-[#5a6a82]">Carregando produtos...</div>
+          ) : featuredProducts.length === 0 ? (
+            <div className="text-center py-12 text-[#5a6a82]">Nenhum produto em destaque no momento.</div>
+          ) : (
+            <>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {featuredProducts.slice(0, 6).map((p) => (
+                  <ProductCard key={p.id} product={p} setPage={setPage} />
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="mt-8 text-center"><Btn variant="primary" className="px-8 py-3 text-base">Ver todos os produtos</Btn></div>
+              <div className="mt-8 text-center"><Btn variant="primary" className="px-8 py-3 text-base">Ver todos os produtos</Btn></div>
+            </>
+          )}
         </div>
       </section>
 
@@ -585,23 +557,7 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
             <H2>Serviços para sua casa e seus equipamentos</H2>
             <button onClick={() => setPage("servicos")} className="flex items-center gap-1 text-sm font-semibold text-[#0057e7] hover:gap-2 transition-all flex-shrink-0">Ver todos <ArrowRight size={15} /></button>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {HOME_SVCS.map((s) => {
-              const Icon = s.icon;
-              return (
-                <div key={s.name} className="bg-[#f5f7fa] rounded-xl p-6 border border-[#0d1b2e]/10 hover:border-[#0057e7]/40 transition-colors group">
-                  <div className="w-10 h-10 bg-[#0057e7]/10 rounded-lg flex items-center justify-center mb-4 group-hover:bg-[#0057e7]/20 transition-colors">
-                    <Icon size={20} className="text-[#0057e7]" />
-                  </div>
-                  <h3 className="font-bold text-[#0d1b2e] mb-2">{s.name}</h3>
-                  <p className="text-sm text-[#5a6a82] leading-relaxed mb-4">{s.desc}</p>
-                  <button onClick={() => setPage("servicos")} className="flex items-center gap-1 text-sm font-semibold text-[#0057e7] hover:gap-2 transition-all">
-                    Ver detalhes <ChevronRight size={14} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+          {servicesLoading ? <div className="text-center py-10 text-[#5a6a82]">Carregando serviços...</div> : services.length > 0 && <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">{services.slice(0, 6).map((service) => <ServiceCard key={service.id} service={service} onSelectService={onSelectService} />)}</div>}
           <div className="mt-8 text-center"><Btn variant="outline" className="px-8 py-3 text-base" onClick={() => setPage("servicos")}>Ver todos os serviços</Btn></div>
         </div>
       </section>
@@ -629,14 +585,17 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
       <section className="py-14 bg-white border-y border-[#0d1b2e]/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <p className="text-center text-xs font-bold tracking-widest uppercase text-[#5a6a82] mb-8">Marcas que atendemos</p>
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            {BRANDS.map((b) => (
-              <div key={b} className="bg-[#f5f7fa] border border-[#0d1b2e]/10 rounded-lg h-14 flex items-center justify-center hover:border-[#0057e7]/40 transition-colors">
-                <span className="text-xs font-bold text-[#5a6a82]">{b}</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-xs text-[#5a6a82] mt-4 italic">Logos oficiais a serem inseridos</p>
+          {brandsLoading ? (
+            <div className="text-center py-6 text-[#5a6a82]">Carregando marcas...</div>
+          ) : brands.length === 0 ? (
+            <div className="text-center py-6 text-[#5a6a82]">Nenhuma marca cadastrada no momento.</div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {brands.map((b) => (
+                <BrandCard key={b.id} brand={b} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -675,19 +634,116 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
   );
 }
 
+/* ─── Brand Card Component ─── */
+function BrandCard({ brand }: { brand: any }) {
+  const { url: logoUrl, loading: logoLoading } = useMediaUrl(brand.logo_media_id);
+
+  return (
+    <div className="bg-[#f5f7fa] border border-[#0d1b2e]/10 rounded-lg h-14 flex items-center justify-center hover:border-[#0057e7]/40 transition-colors group">
+      {logoLoading ? (
+        <span className="text-xs text-[#5a6a82]">Carregando...</span>
+      ) : logoUrl ? (
+        <img src={logoUrl} alt={brand.name} className="max-h-10 max-w-[90%] object-contain" />
+      ) : (
+        <span className="text-xs font-bold text-[#5a6a82]">{brand.name}</span>
+      )}
+    </div>
+  );
+}
+
+/* ─── Product Card Component ─── */
+function ProductCard({ product, setPage }: { product: any; setPage: (p: Page) => void }) {
+  const { url: imageUrl, loading: imageLoading } = useMediaUrl(product.cover_media_id);
+
+  return (
+    <div className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md transition-shadow group">
+      <div className="bg-[#f5f7fa] h-44 overflow-hidden">
+        {imageLoading ? (
+          <div className="w-full h-full flex items-center justify-center"><div className="text-[#5a6a82] text-sm">Carregando...</div></div>
+        ) : imageUrl ? (
+          <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={32} /></div>
+        )}
+      </div>
+      <div className="p-4">
+        <span className="text-xs font-bold text-[#0057e7] uppercase tracking-wide">Produto</span>
+        <h3 className="font-semibold text-[#0d1b2e] mt-1 mb-3 text-sm leading-snug">{product.name}</h3>
+        <div className="flex items-center justify-between">
+          <span className="text-lg font-black text-[#0d1b2e]">{product.price != null ? `R$ ${Number(product.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte"}</span>
+          <Btn variant="outline" className="text-xs px-3 py-1.5">Ver produto</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Service Card Component ─── */
+function ServiceCard({ service, onSelectService }: { service: any; onSelectService: (slug: string) => void }) {
+  const { url: imageUrl, loading: imageLoading } = useMediaUrl(service.cover_media_id);
+  const cardPrice = service.price_mode === "HIDDEN" ? null : service.price_mode === "STARTING_FROM" && service.base_price ? `A partir de R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : service.price_mode === "FIXED" && service.base_price ? `R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte o valor";
+
+  return (
+    <div className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md hover:border-[#0057e7]/30 transition-all group">
+      <div className="h-40 overflow-hidden bg-[#e8eef8]">
+        {imageLoading ? (
+          <div className="w-full h-full flex items-center justify-center"><div className="text-[#5a6a82] text-sm">Carregando...</div></div>
+        ) : imageUrl ? (
+          <img src={imageUrl} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={32} /></div>
+        )}
+      </div>
+      <div className="p-4 flex flex-col gap-2">
+        <span className="text-xs font-bold text-[#0057e7] uppercase tracking-wide">Serviço</span>
+        <h3 className="font-bold text-[#0d1b2e] text-sm leading-snug">{service.title}</h3>
+        <p className="text-xs text-[#5a6a82] leading-relaxed flex-1">{service.short_description || service.description}</p>
+        <div className="flex items-center justify-between pt-2 border-t border-[#0d1b2e]/8 mt-1">
+          {cardPrice && <span className="text-xs font-semibold text-[#5a6a82]">{cardPrice}</span>}
+          <button
+            onClick={() => onSelectService(service.slug)}
+            className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:gap-2 transition-all"
+          >
+            Ver detalhes <ChevronRight size={13} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Serviços Page ─── */
-function ServicosPage({ setPage }: { setPage: (p: Page) => void }) {
+function ServicosPage({ setPage, onSelectService }: { setPage: (p: Page) => void; onSelectService: (slug: string) => void }) {
   const [filter, setFilter] = useState("Todos");
   const [search, setSearch] = useState("");
 
-  const filtered = ALL_SERVICES.filter((s) => {
-    const matchCat = filter === "Todos" || s.cat === filter;
-    const matchSearch = !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.cat.toLowerCase().includes(search.toLowerCase());
+  // Buscar dados do Supabase
+  const { services, loading: servicesLoading } = useServices();
+  const { categories, loading: categoriesLoading } = useServiceCategories();
+
+  // Filtrar serviços por categoria e busca
+  const filtered = services.filter((s) => {
+    const category = categories.find((c) => c.id === s.category_id);
+    const categoryName = category?.name || "Sem categoria";
+    const matchCat = filter === "Todos" || categoryName === filter;
+    const matchSearch =
+      !search ||
+      s.title.toLowerCase().includes(search.toLowerCase()) ||
+      (s.short_description?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+      categoryName.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
 
-  const grouped: Record<string, typeof ALL_SERVICES> = {};
-  filtered.forEach((s) => { if (!grouped[s.cat]) grouped[s.cat] = []; grouped[s.cat].push(s); });
+  // Agrupar por categoria
+  const grouped: Record<string, typeof filtered> = {};
+  filtered.forEach((s) => {
+    const category = categories.find((c) => c.id === s.category_id);
+    const categoryName = category?.name || "Sem categoria";
+    if (!grouped[categoryName]) grouped[categoryName] = [];
+    grouped[categoryName].push(s);
+  });
+
+  const categoryLabels = ["Todos", ...categories.map((c) => c.name)];
 
   return (
     <>
@@ -716,7 +772,7 @@ function ServicosPage({ setPage }: { setPage: (p: Page) => void }) {
       {/* filter strip */}
       <section className="bg-white border-b border-[#0d1b2e]/10 py-4 sticky top-16 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {["Todos", ...SVC_CATS.map((c) => c.label)].map((f) => (
+          {categoryLabels.map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               className={`rounded-full px-4 py-1.5 text-sm font-semibold border transition-all whitespace-nowrap flex-shrink-0 ${filter === f ? "bg-[#0057e7] border-[#0057e7] text-white" : "bg-[#f5f7fa] border-[#0d1b2e]/15 text-[#0d1b2e] hover:border-[#0057e7]/50"}`}>
               {f}
@@ -728,43 +784,27 @@ function ServicosPage({ setPage }: { setPage: (p: Page) => void }) {
       {/* services grid */}
       <section className="py-12 bg-[#f5f7fa]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-12">
-          {Object.keys(grouped).length === 0 && (
-            <div className="text-center py-20 text-[#5a6a82]">Nenhum serviço encontrado para "{search}".</div>
-          )}
-          {Object.entries(grouped).map(([cat, items]) => {
-            const CatIcon = SVC_CATS.find((c) => c.label === cat)?.icon ?? Wrench;
-            return (
+          {servicesLoading ? (
+            <div className="text-center py-20 text-[#5a6a82]">Carregando serviços...</div>
+          ) : Object.keys(grouped).length === 0 ? (
+            <div className="text-center py-20 text-[#5a6a82]">
+              {search ? `Nenhum serviço encontrado para "${search}".` : "Nenhum serviço disponível."}
+            </div>
+          ) : (
+            Object.entries(grouped).map(([cat, items]) => (
               <div key={cat}>
                 <div className="flex items-center gap-2 mb-6">
-                  <CatIcon size={18} className="text-[#0057e7]" />
+                  <span className="text-[#0057e7] font-bold">◆</span>
                   <h2 className="text-xs font-black tracking-widest uppercase text-[#0057e7]">{cat}</h2>
                 </div>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {items.map((s) => (
-                    <div key={s.id} className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md hover:border-[#0057e7]/30 transition-all group">
-                      <div className="h-40 overflow-hidden bg-[#e8eef8]">
-                        <img src={s.img} alt={s.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      </div>
-                      <div className="p-4 flex flex-col gap-2">
-                        <span className="text-xs font-bold text-[#0057e7] uppercase tracking-wide">{s.cat}</span>
-                        <h3 className="font-bold text-[#0d1b2e] text-sm leading-snug">{s.name}</h3>
-                        <p className="text-xs text-[#5a6a82] leading-relaxed flex-1">{s.desc}</p>
-                        <div className="flex items-center justify-between pt-2 border-t border-[#0d1b2e]/8 mt-1">
-                          <span className="text-xs font-semibold text-[#5a6a82]">Consulte o valor</span>
-                          <button
-                            onClick={() => setPage(s.page ?? "servicos")}
-                            className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:gap-2 transition-all"
-                          >
-                            Ver detalhes <ChevronRight size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    <ServiceCard key={s.id} service={s} onSelectService={onSelectService} />
                   ))}
                 </div>
               </div>
-            );
-          })}
+            ))
+          )}
         </div>
       </section>
 
@@ -781,6 +821,32 @@ function ServicosPage({ setPage }: { setPage: (p: Page) => void }) {
       </section>
     </>
   );
+}
+
+function ServicoDetalhePage({ slug, setPage }: { slug: string | null; setPage: (p: Page) => void }) {
+  const { detail, loading, error } = useServiceDetailBySlug(slug);
+  const { url: imageUrl } = useMediaUrl(detail?.service.cover_media_id);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  if (loading) return <div className="min-h-[55vh] flex items-center justify-center text-[#5a6a82] text-sm"><Clock size={20} className="animate-spin mr-2 text-[#0057e7]" /> Carregando serviço...</div>;
+  if (error) return <section className="py-20 bg-[#f5f7fa]"><div className="max-w-xl mx-auto px-4 text-center"><AlertCircle size={34} className="mx-auto mb-4 text-red-500" /><H2 className="mb-3">Não foi possível carregar este serviço</H2><p className="text-sm text-[#5a6a82] mb-6">{error}</p><Btn onClick={() => setPage("servicos")}>Voltar para serviços</Btn></div></section>;
+  if (!detail) return <section className="py-20 bg-[#f5f7fa]"><div className="max-w-xl mx-auto px-4 text-center"><Package size={34} className="mx-auto mb-4 text-[#0057e7]" /><H2 className="mb-3">Serviço não encontrado</H2><p className="text-sm text-[#5a6a82] mb-6">O serviço solicitado não existe ou não está disponível no momento.</p><Btn onClick={() => setPage("servicos")}>Ver serviços disponíveis</Btn></div></section>;
+
+  const { service, category, brand, product, variants, inclusions, exclusions, priceFactors, faqs, sections, filters } = detail;
+  const formattedBasePrice = service.base_price ? `R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null;
+  const priceLabel = service.price_mode === "HIDDEN" ? null : service.price_mode === "STARTING_FROM" && formattedBasePrice ? `A partir de ${formattedBasePrice}` : service.price_mode === "FIXED" && formattedBasePrice ? formattedBasePrice : "Consulte o valor";
+
+  return <>
+    <div className="bg-white border-b border-[#0d1b2e]/10"><div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 text-xs text-[#5a6a82]"><button onClick={() => setPage("home")} className="hover:text-[#0057e7]">Início</button><ChevronRight size={12} /><button onClick={() => setPage("servicos")} className="hover:text-[#0057e7]">Serviços</button><ChevronRight size={12} /><span className="font-medium text-[#0d1b2e] truncate">{service.title}</span></div></div>
+    <section className="bg-[#0d1b2e] py-12 sm:py-16"><div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-center"><div><SectionLabel light>{category?.name || "Serviço"}</SectionLabel><h1 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{service.title}</h1>{service.short_description && <p className="text-white/70 text-base leading-relaxed mb-5">{service.short_description}</p>}{priceLabel && <p className="text-2xl font-black text-white mb-6">{priceLabel}</p>}<div className="flex flex-wrap gap-3"><Btn onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn><WhatsAppAction /></div>{(brand?.name || product?.name) && <p className="text-xs text-white/60 mt-5">{brand?.name && `Marca: ${brand.name}`}{brand?.name && product?.name && " · "}{product?.name && `Produto: ${product.name}`}</p>}</div>{imageUrl && <div className="rounded-xl overflow-hidden border border-white/10"><img src={imageUrl} alt={service.title} className="w-full h-64 sm:h-80 object-cover" /></div>}</div></section>
+    {(service.description || inclusions.length > 0 || exclusions.length > 0) && <section className="py-14 bg-[#f5f7fa]"><div className="max-w-5xl mx-auto px-4 sm:px-6 grid md:grid-cols-2 gap-10"><div>{service.description && <><SectionLabel>Sobre o serviço</SectionLabel><H2 className="mb-4">Sobre este serviço</H2><p className="text-sm text-[#5a6a82] leading-relaxed whitespace-pre-line">{service.description}</p></>}</div><div className="space-y-7">{inclusions.length > 0 && <div><SectionLabel>Incluso</SectionLabel><H2 className="mb-4">O que está incluso</H2><ul className="space-y-3">{inclusions.map((item: any) => <li key={item.id} className="flex gap-2 text-sm text-[#3a4a5e]"><CheckCircle size={16} className="text-[#0057e7] mt-0.5 shrink-0" />{item.description}</li>)}</ul></div>}{exclusions.length > 0 && <div><SectionLabel>Não incluso</SectionLabel><H2 className="mb-4">O que não está incluso</H2><ul className="space-y-3">{exclusions.map((item: any) => <li key={item.id} className="flex gap-2 text-sm text-[#3a4a5e]"><X size={16} className="text-red-500 mt-0.5 shrink-0" />{item.description}</li>)}</ul></div>}</div></div></section>}
+    {variants.length > 0 && <section className="py-14 bg-white"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Variações</SectionLabel><H2 className="mb-8">Opções e valores</H2><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{variants.map((variant: any) => <div key={variant.id} className="border border-[#0d1b2e]/10 rounded-xl p-5"><p className="font-bold text-[#0d1b2e]">{variant.title}</p>{variant.description && <p className="text-xs text-[#5a6a82] mt-2">{variant.description}</p>}<p className="text-lg font-black text-[#0057e7] mt-4">{variant.price ? `R$ ${Number(variant.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte"}</p></div>)}</div></div></section>}
+    {priceFactors.length > 0 && <section className="py-14 bg-[#f5f7fa]"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Transparência</SectionLabel><H2 className="mb-8">O que pode alterar o valor?</H2><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{priceFactors.map((factor: any) => <div key={factor.id} className="bg-white border border-[#0d1b2e]/10 rounded-xl p-4"><p className="font-bold text-[#0d1b2e] text-sm">{factor.name}</p>{factor.description && <p className="text-xs text-[#5a6a82] mt-1">{factor.description}</p>}</div>)}</div></div></section>}
+    {filters.length > 0 && <section className="py-10 bg-white"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Características</SectionLabel><div className="flex flex-wrap gap-2">{filters.map((filter: any) => <span key={filter.id} className="bg-[#e8eef8] text-[#0d1b2e] text-xs font-semibold px-3 py-1.5 rounded-md">{filter.name || filter.value}</span>)}</div></div></section>}
+    {sections.map((section: any) => <section key={section.id} className="py-14 bg-white"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Informações</SectionLabel><H2 className="mb-4">{section.title}</H2><p className="text-sm text-[#5a6a82] leading-relaxed whitespace-pre-line">{section.content}</p></div></section>)}
+    {faqs.length > 0 && <section className="py-14 bg-white"><div className="max-w-3xl mx-auto px-4 sm:px-6"><SectionLabel>Dúvidas</SectionLabel><H2 className="mb-8">Dúvidas frequentes</H2><div className="space-y-3">{faqs.map((faq: any, index: number) => <div key={faq.id} className="border border-[#0d1b2e]/10 rounded-xl overflow-hidden"><button onClick={() => setOpenFaq(openFaq === index ? null : index)} className="w-full flex justify-between gap-4 px-5 py-4 text-left hover:bg-[#f5f7fa]"><span className="font-semibold text-sm text-[#0d1b2e]">{faq.question}</span><ChevronDown size={16} className={openFaq === index ? "rotate-180 text-[#0057e7]" : "text-[#0057e7]"} /></button>{openFaq === index && <p className="px-5 pb-4 text-sm text-[#5a6a82] leading-relaxed">{faq.answer}</p>}</div>)}</div></div></section>}
+    <section className="py-16 bg-[#0057e7]"><div className="max-w-3xl mx-auto px-4 text-center"><h2 className="text-3xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Precisa deste serviço?</h2><div className="flex flex-wrap justify-center gap-4"><Btn className="bg-white text-[#0057e7] hover:bg-[#f0f6ff]" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn><WhatsAppAction /></div></div></section>
+  </>;
 }
 
 /* ─── Service Detail: Instalação de Ar-condicionado ─── */
@@ -863,7 +929,7 @@ function ServicoACPage({ setPage }: { setPage: (p: Page) => void }) {
             </div>
             <div className="flex flex-wrap gap-3 mb-4">
               <Btn variant="primary" className="px-6 py-3 text-base" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn>
-              <Btn variant="whatsapp" className="px-6 py-3 text-base"><MessageCircle size={16} /> Falar pelo WhatsApp</Btn>
+              <WhatsAppAction className="px-6 py-3 text-base" />
             </div>
             <CepChecker />
           </div>
@@ -995,7 +1061,7 @@ function ServicoACPage({ setPage }: { setPage: (p: Page) => void }) {
           <p className="text-white/80 text-lg mb-10">Informe os detalhes do seu equipamento e receba orientação da nossa equipe.</p>
           <div className="flex flex-wrap justify-center gap-4">
             <button className="bg-white text-[#0057e7] font-bold rounded-md px-7 py-3 text-base hover:bg-[#f0f6ff] transition-colors">Solicitar orçamento</button>
-            <button className="bg-[#25d366] text-white font-bold rounded-md px-7 py-3 text-base hover:bg-[#1db954] transition-colors flex items-center gap-2"><MessageCircle size={18} /> Falar pelo WhatsApp</button>
+            <WhatsAppAction className="px-7 py-3 text-base" />
           </div>
         </div>
       </section>
@@ -1119,10 +1185,23 @@ function SobrePage({ setPage }: { setPage: (p: Page) => void }) {
 
 /* ─── Contato Page ─── */
 function ContatoPage() {
+  const { settings, loading: settingsLoading } = useSiteSettings();
   const [sent, setSent] = useState(false);
   const [form, setForm] = useState({ nome: "", whatsapp: "", email: "", assunto: "", mensagem: "" });
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const inputCls = "w-full bg-[#f5f7fa] border border-[#0d1b2e]/15 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#0057e7] focus:border-transparent transition-all";
+  const rawWhatsApp = getSettingText(settings.whatsapp) || getSettingText(settings.whatsapp_number);
+  const whatsappDigits = rawWhatsApp.replace(/\D/g, "");
+  const whatsappNumber = whatsappDigits.startsWith("55") ? whatsappDigits : whatsappDigits ? `55${whatsappDigits}` : "";
+  const address = getSettingText(settings.address) || [settings.street, settings.number, settings.complement, settings.neighborhood, settings.city, settings.state].map(getSettingText).filter(Boolean).join(", ");
+  const contactDetails: { icon: React.ElementType; label: string; value: string }[] = [
+    { icon: MessageCircle, label: "WhatsApp", value: rawWhatsApp },
+    { icon: Phone, label: "Telefone", value: getSettingText(settings.phone) || getSettingText(settings.telefone) },
+    { icon: Mail, label: "E-mail", value: getSettingText(settings.email) },
+    { icon: Instagram, label: "Instagram", value: getSettingText(settings.instagram) },
+    { icon: MapPin, label: "Localização", value: address },
+    { icon: Clock, label: "Horário de atendimento", value: getBusinessHours(settings.business_hours).join(" · ") },
+  ].filter((detail) => Boolean(detail.value));
 
   return (
     <>
@@ -1131,7 +1210,7 @@ function ContatoPage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <SectionLabel light>Contato</SectionLabel>
           <h1 className="text-4xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-            Fale com a Eletrônica Artvideo
+            Fale com a {getSettingText(settings.company_name) || "Eletrônica Artvideo"}
           </h1>
           <p className="text-white/70 text-lg">Precisa de informações sobre produtos, serviços ou assistência técnica? Entre em contato com nossa equipe.</p>
         </div>
@@ -1146,19 +1225,11 @@ function ContatoPage() {
             <div className="bg-[#25d366] rounded-2xl p-6 text-white">
               <p className="font-black text-lg mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Prefere falar diretamente com nossa equipe?</p>
               <p className="text-white/85 text-sm mb-4">Atendimento rápido pelo WhatsApp.</p>
-              <a href="https://wa.me/55" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-white text-[#25d366] font-bold rounded-lg px-5 py-3 text-sm hover:bg-[#f0fff4] transition-colors">
-                <MessageCircle size={16} /> Falar pelo WhatsApp
-              </a>
+              {whatsappNumber && <a href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Olá! Gostaria de saber mais sobre os serviços da Artvideo.")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-white text-[#25d366] font-bold rounded-lg px-5 py-3 text-sm hover:bg-[#f0fff4] transition-colors"><MessageCircle size={16} /> Falar pelo WhatsApp</a>}
             </div>
 
             {/* Info cards */}
-            {[
-              { icon: MessageCircle, label: "WhatsApp", value: "Número será preenchido posteriormente" },
-              { icon: Phone, label: "Telefone", value: "Número será preenchido posteriormente" },
-              { icon: Instagram, label: "Instagram", value: "@eletronica_artvideo" },
-              { icon: MapPin, label: "Localização", value: "Aracaju — Sergipe" },
-              { icon: Clock, label: "Horário de atendimento", value: "A preencher posteriormente" },
-            ].map(({ icon: Icon, label, value }) => (
+            {settingsLoading ? <div className="text-sm text-[#5a6a82]">Carregando informações...</div> : contactDetails.map(({ icon: Icon, label, value }) => (
               <div key={label} className="bg-white border border-[#0d1b2e]/10 rounded-xl px-5 py-4 flex items-center gap-4">
                 <div className="w-9 h-9 bg-[#0057e7]/10 rounded-lg flex items-center justify-center flex-shrink-0"><Icon size={18} className="text-[#0057e7]" /></div>
                 <div>
@@ -1168,15 +1239,13 @@ function ContatoPage() {
               </div>
             ))}
 
-            {/* Map placeholder */}
-            <div>
+            {address && <div>
               <h3 className="font-bold text-[#0d1b2e] mb-3">Onde estamos</h3>
               <div className="bg-white border border-[#0d1b2e]/10 rounded-xl h-48 flex flex-col items-center justify-center gap-2 text-[#5a6a82]">
                 <MapPin size={28} className="text-[#0057e7]/40" />
-                <p className="font-semibold text-sm">Aracaju — Sergipe</p>
-                <p className="text-xs italic">Endereço completo será inserido posteriormente</p>
+                <p className="font-semibold text-sm text-center px-4">{address}</p>
               </div>
-            </div>
+            </div>}
           </div>
 
           {/* Form */}
@@ -1271,23 +1340,39 @@ function CepChecker() {
 }
 
 /* ─── Orçamento Page ─── */
-const SVC_OPTIONS = [
-  "Instalação de ar-condicionado", "Higienização de ar-condicionado", "Manutenção de ar-condicionado",
-  "Instalação de TV", "Configuração de TV", "Suporte técnico para TV", "Diagnóstico e reparo de TV",
-  "Manutenção de eletrodomésticos", "Diagnóstico de eletrodomésticos", "Reparo eletrônico",
-  "Diagnóstico eletrônico", "Reparo de placas", "Manutenção de computadores",
-  "Manutenção de notebooks", "Configuração de equipamentos", "Outro serviço",
-];
-const MARCAS_OPTIONS = ["AOC", "Britânia", "Electrolux", "Genis Fitness", "LG", "Panasonic", "Philco", "Philips", "Semp", "TCL", "Walita", "Samsung", "Outra marca"];
 
 function OrcamentoPage() {
+  const { services, loading: servicesLoading } = useServices();
+  const { categories } = useServiceCategories();
+  const { brands, loading: brandsLoading } = useBrands();
   const [f, setF] = useState({ servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", cep: "", nome: "", whatsapp: "", email: "" });
   const [sent, setSent] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const up = (k: string, v: string) => setF(prev => ({ ...prev, [k]: v }));
   const fmtCep = (v: string) => v.replace(/\D/g, "").replace(/^(\d{5})(\d)/, "$1-$2").slice(0, 9);
 
   const inputCls = "w-full bg-[#f5f7fa] border border-[#0d1b2e]/15 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#0057e7] transition-all";
   const selectCls = inputCls + " cursor-pointer";
+  const selectedService = services.find((service) => service.id === f.servico);
+  const submitQuote = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubmitError(null);
+    const { error } = await supabase.from("quote_requests").insert({
+      service_id: f.servico,
+      name: f.nome,
+      status_id: "cf386fad-07ca-40f5-a915-5f7495344188",
+      whatsapp: f.whatsapp,
+      brand_id: f.marca === "Outra marca" ? null : f.marca || null,
+      model: f.modelo || null,
+      problem_description: f.descricao || null,
+    });
+    if (error) {
+      console.error("[PUBLIC] Quote request error:", error);
+      setSubmitError(error.message);
+      return;
+    }
+    setSent(true);
+  };
 
   if (sent) return (
     <>
@@ -1314,7 +1399,7 @@ function OrcamentoPage() {
 
       <section className="py-12 bg-[#f5f7fa]">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
-          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); setSent(true); }}>
+          <form className="space-y-6" onSubmit={submitQuote}>
 
             {/* 1 — Serviço */}
             <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 p-6">
@@ -1324,8 +1409,11 @@ function OrcamentoPage() {
               </h2>
               <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Selecione o serviço *</label>
               <select className={selectCls} value={f.servico} onChange={e => up("servico", e.target.value)} required>
-                <option value="">Escolha um serviço...</option>
-                {SVC_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                <option value="">{servicesLoading ? "Carregando serviços..." : "Escolha um serviço..."}</option>
+                {services.map((service) => {
+                  const category = categories.find((item) => item.id === service.category_id);
+                  return <option key={service.id} value={service.id}>{service.title}{category ? ` - ${category.name}` : ""}</option>;
+                })}
               </select>
             </div>
 
@@ -1338,9 +1426,20 @@ function OrcamentoPage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Marca</label>
-                  <select className={selectCls} value={f.marca} onChange={e => up("marca", e.target.value)}>
-                    <option value="">Selecione a marca...</option>
-                    {MARCAS_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                    <select
+                      className={selectCls}
+                      value={f.marca}
+                      onChange={e => up("marca", e.target.value)}
+                    >
+                      <option value="">Selecione a marca...</option>
+                      {brands
+                        .filter(brand => brand.is_active)
+                        .map(brand => (
+                          <option key={brand.id} value={brand.id}>
+                            {brand.name}
+                          </option>
+                        ))}
+                      <option value="Outra marca">Outra marca</option>
                   </select>
                 </div>
                 <div>
@@ -1416,7 +1515,7 @@ function OrcamentoPage() {
               <h2 className="text-lg font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Revise sua solicitação</h2>
               <div className="space-y-2">
                 {[
-                  { label: "Serviço", val: f.servico || "—" },
+                  { label: "Serviço", val: selectedService?.title || "—" },
                   { label: "Marca", val: f.marca === "Outra marca" ? f.outraMarca || "Outra marca" : f.marca || "—" },
                   { label: "Modelo", val: f.modelo || "—" },
                   { label: "CEP", val: f.cep || "—" },
@@ -1432,7 +1531,8 @@ function OrcamentoPage() {
 
             {/* Submit */}
             <div className="text-center space-y-3">
-              <Btn variant="primary" className="w-full py-4 text-base" onClick={() => {}}>Solicitar orçamento</Btn>
+              {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+              <Btn variant="primary" className="w-full py-4 text-base">Solicitar orçamento</Btn>
               <p className="text-xs text-[#5a6a82]">Após o envio, nossa equipe entrará em contato para avaliar sua solicitação.</p>
               <p className="text-xs text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg px-4 py-3 leading-relaxed">
                 Os valores apresentados ou informados previamente podem variar conforme as condições do equipamento, local e serviço necessário. O orçamento final será confirmado pela equipe.
@@ -1461,6 +1561,8 @@ const ASSIST_STEPS = [
 ];
 
 function AssistenciaPage({ setPage }: { setPage: (p: Page) => void }) {
+  const { brands, loading: brandsLoading } = useBrands();
+
   return (
     <>
       {/* Hero */}
@@ -1474,7 +1576,7 @@ function AssistenciaPage({ setPage }: { setPage: (p: Page) => void }) {
             <p className="text-white/70 text-base leading-relaxed mb-8">Conte com nossa equipe para diagnóstico, manutenção e reparo de equipamentos eletrônicos.</p>
             <div className="flex flex-wrap gap-3">
               <Btn variant="primary" className="px-6 py-3 text-base" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn>
-              <Btn variant="whatsapp" className="px-6 py-3 text-base"><MessageCircle size={16} /> Falar pelo WhatsApp</Btn>
+              <WhatsAppAction className="px-6 py-3 text-base" />
             </div>
           </div>
           <div className="relative">
@@ -1517,17 +1619,17 @@ function AssistenciaPage({ setPage }: { setPage: (p: Page) => void }) {
           <SectionLabel>Parceiros</SectionLabel>
           <H2 className="mb-2">Marcas autorizadas</H2>
           <p className="text-[#5a6a82] mb-10">Confira algumas das marcas atendidas pela nossa assistência técnica.</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {BRANDS.map((b) => (
-              <div key={b} className="bg-[#f5f7fa] border border-[#0d1b2e]/10 rounded-xl p-5 flex flex-col items-center gap-3 hover:border-[#0057e7]/40 hover:shadow-sm transition-all">
-                <div className="w-14 h-14 bg-white rounded-xl border border-[#0d1b2e]/10 flex items-center justify-center">
-                  <span className="text-xs font-black text-[#0057e7] tracking-wide text-center leading-tight px-1">{b}</span>
-                </div>
-                <span className="text-sm font-bold text-[#0d1b2e]">{b}</span>
-                <span className="text-xs text-[#5a6a82] italic">logo a inserir</span>
-              </div>
-            ))}
-          </div>
+          {brandsLoading ? (
+            <div className="text-center py-12 text-[#5a6a82]">Carregando marcas...</div>
+          ) : brands.length === 0 ? (
+            <div className="text-center py-12 text-[#5a6a82]">Nenhuma marca cadastrada no momento.</div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {brands.map((b) => (
+                <BrandCard key={b.id} brand={b} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -1558,7 +1660,7 @@ function AssistenciaPage({ setPage }: { setPage: (p: Page) => void }) {
           <p className="text-white/80 text-lg mb-10">Solicite um orçamento e conte para nossa equipe o que aconteceu com seu equipamento.</p>
           <div className="flex flex-wrap justify-center gap-4">
             <button onClick={() => setPage("orcamento")} className="bg-white text-[#0057e7] font-bold rounded-md px-7 py-3 text-base hover:bg-[#f0f6ff] transition-colors">Solicitar orçamento</button>
-            <button className="bg-[#25d366] text-white font-bold rounded-md px-7 py-3 text-base hover:bg-[#1db954] transition-colors flex items-center gap-2"><MessageCircle size={18} /> Falar pelo WhatsApp</button>
+            <WhatsAppAction className="px-7 py-3 text-base" />
           </div>
         </div>
       </section>
@@ -1569,6 +1671,7 @@ function AssistenciaPage({ setPage }: { setPage: (p: Page) => void }) {
 /* ─── App ─── */
 export default function App() {
   const [page, setPageState] = useState<Page>("home");
+  const [serviceSlug, setServiceSlug] = useState<string | null>(null);
   const [isAdminRoute, setIsAdminRoute] = useState(false);
 
   useEffect(() => {
@@ -1578,6 +1681,11 @@ export default function App() {
         setIsAdminRoute(true);
       } else {
         setIsAdminRoute(false);
+        const serviceMatch = path.match(/^\/servicos\/([^/]+)$/);
+        if (serviceMatch) {
+          setServiceSlug(decodeURIComponent(serviceMatch[1]));
+          setPageState("servico");
+        }
       }
     };
     handleLocation();
@@ -1588,6 +1696,14 @@ export default function App() {
   const setPage = (p: Page) => {
     setIsAdminRoute(false);
     setPageState(p);
+    if (p !== "servico") window.history.pushState({}, "", p === "home" ? "/" : `/${p}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const selectService = (slug: string) => {
+    setServiceSlug(slug);
+    setPageState("servico");
+    window.history.pushState({}, "", `/servicos/${encodeURIComponent(slug)}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -1597,6 +1713,8 @@ export default function App() {
         isAdminRoute={isAdminRoute}
         page={page}
         setPage={setPage}
+        serviceSlug={serviceSlug}
+        onSelectService={selectService}
         setIsAdminRoute={setIsAdminRoute}
       />
     </AuthProvider>
@@ -1607,11 +1725,15 @@ function AppContent({
   isAdminRoute,
   page,
   setPage,
+  serviceSlug,
+  onSelectService,
   setIsAdminRoute,
 }: {
   isAdminRoute: boolean;
   page: Page;
   setPage: (p: Page) => void;
+  serviceSlug: string | null;
+  onSelectService: (slug: string) => void;
   setIsAdminRoute: (val: boolean) => void;
 }) {
   const { session, loading } = useAuth();
@@ -1634,9 +1756,9 @@ function AppContent({
     <div className="min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
       <Header cur={page} setPage={setPage} />
       <main>
-        {page === "home" && <HomePage setPage={setPage} />}
-        {page === "servicos" && <ServicosPage setPage={setPage} />}
-        {page === "servico-ac" && <ServicoACPage setPage={setPage} />}
+        {page === "home" && <HomePage setPage={setPage} onSelectService={onSelectService} />}
+        {page === "servicos" && <ServicosPage setPage={setPage} onSelectService={onSelectService} />}
+        {page === "servico" && <ServicoDetalhePage slug={serviceSlug} setPage={setPage} />}
         {page === "sobre" && <SobrePage setPage={setPage} />}
         {page === "contato" && <ContatoPage />}
         {page === "orcamento" && <OrcamentoPage />}
