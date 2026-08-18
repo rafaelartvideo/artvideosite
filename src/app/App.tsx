@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { useServices, useServiceCategories, useFeaturedProducts, useBrands, useServiceDetailBySlug, useSiteSettings } from "@/lib/hooks";
+import { useServices, useServiceCategories, useFeaturedProducts, useBrands, useServiceDetailBySlug, useProductDetailBySlug, useSiteSettings, useProducts } from "@/lib/hooks";
 import { AdminLogin, AdminDashboard } from "@/app/Admin";
 import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
 import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
@@ -13,11 +13,11 @@ import {
 } from "lucide-react";
 
 /* ─── types ─── */
-type Page = "home" | "servicos" | "servico" | "sobre" | "contato" | "orcamento" | "assistencia";
+type Page = "home" | "loja" | "produto" | "servicos" | "servico" | "sobre" | "contato" | "orcamento" | "assistencia";
 
 /* ─── shared data ─── */
 const NAV_LINKS = ["Início", "Loja", "Serviços", "Assistência Técnica", "Sobre nós", "Contato"];
-const NAV_MAP: Record<string, Page> = { "Serviços": "servicos", "Assistência Técnica": "assistencia", "Sobre nós": "sobre", "Contato": "contato", "Início": "home" };
+const NAV_MAP: Record<string, Page> = { "Início": "home", "Loja": "loja", "Serviços": "servicos", "Assistência Técnica": "assistencia", "Sobre nós": "sobre", "Contato": "contato" };
 
 /* ─── Constants (UI-only, not content) ─── */
 const HOME_STEPS = [
@@ -29,9 +29,10 @@ const HOME_STEPS = [
 const ASSIST_CATS = ["TVs", "Computadores", "Eletrodomésticos", "Videogames", "Eletrônicos"];
 
 /* ─── shared components ─── */
-function inlineMediaUrl(media: { bucket_name: string; storage_path: string } | null | undefined): string | null {
-  if (!media?.bucket_name || !media?.storage_path) return null;
-  const { data } = supabase.storage.from(media.bucket_name).getPublicUrl(media.storage_path);
+function inlineMediaUrl(media: { bucket_id?: string | null; bucket_name?: string | null; storage_path: string } | null | undefined): string | null {
+  const bucketName = media?.bucket_id ?? media?.bucket_name;
+  if (!bucketName || !media?.storage_path) return null;
+  const { data } = supabase.storage.from(bucketName).getPublicUrl(media.storage_path);
   return data.publicUrl;
 }
 
@@ -222,8 +223,8 @@ function ServiceTrackingSection() {
     try {
       const { data, error } = await supabase
         .from("service_orders")
-        .select("id, title, description, created_at, updated_at, status_id, order_status:order_statuses(name)")
-        .eq("id", cleanOs)
+        .select("id, os_number, tracking_token, customer_id, service_id, status_id, created_at, updated_at, customer_notes, internal_notes, customer:customers(full_name), order_status:order_statuses(name)")
+        .or(`os_number.eq.${cleanOs},tracking_token.eq.${cleanOs}`)
         .maybeSingle();
 
       if (error) {
@@ -463,7 +464,7 @@ function ServiceTrackingSection() {
 }
 
 /* ─── Home Page ─── */
-function HomePage({ setPage, onSelectService }: { setPage: (p: Page) => void; onSelectService: (slug: string) => void }) {
+function HomePage({ setPage, onSelectService, onSelectProduct }: { setPage: (p: Page) => void; onSelectService: (slug: string) => void; onSelectProduct: (slug: string) => void }) {
   // Buscar dados reais do Supabase
   const { products: featuredProducts, loading: productsLoading } = useFeaturedProducts();
   const { brands, loading: brandsLoading } = useBrands();
@@ -475,7 +476,7 @@ function HomePage({ setPage, onSelectService }: { setPage: (p: Page) => void; on
       <section className="bg-[#0d1b2e] py-16 sm:py-20 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-center">
           <div>
-            <SectionLabel light>Eletrônica Artvideo · Aracaju, SE</SectionLabel>
+            <SectionLabel light>Artvideo · Aracaju, SE</SectionLabel>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight mb-5" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
               Tecnologia, produtos e serviços em um só lugar.
             </h1>
@@ -546,10 +547,10 @@ function HomePage({ setPage, onSelectService }: { setPage: (p: Page) => void; on
             <>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {featuredProducts.slice(0, 6).map((p) => (
-                  <ProductCard key={p.id} product={p} setPage={setPage} />
+                  <ProductCard key={p.id} product={p} onSelectProduct={onSelectProduct} />
                 ))}
               </div>
-              <div className="mt-8 text-center"><Btn variant="primary" className="px-8 py-3 text-base">Ver todos os produtos</Btn></div>
+              <div className="mt-8 text-center"><button type="button" onClick={() => setPage("loja")} className="inline-flex items-center justify-center gap-2 font-semibold rounded-md px-8 py-3 text-base bg-[#0057e7] text-white hover:bg-[#0046c0] active:scale-[0.98] transition-all">Ver todos os produtos</button></div>
             </>
           )}
         </div>
@@ -656,7 +657,7 @@ function BrandCard({ brand }: { brand: any }) {
 }
 
 /* ─── Product Card Component ─── */
-function ProductCard({ product, setPage }: { product: any; setPage: (p: Page) => void }) {
+function ProductCard({ product, onSelectProduct }: { product: any; onSelectProduct: (slug: string) => void }) {
   const imageUrl = inlineMediaUrl(product.cover_media);
 
   return (
@@ -673,7 +674,7 @@ function ProductCard({ product, setPage }: { product: any; setPage: (p: Page) =>
         <h3 className="font-semibold text-[#0d1b2e] mt-1 mb-3 text-sm leading-snug">{product.name}</h3>
         <div className="flex items-center justify-between">
           <span className="text-lg font-black text-[#0d1b2e]">{product.price != null ? `R$ ${Number(product.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte"}</span>
-          <Btn variant="outline" className="text-xs px-3 py-1.5">Ver produto</Btn>
+          <button type="button" onClick={() => onSelectProduct(product.slug)} className="inline-flex items-center justify-center gap-2 font-semibold rounded-md px-3 py-1.5 text-xs border-2 border-[#0057e7] text-[#0057e7] hover:bg-[#0057e7] hover:text-white active:scale-[0.98] transition-all">Ver produto</button>
         </div>
       </div>
     </div>
@@ -743,7 +744,7 @@ function ServicosPage({ setPage, onSelectService }: { setPage: (p: Page) => void
     grouped[categoryName].push(s);
   });
 
-  const categoryLabels = ["Todos", ...categories.map((c) => c.name)];
+  const categoryLabels = ["Todos", ...Array.from(new Set(categories.map((c) => c.name)))];
 
   return (
     <>
@@ -772,8 +773,8 @@ function ServicosPage({ setPage, onSelectService }: { setPage: (p: Page) => void
       {/* filter strip */}
       <section className="bg-white border-b border-[#0d1b2e]/10 py-4 sticky top-16 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {categoryLabels.map((f) => (
-            <button key={f} onClick={() => setFilter(f)}
+          {categoryLabels.map((f, i) => (
+            <button key={`filter-${i}-${f}`} onClick={() => setFilter(f)}
               className={`rounded-full px-4 py-1.5 text-sm font-semibold border transition-all whitespace-nowrap flex-shrink-0 ${filter === f ? "bg-[#0057e7] border-[#0057e7] text-white" : "bg-[#f5f7fa] border-[#0d1b2e]/15 text-[#0d1b2e] hover:border-[#0057e7]/50"}`}>
               {f}
             </button>
@@ -791,8 +792,8 @@ function ServicosPage({ setPage, onSelectService }: { setPage: (p: Page) => void
               {search ? `Nenhum serviço encontrado para "${search}".` : "Nenhum serviço disponível."}
             </div>
           ) : (
-            Object.entries(grouped).map(([cat, items]) => (
-              <div key={cat}>
+            Object.entries(grouped).map(([cat, items], i) => (
+              <div key={`group-${i}-${cat}`}>
                 <div className="flex items-center gap-2 mb-6">
                   <span className="text-[#0057e7] font-bold">◆</span>
                   <h2 className="text-xs font-black tracking-widest uppercase text-[#0057e7]">{cat}</h2>
@@ -819,6 +820,61 @@ function ServicosPage({ setPage, onSelectService }: { setPage: (p: Page) => void
           </div>
         </div>
       </section>
+    </>
+  );
+}
+
+function LojaPage({ setPage, onSelectProduct }: { setPage: (p: Page) => void; onSelectProduct: (slug: string) => void }) {
+  const { products, loading } = useProducts();
+
+  return (
+    <>
+      <section className="bg-[#0d1b2e] py-14 sm:py-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+          <SectionLabel light>Loja Artvideo</SectionLabel>
+          <h1 className="text-4xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+            Produtos e eletrônicos para sua casa e seu trabalho
+          </h1>
+          <p className="text-white/70 text-lg mb-8 max-w-2xl mx-auto">Confira os produtos disponíveis em nossa loja com atendimento técnico e suporte especializado.</p>
+        </div>
+      </section>
+
+      <section className="py-12 bg-[#f5f7fa]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          {loading ? (
+            <div className="text-center py-20 text-[#5a6a82]">Carregando produtos...</div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-20 text-[#5a6a82]">Nenhum produto disponível no momento.</div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} onSelectProduct={onSelectProduct} />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function ProdutoDetalhePage({ slug, setPage }: { slug: string | null; setPage: (p: Page) => void }) {
+  const { detail, loading, error } = useProductDetailBySlug(slug);
+  const imageUrl = inlineMediaUrl(detail?.media);
+
+  if (loading) return <div className="min-h-[55vh] flex items-center justify-center text-[#5a6a82] text-sm"><Clock size={20} className="animate-spin mr-2 text-[#0057e7]" /> Carregando produto...</div>;
+  if (error) return <section className="py-20 bg-[#f5f7fa]"><div className="max-w-xl mx-auto px-4 text-center"><AlertCircle size={34} className="mx-auto mb-4 text-red-500" /><H2 className="mb-3">Não foi possível carregar este produto</H2><p className="text-sm text-[#5a6a82] mb-6">{error}</p><Btn onClick={() => setPage("loja")}>Voltar para a loja</Btn></div></section>;
+  if (!detail) return <section className="py-20 bg-[#f5f7fa]"><div className="max-w-xl mx-auto px-4 text-center"><Package size={34} className="mx-auto mb-4 text-[#0057e7]" /><H2 className="mb-3">Produto não encontrado</H2><p className="text-sm text-[#5a6a82] mb-6">O produto solicitado não existe ou não está disponível no momento.</p><Btn onClick={() => setPage("loja")}>Ver produtos disponíveis</Btn></div></section>;
+
+  const { product, brand } = detail;
+  const priceLabel = product.price != null ? `R$ ${Number(product.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte o valor";
+
+  return (
+    <>
+      <div className="bg-white border-b border-[#0d1b2e]/10"><div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 text-xs text-[#5a6a82]"><button onClick={() => setPage("home")} className="hover:text-[#0057e7]">Início</button><ChevronRight size={12} /><button onClick={() => setPage("loja")} className="hover:text-[#0057e7]">Loja</button><ChevronRight size={12} /><span className="font-medium text-[#0d1b2e] truncate">{product.name}</span></div></div>
+      <section className="bg-[#f5f7fa] py-12 sm:py-16"><div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-start"><div className="rounded-2xl overflow-hidden border border-[#0d1b2e]/10 bg-white p-3"><div className="bg-[#f5f7fa] rounded-xl overflow-hidden h-[420px]">{imageUrl ? <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={40} /></div>}</div></div><div><SectionLabel>Produto</SectionLabel><h1 className="text-4xl sm:text-5xl font-black text-[#0d1b2e] leading-tight mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{product.name}</h1>{brand?.name && <p className="text-sm text-[#5a6a82] mb-3">Marca: {brand.name}</p>}<p className="text-3xl font-black text-[#0057e7] mb-6">{priceLabel}</p>{product.short_description && <p className="text-[#5a6a82] leading-relaxed mb-6">{product.short_description}</p>}<div className="flex flex-wrap gap-3"><Btn variant="primary" className="px-6 py-3 text-base" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn><WhatsAppAction className="px-6 py-3 text-base" /></div></div></div></section>
+      {(product.description || product.sku) && <section className="py-14 bg-white"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Detalhes</SectionLabel><H2 className="mb-5">Informações do produto</H2>{product.sku && <p className="text-sm text-[#5a6a82] mb-4"><span className="font-bold text-[#0d1b2e]">SKU:</span> {product.sku}</p>}{product.description && <p className="text-sm text-[#5a6a82] leading-relaxed whitespace-pre-line">{product.description}</p>}</div></section>}
+      <section className="py-20 bg-[#0057e7]"><div className="max-w-3xl mx-auto px-4 text-center"><h2 className="text-3xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Quer saber mais sobre este produto?</h2><div className="flex flex-wrap justify-center gap-4"><Btn className="bg-white text-[#0057e7] hover:bg-[#f0f6ff]" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn><WhatsAppAction /></div></div></section>
     </>
   );
 }
@@ -1705,6 +1761,7 @@ function AssistenciaPage({ setPage }: { setPage: (p: Page) => void }) {
 export default function App() {
   const [page, setPageState] = useState<Page>("home");
   const [serviceSlug, setServiceSlug] = useState<string | null>(null);
+  const [productSlug, setProductSlug] = useState<string | null>(null);
   const [isAdminRoute, setIsAdminRoute] = useState(false);
 
   useEffect(() => {
@@ -1717,8 +1774,28 @@ export default function App() {
         const serviceMatch = path.match(/^\/servicos\/([^/]+)$/);
         if (serviceMatch) {
           setServiceSlug(decodeURIComponent(serviceMatch[1]));
+          setProductSlug(null);
           setPageState("servico");
+          return;
         }
+
+        const productMatch = path.match(/^\/loja\/([^/]+)$/);
+        if (productMatch) {
+          setProductSlug(decodeURIComponent(productMatch[1]));
+          setServiceSlug(null);
+          setPageState("produto");
+          return;
+        }
+
+        setServiceSlug(null);
+        setProductSlug(null);
+        if (path === "/loja") setPageState("loja");
+        else if (path === "/servicos") setPageState("servicos");
+        else if (path === "/sobre") setPageState("sobre");
+        else if (path === "/contato") setPageState("contato");
+        else if (path === "/orcamento") setPageState("orcamento");
+        else if (path === "/assistencia") setPageState("assistencia");
+        else setPageState("home");
       }
     };
     handleLocation();
@@ -1729,14 +1806,26 @@ export default function App() {
   const setPage = (p: Page) => {
     setIsAdminRoute(false);
     setPageState(p);
-    if (p !== "servico") window.history.pushState({}, "", p === "home" ? "/" : `/${p}`);
+    if (p !== "servico" && p !== "produto") {
+      const route = p === "home" ? "/" : `/${p}`;
+      window.history.pushState({}, "", route);
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const selectService = (slug: string) => {
     setServiceSlug(slug);
+    setProductSlug(null);
     setPageState("servico");
     window.history.pushState({}, "", `/servicos/${encodeURIComponent(slug)}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const selectProduct = (slug: string) => {
+    setProductSlug(slug);
+    setServiceSlug(null);
+    setPageState("produto");
+    window.history.pushState({}, "", `/loja/${encodeURIComponent(slug)}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -1747,7 +1836,9 @@ export default function App() {
         page={page}
         setPage={setPage}
         serviceSlug={serviceSlug}
+        productSlug={productSlug}
         onSelectService={selectService}
+        onSelectProduct={selectProduct}
         setIsAdminRoute={setIsAdminRoute}
       />
     </AuthProvider>
@@ -1759,14 +1850,18 @@ function AppContent({
   page,
   setPage,
   serviceSlug,
+  productSlug,
   onSelectService,
+  onSelectProduct,
   setIsAdminRoute,
 }: {
   isAdminRoute: boolean;
   page: Page;
   setPage: (p: Page) => void;
   serviceSlug: string | null;
+  productSlug: string | null;
   onSelectService: (slug: string) => void;
+  onSelectProduct: (slug: string) => void;
   setIsAdminRoute: (val: boolean) => void;
 }) {
   const { session, loading } = useAuth();
@@ -1789,7 +1884,9 @@ function AppContent({
     <div className="min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
       <Header cur={page} setPage={setPage} />
       <main>
-        {page === "home" && <HomePage setPage={setPage} onSelectService={onSelectService} />}
+        {page === "home" && <HomePage setPage={setPage} onSelectService={onSelectService} onSelectProduct={onSelectProduct} />}
+        {page === "loja" && <LojaPage setPage={setPage} onSelectProduct={onSelectProduct} />}
+        {page === "produto" && <ProdutoDetalhePage slug={productSlug} setPage={setPage} />}
         {page === "servicos" && <ServicosPage setPage={setPage} onSelectService={onSelectService} />}
         {page === "servico" && <ServicoDetalhePage slug={serviceSlug} setPage={setPage} />}
         {page === "sobre" && <SobrePage setPage={setPage} />}

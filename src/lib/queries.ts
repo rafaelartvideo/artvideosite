@@ -7,7 +7,7 @@ import type { StorageBucket } from "./database.types";
 export const getServices = () =>
   supabase
     .from("services")
-    .select("*, cover_media:media!cover_media_id(bucket_name, storage_path)")
+    .select("*")
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
@@ -145,7 +145,7 @@ export const getProducts = () =>
 export const getFeaturedProducts = () =>
   supabase
     .from("products")
-    .select("*, cover_media:media!cover_media_id(bucket_name, storage_path)")
+    .select("*")
     .eq("is_active", true)
     .eq("is_featured", true)
     .order("created_at", { ascending: false });
@@ -177,7 +177,7 @@ export const getProductCategories = () =>
 export const getBrands = () =>
   supabase
     .from("brands")
-    .select("*, logo_media:media!logo_media_id(bucket_name, storage_path)")
+    .select("*")
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
