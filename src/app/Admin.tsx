@@ -952,7 +952,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
             description: v.description || null,
             price: v.price ? Number(v.price) : null,
             icon: null,
-            price_type: null,
+
             is_active: true,
             sort_order: i,
           }))

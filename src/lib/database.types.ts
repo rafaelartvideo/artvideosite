@@ -82,11 +82,10 @@ export interface Service {
 export interface ServiceVariant {
   id: string;
   service_id: string;
-  title: string;
-  description: string | null;
+  title: g | null;
   icon: string | null;
   price: number | null;
-  price_type: string | null;
+
   is_active: boolean;
   sort_order: number;
   created_at: string;
