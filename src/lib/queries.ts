@@ -7,7 +7,7 @@ import type { StorageBucket } from "./database.types";
 export const getServices = () =>
   supabase
     .from("services")
-    .select("*")
+    .select("*, cover_media:media!cover_media_id(bucket_name, storage_path)")
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
@@ -145,7 +145,7 @@ export const getProducts = () =>
 export const getFeaturedProducts = () =>
   supabase
     .from("products")
-    .select("*")
+    .select("*, cover_media:media!cover_media_id(bucket_name, storage_path)")
     .eq("is_active", true)
     .eq("is_featured", true)
     .order("created_at", { ascending: false });
@@ -177,7 +177,7 @@ export const getProductCategories = () =>
 export const getBrands = () =>
   supabase
     .from("brands")
-    .select("*")
+    .select("*, logo_media:media!logo_media_id(bucket_name, storage_path)")
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
@@ -205,16 +205,83 @@ export const getMediaByPath = (bucket: StorageBucket, path: string) =>
     .eq("storage_path", path)
     .single();
 
+// ── Customers ────────────────────────────────────────────────
+export const getCustomerByDocument = async (document: string) => {
+  const { data, error } = await supabase.rpc(
+    "find_customer_by_document",
+    {
+      p_document: document,
+    }
+  );
+
+  if (error) {
+    console.error("Erro ao buscar cliente por CPF:", error);
+    throw error;
+  }
+
+  return data?.[0] ?? null;
+};
+
+export const updateCustomer = (id: string, payload: Partial<{
+  full_name: string;
+  whatsapp: string | null;
+  email: string | null;
+  phone: string | null;
+  document: string | null;
+}>) =>
+  supabase
+    .from("customers")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+
+export const getCustomers = () =>
+  supabase
+    .from("customers")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+export const getCustomerById = (id: string) =>
+  supabase
+    .from("customers")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+// ── Request Statuses ──────────────────────────────────────────
+export const getRequestStatuses = () =>
+  supabase
+    .from("request_statuses")
+    .select("id, name, sort_order")
+    .order("sort_order");
+
+// ── Order Statuses ────────────────────────────────────────────
+export const getOrderStatuses = () =>
+  supabase
+    .from("order_statuses")
+    .select("id, name, sort_order")
+    .order("sort_order");
+
 // ── Quote Requests ────────────────────────────────────────────
-export const submitQuoteRequest = (payload: {
+export function generateProtocol(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const rand = Math.floor(Math.random() * 9000) + 1000;
+  return `ORC-${year}${month}${day}-${rand}`;
+}
+
+export const createQuoteRequest = (payload: {
+  customer_id: string;
   service_id?: string | null;
-  name: string;
-  whatsapp: string;
-  email?: string | null;
-  brand?: string | null;
-  model?: string | null;
-  problem_description?: string | null;
-  cep?: string | null;
+  brand_id?: string | null;
+  product_id?: string | null;
+  status_id?: string | null;
+  customer_message?: string | null;
+  protocol: string;
+  estimated_price?: number | null;
 }) =>
   supabase
     .from("quote_requests")
