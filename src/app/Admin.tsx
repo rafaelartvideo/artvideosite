@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { useMediaUrl } from "@/lib/hooks";
 import {
   LayoutDashboard, Wrench, FolderTree, Package, Tag, FileText, ClipboardList,
   Users, Settings, Phone, LogOut, Search, Plus, Edit2, Trash2, CheckCircle,
   AlertCircle, Clock, RefreshCw, X, ArrowLeft, Menu, Upload, AlertTriangle,
   Star, Filter, DollarSign, List, HelpCircle, ChevronDown, MessageCircle,
-  Mail, MapPin, Instagram, Globe, Hash, Activity,
+  Mail, MapPin, Instagram, Globe, Hash, Activity, Shield,
 } from "lucide-react";
 
 type AdminTab =
@@ -17,6 +18,33 @@ type AdminTab =
 
 function cn(...cls: (string | false | null | undefined)[]) {
   return cls.filter(Boolean).join(" ");
+}
+
+function slugify(value: string) {
+  return value
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function generateUniqueSlug(table: "service_categories" | "product_categories" | "products" | "brands", value: string, excludeId?: string) {
+  const baseSlug = slugify(value);
+  const { data, error } = await supabase.from(table).select("id, slug");
+  if (error) {
+    console.error("[ADMIN] Slug lookup error:", error);
+    throw error;
+  }
+
+  const existingSlugs = new Set((data || []).filter((item: any) => item.id !== excludeId).map((item: any) => item.slug));
+  if (!existingSlugs.has(baseSlug)) return baseSlug;
+
+  let suffix = 2;
+  while (existingSlugs.has(`${baseSlug}-${suffix}`)) suffix += 1;
+  return `${baseSlug}-${suffix}`;
 }
 
 const INPUT = "w-full bg-[#f8fafc] border border-[#0d1b2e]/15 rounded-lg px-3 py-2.5 text-sm text-[#0d1b2e] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/50 focus:border-[#0057e7] focus:bg-white transition-all placeholder-[#5a6a82]/50";
@@ -156,11 +184,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ImageUpload({ bucket, currentUrl, onUpload, label = "Imagem" }: {
-  bucket: string; currentUrl?: string | null; onUpload: (url: string) => void; label?: string;
+function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem" }: {
+  bucket: "service-images" | "product-images" | "brand-images" | "avatars" | "public-assets"; currentMediaId?: string | null; onUpload: (mediaId: string) => void; label?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
+  const { url: currentUrl } = useMediaUrl(currentMediaId);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -170,10 +200,12 @@ function ImageUpload({ bucket, currentUrl, onUpload, label = "Imagem" }: {
       const ext = file.name.split(".").pop();
       const path = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}.${ext}`;
       const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
-      if (!error) {
-        const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-        onUpload(data.publicUrl);
-      }
+      if (error) throw error;
+      const { data: media, error: mediaError } = await supabase.from("media").insert({ bucket_name: bucket, storage_path: path, file_name: file.name, file_size: file.size, mime_type: file.type || null, created_by: user?.id || null }).select("id").single();
+      if (mediaError) throw mediaError;
+      onUpload(media.id);
+    } catch (error) {
+      console.error("[ADMIN] media upload error:", error);
     } finally {
       setUploading(false);
       if (ref.current) ref.current.value = "";
@@ -195,6 +227,16 @@ function ImageUpload({ bucket, currentUrl, onUpload, label = "Imagem" }: {
       </button>
     </div>
   );
+}
+
+function ProductAdminThumb({ mediaId, name }: { mediaId: string | null; name: string }) {
+  const { url } = useMediaUrl(mediaId);
+  return url ? <img src={url} alt={name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-[#0d1b2e]/10" /> : <div className="w-10 h-10 bg-[#f5f7fa] rounded-lg flex-shrink-0 border border-[#0d1b2e]/10 flex items-center justify-center"><Package size={16} className="text-[#5a6a82]" /></div>;
+}
+
+function BrandAdminLogo({ mediaId, name }: { mediaId: string | null; name: string }) {
+  const { url } = useMediaUrl(mediaId);
+  return url ? <img src={url} alt={name} className="h-12 w-auto object-contain max-w-full" /> : <div className="w-12 h-12 bg-[#f5f7fa] rounded-lg flex items-center justify-center"><Tag size={20} className="text-[#5a6a82]" /></div>;
 }
 
 function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
@@ -460,20 +502,20 @@ function TabDashboard() {
   const load = async () => {
     setLoading(true);
     const [qAll, oAll, sActive, pActive, rQuotes, rOrders] = await Promise.all([
-      supabase.from("quotes").select("id, status"),
-      supabase.from("orders").select("id, status"),
-      supabase.from("services").select("id", { count: "exact", head: true }).eq("active", true),
-      supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true),
-      supabase.from("quotes").select("*").order("created_at", { ascending: false }).limit(5),
-      supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(5),
+      supabase.from("quote_requests").select("id, status"),
+      supabase.from("service_orders").select("id, status"),
+      supabase.from("services").select("id", { count: "exact", head: true }).eq("is_active", true),
+      supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
+      supabase.from("quote_requests").select("*").order("created_at", { ascending: false }).limit(5),
+      supabase.from("service_orders").select("*").order("created_at", { ascending: false }).limit(5),
     ]);
     const quotes = qAll.data || [];
     const orders = oAll.data || [];
     setStats({
-      quotesPending: quotes.filter(q => (q.status || "").toLowerCase().includes("pend")).length,
-      quotesAnalysis: quotes.filter(q => (q.status || "").toLowerCase().includes("anál") || (q.status || "").toLowerCase().includes("analise")).length,
-      ordersActive: orders.filter(o => ["em manutenção", "em análise", "em andamento", "em execução"].some(s => (o.status || "").toLowerCase().includes(s.split(" ")[1]))).length,
-      ordersWaiting: orders.filter(o => (o.status || "").toLowerCase().includes("aguard") || (o.status || "").toLowerCase().includes("client")).length,
+      quotesPending: quotes.filter((q: any) => (q.status || "").toLowerCase().includes("pend")).length,
+      quotesAnalysis: quotes.filter((q: any) => (q.status || "").toLowerCase().includes("anál") || (q.status || "").toLowerCase().includes("analise")).length,
+      ordersActive: orders.filter((o: any) => ["em manutenção", "em análise", "em andamento", "em execução"].some(s => (o.status || "").toLowerCase().includes(s.split(" ")[1]))).length,
+      ordersWaiting: orders.filter((o: any) => (o.status || "").toLowerCase().includes("aguard") || (o.status || "").toLowerCase().includes("client")).length,
       servicesActive: sActive.count || 0,
       productsActive: pActive.count || 0,
     });
@@ -586,8 +628,11 @@ function TabDashboard() {
 const SERVICE_STATUSES = ["Solicitação recebida", "Em análise", "Aguardando aprovação", "Em manutenção", "Pronto", "Finalizado"];
 
 function TabServices() {
+  const { user } = useAuth();
   const [services, setServices] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -597,12 +642,16 @@ function TabServices() {
 
   const load = async () => {
     setLoading(true);
-    const [sRes, cRes] = await Promise.all([
-      supabase.from("services").select("*, service_variants(*), service_features(*), service_faqs(*)").order("sort_order"),
-      supabase.from("categories").select("id, name").order("sort_order"),
+    const [sRes, cRes, bRes, pRes] = await Promise.all([
+      supabase.from("services").select("*, service_variants(*), service_inclusions(*), service_exclusions(*), service_price_factors(*), service_faqs(*), service_sections(*)").order("sort_order"),
+      supabase.from("service_categories").select("id, name").order("sort_order"),
+      supabase.from("brands").select("id, name").eq("is_active", true).order("sort_order"),
+      supabase.from("products").select("id, name").eq("is_active", true).order("created_at", { ascending: false }),
     ]);
-    setServices(sRes.data || []);
-    setCategories(cRes.data || []);
+    if (sRes.error) setToast({ msg: `Erro ao carregar serviços: ${sRes.error.message}`, type: "error" }); else setServices(sRes.data || []);
+    if (cRes.error) setToast({ msg: `Erro ao carregar categorias: ${cRes.error.message}`, type: "error" }); else setCategories(cRes.data || []);
+    if (bRes.error) setToast({ msg: `Erro ao carregar marcas: ${bRes.error.message}`, type: "error" }); else setBrands(bRes.data || []);
+    if (pRes.error) setToast({ msg: `Erro ao carregar produtos: ${pRes.error.message}`, type: "error" }); else setProducts(pRes.data || []);
     setLoading(false);
   };
 
@@ -612,19 +661,32 @@ function TabServices() {
   const openEdit = (s: any) => { setEditItem(s); setDrawerOpen(true); };
 
   const handleDelete = async (id: string) => {
-    await supabase.from("services").delete().eq("id", id);
+    console.log("[ADMIN] Deleting service:", id);
+    const { error } = await supabase.from("services").delete().eq("id", id);
+    if (error) {
+      console.error("[ADMIN] Delete error:", error);
+      setToast({ msg: `Erro ao excluir: ${error.message}`, type: "error" });
+      return;
+    }
     setDelId(null);
-    setToast({ msg: "Serviço excluído.", type: "success" });
+    setToast({ msg: "Serviço excluído com sucesso.", type: "success" });
     load();
   };
 
   const toggleActive = async (s: any) => {
-    await supabase.from("services").update({ active: !s.active }).eq("id", s.id);
+    console.log("[ADMIN] Toggling service active status:", s.id);
+    const { error } = await supabase.from("services").update({ is_active: !s.is_active }).eq("id", s.id);
+    if (error) {
+      console.error("[ADMIN] Toggle active error:", error);
+      setToast({ msg: `Erro ao atualizar: ${error.message}`, type: "error" });
+      return;
+    }
+    setToast({ msg: "Status atualizado com sucesso.", type: "success" });
     load();
   };
 
   const filtered = services.filter(s =>
-    !search || s.name?.toLowerCase().includes(search.toLowerCase())
+    !search || s.title?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -666,23 +728,23 @@ function TabServices() {
                     <tr key={s.id} className="hover:bg-[#f8fafc]/80 transition-colors">
                       <td className="px-4 py-3.5">
                         <div>
-                          <p className="font-bold text-[#0d1b2e]">{s.name}</p>
+                          <p className="font-bold text-[#0d1b2e]">{s.title}</p>
                           {s.short_description && <p className="text-xs text-[#5a6a82] truncate max-w-xs">{s.short_description}</p>}
                         </div>
                       </td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{cat?.name || "—"}</td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{s.service_variants?.length || 0}</td>
                       <td className="px-4 py-3.5">
-                        {s.featured ? <Star size={15} className="text-amber-400 fill-amber-400" /> : <span className="text-xs text-[#5a6a82]">—</span>}
+                        {s.is_featured ? <Star size={15} className="text-amber-400 fill-amber-400" /> : <span className="text-xs text-[#5a6a82]">—</span>}
                       </td>
                       <td className="px-4 py-3.5">
-                        <StatusBadge status={s.active ? "Ativo" : "Inativo"} />
+                        <StatusBadge status={s.is_active ? "Ativo" : "Inativo"} />
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => openEdit(s)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors" title="Editar"><Edit2 size={15} /></button>
-                          <button onClick={() => toggleActive(s)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={s.active ? "Desativar" : "Ativar"}>
-                            {s.active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+                          <button onClick={() => toggleActive(s)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={s.is_active ? "Desativar" : "Ativar"}>
+                            {s.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
                           </button>
                           <button onClick={() => setDelId(s.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir"><Trash2 size={15} /></button>
                         </div>
@@ -696,13 +758,13 @@ function TabServices() {
         )}
       </div>
 
-      <ServiceDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); load(); }} editItem={editItem} categories={categories} onToast={setToast} />
+      <ServiceDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); load(); }} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
     </div>
   );
 }
 
-function ServiceDrawer({ open, onClose, editItem, categories, onToast }: {
-  open: boolean; onClose: () => void; editItem: any | null; categories: any[]; onToast: (t: { msg: string; type: "success" | "error" }) => void;
+function ServiceDrawer({ open, onClose, editItem, categories, brands, products, userId, onToast }: {
+  open: boolean; onClose: () => void; editItem: any | null; categories: any[]; brands: any[]; products: any[]; userId: string | null; onToast: (t: { msg: string; type: "success" | "error" }) => void;
 }) {
   const [tab, setTab] = useState("info");
   const [saving, setSaving] = useState(false);
@@ -711,16 +773,24 @@ function ServiceDrawer({ open, onClose, editItem, categories, onToast }: {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [brandId, setBrandId] = useState("");
+  const [productId, setProductId] = useState("");
+  const [coverMediaId, setCoverMediaId] = useState("");
   const [shortDesc, setShortDesc] = useState("");
   const [description, setDescription] = useState("");
+  const [basePrice, setBasePrice] = useState("");
+  const [priceMode, setPriceMode] = useState<"FIXED" | "STARTING_FROM" | "QUOTE" | "HIDDEN">("QUOTE");
   const [active, setActive] = useState(true);
   const [featured, setFeatured] = useState(false);
   const [sortOrder, setSortOrder] = useState(0);
 
   // Variants
-  const [variants, setVariants] = useState<{ label: string; price: string; price_note: string }[]>([]);
+  const [variants, setVariants] = useState<{ title: string; description: string; price: string }[]>([]);
   // Features (incluso)
   const [features, setFeatures] = useState<string[]>([]);
+  const [exclusions, setExclusions] = useState<string[]>([]);
+  const [priceFactors, setPriceFactors] = useState<{ name: string; description: string; impact: "increase" | "decrease"; amount: string; unit: string }[]>([]);
+  const [sections, setSections] = useState<{ title: string; content: string }[]>([]);
   // FAQs
   const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([]);
 
@@ -728,57 +798,249 @@ function ServiceDrawer({ open, onClose, editItem, categories, onToast }: {
     if (open) {
       setTab("info");
       if (editItem) {
-        setName(editItem.name || "");
+        setName(editItem.title || "");
         setSlug(editItem.slug || "");
         setCategoryId(editItem.category_id || "");
+        setBrandId(editItem.brand_id || ""); setProductId(editItem.product_id || ""); setCoverMediaId(editItem.cover_media_id || "");
         setShortDesc(editItem.short_description || "");
         setDescription(editItem.description || "");
-        setActive(editItem.active ?? true);
-        setFeatured(editItem.featured ?? false);
+        setBasePrice(editItem.base_price == null ? "" : String(editItem.base_price));
+        setPriceMode(["FIXED", "STARTING_FROM", "QUOTE", "HIDDEN"].includes(editItem.price_mode) ? editItem.price_mode : "QUOTE");
+        setActive(editItem.is_active ?? true);
+        setFeatured(editItem.is_featured ?? false);
         setSortOrder(editItem.sort_order ?? 0);
-        setVariants((editItem.service_variants || []).map((v: any) => ({ label: v.label || "", price: String(v.price || ""), price_note: v.price_note || "" })));
-        setFeatures((editItem.service_features || []).map((f: any) => f.description || ""));
+        setVariants((editItem.service_variants || []).map((v: any) => ({ title: v.title || "", description: v.description || "", price: v.price == null ? "" : String(v.price) })));
+        setFeatures((editItem.service_inclusions || []).map((f: any) => f.description || ""));
+        setExclusions((editItem.service_exclusions || []).map((item: any) => item.description || ""));
+        setPriceFactors((editItem.service_price_factors || []).map((factor: any) => ({ name: factor.name || "", description: factor.description || "", impact: factor.impact || "increase", amount: factor.amount == null ? "" : String(factor.amount), unit: factor.unit || "" })));
+        setSections((editItem.service_sections || []).map((section: any) => ({ title: section.title || "", content: section.content || "" })));
         setFaqs((editItem.service_faqs || []).map((f: any) => ({ question: f.question || "", answer: f.answer || "" })));
       } else {
-        setName(""); setSlug(""); setCategoryId(""); setShortDesc(""); setDescription("");
+        setName(""); setSlug(""); setCategoryId(""); setBrandId(""); setProductId(""); setCoverMediaId(""); setShortDesc(""); setDescription(""); setBasePrice(""); setPriceMode("QUOTE");
         setActive(true); setFeatured(false); setSortOrder(0);
-        setVariants([]); setFeatures([]); setFaqs([]);
+        setVariants([]); setFeatures([]); setExclusions([]); setPriceFactors([]); setSections([]); setFaqs([]);
       }
     }
   }, [open, editItem]);
 
-  const autoSlug = (n: string) => n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+  const autoSlug = slugify;
+
+  // Generate unique slug by checking for conflicts in Supabase
+  const generateUniqueServiceSlug = async (title: string, excludeId?: string): Promise<string> => {
+    const baseSlug = autoSlug(title);
+    console.log("[ADMIN] Generating slug for title:", title, "base slug:", baseSlug);
+    
+    // Query all services to find existing slugs
+    const { data: existingServices, error: queryError } = await supabase.from("services").select("id, slug");
+    if (queryError) {
+      console.error("[ADMIN] Error querying services for slug check:", queryError);
+      return baseSlug;
+    }
+    
+    // Filter out the current service being edited
+    const existingSlugs = existingServices
+      ?.filter((s: any) => !excludeId || s.id !== excludeId)
+      .map((s: any) => s.slug) || [];
+    
+    // Check if base slug is available
+    if (!existingSlugs.includes(baseSlug)) {
+      console.log("[ADMIN] Slug available:", baseSlug);
+      return baseSlug;
+    }
+    
+    // Find next available slug with number suffix
+    let counter = 2;
+    let candidateSlug = `${baseSlug}-${counter}`;
+    while (existingSlugs.includes(candidateSlug)) {
+      counter++;
+      candidateSlug = `${baseSlug}-${counter}`;
+    }
+    
+    console.log("[ADMIN] Slug available (with suffix):", candidateSlug);
+    return candidateSlug;
+  };
 
   const handleSave = async () => {
     if (!name.trim()) { onToast({ msg: "Nome do serviço é obrigatório.", type: "error" }); return; }
     setSaving(true);
     try {
-      const payload = { name: name.trim(), slug: slug || autoSlug(name), category_id: categoryId || null, short_description: shortDesc, description, active, featured, sort_order: sortOrder };
-      let serviceId = editItem?.id;
-      if (editItem) {
-        await supabase.from("services").update(payload).eq("id", serviceId);
+      console.log("[ADMIN] Saving service:", { title: name, is_active: active, is_featured: featured });
+      
+      
+      let finalSlug = slug;
+      
+      // For new services, always generate a unique slug
+      if (!editItem) {
+        finalSlug = await generateUniqueServiceSlug(name);
+        console.log("[ADMIN] Generated unique slug for new service:", finalSlug);
       } else {
-        const { data } = await supabase.from("services").insert(payload).select().single();
+        // For edits, only regenerate slug if title changed
+        const previousSlug = autoSlug(editItem.title || "");
+        const newSlug = autoSlug(name);
+        
+        if (previousSlug !== newSlug) {
+          // Title changed, generate new unique slug (excluding current service)
+          finalSlug = await generateUniqueServiceSlug(name, editItem.id);
+          console.log("[ADMIN] Title changed, generated new slug:", finalSlug);
+        } else {
+          // Title unchanged, keep existing slug
+          finalSlug = slug;
+          console.log("[ADMIN] Title unchanged, keeping existing slug:", finalSlug);
+        }
+      }
+      
+      const payload = { title: name.trim(), slug: finalSlug, category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, cover_media_id: coverMediaId || null, short_description: shortDesc || null, description: description || null, base_price: basePrice ? Number(basePrice) : null, price_mode: priceMode, is_active: active, is_featured: featured, sort_order: sortOrder, updated_by: userId };
+      let serviceId = editItem?.id;
+      
+      // Insert or Update main service
+      if (editItem) {
+        console.log("[ADMIN] Updating service:", serviceId);
+        const { error: updateError } = await supabase.from("services").update(payload).eq("id", serviceId);
+        if (updateError) {
+          console.error("[ADMIN] Service update error:", updateError);
+          onToast({ msg: `Erro ao atualizar serviço: ${updateError.message}`, type: "error" });
+          setSaving(false);
+          return;
+        }
+        console.log("[ADMIN] Service updated successfully");
+      } else {
+        console.log("[ADMIN] Creating new service");
+        const { data, error: insertError } = await supabase.from("services").insert({ ...payload, created_by: userId }).select().single();
+        if (insertError) {
+          console.error("[ADMIN] Service insert error:", insertError);
+          onToast({ msg: `Erro ao criar serviço: ${insertError.message}`, type: "error" });
+          setSaving(false);
+          return;
+        }
         serviceId = data?.id;
+        console.log("[ADMIN] Service created with ID:", serviceId);
       }
-      if (serviceId) {
-        await supabase.from("service_variants").delete().eq("service_id", serviceId);
-        if (variants.length > 0) {
-          await supabase.from("service_variants").insert(variants.map((v, i) => ({ service_id: serviceId, label: v.label, price: v.price ? Number(v.price) : null, price_note: v.price_note, sort_order: i })));
-        }
-        await supabase.from("service_features").delete().eq("service_id", serviceId);
-        if (features.filter(Boolean).length > 0) {
-          await supabase.from("service_features").insert(features.filter(Boolean).map((f, i) => ({ service_id: serviceId, description: f, sort_order: i })));
-        }
-        await supabase.from("service_faqs").delete().eq("service_id", serviceId);
-        if (faqs.filter(f => f.question).length > 0) {
-          await supabase.from("service_faqs").insert(faqs.filter(f => f.question).map((f, i) => ({ service_id: serviceId, question: f.question, answer: f.answer, sort_order: i })));
-        }
+      
+      if (!serviceId) {
+        onToast({ msg: "Erro: ID do serviço não obtido.", type: "error" });
+        setSaving(false);
+        return;
       }
+      
+      // Save service variants
+      console.log("[ADMIN] Saving service variants:", variants.length);
+      const { error: deleteVariantsError } = await supabase.from("service_variants").delete().eq("service_id", serviceId);
+      if (deleteVariantsError) {
+        console.error("[ADMIN] Error deleting old variants:", deleteVariantsError);
+        onToast({ msg: `Erro ao remover variantes antigas: ${deleteVariantsError.message}`, type: "error" });
+        setSaving(false);
+        return;
+      }
+      
+      if (variants.length > 0) {
+        const { error: insertVariantsError } = await supabase.from("service_variants").insert(
+          variants.map((v, i) => ({
+            service_id: serviceId,
+            title: v.title,
+            description: v.description || null,
+            price: v.price ? Number(v.price) : null,
+            icon: null,
+            price_type: null,
+            is_active: true,
+            sort_order: i,
+          }))
+        );
+        if (insertVariantsError) {
+          console.error("[ADMIN] Error inserting variants:", insertVariantsError);
+          onToast({ msg: `Erro ao salvar variantes: ${insertVariantsError.message}`, type: "error" });
+          setSaving(false);
+          return;
+        }
+        console.log("[ADMIN] Service variants saved");
+      }
+      
+      // Save service inclusions (formerly called "features" in the UI)
+      console.log("[ADMIN] Saving service inclusions:", features.filter(Boolean).length);
+      const { error: deleteInclusionsError } = await supabase.from("service_inclusions").delete().eq("service_id", serviceId);
+      if (deleteInclusionsError) {
+        console.error("[ADMIN] Error deleting old inclusions:", deleteInclusionsError);
+        onToast({ msg: `Erro ao remover inclusões antigas: ${deleteInclusionsError.message}`, type: "error" });
+        setSaving(false);
+        return;
+      }
+      
+      if (features.filter(Boolean).length > 0) {
+        const { error: insertInclusionsError } = await supabase.from("service_inclusions").insert(
+          features.filter(Boolean).map((f, i) => ({
+            service_id: serviceId,
+            description: f,
+            sort_order: i,
+          }))
+        );
+        if (insertInclusionsError) {
+          console.error("[ADMIN] Error inserting inclusions:", insertInclusionsError);
+          onToast({ msg: `Erro ao salvar inclusões: ${insertInclusionsError.message}`, type: "error" });
+          setSaving(false);
+          return;
+        }
+        console.log("[ADMIN] Service inclusions saved");
+      }
+
+      const { error: deleteExclusionsError } = await supabase.from("service_exclusions").delete().eq("service_id", serviceId);
+      if (deleteExclusionsError) { onToast({ msg: `Erro ao remover exclusões antigas: ${deleteExclusionsError.message}`, type: "error" }); return; }
+      const validExclusions = exclusions.filter(Boolean);
+      if (validExclusions.length > 0) {
+        const { error } = await supabase.from("service_exclusions").insert(validExclusions.map((description, sort_order) => ({ service_id: serviceId, description, sort_order })));
+        if (error) { onToast({ msg: `Erro ao salvar exclusões: ${error.message}`, type: "error" }); return; }
+      }
+
+      const { error: deleteFactorsError } = await supabase.from("service_price_factors").delete().eq("service_id", serviceId);
+      if (deleteFactorsError) { onToast({ msg: `Erro ao remover fatores antigos: ${deleteFactorsError.message}`, type: "error" }); return; }
+      const validFactors = priceFactors.filter((factor) => factor.name.trim());
+      if (validFactors.length > 0) {
+        const { error } = await supabase.from("service_price_factors").insert(validFactors.map((factor, sort_order) => ({ service_id: serviceId, name: factor.name.trim(), description: factor.description || null, impact: factor.impact, amount: Number(factor.amount) || 0, unit: factor.unit || null, sort_order })));
+        if (error) { onToast({ msg: `Erro ao salvar fatores: ${error.message}`, type: "error" }); return; }
+      }
+
+      const { error: deleteSectionsError } = await supabase.from("service_sections").delete().eq("service_id", serviceId);
+      if (deleteSectionsError) { onToast({ msg: `Erro ao remover seções antigas: ${deleteSectionsError.message}`, type: "error" }); return; }
+      const validSections = sections.filter((section) => section.title.trim() && section.content.trim());
+      if (validSections.length > 0) {
+        const { error } = await supabase.from("service_sections").insert(validSections.map((section, sort_order) => ({ service_id: serviceId, title: section.title.trim(), content: section.content.trim(), sort_order })));
+        if (error) { onToast({ msg: `Erro ao salvar seções: ${error.message}`, type: "error" }); return; }
+      }
+      
+      // Save service FAQs
+      console.log("[ADMIN] Saving service FAQs:", faqs.filter(f => f.question).length);
+      const { error: deleteFaqsError } = await supabase.from("service_faqs").delete().eq("service_id", serviceId);
+      if (deleteFaqsError) {
+        console.error("[ADMIN] Error deleting old FAQs:", deleteFaqsError);
+        onToast({ msg: `Erro ao remover FAQs antigas: ${deleteFaqsError.message}`, type: "error" });
+        setSaving(false);
+        return;
+      }
+      
+      if (faqs.filter(f => f.question).length > 0) {
+        const { error: insertFaqsError } = await supabase.from("service_faqs").insert(
+          faqs.filter(f => f.question).map((f, i) => ({
+            service_id: serviceId,
+            question: f.question,
+            answer: f.answer,
+            section_id: null, is_active: true, sort_order: i,
+          }))
+        );
+        if (insertFaqsError) {
+          console.error("[ADMIN] Error inserting FAQs:", insertFaqsError);
+          onToast({ msg: `Erro ao salvar FAQs: ${insertFaqsError.message}`, type: "error" });
+          setSaving(false);
+          return;
+        }
+        console.log("[ADMIN] Service FAQs saved");
+      }
+      
+      console.log("[ADMIN] Service save completed successfully");
       onToast({ msg: editItem ? "Serviço atualizado com sucesso!" : "Serviço criado com sucesso!", type: "success" });
       onClose();
-    } catch {
-      onToast({ msg: "Erro ao salvar. Tente novamente.", type: "error" });
+    } catch (err) {
+      console.error("[ADMIN] Unexpected error saving service:", err);
+      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
+      onToast({ msg: `Erro ao salvar: ${errorMessage}`, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -788,14 +1050,19 @@ function ServiceDrawer({ open, onClose, editItem, categories, onToast }: {
     { id: "info", label: "Informações", icon: List },
     { id: "price", label: "Preço", icon: DollarSign },
     { id: "features", label: "Incluso", icon: CheckCircle },
+    { id: "exclusions", label: "Não incluso", icon: X },
+    { id: "factors", label: "Fatores", icon: Activity },
     { id: "faq", label: "FAQ", icon: HelpCircle },
+    { id: "sections", label: "Seções", icon: FileText },
     { id: "publish", label: "Publicação", icon: Star },
   ];
 
   const catOptions = [{ value: "", label: "Selecionar categoria..." }, ...categories.map(c => ({ value: c.id, label: c.name }))];
+  const brandOptions = [{ value: "", label: "Sem marca" }, ...brands.map(brand => ({ value: brand.id, label: brand.name }))];
+  const productOptions = [{ value: "", label: "Sem produto vinculado" }, ...products.map(product => ({ value: product.id, label: product.name }))];
 
   return (
-    <Drawer open={open} onClose={onClose} title={editItem ? `Editar: ${editItem.name}` : "Novo Serviço"} subtitle="Preencha todas as seções para publicar o serviço" maxW="max-w-3xl">
+    <Drawer open={open} onClose={onClose} title={editItem ? `Editar: ${editItem.title}` : "Novo Serviço"} subtitle="Preencha todas as seções para publicar o serviço" maxW="max-w-3xl">
       {/* Tab bar */}
       <div className="sticky top-0 z-10 bg-white border-b border-[#0d1b2e]/8 px-4 flex gap-0 overflow-x-auto flex-shrink-0">
         {tabs.map(t => {
@@ -821,6 +1088,8 @@ function ServiceDrawer({ open, onClose, editItem, categories, onToast }: {
                 </div>
                 <FInput label="Slug (URL)" value={slug} onChange={(e: any) => setSlug(e.target.value)} placeholder="instalacao-ar-condicionado" hint="Gerado automaticamente a partir do nome." />
                 <FSelect label="Categoria" value={categoryId} onChange={(e: any) => setCategoryId(e.target.value)} options={catOptions} />
+                <FSelect label="Marca" value={brandId} onChange={(e: any) => setBrandId(e.target.value)} options={brandOptions} />
+                <FSelect label="Produto relacionado" value={productId} onChange={(e: any) => setProductId(e.target.value)} options={productOptions} />
               </div>
             </Section>
             <Section title="Descrição">
@@ -829,27 +1098,36 @@ function ServiceDrawer({ open, onClose, editItem, categories, onToast }: {
                 <FTextarea label="Descrição completa" value={description} onChange={(e: any) => setDescription(e.target.value)} rows={5} placeholder="Texto completo que aparece na página do serviço." />
               </div>
             </Section>
+            <Section title="Imagem de capa">
+              <ImageUpload bucket="service-images" currentMediaId={coverMediaId} onUpload={setCoverMediaId} label="Imagem do serviço" />
+            </Section>
           </>
         )}
 
         {/* PRICE TAB */}
         {tab === "price" && (
           <>
+            <Section title="Preço base">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FInput label="Preço base (R$)" type="number" min="0" step="0.01" value={basePrice} onChange={(e: any) => setBasePrice(e.target.value)} placeholder="Vazio para consultar" />
+                <FSelect label="Modo de preço" value={priceMode} onChange={(e: any) => setPriceMode(e.target.value)} options={[{ value: "FIXED", label: "Preço fixo" }, { value: "STARTING_FROM", label: "Preço a partir de" }, { value: "QUOTE", label: "Consultar orçamento" }, { value: "HIDDEN", label: "Não exibir preço" }]} />
+              </div>
+            </Section>
             <Section title="Variações de Preço">
               <p className="text-xs text-[#5a6a82] mb-3">Adicione variações para mostrar opções diferentes de preço. Deixe em branco o preço para indicar "Consultar".</p>
               {variants.map((v, i) => (
                 <div key={i} className="flex gap-3 items-start mb-3 p-3 bg-[#f8fafc] rounded-lg border border-[#0d1b2e]/8">
                   <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <FInput label={i === 0 ? "Rótulo" : undefined} value={v.label} onChange={(e: any) => { const n = [...variants]; n[i].label = e.target.value; setVariants(n); }} placeholder="Ex: 12.000 BTUs" />
+                    <FInput label={i === 0 ? "Título" : undefined} value={v.title} onChange={(e: any) => { const n = [...variants]; n[i].title = e.target.value; setVariants(n); }} placeholder="Ex: 12.000 BTUs" />
                     <FInput label={i === 0 ? "Preço (R$)" : undefined} value={v.price} onChange={(e: any) => { const n = [...variants]; n[i].price = e.target.value; setVariants(n); }} placeholder="Ex: 250.00 (vazio = consultar)" type="number" min="0" step="0.01" />
-                    <FInput label={i === 0 ? "Observação" : undefined} value={v.price_note} onChange={(e: any) => { const n = [...variants]; n[i].price_note = e.target.value; setVariants(n); }} placeholder="Ex: A partir de" />
+                    <FInput label={i === 0 ? "Descrição" : undefined} value={v.description} onChange={(e: any) => { const n = [...variants]; n[i].description = e.target.value; setVariants(n); }} placeholder="Descrição da variação" />
                   </div>
                   <button type="button" onClick={() => setVariants(variants.filter((_, idx) => idx !== i))} className="mt-5 p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
                     <X size={15} />
                   </button>
                 </div>
               ))}
-              <button type="button" onClick={() => setVariants([...variants, { label: "", price: "", price_note: "" }])}
+              <button type="button" onClick={() => setVariants([...variants, { title: "", description: "", price: "" }])}
                 className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center transition-colors">
                 <Plus size={14} /> Adicionar variação
               </button>
@@ -878,6 +1156,20 @@ function ServiceDrawer({ open, onClose, editItem, categories, onToast }: {
           </Section>
         )}
 
+        {tab === "exclusions" && (
+          <Section title="O que não está incluso">
+            {exclusions.map((item, index) => <div key={index} className="flex items-center gap-2 mb-2"><X size={14} className="text-red-500" /><input value={item} onChange={(event) => { const next = [...exclusions]; next[index] = event.target.value; setExclusions(next); }} className={cn(INPUT, "py-2 text-xs flex-1")} placeholder={`Item ${index + 1}...`} /><button type="button" onClick={() => setExclusions(exclusions.filter((_, itemIndex) => itemIndex !== index))} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><X size={14} /></button></div>)}
+            <button type="button" onClick={() => setExclusions([...exclusions, ""])} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center mt-2"><Plus size={14} /> Adicionar item</button>
+          </Section>
+        )}
+
+        {tab === "factors" && (
+          <Section title="Fatores que alteram preço">
+            {priceFactors.map((factor, index) => <div key={index} className="mb-3 p-3 bg-[#f8fafc] rounded-lg border border-[#0d1b2e]/8 grid grid-cols-1 sm:grid-cols-2 gap-3"><FInput label="Título" value={factor.name} onChange={(event: any) => { const next = [...priceFactors]; next[index].name = event.target.value; setPriceFactors(next); }} /><FSelect label="Impacto" value={factor.impact} onChange={(event: any) => { const next = [...priceFactors]; next[index].impact = event.target.value; setPriceFactors(next); }} options={[{ value: "increase", label: "Aumenta" }, { value: "decrease", label: "Reduz" }]} /><FInput label="Valor" type="number" value={factor.amount} onChange={(event: any) => { const next = [...priceFactors]; next[index].amount = event.target.value; setPriceFactors(next); }} /><FInput label="Unidade" value={factor.unit} onChange={(event: any) => { const next = [...priceFactors]; next[index].unit = event.target.value; setPriceFactors(next); }} /><div className="sm:col-span-2"><FTextarea label="Descrição" value={factor.description} onChange={(event: any) => { const next = [...priceFactors]; next[index].description = event.target.value; setPriceFactors(next); }} rows={2} /></div><button type="button" onClick={() => setPriceFactors(priceFactors.filter((_, factorIndex) => factorIndex !== index))} className="text-xs text-red-600 font-bold">Remover fator</button></div>)}
+            <button type="button" onClick={() => setPriceFactors([...priceFactors, { name: "", description: "", impact: "increase", amount: "", unit: "" }])} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center"><Plus size={14} /> Adicionar fator</button>
+          </Section>
+        )}
+
         {/* FAQ TAB */}
         {tab === "faq" && (
           <Section title="Perguntas Frequentes">
@@ -903,6 +1195,13 @@ function ServiceDrawer({ open, onClose, editItem, categories, onToast }: {
               className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center transition-colors">
               <Plus size={14} /> Adicionar pergunta
             </button>
+          </Section>
+        )}
+
+        {tab === "sections" && (
+          <Section title="Seções personalizadas">
+            {sections.map((section, index) => <div key={index} className="mb-3 p-3 bg-[#f8fafc] rounded-lg border border-[#0d1b2e]/8 space-y-3"><FInput label="Título" value={section.title} onChange={(event: any) => { const next = [...sections]; next[index].title = event.target.value; setSections(next); }} /><FTextarea label="Conteúdo" value={section.content} onChange={(event: any) => { const next = [...sections]; next[index].content = event.target.value; setSections(next); }} rows={3} /><button type="button" onClick={() => setSections(sections.filter((_, sectionIndex) => sectionIndex !== index))} className="text-xs text-red-600 font-bold">Remover seção</button></div>)}
+            <button type="button" onClick={() => setSections([...sections, { title: "", content: "" }])} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center"><Plus size={14} /> Adicionar seção</button>
           </Section>
         )}
 
@@ -945,29 +1244,58 @@ function TabCategories() {
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const [form, setForm] = useState({ name: "", slug: "", description: "", icon: "", active: true, sort_order: 0 });
+  const [form, setForm] = useState({ name: "", slug: "", is_active: true, sort_order: 0 });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { setLoading(true); const { data } = await supabase.from("categories").select("*").order("sort_order"); setCats(data || []); setLoading(false); };
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("service_categories").select("*").order("sort_order");
+    if (error) setToast({ msg: `Erro ao carregar categorias: ${error.message}`, type: "error" });
+    else setCats(data || []);
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
 
-  const autoSlug = (n: string) => n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  const autoSlug = slugify;
 
-  const openNew = () => { setForm({ name: "", slug: "", description: "", icon: "", active: true, sort_order: 0 }); setEditItem(null); setDrawerOpen(true); };
-  const openEdit = (c: any) => { setForm({ name: c.name || "", slug: c.slug || "", description: c.description || "", icon: c.icon || "", active: c.active ?? true, sort_order: c.sort_order ?? 0 }); setEditItem(c); setDrawerOpen(true); };
+  const openNew = () => { setForm({ name: "", slug: "", is_active: true, sort_order: 0 }); setEditItem(null); setDrawerOpen(true); };
+  const openEdit = (c: any) => { setForm({ name: c.name || "", slug: c.slug || "", is_active: c.is_active ?? true, sort_order: c.sort_order ?? 0 }); setEditItem(c); setDrawerOpen(true); };
 
   const handleSave = async () => {
     if (!form.name.trim()) { setToast({ msg: "Nome obrigatório.", type: "error" }); return; }
     setSaving(true);
-    const payload = { ...form, slug: form.slug || autoSlug(form.name) };
-    if (editItem) await supabase.from("categories").update(payload).eq("id", editItem.id);
-    else await supabase.from("categories").insert(payload);
-    setSaving(false); setDrawerOpen(false);
-    setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" });
-    load();
+    try {
+      const nameChanged = editItem && editItem.name !== form.name.trim();
+      const finalSlug = !editItem || nameChanged || !editItem.slug ? await generateUniqueSlug("service_categories", form.name, editItem?.id) : editItem.slug;
+      const payload = { ...form, name: form.name.trim(), slug: finalSlug };
+      const { data, error } = editItem
+        ? await supabase.from("service_categories").update(payload).eq("id", editItem.id).select().single()
+        : await supabase.from("service_categories").insert(payload).select().single();
+      if (error) {
+        console.error("[ADMIN] service_categories save error:", error);
+        throw error;
+      }
+      setDrawerOpen(false);
+      setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" });
+      load();
+    } catch (error) {
+      setToast({ msg: `Erro ao salvar categoria: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = async (id: string) => { await supabase.from("categories").delete().eq("id", id); setDelId(null); setToast({ msg: "Categoria excluída.", type: "success" }); load(); };
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("service_categories").delete().eq("id", id);
+    if (error) { console.error("[ADMIN] service_categories delete error:", error); setToast({ msg: `Erro ao excluir categoria: ${error.message}`, type: "error" }); return; }
+    setDelId(null); setToast({ msg: "Categoria excluída.", type: "success" }); load();
+  };
+
+  const toggleActive = async (category: any) => {
+    const { error } = await supabase.from("service_categories").update({ is_active: !category.is_active }).eq("id", category.id);
+    if (error) { console.error("[ADMIN] service_categories toggle error:", error); setToast({ msg: `Erro ao atualizar categoria: ${error.message}`, type: "error" }); return; }
+    setToast({ msg: "Status atualizado!", type: "success" }); load();
+  };
 
   return (
     <div className="space-y-5">
@@ -988,7 +1316,6 @@ function TabCategories() {
                 <tr>
                   <th className="px-4 py-3 text-left">Nome</th>
                   <th className="px-4 py-3 text-left">Slug</th>
-                  <th className="px-4 py-3 text-left">Ícone</th>
                   <th className="px-4 py-3 text-left">Ordem</th>
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-right">Ações</th>
@@ -999,12 +1326,12 @@ function TabCategories() {
                   <tr key={c.id} className="hover:bg-[#f8fafc]/80">
                     <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{c.name}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82] font-mono">{c.slug}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{c.icon || "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{c.sort_order}</td>
-                    <td className="px-4 py-3.5"><StatusBadge status={c.active ? "Ativo" : "Inativo"} /></td>
+                    <td className="px-4 py-3.5"><StatusBadge status={c.is_active ? "Ativo" : "Inativo"} /></td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => openEdit(c)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button>
+                        <button onClick={() => toggleActive(c)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={c.is_active ? "Desativar" : "Ativar"}>{c.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button>
                         <button onClick={() => setDelId(c.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
                       </div>
                     </td>
@@ -1022,13 +1349,11 @@ function TabCategories() {
             <div className="space-y-4">
               <FInput label="Nome" value={form.name} required onChange={(e: any) => { setForm({ ...form, name: e.target.value, slug: form.slug || autoSlug(e.target.value) }); }} placeholder="Ex: Ar-condicionado" />
               <FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} placeholder="ar-condicionado" hint="Usado na URL e filtros do site." />
-              <FInput label="Ícone (nome Lucide)" value={form.icon} onChange={(e: any) => setForm({ ...form, icon: e.target.value })} placeholder="Ex: Wind, Tv, Package..." />
-              <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Descrição opcional da categoria." />
             </div>
           </Section>
           <Section title="Publicação">
             <div className="space-y-4">
-              <FToggle label="Categoria ativa" description="Categorias inativas ficam ocultas nos filtros do site." checked={form.active} onChange={v => setForm({ ...form, active: v })} />
+              <FToggle label="Categoria ativa" description="Categorias inativas ficam ocultas nos filtros do site." checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} />
               <FInput label="Ordem" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} />
             </div>
           </Section>
@@ -1045,6 +1370,7 @@ function TabCategories() {
 /* ─────────────────────────── TAB: PRODUCTS ─────────────────────────── */
 
 function TabProducts() {
+  const { user } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1054,38 +1380,51 @@ function TabProducts() {
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const [form, setForm] = useState({ name: "", slug: "", description: "", price: "", image_url: "", active: true, featured: false, sort_order: 0, category_id: "" });
+  const [form, setForm] = useState({ name: "", slug: "", sku: "", short_description: "", description: "", price: "", compare_at_price: "", cover_media_id: "", is_active: true, is_featured: false, category_id: "", brand_id: "", external_platform: "", external_product_id: "", external_url: "" });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
     const [pRes, cRes] = await Promise.all([
-      supabase.from("products").select("*, categories(name)").order("sort_order"),
-      supabase.from("categories").select("id, name").order("sort_order"),
+      supabase.from("products").select("*, product_categories(name)").order("created_at", { ascending: false }),
+      supabase.from("product_categories").select("id, name").order("sort_order"),
     ]);
-    setProducts(pRes.data || []); setCategories(cRes.data || []); setLoading(false);
+    if (pRes.error) setToast({ msg: `Erro ao carregar produtos: ${pRes.error.message}`, type: "error" });
+    else setProducts(pRes.data || []);
+    if (cRes.error) setToast({ msg: `Erro ao carregar categorias: ${cRes.error.message}`, type: "error" });
+    else setCategories(cRes.data || []);
+    setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  const autoSlug = (n: string) => n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  const autoSlug = slugify;
   const catOptions = [{ value: "", label: "Sem categoria" }, ...categories.map(c => ({ value: c.id, label: c.name }))];
 
-  const openNew = () => { setForm({ name: "", slug: "", description: "", price: "", image_url: "", active: true, featured: false, sort_order: 0, category_id: "" }); setEditItem(null); setDrawerOpen(true); };
-  const openEdit = (p: any) => { setForm({ name: p.name || "", slug: p.slug || "", description: p.description || "", price: String(p.price || ""), image_url: p.image_url || "", active: p.active ?? true, featured: p.featured ?? false, sort_order: p.sort_order ?? 0, category_id: p.category_id || "" }); setEditItem(p); setDrawerOpen(true); };
+  const openNew = () => { setForm({ name: "", slug: "", sku: "", short_description: "", description: "", price: "", compare_at_price: "", cover_media_id: "", is_active: true, is_featured: false, category_id: "", brand_id: "", external_platform: "", external_product_id: "", external_url: "" }); setEditItem(null); setDrawerOpen(true); };
+  const openEdit = (p: any) => { setForm({ name: p.name || "", slug: p.slug || "", sku: p.sku || "", short_description: p.short_description || "", description: p.description || "", price: p.price == null ? "" : String(p.price), compare_at_price: p.compare_at_price == null ? "" : String(p.compare_at_price), cover_media_id: p.cover_media_id || "", is_active: p.is_active ?? true, is_featured: p.is_featured ?? false, category_id: p.category_id || "", brand_id: p.brand_id || "", external_platform: p.external_platform || "", external_product_id: p.external_product_id || "", external_url: p.external_url || "" }); setEditItem(p); setDrawerOpen(true); };
 
   const handleSave = async () => {
     if (!form.name.trim()) { setToast({ msg: "Nome do produto é obrigatório.", type: "error" }); return; }
     setSaving(true);
-    const payload = { name: form.name.trim(), slug: form.slug || autoSlug(form.name), description: form.description, price: form.price ? Number(form.price) : null, image_url: form.image_url || null, active: form.active, featured: form.featured, sort_order: form.sort_order, category_id: form.category_id || null };
-    if (editItem) await supabase.from("products").update(payload).eq("id", editItem.id);
-    else await supabase.from("products").insert(payload);
-    setSaving(false); setDrawerOpen(false);
-    setToast({ msg: editItem ? "Produto atualizado!" : "Produto criado!", type: "success" });
-    load();
+    try {
+      const nameChanged = editItem && editItem.name !== form.name.trim();
+      const finalSlug = !editItem || nameChanged || !editItem.slug ? await generateUniqueSlug("products", form.name, editItem?.id) : editItem.slug;
+      const payload = { name: form.name.trim(), slug: finalSlug, sku: form.sku || null, short_description: form.short_description || null, description: form.description || null, price: form.price ? Number(form.price) : null, compare_at_price: form.compare_at_price ? Number(form.compare_at_price) : null, cover_media_id: form.cover_media_id || null, is_active: form.is_active, is_featured: form.is_featured, category_id: form.category_id || null, brand_id: form.brand_id || null, external_platform: form.external_platform || null, external_product_id: form.external_product_id || null, external_url: form.external_url || null, updated_by: user?.id || null };
+      const { data, error } = editItem ? await supabase.from("products").update(payload).eq("id", editItem.id).select().single() : await supabase.from("products").insert({ ...payload, created_by: user?.id || null }).select().single();
+      if (error) { console.error("[ADMIN] products save error:", error); throw error; }
+      setDrawerOpen(false);
+      setToast({ msg: editItem ? "Produto atualizado!" : "Produto criado!", type: "success" });
+      load();
+    } catch (error) {
+      setToast({ msg: `Erro ao salvar produto: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = async (id: string) => { await supabase.from("products").delete().eq("id", id); setDelId(null); setToast({ msg: "Produto excluído.", type: "success" }); load(); };
-  const toggleActive = async (p: any) => { await supabase.from("products").update({ active: !p.active }).eq("id", p.id); load(); };
+  const handleDelete = async (id: string) => { const { error } = await supabase.from("products").delete().eq("id", id); if (error) { console.error("[ADMIN] products delete error:", error); setToast({ msg: `Erro ao excluir produto: ${error.message}`, type: "error" }); return; } setDelId(null); setToast({ msg: "Produto excluído.", type: "success" }); load(); };
+  const toggleActive = async (p: any) => { const { error } = await supabase.from("products").update({ is_active: !p.is_active, updated_by: user?.id || null }).eq("id", p.id); if (error) { setToast({ msg: `Erro ao atualizar produto: ${error.message}`, type: "error" }); return; } setToast({ msg: "Status atualizado!", type: "success" }); load(); };
+  const toggleFeatured = async (p: any) => { const { error } = await supabase.from("products").update({ is_featured: !p.is_featured, updated_by: user?.id || null }).eq("id", p.id); if (error) { setToast({ msg: `Erro ao atualizar destaque: ${error.message}`, type: "error" }); return; } setToast({ msg: "Destaque atualizado!", type: "success" }); load(); };
 
   const filtered = products.filter(p => !search || p.name?.toLowerCase().includes(search.toLowerCase()));
 
@@ -1125,14 +1464,14 @@ function TabProducts() {
                   <tr key={p.id} className="hover:bg-[#f8fafc]/80">
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
-                        {p.image_url ? <img src={p.image_url} alt={p.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-[#0d1b2e]/10" /> : <div className="w-10 h-10 bg-[#f5f7fa] rounded-lg flex-shrink-0 border border-[#0d1b2e]/10 flex items-center justify-center"><Package size={16} className="text-[#5a6a82]" /></div>}
+                        <ProductAdminThumb mediaId={p.cover_media_id} name={p.name} />
                         <span className="font-bold text-[#0d1b2e]">{p.name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{p.categories?.name || "—"}</td>
                     <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{p.price ? `R$ ${Number(p.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consultar"}</td>
-                    <td className="px-4 py-3.5">{p.featured ? <Star size={15} className="text-amber-400 fill-amber-400" /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>
-                    <td className="px-4 py-3.5"><StatusBadge status={p.active ? "Ativo" : "Inativo"} /></td>
+                    <td className="px-4 py-3.5"><button onClick={() => toggleFeatured(p)} title={p.is_featured ? "Remover destaque" : "Destacar produto"}>{p.is_featured ? <Star size={15} className="text-amber-400 fill-amber-400" /> : <Star size={15} className="text-[#5a6a82]" />}</button></td>
+                    <td className="px-4 py-3.5"><StatusBadge status={p.is_active ? "Ativo" : "Inativo"} /></td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => openEdit(p)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button>
@@ -1163,18 +1502,14 @@ function TabProducts() {
           <Section title="Preço e Imagem">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FInput label="Preço (R$)" type="number" min="0" step="0.01" value={form.price} onChange={(e: any) => setForm({ ...form, price: e.target.value })} placeholder="Deixe em branco para consultar" hint="Vazio = 'Consultar preço'" />
-              <div>
-                <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">URL da Imagem</label>
-                <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className={cn(INPUT, "py-2 text-xs")} placeholder="https://..." />
-              </div>
+              <FInput label="Preço de comparação (R$)" type="number" min="0" step="0.01" value={form.compare_at_price} onChange={(e: any) => setForm({ ...form, compare_at_price: e.target.value })} />
             </div>
-            <ImageUpload bucket="product-images" currentUrl={form.image_url} onUpload={url => setForm({ ...form, image_url: url })} label="Ou fazer upload da imagem" />
+            <ImageUpload bucket="product-images" currentMediaId={form.cover_media_id} onUpload={mediaId => setForm({ ...form, cover_media_id: mediaId })} label="Imagem do produto" />
           </Section>
           <Section title="Publicação">
             <div className="space-y-4">
-              <FToggle label="Produto ativo" checked={form.active} onChange={v => setForm({ ...form, active: v })} />
-              <FToggle label="Destaque" description="Exibe na Home e em destaques da loja." checked={form.featured} onChange={v => setForm({ ...form, featured: v })} />
-              <FInput label="Ordem de exibição" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} />
+              <FToggle label="Produto ativo" checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} />
+              <FToggle label="Destaque" description="Exibe na Home e em destaques da loja." checked={form.is_featured} onChange={v => setForm({ ...form, is_featured: v })} />
             </div>
           </Section>
         </div>
@@ -1196,25 +1531,36 @@ function TabBrands() {
   const [editItem, setEditItem] = useState<any>(null);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [form, setForm] = useState({ name: "", logo_url: "", active: true, sort_order: 0 });
+  const [form, setForm] = useState({ name: "", slug: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: 0 });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { setLoading(true); const { data } = await supabase.from("brands").select("*").order("sort_order"); setBrands(data || []); setLoading(false); };
+  const load = async () => { setLoading(true); const { data, error } = await supabase.from("brands").select("*").order("sort_order"); if (error) setToast({ msg: `Erro ao carregar marcas: ${error.message}`, type: "error" }); else setBrands(data || []); setLoading(false); };
   useEffect(() => { load(); }, []);
 
-  const openNew = () => { setForm({ name: "", logo_url: "", active: true, sort_order: 0 }); setEditItem(null); setDrawerOpen(true); };
-  const openEdit = (b: any) => { setForm({ name: b.name || "", logo_url: b.logo_url || "", active: b.active ?? true, sort_order: b.sort_order ?? 0 }); setEditItem(b); setDrawerOpen(true); };
+  const autoSlug = slugify;
+  const openNew = () => { setForm({ name: "", slug: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: 0 }); setEditItem(null); setDrawerOpen(true); };
+  const openEdit = (b: any) => { setForm({ name: b.name || "", slug: b.slug || "", description: b.description || "", logo_media_id: b.logo_media_id || "", website_url: b.website_url || "", is_active: b.is_active ?? true, sort_order: b.sort_order ?? 0 }); setEditItem(b); setDrawerOpen(true); };
 
   const handleSave = async () => {
     if (!form.name.trim()) { setToast({ msg: "Nome da marca é obrigatório.", type: "error" }); return; }
     setSaving(true);
-    if (editItem) await supabase.from("brands").update(form).eq("id", editItem.id);
-    else await supabase.from("brands").insert(form);
-    setSaving(false); setDrawerOpen(false);
-    setToast({ msg: editItem ? "Marca atualizada!" : "Marca criada!", type: "success" });
-    load();
+    try {
+      const nameChanged = editItem && editItem.name !== form.name.trim();
+      const finalSlug = !editItem || nameChanged || !editItem.slug ? await generateUniqueSlug("brands", form.name, editItem?.id) : editItem.slug;
+      const payload = { ...form, name: form.name.trim(), slug: finalSlug, logo_media_id: form.logo_media_id || null, website_url: form.website_url || null, description: form.description || null };
+      const { data, error } = editItem ? await supabase.from("brands").update(payload).eq("id", editItem.id).select().single() : await supabase.from("brands").insert(payload).select().single();
+      if (error) { console.error("[ADMIN] brands save error:", error); throw error; }
+      setDrawerOpen(false);
+      setToast({ msg: editItem ? "Marca atualizada!" : "Marca criada!", type: "success" });
+      load();
+    } catch (error) {
+      setToast({ msg: `Erro ao salvar marca: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+    } finally {
+      setSaving(false);
+    }
   };
-  const handleDelete = async (id: string) => { await supabase.from("brands").delete().eq("id", id); setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); load(); };
+  const handleDelete = async (id: string) => { const { error } = await supabase.from("brands").delete().eq("id", id); if (error) { setToast({ msg: `Erro ao excluir marca: ${error.message}`, type: "error" }); return; } setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); load(); };
+  const toggleActive = async (brand: any) => { const { error } = await supabase.from("brands").update({ is_active: !brand.is_active }).eq("id", brand.id); if (error) { setToast({ msg: `Erro ao atualizar marca: ${error.message}`, type: "error" }); return; } setToast({ msg: "Status atualizado!", type: "success" }); load(); };
 
   return (
     <div className="space-y-5">
@@ -1231,20 +1577,15 @@ function TabBrands() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
             {brands.map(b => (
-              <div key={b.id} className={cn("rounded-xl border p-4 flex flex-col items-center gap-3 transition-all hover:shadow-md", b.active ? "border-[#0d1b2e]/10 bg-white" : "border-[#0d1b2e]/5 bg-[#f8fafc] opacity-60")}>
-                {b.logo_url ? (
-                  <img src={b.logo_url} alt={b.name} className="h-12 w-auto object-contain max-w-full" />
-                ) : (
-                  <div className="w-12 h-12 bg-[#f5f7fa] rounded-lg flex items-center justify-center">
-                    <Tag size={20} className="text-[#5a6a82]" />
-                  </div>
-                )}
+              <div key={b.id} className={cn("rounded-xl border p-4 flex flex-col items-center gap-3 transition-all hover:shadow-md", b.is_active ? "border-[#0d1b2e]/10 bg-white" : "border-[#0d1b2e]/5 bg-[#f8fafc] opacity-60")}>
+                <BrandAdminLogo mediaId={b.logo_media_id} name={b.name} />
                 <div className="text-center">
                   <p className="font-bold text-[#0d1b2e] text-sm">{b.name}</p>
-                  <StatusBadge status={b.active ? "Ativo" : "Inativo"} />
+                  <StatusBadge status={b.is_active ? "Ativo" : "Inativo"} />
                 </div>
                 <div className="flex gap-1">
                   <button onClick={() => openEdit(b)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={14} /></button>
+                  <button onClick={() => toggleActive(b)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">{b.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button>
                   <button onClick={() => setDelId(b.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
                 </div>
               </div>
@@ -1257,15 +1598,17 @@ function TabBrands() {
         <div className="p-5 space-y-4">
           <Section title="Informações">
             <div className="space-y-4">
-              <FInput label="Nome da marca" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Samsung" />
-              <FToggle label="Marca ativa" checked={form.active} onChange={v => setForm({ ...form, active: v })} />
+              <FInput label="Nome da marca" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value, slug: form.slug || autoSlug(e.target.value) })} placeholder="Ex: Samsung" />
+              <FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} />
+              <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={2} />
+              <FInput label="Site" value={form.website_url} onChange={(e: any) => setForm({ ...form, website_url: e.target.value })} />
+              <FToggle label="Marca ativa" checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} />
               <FInput label="Ordem" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} />
             </div>
           </Section>
           <Section title="Logo">
             <div className="space-y-3">
-              <FInput label="URL do Logo" value={form.logo_url} onChange={(e: any) => setForm({ ...form, logo_url: e.target.value })} placeholder="https://..." />
-              <ImageUpload bucket="brand-images" currentUrl={form.logo_url} onUpload={url => setForm({ ...form, logo_url: url })} label="Ou fazer upload" />
+              <ImageUpload bucket="brand-images" currentMediaId={form.logo_media_id} onUpload={mediaId => setForm({ ...form, logo_media_id: mediaId })} label="Logo da marca" />
             </div>
           </Section>
         </div>
@@ -1281,26 +1624,36 @@ function TabBrands() {
 /* ─────────────────────────── TAB: QUOTES ─────────────────────────── */
 
 function TabQuotes() {
+  const { user } = useAuth();
   const [quotes, setQuotes] = useState<any[]>([]);
+  const [statuses, setStatuses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [detail, setDetail] = useState<any>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const STATUSES = ["", "Pendente", "Em análise", "Aprovado", "Recusado", "Concluído"];
-
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("quotes").select("*, services(name)").order("created_at", { ascending: false });
-    setQuotes(data || []);
+    const [quotesResult, statusResult] = await Promise.all([
+      supabase.from("quote_requests").select("*, services(title), request_status:request_statuses(name), quote_request_items(*) ").order("created_at", { ascending: false }),
+      supabase.from("request_statuses").select("*").order("sort_order"),
+    ]);
+    if (quotesResult.error) setToast({ msg: `Erro ao carregar orçamentos: ${quotesResult.error.message}`, type: "error" });
+    else setQuotes((quotesResult.data || []).map((quote: any) => ({ ...quote, status: quote.request_status?.name || "Sem status" })));
+    if (statusResult.error) setToast({ msg: `Erro ao carregar status: ${statusResult.error.message}`, type: "error" });
+    else setStatuses(statusResult.data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from("quotes").update({ status }).eq("id", id);
-    if (detail?.id === id) setDetail({ ...detail, status });
+  const updateStatus = async (id: string, statusId: string) => {
+    const selectedStatus = statuses.find((status) => status.id === statusId);
+    const { error: updateError } = await supabase.from("quote_requests").update({ status_id: statusId }).eq("id", id);
+    if (updateError) { console.error("[ADMIN] quote status update error:", updateError); setToast({ msg: `Erro ao atualizar status: ${updateError.message}`, type: "error" }); return; }
+    const { error: historyError } = await supabase.from("quote_status_history").insert({ quote_request_id: id, status_id: statusId, created_by: user?.id || null });
+    if (historyError) { console.error("[ADMIN] quote status history error:", historyError); setToast({ msg: `Status atualizado, mas o histórico falhou: ${historyError.message}`, type: "error" }); return; }
+    if (detail?.id === id) setDetail({ ...detail, status_id: statusId, status: selectedStatus?.name || "Sem status" });
     setToast({ msg: "Status atualizado!", type: "success" });
     load();
   };
@@ -1309,7 +1662,7 @@ function TabQuotes() {
 
   const filtered = quotes.filter(q => {
     const matchSearch = !search || q.name?.toLowerCase().includes(search.toLowerCase()) || q.whatsapp?.includes(search);
-    const matchStatus = !filterStatus || q.status === filterStatus;
+    const matchStatus = !filterStatus || q.status_id === filterStatus;
     return matchSearch && matchStatus;
   });
 
@@ -1330,7 +1683,7 @@ function TabQuotes() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou WhatsApp..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={cn(INPUT, "py-2 text-xs sm:w-48")}>
-            {STATUSES.map(s => <option key={s} value={s}>{s || "Todos os status"}</option>)}
+            <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
 
@@ -1359,12 +1712,12 @@ function TabQuotes() {
                     </td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">
                       <div className="font-medium text-[#0d1b2e]">{q.brand || "—"} {q.model ? `/ ${q.model}` : ""}</div>
-                      {q.services?.name && <div className="text-[#0057e7]">{q.services.name}</div>}
+                      {q.services?.title && <div className="text-[#0057e7]">{q.services.title}</div>}
                     </td>
                     <td className="px-4 py-3.5">
-                      <select value={q.status || "Pendente"} onChange={e => updateStatus(q.id, e.target.value)}
+                      <select value={q.status_id || ""} onChange={e => updateStatus(q.id, e.target.value)}
                         className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
-                        {STATUSES.filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
+                        {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(q.created_at)}</td>
@@ -1404,9 +1757,9 @@ function TabQuotes() {
               )}
               <div>
                 <p className="text-xs text-[#5a6a82] font-semibold uppercase mb-2">Status</p>
-                <select value={detail.status || "Pendente"} onChange={e => { updateStatus(detail.id, e.target.value); setDetail({ ...detail, status: e.target.value }); }}
+                <select value={detail.status_id || ""} onChange={e => updateStatus(detail.id, e.target.value)}
                   className={cn(INPUT, "py-2 text-sm max-w-xs")}>
-                  {["Pendente", "Em análise", "Aprovado", "Recusado", "Concluído"].map(s => <option key={s} value={s}>{s}</option>)}
+                  {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
             </div>
@@ -1423,7 +1776,9 @@ function TabQuotes() {
 /* ─────────────────────────── TAB: ORDERS ─────────────────────────── */
 
 function TabOrders() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
+  const [statuses, setStatuses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -1435,25 +1790,32 @@ function TabOrders() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
-    setOrders(data || []);
+    const [ordersResult, statusResult] = await Promise.all([
+      supabase.from("service_orders").select("*, order_status:order_statuses(name), service_order_items(*) ").order("created_at", { ascending: false }),
+      supabase.from("order_statuses").select("*").order("sort_order"),
+    ]);
+    if (ordersResult.error) setToast({ msg: `Erro ao carregar OS: ${ordersResult.error.message}`, type: "error" });
+    else setOrders((ordersResult.data || []).map((order: any) => ({ ...order, status: order.order_status?.name || "Sem status" })));
+    if (statusResult.error) setToast({ msg: `Erro ao carregar status: ${statusResult.error.message}`, type: "error" });
+    else setStatuses(statusResult.data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  const openDetail = (o: any) => { setDetail(o); setNewStatus(o.status || "Solicitação recebida"); setNewNote(o.public_notes || ""); };
+  const openDetail = async (o: any) => {
+    const { data: history, error } = await supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at");
+    if (error) { setToast({ msg: `Erro ao carregar histórico: ${error.message}`, type: "error" }); return; }
+    setDetail({ ...o, history: history || [] }); setNewStatus(o.status_id || ""); setNewNote("");
+  };
 
   const handleUpdate = async () => {
     if (!detail) return;
     setSaving(true);
-    const historyEntry = { status: newStatus, note: newNote, date: new Date().toISOString() };
-    const currentHistory = Array.isArray(detail.history) ? detail.history : [];
-    await supabase.from("orders").update({
-      status: newStatus,
-      public_notes: newNote,
-      updated_at: new Date().toISOString(),
-      history: [...currentHistory, historyEntry],
-    }).eq("id", detail.id);
+    if (!newStatus) { setToast({ msg: "Selecione um status.", type: "error" }); setSaving(false); return; }
+    const { error: updateError } = await supabase.from("service_orders").update({ status_id: newStatus, updated_by: user?.id || null }).eq("id", detail.id);
+    if (updateError) { console.error("[ADMIN] service_orders update error:", updateError); setSaving(false); setToast({ msg: `Erro ao atualizar OS: ${updateError.message}`, type: "error" }); return; }
+    const { error: historyError } = await supabase.from("service_order_status_history").insert({ service_order_id: detail.id, status_id: newStatus, notes: newNote || null, is_visible_to_customer: Boolean(newNote), created_by: user?.id || null });
+    if (historyError) { console.error("[ADMIN] service order history error:", historyError); setSaving(false); setToast({ msg: `Status atualizado, mas o histórico falhou: ${historyError.message}`, type: "error" }); return; }
     setSaving(false);
     setToast({ msg: "OS atualizada com sucesso!", type: "success" });
     setDetail(null);
@@ -1465,11 +1827,11 @@ function TabOrders() {
     return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
   };
 
-  const uniqueStatuses = ["", ...Array.from(new Set(orders.map(o => o.status).filter(Boolean)))];
+  const uniqueStatuses = statuses;
 
   const filtered = orders.filter(o => {
     const matchSearch = !search || (o.id + "").toLowerCase().includes(search.toLowerCase()) || (o.service_name || "").toLowerCase().includes(search.toLowerCase()) || (o.description || "").toLowerCase().includes(search.toLowerCase());
-    const matchStatus = !filterStatus || o.status === filterStatus;
+    const matchStatus = !filterStatus || o.status_id === filterStatus;
     return matchSearch && matchStatus;
   });
 
@@ -1492,7 +1854,7 @@ function TabOrders() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nº da OS, serviço..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={cn(INPUT, "py-2 text-xs sm:w-52")}>
-            {uniqueStatuses.map(s => <option key={s} value={s}>{s || "Todos os status"}</option>)}
+            <option value="">Todos os status</option>{uniqueStatuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
 
@@ -1555,7 +1917,7 @@ function TabOrders() {
               <div className="space-y-0">
                 {ORDER_STATUS_STEPS.map((step, idx) => {
                   const history: any[] = Array.isArray(detail.history) ? detail.history : [];
-                  const historyEntry = history.find((h: any) => h.status === step);
+                  const historyEntry = history.find((h: any) => h.order_status?.name === step);
                   const currentIdx = ORDER_STATUS_STEPS.findIndex(s => s === detail.status);
                   const done = idx <= currentIdx;
                   const isCurrent = idx === currentIdx;
@@ -1570,8 +1932,8 @@ function TabOrders() {
                       </div>
                       <div className="flex-1 pb-1">
                         <p className={cn("font-semibold text-sm", done ? "text-[#0d1b2e]" : "text-[#5a6a82]")}>{step}</p>
-                        {historyEntry?.date && <p className="text-[10px] text-[#5a6a82]">{fmtDate(historyEntry.date)}</p>}
-                        {historyEntry?.note && <p className="text-xs text-[#5a6a82] mt-0.5 italic">{historyEntry.note}</p>}
+                        {historyEntry?.created_at && <p className="text-[10px] text-[#5a6a82]">{fmtDate(historyEntry.created_at)}</p>}
+                        {historyEntry?.notes && <p className="text-xs text-[#5a6a82] mt-0.5 italic">{historyEntry.notes}</p>}
                       </div>
                     </div>
                   );
@@ -1583,7 +1945,7 @@ function TabOrders() {
             <Section title="Atualizar status">
               <div className="space-y-3">
                 <FSelect label="Novo status" value={newStatus} onChange={(e: any) => setNewStatus(e.target.value)}
-                  options={ORDER_STATUS_STEPS.map(s => ({ value: s, label: s }))} />
+                  options={[{ value: "", label: "Selecionar status..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
                 <FTextarea label="Observação para o cliente (visível na consulta pública)" value={newNote} onChange={(e: any) => setNewNote(e.target.value)} rows={3} placeholder="Mensagem que o cliente verá ao consultar a OS..." />
               </div>
             </Section>
@@ -1625,8 +1987,9 @@ function TabEmployees() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("profiles").select("*").order("created_at");
-    setEmployees(data || []);
+    const { data, error } = await supabase.from("profiles").select("*").order("created_at");
+    if (error) { console.error("[ADMIN] profiles load error:", error); setToast({ msg: `Erro ao carregar funcionários: ${error.message}`, type: "error" }); }
+    else setEmployees(data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -1634,7 +1997,8 @@ function TabEmployees() {
   const toggleActive = async (emp: any) => {
     if (!isGestor) return;
     const currentlyActive = emp.is_active !== false;
-    await supabase.from("profiles").update({ is_active: !currentlyActive }).eq("id", emp.id);
+    const { error } = await supabase.from("profiles").update({ is_active: !currentlyActive }).eq("id", emp.id);
+    if (error) { console.error("[ADMIN] profile toggle error:", error); setToast({ msg: `Erro ao atualizar usuário: ${error.message}`, type: "error" }); return; }
     setToast({ msg: `Usuário ${currentlyActive ? "desativado" : "ativado"}.`, type: "success" });
     load();
   };
@@ -1713,6 +2077,7 @@ function TabEmployees() {
 /* ─────────────────────────── TAB: SETTINGS ─────────────────────────── */
 
 function TabSettings() {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1720,9 +2085,10 @@ function TabSettings() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("site_settings").select("key, value");
+    const { data, error } = await supabase.from("site_settings").select("setting_key, setting_value");
     const map: Record<string, any> = {};
-    (data || []).forEach((row: any) => { map[row.key] = row.value; });
+    if (error) setToast({ msg: `Erro ao carregar configurações: ${error.message}`, type: "error" });
+    (data || []).forEach((row: any) => { map[row.setting_key] = row.setting_value; });
     setSettings(map);
     setLoading(false);
   };
@@ -1734,11 +2100,13 @@ function TabSettings() {
     setSaving(true);
     try {
       for (const [key, value] of Object.entries(settings)) {
-        await supabase.from("site_settings").upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+        const { error } = await supabase.from("site_settings").upsert({ setting_key: key, setting_value: value, updated_by: user?.id || null }, { onConflict: "setting_key" });
+        if (error) throw error;
       }
       setToast({ msg: "Configurações salvas com sucesso!", type: "success" });
-    } catch {
-      setToast({ msg: "Erro ao salvar configurações.", type: "error" });
+    } catch (error) {
+      console.error("[ADMIN] site_settings save error:", error);
+      setToast({ msg: `Erro ao salvar configurações: ${error instanceof Error ? error.message : "erro desconhecido"}`, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -1806,15 +2174,17 @@ function TabSettings() {
 /* ─────────────────────────── TAB: CONTACT ─────────────────────────── */
 
 function TabContact() {
-  const [contact, setContact] = useState<any>({ whatsapp: "", phone: "", email: "", instagram: "", address: "", business_hours: "" });
+  const { user } = useAuth();
+  const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("contact_settings").select("*").single();
-    if (data) setContact(data);
+    const { data, error } = await supabase.from("site_settings").select("setting_key, setting_value");
+    if (error) setToast({ msg: `Erro ao carregar contato: ${error.message}`, type: "error" });
+    else setSettings(Object.fromEntries((data || []).map((setting: any) => [setting.setting_key, setting.setting_value || ""])));
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -1823,24 +2193,30 @@ function TabContact() {
     e.preventDefault();
     setSaving(true);
     try {
-      await supabase.from("contact_settings").upsert(contact);
+      for (const [setting_key, setting_value] of Object.entries(settings)) {
+        const { data, error } = await supabase.from("site_settings").upsert({ setting_key, setting_value, updated_by: user?.id || null }, { onConflict: "setting_key" }).select().single();
+        if (error) {
+          console.error("[ADMIN] Contact save error:", error);
+          throw error;
+        }
+      }
       setToast({ msg: "Informações de contato salvas!", type: "success" });
-    } catch {
-      setToast({ msg: "Erro ao salvar.", type: "error" });
+    } catch (error) {
+      console.error("[ADMIN] site settings contact save error:", error);
+      const message = error instanceof Error ? error.message : typeof error === "object" && error && "message" in error ? String(error.message) : String(error);
+      setToast({ msg: `Erro ao salvar: ${message}`, type: "error" });
     } finally {
       setSaving(false);
     }
   };
 
-  const upd = (k: string, v: string) => setContact({ ...contact, [k]: v });
-
-  const fields = [
-    { key: "whatsapp", label: "WhatsApp (com DDI)", icon: MessageCircle, placeholder: "5579999999999" },
-    { key: "phone", label: "Telefone", icon: Phone, placeholder: "(79) 0000-0000" },
-    { key: "email", label: "E-mail", icon: Mail, placeholder: "contato@artvideo.com.br" },
-    { key: "instagram", label: "Instagram", icon: Instagram, placeholder: "@artvideo" },
-    { key: "address", label: "Endereço", icon: MapPin, placeholder: "Rua Exemplo, 123 – Aracaju, SE" },
-    { key: "business_hours", label: "Horário de funcionamento", icon: Clock, placeholder: "Seg a Sex: 8h às 18h" },
+  const updateSetting = (key: string, value: string) => setSettings((current) => ({ ...current, [key]: value }));
+  const groups = [
+    { title: "Contato", fields: [["phone", "Telefone", "(79) 0000-0000"], ["whatsapp", "WhatsApp", "(79) 99999-9999"], ["email", "E-mail", "contato@empresa.com"]] },
+    { title: "Redes sociais", fields: [["instagram", "Instagram", "@empresa"]] },
+    { title: "Endereço", fields: [["zip_code", "CEP", "00000-000"], ["street", "Rua", "Rua da empresa"], ["number", "Número", "123"], ["complement", "Complemento", "Sala, bloco..."], ["neighborhood", "Bairro", "Bairro"], ["city", "Cidade", "Cidade"], ["state", "Estado", "SE"]] },
+    { title: "Horário", fields: [["business_hours", "Horário de funcionamento", "Seg a Sex: 8h às 18h"]] },
+    { title: "Identidade", fields: [["company_name", "Nome da empresa", "Eletrônica Artvideo"]] },
   ];
 
   return (
@@ -1851,21 +2227,7 @@ function TabContact() {
 
       {loading ? <LoadingState /> : (
         <form onSubmit={handleSave} className="max-w-xl space-y-5">
-          <Section title="Contato e Localização">
-            <div className="space-y-4">
-              {fields.map(f => {
-                const Icon = f.icon;
-                return (
-                  <div key={f.key}>
-                    <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">
-                      <Icon size={12} /> {f.label}
-                    </label>
-                    <input value={contact[f.key] || ""} onChange={e => upd(f.key, e.target.value)} className={INPUT} placeholder={f.placeholder} />
-                  </div>
-                );
-              })}
-            </div>
-          </Section>
+          {groups.map((group) => <Section key={group.title} title={group.title}><div className="space-y-4">{group.fields.map(([key, label, placeholder]) => <FInput key={key} label={label} value={settings[key] || ""} onChange={(event: any) => updateSetting(key, event.target.value)} placeholder={placeholder} />)}</div></Section>)}
 
           <div className="flex items-center gap-3">
             <BtnPrimary type="submit" disabled={saving}>
