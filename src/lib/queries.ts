@@ -2,6 +2,39 @@
 // All queries respect RLS policies configured in Supabase.
 import { supabase } from "./supabase";
 import type { StorageBucket } from "./database.types";
+import type { Employee } from "./database.types";
+import type { GeneralService } from "./database.types";
+
+// ── Employees ────────────────────────────────────────────────
+export const getEmployees = () =>
+  supabase.from("employees").select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").order("full_name", { ascending: true });
+
+export const getEmployeeById = (id: string) =>
+  supabase.from("employees").select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").eq("id", id).maybeSingle();
+
+export const createEmployee = (employee: Omit<Employee, "id" | "created_at" | "updated_at">) =>
+  supabase.from("employees").insert(employee).select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
+
+export const updateEmployee = (id: string, employee: Partial<Omit<Employee, "id" | "created_at" | "updated_at">>) =>
+  supabase.from("employees").update(employee).eq("id", id).select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
+
+export const setEmployeeActive = (id: string, isActive: boolean) =>
+  supabase.from("employees").update({ is_active: isActive }).eq("id", id).select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
+
+// ── General services ─────────────────────────────────────────
+const generalServiceColumns = "id,name,is_active,sort_order,created_at,updated_at";
+
+export const getGeneralServices = () =>
+  supabase.from("general_services").select(generalServiceColumns).order("sort_order").order("name");
+
+export const createGeneralService = (service: Pick<GeneralService, "name" | "is_active" | "sort_order">) =>
+  supabase.from("general_services").insert(service).select(generalServiceColumns).single();
+
+export const updateGeneralService = (id: string, service: Partial<Pick<GeneralService, "name" | "is_active" | "sort_order">>) =>
+  supabase.from("general_services").update(service).eq("id", id).select(generalServiceColumns).single();
+
+export const setGeneralServiceActive = (id: string, isActive: boolean) =>
+  supabase.from("general_services").update({ is_active: isActive }).eq("id", id).select(generalServiceColumns).single();
 
 // ── Services ──────────────────────────────────────────────────
 export const getServices = () =>
@@ -164,7 +197,29 @@ export const getProductBySlug = (slug: string) =>
     .select("*")
     .eq("slug", slug)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
+
+export async function getProductDetailBySlug(slug: string) {
+  const { data: product, error } = await getProductBySlug(slug);
+  if (error || !product) return { data: null, error };
+
+  const [brand, media] = await Promise.all([
+    product.brand_id ? supabase.from("brands").select("*").eq("id", product.brand_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    product.cover_media_id ? getMediaById(product.cover_media_id) : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  if (brand.error) return { data: null, error: brand.error };
+  if (media.error) return { data: null, error: media.error };
+
+  return {
+    data: {
+      product,
+      brand: brand.data,
+      media: media.data,
+    },
+    error: null,
+  };
+}
 
 export const getProductCategories = () =>
   supabase
@@ -195,15 +250,15 @@ export const getMediaById = (id: string) =>
     .from("media")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
-export const getMediaByPath = (bucket: StorageBucket, path: string) =>
+export const getMediaByPath = (bucket: string, path: string) =>
   supabase
     .from("media")
     .select("*")
-    .eq("bucket_name", bucket)
+    .eq("bucket_id", bucket)
     .eq("storage_path", path)
-    .single();
+    .maybeSingle();
 
 // ── Customers ────────────────────────────────────────────────
 export const getCustomerByDocument = async (document: string) => {
@@ -368,7 +423,9 @@ export const getServiceFilters = (serviceId: string) =>
     .eq("service_id", serviceId);
 
 // ── Storage helpers ───────────────────────────────────────────
-export function getPublicStorageUrl(bucket: StorageBucket, path: string) {
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+export function getPublicStorageUrl(bucket: StorageBucket | string, path: string) {
+  const normalizedBucket = String(bucket || "");
+  if (!normalizedBucket || !path) return "";
+  const { data } = supabase.storage.from(normalizedBucket).getPublicUrl(path);
   return data.publicUrl;
 }
