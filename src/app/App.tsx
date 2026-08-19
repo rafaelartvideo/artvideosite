@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useServices, useServiceCategories, useFeaturedProducts, useBrands, useServiceDetailBySlug, useProductDetailBySlug, useSiteSettings, useProducts } from "@/lib/hooks";
 import { AdminLogin, AdminDashboard } from "@/app/Admin";
+import { AddressFields } from "@/app/components/AddressFields";
+import { emptyAddress } from "@/lib/address";
 import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
 import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
 import {
@@ -1431,6 +1433,7 @@ function OrcamentoPage() {
   const { categories } = useServiceCategories();
   const { brands, loading: brandsLoading } = useBrands();
   const [f, setF] = useState({ servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", whatsapp: "", email: "" });
+  const [address, setAddress] = useState({ ...emptyAddress });
   const [sent, setSent] = useState(false);
   const [protocol, setProtocol] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -1468,6 +1471,13 @@ function OrcamentoPage() {
         p_brand_id:         f.marca && f.marca !== "Outra marca" ? f.marca : null,
         p_customer_message: fullMessage,
         p_protocol:         newProtocol,
+        p_zip_code:         address.zip_code || null,
+        p_street:           address.street || null,
+        p_number:           address.number || null,
+        p_complement:       address.complement || null,
+        p_neighborhood:     address.neighborhood || null,
+        p_city:             address.city || null,
+        p_state:            address.state || null,
       });
 
       if (error) throw new Error(`Erro ao enviar solicitação: ${error.message}`);
@@ -1498,7 +1508,7 @@ function OrcamentoPage() {
             </div>
           )}
           <p className="text-white/70 text-base mb-8">Nossa equipe entrará em contato para avaliar sua solicitação.</p>
-          <Btn variant="primary" className="px-7 py-3 text-base" onClick={() => { setSent(false); setProtocol(null); setF({ servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", whatsapp: "", email: "" }); }}>Nova solicitação</Btn>
+          <Btn variant="primary" className="px-7 py-3 text-base" onClick={() => { setSent(false); setProtocol(null); setF({ servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", whatsapp: "", email: "" }); setAddress({ ...emptyAddress }); }}>Nova solicitação</Btn>
         </div>
       </section>
     </>
@@ -1596,7 +1606,16 @@ function OrcamentoPage() {
               </div>
             </div>
 
-            {/* 4 — Resumo */}
+            {/* 4 — Dados de endereço */}
+            <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 p-6 space-y-4">
+              <h2 className="text-lg font-black text-[#0d1b2e] mb-1 flex items-center gap-2" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+                <span className="w-6 h-6 bg-[#0057e7] rounded-md flex items-center justify-center text-white text-xs font-black">4</span>
+                Dados de endereço
+              </h2>
+              <AddressFields value={address} onChange={setAddress} inputClassName={inputCls} />
+            </div>
+
+            {/* 5 — Resumo */}
             <div className="bg-[#0d1b2e] rounded-2xl p-6">
               <h2 className="text-lg font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Revise sua solicitação</h2>
               <div className="space-y-2">

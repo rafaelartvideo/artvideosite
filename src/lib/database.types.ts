@@ -197,6 +197,22 @@ export interface Customer {
   updated_at: string;
 }
 
+export interface CustomerAddress {
+  id: string;
+  customer_id: string;
+  zip_code: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  reference: string | null;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Quote Requests & Status ──────────────────────────────────
 export interface RequestStatus {
   id: string;
@@ -410,3 +426,13 @@ export type StorageBucket =
   | "product-images"
   | "brand-images"
   | "avatars";
+
+export interface SitePageSection {
+  id: string;
+  page_id: string;
+  title: string;
+  content: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}

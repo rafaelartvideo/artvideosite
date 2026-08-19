@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useMediaUrl } from "@/lib/hooks";
+import { AddressFields } from "@/app/components/AddressFields";
+import { emptyAddress, type Address } from "@/lib/address";
 import {
   LayoutDashboard, Wrench, FolderTree, Package, Tag, FileText, ClipboardList,
   Users, Settings, Phone, LogOut, Search, Plus, Edit2, Trash2, CheckCircle,
@@ -518,7 +520,7 @@ function TabDashboard() {
       supabase.from("services").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("quote_requests").select("id, protocol, created_at, customer_id, service_id, brand_id, request_status:request_statuses(name), customer:customers(full_name), service:services(title), brand:brands(name)").order("created_at", { ascending: false }).limit(5),
-      supabase.from("service_orders").select("id, title, description, created_at, updated_at, status_id, order_status:order_statuses(name), customer:customers(full_name)").order("created_at", { ascending: false }).limit(5),
+      supabase.from("service_orders").select("id, os_number, service:services(title), created_at, updated_at, status_id, order_status:order_statuses(name), customer:customers(full_name)").order("created_at", { ascending: false }).limit(5),
     ]);
     const quotes = qAll.data || [];
     const orders = oAll.data || [];
@@ -616,7 +618,7 @@ function TabDashboard() {
                     <div key={o.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-bold text-[#0057e7] text-sm">#{typeof o.id === "string" ? o.id.slice(0, 8) : o.id}</p>
-                        <p className="text-xs text-[#5a6a82] truncate">{(o.customer as any)?.full_name || o.title || o.description || "Assistência Técnica"}</p>
+                        <p className="text-xs text-[#5a6a82] truncate">{(o.customer as any)?.full_name || (o.service as any)?.title || "Assistência Técnica"}</p>
                       </div>
                       <div className="flex-shrink-0 text-right">
                         <StatusBadge status={(o.order_status as any)?.name || "Em andamento"} />
@@ -718,7 +720,7 @@ function TabServices() {
         </div>
 
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={Wrench} title={search ? "Nenhum resultado" : "Nenhum serviço cadastrado"} message={search ? `Nenhum serviço com "${search}"` : "Clique em + Novo serviço para começar."} onAdd={!search ? openNew : undefined} addLabel="+ Novo serviço" />
+          <EmptyState icon={Wrench} title={search ? "Nenhum resultado" : "Nenhum serviço cadastrado"} message={search ? `Nenhum serviço com "${search}"` : "Clique em Novo serviço para começar."} onAdd={!search ? openNew : undefined} addLabel="Novo serviço" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
@@ -1319,7 +1321,7 @@ function TabCategories() {
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : cats.length === 0 ? (
-          <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={openNew} addLabel="+ Nova categoria" />
+          <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={openNew} addLabel="Nova categoria" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[500px]">
@@ -1456,7 +1458,7 @@ function TabProducts() {
           </div>
         </div>
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={Package} title={search ? "Nenhum resultado" : "Nenhum produto cadastrado"} message="Adicione produtos para exibi-los na loja." onAdd={!search ? openNew : undefined} addLabel="+ Novo produto" />
+          <EmptyState icon={Package} title={search ? "Nenhum resultado" : "Nenhum produto cadastrado"} message="Adicione produtos para exibi-los na loja." onAdd={!search ? openNew : undefined} addLabel="Novo produto" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
@@ -1584,7 +1586,7 @@ function TabBrands() {
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : brands.length === 0 ? (
-          <EmptyState icon={Tag} title="Nenhuma marca cadastrada" onAdd={openNew} addLabel="+ Nova marca" />
+          <EmptyState icon={Tag} title="Nenhuma marca cadastrada" onAdd={openNew} addLabel="Nova marca" />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
             {brands.map(b => (
@@ -1647,7 +1649,7 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const load = async () => {
     setLoading(true);
     const [quotesResult, statusResult] = await Promise.all([
-      supabase.from("quote_requests").select("id, protocol, created_at, updated_at, status_id, customer_id, service_id, brand_id, product_id, customer_message, estimated_price, final_price, request_status:request_statuses(id,name), customer:customers(id,full_name,whatsapp,email,document,phone), service:services(title), brand:brands(name)").order("created_at", { ascending: false }),
+      supabase.from("quote_requests").select("id, protocol, created_at, updated_at, status_id, customer_id, service_id, brand_id, product_id, customer_message, estimated_price, final_price, request_status:request_statuses(id,name), customer:customers(id,full_name,whatsapp,email,document,phone,addresses:customer_addresses(*)), service:services(title), brand:brands(name)").order("created_at", { ascending: false }),
       supabase.from("request_statuses").select("id, name, sort_order").order("sort_order"),
     ]);
     if (quotesResult.error) setToast({ msg: `Erro ao carregar orçamentos: ${quotesResult.error.message}`, type: "error" });
@@ -1796,16 +1798,14 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
             <div className="mt-5 pt-4 border-t border-[#0d1b2e]/8 flex items-center justify-between gap-3">
               <button onClick={async () => {
                 if (!detail) return;
-                const { data: existing } = await supabase.from("service_orders").select("id, protocol").eq("quote_request_id", detail.id).maybeSingle();
-                if (existing) { setToast({ msg: `OS ${existing.protocol || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
+                const { data: existing } = await supabase.from("service_orders").select("id, os_number").eq("quote_request_id", detail.id).maybeSingle();
+                if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
                 const protocol = generateOsProtocol();
                 const { data: status } = await supabase.from("order_statuses").select("id").order("sort_order").limit(1).maybeSingle();
                 const { error } = await supabase.from("service_orders").insert({
-                  protocol, title: (detail.service as any)?.title || detail.customer_message || "Ordem de Serviço",
-                  description: detail.customer_message || null, quote_request_id: detail.id,
-                  customer_id: detail.customer_id, brand_id: detail.brand_id, product_id: detail.product_id,
-                  status_id: status?.id || null, priority: "normal", origin: "orcamento",
-                  estimated_price: detail.estimated_price || null, created_by: user?.id || null, updated_by: user?.id || null,
+                  os_number: protocol, service_id: detail.service_id, quote_request_id: detail.id,
+                  customer_id: detail.customer_id, status_id: status?.id || null,
+                  customer_notes: detail.customer_message || null,
                 });
                 if (error) { setToast({ msg: `Erro ao criar OS: ${error.message}`, type: "error" }); return; }
                 setDetail(null);
@@ -1844,25 +1844,31 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(true);
   const [editItem, setEditItem] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", is_active: true, sort_order: 0 });
+  const [form, setForm] = useState({ name: "", slug: "", color: "", is_active: true, sort_order: 0 });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("os_situations").select("*").order("sort_order");
+    const { data } = await supabase.from("os_situations").select("id,name,slug,color,sort_order,is_active,created_at,updated_at").order("sort_order");
     setItems(data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  const openNew = () => { setEditItem(null); setForm({ name: "", description: "", is_active: true, sort_order: items.length }); setDrawerOpen(true); };
-  const openEdit = (s: any) => { setEditItem(s); setForm({ name: s.name, description: s.description || "", is_active: s.is_active, sort_order: s.sort_order }); setDrawerOpen(true); };
+  const openNew = () => { setEditItem(null); setForm({ name: "", slug: "", color: "", is_active: true, sort_order: items.length }); setDrawerOpen(true); };
+  const openEdit = (s: any) => { setEditItem(s); setForm({ name: s.name || "", slug: s.slug || "", color: s.color || "", is_active: s.is_active, sort_order: s.sort_order }); setDrawerOpen(true); };
 
   const save = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
-    const payload = { name: form.name.trim(), description: form.description || null, is_active: form.is_active, sort_order: Number(form.sort_order) };
+    const slug = form.slug.trim() || editItem?.slug?.trim() || slugify(form.name);
+    if (!slug) {
+      setSaving(false);
+      setToast({ msg: "Informe um nome ou slug válido para a situação.", type: "error" });
+      return;
+    }
+    const payload = { name: form.name.trim(), slug, color: form.color || null, is_active: form.is_active, sort_order: Number(form.sort_order) };
     const { error } = editItem
       ? await supabase.from("os_situations").update(payload).eq("id", editItem.id)
       : await supabase.from("os_situations").insert(payload);
@@ -1898,7 +1904,7 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
               {items.map(s => (
                 <tr key={s.id} className="hover:bg-[#f8fafc]/80">
                   <td className="px-4 py-3 text-[#5a6a82] text-xs font-mono">{s.sort_order}</td>
-                  <td className="px-4 py-3"><p className="font-semibold text-[#0d1b2e]">{s.name}</p>{s.description && <p className="text-xs text-[#5a6a82]">{s.description}</p>}</td>
+                  <td className="px-4 py-3"><p className="font-semibold text-[#0d1b2e]">{s.name}</p>{s.slug && <p className="text-xs text-[#5a6a82]">{s.slug}</p>}</td>
                   <td className="px-4 py-3"><span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", s.is_active ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{s.is_active ? "Ativa" : "Inativa"}</span></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-end">
@@ -1916,7 +1922,8 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
         <Drawer open={true} onClose={() => setDrawerOpen(false)} title={editItem ? "Editar Situação" : "Nova Situação"} maxW="max-w-md">
           <div className="p-5 space-y-4">
             <FInput label="Nome" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Em análise" />
-            <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={2} />
+            <FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} placeholder="ex: em-analise" />
+            <FInput label="Cor" type="color" value={form.color || "#0057e7"} onChange={(e: any) => setForm({ ...form, color: e.target.value })} />
             <FInput label="Ordem de exibição" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} />
             <FToggle label="Situação ativa" checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} />
           </div>
@@ -1937,13 +1944,13 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [statuses, setStatuses] = useState<any[]>([]);
   const [situations, setSituations] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSituation, setFilterSituation] = useState("");
-  const [filterPriority, setFilterPriority] = useState("");
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailNewStatus, setDetailNewStatus] = useState("");
@@ -1956,27 +1963,30 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
 
-  const emptyForm = { title: "", description: "", diagnosis: "", solution: "", notes: "", status_id: "", situation_id: "", priority: "normal", origin: "manual", customer_id: "", brand_id: "", product_id: "", model: "", serial_number: "", accessories: "", equipment_condition: "", assigned_to: "", scheduled_date: "", completion_date: "", estimated_price: "", final_price: "" };
+  const emptyForm = { service_id: "", status_id: "", situation_id: "", customer_id: "", assigned_to: "", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "" };
   const [form, setForm] = useState(emptyForm);
   const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const load = async () => {
     setLoading(true);
-    const [ordRes, statRes, sitRes, profRes, brandRes, prodRes] = await Promise.all([
-      supabase.from("service_orders").select("*, order_status:order_statuses(id,name), situation:os_situations(id,name), customer:customers(id,full_name,phone,whatsapp,document,email), brand:brands(id,name), product:products(id,name), assigned_profile:profiles!assigned_to(id,full_name)").order("created_at", { ascending: false }),
+    const [ordRes, statRes, sitRes, profRes, serviceRes] = await Promise.all([
+      supabase.from("service_orders").select("*, order_status:order_statuses(id,name), situation:os_situations(id,name), customer:customers(id,full_name,phone,whatsapp,document,email,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name)").order("created_at", { ascending: false }),
       supabase.from("order_statuses").select("id,name,sort_order").order("sort_order"),
       supabase.from("os_situations").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
-      supabase.from("brands").select("id,name").eq("is_active", true).order("name"),
-      supabase.from("products").select("id,name").eq("is_active", true).order("name"),
+      supabase.from("services").select("id,title").eq("is_active", true).order("title"),
     ]);
-    if (ordRes.error) setToast({ msg: `Erro ao carregar OS: ${ordRes.error.message}`, type: "error" });
-    else setOrders(ordRes.data || []);
+    if (ordRes.error) {
+      console.error("[ADMIN] service_orders load error:", { code: ordRes.error.code, message: ordRes.error.message, details: ordRes.error.details, hint: ordRes.error.hint });
+      setToast({ msg: `Erro ao carregar OS: ${ordRes.error.message}`, type: "error" });
+    } else setOrders(ordRes.data || []);
+    [statRes, sitRes, profRes, serviceRes].forEach((result, index) => {
+      if (result.error) console.error("[ADMIN] OS related query error:", index, result.error);
+    });
     setStatuses(statRes.data || []);
     setSituations(sitRes.data || []);
     setProfiles(profRes.data || []);
-    setBrands(brandRes.data || []);
-    setProducts(prodRes.data || []);
+    setServices(serviceRes.data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -1995,25 +2005,24 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
   const openEdit = (o: any) => {
     setEditingOS(o);
-    setForm({ title: o.title || "", description: o.description || "", diagnosis: o.diagnosis || "", solution: o.solution || "", notes: o.notes || "", status_id: o.status_id || "", situation_id: o.situation_id || "", priority: o.priority || "normal", origin: o.origin || "manual", customer_id: o.customer_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", assigned_to: o.assigned_to || "", scheduled_date: o.scheduled_date ? o.scheduled_date.slice(0, 10) : "", completion_date: o.completion_date ? o.completion_date.slice(0, 10) : "", estimated_price: o.estimated_price ?? "", final_price: o.final_price ?? "" });
+    setForm({ service_id: o.service_id || "", status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", assigned_to: o.assigned_to || "", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "" });
     setSelectedCustomer((o.customer as any) || null);
     setCustomerSearch(""); setCustomerResults([]);
     setFormOpen(true);
   };
 
   const saveOS = async () => {
-    if (!form.title.trim()) { setToast({ msg: "Informe o título da OS.", type: "error" }); return; }
+    if (!form.service_id) { setToast({ msg: "Selecione o serviço da OS.", type: "error" }); return; }
     const cid = selectedCustomer?.id || form.customer_id;
     if (!cid) { setToast({ msg: "Selecione um cliente.", type: "error" }); return; }
     setSaving(true);
-    const protocol = editingOS?.protocol || generateOsProtocol();
-    const payload: any = { protocol, title: form.title.trim(), description: form.description || null, diagnosis: form.diagnosis || null, solution: form.solution || null, notes: form.notes || null, status_id: form.status_id || null, situation_id: form.situation_id || null, priority: form.priority, origin: form.origin, customer_id: cid, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, serial_number: form.serial_number || null, accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, assigned_to: form.assigned_to || null, scheduled_date: form.scheduled_date || null, completion_date: form.completion_date || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, final_price: form.final_price ? Number(form.final_price) : null, updated_by: user?.id || null };
+    const payload: any = { service_id: form.service_id, status_id: form.status_id || null, situation_id: form.situation_id || null, customer_id: cid, assigned_to: form.assigned_to || null, scheduled_at: form.scheduled_at || null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null };
     let error;
     if (editingOS) {
       const r = await supabase.from("service_orders").update(payload).eq("id", editingOS.id);
       error = r.error;
     } else {
-      const r = await supabase.from("service_orders").insert({ ...payload, created_by: user?.id || null });
+      const r = await supabase.from("service_orders").insert(payload);
       error = r.error;
     }
     setSaving(false);
@@ -2024,7 +2033,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
   const updateStatus = async (statusId: string, note: string) => {
     if (!detail) return;
-    const { error: e1 } = await supabase.from("service_orders").update({ status_id: statusId, updated_by: user?.id || null }).eq("id", detail.id);
+    const { error: e1 } = await supabase.from("service_orders").update({ status_id: statusId }).eq("id", detail.id);
     if (e1) { setToast({ msg: `Erro: ${e1.message}`, type: "error" }); return; }
     await supabase.from("service_order_status_history").insert({ service_order_id: detail.id, status_id: statusId, notes: note || null, is_visible_to_customer: Boolean(note), created_by: user?.id || null });
     setToast({ msg: "Status atualizado!", type: "success" });
@@ -2036,7 +2045,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const searchCustomers = async (q: string) => {
     setCustomerSearch(q);
     if (q.length < 2) { setCustomerResults([]); return; }
-    const { data } = await supabase.from("customers").select("id,full_name,document,whatsapp,phone").or(`full_name.ilike.%${q}%,document.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
+    const { data } = await supabase.from("customers").select("id,full_name,document,whatsapp,phone,addresses:customer_addresses(*)").or(`full_name.ilike.%${q}%,document.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
     setCustomerResults(data || []);
   };
 
@@ -2047,11 +2056,10 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
   const filtered = orders.filter(o => {
     const q = search.toLowerCase();
-    const matchSearch = !search || (o.protocol || "").toLowerCase().includes(q) || (o.title || "").toLowerCase().includes(q) || ((o.customer as any)?.full_name || "").toLowerCase().includes(q) || (o.model || "").toLowerCase().includes(q);
+    const matchSearch = !search || (o.os_number || "").toLowerCase().includes(q) || ((o.service as any)?.title || "").toLowerCase().includes(q) || ((o.customer as any)?.full_name || "").toLowerCase().includes(q);
     const matchStatus = !filterStatus || o.status_id === filterStatus;
     const matchSituation = !filterSituation || o.situation_id === filterSituation;
-    const matchPriority = !filterPriority || o.priority === filterPriority;
-    return matchSearch && matchStatus && matchSituation && matchPriority;
+    return matchSearch && matchStatus && matchSituation;
   });
 
   if (subView === "situations") return <OSSituationsView onBack={() => setSubView("list")} />;
@@ -2075,7 +2083,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar OS, cliente, modelo..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar OS, cliente ou serviço..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
         </div>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={cn(INPUT, "py-2 text-xs")}>
           <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -2083,16 +2091,12 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
         <select value={filterSituation} onChange={e => setFilterSituation(e.target.value)} className={cn(INPUT, "py-2 text-xs")}>
           <option value="">Todas as situações</option>{situations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
-        <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className={cn(INPUT, "py-2 text-xs")}>
-          <option value="">Todas as prioridades</option>
-          {[["baixa","Baixa"],["normal","Normal"],["alta","Alta"],["urgente","Urgente"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={search || filterStatus || filterSituation || filterPriority ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão + Nova OS."} />
+          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={search || filterStatus || filterSituation ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[900px]">
@@ -2112,19 +2116,18 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 {filtered.map(o => (
                   <tr key={o.id} className="hover:bg-[#f8fafc]/80">
                     <td className="px-4 py-3.5">
-                      <span className="font-mono text-xs font-black text-[#0057e7]">{o.protocol || o.id.slice(0, 8)}</span>
+                      <span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || o.id.slice(0, 8)}</span>
                     </td>
                     <td className="px-4 py-3.5">
                       <p className="font-semibold text-[#0d1b2e] text-sm">{(o.customer as any)?.full_name || "—"}</p>
                       <p className="text-[11px] text-[#5a6a82]">{(o.customer as any)?.whatsapp || (o.customer as any)?.phone || ""}</p>
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="font-medium text-[#0d1b2e] text-sm">{o.title || "—"}</p>
-                      <p className="text-[11px] text-[#5a6a82]">{[(o.brand as any)?.name, o.model].filter(Boolean).join(" · ") || ""}</p>
+                      <p className="font-medium text-[#0d1b2e] text-sm">{(o.service as any)?.title || "—"}</p>
                     </td>
                     <td className="px-4 py-3.5"><StatusBadge status={(o.order_status as any)?.name || "—"} /></td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{(o.situation as any)?.name || "—"}</td>
-                    <td className="px-4 py-3.5"><PriorityBadge priority={o.priority} /></td>
+                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{o.scheduled_at ? fmtDate(o.scheduled_at) : "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(o.created_at)}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex gap-2 justify-end">
@@ -2142,13 +2145,11 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
       {/* OS Detail Drawer */}
       {detail && (
-        <Drawer open={true} onClose={() => setDetail(null)} title={detail.protocol || `OS #${detail.id.slice(0,8)}`} subtitle={detail.title || "Ordem de Serviço"} maxW="max-w-2xl">
+        <Drawer open={true} onClose={() => setDetail(null)} title={detail.os_number || `OS #${detail.id.slice(0,8)}`} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-wrap gap-2 items-center">
                 <StatusBadge status={(detail.order_status as any)?.name || "—"} />
-                <PriorityBadge priority={detail.priority} />
                 {(detail.situation as any)?.name && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#e8eef8] text-[#0057e7]">{(detail.situation as any).name}</span>}
-                {detail.origin === "orcamento" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Via Orçamento</span>}
               </div>
               <Section title="Cliente">
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -2159,39 +2160,24 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                   <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
                 </div>
               </Section>
-              {(detail.brand_id || detail.product_id || detail.model || detail.serial_number || detail.accessories || detail.equipment_condition) && (
-                <Section title="Equipamento">
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <InfoRow label="Marca" value={(detail.brand as any)?.name} />
-                    <InfoRow label="Produto" value={(detail.product as any)?.name} />
-                    <InfoRow label="Modelo" value={detail.model} />
-                    <InfoRow label="Nº de Série" value={detail.serial_number} />
-                    <InfoRow label="Acessórios recebidos" value={detail.accessories} />
-                    <InfoRow label="Estado do equipamento" value={detail.equipment_condition} />
-                  </div>
-                </Section>
-              )}
-              <Section title="Problema e Diagnóstico">
-                <div className="space-y-3">
-                  <InfoRow label="Problema relatado" value={detail.description} />
-                  <InfoRow label="Diagnóstico" value={detail.diagnosis} />
-                  <InfoRow label="Solução aplicada" value={detail.solution} />
+              <Section title="Dados de endereço">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map((key) => {
+                    const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" };
+                    const address = ((detail.customer as any)?.addresses || []).find((item: Address) => item.is_default) || (detail.customer as any)?.addresses?.[0];
+                    return address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null;
+                  })}
                 </div>
               </Section>
-              {(detail.estimated_price || detail.final_price) && (
-                <Section title="Valores">
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {detail.estimated_price && <InfoRow label="Valor estimado" value={`R$ ${Number(detail.estimated_price).toLocaleString("pt-BR",{minimumFractionDigits:2})}`} />}
-                    {detail.final_price && <InfoRow label="Valor final" value={`R$ ${Number(detail.final_price).toLocaleString("pt-BR",{minimumFractionDigits:2})}`} />}
-                  </div>
-                </Section>
-              )}
-              <Section title="Datas e Responsável">
+              <Section title="Demais informações">
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <InfoRow label="Abertura" value={fmtDate(detail.created_at, true)} />
-                  <InfoRow label="Previsão" value={fmtDate(detail.scheduled_date)} />
-                  <InfoRow label="Conclusão" value={fmtDate(detail.completion_date)} />
+                  <InfoRow label="Serviço" value={(detail.service as any)?.title} />
+                  <InfoRow label="Status" value={(detail.order_status as any)?.name} />
+                  <InfoRow label="Situação" value={(detail.situation as any)?.name} />
                   <InfoRow label="Responsável" value={(detail.assigned_profile as any)?.full_name} />
+                  <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
+                  <InfoRow label="Data de início" value={fmtDate(detail.started_at)} />
+                  <InfoRow label="Data de conclusão" value={fmtDate(detail.completed_at)} />
                 </div>
               </Section>
               <Section title="Histórico">
@@ -2210,7 +2196,8 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                   </div>
                 )}
               </Section>
-              {detail.notes && <Section title="Observações"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.notes}</p></Section>}
+              {detail.internal_notes && <Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>}
+              {detail.customer_notes && <Section title="Observações do cliente"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>}
               <Section title="Atualizar Status">
                 <div className="space-y-3">
                   <FSelect label="Novo status" value={detailNewStatus} onChange={(e: any) => setDetailNewStatus(e.target.value)} options={[{ value: "", label: "Selecionar..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
@@ -2230,7 +2217,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
       {/* OS Create/Edit Form Drawer */}
       {formOpen && (
-        <Drawer open={true} onClose={() => setFormOpen(false)} title={editingOS ? `Editar OS — ${editingOS.protocol || editingOS.id.slice(0,8)}` : "Nova Ordem de Serviço"} maxW="max-w-2xl">
+        <Drawer open={true} onClose={() => setFormOpen(false)} title={editingOS ? `Editar OS — ${editingOS.os_number || editingOS.id.slice(0,8)}` : "Nova Ordem de Serviço"} maxW="max-w-2xl">
           <div className="p-5 space-y-5">
             {/* Cliente */}
             <Section title="Cliente">
@@ -2265,48 +2252,21 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
             {/* Informações Básicas */}
             <Section title="Informações da OS">
               <div className="grid sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2"><FInput label="Título" value={form.title} required onChange={(e: any) => upF("title", e.target.value)} placeholder="Ex: Manutenção de ar-condicionado" /></div>
+                <FSelect label="Serviço" value={form.service_id} required onChange={(e: any) => upF("service_id", e.target.value)} options={[{ value: "", label: "Selecionar serviço..." }, ...services.map(s => ({ value: s.id, label: s.title }))]} />
                 <FSelect label="Status" value={form.status_id} onChange={(e: any) => upF("status_id", e.target.value)} options={[{ value: "", label: "Selecionar status..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
                 <FSelect label="Situação" value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...situations.map(s => ({ value: s.id, label: s.name }))]} />
-                <FSelect label="Prioridade" value={form.priority} onChange={(e: any) => upF("priority", e.target.value)} options={[["baixa","Baixa"],["normal","Normal"],["alta","Alta"],["urgente","Urgente"]].map(([v,l]) => ({ value: v, label: l }))} />
                 <FSelect label="Responsável" value={form.assigned_to} onChange={(e: any) => upF("assigned_to", e.target.value)} options={[{ value: "", label: "Sem responsável" }, ...profiles.map(p => ({ value: p.id, label: p.full_name || p.id }))]} />
-                <FInput label="Data prevista" type="date" value={form.scheduled_date} onChange={(e: any) => upF("scheduled_date", e.target.value)} />
-                <FInput label="Data de conclusão" type="date" value={form.completion_date} onChange={(e: any) => upF("completion_date", e.target.value)} />
+                <FInput label="Data agendada" type="datetime-local" value={form.scheduled_at} onChange={(e: any) => upF("scheduled_at", e.target.value)} />
+                <FInput label="Data de início" type="datetime-local" value={form.started_at} onChange={(e: any) => upF("started_at", e.target.value)} />
+                <FInput label="Data de conclusão" type="datetime-local" value={form.completed_at} onChange={(e: any) => upF("completed_at", e.target.value)} />
               </div>
             </Section>
 
-            {/* Equipamento */}
-            <Section title="Equipamento">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <FSelect label="Marca" value={form.brand_id} onChange={(e: any) => upF("brand_id", e.target.value)} options={[{ value: "", label: "Selecionar marca..." }, ...brands.map(b => ({ value: b.id, label: b.name }))]} />
-                <FSelect label="Produto" value={form.product_id} onChange={(e: any) => upF("product_id", e.target.value)} options={[{ value: "", label: "Selecionar produto..." }, ...products.map(p => ({ value: p.id, label: p.name }))]} />
-                <FInput label="Modelo" value={form.model} onChange={(e: any) => upF("model", e.target.value)} placeholder="Ex: Split 12.000 BTU" />
-                <FInput label="Nº de Série" value={form.serial_number} onChange={(e: any) => upF("serial_number", e.target.value)} placeholder="SN123456" />
-                <FInput label="Acessórios recebidos" value={form.accessories} onChange={(e: any) => upF("accessories", e.target.value)} placeholder="Controle remoto, cabo..." />
-                <FInput label="Estado do equipamento" value={form.equipment_condition} onChange={(e: any) => upF("equipment_condition", e.target.value)} placeholder="Amassado, riscado..." />
-              </div>
-            </Section>
-
-            {/* Problema / Diagnóstico / Solução */}
-            <Section title="Problema e Diagnóstico">
+            <Section title="Demais informações">
               <div className="space-y-4">
-                <FTextarea label="Problema relatado" value={form.description} onChange={(e: any) => upF("description", e.target.value)} rows={3} placeholder="Descrição do problema informado pelo cliente..." />
-                <FTextarea label="Diagnóstico" value={form.diagnosis} onChange={(e: any) => upF("diagnosis", e.target.value)} rows={3} placeholder="Diagnóstico técnico após análise..." />
-                <FTextarea label="Solução aplicada" value={form.solution} onChange={(e: any) => upF("solution", e.target.value)} rows={3} placeholder="Solução ou serviço realizado..." />
+                <FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />
+                <FTextarea label="Observações do cliente" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={3} />
               </div>
-            </Section>
-
-            {/* Valores */}
-            <Section title="Valores">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <FInput label="Valor estimado (R$)" type="number" min="0" step="0.01" value={form.estimated_price} onChange={(e: any) => upF("estimated_price", e.target.value)} placeholder="0,00" />
-                <FInput label="Valor final (R$)" type="number" min="0" step="0.01" value={form.final_price} onChange={(e: any) => upF("final_price", e.target.value)} placeholder="0,00" />
-              </div>
-            </Section>
-
-            {/* Observações */}
-            <Section title="Observações Internas">
-              <FTextarea label="Observações" value={form.notes} onChange={(e: any) => upF("notes", e.target.value)} rows={3} placeholder="Informações internas sobre esta OS..." />
             </Section>
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
@@ -2331,12 +2291,16 @@ function TabCustomers() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({ full_name: "", email: "", phone: "", whatsapp: "", document: "" });
+  const [editAddress, setEditAddress] = useState<Address>({ ...emptyAddress });
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ full_name: "", email: "", phone: "", whatsapp: "", document: "" });
+  const [createAddress, setCreateAddress] = useState<Address>({ ...emptyAddress });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("customers").select("*, addresses:customer_addresses(*)").order("created_at", { ascending: false });
     if (error) setToast({ msg: `Erro ao carregar clientes: ${error.message}`, type: "error" });
     else setCustomers(data || []);
     setLoading(false);
@@ -2347,11 +2311,12 @@ function TabCustomers() {
   const openDetail = async (c: any) => {
     setDetail(c);
     setEditForm({ full_name: c.full_name || "", email: c.email || "", phone: c.phone || "", whatsapp: c.whatsapp || "", document: c.document || "" });
+    setEditAddress({ ...emptyAddress, ...((c.addresses || []).find((address: Address) => address.is_default) || c.addresses?.[0] || {}) });
     setEditMode(false);
     setDetailLoading(true);
     const [quotesRes, ordersRes] = await Promise.all([
       supabase.from("quote_requests").select("id, protocol, created_at, status_id, estimated_price, final_price, customer_message, request_status:request_statuses(name), service:services(title), brand:brands(name)").eq("customer_id", c.id).order("created_at", { ascending: false }),
-      supabase.from("service_orders").select("id, title, description, created_at, scheduled_date, completion_date, notes, status_id, order_status:order_statuses(name)").eq("customer_id", c.id).order("created_at", { ascending: false }),
+      supabase.from("service_orders").select("id, os_number, service:services(title), created_at, scheduled_at, completed_at, internal_notes, customer_notes, status_id, order_status:order_statuses(name)").eq("customer_id", c.id).order("created_at", { ascending: false }),
     ]);
     setDetailQuotes(quotesRes.data || []);
     setDetailOrders(ordersRes.data || []);
@@ -2363,11 +2328,35 @@ function TabCustomers() {
     setSaving(true);
     const { error } = await supabase.from("customers").update({ full_name: editForm.full_name.trim(), email: editForm.email || null, phone: editForm.phone || null, whatsapp: editForm.whatsapp || null, document: editForm.document ? editForm.document.replace(/\D/g, "") : null }).eq("id", detail.id);
     if (error) { setToast({ msg: `Erro ao salvar: ${error.message}`, type: "error" }); setSaving(false); return; }
+    const addressPayload = { customer_id: detail.id, zip_code: editAddress.zip_code || null, street: editAddress.street || null, number: editAddress.number || null, complement: editAddress.complement || null, neighborhood: editAddress.neighborhood || null, city: editAddress.city || null, state: editAddress.state || null, is_default: true };
+    const addressExists = (detail.addresses || []).find((address: Address) => address.is_default) || detail.addresses?.[0];
+    const addressResult = addressExists
+      ? await supabase.from("customer_addresses").update(addressPayload).eq("id", addressExists.id)
+      : await supabase.from("customer_addresses").insert(addressPayload);
+    if (addressResult.error) { setToast({ msg: `Cliente salvo, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); setSaving(false); return; }
     setToast({ msg: "Cliente atualizado!", type: "success" });
     setSaving(false);
     setEditMode(false);
     load();
     openDetail({ ...detail, ...editForm, document: editForm.document ? editForm.document.replace(/\D/g, "") : null });
+  };
+
+  const handleCreate = async () => {
+    if (!createForm.full_name.trim()) { setToast({ msg: "Nome é obrigatório.", type: "error" }); return; }
+    setSaving(true);
+    const { data: customer, error } = await supabase.from("customers").insert({ full_name: createForm.full_name.trim(), email: createForm.email || null, phone: createForm.phone || null, whatsapp: createForm.whatsapp || null, document: createForm.document ? createForm.document.replace(/\D/g, "") : null }).select().single();
+    if (error || !customer) { setToast({ msg: `Erro ao cadastrar: ${error?.message || "Cliente não criado."}`, type: "error" }); setSaving(false); return; }
+    const hasAddress = Object.values(createAddress).some(Boolean);
+    if (hasAddress) {
+      const addressResult = await supabase.from("customer_addresses").insert({ customer_id: customer.id, zip_code: createAddress.zip_code || null, street: createAddress.street || null, number: createAddress.number || null, complement: createAddress.complement || null, neighborhood: createAddress.neighborhood || null, city: createAddress.city || null, state: createAddress.state || null, is_default: true });
+      if (addressResult.error) { setToast({ msg: `Cliente criado, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); setSaving(false); await load(); return; }
+    }
+    setToast({ msg: "Cliente cadastrado com sucesso!", type: "success" });
+    setCreateOpen(false);
+    setCreateForm({ full_name: "", email: "", phone: "", whatsapp: "", document: "" });
+    setCreateAddress({ ...emptyAddress });
+    setSaving(false);
+    await load();
   };
 
   const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
@@ -2385,9 +2374,12 @@ function TabCustomers() {
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <PageHeader title="Clientes" subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`} actions={
-        <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
-          <RefreshCw size={13} /> Atualizar
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Cadastrar Cliente</button>
+          <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
+            <RefreshCw size={13} /> Atualizar
+          </button>
+        </div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -2399,7 +2391,7 @@ function TabCustomers() {
         </div>
 
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." />
+          <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." onAdd={() => setCreateOpen(true)} addLabel="Cadastrar Cliente" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
@@ -2447,10 +2439,24 @@ function TabCustomers() {
                     <FInput label="Telefone" value={editForm.phone} onChange={(e: any) => setEditForm({ ...editForm, phone: e.target.value })} />
                     <div className="sm:col-span-2"><FInput label="E-mail" type="email" value={editForm.email} onChange={(e: any) => setEditForm({ ...editForm, email: e.target.value })} /></div>
                   </div>
+                  <Section title="Dados de endereço">
+                    <AddressFields value={editAddress} onChange={setEditAddress} inputClassName={INPUT} />
+                  </Section>
                   <div className="flex gap-2 pt-1">
                     <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</BtnPrimary>
                     <BtnSecondary onClick={() => setEditMode(false)}>Cancelar</BtnSecondary>
                   </div>
+                  {((detail.addresses || []).length > 0) && (
+                    <Section title="Dados de endereço">
+                      <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                        {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map((key) => {
+                          const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" };
+                          const address = editAddress[key];
+                          return address ? <div key={key}><p className="text-[10px] text-[#5a6a82] font-bold uppercase">{labels[key]}</p><p className="font-medium text-[#0d1b2e]">{address}</p></div> : null;
+                        })}
+                      </div>
+                    </Section>
+                  )}
                 </div>
               ) : (
                 <div>
@@ -2505,15 +2511,15 @@ function TabCustomers() {
                       {detailOrders.map(o => (
                         <div key={o.id} className="bg-[#f8fafc] border border-[#0d1b2e]/8 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-xs text-[#0057e7]">#{o.id.slice(0, 8)}</span>
+                            <span className="font-black text-xs text-[#0057e7]">#{o.os_number || o.id.slice(0, 8)}</span>
                             <StatusBadge status={(o.order_status as any)?.name || "—"} />
                           </div>
-                          <p className="text-xs font-semibold text-[#0d1b2e]">{o.title}</p>
-                          {o.description && <p className="text-xs text-[#5a6a82] mt-0.5">{o.description}</p>}
+                          <p className="text-xs font-semibold text-[#0d1b2e]">{(o.service as any)?.title || "Ordem de Serviço"}</p>
+                          {o.customer_notes && <p className="text-xs text-[#5a6a82] mt-0.5">{o.customer_notes}</p>}
                           <div className="flex items-center gap-3 mt-1 text-[10px] text-[#5a6a82]">
                             <span>Criada: {fmtDate(o.created_at)}</span>
-                            {o.scheduled_date && <span>Agendado: {fmtDate(o.scheduled_date)}</span>}
-                            {o.completion_date && <span>Concluído: {fmtDate(o.completion_date)}</span>}
+                            {o.scheduled_at && <span>Agendado: {fmtDate(o.scheduled_at)}</span>}
+                            {o.completed_at && <span>Concluído: {fmtDate(o.completed_at)}</span>}
                           </div>
                         </div>
                       ))}
@@ -2526,6 +2532,29 @@ function TabCustomers() {
 
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-6 py-4 text-right">
             <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
+          </div>
+        </Drawer>
+      )}
+
+      {createOpen && (
+        <Drawer open={true} onClose={() => setCreateOpen(false)} title="Cadastrar Cliente" subtitle="Preencha os dados do cliente" maxW="max-w-2xl">
+          <div className="p-5 space-y-5">
+            <Section title="Dados pessoais">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <FInput label="Nome" required value={createForm.full_name} onChange={(e: any) => setCreateForm({ ...createForm, full_name: e.target.value })} />
+                <FInput label="Email" type="email" value={createForm.email} onChange={(e: any) => setCreateForm({ ...createForm, email: e.target.value })} />
+                <FInput label="Telefone" value={createForm.phone} onChange={(e: any) => setCreateForm({ ...createForm, phone: e.target.value })} />
+                <FInput label="WhatsApp" value={createForm.whatsapp} onChange={(e: any) => setCreateForm({ ...createForm, whatsapp: e.target.value })} />
+                <FInput label="Documento" value={createForm.document} onChange={(e: any) => setCreateForm({ ...createForm, document: e.target.value })} />
+              </div>
+            </Section>
+            <Section title="Dados de endereço">
+              <AddressFields value={createAddress} onChange={setCreateAddress} inputClassName={INPUT} />
+            </Section>
+          </div>
+          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+            <BtnSecondary onClick={() => setCreateOpen(false)}>Cancelar</BtnSecondary>
+            <BtnPrimary onClick={handleCreate} disabled={saving}>{saving ? "Salvando..." : "Cadastrar Cliente"}</BtnPrimary>
           </div>
         </Drawer>
       )}
