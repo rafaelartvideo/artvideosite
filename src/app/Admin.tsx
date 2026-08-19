@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress, type Address } from "@/lib/address";
+import { createEmployee, getEmployees, getGeneralServices, createGeneralService, updateGeneralService, setGeneralServiceActive, setEmployeeActive, updateEmployee } from "@/lib/queries";
 import {
   LayoutDashboard, Wrench, FolderTree, Package, Tag, FileText, ClipboardList,
   Users, Settings, Phone, LogOut, Search, Plus, Edit2, Trash2, CheckCircle,
@@ -15,6 +16,18 @@ import {
 type AdminTab =
   | "dashboard" | "services" | "categories" | "products" | "brands"
   | "quotes" | "orders" | "customers" | "employees" | "settings" | "contact";
+
+type AdminPageState = {
+  breadcrumb: string;
+  title: string;
+  subtitle?: string;
+  onBack: () => void;
+} | null;
+
+const AdminPageContext = React.createContext<{
+  page: AdminPageState;
+  setPage: React.Dispatch<React.SetStateAction<AdminPageState>>;
+} | null>(null);
 
 /* ─────────────────────────── SHARED PRIMITIVES ─────────────────────────── */
 
@@ -40,6 +53,11 @@ function generateOsProtocol() {
   const d = String(now.getDate()).padStart(2, "0");
   const rand = Math.floor(Math.random() * 9000) + 1000;
   return `OS-${y}${m}${d}-${rand}`;
+}
+
+function getWhatsAppUrl(value?: string | null) {
+  const digits = (value || "").replace(/\D/g, "");
+  return digits ? `https://wa.me/${digits}` : null;
 }
 
 async function generateUniqueSlug(table: "service_categories" | "product_categories" | "products" | "brands", value: string, excludeId?: string) {
@@ -161,26 +179,94 @@ function Toast({ message, type = "success", onClose }: { message: string; type?:
   );
 }
 
-function Drawer({ open, onClose, title, subtitle, children, maxW = "max-w-2xl" }: {
-  open: boolean; onClose: () => void; title: string; subtitle?: string; children: React.ReactNode; maxW?: string;
+function QuickEquipmentModal({ onClose, onSaved }: {
+  onClose: () => void;
+  onSaved: (items: { type: any; brand: any; model: any }) => void;
 }) {
+  const [typeName, setTypeName] = useState("");
+  const [brandName, setBrandName] = useState("");
+  const [modelName, setModelName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
+
+  const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragRef.current = { x: position.x, y: position.y, startX: event.clientX, startY: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    setPosition({ x: dragRef.current.x + event.clientX - dragRef.current.startX, y: dragRef.current.y + event.clientY - dragRef.current.startY });
+  };
+  const endDrag = () => { dragRef.current = null; };
+  const save = async () => {
+    if (!typeName.trim() || !brandName.trim() || !modelName.trim()) return;
+    setSaving(true);
+    setErrorMessage("");
+    try {
+      const { data: existingType, error: typeLookupError } = await supabase.from("equipment_types").select("*").ilike("name", typeName.trim()).maybeSingle();
+      if (typeLookupError) throw typeLookupError;
+      const typeResult = existingType ? { data: existingType, error: null } : await supabase.from("equipment_types").insert({ name: typeName.trim(), slug: slugify(typeName), is_active: true, sort_order: 0 }).select("*").single();
+      const { data: type, error: typeError } = typeResult;
+      if (typeError || !type) throw typeError || new Error("Equipamento não foi cadastrado.");
+      const { data: existingBrand, error: brandLookupError } = await supabase.from("equipment_brands").select("*").eq("equipment_type_id", type.id).ilike("name", brandName.trim()).maybeSingle();
+      if (brandLookupError) throw brandLookupError;
+      const brandResult = existingBrand ? { data: existingBrand, error: null } : await supabase.from("equipment_brands").insert({ name: brandName.trim(), slug: slugify(brandName), equipment_type_id: type.id, is_active: true, sort_order: 0 }).select("*").single();
+      const { data: brand, error: brandError } = brandResult;
+      if (brandError || !brand) throw brandError || new Error("Marca não foi cadastrada.");
+      const { data: existingModel, error: modelLookupError } = await supabase.from("equipment_models").select("*").eq("equipment_brand_id", brand.id).ilike("name", modelName.trim()).maybeSingle();
+      if (modelLookupError) throw modelLookupError;
+      const modelResult = existingModel ? { data: existingModel, error: null } : await supabase.from("equipment_models").insert({ name: modelName.trim(), slug: slugify(modelName), equipment_brand_id: brand.id, is_active: true, sort_order: 0 }).select("*").single();
+      const { data: model, error: modelError } = modelResult;
+      if (modelError || !model) throw modelError || new Error("Modelo não foi cadastrado.");
+      onSaved({ type, brand, model });
+      onClose();
+    } catch (error) {
+      console.error("[ADMIN] quick equipment save error:", error);
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/35 p-4">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10 overflow-hidden">
+        <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 px-4 py-3 select-none">
+          <div><h3 className="text-sm font-bold text-[#0d1b2e]">Adicionar novo equipamento</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre a hierarquia completa</p></div>
+          <button type="button" onClick={onClose} className="p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa] rounded-lg" aria-label="Fechar"><X size={16} /></button>
+        </div>
+        <div className="p-4 space-y-3"><FInput label="Tipo de equipamento" required autoFocus value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Ex: Televisão" /><FInput label="Marca" required value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder="Ex: Samsung" /><FInput label="Modelo" required value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder="Ex: UN55CU7700" />{errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}</div>
+        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving || !typeName.trim() || !brandName.trim() || !modelName.trim()}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div>
+      </div>
+    </div>
+  );
+}
+
+function AdminPage({ open, onClose, title, subtitle, breadcrumb, children }: {
+  open: boolean; onClose: () => void; title: string; subtitle?: string; breadcrumb: string; children: React.ReactNode; maxW?: string;
+}) {
+  const navigation = React.useContext(AdminPageContext);
+  const setPage = navigation?.setPage;
+
+  useEffect(() => {
+    if (!open) return;
+    setPage?.({ breadcrumb, title, subtitle, onBack: onClose });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      setPage?.(null);
+    };
+  }, [open, breadcrumb, title, subtitle, setPage]);
+
   if (!open) return null;
   return (
-    <>
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[90]" onClick={onClose} />
-      <div className={cn("fixed right-0 top-0 h-full bg-white shadow-2xl z-[100] flex flex-col w-full", maxW)}>
-        <div className="flex items-start justify-between px-6 py-4 border-b border-[#0d1b2e]/10 flex-shrink-0 bg-white">
-          <div>
-            <h2 className="font-black text-[#0d1b2e] text-xl" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{title}</h2>
-            {subtitle && <p className="text-xs text-[#5a6a82] mt-0.5">{subtitle}</p>}
-          </div>
-          <button onClick={onClose} className="p-2 text-[#5a6a82] hover:text-[#0d1b2e] hover:bg-[#f5f7fa] rounded-lg transition-colors flex-shrink-0">
-            <X size={20} />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto bg-[#f8fafc]">{children}</div>
-      </div>
-    </>
+    <div className="fixed inset-x-0 bottom-0 top-[68px] left-0 md:left-60 z-[35] bg-[#f8fafc] overflow-y-auto">
+      <div className="max-w-6xl mx-auto w-full p-4 sm:p-8">{children}</div>
+    </div>
   );
 }
 
@@ -199,42 +285,72 @@ function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem" }: {
   bucket: "service-images" | "product-images" | "brand-images" | "avatars" | "public-assets"; currentMediaId?: string | null; onUpload: (mediaId: string) => void; label?: string;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const { url: currentUrl } = useMediaUrl(currentMediaId);
 
+  useEffect(() => {
+    if (!previewUrl) return;
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
     setUploading(true);
+
     try {
       const ext = file.name.split(".").pop();
       const path = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}.${ext}`;
       const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
       if (error) throw error;
-      const { data: media, error: mediaError } = await supabase.from("media").insert({ bucket_name: bucket, storage_path: path, file_name: file.name, file_size: file.size, mime_type: file.type || null, created_by: user?.id || null }).select("id").single();
+
+      const { data: media, error: mediaError } = await supabase.from("media").insert({
+        bucket_id: bucket,
+        storage_path: path,
+        file_name: file.name,
+        file_size: file.size,
+        mime_type: file.type || null,
+        alt_text: file.name,
+        uploaded_by: user?.id || null,
+      }).select("id").single();
+
       if (mediaError) throw mediaError;
       onUpload(media.id);
+      setPreviewUrl(null);
     } catch (error) {
-      console.error("[ADMIN] media upload error:", error);
+      console.error("[SUPABASE]", {
+        error,
+        message: (error as any)?.message,
+        details: (error as any)?.details,
+        hint: (error as any)?.hint,
+        code: (error as any)?.code,
+      });
+      setPreviewUrl(null);
     } finally {
       setUploading(false);
       if (ref.current) ref.current.value = "";
     }
   };
 
+  const displayUrl = previewUrl || currentUrl;
+
   return (
     <div>
       <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-2">{label}</label>
-      {currentUrl && (
+      {displayUrl && (
         <div className="mb-3 w-36 h-28 rounded-xl overflow-hidden border border-[#0d1b2e]/15 bg-[#f5f7fa]">
-          <img src={currentUrl} alt="" className="w-full h-full object-cover" />
+          <img src={displayUrl} alt="" className="w-full h-full object-cover" />
         </div>
       )}
       <input ref={ref} type="file" accept="image/*" onChange={handleFile} className="hidden" />
       <button type="button" onClick={() => ref.current?.click()} disabled={uploading}
         className="flex items-center gap-2 text-xs font-bold text-[#0057e7] border border-[#0057e7]/40 hover:border-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg transition-colors disabled:opacity-50">
-        <Upload size={13} /> {uploading ? "Enviando..." : currentUrl ? "Trocar imagem" : "Selecionar imagem"}
+        <Upload size={13} /> {uploading ? "Enviando..." : displayUrl ? "Trocar imagem" : "Selecionar imagem"}
       </button>
     </div>
   );
@@ -274,11 +390,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 
 function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl font-black text-[#0d1b2e]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{title}</h1>
-        {subtitle && <p className="text-sm text-[#5a6a82] mt-0.5">{subtitle}</p>}
-      </div>
+    <div className="flex justify-end mb-5">
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );
@@ -374,6 +486,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const { user, profile, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [page, setPage] = useState<AdminPageState>(null);
 
   const roleName = (profile as any)?.role_id === "gestor" || (profile as any)?.role === "gestor" ? "GESTOR" : "FUNCIONARIO";
   const isGestor = roleName === "GESTOR";
@@ -387,7 +500,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     { id: "quotes", label: "Orçamentos", icon: FileText },
     { id: "orders", label: "Ordens de Serviço", icon: ClipboardList },
     { id: "customers", label: "Clientes", icon: Users },
-    { id: "employees", label: "Funcionários", icon: Users, gestorOnly: true },
+    { id: "employees", label: "Equipes", icon: Users },
     { id: "settings", label: "Configurações", icon: Settings },
     { id: "contact", label: "Contato", icon: Phone },
   ];
@@ -414,7 +527,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
             const Icon = item.icon;
             const active = activeTab === item.id;
             return (
-              <button key={item.id} onClick={() => { setActiveTab(item.id as AdminTab); setSidebarOpen(false); }}
+              <button key={item.id} onClick={() => { setActiveTab(item.id as AdminTab); setPage(null); setSidebarOpen(false); }}
                 className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all text-left",
                   active ? "bg-[#0057e7] text-white shadow-lg shadow-[#0057e7]/25" : "text-white/60 hover:bg-white/8 hover:text-white")}>
                 <Icon size={17} className="flex-shrink-0" />
@@ -449,6 +562,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   );
 
   return (
+    <AdminPageContext.Provider value={{ page, setPage }}>
     <div className="min-h-screen bg-[#f8fafc] flex">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-60 flex-shrink-0 bg-[#0d1b2e] flex-col fixed left-0 top-0 h-full z-40">
@@ -474,9 +588,31 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
               <Menu size={20} />
             </button>
             <div>
-              <h2 className="text-base font-black text-[#0d1b2e]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                {menuItems.find(m => m.id === activeTab)?.label}
+                {page && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-[#5a6a82] mb-0.5">
+                    <button type="button" onClick={page.onBack} className="font-semibold hover:text-[#0057e7] transition-colors">{page.breadcrumb}</button>
+                    <span aria-hidden="true">&gt;</span>
+                    <span className="truncate max-w-[180px]">{page.title}</span>
+                  </div>
+                )}
+              <h2 className="text-base font-black text-[#0d1b2e]">
+                {page?.title || menuItems.find(m => m.id === activeTab)?.label}
               </h2>
+              <p className="hidden sm:block text-[11px] text-[#5a6a82] mt-0.5">
+                {page?.subtitle || ({
+                    dashboard: "Visão geral do sistema em tempo real",
+                    services: "Gerencie os serviços apresentados no site",
+                    categories: "Organize os serviços e produtos por categoria",
+                    products: "Controle o catálogo de produtos da loja",
+                    brands: "Administre as marcas cadastradas",
+                    quotes: "Acompanhe e responda às solicitações recebidas",
+                    orders: "Abertura, acompanhamento e conclusão dos atendimentos",
+                    customers: "Consulte clientes e seus dados de atendimento",
+                    employees: "Cadastro e gestão dos funcionários da empresa",
+                    settings: "Controle as configurações globais do site",
+                    contact: "Dados exibidos no site e usados nos contatos",
+                  } as Record<AdminTab, string>)[activeTab]}
+                </p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs text-[#5a6a82]">
@@ -501,6 +637,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         </div>
       </main>
     </div>
+    </AdminPageContext.Provider>
   );
 }
 
@@ -516,7 +653,7 @@ function TabDashboard() {
     setLoading(true);
     const [qAll, oAll, sActive, pActive, rQuotes, rOrders] = await Promise.all([
       supabase.from("quote_requests").select("id, status_id, request_status:request_statuses(name)"),
-      supabase.from("service_orders").select("id, status_id, order_status:order_statuses(name)"),
+      supabase.from("service_orders").select("id, os_number, tracking_token, status_id, created_at, updated_at, customer_id, order_status:order_statuses(name)"),
       supabase.from("services").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("quote_requests").select("id, protocol, created_at, customer_id, service_id, brand_id, request_status:request_statuses(name), customer:customers(full_name), service:services(title), brand:brands(name)").order("created_at", { ascending: false }).limit(5),
@@ -640,6 +777,24 @@ function TabDashboard() {
 
 const SERVICE_STATUSES = ["Solicitação recebida", "Em análise", "Aguardando aprovação", "Em manutenção", "Pronto", "Finalizado"];
 
+function GeneralServicesPanel({ onBack }: { onBack: () => void }) {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [name, setName] = useState("");
+  const [active, setActive] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const load = async () => { setLoading(true); const { data, error } = await getGeneralServices(); if (error) { console.error("[ADMIN] general services load error:", error); setToast({ msg: `Erro ao carregar serviços gerais: ${error.message}`, type: "error" }); } else setItems(data || []); setLoading(false); };
+  useEffect(() => { load(); }, []);
+  const openNew = () => { setEditItem(null); setName(""); setActive(true); setFormOpen(true); };
+  const openEdit = (item: any) => { setEditItem(item); setName(item.name || ""); setActive(item.is_active !== false); setFormOpen(true); };
+  const save = async () => { if (!name.trim()) { setToast({ msg: "Informe o nome do serviço.", type: "error" }); return; } setSaving(true); const result = editItem ? await updateGeneralService(editItem.id, { name: name.trim(), is_active: active }) : await createGeneralService({ name: name.trim(), is_active: active, sort_order: items.length }); setSaving(false); if (result.error) { console.error("[ADMIN] general service save error:", result.error); setToast({ msg: `Erro ao salvar serviço geral: ${result.error.message}`, type: "error" }); return; } setFormOpen(false); setToast({ msg: editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" }); load(); };
+  const toggle = async (item: any) => { const result = await setGeneralServiceActive(item.id, !item.is_active); if (result.error) { console.error("[ADMIN] general service toggle error:", result.error); setToast({ msg: `Erro ao atualizar serviço: ${result.error.message}`, type: "error" }); return; } load(); };
+  return <div className="space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={<div className="flex gap-2"><BtnSecondary onClick={onBack}><ArrowLeft size={14} /> Serviços do site</BtnSecondary><BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary></div>} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={openNew} addLabel="Novo serviço" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="flex items-center justify-between px-5 py-4 hover:bg-[#f8fafc]"><div><p className="font-bold text-[#0d1b2e]">{item.name}</p><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></div><div className="flex gap-1"><button onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Serviços > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno"><div className="p-5"><Section title="Serviço geral"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage></div>;
+}
+
 function TabServices() {
   const { user } = useAuth();
   const [services, setServices] = useState<any[]>([]);
@@ -652,6 +807,7 @@ function TabServices() {
   const [search, setSearch] = useState("");
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [serviceView, setServiceView] = useState<"site" | "general">("site");
 
   const load = async () => {
     setLoading(true);
@@ -669,6 +825,8 @@ function TabServices() {
   };
 
   useEffect(() => { load(); }, []);
+
+  if (serviceView === "general") return <GeneralServicesPanel onBack={() => setServiceView("site")} />;
 
   const openNew = () => { setEditItem(null); setDrawerOpen(true); };
   const openEdit = (s: any) => { setEditItem(s); setDrawerOpen(true); };
@@ -708,7 +866,7 @@ function TabServices() {
       {delId && <ConfirmDialog message="Excluir este serviço e todos os dados associados?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Serviços" subtitle={`${services.length} serviço${services.length !== 1 ? "s" : ""} cadastrado${services.length !== 1 ? "s" : ""}`} actions={
-        <BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary>
+        <div className="flex gap-2"><BtnSecondary onClick={() => setServiceView("general")}><Wrench size={15} /> Serviços Gerais</BtnSecondary><BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary></div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -1075,7 +1233,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
   const productOptions = [{ value: "", label: "Sem produto vinculado" }, ...products.map(product => ({ value: product.id, label: product.name }))];
 
   return (
-    <Drawer open={open} onClose={onClose} title={editItem ? `Editar: ${editItem.title}` : "Novo Serviço"} subtitle="Preencha todas as seções para publicar o serviço" maxW="max-w-3xl">
+    <AdminPage open={open} onClose={onClose} breadcrumb="Serviços" title={editItem ? `Editar: ${editItem.title}` : "Novo serviço"} subtitle="Preencha todas as seções para publicar o serviço" maxW="max-w-3xl">
       {/* Tab bar */}
       <div className="sticky top-0 z-10 bg-white border-b border-[#0d1b2e]/8 px-4 flex gap-0 overflow-x-auto flex-shrink-0">
         {tabs.map(t => {
@@ -1243,7 +1401,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
           </BtnPrimary>
         </div>
       </div>
-    </Drawer>
+    </AdminPage>
   );
 }
 
@@ -1356,7 +1514,7 @@ function TabCategories() {
         )}
       </div>
 
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={editItem ? "Editar Categoria" : "Nova Categoria"} maxW="max-w-lg">
+      <AdminPage open={drawerOpen} onClose={() => setDrawerOpen(false)} breadcrumb="Categorias" title={editItem ? "Editar categoria" : "Nova categoria"} maxW="max-w-lg">
         <div className="p-5 space-y-4">
           <Section title="Informações">
             <div className="space-y-4">
@@ -1375,7 +1533,124 @@ function TabCategories() {
           <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
           <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar categoria"}</BtnPrimary>
         </div>
-      </Drawer>
+      </AdminPage>
+    </div>
+  );
+}
+
+type EquipmentDraftModel = { id?: string; name: string; is_active: boolean };
+type EquipmentDraftBrand = { id?: string; name: string; is_active: boolean; models: EquipmentDraftModel[] };
+type EquipmentDraft = { id?: string; name: string; is_active: boolean; brands: EquipmentDraftBrand[] };
+
+function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
+  const [types, setTypes] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [models, setModels] = useState<any[]>([]);
+  const [drafts, setDrafts] = useState<EquipmentDraft[]>([]);
+  const [formOpen, setFormOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const [typeRes, brandRes, modelRes] = await Promise.all([
+      supabase.from("equipment_types").select("*").order("sort_order").order("name"),
+      supabase.from("equipment_brands").select("*").order("sort_order").order("name"),
+      supabase.from("equipment_models").select("*").order("sort_order").order("name"),
+    ]);
+    const error = typeRes.error || brandRes.error || modelRes.error;
+    if (error) setToast({ msg: `Erro ao carregar equipamentos: ${error.message}`, type: "error" });
+    setTypes(typeRes.data || []); setBrands(brandRes.data || []); setModels(modelRes.data || []); setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const makeDraft = (type?: any): EquipmentDraft => ({
+    id: type?.id, name: type?.name || "", is_active: type?.is_active ?? true,
+    brands: brands.filter(brand => brand.equipment_type_id === type?.id).map(brand => ({
+      id: brand.id, name: brand.name, is_active: brand.is_active,
+      models: models.filter(model => model.equipment_brand_id === brand.id).map(model => ({ id: model.id, name: model.name, is_active: model.is_active })),
+    })),
+  });
+  const openNew = () => { setDrafts([makeDraft()]); setFormOpen(true); };
+  const openEdit = (type: any) => { setDrafts([makeDraft(type)]); setFormOpen(true); };
+  const addEquipment = () => setDrafts(current => [...current, makeDraft()]);
+  const updateDraft = (index: number, value: Partial<EquipmentDraft>) => setDrafts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...value } : item));
+  const addBrand = (typeIndex: number) => setDrafts(current => current.map((type, index) => index === typeIndex ? { ...type, brands: [...type.brands, { name: "", is_active: true, models: [{ name: "", is_active: true }] }] } : type));
+  const updateBrand = (typeIndex: number, brandIndex: number, value: Partial<EquipmentDraftBrand>) => setDrafts(current => current.map((type, index) => index === typeIndex ? { ...type, brands: type.brands.map((brand, childIndex) => childIndex === brandIndex ? { ...brand, ...value } : brand) } : type));
+  const removeBrand = (typeIndex: number, brandIndex: number) => setDrafts(current => current.map((type, index) => index === typeIndex ? { ...type, brands: type.brands.filter((_, childIndex) => childIndex !== brandIndex) } : type));
+  const addModel = (typeIndex: number, brandIndex: number) => setDrafts(current => current.map((type, index) => index === typeIndex ? { ...type, brands: type.brands.map((brand, childIndex) => childIndex === brandIndex ? { ...brand, models: [...brand.models, { name: "", is_active: true }] } : brand) } : type));
+  const updateModel = (typeIndex: number, brandIndex: number, modelIndex: number, value: Partial<EquipmentDraftModel>) => setDrafts(current => current.map((type, index) => index === typeIndex ? { ...type, brands: type.brands.map((brand, childIndex) => childIndex === brandIndex ? { ...brand, models: brand.models.map((model, itemIndex) => itemIndex === modelIndex ? { ...model, ...value } : model) } : brand) } : type));
+  const removeModel = (typeIndex: number, brandIndex: number, modelIndex: number) => setDrafts(current => current.map((type, index) => index === typeIndex ? { ...type, brands: type.brands.map((brand, childIndex) => childIndex === brandIndex ? { ...brand, models: brand.models.filter((_, itemIndex) => itemIndex !== modelIndex) } : brand) } : type));
+
+  const save = async () => {
+    if (drafts.some(type => !type.name.trim() || type.brands.some(brand => !brand.name.trim() || brand.models.some(model => !model.name.trim())))) { setToast({ msg: "Preencha equipamento, marcas e modelos antes de salvar.", type: "error" }); return; }
+    const typeNames = new Set<string>();
+    for (const type of drafts) {
+      const normalizedType = type.name.trim().toLowerCase();
+      if (typeNames.has(normalizedType) || (!type.id && types.some(item => item.name.trim().toLowerCase() === normalizedType))) { setToast({ msg: `O equipamento "${type.name}" já existe.`, type: "error" }); return; }
+      typeNames.add(normalizedType);
+      const brandNames = new Set<string>();
+      for (const brand of type.brands) {
+        const normalizedBrand = brand.name.trim().toLowerCase();
+        if (brandNames.has(normalizedBrand) || (!brand.id && brands.some(item => item.equipment_type_id === type.id && item.name.trim().toLowerCase() === normalizedBrand))) { setToast({ msg: `A marca "${brand.name}" está duplicada neste equipamento.`, type: "error" }); return; }
+        brandNames.add(normalizedBrand);
+        const modelNames = new Set<string>();
+        for (const model of brand.models) {
+          const normalizedModel = model.name.trim().toLowerCase();
+          if (modelNames.has(normalizedModel) || (!model.id && models.some(item => item.equipment_brand_id === brand.id && item.name.trim().toLowerCase() === normalizedModel))) { setToast({ msg: `O modelo "${model.name}" está duplicado nesta marca.`, type: "error" }); return; }
+          modelNames.add(normalizedModel);
+        }
+      }
+    }
+    setSaving(true);
+    try {
+      for (const type of drafts) {
+        const originalType = type.id ? types.find(item => item.id === type.id) : null;
+        const originalBrands = originalType ? brands.filter(item => item.equipment_type_id === originalType.id) : [];
+        const typePayload = { name: type.name.trim(), slug: slugify(type.name), is_active: type.is_active, sort_order: 0 };
+        const typeResult = type.id ? await supabase.from("equipment_types").update(typePayload).eq("id", type.id).select("id").single() : await supabase.from("equipment_types").insert(typePayload).select("id").single();
+        if (typeResult.error || !typeResult.data) throw typeResult.error || new Error("Tipo de equipamento não foi salvo.");
+        const typeId = typeResult.data.id;
+        for (const brand of type.brands) {
+          const originalBrand = brand.id ? originalBrands.find(item => item.id === brand.id) : null;
+          const originalModels = originalBrand ? models.filter(item => item.equipment_brand_id === originalBrand.id) : [];
+          const brandPayload = { name: brand.name.trim(), slug: slugify(brand.name), equipment_type_id: typeId, is_active: brand.is_active, sort_order: 0 };
+          const brandResult = brand.id ? await supabase.from("equipment_brands").update(brandPayload).eq("id", brand.id).select("id").single() : await supabase.from("equipment_brands").insert(brandPayload).select("id").single();
+          if (brandResult.error || !brandResult.data) throw brandResult.error || new Error("Marca técnica não foi salva.");
+          const brandId = brandResult.data.id;
+          for (const model of brand.models) {
+            const modelPayload = { name: model.name.trim(), slug: slugify(model.name), equipment_brand_id: brandId, is_active: model.is_active, sort_order: 0 };
+            const modelResult = model.id ? await supabase.from("equipment_models").update(modelPayload).eq("id", model.id) : await supabase.from("equipment_models").insert(modelPayload);
+            if (modelResult.error) throw modelResult.error;
+          }
+          for (const oldModel of originalModels.filter(item => !brand.models.some(model => model.id === item.id))) {
+            const removeModelResult = await supabase.from("equipment_models").delete().eq("id", oldModel.id);
+            if (removeModelResult.error) throw removeModelResult.error;
+          }
+        }
+        for (const oldBrand of originalBrands.filter(item => !type.brands.some(brand => brand.id === item.id))) {
+          const removeModelsResult = await supabase.from("equipment_models").delete().eq("equipment_brand_id", oldBrand.id);
+          if (removeModelsResult.error) throw removeModelsResult.error;
+          const removeBrandResult = await supabase.from("equipment_brands").delete().eq("id", oldBrand.id);
+          if (removeBrandResult.error) throw removeBrandResult.error;
+        }
+      }
+      setFormOpen(false); setToast({ msg: "Equipamentos salvos com sucesso.", type: "success" }); await load();
+    } catch (error) { setToast({ msg: `Erro ao salvar estrutura: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="space-y-5">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      <PageHeader title="Equipamentos Técnicos" subtitle="Cadastro hierárquico usado nas ordens de serviço" actions={<div className="flex gap-2"><BtnSecondary onClick={onBack}><ArrowLeft size={14} /> Produtos da Loja</BtnSecondary><BtnPrimary onClick={openNew}><Plus size={15} /> Novo equipamento</BtnPrimary></div>} />
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+        {loading ? <LoadingState /> : types.length === 0 ? <EmptyState icon={Wrench} title="Nenhum equipamento cadastrado" message="Cadastre o primeiro equipamento com suas marcas e modelos." onAdd={openNew} addLabel="Novo equipamento" /> : <div className="divide-y divide-[#0d1b2e]/5">{types.map(type => <div key={type.id} className="px-5 py-4 flex items-center justify-between gap-3"><div><p className="font-bold text-[#0d1b2e]">{type.name}</p><p className="text-xs text-[#5a6a82]">{brands.filter(brand => brand.equipment_type_id === type.id).length} marca(s) técnica(s)</p></div><div className="flex items-center gap-2"><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} /><button onClick={() => openEdit(type)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar equipamento"><Edit2 size={14} /></button></div></div>)}</div>}
+      </div>
+      <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Equipamentos Técnicos" title="Cadastro de equipamentos" subtitle="Monte equipamento, marcas e modelos antes de salvar">
+        <div className="p-5 space-y-5">{drafts.map((type, typeIndex) => <Section key={`${type.id || "new"}-${typeIndex}`} title="Equipamento"><div className="flex items-end gap-2"><div className="flex-1"><FInput label="Nome do equipamento" required value={type.name} onChange={(e: any) => updateDraft(typeIndex, { name: e.target.value })} placeholder="Ex: Televisão" /></div>{drafts.length > 1 && <button type="button" onClick={() => setDrafts(current => current.filter((_, index) => index !== typeIndex))} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg" title="Remover equipamento"><Trash2 size={16} /></button>}</div><div className="mt-5 space-y-4"><div className="flex items-center justify-between"><h4 className="text-sm font-bold text-[#0d1b2e]">Marcas e modelos</h4><button type="button" onClick={() => addBrand(typeIndex)} className="p-1.5 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Adicionar marca"><Plus size={16} /></button></div>{type.brands.map((brand, brandIndex) => <div key={`${brand.id || "new-brand"}-${brandIndex}`} className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4"><div className="flex items-end gap-2"><div className="flex-1"><FInput label="Marca" required value={brand.name} onChange={(e: any) => updateBrand(typeIndex, brandIndex, { name: e.target.value })} placeholder="Ex: Samsung" /></div><button type="button" onClick={() => removeBrand(typeIndex, brandIndex)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg" title="Remover marca"><Trash2 size={15} /></button></div><div className="mt-3 pl-3 border-l-2 border-[#0057e7]/20 space-y-2"><div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Modelos</span><button type="button" onClick={() => addModel(typeIndex, brandIndex)} className="p-1 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Adicionar modelo"><Plus size={15} /></button></div>{brand.models.map((model, modelIndex) => <div key={`${model.id || "new-model"}-${modelIndex}`} className="flex items-center gap-2"><FInput value={model.name} required onChange={(e: any) => updateModel(typeIndex, brandIndex, modelIndex, { name: e.target.value })} placeholder="Nome do modelo" /><button type="button" onClick={() => removeModel(typeIndex, brandIndex, modelIndex)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Remover modelo"><Trash2 size={14} /></button></div>)}</div></div>)}</div></Section>)}<BtnSecondary onClick={addEquipment}><Plus size={15} /> Adicionar equipamento</BtnSecondary></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar estrutura"}</BtnPrimary></div>
+      </AdminPage>
     </div>
   );
 }
@@ -1384,6 +1659,7 @@ function TabCategories() {
 
 function TabProducts() {
   const { user } = useAuth();
+  const [catalogView, setCatalogView] = useState<"store" | "equipment">("store");
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1441,13 +1717,15 @@ function TabProducts() {
 
   const filtered = products.filter(p => !search || p.name?.toLowerCase().includes(search.toLowerCase()));
 
+  if (catalogView === "equipment") return <EquipmentAdminPanel onBack={() => setCatalogView("store")} />;
+
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {delId && <ConfirmDialog message="Excluir este produto permanentemente?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Produtos" subtitle={`${products.length} produto${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`} actions={
-        <BtnPrimary onClick={openNew}><Plus size={16} /> Novo produto</BtnPrimary>
+        <div className="flex gap-2"><BtnSecondary onClick={() => setCatalogView("equipment")}><Wrench size={15} /> Equipamentos Técnicos</BtnSecondary><BtnPrimary onClick={openNew}><Plus size={16} /> Novo produto</BtnPrimary></div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -1500,7 +1778,7 @@ function TabProducts() {
         )}
       </div>
 
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={editItem ? "Editar Produto" : "Novo Produto"} maxW="max-w-xl">
+      <AdminPage open={drawerOpen} onClose={() => setDrawerOpen(false)} breadcrumb="Produtos" title={editItem ? "Editar produto" : "Novo produto"} maxW="max-w-xl">
         <div className="p-5 space-y-4">
           <Section title="Informações Principais">
             <div className="space-y-4">
@@ -1530,7 +1808,7 @@ function TabProducts() {
           <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
           <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar produto"}</BtnPrimary>
         </div>
-      </Drawer>
+      </AdminPage>
     </div>
   );
 }
@@ -1607,7 +1885,7 @@ function TabBrands() {
         )}
       </div>
 
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={editItem ? "Editar Marca" : "Nova Marca"} maxW="max-w-md">
+      <AdminPage open={drawerOpen} onClose={() => setDrawerOpen(false)} breadcrumb="Marcas" title={editItem ? "Editar marca" : "Nova marca"} maxW="max-w-md">
         <div className="p-5 space-y-4">
           <Section title="Informações">
             <div className="space-y-4">
@@ -1629,7 +1907,7 @@ function TabBrands() {
           <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
           <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar marca"}</BtnPrimary>
         </div>
-      </Drawer>
+      </AdminPage>
     </div>
   );
 }
@@ -1752,17 +2030,9 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
         )}
       </div>
 
-      {/* Quote Detail Modal */}
+      {/* Quote Detail Page */}
       {detail && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl my-4">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="font-black text-[#0d1b2e] text-xl" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Orçamento</h3>
-                {detail.protocol && <p className="text-xs text-[#0057e7] font-mono font-bold">{detail.protocol}</p>}
-              </div>
-              <button onClick={() => setDetail(null)} className="p-1.5 text-[#5a6a82] hover:text-[#0d1b2e] rounded-lg"><X size={20} /></button>
-            </div>
+        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Orçamentos" title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} subtitle="Detalhes da solicitação de orçamento">
             <div className="space-y-4">
               {/* Customer info */}
               <div className="bg-[#f8fafc] rounded-lg p-3 border border-[#0d1b2e]/8">
@@ -1809,15 +2079,14 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 });
                 if (error) { setToast({ msg: `Erro ao criar OS: ${error.message}`, type: "error" }); return; }
                 setDetail(null);
-                setToast({ msg: `OS criada com protocolo ${protocol}! Acesse a aba Ordens de Serviço.`, type: "success" });
+                setToast({ msg: "OS criada com sucesso e vinculada ao orçamento.", type: "success" });
                 if (onNavigate) setTimeout(() => onNavigate("orders"), 1200);
               }} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
                 <ClipboardList size={13} /> Converter em OS
               </button>
               <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
             </div>
-          </div>
-        </div>
+        </AdminPage>
       )}
     </div>
   );
@@ -1919,7 +2188,7 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
         )}
       </div>
       {drawerOpen && (
-        <Drawer open={true} onClose={() => setDrawerOpen(false)} title={editItem ? "Editar Situação" : "Nova Situação"} maxW="max-w-md">
+        <AdminPage open={true} onClose={() => setDrawerOpen(false)} breadcrumb="Situações da OS" title={editItem ? "Editar situação" : "Nova situação"} maxW="max-w-md">
           <div className="p-5 space-y-4">
             <FInput label="Nome" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Em análise" />
             <FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} placeholder="ex: em-analise" />
@@ -1931,14 +2200,14 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
             <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
             <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>
           </div>
-        </Drawer>
+        </AdminPage>
       )}
     </div>
   );
 }
 
 function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [subView, setSubView] = useState<"list" | "situations">("list");
   const [orders, setOrders] = useState<any[]>([]);
   const [statuses, setStatuses] = useState<any[]>([]);
@@ -1947,6 +2216,11 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [services, setServices] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [equipmentTypes, setEquipmentTypes] = useState<any[]>([]);
+  const [equipmentBrands, setEquipmentBrands] = useState<any[]>([]);
+  const [equipmentModels, setEquipmentModels] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [generalServices, setGeneralServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -1962,31 +2236,50 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [editingCustomer, setEditingCustomer] = useState(false);
+  const [customerDraft, setCustomerDraft] = useState({ full_name: "", email: "", phone: "", whatsapp: "", document: "" });
+  const [customerAddressDraft, setCustomerAddressDraft] = useState<Address>({ ...emptyAddress });
+  const [addressExpanded, setAddressExpanded] = useState(false);
+  const [quickEquipment, setQuickEquipment] = useState(false);
 
-  const emptyForm = { service_id: "", status_id: "", situation_id: "", customer_id: "", assigned_to: "", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "" };
+  const emptyForm = { service_id: "", general_service_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", assigned_to: user?.id || "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "" };
   const [form, setForm] = useState(emptyForm);
   const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const load = async () => {
     setLoading(true);
-    const [ordRes, statRes, sitRes, profRes, serviceRes] = await Promise.all([
-      supabase.from("service_orders").select("*, order_status:order_statuses(id,name), situation:os_situations(id,name), customer:customers(id,full_name,phone,whatsapp,document,email,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name)").order("created_at", { ascending: false }),
+    const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes] = await Promise.all([
+      supabase.from("service_orders").select("*, order_status:order_statuses(id,name), situation:os_situations(id,name), customer:customers(id,full_name,phone,whatsapp,document,email,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
       supabase.from("order_statuses").select("id,name,sort_order").order("sort_order"),
       supabase.from("os_situations").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
       supabase.from("services").select("id,title").eq("is_active", true).order("title"),
+      supabase.from("brands").select("id,name").eq("is_active", true).order("name"),
+      supabase.from("products").select("id,name").eq("is_active", true).order("name"),
+      supabase.from("equipment_types").select("id,name").eq("is_active", true).order("sort_order").order("name"),
+      supabase.from("equipment_brands").select("id,name,equipment_type_id").eq("is_active", true).order("sort_order").order("name"),
+      supabase.from("equipment_models").select("id,name,equipment_brand_id").eq("is_active", true).order("sort_order").order("name"),
+      supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
+      supabase.from("general_services").select("id,name,is_active,sort_order").eq("is_active", true).order("sort_order").order("name"),
     ]);
     if (ordRes.error) {
       console.error("[ADMIN] service_orders load error:", { code: ordRes.error.code, message: ordRes.error.message, details: ordRes.error.details, hint: ordRes.error.hint });
       setToast({ msg: `Erro ao carregar OS: ${ordRes.error.message}`, type: "error" });
     } else setOrders(ordRes.data || []);
-    [statRes, sitRes, profRes, serviceRes].forEach((result, index) => {
+    [statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes].forEach((result, index) => {
       if (result.error) console.error("[ADMIN] OS related query error:", index, result.error);
     });
     setStatuses(statRes.data || []);
     setSituations(sitRes.data || []);
     setProfiles(profRes.data || []);
     setServices(serviceRes.data || []);
+    setBrands(brandRes.data || []);
+    setProducts(productRes.data || []);
+    setEquipmentTypes(equipmentTypeRes.data || []);
+    setEquipmentBrands(equipmentBrandRes.data || []);
+    setEquipmentModels(equipmentModelRes.data || []);
+    setEmployees(employeeRes.data || []);
+    setGeneralServices(generalServiceRes.data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -2000,23 +2293,58 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   };
 
   const openNew = () => {
-    setEditingOS(null); setForm(emptyForm); setSelectedCustomer(null); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
+    setEditingOS(null); setForm(emptyForm); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ full_name: "", email: "", phone: "", whatsapp: "", document: "" }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
   };
 
   const openEdit = (o: any) => {
     setEditingOS(o);
-    setForm({ service_id: o.service_id || "", status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", assigned_to: o.assigned_to || "", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "" });
+    setForm({ service_id: o.service_id || "", general_service_id: o.general_service_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", assigned_to: o.assigned_to || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "" });
     setSelectedCustomer((o.customer as any) || null);
+    const customer = (o.customer as any) || {};
+    setCustomerDraft({ full_name: customer.full_name || "", email: customer.email || "", phone: customer.phone || "", whatsapp: customer.whatsapp || "", document: customer.document || "" });
+    const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
+    setCustomerAddressDraft({ ...emptyAddress, ...(address || {}) });
+    setEditingCustomer(false); setAddressExpanded(false);
     setCustomerSearch(""); setCustomerResults([]);
     setFormOpen(true);
   };
 
+  const saveCustomer = async () => {
+    if (!selectedCustomer?.id || !customerDraft.full_name.trim()) return;
+    setSaving(true);
+    const { error: customerError } = await supabase.from("customers").update({ full_name: customerDraft.full_name.trim(), email: customerDraft.email || null, phone: customerDraft.phone || null, whatsapp: customerDraft.whatsapp || null, document: customerDraft.document ? customerDraft.document.replace(/\D/g, "") : null }).eq("id", selectedCustomer.id);
+    if (customerError) { console.error("[ADMIN] customer update error:", customerError); setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
+    const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
+    const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
+    const addressResult = address ? await supabase.from("customer_addresses").update(addressPayload).eq("id", address.id) : await supabase.from("customer_addresses").insert(addressPayload);
+    setSaving(false);
+    if (addressResult.error) { console.error("[ADMIN] customer address update error:", addressResult.error); setToast({ msg: `Cliente salvo, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); return; }
+    setSelectedCustomer({ ...selectedCustomer, ...customerDraft, document: customerDraft.document.replace(/\D/g, ""), addresses: [customerAddressDraft] });
+    setEditingCustomer(false);
+    setAddressExpanded(true);
+    setToast({ msg: "Dados do cliente atualizados.", type: "success" });
+  };
+
   const saveOS = async () => {
-    if (!form.service_id) { setToast({ msg: "Selecione o serviço da OS.", type: "error" }); return; }
+    if (!form.general_service_id && !form.service_id) { setToast({ msg: "Selecione o serviço geral da OS.", type: "error" }); return; }
     const cid = selectedCustomer?.id || form.customer_id;
     if (!cid) { setToast({ msg: "Selecione um cliente.", type: "error" }); return; }
+    if (form.equipment_brand_id && !equipmentBrands.some(brand => brand.id === form.equipment_brand_id && brand.equipment_type_id === form.equipment_type_id)) { setToast({ msg: "A marca selecionada não pertence ao equipamento.", type: "error" }); return; }
+    if (form.equipment_model_id && !equipmentModels.some(model => model.id === form.equipment_model_id && model.equipment_brand_id === form.equipment_brand_id)) { setToast({ msg: "O modelo selecionado não pertence à marca.", type: "error" }); return; }
     setSaving(true);
-    const payload: any = { service_id: form.service_id, status_id: form.status_id || null, situation_id: form.situation_id || null, customer_id: cid, assigned_to: form.assigned_to || null, scheduled_at: form.scheduled_at || null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null };
+    if (editingCustomer && selectedCustomer?.id) {
+      const { error: customerError } = await supabase.from("customers").update({ full_name: customerDraft.full_name.trim(), email: customerDraft.email || null, phone: customerDraft.phone || null, whatsapp: customerDraft.whatsapp || null, document: customerDraft.document ? customerDraft.document.replace(/\D/g, "") : null }).eq("id", selectedCustomer.id);
+      if (customerError) { setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
+      const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
+      const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
+      const addressResult = address
+        ? await supabase.from("customer_addresses").update(addressPayload).eq("id", address.id)
+        : await supabase.from("customer_addresses").insert(addressPayload);
+      if (addressResult.error) { setToast({ msg: `Cliente atualizado, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); setSaving(false); return; }
+      setSelectedCustomer({ ...selectedCustomer, ...customerDraft, addresses: [customerAddressDraft] });
+      setEditingCustomer(false);
+    }
+    const payload: any = { os_number: editingOS?.os_number || generateOsProtocol(), service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, seller_id: form.seller_id || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, status_id: form.status_id || null, situation_id: form.situation_id || null, customer_id: cid, assigned_to: editingOS ? form.assigned_to || null : user?.id || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, serial_number: form.serial_number || null, accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: form.scheduled_at || null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null };
     let error;
     if (editingOS) {
       const r = await supabase.from("service_orders").update(payload).eq("id", editingOS.id);
@@ -2045,8 +2373,19 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const searchCustomers = async (q: string) => {
     setCustomerSearch(q);
     if (q.length < 2) { setCustomerResults([]); return; }
-    const { data } = await supabase.from("customers").select("id,full_name,document,whatsapp,phone,addresses:customer_addresses(*)").or(`full_name.ilike.%${q}%,document.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
+    const { data } = await supabase.from("customers").select("id,full_name,document,email,whatsapp,phone,addresses:customer_addresses(*)").or(`full_name.ilike.%${q}%,document.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
     setCustomerResults(data || []);
+  };
+
+  const selectCustomer = (customer: any) => {
+    const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
+    setSelectedCustomer(customer);
+    setCustomerDraft({ full_name: customer.full_name || "", email: customer.email || "", phone: customer.phone || "", whatsapp: customer.whatsapp || "", document: customer.document || "" });
+    setCustomerAddressDraft({ ...emptyAddress, ...(address || {}) });
+    setAddressExpanded(false);
+    upF("customer_id", customer.id);
+    setCustomerResults([]);
+    setCustomerSearch("");
   };
 
   const fmtDate = (d?: string | null, time = false) => {
@@ -2114,7 +2453,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
                 {filtered.map(o => (
-                  <tr key={o.id} className="hover:bg-[#f8fafc]/80">
+                  <tr key={o.id} onClick={() => openDetail(o)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                     <td className="px-4 py-3.5">
                       <span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || o.id.slice(0, 8)}</span>
                     </td>
@@ -2131,8 +2470,8 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(o.created_at)}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex gap-2 justify-end">
-                        <button onClick={() => openDetail(o)} className="p-1.5 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Ver detalhes"><AlertCircle size={14} /></button>
-                        <button onClick={() => openEdit(o)} className="p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa] rounded-lg" title="Editar"><Edit2 size={14} /></button>
+                        <button onClick={(event) => { event.stopPropagation(); openDetail(o); }} className="p-1.5 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Ver detalhes"><AlertCircle size={14} /></button>
+                        <button onClick={(event) => { event.stopPropagation(); openEdit(o); }} className="p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa] rounded-lg" title="Editar"><Edit2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -2145,7 +2484,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
       {/* OS Detail Drawer */}
       {detail && (
-        <Drawer open={true} onClose={() => setDetail(null)} title={detail.os_number || `OS #${detail.id.slice(0,8)}`} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Ordens de Serviço" title={detail.os_number || `OS #${detail.id.slice(0,8)}`} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-wrap gap-2 items-center">
                 <StatusBadge status={(detail.order_status as any)?.name || "—"} />
@@ -2171,7 +2510,9 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
               </Section>
               <Section title="Demais informações">
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <InfoRow label="Serviço" value={(detail.service as any)?.title} />
+                  <InfoRow label="Serviço" value={(detail.general_service as any)?.name || (detail.service as any)?.title} />
+                  <InfoRow label="Vendedor" value={(detail.seller as any)?.full_name} />
+                  <InfoRow label="Valor" value={detail.estimated_price == null ? undefined : `R$ ${Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
                   <InfoRow label="Status" value={(detail.order_status as any)?.name} />
                   <InfoRow label="Situação" value={(detail.situation as any)?.name} />
                   <InfoRow label="Responsável" value={(detail.assigned_profile as any)?.full_name} />
@@ -2212,22 +2553,46 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 <BtnPrimary onClick={() => updateStatus(detailNewStatus, detailNewNote)} disabled={!detailNewStatus || saving}><CheckCircle size={14} /> Salvar Status</BtnPrimary>
               </div>
             </div>
-        </Drawer>
+        </AdminPage>
       )}
 
-      {/* OS Create/Edit Form Drawer */}
+      {/* OS Create/Edit Page */}
       {formOpen && (
-        <Drawer open={true} onClose={() => setFormOpen(false)} title={editingOS ? `Editar OS — ${editingOS.os_number || editingOS.id.slice(0,8)}` : "Nova Ordem de Serviço"} maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => setFormOpen(false)} breadcrumb="Ordens de Serviço" title={editingOS ? `OS #${editingOS.os_number || editingOS.id.slice(0,8)}` : "Nova OS"} subtitle={editingOS ? "Atualize os dados do atendimento" : "Cadastre os dados do atendimento"} maxW="max-w-2xl">
           <div className="p-5 space-y-5">
             {/* Cliente */}
             <Section title="Cliente">
               {selectedCustomer ? (
-                <div className="flex items-start justify-between bg-[#f8fafc] rounded-lg p-3 border border-[#0d1b2e]/8">
-                  <div>
-                    <p className="font-bold text-[#0d1b2e]">{selectedCustomer.full_name}</p>
-                    <p className="text-xs text-[#5a6a82]">{selectedCustomer.document} {selectedCustomer.whatsapp && `· ${selectedCustomer.whatsapp}`}</p>
-                  </div>
-                  <button onClick={() => { setSelectedCustomer(null); upF("customer_id", ""); }} className="text-xs text-red-500 hover:underline">Trocar</button>
+                <div className="space-y-4">
+                  {editingCustomer ? (
+                    <div className="space-y-4">
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <FInput label="Nome" value={customerDraft.full_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, full_name: e.target.value })} />
+                        <FInput label="Documento" value={customerDraft.document} onChange={(e: any) => setCustomerDraft({ ...customerDraft, document: e.target.value })} />
+                        <FInput label="WhatsApp" value={customerDraft.whatsapp} onChange={(e: any) => setCustomerDraft({ ...customerDraft, whatsapp: e.target.value })} />
+                        <FInput label="Telefone" value={customerDraft.phone} onChange={(e: any) => setCustomerDraft({ ...customerDraft, phone: e.target.value })} />
+                        <div className="sm:col-span-2"><FInput label="E-mail" type="email" value={customerDraft.email} onChange={(e: any) => setCustomerDraft({ ...customerDraft, email: e.target.value })} /></div>
+                      </div>
+                      <Section title="Endereço do cliente">
+                        <AddressFields value={customerAddressDraft} onChange={setCustomerAddressDraft} inputClassName={INPUT} />
+                      </Section>
+                      <BtnPrimary onClick={saveCustomer} disabled={saving}>{saving ? "Salvando..." : "Salvar dados"}</BtnPrimary>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        <InfoRow label="Nome" value={selectedCustomer.full_name} />
+                        <InfoRow label="Telefone" value={selectedCustomer.phone} />
+                        <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-0.5">WhatsApp</p><div className="flex items-center gap-2 text-sm font-medium text-[#0d1b2e]">{selectedCustomer.whatsapp || "—"}{getWhatsAppUrl(selectedCustomer.whatsapp) && <a href={getWhatsAppUrl(selectedCustomer.whatsapp) || "#"} target="_blank" rel="noreferrer" aria-label="Abrir WhatsApp do cliente" className="text-[#25d366] hover:text-[#1da851]"><MessageCircle size={16} /></a>}</div></div>
+                        <InfoRow label="E-mail" value={selectedCustomer.email} />
+                        <InfoRow label="Documento" value={selectedCustomer.document} />
+                      </div>
+                      <button type="button" onClick={() => setAddressExpanded(value => !value)} className="text-xs font-bold text-[#0057e7] hover:underline">{addressExpanded ? "Ocultar endereço ▲" : "Mostrar endereço ▼"}</button>
+                      {addressExpanded && <div className="border-t border-[#0d1b2e]/8 pt-4"><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Endereço</p><div className="grid sm:grid-cols-3 gap-3">{(() => { const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0]; const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" }; return (["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null); })()}</div></div>}
+                      <div className="flex flex-wrap gap-2"><BtnSecondary onClick={() => { setSelectedCustomer(null); upF("customer_id", ""); }}><Users size={13} /> Trocar cliente</BtnSecondary><BtnSecondary onClick={() => setEditingCustomer(true)}><Edit2 size={13} /> Editar dados</BtnSecondary></div>
+                    </>
+                  )}
+                  {editingCustomer && <button onClick={() => setEditingCustomer(false)} className="text-xs text-[#5a6a82] hover:underline">Cancelar edição</button>}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -2238,7 +2603,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                   {customerResults.length > 0 && (
                     <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
                       {customerResults.map(c => (
-                        <button key={c.id} onClick={() => { setSelectedCustomer(c); upF("customer_id", c.id); setCustomerResults([]); setCustomerSearch(""); }} className="w-full text-left px-3 py-2 hover:bg-[#e8eef8] border-b last:border-b-0 border-[#0d1b2e]/5">
+                        <button key={c.id} onClick={() => selectCustomer(c)} className="w-full text-left px-3 py-2 hover:bg-[#e8eef8] border-b last:border-b-0 border-[#0d1b2e]/5">
                           <p className="font-semibold text-sm text-[#0d1b2e]">{c.full_name}</p>
                           <p className="text-xs text-[#5a6a82]">{c.document} {c.whatsapp && `· ${c.whatsapp}`}</p>
                         </button>
@@ -2249,32 +2614,50 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
               )}
             </Section>
 
-            {/* Informações Básicas */}
-            <Section title="Informações da OS">
+            <Section title="Equipamento">
               <div className="grid sm:grid-cols-2 gap-4">
-                <FSelect label="Serviço" value={form.service_id} required onChange={(e: any) => upF("service_id", e.target.value)} options={[{ value: "", label: "Selecionar serviço..." }, ...services.map(s => ({ value: s.id, label: s.title }))]} />
-                <FSelect label="Status" value={form.status_id} onChange={(e: any) => upF("status_id", e.target.value)} options={[{ value: "", label: "Selecionar status..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
-                <FSelect label="Situação" value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...situations.map(s => ({ value: s.id, label: s.name }))]} />
-                <FSelect label="Responsável" value={form.assigned_to} onChange={(e: any) => upF("assigned_to", e.target.value)} options={[{ value: "", label: "Sem responsável" }, ...profiles.map(p => ({ value: p.id, label: p.full_name || p.id }))]} />
-                <FInput label="Data agendada" type="datetime-local" value={form.scheduled_at} onChange={(e: any) => upF("scheduled_at", e.target.value)} />
-                <FInput label="Data de início" type="datetime-local" value={form.started_at} onChange={(e: any) => upF("started_at", e.target.value)} />
-                <FInput label="Data de conclusão" type="datetime-local" value={form.completed_at} onChange={(e: any) => upF("completed_at", e.target.value)} />
+                <div className="sm:col-span-2 flex items-end gap-2"><div className="flex-1"><FSelect label="Tipo de equipamento" value={form.equipment_type_id} onChange={(e: any) => { upF("equipment_type_id", e.target.value); upF("equipment_brand_id", ""); upF("equipment_model_id", ""); }} options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]} /></div><button type="button" className="p-2.5 mb-0.5 text-[#0057e7] border border-[#0057e7]/25 rounded-lg hover:bg-[#e8eef8]" title="Adicionar novo equipamento" onClick={() => setQuickEquipment(true)}><Plus size={16} /></button></div>
+                <FSelect label="Marca técnica" value={form.equipment_brand_id} disabled={!form.equipment_type_id} onChange={(e: any) => { upF("equipment_brand_id", e.target.value); upF("equipment_model_id", ""); }} options={[{ value: "", label: form.equipment_type_id ? "Selecionar marca..." : "Selecione o tipo primeiro" }, ...equipmentBrands.filter(brand => brand.equipment_type_id === form.equipment_type_id).map(brand => ({ value: brand.id, label: brand.name }))]} />
+                <FSelect label="Modelo" value={form.equipment_model_id} disabled={!form.equipment_brand_id} onChange={(e: any) => upF("equipment_model_id", e.target.value)} options={[{ value: "", label: form.equipment_brand_id ? "Selecionar modelo..." : "Selecione a marca primeiro" }, ...equipmentModels.filter(model => model.equipment_brand_id === form.equipment_brand_id).map(model => ({ value: model.id, label: model.name }))]} />
+                <FInput label="Versão" value={form.model} onChange={(e: any) => upF("model", e.target.value)} />
+                <FInput label="Nº de série" value={form.serial_number} onChange={(e: any) => upF("serial_number", e.target.value)} />
+                <FInput label="Lacre / garantia" value={form.accessories} onChange={(e: any) => upF("accessories", e.target.value)} />
+                <div className="sm:col-span-2"><FTextarea label="Observações do equipamento" value={form.equipment_condition} onChange={(e: any) => upF("equipment_condition", e.target.value)} rows={3} /></div>
               </div>
             </Section>
 
-            <Section title="Demais informações">
+            <Section title="Informações da OS">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <FSelect label="O serviço" value={form.general_service_id} required onChange={(e: any) => upF("general_service_id", e.target.value)} options={[{ value: "", label: "Selecionar serviço geral..." }, ...generalServices.map(service => ({ value: service.id, label: service.name }))]} />
+                <FInput label="Valor" type="number" min="0" step="0.01" value={form.estimated_price} onChange={(e: any) => upF("estimated_price", e.target.value)} placeholder="0,00" />
+                <FSelect label="Status" value={form.status_id} onChange={(e: any) => upF("status_id", e.target.value)} options={[{ value: "", label: "Selecionar status..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
+                <FSelect label="Situação" value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...situations.map(s => ({ value: s.id, label: s.name }))]} />
+                <FSelect label="Vendedor" value={form.seller_id} onChange={(e: any) => upF("seller_id", e.target.value)} options={[{ value: "", label: "Nenhum vendedor selecionado" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} />
+                <FInput label="Responsável" value={profile?.full_name || (user?.user_metadata?.full_name as string | undefined) || "Usuário autenticado"} readOnly disabled />
+                <FSelect label="Prioridade" value={form.priority} onChange={(e: any) => upF("priority", e.target.value)} options={[{ value: "baixa", label: "Baixa" }, { value: "normal", label: "Normal" }, { value: "alta", label: "Alta" }, { value: "urgente", label: "Urgente" }]} />
+                <FInput label="Data agendada" type="datetime-local" value={form.scheduled_at} onChange={(e: any) => upF("scheduled_at", e.target.value)} />
+              </div>
               <div className="space-y-4">
+                <FTextarea label="Descrição do problema" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={4} />
                 <FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />
-                <FTextarea label="Observações do cliente" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={3} />
               </div>
             </Section>
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
             <BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>
-            <BtnPrimary onClick={saveOS} disabled={saving}>{saving ? <Clock size={14} className="animate-spin" /> : <CheckCircle size={14} />}{saving ? "Salvando..." : editingOS ? "Salvar alterações" : "Criar OS"}</BtnPrimary>
+            <BtnPrimary onClick={saveOS} disabled={saving}>{saving ? <Clock size={14} className="animate-spin" /> : <CheckCircle size={14} />}{saving ? "Salvando..." : "Salvar OS"}</BtnPrimary>
           </div>
-        </Drawer>
+        </AdminPage>
       )}
+      {quickEquipment && <QuickEquipmentModal
+        onClose={() => setQuickEquipment(false)}
+        onSaved={({ type, brand, model }) => {
+          setEquipmentTypes(current => [...current, type]);
+          setEquipmentBrands(current => [...current, brand]);
+          setEquipmentModels(current => [...current, model]);
+          setForm(current => ({ ...current, equipment_type_id: type.id, equipment_brand_id: brand.id, equipment_model_id: model.id }));
+        }}
+      />}
     </div>
   );
 }
@@ -2426,7 +2809,7 @@ function TabCustomers() {
 
       {/* Customer Detail Drawer */}
       {detail && (
-        <Drawer open={true} onClose={() => setDetail(null)} title={detail.full_name} subtitle={detail.document ? detail.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "Cliente"} maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Clientes" title={detail.full_name} subtitle={detail.document ? detail.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "Cliente"} maxW="max-w-2xl">
           <div className="p-5 space-y-5">
             {/* Customer info */}
             <Section title="Informações do cliente">
@@ -2533,11 +2916,11 @@ function TabCustomers() {
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-6 py-4 text-right">
             <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
           </div>
-        </Drawer>
+        </AdminPage>
       )}
 
       {createOpen && (
-        <Drawer open={true} onClose={() => setCreateOpen(false)} title="Cadastrar Cliente" subtitle="Preencha os dados do cliente" maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => setCreateOpen(false)} breadcrumb="Clientes" title="Novo cliente" subtitle="Preencha os dados do cliente" maxW="max-w-2xl">
           <div className="p-5 space-y-5">
             <Section title="Dados pessoais">
               <div className="grid sm:grid-cols-2 gap-4">
@@ -2556,7 +2939,7 @@ function TabCustomers() {
             <BtnSecondary onClick={() => setCreateOpen(false)}>Cancelar</BtnSecondary>
             <BtnPrimary onClick={handleCreate} disabled={saving}>{saving ? "Salvando..." : "Cadastrar Cliente"}</BtnPrimary>
           </div>
-        </Drawer>
+        </AdminPage>
       )}
     </div>
   );
@@ -2565,90 +2948,88 @@ function TabCustomers() {
 /* ─────────────────────────── TAB: EMPLOYEES ─────────────────────────── */
 
 function TabEmployees() {
-  const { profile: currentProfile } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ full_name: "", cpf: "", phone: "", function_name: "Funcionário", is_active: true });
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-
-  const isGestor = (currentProfile as any)?.role_id === "gestor" || (currentProfile as any)?.role === "gestor";
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("profiles").select("*").order("created_at");
-    if (error) { console.error("[ADMIN] profiles load error:", error); setToast({ msg: `Erro ao carregar funcionários: ${error.message}`, type: "error" }); }
+    const { data, error } = await getEmployees();
+    if (error) { console.error("[ADMIN] employees load error:", error); setToast({ msg: `Erro ao carregar equipes: ${error.message}`, type: "error" }); }
     else setEmployees(data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
+  const openNew = () => { setEditItem(null); setForm({ full_name: "", cpf: "", phone: "", function_name: "Funcionário", is_active: true }); setFormOpen(true); };
+  const openEdit = (employee: any) => { setEditItem(employee); setForm({ full_name: employee.full_name || "", cpf: employee.cpf || "", phone: employee.phone || "", function_name: employee.function_name || "Funcionário", is_active: employee.is_active !== false }); setFormOpen(true); };
+  const normalizeCpf = (value: string) => value.replace(/\D/g, "");
+  const formatCpf = (value: string) => {
+    const digits = normalizeCpf(value).slice(0, 11);
+    return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  };
+  const save = async () => {
+    const cpf = normalizeCpf(form.cpf);
+    if (!form.full_name.trim() || cpf.length !== 11) { setToast({ msg: "Informe nome completo e um CPF válido.", type: "error" }); return; }
+    const duplicate = employees.some(employee => normalizeCpf(employee.cpf) === cpf && employee.id !== editItem?.id);
+    if (duplicate) { setToast({ msg: "Este CPF já está cadastrado na equipe.", type: "error" }); return; }
+    setSaving(true);
+    const payload = { full_name: form.full_name.trim(), cpf, phone: form.phone.trim() || null, function_name: form.function_name.trim() || "Funcionário", is_active: form.is_active };
+    const result = editItem ? await updateEmployee(editItem.id, payload) : await createEmployee({ ...payload, profile_id: null });
+    setSaving(false);
+    if (result.error) {
+      console.error("[ADMIN] employee save error:", result.error);
+      const duplicateError = result.error.code === "23505" || result.error.message.toLowerCase().includes("cpf");
+      setToast({ msg: duplicateError ? "Este CPF já está cadastrado na equipe." : `Erro ao salvar funcionário: ${result.error.message}`, type: "error" });
+      return;
+    }
+    setFormOpen(false); setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); load();
+  };
   const toggleActive = async (emp: any) => {
-    if (!isGestor) return;
     const currentlyActive = emp.is_active !== false;
-    const { error } = await supabase.from("profiles").update({ is_active: !currentlyActive }).eq("id", emp.id);
-    if (error) { console.error("[ADMIN] profile toggle error:", error); setToast({ msg: `Erro ao atualizar usuário: ${error.message}`, type: "error" }); return; }
-    setToast({ msg: `Usuário ${currentlyActive ? "desativado" : "ativado"}.`, type: "success" });
+    const { error } = await setEmployeeActive(emp.id, !currentlyActive);
+    if (error) { console.error("[ADMIN] employee toggle error:", error); setToast({ msg: `Erro ao atualizar funcionário: ${error.message}`, type: "error" }); return; }
+    setToast({ msg: `Funcionário ${currentlyActive ? "desativado" : "ativado"}.`, type: "success" });
     load();
   };
-
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString("pt-BR");
 
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-      <PageHeader title="Funcionários" subtitle="Usuários com acesso ao painel administrativo" />
-
-      {!isGestor && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 flex items-center gap-2">
-          <Shield size={16} className="flex-shrink-0" />
-          Somente gestores podem alterar permissões de usuários.
-        </div>
-      )}
+      <PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários da empresa" actions={<BtnPrimary onClick={openNew}><Plus size={16} /> Novo funcionário</BtnPrimary>} />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : employees.length === 0 ? (
-          <EmptyState icon={Users} title="Nenhum funcionário cadastrado" message="Funcionários são criados via Supabase Auth." />
+          <EmptyState icon={Users} title="Nenhum funcionário cadastrado" message="Cadastre o primeiro funcionário da equipe." onAdd={openNew} addLabel="Novo funcionário" />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[550px]">
+            <table className="w-full text-sm min-w-[700px]">
               <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
                 <tr>
-                  <th className="px-4 py-3 text-left">Funcionário</th>
-                  <th className="px-4 py-3 text-left">Cargo / Role</th>
+                  <th className="px-4 py-3 text-left">Nome</th>
+                  <th className="px-4 py-3 text-left">CPF</th>
+                  <th className="px-4 py-3 text-left">Telefone</th>
+                  <th className="px-4 py-3 text-left">Função</th>
                   <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Cadastrado em</th>
-                  {isGestor && <th className="px-4 py-3 text-right">Ações</th>}
+                  <th className="px-4 py-3 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
                 {employees.map(emp => {
                   const active = emp.is_active !== false;
                   return (
-                    <tr key={emp.id} className="hover:bg-[#f8fafc]/80">
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 bg-[#0057e7]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                            {emp.avatar_url ? <img src={emp.avatar_url} alt="" className="w-full h-full rounded-full object-cover" /> : <Users size={16} className="text-[#0057e7]" />}
-                          </div>
-                          <span className="font-bold text-[#0d1b2e]">{emp.full_name || "Sem nome"}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className={cn("px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide",
-                          (emp.role_id || "").toLowerCase() === "gestor" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800")}>
-                          {emp.role_id || "Funcionário"}
-                        </span>
-                      </td>
+                    <tr key={emp.id} onClick={() => openEdit(emp)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
+                      <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{emp.full_name}</td>
+                      <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]">{formatCpf(emp.cpf)}</td>
+                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{emp.phone || "—"}</td>
+                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{emp.function_name || "—"}</td>
                       <td className="px-4 py-3.5"><StatusBadge status={active ? "Ativo" : "Inativo"} /></td>
-                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(emp.created_at)}</td>
-                      {isGestor && (
-                        <td className="px-4 py-3.5">
-                          <button onClick={() => toggleActive(emp)} className={cn("ml-auto flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors",
-                            active ? "text-amber-700 bg-amber-50 hover:bg-amber-100" : "text-emerald-700 bg-emerald-50 hover:bg-emerald-100")}>
-                            {active ? "Desativar" : "Ativar"}
-                          </button>
-                        </td>
-                      )}
+                      <td className="px-4 py-3.5"><div className="flex justify-end gap-1"><button onClick={(event) => { event.stopPropagation(); openEdit(emp); }} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={(event) => { event.stopPropagation(); toggleActive(emp); }} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={active ? "Desativar" : "Ativar"}>{active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></div></td>
                     </tr>
                   );
                 })}
@@ -2657,6 +3038,9 @@ function TabEmployees() {
           </div>
         )}
       </div>
+      <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Equipes" title={editItem ? editItem.full_name : "Novo funcionário"} subtitle={editItem ? "Atualize os dados do funcionário" : "Cadastre um funcionário da empresa"}>
+        <div className="p-5 space-y-5"><Section title="Dados do funcionário"><div className="grid sm:grid-cols-2 gap-4"><FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} /><FInput label="CPF" required value={formatCpf(form.cpf)} onChange={(e: any) => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" /><FInput label="Número / telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} /><FSelect label="Função" value={form.function_name} onChange={(e: any) => setForm({ ...form, function_name: e.target.value })} options={[{ value: "Gestor", label: "Gestor" }, { value: "Técnico", label: "Técnico" }, { value: "Call Center", label: "Call Center" }, { value: "Suporte", label: "Suporte" }, { value: "Vendedor", label: "Vendedor" }, { value: "Outro", label: "Outro" }]} /><div className="sm:col-span-2"><FToggle label="Funcionário ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : editItem ? "Salvar alterações" : "Salvar funcionário"}</BtnPrimary></div>
+      </AdminPage>
     </div>
   );
 }

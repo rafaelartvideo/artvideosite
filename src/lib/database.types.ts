@@ -19,6 +19,27 @@ export interface Role {
   description: string | null;
 }
 
+export interface Employee {
+  id: string;
+  profile_id: string | null;
+  full_name: string;
+  cpf: string;
+  phone: string | null;
+  function_name: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GeneralService {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Media & Storage ──────────────────────────────────────────
 export interface Media {
   id: string;
@@ -43,6 +64,38 @@ export interface Brand {
   description: string | null;
   logo_media_id: string | null;
   website_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EquipmentType {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EquipmentBrand {
+  id: string;
+  equipment_type_id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EquipmentModel {
+  id: string;
+  equipment_brand_id: string;
+  name: string;
+  slug: string;
   is_active: boolean;
   sort_order: number;
   created_at: string;
