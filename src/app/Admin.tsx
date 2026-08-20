@@ -538,8 +538,8 @@ function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: st
   return (
     <div className="flex items-start justify-between gap-4 mb-5">
       <div className="min-w-0">
-        <h2 className="text-lg font-bold text-[#0d1b2e] leading-tight">{title}</h2>
-        {subtitle && <p className="text-xs text-[#5a6a82] mt-0.5">{subtitle}</p>}
+        
+        {subtitle && null}
       </div>
       {(actions || onBack) && <div className="flex items-center gap-2 flex-shrink-0">{onBack && <InternalBackButton onBack={onBack} inHeader />}{actions}</div>}
     </div>
@@ -635,7 +635,7 @@ function SidebarItem({ item, active, onClick }: { item: { id: string; label: str
 }
 
 function AdminHubPage({ title, description, items, onSelect }: { title: string; description: string; items: { id: string; label: string; description: string; icon: React.ComponentType<{ size?: number; className?: string }> }[]; onSelect: (id: string, label: string) => void }) {
-  return <div className="space-y-5"><div><p className="text-sm text-[#5a6a82] max-w-2xl">{description}</p></div><div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{items.map(item => { const Icon = item.icon; return <button key={item.id} type="button" onClick={() => onSelect(item.id, item.label)} className="group text-left bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-5 hover:border-[#0057e7]/40 hover:shadow-md transition-all"><div className="flex items-start justify-between gap-4"><div className="w-10 h-10 rounded-lg bg-[#e8eef8] text-[#0057e7] flex items-center justify-center group-hover:bg-[#0057e7] group-hover:text-white transition-colors"><Icon size={20} /></div><ArrowLeft size={16} className="rotate-180 text-[#5a6a82] group-hover:text-[#0057e7] transition-colors" /></div><h3 className="mt-5 text-base font-black text-[#0d1b2e]">{item.label}</h3><p className="mt-1.5 text-sm leading-5 text-[#5a6a82]">{item.description}</p><span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span></button>; })}</div></div>;
+  return <div className="space-y-5"><div></div><div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{items.map(item => { const Icon = item.icon; return <button key={item.id} type="button" onClick={() => onSelect(item.id, item.label)} className="group text-left bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-5 hover:border-[#0057e7]/40 hover:shadow-md transition-all"><div className="flex items-start justify-between gap-4"><div className="w-10 h-10 rounded-lg bg-[#e8eef8] text-[#0057e7] flex items-center justify-center group-hover:bg-[#0057e7] group-hover:text-white transition-colors"><Icon size={20} /></div><ArrowLeft size={16} className="rotate-180 text-[#5a6a82] group-hover:text-[#0057e7] transition-colors" /></div><h3 className="mt-5 text-base font-black text-[#0d1b2e]">{item.label}</h3><p className="mt-1.5 text-sm leading-5 text-[#5a6a82]">{item.description}</p><span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span></button>; })}</div></div>;
 }
 
 /* ─────────────────────────── ADMIN DASHBOARD WRAPPER ─────────────────────────── */
@@ -769,10 +769,10 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
                     <span className="truncate max-w-[180px]">{page.title}</span>
                   </div>
                 )}
-              <h2 className="text-base font-black text-[#0d1b2e]">
+              <h2 className="font-black text-[#0d1b2e] text-[15px]">
                 {page?.title || [...mainItems, { id: "site", label: "Site", icon: Globe }, { id: "operation", label: "Operação", icon: Settings }, ...utilityItems].find(m => m.id === activeTab)?.label}
               </h2>
-              <p className="hidden sm:block text-[11px] text-[#5a6a82] mt-0.5">
+              <p className="hidden sm:block text-[#5a6a82] mt-0.5 text-[14px]">
                 {page?.subtitle || ({
                     dashboard: "Visão geral do sistema em tempo real",
                     services: "Gerencie os serviços apresentados no site público",
@@ -2813,7 +2813,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
           </div>
           <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0]"><Plus size={13} /> Nova OS</button>
           <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5"><RefreshCw size={13} /> Atualizar</button>
-          <button onClick={() => setSubView("situations")} className="flex items-center gap-1.5 text-xs text-[#5a6a82] border border-[#0d1b2e]/20 px-3 py-2 rounded-lg hover:bg-[#f5f7fa]"><List size={13} /> Situações</button>
+          
         </div>
       } />
 
