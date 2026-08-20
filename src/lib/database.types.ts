@@ -341,6 +341,17 @@ export interface OsSituation {
   updated_at: string;
 }
 
+export interface ServiceType {
+  id: string;
+  title: string;
+  description: string | null;
+  forecast_days: number | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ServiceOrder {
   id: string;
   os_number: string | null;
@@ -348,12 +359,14 @@ export interface ServiceOrder {
   quote_request_id: string | null;
   customer_id: string | null;
   service_id: string | null;
+  service_type_id: string | null;
   status_id: string | null;
   situation_id: string | null;
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
   assigned_to: string | null;
+  technician_id: string | null;
   internal_notes: string | null;
   customer_notes: string | null;
   created_at: string;
