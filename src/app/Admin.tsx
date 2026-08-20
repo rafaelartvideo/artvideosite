@@ -10,12 +10,14 @@ import {
   Users, Settings, Phone, LogOut, Search, Plus, Edit2, Trash2, CheckCircle,
   AlertCircle, Clock, RefreshCw, X, ArrowLeft, Menu, Upload, AlertTriangle,
   Star, Filter, DollarSign, List, HelpCircle, ChevronDown, MessageCircle,
-  Mail, MapPin, Instagram, Globe, Hash, Activity, Shield,
+  Mail, MapPin, Instagram, Globe, Hash, Activity, Shield, CalendarDays,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 type AdminTab =
   | "dashboard" | "services" | "categories" | "products" | "brands"
-  | "quotes" | "orders" | "customers" | "employees" | "settings" | "contact";
+  | "equipment" | "generalServices" | "serviceTypes" | "situations" | "orderStatuses"
+  | "quotes" | "orders" | "agenda" | "customers" | "site" | "operation" | "employees" | "settings" | "contact";
 
 type AdminPageState = {
   breadcrumb: string;
@@ -28,6 +30,7 @@ const AdminPageContext = React.createContext<{
   page: AdminPageState;
   setPage: React.Dispatch<React.SetStateAction<AdminPageState>>;
 } | null>(null);
+const AdminBackContext = React.createContext<(() => void) | null>(null);
 
 /* ─────────────────────────── SHARED PRIMITIVES ─────────────────────────── */
 
@@ -340,6 +343,50 @@ function QuickEquipmentModal({ onClose, onSaved }: {
   );
 }
 
+function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; onSaved: (serviceType: any) => void }) {
+  const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true });
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
+  const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragRef.current = { x: position.x, y: position.y, startX: event.clientX, startY: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    setPosition({ x: dragRef.current.x + event.clientX - dragRef.current.startX, y: dragRef.current.y + event.clientY - dragRef.current.startY });
+  };
+  const save = async () => {
+    if (!form.title.trim()) { setErrorMessage("Informe o título do tipo de atendimento."); return; }
+    setSaving(true);
+    setErrorMessage("");
+    const { data, error } = await supabase.from("service_types").insert({ title: form.title.trim(), description: form.description.trim() || null, forecast_days: form.forecast_days ? Number(form.forecast_days) : null, is_active: form.is_active, sort_order: 0 }).select("id,title,description,forecast_days,is_active,sort_order").single();
+    if (error || !data) setErrorMessage(error?.message || "Tipo de atendimento não foi cadastrado.");
+    else { onSaved(data); onClose(); }
+    setSaving(false);
+  };
+  return (
+    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/35 p-4">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10 overflow-hidden">
+        <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 px-4 py-3 select-none">
+          <div><h3 className="text-sm font-bold text-[#0d1b2e]">Novo tipo de atendimento</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre sem sair da OS</p></div>
+          <button type="button" onClick={onClose} className="p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa] rounded-lg" aria-label="Fechar"><X size={16} /></button>
+        </div>
+        <div className="p-4 space-y-3">
+          <FInput label="Título" required autoFocus value={form.title} onChange={(event: any) => setForm({ ...form, title: event.target.value })} />
+          <FTextarea label="Descrição" value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} rows={3} />
+          <FInput label="Previsão em dias" type="number" min="0" value={form.forecast_days} onChange={(event: any) => setForm({ ...form, forecast_days: event.target.value })} />
+          <FToggle label="Tipo ativo" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
+          {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div>
+      </div>
+    </div>
+  );
+}
+
 function AdminPage({ open, onClose, title, subtitle, breadcrumb, children }: {
   open: boolean; onClose: () => void; title: string; subtitle?: string; breadcrumb: string; children: React.ReactNode; maxW?: string;
 }) {
@@ -362,6 +409,7 @@ function AdminPage({ open, onClose, title, subtitle, breadcrumb, children }: {
   if (!open) return null;
   return (
     <div className="fixed inset-x-0 bottom-0 top-[68px] left-0 md:left-60 z-[35] bg-[#f8fafc] overflow-y-auto">
+      <button type="button" onClick={onClose} aria-label="Fechar" className="fixed top-[80px] right-4 z-10 p-2 text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg shadow-sm hover:text-[#0057e7] hover:bg-[#f5f7fa]"><X size={16} /></button>
       <div className="max-w-6xl mx-auto w-full p-4 sm:p-8">{children}</div>
     </div>
   );
@@ -486,9 +534,14 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 }
 
 function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
+  const onBack = React.useContext(AdminBackContext);
   return (
-    <div className="flex justify-end mb-5">
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    <div className="flex items-start justify-between gap-4 mb-5">
+      <div className="min-w-0">
+        <h2 className="text-lg font-bold text-[#0d1b2e] leading-tight">{title}</h2>
+        {subtitle && <p className="text-xs text-[#5a6a82] mt-0.5">{subtitle}</p>}
+      </div>
+      {(actions || onBack) && <div className="flex items-center gap-2 flex-shrink-0">{onBack && <InternalBackButton onBack={onBack} inHeader />}{actions}</div>}
     </div>
   );
 }
@@ -498,7 +551,7 @@ function BtnPrimary({ children, onClick, disabled, type = "button", className = 
 }) {
   return (
     <button type={type} onClick={onClick} disabled={disabled}
-      className={cn("flex items-center gap-2 bg-[#0057e7] text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#0046c0] transition-colors disabled:opacity-50 cursor-pointer", className)}>
+      className={cn("inline-flex items-center gap-2 whitespace-nowrap bg-[#0057e7] text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#0046c0] transition-colors disabled:opacity-50 cursor-pointer", className)}>
       {children}
     </button>
   );
@@ -507,7 +560,7 @@ function BtnPrimary({ children, onClick, disabled, type = "button", className = 
 function BtnSecondary({ children, onClick, className = "" }: { children: React.ReactNode; onClick?: () => void; className?: string }) {
   return (
     <button type="button" onClick={onClick}
-      className={cn("flex items-center gap-2 border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer", className)}>
+      className={cn("inline-flex items-center gap-2 whitespace-nowrap border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer", className)}>
       {children}
     </button>
   );
@@ -535,7 +588,6 @@ export function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
         setLoading(false);
         return;
       }
-      onLoginSuccess();
     }
     setLoading(false);
   };
@@ -577,6 +629,15 @@ export function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   );
 }
 
+function SidebarItem({ item, active, onClick }: { item: { id: string; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }; active: boolean; onClick: () => void }) {
+  const Icon = item.icon;
+  return <button onClick={onClick} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all text-left", active ? "bg-[#0057e7] text-white shadow-lg shadow-[#0057e7]/25" : "text-white/60 hover:bg-white/8 hover:text-white")}><Icon size={16} className="flex-shrink-0" /><span>{item.label}</span></button>;
+}
+
+function AdminHubPage({ title, description, items, onSelect }: { title: string; description: string; items: { id: string; label: string; description: string; icon: React.ComponentType<{ size?: number; className?: string }> }[]; onSelect: (id: string, label: string) => void }) {
+  return <div className="space-y-5"><div><p className="text-sm text-[#5a6a82] max-w-2xl">{description}</p></div><div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{items.map(item => { const Icon = item.icon; return <button key={item.id} type="button" onClick={() => onSelect(item.id, item.label)} className="group text-left bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-5 hover:border-[#0057e7]/40 hover:shadow-md transition-all"><div className="flex items-start justify-between gap-4"><div className="w-10 h-10 rounded-lg bg-[#e8eef8] text-[#0057e7] flex items-center justify-center group-hover:bg-[#0057e7] group-hover:text-white transition-colors"><Icon size={20} /></div><ArrowLeft size={16} className="rotate-180 text-[#5a6a82] group-hover:text-[#0057e7] transition-colors" /></div><h3 className="mt-5 text-base font-black text-[#0d1b2e]">{item.label}</h3><p className="mt-1.5 text-sm leading-5 text-[#5a6a82]">{item.description}</p><span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span></button>; })}</div></div>;
+}
+
 /* ─────────────────────────── ADMIN DASHBOARD WRAPPER ─────────────────────────── */
 
 export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
@@ -584,20 +645,33 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState<AdminPageState>(null);
+  const [focusedOrderId, setFocusedOrderId] = useState<string | null>(null);
 
   const roleName = (profile as any)?.role_id === "gestor" || (profile as any)?.role === "gestor" ? "GESTOR" : "FUNCIONARIO";
   const isGestor = roleName === "GESTOR";
 
-  const menuItems = [
+  const mainItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "services", label: "Serviços", icon: Wrench },
-    { id: "categories", label: "Categorias", icon: FolderTree },
-    { id: "products", label: "Produtos", icon: Package },
-    { id: "brands", label: "Marcas", icon: Tag },
     { id: "quotes", label: "Orçamentos", icon: FileText },
     { id: "orders", label: "Ordens de Serviço", icon: ClipboardList },
     { id: "customers", label: "Clientes", icon: Users },
-    { id: "employees", label: "Equipes", icon: Users },
+    { id: "agenda", label: "Agenda", icon: CalendarDays },
+  ];
+  const siteItems = [
+    { id: "products", label: "Produtos", icon: Package, description: "Cadastre e gerencie os produtos exibidos na loja online." },
+    { id: "categories", label: "Categorias", icon: FolderTree, description: "Organize as categorias utilizadas pelos produtos do site." },
+    { id: "brands", label: "Marcas", icon: Tag, description: "Gerencie as marcas utilizadas no catálogo da loja." },
+    { id: "services", label: "Serviços do Site", icon: Wrench, description: "Cadastre e gerencie os serviços apresentados no site público." },
+  ];
+  const operationItems = [
+    { id: "equipment", label: "Equipamentos", icon: Wrench, description: "Cadastre equipamentos, marcas e modelos técnicos." },
+    { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica." },
+    { id: "serviceTypes", label: "Tipos de Atendimento", icon: List, description: "Configure tipos e previsão de atendimento das OS." },
+    { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS." },
+    { id: "orderStatuses", label: "Status da OS", icon: CheckCircle, description: "Gerencie os status do fluxo das ordens de serviço." },
+    { id: "employees", label: "Equipes / Funcionários", icon: Users, description: "Cadastre funcionários, técnicos e gestores da equipe." },
+  ];
+  const utilityItems = [
     { id: "settings", label: "Configurações", icon: Settings },
     { id: "contact", label: "Contato", icon: Phone },
   ];
@@ -619,7 +693,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         </div>
         {/* Nav */}
         <div className="px-3 py-4 space-y-0.5">
-          {menuItems.map((item) => {
+          {mainItems.map((item) => {
             if (item.gestorOnly && !isGestor) return null;
             const Icon = item.icon;
             const active = activeTab === item.id;
@@ -632,6 +706,9 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
               </button>
             );
           })}
+          <SidebarItem item={{ id: "site", label: "Site", icon: Globe }} active={activeTab === "site"} onClick={() => { setActiveTab("site"); setPage(null); setSidebarOpen(false); }} />
+          <SidebarItem item={{ id: "operation", label: "Operação", icon: Settings }} active={activeTab === "operation"} onClick={() => { setActiveTab("operation"); setPage(null); setSidebarOpen(false); }} />
+          <div className="pt-3 space-y-0.5">{utilityItems.map(item => <SidebarItem key={item.id} item={item} active={activeTab === item.id} onClick={() => { setActiveTab(item.id as AdminTab); setPage(null); setSidebarOpen(false); }} />)}</div>
         </div>
         {/* Back to site */}
         <div className="px-3 pb-3">
@@ -693,17 +770,25 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
                   </div>
                 )}
               <h2 className="text-base font-black text-[#0d1b2e]">
-                {page?.title || menuItems.find(m => m.id === activeTab)?.label}
+                {page?.title || [...mainItems, { id: "site", label: "Site", icon: Globe }, { id: "operation", label: "Operação", icon: Settings }, ...utilityItems].find(m => m.id === activeTab)?.label}
               </h2>
               <p className="hidden sm:block text-[11px] text-[#5a6a82] mt-0.5">
                 {page?.subtitle || ({
                     dashboard: "Visão geral do sistema em tempo real",
-                    services: "Gerencie os serviços apresentados no site",
+                    services: "Gerencie os serviços apresentados no site público",
                     categories: "Organize os serviços e produtos por categoria",
                     products: "Controle o catálogo de produtos da loja",
                     brands: "Administre as marcas cadastradas",
                     quotes: "Acompanhe e responda às solicitações recebidas",
                     orders: "Abertura, acompanhamento e conclusão dos atendimentos",
+                    agenda: "Visualize e organize os atendimentos agendados",
+                    site: "Conteúdo e configurações do site público",
+                    operation: "Configurações internas da assistência técnica",
+                    equipment: "Cadastro técnico usado nas ordens de serviço",
+                    generalServices: "Serviços técnicos internos utilizados na operação",
+                    serviceTypes: "Configuração dos tipos de atendimento",
+                    situations: "Etapas de progresso das ordens de serviço",
+                    orderStatuses: "Status principais das ordens de serviço",
                     customers: "Consulte clientes e seus dados de atendimento",
                     employees: "Cadastro e gestão dos funcionários da empresa",
                     settings: "Controle as configurações globais do site",
@@ -721,14 +806,22 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         {/* Content */}
         <div className="flex-1 p-4 sm:p-6">
           {activeTab === "dashboard" && <TabDashboard />}
-          {activeTab === "services" && <TabServices />}
-          {activeTab === "categories" && <TabCategories />}
-          {activeTab === "products" && <TabProducts />}
-          {activeTab === "brands" && <TabBrands />}
+          {activeTab === "services" && <TabServices onBack={() => { setActiveTab("site"); setPage(null); }} />}
+          {activeTab === "categories" && <TabCategories onBack={() => { setActiveTab("site"); setPage(null); }} />}
+          {activeTab === "products" && <TabProducts onBack={() => { setActiveTab("site"); setPage(null); }} />}
+          {activeTab === "brands" && <TabBrands onBack={() => { setActiveTab("site"); setPage(null); }} />}
+          {activeTab === "site" && <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems} onSelect={(id, label) => { setPage({ breadcrumb: "Site", title: label, onBack: () => { setActiveTab("site"); setPage(null); } }); setActiveTab(id as AdminTab); }} />}
+          {activeTab === "operation" && <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems} onSelect={(id, label) => { setPage({ breadcrumb: "Operação", title: label, onBack: () => { setActiveTab("operation"); setPage(null); } }); setActiveTab(id as AdminTab); }} />}
+          {activeTab === "equipment" && <EquipmentAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "generalServices" && <GeneralServicesPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "serviceTypes" && <ServiceTypesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "situations" && <OSSituationsView onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "orderStatuses" && <OrderStatusesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "quotes" && <TabQuotes onNavigate={setActiveTab} />}
-          {activeTab === "orders" && <TabOrders onNavigate={setActiveTab} />}
+          {activeTab === "orders" && <TabOrders onNavigate={setActiveTab} initialOrderId={focusedOrderId} onFocused={() => setFocusedOrderId(null)} />}
+          {activeTab === "agenda" && <TabAgenda onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />}
           {activeTab === "customers" && <TabCustomers />}
-          {activeTab === "employees" && <TabEmployees />}
+          {activeTab === "employees" && <TabEmployees onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "settings" && <TabSettings />}
           {activeTab === "contact" && <TabContact />}
         </div>
@@ -875,6 +968,10 @@ function TabDashboard() {
 const SERVICE_STATUSES = ["Solicitação recebida", "Em análise", "Aguardando aprovação", "Em manutenção", "Pronto", "Finalizado"];
 
 function GeneralServicesPanel({ onBack }: { onBack: () => void }) {
+  return <AdminBackContext.Provider value={onBack}><GeneralServicesPanelContent onBack={onBack} /></AdminBackContext.Provider>;
+}
+
+function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -889,10 +986,10 @@ function GeneralServicesPanel({ onBack }: { onBack: () => void }) {
   const openEdit = (item: any) => { setEditItem(item); setName(item.name || ""); setActive(item.is_active !== false); setFormOpen(true); };
   const save = async () => { if (!name.trim()) { setToast({ msg: "Informe o nome do serviço.", type: "error" }); return; } setSaving(true); const result = editItem ? await updateGeneralService(editItem.id, { name: name.trim(), is_active: active }) : await createGeneralService({ name: name.trim(), is_active: active, sort_order: items.length }); setSaving(false); if (result.error) { console.error("[ADMIN] general service save error:", result.error); setToast({ msg: `Erro ao salvar serviço geral: ${result.error.message}`, type: "error" }); return; } setFormOpen(false); setToast({ msg: editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" }); load(); };
   const toggle = async (item: any) => { const result = await setGeneralServiceActive(item.id, !item.is_active); if (result.error) { console.error("[ADMIN] general service toggle error:", result.error); setToast({ msg: `Erro ao atualizar serviço: ${result.error.message}`, type: "error" }); return; } load(); };
-  return <div className="space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={<div className="flex gap-2"><BtnSecondary onClick={onBack}><ArrowLeft size={14} /> Serviços do site</BtnSecondary><BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary></div>} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={openNew} addLabel="Novo serviço" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="flex items-center justify-between px-5 py-4 hover:bg-[#f8fafc]"><div><p className="font-bold text-[#0d1b2e]">{item.name}</p><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></div><div className="flex gap-1"><button onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Serviços > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno"><div className="p-5"><Section title="Serviço geral"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage></div>;
+  return <div className="space-y-5"><InternalBackButton onBack={onBack} />{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={<BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary>} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={openNew} addLabel="Novo serviço" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="flex items-center justify-between px-5 py-4 hover:bg-[#f8fafc]"><div><p className="font-bold text-[#0d1b2e]">{item.name}</p><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></div><div className="flex gap-1"><button onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno"><div className="p-5"><Section title="Serviço geral"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage></div>;
 }
 
-function TabServices() {
+function TabServices({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const [services, setServices] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -962,8 +1059,8 @@ function TabServices() {
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {delId && <ConfirmDialog message="Excluir este serviço e todos os dados associados?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
-      <PageHeader title="Serviços" subtitle={`${services.length} serviço${services.length !== 1 ? "s" : ""} cadastrado${services.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex gap-2"><BtnSecondary onClick={() => setServiceView("general")}><Wrench size={15} /> Serviços Gerais</BtnSecondary><BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary></div>
+      <PageHeader title="Serviços do Site" subtitle={`${services.length} serviço${services.length !== 1 ? "s" : ""} cadastrado${services.length !== 1 ? "s" : ""}`} actions={
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary></div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -1504,7 +1601,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
 
 /* ─────────────────────────── TAB: CATEGORIES ─────────────────────────── */
 
-function TabCategories() {
+function TabCategories({ onBack }: { onBack: () => void }) {
   const [cats, setCats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -1571,7 +1668,7 @@ function TabCategories() {
       {delId && <ConfirmDialog message="Excluir esta categoria? Serviços vinculados perderão a referência." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Categorias" subtitle={`${cats.length} categoria${cats.length !== 1 ? "s" : ""}`} actions={
-        <BtnPrimary onClick={openNew}><Plus size={16} /> Nova categoria</BtnPrimary>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Nova categoria</BtnPrimary></div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -1741,7 +1838,7 @@ function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      <PageHeader title="Equipamentos Técnicos" subtitle="Cadastro hierárquico usado nas ordens de serviço" actions={<div className="flex gap-2"><BtnSecondary onClick={onBack}><ArrowLeft size={14} /> Produtos da Loja</BtnSecondary><BtnPrimary onClick={openNew}><Plus size={15} /> Novo equipamento</BtnPrimary></div>} />
+      <PageHeader title="Equipamentos Técnicos" subtitle="Cadastro hierárquico usado nas ordens de serviço" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={15} /> Novo equipamento</BtnPrimary></div>} />
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : types.length === 0 ? <EmptyState icon={Wrench} title="Nenhum equipamento cadastrado" message="Cadastre o primeiro equipamento com suas marcas e modelos." onAdd={openNew} addLabel="Novo equipamento" /> : <div className="divide-y divide-[#0d1b2e]/5">{types.map(type => <div key={type.id} className="px-5 py-4 flex items-center justify-between gap-3"><div><p className="font-bold text-[#0d1b2e]">{type.name}</p><p className="text-xs text-[#5a6a82]">{brands.filter(brand => brand.equipment_type_id === type.id).length} marca(s) técnica(s)</p></div><div className="flex items-center gap-2"><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} /><button onClick={() => openEdit(type)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar equipamento"><Edit2 size={14} /></button></div></div>)}</div>}
       </div>
@@ -1754,7 +1851,7 @@ function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
 
 /* ─────────────────────────── TAB: PRODUCTS ─────────────────────────── */
 
-function TabProducts() {
+function TabProducts({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const [catalogView, setCatalogView] = useState<"store" | "equipment">("store");
   const [products, setProducts] = useState<any[]>([]);
@@ -1822,7 +1919,7 @@ function TabProducts() {
       {delId && <ConfirmDialog message="Excluir este produto permanentemente?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Produtos" subtitle={`${products.length} produto${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex gap-2"><BtnSecondary onClick={() => setCatalogView("equipment")}><Wrench size={15} /> Equipamentos Técnicos</BtnSecondary><BtnPrimary onClick={openNew}><Plus size={16} /> Novo produto</BtnPrimary></div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Novo produto</BtnPrimary></div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -1912,7 +2009,7 @@ function TabProducts() {
 
 /* ─────────────────────────── TAB: BRANDS ─────────────────────────── */
 
-function TabBrands() {
+function TabBrands({ onBack }: { onBack: () => void }) {
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -1956,7 +2053,7 @@ function TabBrands() {
       {delId && <ConfirmDialog message="Excluir esta marca?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Marcas" subtitle={`${brands.length} marca${brands.length !== 1 ? "s" : ""}`} actions={
-        <BtnPrimary onClick={openNew}><Plus size={16} /> Nova marca</BtnPrimary>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Nova marca</BtnPrimary></div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -2223,6 +2320,49 @@ function PriorityBadge({ priority }: { priority?: string }) {
   return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap", PRIORITY_COLORS[p] || PRIORITY_COLORS.normal)}>{PRIORITY_LABELS[p] || p}</span>;
 }
 
+function ServiceTypesAdminPanel({ onBack }: { onBack: () => void }) {
+  return <AdminBackContext.Provider value={onBack}><ServiceTypesAdminPanelContent /></AdminBackContext.Provider>;
+}
+
+function ServiceTypesAdminPanelContent() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true });
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const load = async () => { setLoading(true); const { data, error } = await supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order,created_at,updated_at").order("sort_order").order("title"); if (error) setToast({ msg: `Erro ao carregar tipos: ${error.message}`, type: "error" }); setItems(data || []); setLoading(false); };
+  useEffect(() => { load(); }, []);
+  const openNew = () => { setEditItem(null); setForm({ title: "", description: "", forecast_days: "", is_active: true }); setFormOpen(true); };
+  const openEdit = (item: any) => { setEditItem(item); setForm({ title: item.title || "", description: item.description || "", forecast_days: item.forecast_days == null ? "" : String(item.forecast_days), is_active: item.is_active !== false }); setFormOpen(true); };
+  const save = async () => { if (!form.title.trim()) { setToast({ msg: "Informe o título do tipo de atendimento.", type: "error" }); return; } setSaving(true); const payload = { title: form.title.trim(), description: form.description.trim() || null, forecast_days: form.forecast_days ? Number(form.forecast_days) : null, is_active: form.is_active }; const result = editItem ? await supabase.from("service_types").update(payload).eq("id", editItem.id) : await supabase.from("service_types").insert({ ...payload, sort_order: items.length }); setSaving(false); if (result.error) { setToast({ msg: `Erro ao salvar tipo: ${result.error.message}`, type: "error" }); return; } setFormOpen(false); setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" }); load(); };
+  const toggle = async (item: any) => { const { error } = await supabase.from("service_types").update({ is_active: !item.is_active }).eq("id", item.id); if (error) setToast({ msg: `Erro ao atualizar tipo: ${error.message}`, type: "error" }); else load(); };
+  const remove = async (id: string) => { if (!confirm("Excluir este tipo de atendimento? OS relacionadas ficarão sem tipo.")) return; const { error } = await supabase.from("service_types").delete().eq("id", id); if (error) setToast({ msg: `Não foi possível excluir: ${error.message}`, type: "error" }); else load(); };
+  return <div className="space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Tipos de Atendimento" subtitle="Configuração dos tipos utilizados nas ordens de serviço" actions={<BtnPrimary onClick={openNew}><Plus size={15} /> Novo tipo</BtnPrimary>} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={List} title="Nenhum tipo cadastrado" message="Crie tipos para disponibilizá-los na Nova OS." onAdd={openNew} addLabel="Novo tipo" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="px-5 py-4 flex items-center justify-between gap-4"><div className="min-w-0"><p className="font-bold text-[#0d1b2e]">{item.title}</p><p className="text-xs text-[#5a6a82] truncate">{item.description || "Sem descrição"}{item.forecast_days != null && ` · ${item.forecast_days} dia(s)`}</p></div><div className="flex items-center gap-1 flex-shrink-0"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /><button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button><button type="button" onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button><button type="button" onClick={() => remove(item.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button></div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Tipos de Atendimento" title={editItem ? "Editar tipo de atendimento" : "Novo tipo de atendimento"} subtitle="Preencha os dados do tipo"><div className="p-5 space-y-4"><FInput label="Título" required value={form.title} onChange={(e: any) => setForm({ ...form, title: e.target.value })} /><FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} /><FInput label="Previsão em dias" type="number" min="0" value={form.forecast_days} onChange={(e: any) => setForm({ ...form, forecast_days: e.target.value })} /><FToggle label="Tipo ativo" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage></div>;
+}
+
+function OrderStatusesAdminPanel({ onBack }: { onBack: () => void }) {
+  return <AdminBackContext.Provider value={onBack}><OrderStatusesAdminPanelContent /></AdminBackContext.Provider>;
+}
+
+function OrderStatusesAdminPanelContent() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [form, setForm] = useState({ name: "", color: "#0057e7", sort_order: 0 });
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const load = async () => { setLoading(true); const { data, error } = await supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order"); if (error) setToast({ msg: `Erro ao carregar status: ${error.message}`, type: "error" }); setItems(data || []); setLoading(false); };
+  useEffect(() => { load(); }, []);
+  const openNew = () => { setEditItem(null); setForm({ name: "", color: "#0057e7", sort_order: items.length }); setFormOpen(true); };
+  const openEdit = (item: any) => { setEditItem(item); setForm({ name: item.name || "", color: item.color || "#0057e7", sort_order: item.sort_order || 0 }); setFormOpen(true); };
+  const save = async () => { if (!form.name.trim()) { setToast({ msg: "Informe o nome do status.", type: "error" }); return; } setSaving(true); const payload = { name: form.name.trim(), color: form.color, sort_order: Number(form.sort_order) }; const result = editItem ? await supabase.from("order_statuses").update(payload).eq("id", editItem.id) : await supabase.from("order_statuses").insert(payload); setSaving(false); if (result.error) { setToast({ msg: `Erro ao salvar status: ${result.error.message}`, type: "error" }); return; } setFormOpen(false); setToast({ msg: editItem ? "Status atualizado." : "Status criado.", type: "success" }); load(); };
+  const remove = async (id: string) => { if (!confirm("Excluir este status? O histórico relacionado pode impedir a exclusão.")) return; const { error } = await supabase.from("order_statuses").delete().eq("id", id); if (error) setToast({ msg: `Não foi possível excluir: ${error.message}`, type: "error" }); else load(); };
+  return <div className="space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Status da OS" subtitle="Status principais utilizados pelas ordens de serviço" actions={<BtnPrimary onClick={openNew}><Plus size={15} /> Novo status</BtnPrimary>} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={CheckCircle} title="Nenhum status cadastrado" message="Cadastre o primeiro status da OS." onAdd={openNew} addLabel="Novo status" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="px-5 py-4 flex items-center justify-between"><div className="flex items-center gap-3"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color || "#0057e7" }} /><div><p className="font-bold text-[#0d1b2e]">{item.name}</p><p className="text-xs text-[#5a6a82]">Ordem {item.sort_order}</p></div></div><div className="flex gap-1"><button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button><button type="button" onClick={() => remove(item.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button></div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Status da OS" title={editItem ? "Editar status" : "Novo status"} subtitle="Configure o status da OS"><div className="p-5 space-y-4"><FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} /><FInput label="Cor" type="color" value={form.color} onChange={(e: any) => setForm({ ...form, color: e.target.value })} /><FInput label="Ordem de exibição" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} /></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage></div>;
+}
+
 function OSSituationsView({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const [items, setItems] = useState<any[]>([]);
@@ -2274,8 +2414,8 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <PageHeader title="Situações da OS" subtitle="Etapas de progresso das ordens de serviço" actions={
-        <div className="flex gap-2">
-          <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-[#5a6a82] border border-[#0d1b2e]/20 px-3 py-2 rounded-lg hover:bg-[#f5f7fa] transition-colors"><ArrowLeft size={13} /> Voltar</button>
+        <div className="flex items-center gap-2">
+          <InternalBackButton onBack={onBack} />
           <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Nova Situação</button>
         </div>
       } />
@@ -2322,7 +2462,98 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
   );
 }
 
-function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
+function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [generalServices, setGeneralServices] = useState<any[]>([]);
+  const [situations, setSituations] = useState<any[]>([]);
+  const [view, setView] = useState<"month" | "week" | "day" | "agenda">("month");
+  const [cursor, setCursor] = useState(() => new Date());
+  const [technicianFilter, setTechnicianFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [situationFilter, setSituationFilter] = useState("");
+  const [serviceFilter, setServiceFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const [ordersResult, employeesResult, servicesResult, generalServicesResult, situationsResult] = await Promise.all([
+      supabase.from("service_orders").select("id,os_number,scheduled_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color)").not("scheduled_at", "is", null).order("scheduled_at"),
+      supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
+      supabase.from("services").select("id,title").eq("is_active", true).order("title"),
+      supabase.from("general_services").select("id,name").eq("is_active", true).order("name"),
+      supabase.from("os_situations").select("id,name").eq("is_active", true).order("sort_order"),
+    ]);
+    if (ordersResult.error) setToast({ msg: `Erro ao carregar agenda: ${ordersResult.error.message}`, type: "error" });
+    setOrders(ordersResult.data || []);
+    setEmployees(employeesResult.data || []);
+    setServices(servicesResult.data || []);
+    setGeneralServices(generalServicesResult.data || []);
+    setSituations(situationsResult.data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const dayKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const parseDay = (key: string) => new Date(`${key}T00:00:00`);
+  const eventDay = (order: any) => dayKey(new Date(order.scheduled_at));
+  const eventLabel = (order: any) => (order.general_service as any)?.name || (order.service as any)?.title || "Serviço";
+  const filteredOrders = orders.filter(order => {
+    const serviceId = (order.service as any)?.id || (order.general_service as any)?.id || "";
+    return (!technicianFilter || (order.technician as any)?.id === technicianFilter) && (!statusFilter || (order.order_status as any)?.id === statusFilter) && (!situationFilter || (order.situation as any)?.id === situationFilter) && (!serviceFilter || serviceId === serviceFilter);
+  });
+  const statuses = Array.from(new Map(orders.map(order => [(order.order_status as any)?.id, order.order_status]).filter(([id]) => id)).values());
+  const moveCursor = (amount: number) => {
+    const next = new Date(cursor);
+    if (view === "month") next.setMonth(next.getMonth() + amount);
+    else if (view === "week") next.setDate(next.getDate() + amount * 7);
+    else next.setDate(next.getDate() + amount);
+    setCursor(next);
+  };
+  const today = () => setCursor(new Date());
+  const rangeStart = () => {
+    if (view === "month") return new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    if (view === "week") { const start = new Date(cursor); start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); return start; }
+    return new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+  };
+  const days = (count: number) => Array.from({ length: count }, (_, index) => { const date = rangeStart(); date.setDate(date.getDate() + index); return date; });
+  const eventsFor = (date: Date) => filteredOrders.filter(order => eventDay(order) === dayKey(date));
+  const updateEventDate = async (order: any, targetDay: string) => {
+    const oldDate = new Date(order.scheduled_at);
+    const next = parseDay(targetDay);
+    next.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0);
+    const { error } = await supabase.from("service_orders").update({ scheduled_at: next.toISOString() }).eq("id", order.id);
+    if (error) setToast({ msg: `Não foi possível mover a OS: ${error.message}`, type: "error" });
+    else { setOrders(current => current.map(item => item.id === order.id ? { ...item, scheduled_at: next.toISOString() } : item)); setToast({ msg: "Agendamento atualizado.", type: "success" }); }
+  };
+  const Event = ({ order }: { order: any }) => <button type="button" draggable onDragStart={event => { event.dataTransfer.setData("text/order-id", order.id); }} onClick={() => onOpenOrder(order.id)} className="w-full text-left rounded-md border-l-4 px-2 py-1.5 mb-1 bg-white shadow-sm hover:shadow-md" style={{ borderLeftColor: (order.order_status as any)?.color || "#0057e7" }}><p className="font-mono text-[10px] font-black text-[#0057e7] truncate">{order.os_number || `OS #${order.id.slice(0, 8)}`}</p><p className="text-[11px] font-semibold text-[#0d1b2e] truncate">{(order.customer as any)?.full_name || "Cliente"}</p><p className="text-[10px] text-[#5a6a82] truncate">{eventLabel(order)} · {new Date(order.scheduled_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>{(order.technician as any)?.full_name && <p className="text-[10px] text-[#5a6a82] truncate">{(order.technician as any).full_name}</p>}</button>;
+
+  const title = view === "month" ? cursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : view === "day" ? cursor.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) : view === "week" ? `Semana de ${rangeStart().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}` : "Todos os agendamentos";
+  const isToday = (date: Date) => dayKey(date) === dayKey(new Date());
+  if (view === "month") {
+    const firstDay = (new Date(cursor.getFullYear(), cursor.getMonth(), 1).getDay() + 6) % 7;
+    const monthDays = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+    return <div className="space-y-5">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      <PageHeader title="Agenda" actions={<div className="w-full flex flex-wrap items-center gap-2"><button type="button" onClick={() => moveCursor(-1)} aria-label="Período anterior" className="p-2 text-[#5a6a82] border border-[#0d1b2e]/15 rounded-lg"><ChevronLeft size={15} /></button><button type="button" onClick={() => moveCursor(1)} aria-label="Próximo período" className="p-2 text-[#5a6a82] border border-[#0d1b2e]/15 rounded-lg"><ChevronRight size={15} /></button><button type="button" onClick={today} className="text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg">Hoje</button><span className="text-sm font-black text-[#0d1b2e] min-w-[150px]">{title}</span><select value={technicianFilter} onChange={event => setTechnicianFilter(event.target.value)} className={cn(INPUT, "w-auto min-w-[130px] py-2 text-xs")}><option value="">Todos os técnicos</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}</select><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className={cn(INPUT, "w-auto min-w-[120px] py-2 text-xs")}><option value="">Todos os status</option>{statuses.map((status: any) => <option key={status.id} value={status.id}>{status.name}</option>)}</select><select value={situationFilter} onChange={event => setSituationFilter(event.target.value)} className={cn(INPUT, "w-auto min-w-[130px] py-2 text-xs")}><option value="">Todas as situações</option>{situations.map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select><select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} className={cn(INPUT, "w-auto min-w-[130px] py-2 text-xs")}><option value="">Todos os serviços</option>{services.map(service => <option key={service.id} value={service.id}>{service.title}</option>)}{generalServices.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select><select value={view} onChange={event => setView(event.target.value as typeof view)} className={cn(INPUT, "w-auto py-2 text-xs")}><option value="day">Dia</option><option value="week">Semana</option><option value="month">Mês</option><option value="agenda">Lista</option></select></div>} />
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden"><div className="grid grid-cols-7 min-w-[720px]">{Array.from({ length: firstDay }, (_, index) => <div key={`blank-${index}`} className="min-h-[120px] border-r border-b border-[#0d1b2e]/8 bg-[#f8fafc]" />)}{Array.from({ length: monthDays }, (_, index) => { const date = new Date(cursor.getFullYear(), cursor.getMonth(), index + 1); return <div key={dayKey(date)} className={cn("min-h-[120px] border-r border-b border-[#0d1b2e]/8 p-1", isToday(date) && "border-2 border-[#0057e7] bg-[#eef5ff]")} onDragOver={event => event.preventDefault()} onDrop={event => { const id = event.dataTransfer.getData("text/order-id"); const order = orders.find(item => item.id === id); if (order) void updateEventDate(order, dayKey(date)); }}><p className={cn("text-xs font-bold px-1 py-1", isToday(date) ? "text-[#0057e7]" : "text-[#5a6a82]")}>{date.getDate()}</p>{eventsFor(date).map(order => <Event key={order.id} order={order} />)}</div>; })}</div></div>
+    </div>;
+  }
+  return <div className="space-y-5">
+    {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    <PageHeader title="Agenda" actions={<div className="w-full flex flex-wrap items-center gap-2"><button type="button" onClick={() => moveCursor(-1)} aria-label="Período anterior" className="p-2 text-[#5a6a82] border border-[#0d1b2e]/15 rounded-lg"><ChevronLeft size={15} /></button><button type="button" onClick={() => moveCursor(1)} aria-label="Próximo período" className="p-2 text-[#5a6a82] border border-[#0d1b2e]/15 rounded-lg"><ChevronRight size={15} /></button><button type="button" onClick={today} className="text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg">Hoje</button><span className="text-sm font-black text-[#0d1b2e] min-w-[150px]">{title}</span><select value={technicianFilter} onChange={event => setTechnicianFilter(event.target.value)} className={cn(INPUT, "w-auto min-w-[130px] py-2 text-xs")}><option value="">Todos os técnicos</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}</select><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className={cn(INPUT, "w-auto min-w-[120px] py-2 text-xs")}><option value="">Todos os status</option>{statuses.map((status: any) => <option key={status.id} value={status.id}>{status.name}</option>)}</select><select value={situationFilter} onChange={event => setSituationFilter(event.target.value)} className={cn(INPUT, "w-auto min-w-[130px] py-2 text-xs")}><option value="">Todas as situações</option>{situations.map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select><select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} className={cn(INPUT, "w-auto min-w-[130px] py-2 text-xs")}><option value="">Todos os serviços</option>{services.map(service => <option key={service.id} value={service.id}>{service.title}</option>)}{generalServices.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select><select value={view} onChange={event => setView(event.target.value as typeof view)} className={cn(INPUT, "w-auto py-2 text-xs")}><option value="day">Dia</option><option value="week">Semana</option><option value="month">Mês</option><option value="agenda">Lista</option></select></div>} />
+    <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : view === "agenda" ? <div className="divide-y divide-[#0d1b2e]/5">{filteredOrders.length === 0 ? <EmptyState icon={CalendarDays} title="Nenhum agendamento" message="As OS com data agendada aparecerão aqui." /> : filteredOrders.map(order => <div key={order.id} className="p-3 sm:p-4"><Event order={order} /></div>)}</div> : view === "day" ? <div className="p-4 min-h-[420px]" onDragOver={event => event.preventDefault()} onDrop={event => { const id = event.dataTransfer.getData("text/order-id"); const order = orders.find(item => item.id === id); if (order) void updateEventDate(order, dayKey(cursor)); }}><h3 className="font-bold text-[#0d1b2e] mb-3">{title}</h3>{eventsFor(cursor).map(order => <Event key={order.id} order={order} />)}</div> : view === "week" ? <div className="grid grid-cols-7 min-w-[720px]">{days(7).map(date => <div key={dayKey(date)} className="min-h-[420px] border-r border-[#0d1b2e]/8 last:border-r-0" onDragOver={event => event.preventDefault()} onDrop={event => { const id = event.dataTransfer.getData("text/order-id"); const order = orders.find(item => item.id === id); if (order) void updateEventDate(order, dayKey(date)); }}><div className="p-2 border-b border-[#0d1b2e]/8 text-center"><p className="text-[10px] uppercase font-bold text-[#5a6a82]">{date.toLocaleDateString("pt-BR", { weekday: "short" })}</p><p className="text-sm font-black text-[#0d1b2e]">{date.getDate()}</p></div><div className="p-1">{eventsFor(date).map(order => <Event key={order.id} order={order} />)}</div></div>)}</div> : <div className="grid grid-cols-7 min-w-[720px]">{Array.from({ length: (new Date(cursor.getFullYear(), cursor.getMonth(), 1).getDay() + 6) % 7 }, (_, index) => <div key={`blank-${index}`} className="min-h-[120px] border-r border-b border-[#0d1b2e]/8 bg-[#f8fafc]" />)}{Array.from({ length: new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate() }, (_, index) => { const date = new Date(cursor.getFullYear(), cursor.getMonth(), index + 1); return <div key={dayKey(date)} className="min-h-[120px] border-r border-b border-[#0d1b2e]/8 p-1" onDragOver={event => event.preventDefault()} onDrop={event => { const id = event.dataTransfer.getData("text/order-id"); const order = orders.find(item => item.id === id); if (order) void updateEventDate(order, dayKey(date)); }}><p className="text-xs font-bold text-[#5a6a82] px-1 py-1">{date.getDate()}</p>{eventsFor(date).map(order => <Event key={order.id} order={order} />)}</div>; })}</div>}</div>
+  </div>;
+}
+
+function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onFocused?: () => void }) {
   const { user, profile } = useAuth();
   const [subView, setSubView] = useState<"list" | "situations">("list");
   const [displayMode, setDisplayMode] = useState<"list" | "kanban">(() => {
@@ -2340,6 +2571,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [equipmentBrands, setEquipmentBrands] = useState<any[]>([]);
   const [equipmentModels, setEquipmentModels] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<any[]>([]);
   const [generalServices, setGeneralServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -2360,19 +2592,20 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [addressExpanded, setAddressExpanded] = useState(false);
   const [quickEquipment, setQuickEquipment] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(false);
+  const [quickServiceType, setQuickServiceType] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
   const dragOriginRef = useRef<any[] | null>(null);
   const suppressCardClickRef = useRef(false);
 
-  const emptyForm = { service_id: "", general_service_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", assigned_to: user?.id || "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "" };
+  const emptyForm = { service_id: "", general_service_id: "", service_type_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", assigned_to: user?.id || "", technician_id: "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "" };
   const [form, setForm] = useState(emptyForm);
   const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const load = async () => {
     setLoading(true);
-    const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes] = await Promise.all([
-      supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
+    const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes] = await Promise.all([
+      supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
       supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order"),
       supabase.from("os_situations").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
@@ -2384,12 +2617,13 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
       supabase.from("equipment_models").select("id,name,equipment_brand_id").eq("is_active", true).order("sort_order").order("name"),
       supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
       supabase.from("general_services").select("id,name,is_active,sort_order").eq("is_active", true).order("sort_order").order("name"),
+      supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order").eq("is_active", true).order("sort_order").order("title"),
     ]);
     if (ordRes.error) {
       console.error("[ADMIN] service_orders load error:", { code: ordRes.error.code, message: ordRes.error.message, details: ordRes.error.details, hint: ordRes.error.hint });
       setToast({ msg: `Erro ao carregar OS: ${ordRes.error.message}`, type: "error" });
     } else setOrders(ordRes.data || []);
-    [statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes].forEach((result, index) => {
+    [statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes].forEach((result, index) => {
       if (result.error) console.error("[ADMIN] OS related query error:", index, result.error);
     });
     setStatuses(statRes.data || []);
@@ -2403,9 +2637,17 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
     setEquipmentModels(equipmentModelRes.data || []);
     setEmployees(employeeRes.data || []);
     setGeneralServices(generalServiceRes.data || []);
+    setServiceTypes(serviceTypeRes.data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!initialOrderId || loading) return;
+    const order = orders.find(item => item.id === initialOrderId);
+    if (order) openDetail(order);
+    onFocused?.();
+  }, [initialOrderId, loading, orders]);
 
   const openDetail = async (o: any) => {
     const { data: hist } = await supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false });
@@ -2419,7 +2661,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
   const openEdit = (o: any) => {
     setEditingOS(o);
-    setForm({ service_id: o.service_id || "", general_service_id: o.general_service_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", assigned_to: o.assigned_to || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "" });
+    setForm({ service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", assigned_to: o.assigned_to || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "" });
     setSelectedCustomer((o.customer as any) || null);
     const customer = (o.customer as any) || {};
     setCustomerDraft(customerFormFromCustomer(customer));
@@ -2450,6 +2692,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
   const saveOS = async () => {
     if (!form.general_service_id && !form.service_id) { setToast({ msg: "Selecione o serviço geral da OS.", type: "error" }); return; }
+    if (!editingOS && !form.service_type_id) { setToast({ msg: "Selecione o tipo de atendimento da OS.", type: "error" }); return; }
     const cid = selectedCustomer?.id || form.customer_id;
     if (!cid) { setToast({ msg: "Selecione um cliente.", type: "error" }); return; }
     if (form.equipment_brand_id && !equipmentBrands.some(brand => brand.id === form.equipment_brand_id && brand.equipment_type_id === form.equipment_type_id)) { setToast({ msg: "A marca selecionada não pertence ao equipamento.", type: "error" }); return; }
@@ -2469,7 +2712,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
       setSelectedCustomer({ ...selectedCustomer, ...customerPayload(customerDraft), addresses: [customerAddressDraft] });
       setEditingCustomer(false);
     }
-    const payload: any = { os_number: editingOS?.os_number || generateOsProtocol(), service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, seller_id: form.seller_id || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, status_id: form.status_id || null, situation_id: form.situation_id || null, customer_id: cid, assigned_to: editingOS ? form.assigned_to || null : user?.id || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, serial_number: form.serial_number || null, accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: form.scheduled_at || null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null };
+    const payload: any = { os_number: editingOS?.os_number || generateOsProtocol(), service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, service_type_id: form.service_type_id || null, seller_id: form.seller_id || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, ...(editingOS ? { status_id: form.status_id || null } : {}), situation_id: form.situation_id || null, customer_id: cid, assigned_to: editingOS ? form.assigned_to || null : user?.id || null, technician_id: form.technician_id || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, serial_number: form.serial_number || null, accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: form.scheduled_at || null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null };
     let error;
     if (editingOS) {
       const r = await supabase.from("service_orders").update(payload).eq("id", editingOS.id);
@@ -2568,9 +2811,9 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
             <button type="button" onClick={() => setViewMode("list")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "list" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><List size={13} /> Lista</button>
             <button type="button" onClick={() => setViewMode("kanban")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "kanban" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><LayoutDashboard size={13} /> Kanban</button>
           </div>
-          <button onClick={() => setSubView("situations")} className="flex items-center gap-1.5 text-xs text-[#5a6a82] border border-[#0d1b2e]/20 px-3 py-2 rounded-lg hover:bg-[#f5f7fa]"><List size={13} /> Situações</button>
           <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0]"><Plus size={13} /> Nova OS</button>
           <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5"><RefreshCw size={13} /> Atualizar</button>
+          <button onClick={() => setSubView("situations")} className="flex items-center gap-1.5 text-xs text-[#5a6a82] border border-[#0d1b2e]/20 px-3 py-2 rounded-lg hover:bg-[#f5f7fa]"><List size={13} /> Situações</button>
         </div>
       } />
 
@@ -2694,12 +2937,14 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
               </Section>
               <Section title="Informações da OS">
                 <div className="grid sm:grid-cols-2 gap-3">
+                  <InfoRow label="Tipo de atendimento" value={(detail.service_type as any)?.title} />
                   <InfoRow label="Serviço" value={(detail.general_service as any)?.name || (detail.service as any)?.title} />
                   <InfoRow label="Vendedor" value={(detail.seller as any)?.full_name} />
                   <InfoRow label="Valor" value={detail.estimated_price == null ? undefined : `R$ ${Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
                   <InfoRow label="Status" value={(detail.order_status as any)?.name} />
                   <InfoRow label="Situação" value={(detail.situation as any)?.name} />
                   <InfoRow label="Responsável" value={(detail.assigned_profile as any)?.full_name} />
+                  <InfoRow label="Técnico" value={(detail.technician as any)?.full_name} />
                   <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
                   <InfoRow label="Data de início" value={fmtDate(detail.started_at)} />
                   <InfoRow label="Data de conclusão" value={fmtDate(detail.completed_at)} />
@@ -2819,18 +3064,18 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
             <Section title="Informações da OS">
               <div className="grid sm:grid-cols-2 gap-4">
-                <FSelect label="O serviço" value={form.general_service_id} required onChange={(e: any) => upF("general_service_id", e.target.value)} options={[{ value: "", label: "Selecionar serviço geral..." }, ...generalServices.map(service => ({ value: service.id, label: service.name }))]} />
-                <FInput label="Valor" type="number" min="0" step="0.01" value={form.estimated_price} onChange={(e: any) => upF("estimated_price", e.target.value)} placeholder="0,00" />
-                <FSelect label="Status" value={form.status_id} onChange={(e: any) => upF("status_id", e.target.value)} options={[{ value: "", label: "Selecionar status..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
+                <div className="flex items-end gap-2"><div className="flex-1"><FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => upF("service_type_id", e.target.value)} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} /></div><BtnPrimary className="h-[42px] whitespace-nowrap" onClick={() => setQuickServiceType(true)}><Plus size={14} /> Criar novo</BtnPrimary></div>
+                <FSelect label="Serviço" value={form.general_service_id} required onChange={(e: any) => upF("general_service_id", e.target.value)} options={[{ value: "", label: "Selecionar serviço..." }, ...generalServices.map(service => ({ value: service.id, label: service.name }))]} />
                 <FSelect label="Situação" value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...situations.map(s => ({ value: s.id, label: s.name }))]} />
+                <FSelect label="Técnico" value={form.technician_id} onChange={(e: any) => upF("technician_id", e.target.value)} options={[{ value: "", label: "Nenhum técnico selecionado" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} />
                 <FSelect label="Vendedor" value={form.seller_id} onChange={(e: any) => upF("seller_id", e.target.value)} options={[{ value: "", label: "Nenhum vendedor selecionado" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} />
-                <FInput label="Responsável" value={profile?.full_name || (user?.user_metadata?.full_name as string | undefined) || "Usuário autenticado"} readOnly disabled />
                 <FSelect label="Prioridade" value={form.priority} onChange={(e: any) => upF("priority", e.target.value)} options={[{ value: "baixa", label: "Baixa" }, { value: "normal", label: "Normal" }, { value: "alta", label: "Alta" }, { value: "urgente", label: "Urgente" }]} />
                 <FInput label="Data agendada" type="datetime-local" value={form.scheduled_at} onChange={(e: any) => upF("scheduled_at", e.target.value)} />
               </div>
               <div className="space-y-4">
                 <FTextarea label="Descrição do problema" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={4} />
                 <FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />
+                <FInput label="Valor" type="number" min="0" step="0.01" value={form.estimated_price} onChange={(e: any) => upF("estimated_price", e.target.value)} placeholder="0,00" />
               </div>
             </Section>
           </div>
@@ -2858,6 +3103,13 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
           setCustomerResults([]);
           setCustomerSearch("");
           upF("customer_id", customer.id);
+        }}
+      />}
+      {quickServiceType && <ServiceTypeModal
+        onClose={() => setQuickServiceType(false)}
+        onSaved={serviceType => {
+          setServiceTypes(current => [...current, serviceType].sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title)));
+          upF("service_type_id", serviceType.id);
         }}
       />}
     </div>
@@ -2968,7 +3220,6 @@ function TabCustomers() {
           </button>
         </div>
       } />
-
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-[#0d1b2e]/8">
           <div className="relative">
@@ -2976,7 +3227,6 @@ function TabCustomers() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, documento, WhatsApp ou e-mail..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
         </div>
-
         {loading ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." onAdd={() => setCreateOpen(true)} addLabel="Cadastrar Cliente" />
         ) : (
@@ -3176,7 +3426,7 @@ function TabCustomers() {
 
 /* ─────────────────────────── TAB: EMPLOYEES ─────────────────────────── */
 
-function TabEmployees() {
+function TabEmployees({ onBack }: { onBack: () => void }) {
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -3230,7 +3480,7 @@ function TabEmployees() {
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-      <PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários da empresa" actions={<BtnPrimary onClick={openNew}><Plus size={16} /> Novo funcionário</BtnPrimary>} />
+      <PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários da empresa" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Novo funcionário</BtnPrimary></div>} />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : employees.length === 0 ? (
@@ -3527,4 +3777,10 @@ function QuickCustomerModal({ onClose, onSaved }: {
       </div>
     </div>
   );
+}
+
+function InternalBackButton({ onBack, inHeader = false }: { onBack: () => void; inHeader?: boolean }) {
+  const contextualBack = React.useContext(AdminBackContext);
+  if (!inHeader && contextualBack === onBack) return null;
+  return <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5a6a82] hover:text-[#0057e7] transition-colors"><ArrowLeft size={14} /> Voltar</button>;
 }
