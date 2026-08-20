@@ -60,6 +60,90 @@ function getWhatsAppUrl(value?: string | null) {
   return digits ? `https://wa.me/${digits}` : null;
 }
 
+type CustomerType = "PF" | "PJ";
+type CustomerForm = {
+  customerType: CustomerType;
+  full_name: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  document: string;
+  trade_name: string;
+  legal_name: string;
+  cnpj: string;
+  state_registration: string;
+  foundation_date: string;
+};
+
+const emptyCustomerForm: CustomerForm = { customerType: "PF", full_name: "", email: "", phone: "", whatsapp: "", document: "", trade_name: "", legal_name: "", cnpj: "", state_registration: "", foundation_date: "" };
+
+function formatCpf(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+}
+
+function formatCnpj(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  return digits.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4").replace(/(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
+}
+
+function formatFoundationDate(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return digits.replace(/(\d{2})(\d)/, "$1/$2").replace(/(\d{2})\/(\d{2})(\d)/, "$1/$2/$3");
+}
+
+function foundationDateToIso(value: string) {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
+}
+
+function foundationDateFromCustomer(value?: string | null) {
+  if (!value) return "";
+  const match = value.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function customerFormFromCustomer(customer: any): CustomerForm {
+  const customerType: CustomerType = customer.customer_type === "PJ" ? "PJ" : "PF";
+  return {
+    customerType,
+    full_name: customer.full_name || "",
+    email: customer.email || "",
+    phone: customer.phone || "",
+    whatsapp: customer.whatsapp || "",
+    document: formatCpf(customer.document || ""),
+    trade_name: customer.trade_name || "",
+    legal_name: customer.legal_name || "",
+    cnpj: formatCnpj(customer.cnpj || ""),
+    state_registration: customer.state_registration || "",
+    foundation_date: foundationDateFromCustomer(customer.foundation_date),
+  };
+}
+
+function customerPayload(form: CustomerForm) {
+  return {
+    customer_type: form.customerType,
+    full_name: (form.customerType === "PJ" ? form.trade_name : form.full_name).trim(),
+    email: form.email.trim() || null,
+    phone: form.phone.trim() || null,
+    whatsapp: form.whatsapp.trim() || null,
+    document: form.customerType === "PF" ? form.document.replace(/\D/g, "") || null : null,
+    trade_name: form.customerType === "PJ" ? form.trade_name.trim() || null : null,
+    legal_name: form.customerType === "PJ" ? form.legal_name.trim() || null : null,
+    cnpj: form.customerType === "PJ" ? form.cnpj.replace(/\D/g, "") || null : null,
+    state_registration: form.customerType === "PJ" ? form.state_registration.trim() || null : null,
+    foundation_date: form.customerType === "PJ" ? foundationDateToIso(form.foundation_date) : null,
+  };
+}
+
+function validateCustomerForm(form: CustomerForm) {
+  if (!form.whatsapp.trim() && !form.phone.trim()) return "Telefone ou WhatsApp é obrigatório.";
+  if (form.customerType === "PF" && !form.full_name.trim()) return "Nome completo é obrigatório.";
+  if (form.customerType === "PJ" && !form.trade_name.trim()) return "Nome fantasia é obrigatório.";
+  if (form.customerType === "PJ" && form.cnpj.replace(/\D/g, "").length !== 14) return "CNPJ é obrigatório e deve estar completo.";
+  return null;
+}
+
 async function generateUniqueSlug(table: "service_categories" | "product_categories" | "products" | "brands", value: string, excludeId?: string) {
   const baseSlug = slugify(value);
   const { data, error } = await supabase.from(table).select("id, slug");
@@ -88,6 +172,19 @@ function FInput({ label, required, hint, ...props }: { label?: string; required?
       )}
       <input className={INPUT} {...props} />
       {hint && <p className="text-[10px] text-[#5a6a82] mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+function CustomerTypeToggle({ value, onChange }: { value: CustomerType; onChange: (value: CustomerType) => void }) {
+  return (
+    <div className="sm:col-span-2">
+      <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Tipo de cliente</label>
+      <div className="grid grid-cols-2 rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
+        {[{ value: "PF" as const, label: "PESSOA FÍSICA" }, { value: "PJ" as const, label: "PESSOA JURÍDICA" }].map(option => (
+          <button key={option.value} type="button" onClick={() => onChange(option.value)} className={`px-3 py-2.5 text-xs font-black tracking-wide transition-colors ${value === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]"}`} aria-pressed={value === option.value}>{option.label}</button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1927,8 +2024,8 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const load = async () => {
     setLoading(true);
     const [quotesResult, statusResult] = await Promise.all([
-      supabase.from("quote_requests").select("id, protocol, created_at, updated_at, status_id, customer_id, service_id, brand_id, product_id, customer_message, estimated_price, final_price, request_status:request_statuses(id,name), customer:customers(id,full_name,whatsapp,email,document,phone,addresses:customer_addresses(*)), service:services(title), brand:brands(name)").order("created_at", { ascending: false }),
-      supabase.from("request_statuses").select("id, name, sort_order").order("sort_order"),
+      supabase.from("quote_requests").select("id, protocol, created_at, updated_at, requested_at, assigned_to, status_id, customer_id, service_id, brand_id, product_id, customer_message, estimated_price, final_price, request_status:request_statuses(id,name,color), customer:customers(id,customer_type,full_name,whatsapp,email,document,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(title), brand:brands(name), product:products(name)").order("created_at", { ascending: false }),
+      supabase.from("request_statuses").select("id, name, color, sort_order").order("sort_order"),
     ]);
     if (quotesResult.error) setToast({ msg: `Erro ao carregar orçamentos: ${quotesResult.error.message}`, type: "error" });
     else setQuotes((quotesResult.data || []).map((q: any) => ({ ...q, statusName: q.request_status?.name || "Sem status" })));
@@ -1954,12 +2051,16 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const filtered = quotes.filter(q => {
     const customerName = (q.customer as any)?.full_name || "";
     const customerWa = (q.customer as any)?.whatsapp || "";
-    const customerDoc = (q.customer as any)?.document || "";
+    const customerDoc = (q.customer as any)?.document || (q.customer as any)?.cnpj || "";
+    const customerTradeName = (q.customer as any)?.trade_name || "";
     const protocol = q.protocol || "";
-    const matchSearch = !search || customerName.toLowerCase().includes(search.toLowerCase()) || customerWa.includes(search) || customerDoc.includes(search) || protocol.includes(search);
+    const matchSearch = !search || customerName.toLowerCase().includes(search.toLowerCase()) || customerTradeName.toLowerCase().includes(search.toLowerCase()) || customerWa.includes(search) || customerDoc.includes(search) || protocol.includes(search);
     const matchStatus = !filterStatus || q.status_id === filterStatus;
     return matchSearch && matchStatus;
   });
+
+  const InfoRow = ({ label, value }: { label: string; value?: string | null }) =>
+    value ? <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-0.5">{label}</p><p className="text-sm font-medium text-[#0d1b2e] whitespace-pre-line">{value}</p></div> : null;
 
   return (
     <div className="space-y-5">
@@ -1991,6 +2092,7 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 <tr>
                   <th className="px-4 py-3 text-left">Protocolo</th>
                   <th className="px-4 py-3 text-left">Cliente</th>
+                  <th className="px-4 py-3 text-left">Tipo / documento</th>
                   <th className="px-4 py-3 text-left">Serviço / Marca</th>
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-left">Data</th>
@@ -1999,21 +2101,22 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
                 {filtered.map(q => (
-                  <tr key={q.id} className="hover:bg-[#f8fafc]/80">
+                  <tr key={q.id} onClick={() => setDetail(q)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                     <td className="px-4 py-3.5">
-                      <span className="font-mono text-xs font-bold text-[#0057e7]">{q.protocol || q.id.slice(0, 8)}</span>
+                      <div className="flex items-center gap-2"><span aria-label={`Cor do status ${(q.request_status as any)?.name || "Sem status"}`} className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: (q.request_status as any)?.color || "transparent" }} /><span className="font-mono text-xs font-bold text-[#0057e7]">{q.protocol || q.id.slice(0, 8)}</span></div>
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="font-bold text-[#0d1b2e] text-sm">{(q.customer as any)?.full_name || "—"}</p>
+                      <p className="font-bold text-[#0d1b2e] text-sm">{(q.customer as any)?.customer_type === "PJ" ? ((q.customer as any)?.trade_name || (q.customer as any)?.full_name || "—") : ((q.customer as any)?.full_name || "—")}</p>
                       <p className="text-xs text-[#5a6a82]">{(q.customer as any)?.whatsapp || ""}</p>
                     </td>
+                    <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]"><span className="font-bold text-[#0057e7]">{(q.customer as any)?.customer_type === "PJ" ? "PJ" : "PF"}</span> · {(q.customer as any)?.customer_type === "PJ" ? ((q.customer as any)?.cnpj ? formatCnpj((q.customer as any).cnpj) : "—") : ((q.customer as any)?.document ? formatCpf((q.customer as any).document) : "—")}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">
                       {(q.service as any)?.title && <div className="font-medium text-[#0d1b2e]">{(q.service as any).title}</div>}
                       {(q.brand as any)?.name && <div>{(q.brand as any).name}</div>}
                       {!(q.service as any)?.title && !(q.brand as any)?.name && "—"}
                     </td>
                     <td className="px-4 py-3.5">
-                      <select value={q.status_id || ""} onChange={e => updateStatus(q.id, e.target.value)}
+                      <select value={q.status_id || ""} onClick={e => e.stopPropagation()} onChange={e => updateStatus(q.id, e.target.value)}
                         className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
                         {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
@@ -2032,41 +2135,53 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
       {/* Quote Detail Page */}
       {detail && (
-        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Orçamentos" title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} subtitle="Detalhes da solicitação de orçamento">
+        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb={`Orçamentos > ${detail.protocol || detail.id.slice(0, 8)}`} title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} subtitle="Detalhes da solicitação de orçamento">
             <div className="space-y-4">
-              {/* Customer info */}
-              <div className="bg-[#f8fafc] rounded-lg p-3 border border-[#0d1b2e]/8">
-                <p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Dados do cliente</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><p className="text-[10px] text-[#5a6a82]">Nome</p><p className="font-bold text-[#0d1b2e]">{(detail.customer as any)?.full_name || "—"}</p></div>
-                  <div><p className="text-[10px] text-[#5a6a82]">WhatsApp</p><p className="font-medium text-[#0d1b2e]">{(detail.customer as any)?.whatsapp || "—"}</p></div>
-                  {(detail.customer as any)?.email && <div><p className="text-[10px] text-[#5a6a82]">E-mail</p><p className="font-medium text-[#0d1b2e] text-xs">{(detail.customer as any).email}</p></div>}
-                  {(detail.customer as any)?.document && <div><p className="text-[10px] text-[#5a6a82]">CPF</p><p className="font-medium text-[#0d1b2e]">{(detail.customer as any).document}</p></div>}
+              <Section title="Dados pessoais / empresariais">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <InfoRow label="Tipo" value={(detail.customer as any)?.customer_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} />
+                  {(detail.customer as any)?.customer_type === "PJ" ? <>
+                    <InfoRow label="Nome fantasia" value={(detail.customer as any)?.trade_name || (detail.customer as any)?.full_name} />
+                    <InfoRow label="Razão social" value={(detail.customer as any)?.legal_name} />
+                    <InfoRow label="CNPJ" value={(detail.customer as any)?.cnpj ? formatCnpj((detail.customer as any).cnpj) : null} />
+                    <InfoRow label="Inscrição estadual" value={(detail.customer as any)?.state_registration} />
+                    <InfoRow label="Data de fundação" value={(detail.customer as any)?.foundation_date ? new Date((detail.customer as any).foundation_date).toLocaleDateString("pt-BR") : null} />
+                  </> : <InfoRow label="Nome completo" value={(detail.customer as any)?.full_name} />}
+                  {(detail.customer as any)?.customer_type !== "PJ" && <InfoRow label="CPF" value={(detail.customer as any)?.document ? formatCpf((detail.customer as any).document) : null} />}
+                  <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
+                  <InfoRow label="Telefone" value={(detail.customer as any)?.phone} />
+                  <InfoRow label="WhatsApp" value={(detail.customer as any)?.whatsapp} />
                 </div>
-              </div>
-              {/* Service / Brand */}
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Serviço</p><p className="font-medium text-[#0d1b2e]">{(detail.service as any)?.title || "—"}</p></div>
-                <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Marca</p><p className="font-medium text-[#0d1b2e]">{(detail.brand as any)?.name || "—"}</p></div>
-                {detail.estimated_price && <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Valor estimado</p><p className="font-bold text-[#0d1b2e]">R$ {Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p></div>}
-                {detail.final_price && <div><p className="text-xs text-[#5a6a82] font-semibold uppercase">Valor final</p><p className="font-bold text-[#0d1b2e]">R$ {Number(detail.final_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p></div>}
-              </div>
-              {detail.customer_message && (
-                <div className="bg-[#f8fafc] rounded-lg p-3 border border-[#0d1b2e]/8">
-                  <p className="text-xs text-[#5a6a82] font-semibold uppercase mb-1">Mensagem do cliente</p>
-                  <p className="text-sm text-[#0d1b2e]">{detail.customer_message}</p>
+              </Section>
+              <Section title="Endereço">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state", "reference"] as const).map(key => {
+                    const address = ((detail.customer as any)?.addresses || []).find((item: Address) => item.is_default) || (detail.customer as any)?.addresses?.[0];
+                    const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado", reference: "Referência" };
+                    return address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null;
+                  })}
                 </div>
-              )}
-              <div>
-                <p className="text-xs text-[#5a6a82] font-semibold uppercase mb-2">Status</p>
-                <select value={detail.status_id || ""} onChange={e => updateStatus(detail.id, e.target.value)}
-                  className={cn(INPUT, "py-2 text-sm max-w-xs")}>
+              </Section>
+              <Section title="Dados do orçamento">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <InfoRow label="Protocolo" value={detail.protocol || detail.id} />
+                  <InfoRow label="Serviço" value={(detail.service as any)?.title} />
+                  <InfoRow label="Marca" value={(detail.brand as any)?.name} />
+                  <InfoRow label="Produto" value={(detail.product as any)?.name} />
+                  <InfoRow label="Data de criação" value={fmtDate(detail.created_at)} />
+                  <InfoRow label="Atualizado em" value={fmtDate(detail.updated_at)} />
+                  <InfoRow label="Valor estimado" value={detail.estimated_price == null ? null : `R$ ${Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                  <InfoRow label="Valor final" value={detail.final_price == null ? null : `R$ ${Number(detail.final_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                </div>
+                {detail.customer_message && <div className="mt-4"><InfoRow label="Mensagem do cliente" value={detail.customer_message} /></div>}
+              </Section>
+            </div>
+            <div className="sticky bottom-0 -mx-5 mt-5 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <select value={detail.status_id || ""} onChange={e => updateStatus(detail.id, e.target.value)} className={cn(INPUT, "py-2 text-sm w-auto min-w-36")}>
                   {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-              </div>
-            </div>
-            <div className="mt-5 pt-4 border-t border-[#0d1b2e]/8 flex items-center justify-between gap-3">
-              <button onClick={async () => {
+                <button onClick={async () => {
                 if (!detail) return;
                 const { data: existing } = await supabase.from("service_orders").select("id, os_number").eq("quote_request_id", detail.id).maybeSingle();
                 if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
@@ -2081,9 +2196,10 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 setDetail(null);
                 setToast({ msg: "OS criada com sucesso e vinculada ao orçamento.", type: "success" });
                 if (onNavigate) setTimeout(() => onNavigate("orders"), 1200);
-              }} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
-                <ClipboardList size={13} /> Converter em OS
-              </button>
+                }} className="flex items-center gap-2 whitespace-nowrap bg-[#0057e7] text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#0046c0] transition-colors">
+                  <ClipboardList size={13} /> Converter em OS
+                </button>
+              </div>
               <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
             </div>
         </AdminPage>
@@ -2209,6 +2325,10 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
 function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const { user, profile } = useAuth();
   const [subView, setSubView] = useState<"list" | "situations">("list");
+  const [displayMode, setDisplayMode] = useState<"list" | "kanban">(() => {
+    if (typeof window === "undefined") return "list";
+    return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
+  });
   const [orders, setOrders] = useState<any[]>([]);
   const [statuses, setStatuses] = useState<any[]>([]);
   const [situations, setSituations] = useState<any[]>([]);
@@ -2227,8 +2347,6 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [filterSituation, setFilterSituation] = useState("");
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
-  const [detailNewStatus, setDetailNewStatus] = useState("");
-  const [detailNewNote, setDetailNewNote] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -2237,10 +2355,15 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [editingCustomer, setEditingCustomer] = useState(false);
-  const [customerDraft, setCustomerDraft] = useState({ full_name: "", email: "", phone: "", whatsapp: "", document: "" });
+  const [customerDraft, setCustomerDraft] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [customerAddressDraft, setCustomerAddressDraft] = useState<Address>({ ...emptyAddress });
   const [addressExpanded, setAddressExpanded] = useState(false);
   const [quickEquipment, setQuickEquipment] = useState(false);
+  const [quickCustomer, setQuickCustomer] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
+  const dragOriginRef = useRef<any[] | null>(null);
+  const suppressCardClickRef = useRef(false);
 
   const emptyForm = { service_id: "", general_service_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", assigned_to: user?.id || "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "" };
   const [form, setForm] = useState(emptyForm);
@@ -2249,8 +2372,8 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const load = async () => {
     setLoading(true);
     const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes] = await Promise.all([
-      supabase.from("service_orders").select("*, order_status:order_statuses(id,name), situation:os_situations(id,name), customer:customers(id,full_name,phone,whatsapp,document,email,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
-      supabase.from("order_statuses").select("id,name,sort_order").order("sort_order"),
+      supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
+      supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order"),
       supabase.from("os_situations").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
       supabase.from("services").select("id,title").eq("is_active", true).order("title"),
@@ -2287,13 +2410,11 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const openDetail = async (o: any) => {
     const { data: hist } = await supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false });
     setDetailHistory(hist || []);
-    setDetailNewStatus(o.status_id || "");
-    setDetailNewNote("");
     setDetail(o);
   };
 
   const openNew = () => {
-    setEditingOS(null); setForm(emptyForm); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ full_name: "", email: "", phone: "", whatsapp: "", document: "" }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
+    setEditingOS(null); setForm(emptyForm); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
   };
 
   const openEdit = (o: any) => {
@@ -2301,7 +2422,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
     setForm({ service_id: o.service_id || "", general_service_id: o.general_service_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", assigned_to: o.assigned_to || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "" });
     setSelectedCustomer((o.customer as any) || null);
     const customer = (o.customer as any) || {};
-    setCustomerDraft({ full_name: customer.full_name || "", email: customer.email || "", phone: customer.phone || "", whatsapp: customer.whatsapp || "", document: customer.document || "" });
+    setCustomerDraft(customerFormFromCustomer(customer));
     const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
     setCustomerAddressDraft({ ...emptyAddress, ...(address || {}) });
     setEditingCustomer(false); setAddressExpanded(false);
@@ -2310,16 +2431,18 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   };
 
   const saveCustomer = async () => {
-    if (!selectedCustomer?.id || !customerDraft.full_name.trim()) return;
+    if (!selectedCustomer?.id) return;
+    const validationError = validateCustomerForm(customerDraft);
+    if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSaving(true);
-    const { error: customerError } = await supabase.from("customers").update({ full_name: customerDraft.full_name.trim(), email: customerDraft.email || null, phone: customerDraft.phone || null, whatsapp: customerDraft.whatsapp || null, document: customerDraft.document ? customerDraft.document.replace(/\D/g, "") : null }).eq("id", selectedCustomer.id);
+    const { error: customerError } = await supabase.from("customers").update(customerPayload(customerDraft)).eq("id", selectedCustomer.id);
     if (customerError) { console.error("[ADMIN] customer update error:", customerError); setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
     const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
     const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
     const addressResult = address ? await supabase.from("customer_addresses").update(addressPayload).eq("id", address.id) : await supabase.from("customer_addresses").insert(addressPayload);
     setSaving(false);
     if (addressResult.error) { console.error("[ADMIN] customer address update error:", addressResult.error); setToast({ msg: `Cliente salvo, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); return; }
-    setSelectedCustomer({ ...selectedCustomer, ...customerDraft, document: customerDraft.document.replace(/\D/g, ""), addresses: [customerAddressDraft] });
+    setSelectedCustomer({ ...selectedCustomer, ...customerPayload(customerDraft), addresses: [customerAddressDraft] });
     setEditingCustomer(false);
     setAddressExpanded(true);
     setToast({ msg: "Dados do cliente atualizados.", type: "success" });
@@ -2333,7 +2456,9 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
     if (form.equipment_model_id && !equipmentModels.some(model => model.id === form.equipment_model_id && model.equipment_brand_id === form.equipment_brand_id)) { setToast({ msg: "O modelo selecionado não pertence à marca.", type: "error" }); return; }
     setSaving(true);
     if (editingCustomer && selectedCustomer?.id) {
-      const { error: customerError } = await supabase.from("customers").update({ full_name: customerDraft.full_name.trim(), email: customerDraft.email || null, phone: customerDraft.phone || null, whatsapp: customerDraft.whatsapp || null, document: customerDraft.document ? customerDraft.document.replace(/\D/g, "") : null }).eq("id", selectedCustomer.id);
+      const validationError = validateCustomerForm(customerDraft);
+      if (validationError) { setToast({ msg: validationError, type: "error" }); setSaving(false); return; }
+      const { error: customerError } = await supabase.from("customers").update(customerPayload(customerDraft)).eq("id", selectedCustomer.id);
       if (customerError) { setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
       const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
       const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
@@ -2341,7 +2466,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
         ? await supabase.from("customer_addresses").update(addressPayload).eq("id", address.id)
         : await supabase.from("customer_addresses").insert(addressPayload);
       if (addressResult.error) { setToast({ msg: `Cliente atualizado, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); setSaving(false); return; }
-      setSelectedCustomer({ ...selectedCustomer, ...customerDraft, addresses: [customerAddressDraft] });
+      setSelectedCustomer({ ...selectedCustomer, ...customerPayload(customerDraft), addresses: [customerAddressDraft] });
       setEditingCustomer(false);
     }
     const payload: any = { os_number: editingOS?.os_number || generateOsProtocol(), service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, seller_id: form.seller_id || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, status_id: form.status_id || null, situation_id: form.situation_id || null, customer_id: cid, assigned_to: editingOS ? form.assigned_to || null : user?.id || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, serial_number: form.serial_number || null, accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: form.scheduled_at || null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null };
@@ -2359,28 +2484,55 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
     setFormOpen(false); setDetail(null); load();
   };
 
-  const updateStatus = async (statusId: string, note: string) => {
-    if (!detail) return;
-    const { error: e1 } = await supabase.from("service_orders").update({ status_id: statusId }).eq("id", detail.id);
-    if (e1) { setToast({ msg: `Erro: ${e1.message}`, type: "error" }); return; }
-    await supabase.from("service_order_status_history").insert({ service_order_id: detail.id, status_id: statusId, notes: note || null, is_visible_to_customer: Boolean(note), created_by: user?.id || null });
+  const updateOrderStatus = async (order: any, statusId: string) => {
+    const { error } = await supabase.from("service_orders").update({ status_id: statusId }).eq("id", order.id);
+    if (error) { setToast({ msg: `Erro: ${error.message}`, type: "error" }); return; }
+    await supabase.from("service_order_status_history").insert({ service_order_id: order.id, status_id: statusId, notes: null, is_visible_to_customer: false, created_by: user?.id || null });
     setToast({ msg: "Status atualizado!", type: "success" });
-    const updated = orders.map(o => o.id === detail.id ? { ...o, status_id: statusId } : o);
+    const updated = orders.map(o => o.id === order.id ? { ...o, status_id: statusId, order_status: statuses.find(status => status.id === statusId) || o.order_status } : o);
     setOrders(updated);
-    setDetail(null); load();
+    if (detail?.id === order.id) setDetail({ ...detail, status_id: statusId, order_status: statuses.find(status => status.id === statusId) || detail.order_status });
+  };
+
+  const setViewMode = (mode: "list" | "kanban") => {
+    setDisplayMode(mode);
+    window.localStorage.setItem("os_view_mode", mode);
+  };
+
+  const handleKanbanDrop = async (statusId: string) => {
+    const order = orders.find(item => item.id === draggingId);
+    const previousOrders = dragOriginRef.current;
+    setDraggingId(null);
+    setDragOverStatusId(null);
+    if (!order || order.status_id === statusId || !previousOrders) return;
+
+    const nextStatus = statuses.find(status => status.id === statusId);
+    setOrders(current => current.map(item => item.id === order.id ? { ...item, status_id: statusId, order_status: nextStatus || item.order_status } : item));
+    try {
+      const { error } = await supabase.from("service_orders").update({ status_id: statusId }).eq("id", order.id);
+      if (error) throw error;
+      const { error: historyError } = await supabase.from("service_order_status_history").insert({ service_order_id: order.id, status_id: statusId, notes: null, is_visible_to_customer: false, created_by: user?.id || null });
+      if (historyError) console.warn("[ADMIN] OS status history warning:", historyError.message);
+      setToast({ msg: `OS ${order.os_number || order.id.slice(0, 8)} movida para ${nextStatus?.name || "o novo status"}.`, type: "success" });
+    } catch (error) {
+      setOrders(previousOrders);
+      setToast({ msg: `Não foi possível alterar o status: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+    } finally {
+      dragOriginRef.current = null;
+    }
   };
 
   const searchCustomers = async (q: string) => {
     setCustomerSearch(q);
     if (q.length < 2) { setCustomerResults([]); return; }
-    const { data } = await supabase.from("customers").select("id,full_name,document,email,whatsapp,phone,addresses:customer_addresses(*)").or(`full_name.ilike.%${q}%,document.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
+    const { data } = await supabase.from("customers").select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)").or(`full_name.ilike.%${q}%,trade_name.ilike.%${q}%,document.ilike.%${q}%,cnpj.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
     setCustomerResults(data || []);
   };
 
   const selectCustomer = (customer: any) => {
     const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
     setSelectedCustomer(customer);
-    setCustomerDraft({ full_name: customer.full_name || "", email: customer.email || "", phone: customer.phone || "", whatsapp: customer.whatsapp || "", document: customer.document || "" });
+    setCustomerDraft(customerFormFromCustomer(customer));
     setCustomerAddressDraft({ ...emptyAddress, ...(address || {}) });
     setAddressExpanded(false);
     upF("customer_id", customer.id);
@@ -2412,6 +2564,10 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
       <PageHeader title="Ordens de Serviço" subtitle={`${orders.length} OS cadastrada${orders.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2 flex-wrap">
+          <div className="flex rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
+            <button type="button" onClick={() => setViewMode("list")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "list" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><List size={13} /> Lista</button>
+            <button type="button" onClick={() => setViewMode("kanban")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "kanban" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><LayoutDashboard size={13} /> Kanban</button>
+          </div>
           <button onClick={() => setSubView("situations")} className="flex items-center gap-1.5 text-xs text-[#5a6a82] border border-[#0d1b2e]/20 px-3 py-2 rounded-lg hover:bg-[#f5f7fa]"><List size={13} /> Situações</button>
           <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0]"><Plus size={13} /> Nova OS</button>
           <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5"><RefreshCw size={13} /> Atualizar</button>
@@ -2432,8 +2588,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
         </select>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+      {displayMode === "list" ? <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={search || filterStatus || filterSituation ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
         ) : (
@@ -2455,7 +2610,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 {filtered.map(o => (
                   <tr key={o.id} onClick={() => openDetail(o)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                     <td className="px-4 py-3.5">
-                      <span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || o.id.slice(0, 8)}</span>
+                      <div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || o.id.slice(0, 8)}</span></div>
                     </td>
                     <td className="px-4 py-3.5">
                       <p className="font-semibold text-[#0d1b2e] text-sm">{(o.customer as any)?.full_name || "—"}</p>
@@ -2469,9 +2624,11 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{o.scheduled_at ? fmtDate(o.scheduled_at) : "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(o.created_at)}</td>
                     <td className="px-4 py-3.5">
-                      <div className="flex gap-2 justify-end">
-                        <button onClick={(event) => { event.stopPropagation(); openDetail(o); }} className="p-1.5 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Ver detalhes"><AlertCircle size={14} /></button>
-                        <button onClick={(event) => { event.stopPropagation(); openEdit(o); }} className="p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa] rounded-lg" title="Editar"><Edit2 size={14} /></button>
+                      <div className="flex items-center gap-2 justify-end">
+                        <select value={o.status_id || ""} onClick={event => event.stopPropagation()} onChange={event => updateOrderStatus(o, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
+                          {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
+                        </select>
+                        <button onClick={(event) => { event.stopPropagation(); openEdit(o); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors"><Edit2 size={14} /> Editar</button>
                       </div>
                     </td>
                   </tr>
@@ -2480,7 +2637,30 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
             </table>
           </div>
         )}
-      </div>
+      </div> : <div className="overflow-x-auto pb-3">
+        <div className="flex items-start gap-4 min-w-max">
+          {statuses.map(status => {
+            const statusOrders = filtered.filter(order => order.status_id === status.id);
+            return <div key={status.id} onDragOver={event => { event.preventDefault(); setDragOverStatusId(status.id); }} onDragLeave={() => setDragOverStatusId(current => current === status.id ? null : current)} onDrop={event => { event.preventDefault(); void handleKanbanDrop(status.id); }} className={cn("w-[300px] flex-shrink-0 bg-[#f8fafc] rounded-xl border overflow-hidden transition-colors", dragOverStatusId === status.id ? "border-[#0057e7] bg-[#e8eef8]" : "border-[#0d1b2e]/8")}>
+              <div className="px-4 py-3 border-b border-[#0d1b2e]/8 bg-white flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: status.color || "transparent" }} /><span className="font-bold text-sm text-[#0d1b2e] truncate">{status.name}</span></div>
+                <span className="text-xs font-bold text-[#5a6a82]">{statusOrders.length}</span>
+              </div>
+              <div className="p-3 space-y-3 min-h-[180px]">
+                {statusOrders.length === 0 ? <p className="py-10 text-center text-xs text-[#5a6a82]">Solte uma OS aqui.</p> : statusOrders.map(order => <div key={order.id} draggable onDragStart={event => { dragOriginRef.current = orders; suppressCardClickRef.current = true; setDraggingId(order.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", order.id); }} onDragEnd={() => { setDraggingId(null); setDragOverStatusId(null); window.setTimeout(() => { suppressCardClickRef.current = false; }, 0); }} onClick={() => { if (suppressCardClickRef.current) { suppressCardClickRef.current = false; return; } openDetail(order); }} className={cn("bg-white rounded-lg border border-[#0d1b2e]/10 p-3 shadow-sm cursor-grab hover:border-[#0057e7]/30 transition-colors", draggingId === order.id && "opacity-50 cursor-grabbing")}>
+                  <div className="flex items-center gap-2 min-w-0"><span className="w-1.5 h-6 rounded-full flex-shrink-0" style={{ backgroundColor: status.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7] truncate">{order.os_number || order.id.slice(0, 8)}</span></div>
+                  <p className="mt-3 font-semibold text-sm text-[#0d1b2e] truncate">{(order.customer as any)?.full_name || "Cliente não informado"}</p>
+                  <p className="text-xs text-[#5a6a82] truncate">{(order.general_service as any)?.name || (order.service as any)?.title || "Serviço não informado"}</p>
+                  {order.estimated_price != null && <p className="mt-2 text-xs font-bold text-[#0d1b2e]">R$ {Number(order.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>}
+                  {order.scheduled_at && <p className="mt-1 text-[11px] text-[#5a6a82]">Agendado: {fmtDate(order.scheduled_at)}</p>}
+                  {(order.assigned_profile as any)?.full_name && <p className="mt-1 text-[11px] text-[#5a6a82]">Responsável: {(order.assigned_profile as any).full_name}</p>}
+                  <div className="mt-3 flex items-center justify-end" onClick={event => event.stopPropagation()}><button type="button" draggable={false} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onDragStart={event => { event.preventDefault(); event.stopPropagation(); }} onClick={() => openEdit(order)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-2.5 py-1.5 rounded-lg"><Edit2 size={13} /> Editar</button></div>
+                </div>)}
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>}
 
       {/* OS Detail Drawer */}
       {detail && (
@@ -2493,7 +2673,11 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
               <Section title="Cliente">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Nome" value={(detail.customer as any)?.full_name} />
-                  <InfoRow label="CPF/Documento" value={(detail.customer as any)?.document} />
+                  {(detail.customer as any)?.customer_type === "PJ" ? <>
+                    <InfoRow label="Tipo" value="Pessoa Jurídica" />
+                    <InfoRow label="CNPJ" value={formatCnpj((detail.customer as any)?.cnpj || "")} />
+                    <InfoRow label="Razão social" value={(detail.customer as any)?.legal_name} />
+                  </> : <InfoRow label="CPF" value={(detail.customer as any)?.document ? formatCpf((detail.customer as any).document) : null} />}
                   <InfoRow label="WhatsApp" value={(detail.customer as any)?.whatsapp} />
                   <InfoRow label="Telefone" value={(detail.customer as any)?.phone} />
                   <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
@@ -2508,7 +2692,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                   })}
                 </div>
               </Section>
-              <Section title="Demais informações">
+              <Section title="Informações da OS">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Serviço" value={(detail.general_service as any)?.name || (detail.service as any)?.title} />
                   <InfoRow label="Vendedor" value={(detail.seller as any)?.full_name} />
@@ -2539,18 +2723,12 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
               </Section>
               {detail.internal_notes && <Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>}
               {detail.customer_notes && <Section title="Observações do cliente"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>}
-              <Section title="Atualizar Status">
-                <div className="space-y-3">
-                  <FSelect label="Novo status" value={detailNewStatus} onChange={(e: any) => setDetailNewStatus(e.target.value)} options={[{ value: "", label: "Selecionar..." }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} />
-                  <FTextarea label="Observação (visível ao cliente)" value={detailNewNote} onChange={(e: any) => setDetailNewNote(e.target.value)} rows={2} placeholder="Mensagem opcional..." />
-                </div>
-              </Section>
             </div>
             <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
-              <button onClick={() => { setDetail(null); openEdit(detail); }} className="flex items-center gap-1.5 text-xs font-bold text-[#5a6a82] border border-[#0d1b2e]/20 px-3 py-2 rounded-lg hover:bg-[#f5f7fa]"><Edit2 size={13} /> Editar OS</button>
               <div className="flex gap-2">
                 <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
-                <BtnPrimary onClick={() => updateStatus(detailNewStatus, detailNewNote)} disabled={!detailNewStatus || saving}><CheckCircle size={14} /> Salvar Status</BtnPrimary>
+                <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>
+                <BtnPrimary onClick={() => { setDetail(null); openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>
               </div>
             </div>
         </AdminPage>
@@ -2567,8 +2745,18 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                   {editingCustomer ? (
                     <div className="space-y-4">
                       <div className="grid sm:grid-cols-2 gap-3">
-                        <FInput label="Nome" value={customerDraft.full_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, full_name: e.target.value })} />
-                        <FInput label="Documento" value={customerDraft.document} onChange={(e: any) => setCustomerDraft({ ...customerDraft, document: e.target.value })} />
+                        <CustomerTypeToggle value={customerDraft.customerType} onChange={customerType => setCustomerDraft({ ...customerDraft, customerType })} />
+                        {customerDraft.customerType === "PF" ? <>
+                          <FInput label="Nome completo" required value={customerDraft.full_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, full_name: e.target.value })} />
+                          <FInput label="CPF" value={customerDraft.document} onChange={(e: any) => setCustomerDraft({ ...customerDraft, document: formatCpf(e.target.value) })} placeholder="000.000.000-00" />
+                        </> : <>
+                          <FInput label="Nome fantasia" required value={customerDraft.trade_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, trade_name: e.target.value })} />
+                          <FInput label="Tipo" value="Pessoa Jurídica" readOnly />
+                          <FInput label="CNPJ" required value={customerDraft.cnpj} onChange={(e: any) => setCustomerDraft({ ...customerDraft, cnpj: formatCnpj(e.target.value) })} placeholder="00.000.000/0000-00" />
+                          <FInput label="Razão social" value={customerDraft.legal_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, legal_name: e.target.value })} />
+                          <FInput label="Inscrição estadual" value={customerDraft.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setCustomerDraft({ ...customerDraft, state_registration: e.target.value })} />
+                          <FInput label="Fundação" value={customerDraft.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setCustomerDraft({ ...customerDraft, foundation_date: formatFoundationDate(e.target.value) })} />
+                        </>}
                         <FInput label="WhatsApp" value={customerDraft.whatsapp} onChange={(e: any) => setCustomerDraft({ ...customerDraft, whatsapp: e.target.value })} />
                         <FInput label="Telefone" value={customerDraft.phone} onChange={(e: any) => setCustomerDraft({ ...customerDraft, phone: e.target.value })} />
                         <div className="sm:col-span-2"><FInput label="E-mail" type="email" value={customerDraft.email} onChange={(e: any) => setCustomerDraft({ ...customerDraft, email: e.target.value })} /></div>
@@ -2596,16 +2784,19 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-                    <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+                  <div className="flex items-end gap-2">
+                    <div className="relative flex-1">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+                      <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+                    </div>
+                    <BtnPrimary onClick={() => setQuickCustomer(true)}><Plus size={13} /> Criar cliente</BtnPrimary>
                   </div>
                   {customerResults.length > 0 && (
                     <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
                       {customerResults.map(c => (
                         <button key={c.id} onClick={() => selectCustomer(c)} className="w-full text-left px-3 py-2 hover:bg-[#e8eef8] border-b last:border-b-0 border-[#0d1b2e]/5">
                           <p className="font-semibold text-sm text-[#0d1b2e]">{c.full_name}</p>
-                          <p className="text-xs text-[#5a6a82]">{c.document} {c.whatsapp && `· ${c.whatsapp}`}</p>
+                          <p className="text-xs text-[#5a6a82]">{c.customer_type === "PJ" ? formatCnpj(c.cnpj || "") : formatCpf(c.document || "")} {c.whatsapp && `· ${c.whatsapp}`}</p>
                         </button>
                       ))}
                     </div>
@@ -2616,7 +2807,7 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 
             <Section title="Equipamento">
               <div className="grid sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2 flex items-end gap-2"><div className="flex-1"><FSelect label="Tipo de equipamento" value={form.equipment_type_id} onChange={(e: any) => { upF("equipment_type_id", e.target.value); upF("equipment_brand_id", ""); upF("equipment_model_id", ""); }} options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]} /></div><button type="button" className="p-2.5 mb-0.5 text-[#0057e7] border border-[#0057e7]/25 rounded-lg hover:bg-[#e8eef8]" title="Adicionar novo equipamento" onClick={() => setQuickEquipment(true)}><Plus size={16} /></button></div>
+                <div className="sm:col-span-2 flex items-end gap-2"><div className="flex-1"><FSelect label="Tipo de equipamento" value={form.equipment_type_id} onChange={(e: any) => { upF("equipment_type_id", e.target.value); upF("equipment_brand_id", ""); upF("equipment_model_id", ""); }} options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]} /></div><BtnPrimary className="h-[42px]" onClick={() => setQuickEquipment(true)}><Plus size={15} /> Criar equipamento</BtnPrimary></div>
                 <FSelect label="Marca técnica" value={form.equipment_brand_id} disabled={!form.equipment_type_id} onChange={(e: any) => { upF("equipment_brand_id", e.target.value); upF("equipment_model_id", ""); }} options={[{ value: "", label: form.equipment_type_id ? "Selecionar marca..." : "Selecione o tipo primeiro" }, ...equipmentBrands.filter(brand => brand.equipment_type_id === form.equipment_type_id).map(brand => ({ value: brand.id, label: brand.name }))]} />
                 <FSelect label="Modelo" value={form.equipment_model_id} disabled={!form.equipment_brand_id} onChange={(e: any) => upF("equipment_model_id", e.target.value)} options={[{ value: "", label: form.equipment_brand_id ? "Selecionar modelo..." : "Selecione a marca primeiro" }, ...equipmentModels.filter(model => model.equipment_brand_id === form.equipment_brand_id).map(model => ({ value: model.id, label: model.name }))]} />
                 <FInput label="Versão" value={form.model} onChange={(e: any) => upF("model", e.target.value)} />
@@ -2658,6 +2849,17 @@ function TabOrders({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
           setForm(current => ({ ...current, equipment_type_id: type.id, equipment_brand_id: brand.id, equipment_model_id: model.id }));
         }}
       />}
+      {quickCustomer && <QuickCustomerModal
+        onClose={() => setQuickCustomer(false)}
+        onSaved={customer => {
+          setSelectedCustomer(customer);
+          setCustomerDraft(customerFormFromCustomer(customer));
+          setCustomerAddressDraft({ ...emptyAddress, ...(customer.addresses?.[0] || {}) });
+          setCustomerResults([]);
+          setCustomerSearch("");
+          upF("customer_id", customer.id);
+        }}
+      />}
     </div>
   );
 }
@@ -2673,10 +2875,10 @@ function TabCustomers() {
   const [detailOrders, setDetailOrders] = useState<any[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [editForm, setEditForm] = useState({ full_name: "", email: "", phone: "", whatsapp: "", document: "" });
+  const [editForm, setEditForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [editAddress, setEditAddress] = useState<Address>({ ...emptyAddress });
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({ full_name: "", email: "", phone: "", whatsapp: "", document: "" });
+  const [createForm, setCreateForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [createAddress, setCreateAddress] = useState<Address>({ ...emptyAddress });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -2693,7 +2895,7 @@ function TabCustomers() {
 
   const openDetail = async (c: any) => {
     setDetail(c);
-    setEditForm({ full_name: c.full_name || "", email: c.email || "", phone: c.phone || "", whatsapp: c.whatsapp || "", document: c.document || "" });
+    setEditForm(customerFormFromCustomer(c));
     setEditAddress({ ...emptyAddress, ...((c.addresses || []).find((address: Address) => address.is_default) || c.addresses?.[0] || {}) });
     setEditMode(false);
     setDetailLoading(true);
@@ -2707,9 +2909,10 @@ function TabCustomers() {
   };
 
   const handleSave = async () => {
-    if (!editForm.full_name.trim()) { setToast({ msg: "Nome é obrigatório.", type: "error" }); return; }
+    const validationError = validateCustomerForm(editForm);
+    if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSaving(true);
-    const { error } = await supabase.from("customers").update({ full_name: editForm.full_name.trim(), email: editForm.email || null, phone: editForm.phone || null, whatsapp: editForm.whatsapp || null, document: editForm.document ? editForm.document.replace(/\D/g, "") : null }).eq("id", detail.id);
+    const { error } = await supabase.from("customers").update(customerPayload(editForm)).eq("id", detail.id);
     if (error) { setToast({ msg: `Erro ao salvar: ${error.message}`, type: "error" }); setSaving(false); return; }
     const addressPayload = { customer_id: detail.id, zip_code: editAddress.zip_code || null, street: editAddress.street || null, number: editAddress.number || null, complement: editAddress.complement || null, neighborhood: editAddress.neighborhood || null, city: editAddress.city || null, state: editAddress.state || null, is_default: true };
     const addressExists = (detail.addresses || []).find((address: Address) => address.is_default) || detail.addresses?.[0];
@@ -2721,13 +2924,14 @@ function TabCustomers() {
     setSaving(false);
     setEditMode(false);
     load();
-    openDetail({ ...detail, ...editForm, document: editForm.document ? editForm.document.replace(/\D/g, "") : null });
+    openDetail({ ...detail, ...customerPayload(editForm) });
   };
 
   const handleCreate = async () => {
-    if (!createForm.full_name.trim()) { setToast({ msg: "Nome é obrigatório.", type: "error" }); return; }
+    const validationError = validateCustomerForm(createForm);
+    if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSaving(true);
-    const { data: customer, error } = await supabase.from("customers").insert({ full_name: createForm.full_name.trim(), email: createForm.email || null, phone: createForm.phone || null, whatsapp: createForm.whatsapp || null, document: createForm.document ? createForm.document.replace(/\D/g, "") : null }).select().single();
+    const { data: customer, error } = await supabase.from("customers").insert(customerPayload(createForm)).select().single();
     if (error || !customer) { setToast({ msg: `Erro ao cadastrar: ${error?.message || "Cliente não criado."}`, type: "error" }); setSaving(false); return; }
     const hasAddress = Object.values(createAddress).some(Boolean);
     if (hasAddress) {
@@ -2736,7 +2940,7 @@ function TabCustomers() {
     }
     setToast({ msg: "Cliente cadastrado com sucesso!", type: "success" });
     setCreateOpen(false);
-    setCreateForm({ full_name: "", email: "", phone: "", whatsapp: "", document: "" });
+    setCreateForm({ ...emptyCustomerForm });
     setCreateAddress({ ...emptyAddress });
     setSaving(false);
     await load();
@@ -2749,7 +2953,7 @@ function TabCustomers() {
   const filtered = customers.filter(c => {
     if (!search) return true;
     const s = search.toLowerCase();
-    return (c.full_name || "").toLowerCase().includes(s) || (c.whatsapp || "").includes(search) || (c.email || "").toLowerCase().includes(s) || normalizeDoc(c.document || "").includes(normalizeDoc(search));
+    return (c.full_name || "").toLowerCase().includes(s) || (c.trade_name || "").toLowerCase().includes(s) || (c.legal_name || "").toLowerCase().includes(s) || (c.whatsapp || "").includes(search) || (c.email || "").toLowerCase().includes(s) || normalizeDoc(c.document || "").includes(normalizeDoc(search)) || normalizeDoc(c.cnpj || "").includes(normalizeDoc(search));
   });
 
   return (
@@ -2769,7 +2973,7 @@ function TabCustomers() {
         <div className="px-4 py-3 border-b border-[#0d1b2e]/8">
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, documento, WhatsApp ou e-mail..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
         </div>
 
@@ -2781,7 +2985,7 @@ function TabCustomers() {
               <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
                 <tr>
                   <th className="px-4 py-3 text-left">Nome</th>
-                  <th className="px-4 py-3 text-left">CPF</th>
+                  <th className="px-4 py-3 text-left">Tipo / documento</th>
                   <th className="px-4 py-3 text-left">WhatsApp</th>
                   <th className="px-4 py-3 text-left">E-mail</th>
                   <th className="px-4 py-3 text-left">Cadastrado em</th>
@@ -2792,7 +2996,7 @@ function TabCustomers() {
                 {filtered.map(c => (
                   <tr key={c.id} className="hover:bg-[#f8fafc]/80">
                     <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{c.full_name}</td>
-                    <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]">{c.document ? c.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "—"}</td>
+                    <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]"><span className="font-bold text-[#0057e7]">{c.customer_type === "PJ" ? "PJ" : "PF"}</span> · {c.customer_type === "PJ" ? (c.cnpj ? formatCnpj(c.cnpj) : "—") : (c.document ? formatCpf(c.document) : "—")}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{c.whatsapp || "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82] truncate max-w-[160px]">{c.email || "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(c.created_at)}</td>
@@ -2809,15 +3013,25 @@ function TabCustomers() {
 
       {/* Customer Detail Drawer */}
       {detail && (
-        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Clientes" title={detail.full_name} subtitle={detail.document ? detail.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "Cliente"} maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Clientes" title={detail.full_name} subtitle={detail.customer_type === "PJ" ? (detail.cnpj ? formatCnpj(detail.cnpj) : "Pessoa Jurídica") : (detail.document ? formatCpf(detail.document) : "Pessoa Física")} maxW="max-w-2xl">
           <div className="p-5 space-y-5">
             {/* Customer info */}
             <Section title="Informações do cliente">
               {editMode ? (
                 <div className="space-y-3">
                   <div className="grid sm:grid-cols-2 gap-3">
+                    <CustomerTypeToggle value={editForm.customerType} onChange={customerType => setEditForm({ ...editForm, customerType })} />
+                    {editForm.customerType === "PF" ? <>
                     <FInput label="Nome completo" value={editForm.full_name} required onChange={(e: any) => setEditForm({ ...editForm, full_name: e.target.value })} />
-                    <FInput label="CPF" value={editForm.document} onChange={(e: any) => setEditForm({ ...editForm, document: e.target.value })} placeholder="000.000.000-00" />
+                    <FInput label="CPF" value={editForm.document} onChange={(e: any) => setEditForm({ ...editForm, document: formatCpf(e.target.value) })} placeholder="000.000.000-00" />
+                    </> : <>
+                    <FInput label="Nome fantasia" value={editForm.trade_name} required onChange={(e: any) => setEditForm({ ...editForm, trade_name: e.target.value })} />
+                    <FInput label="Tipo" value="Pessoa Jurídica" readOnly />
+                    <FInput label="CNPJ" value={editForm.cnpj} required onChange={(e: any) => setEditForm({ ...editForm, cnpj: formatCnpj(e.target.value) })} placeholder="00.000.000/0000-00" />
+                    <FInput label="Razão social" value={editForm.legal_name} onChange={(e: any) => setEditForm({ ...editForm, legal_name: e.target.value })} />
+                    <FInput label="Inscrição estadual" value={editForm.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setEditForm({ ...editForm, state_registration: e.target.value })} />
+                    <FInput label="Fundação" value={editForm.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setEditForm({ ...editForm, foundation_date: formatFoundationDate(e.target.value) })} />
+                    </>}
                     <FInput label="WhatsApp" value={editForm.whatsapp} onChange={(e: any) => setEditForm({ ...editForm, whatsapp: e.target.value })} />
                     <FInput label="Telefone" value={editForm.phone} onChange={(e: any) => setEditForm({ ...editForm, phone: e.target.value })} />
                     <div className="sm:col-span-2"><FInput label="E-mail" type="email" value={editForm.email} onChange={(e: any) => setEditForm({ ...editForm, email: e.target.value })} /></div>
@@ -2845,7 +3059,12 @@ function TabCustomers() {
                 <div>
                   <div className="grid sm:grid-cols-2 gap-3 text-sm mb-3">
                     <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Nome</p><p className="font-bold text-[#0d1b2e]">{detail.full_name}</p></div>
-                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">CPF</p><p className="font-medium text-[#0d1b2e]">{detail.document ? detail.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "—"}</p></div>
+                    {detail.customer_type === "PJ" ? <>
+                      <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Tipo</p><p className="font-medium text-[#0d1b2e]">Pessoa Jurídica</p></div>
+                      <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">CNPJ</p><p className="font-medium text-[#0d1b2e]">{detail.cnpj ? formatCnpj(detail.cnpj) : "—"}</p></div>
+                      <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Nome fantasia</p><p className="font-medium text-[#0d1b2e]">{detail.trade_name || detail.full_name || "—"}</p></div>
+                      <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Razão social</p><p className="font-medium text-[#0d1b2e]">{detail.legal_name || "—"}</p></div>
+                    </> : <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">CPF</p><p className="font-medium text-[#0d1b2e]">{detail.document ? formatCpf(detail.document) : "—"}</p></div>}
                     <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">WhatsApp</p><p className="font-medium text-[#0d1b2e]">{detail.whatsapp || "—"}</p></div>
                     <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Telefone</p><p className="font-medium text-[#0d1b2e]">{detail.phone || "—"}</p></div>
                     <div className="sm:col-span-2"><p className="text-[10px] text-[#5a6a82] font-bold uppercase">E-mail</p><p className="font-medium text-[#0d1b2e]">{detail.email || "—"}</p></div>
@@ -2922,13 +3141,23 @@ function TabCustomers() {
       {createOpen && (
         <AdminPage open={true} onClose={() => setCreateOpen(false)} breadcrumb="Clientes" title="Novo cliente" subtitle="Preencha os dados do cliente" maxW="max-w-2xl">
           <div className="p-5 space-y-5">
-            <Section title="Dados pessoais">
+            <Section title="Dados do cliente">
               <div className="grid sm:grid-cols-2 gap-4">
-                <FInput label="Nome" required value={createForm.full_name} onChange={(e: any) => setCreateForm({ ...createForm, full_name: e.target.value })} />
+                <CustomerTypeToggle value={createForm.customerType} onChange={customerType => setCreateForm({ ...createForm, customerType })} />
+                {createForm.customerType === "PF" ? <>
+                  <FInput label="Nome completo" required value={createForm.full_name} onChange={(e: any) => setCreateForm({ ...createForm, full_name: e.target.value })} />
+                  <FInput label="CPF" value={createForm.document} placeholder="000.000.000-00" onChange={(e: any) => setCreateForm({ ...createForm, document: formatCpf(e.target.value) })} />
+                </> : <>
+                  <FInput label="Nome fantasia" required value={createForm.trade_name} onChange={(e: any) => setCreateForm({ ...createForm, trade_name: e.target.value })} />
+                  <FInput label="Tipo" value="Pessoa Jurídica" readOnly />
+                  <FInput label="CNPJ" required value={createForm.cnpj} placeholder="00.000.000/0000-00" onChange={(e: any) => setCreateForm({ ...createForm, cnpj: formatCnpj(e.target.value) })} />
+                  <FInput label="Razão social" value={createForm.legal_name} onChange={(e: any) => setCreateForm({ ...createForm, legal_name: e.target.value })} />
+                  <FInput label="Inscrição estadual" value={createForm.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setCreateForm({ ...createForm, state_registration: e.target.value })} />
+                  <FInput label="Fundação" value={createForm.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setCreateForm({ ...createForm, foundation_date: formatFoundationDate(e.target.value) })} />
+                </>}
                 <FInput label="Email" type="email" value={createForm.email} onChange={(e: any) => setCreateForm({ ...createForm, email: e.target.value })} />
-                <FInput label="Telefone" value={createForm.phone} onChange={(e: any) => setCreateForm({ ...createForm, phone: e.target.value })} />
+                <FInput label="Telefone" required value={createForm.phone} onChange={(e: any) => setCreateForm({ ...createForm, phone: e.target.value })} />
                 <FInput label="WhatsApp" value={createForm.whatsapp} onChange={(e: any) => setCreateForm({ ...createForm, whatsapp: e.target.value })} />
-                <FInput label="Documento" value={createForm.document} onChange={(e: any) => setCreateForm({ ...createForm, document: e.target.value })} />
               </div>
             </Section>
             <Section title="Dados de endereço">
@@ -3209,6 +3438,93 @@ function TabContact() {
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+function QuickCustomerModal({ onClose, onSaved }: {
+  onClose: () => void;
+  onSaved: (customer: any) => void;
+}) {
+  const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
+  const [address, setAddress] = useState<Address>({ ...emptyAddress });
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
+
+  const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragRef.current = { x: position.x, y: position.y, startX: event.clientX, startY: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    setPosition({ x: dragRef.current.x + event.clientX - dragRef.current.startX, y: dragRef.current.y + event.clientY - dragRef.current.startY });
+  };
+  const endDrag = () => { dragRef.current = null; };
+  const save = async () => {
+    const validationError = validateCustomerForm(form);
+    if (validationError) { setErrorMessage(validationError); return; }
+    setSaving(true);
+    setErrorMessage("");
+    try {
+      const { data: customer, error } = await supabase.from("customers").insert(customerPayload(form)).select().single();
+      if (error || !customer) throw error || new Error("Cliente não foi cadastrado.");
+      if (Object.values(address).some(Boolean)) {
+        const addressResult = await supabase.from("customer_addresses").insert({
+          customer_id: customer.id,
+          zip_code: address.zip_code || null,
+          street: address.street || null,
+          number: address.number || null,
+          complement: address.complement || null,
+          neighborhood: address.neighborhood || null,
+          city: address.city || null,
+          state: address.state || null,
+          reference: address.reference || null,
+          is_default: true,
+        });
+        if (addressResult.error) throw addressResult.error;
+        customer.addresses = [address];
+      }
+      onSaved(customer);
+      onClose();
+    } catch (error) {
+      console.error("[ADMIN] quick customer save error:", error);
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/35 p-4">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10">
+        <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="sticky top-0 z-10 flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 bg-white px-4 py-3 select-none">
+          <div><h3 className="text-sm font-bold text-[#0d1b2e]">Criar cliente</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre o cliente sem sair da Nova OS</p></div>
+          <button type="button" onClick={onClose} className="p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa] rounded-lg" aria-label="Fechar"><X size={16} /></button>
+        </div>
+        <div className="p-4 space-y-4">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <CustomerTypeToggle value={form.customerType} onChange={customerType => setForm({ ...form, customerType })} />
+            {form.customerType === "PF" ? <>
+              <FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} />
+              <FInput label="CPF" value={form.document} placeholder="000.000.000-00" onChange={(e: any) => setForm({ ...form, document: formatCpf(e.target.value) })} />
+            </> : <>
+              <FInput label="Nome fantasia" required value={form.trade_name} onChange={(e: any) => setForm({ ...form, trade_name: e.target.value })} />
+              <FInput label="Tipo" value="Pessoa Jurídica" readOnly />
+              <FInput label="CNPJ" required value={form.cnpj} placeholder="00.000.000/0000-00" onChange={(e: any) => setForm({ ...form, cnpj: formatCnpj(e.target.value) })} />
+              <FInput label="Razão social" value={form.legal_name} onChange={(e: any) => setForm({ ...form, legal_name: e.target.value })} />
+              <FInput label="Inscrição estadual" value={form.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setForm({ ...form, state_registration: e.target.value })} />
+              <FInput label="Fundação" value={form.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setForm({ ...form, foundation_date: formatFoundationDate(e.target.value) })} />
+            </>}
+            <FInput label="E-mail" type="email" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} />
+            <FInput label="Telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />
+            <FInput label="WhatsApp" required value={form.whatsapp} onChange={(e: any) => setForm({ ...form, whatsapp: e.target.value })} />
+          </div>
+          <Section title="Endereço do cliente"><AddressFields value={address} onChange={setAddress} inputClassName={INPUT} /></Section>
+          {errorMessage && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{errorMessage}</p>}
+        </div>
+        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-white px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Criar cliente"}</BtnPrimary></div>
+      </div>
     </div>
   );
 }

@@ -1404,6 +1404,19 @@ function formatCpf(v: string) {
   const d = normalizeCpf(v).slice(0, 11);
   return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
 }
+function normalizeCnpj(v: string) { return v.replace(/\D/g, ""); }
+function formatCnpj(v: string) {
+  const d = normalizeCnpj(v).slice(0, 14);
+  return d.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4").replace(/(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
+}
+function formatFoundationDate(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 8);
+  return d.replace(/(\d{2})(\d)/, "$1/$2").replace(/(\d{2})\/(\d{2})(\d)/, "$1/$2/$3");
+}
+function foundationDateToIso(v: string) {
+  const match = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
+}
 function validateCpf(cpf: string) {
   const d = normalizeCpf(cpf);
   if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
@@ -1432,7 +1445,7 @@ function OrcamentoPage() {
   const { services, loading: servicesLoading } = useServices();
   const { categories } = useServiceCategories();
   const { brands, loading: brandsLoading } = useBrands();
-  const [f, setF] = useState({ servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", whatsapp: "", email: "" });
+  const [f, setF] = useState({ customerType: "PF" as "PF" | "PJ", servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", tradeName: "", legalName: "", cnpj: "", stateRegistration: "", foundationDate: "", whatsapp: "", email: "" });
   const [address, setAddress] = useState({ ...emptyAddress });
   const [sent, setSent] = useState(false);
   const [protocol, setProtocol] = useState<string | null>(null);
@@ -1449,10 +1462,14 @@ function OrcamentoPage() {
     event.preventDefault();
     setSubmitError(null);
     const cpfRaw = normalizeCpf(f.cpf);
-    if (cpfRaw.length > 0 && !validateCpf(cpfRaw)) {
+    const cnpjRaw = normalizeCnpj(f.cnpj);
+    if (f.customerType === "PF" && cpfRaw.length > 0 && !validateCpf(cpfRaw)) {
       setSubmitError("CPF inválido. Verifique o número informado.");
       return;
     }
+    if (f.customerType === "PJ" && !f.tradeName.trim()) { setSubmitError("Informe o nome fantasia."); return; }
+    if (f.customerType === "PJ" && cnpjRaw.length !== 14) { setSubmitError("Informe um CNPJ válido."); return; }
+    if (!f.whatsapp.trim()) { setSubmitError("Informe o telefone ou WhatsApp principal."); return; }
 
     setSubmitting(true);
     try {
@@ -1463,10 +1480,17 @@ function OrcamentoPage() {
       const fullMessage = [f.descricao, extraNotes].filter(Boolean).join("\n") || null;
 
       const { data, error } = await supabase.rpc("submit_public_quote_request", {
-        p_full_name:        f.nome.trim(),
+        p_customer_type:   f.customerType,
+        p_full_name:        (f.customerType === "PJ" ? f.tradeName : f.nome).trim(),
         p_whatsapp:         f.whatsapp || null,
+        p_phone:            f.whatsapp || null,
         p_email:            f.email || null,
-        p_document:         cpfRaw.length === 11 ? cpfRaw : null,
+        p_document:         f.customerType === "PF" && cpfRaw.length === 11 ? cpfRaw : null,
+        p_trade_name:       f.customerType === "PJ" ? f.tradeName.trim() : null,
+        p_legal_name:       f.customerType === "PJ" ? f.legalName.trim() || null : null,
+        p_cnpj:             f.customerType === "PJ" ? cnpjRaw : null,
+        p_state_registration: f.customerType === "PJ" ? f.stateRegistration.trim() || null : null,
+        p_foundation_date:  f.customerType === "PJ" ? foundationDateToIso(f.foundationDate) : null,
         p_service_id:       f.servico || null,
         p_brand_id:         f.marca && f.marca !== "Outra marca" ? f.marca : null,
         p_customer_message: fullMessage,
@@ -1508,7 +1532,7 @@ function OrcamentoPage() {
             </div>
           )}
           <p className="text-white/70 text-base mb-8">Nossa equipe entrará em contato para avaliar sua solicitação.</p>
-          <Btn variant="primary" className="px-7 py-3 text-base" onClick={() => { setSent(false); setProtocol(null); setF({ servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", whatsapp: "", email: "" }); setAddress({ ...emptyAddress }); }}>Nova solicitação</Btn>
+          <Btn variant="primary" className="px-7 py-3 text-base" onClick={() => { setSent(false); setProtocol(null); setF({ customerType: "PF", servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", tradeName: "", legalName: "", cnpj: "", stateRegistration: "", foundationDate: "", whatsapp: "", email: "" }); setAddress({ ...emptyAddress }); }}>Nova solicitação</Btn>
         </div>
       </section>
     </>
@@ -1584,22 +1608,30 @@ function OrcamentoPage() {
                 <span className="w-6 h-6 bg-[#0057e7] rounded-md flex items-center justify-center text-white text-xs font-black">3</span>
                 Seus dados
               </h2>
+              <div>
+                <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Tipo de cliente</label>
+                <div className="grid grid-cols-2 rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
+                  {[{ value: "PF", label: "PESSOA FÍSICA" }, { value: "PJ", label: "PESSOA JURÍDICA" }].map(option => (
+                    <button key={option.value} type="button" onClick={() => up("customerType", option.value)} className={`px-3 py-3 text-xs font-black tracking-wide transition-colors ${f.customerType === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]"}`} aria-pressed={f.customerType === option.value}>{option.label}</button>
+                  ))}
+                </div>
+              </div>
               {/* WhatsApp em destaque */}
               <div className="bg-[#f0fdf4] border-2 border-[#25d366]/40 rounded-xl p-4">
                 <label className="text-xs font-black text-[#16a34a] uppercase tracking-wide block mb-1.5 flex items-center gap-1"><MessageCircle size={12} /> WhatsApp * — principal canal de contato</label>
                 <input className="w-full bg-white border border-[#25d366]/40 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#25d366] transition-all" placeholder="(79) 9 9999-9999" value={f.whatsapp} onChange={e => up("whatsapp", e.target.value)} required />
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome completo *</label>
-                  <input className={inputCls} placeholder="Seu nome" value={f.nome} onChange={e => up("nome", e.target.value)} required />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CPF</label>
-                  <input className={inputCls} placeholder="000.000.000-00" value={f.cpf} maxLength={14} onChange={e => up("cpf", formatCpf(e.target.value))} />
-                  <p className="text-xs text-[#5a6a82] mt-1">Usado para identificar seu cadastro.</p>
-                </div>
-              </div>
+              {f.customerType === "PF" ? <div className="grid sm:grid-cols-2 gap-4">
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome completo *</label><input className={inputCls} placeholder="Seu nome" value={f.nome} onChange={e => up("nome", e.target.value)} required /></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CPF</label><input className={inputCls} placeholder="000.000.000-00" value={f.cpf} maxLength={14} onChange={e => up("cpf", formatCpf(e.target.value))} /><p className="text-xs text-[#5a6a82] mt-1">Usado para identificar seu cadastro.</p></div>
+              </div> : <div className="grid sm:grid-cols-2 gap-4">
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome fantasia *</label><input className={inputCls} placeholder="Nome comercial da empresa" value={f.tradeName} onChange={e => up("tradeName", e.target.value)} required /></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Tipo *</label><input className={inputCls} value="Pessoa Jurídica" readOnly /></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CNPJ *</label><input className={inputCls} placeholder="00.000.000/0000-00" value={f.cnpj} maxLength={18} onChange={e => up("cnpj", formatCnpj(e.target.value))} required /></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Razão social</label><input className={inputCls} value={f.legalName} onChange={e => up("legalName", e.target.value)} /></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Inscrição estadual</label><input className={inputCls} placeholder="Deixe em branco se não for contribuinte · ISENTO se isento" value={f.stateRegistration} onChange={e => up("stateRegistration", e.target.value)} /></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Fundação</label><input className={inputCls} placeholder="dd/mm/aaaa" inputMode="numeric" maxLength={10} value={f.foundationDate} onChange={e => up("foundationDate", formatFoundationDate(e.target.value))} /></div>
+              </div>}
               <div>
                 <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">E-mail</label>
                 <input type="email" className={inputCls} placeholder="seu@email.com" value={f.email} onChange={e => up("email", e.target.value)} />
@@ -1624,7 +1656,7 @@ function OrcamentoPage() {
                   { label: "Marca", val: f.marca === "Outra marca" ? f.outraMarca || "Outra marca" : selectedBrand?.name || "—" },
                   { label: "Modelo", val: f.modelo || "—" },
                   { label: "Descrição", val: f.descricao ? f.descricao.slice(0, 80) + (f.descricao.length > 80 ? "…" : "") : "—" },
-                  { label: "Nome", val: f.nome || "—" },
+                  { label: f.customerType === "PJ" ? "Nome fantasia" : "Nome", val: f.customerType === "PJ" ? f.tradeName || "—" : f.nome || "—" },
                   { label: "WhatsApp", val: f.whatsapp || "—" },
                 ].map(({ label, val }) => (
                   <div key={label} className="flex items-start gap-3 text-sm">

@@ -246,6 +246,12 @@ export interface Customer {
   phone: string | null;
   whatsapp: string | null;
   document: string | null;
+  customer_type: "PF" | "PJ";
+  trade_name: string | null;
+  legal_name: string | null;
+  cnpj: string | null;
+  state_registration: string | null;
+  foundation_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -270,6 +276,7 @@ export interface CustomerAddress {
 export interface RequestStatus {
   id: string;
   name: string;
+  color: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
