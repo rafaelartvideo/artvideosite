@@ -22,6 +22,7 @@ export interface Role {
 export interface Employee {
   id: string;
   profile_id: string | null;
+  role_id: string | null;
   full_name: string;
   cpf: string;
   phone: string | null;

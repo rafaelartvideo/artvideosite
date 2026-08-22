@@ -263,24 +263,38 @@ export function useMediaUrl(mediaId: string | null | undefined) {
       setError(null);
 
       try {
+        console.log("[MEDIA LOAD] OS ID:", mediaId);
         const { data, error: err } = await queries.getMediaById(mediaId);
         if (!active) return;
 
         if (err || !data) {
+          console.error("[MEDIA LOAD] error:", err ?? "Imagem não encontrada");
           setUrl(null);
           setError(err?.message ?? "Imagem não encontrada");
           return;
         }
 
+        console.log("[MEDIA LOAD] records:", data);
         const bucketName = (data as any).bucket_id ?? (data as any).bucket_name ?? null;
-        if (bucketName && data.storage_path) {
-          setUrl(queries.getPublicStorageUrl(bucketName, data.storage_path));
+        const storagePath = data.storage_path ?? null;
+        console.log("[MEDIA LOAD] bucket:", bucketName);
+        console.log("[MEDIA LOAD] storage path:", storagePath);
+
+        if (bucketName && storagePath) {
+          const generatedUrl = queries.getPublicStorageUrl(bucketName, storagePath);
+          console.log("[MEDIA LOAD] generated URL:", generatedUrl);
+          setUrl(generatedUrl || null);
+          if (!generatedUrl) setError("Imagem indisponível");
         } else {
+          console.warn("[MEDIA LOAD] missing bucket or storage path for media id:", mediaId);
           setUrl(null);
+          setError("Imagem indisponível");
         }
       } catch (e) {
         if (!active) return;
-        setError(e instanceof Error ? e.message : "Erro ao buscar imagem");
+        const message = e instanceof Error ? e.message : "Erro ao buscar imagem";
+        console.error("[MEDIA LOAD] error:", message);
+        setError(message);
         setUrl(null);
       } finally {
         if (active) setLoading(false);

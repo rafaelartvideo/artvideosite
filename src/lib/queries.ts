@@ -7,19 +7,19 @@ import type { GeneralService } from "./database.types";
 
 // ── Employees ────────────────────────────────────────────────
 export const getEmployees = () =>
-  supabase.from("employees").select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").order("full_name", { ascending: true });
+  supabase.from("employees").select("id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").order("full_name", { ascending: true });
 
 export const getEmployeeById = (id: string) =>
-  supabase.from("employees").select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").eq("id", id).maybeSingle();
+  supabase.from("employees").select("id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").eq("id", id).maybeSingle();
 
 export const createEmployee = (employee: Omit<Employee, "id" | "created_at" | "updated_at">) =>
-  supabase.from("employees").insert(employee).select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
+  supabase.from("employees").insert(employee).select("id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
 
 export const updateEmployee = (id: string, employee: Partial<Omit<Employee, "id" | "created_at" | "updated_at">>) =>
-  supabase.from("employees").update(employee).eq("id", id).select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
+  supabase.from("employees").update(employee).eq("id", id).select("id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
 
 export const setEmployeeActive = (id: string, isActive: boolean) =>
-  supabase.from("employees").update({ is_active: isActive }).eq("id", id).select("id,profile_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
+  supabase.from("employees").update({ is_active: isActive }).eq("id", id).select("id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
 
 // ── General services ─────────────────────────────────────────
 const generalServiceColumns = "id,name,is_active,sort_order,created_at,updated_at";

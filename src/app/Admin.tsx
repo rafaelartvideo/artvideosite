@@ -58,6 +58,11 @@ function generateOsProtocol() {
   return `OS-${y}${m}${d}-${rand}`;
 }
 
+function initialOrderStatus(statuses: any[]) {
+  const ordered = [...statuses].sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0));
+  return ordered.find(status => /abert|novo|recebid|pendente/i.test(status.name || "")) || ordered[0] || null;
+}
+
 function getWhatsAppUrl(value?: string | null) {
   const digits = (value || "").replace(/\D/g, "");
   return digits ? `https://wa.me/${digits}` : null;
@@ -147,6 +152,38 @@ function validateCustomerForm(form: CustomerForm) {
   return null;
 }
 
+async function fetchCnpjData(cnpj: string) {
+  const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj.replace(/\D/g, "")}`);
+  if (!response.ok) throw new Error("CNPJ não encontrado.");
+  return response.json();
+}
+
+function applyCnpjData(form: CustomerForm, address: Address, data: any) {
+  return {
+    form: {
+      ...form,
+      full_name: form.full_name || data.nome_fantasia || data.razao_social || "",
+      trade_name: form.trade_name || data.nome_fantasia || "",
+      legal_name: form.legal_name || data.razao_social || "",
+      state_registration: form.state_registration || data.inscricao_estadual || "",
+      foundation_date: form.foundation_date || (data.data_inicio_atividade ? formatFoundationDate(data.data_inicio_atividade.split("-").reverse().join("/")) : ""),
+      email: form.email || data.email || "",
+      phone: form.phone || data.ddd_telefone_1 || "",
+      whatsapp: form.whatsapp || data.ddd_telefone_1 || "",
+    },
+    address: {
+      ...address,
+      zip_code: address.zip_code || data.cep || "",
+      street: address.street || data.logradouro || "",
+      number: address.number || data.numero || "",
+      complement: address.complement || data.complemento || "",
+      neighborhood: address.neighborhood || data.bairro || "",
+      city: address.city || data.municipio || "",
+      state: address.state || data.uf || "",
+    },
+  };
+}
+
 async function generateUniqueSlug(table: "service_categories" | "product_categories" | "products" | "brands", value: string, excludeId?: string) {
   const baseSlug = slugify(value);
   const { data, error } = await supabase.from(table).select("id, slug");
@@ -166,6 +203,8 @@ async function generateUniqueSlug(table: "service_categories" | "product_categor
 const INPUT = "w-full bg-[#f8fafc] border border-[#0d1b2e]/15 rounded-lg px-3 py-2.5 text-sm text-[#0d1b2e] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/50 focus:border-[#0057e7] focus:bg-white transition-all placeholder-[#5a6a82]/50";
 
 function FInput({ label, required, hint, ...props }: { label?: string; required?: boolean; hint?: string; [k: string]: any }) {
+  const isColorInput = props.type === "color";
+  const inputProps = { ...props, type: isColorInput ? "text" : props.type, maxLength: isColorInput ? 7 : props.maxLength, placeholder: isColorInput ? "#2563EB" : props.placeholder };
   return (
     <div>
       {label && (
@@ -173,19 +212,19 @@ function FInput({ label, required, hint, ...props }: { label?: string; required?
           {label}{required && <span className="text-red-400">*</span>}
         </label>
       )}
-      <input className={INPUT} {...props} />
-      {hint && <p className="text-[10px] text-[#5a6a82] mt-1">{hint}</p>}
+      <input className={INPUT} {...inputProps} />
+      {(hint || isColorInput) && <p className="text-[10px] text-[#5a6a82] mt-1">{hint || "Use o formato #RRGGBB."}</p>}
     </div>
   );
 }
 
-function CustomerTypeToggle({ value, onChange }: { value: CustomerType; onChange: (value: CustomerType) => void }) {
+function CustomerTypeToggle({ value, onChange, disabled = false }: { value: CustomerType; onChange: (value: CustomerType) => void; disabled?: boolean }) {
   return (
     <div className="sm:col-span-2">
       <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Tipo de cliente</label>
       <div className="grid grid-cols-2 rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
         {[{ value: "PF" as const, label: "PESSOA FÍSICA" }, { value: "PJ" as const, label: "PESSOA JURÍDICA" }].map(option => (
-          <button key={option.value} type="button" onClick={() => onChange(option.value)} className={`px-3 py-2.5 text-xs font-black tracking-wide transition-colors ${value === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]"}`} aria-pressed={value === option.value}>{option.label}</button>
+          <button key={option.value} type="button" disabled={disabled} onClick={() => onChange(option.value)} className={`px-3 py-2.5 text-xs font-black tracking-wide transition-colors ${value === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]"} ${disabled ? "cursor-not-allowed opacity-70" : ""}`} aria-pressed={value === option.value}>{option.label}</button>
         ))}
       </div>
     </div>
@@ -226,7 +265,11 @@ function FToggle({ label, description, checked, onChange }: { label: string; des
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function isHexColor(value: string) {
+  return /^#[0-9A-Fa-f]{6}$/.test(value.trim());
+}
+
+function StatusBadge({ status, color }: { status: string; color?: string | null }) {
   const s = (status || "").toLowerCase();
   let cls = "bg-blue-100 text-blue-800";
   if (s.includes("conclu") || s.includes("pronto") || s.includes("finaliz") || s.includes("entregue") || s.includes("aprovad")) cls = "bg-emerald-100 text-emerald-800";
@@ -234,7 +277,7 @@ function StatusBadge({ status }: { status: string }) {
   else if (s.includes("cancel") || s.includes("recusad")) cls = "bg-red-100 text-red-800";
   else if (s.includes("ativo") || s.includes("ativa")) cls = "bg-emerald-100 text-emerald-800";
   else if (s.includes("inativo") || s.includes("inativa")) cls = "bg-red-100 text-red-800";
-  return <span className={cn("inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide", cls)}>{status || "—"}</span>;
+  return <span className={cn("inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide", color && isHexColor(color) ? "border" : cls)} style={color && isHexColor(color) ? { color, backgroundColor: `${color}20`, borderColor: `${color}55` } : undefined}>{status || "—"}</span>;
 }
 
 function LoadingState({ text = "Carregando..." }: { text?: string }) {
@@ -267,6 +310,56 @@ function EmptyState({ icon: Icon = Package, title, message, onAdd, addLabel = "A
   );
 }
 
+function PaginationBar({
+  page,
+  pageSize,
+  totalItems,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  onPageChange: (nextPage: number) => void;
+  onPageSizeChange: (nextPageSize: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  if (totalItems === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-[#0d1b2e]/8 bg-[#f8fafc] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-2 text-xs text-[#5a6a82]">
+        <span>Linhas:</span>
+        <select
+          value={pageSize}
+          onChange={(event) => onPageSizeChange(Number(event.target.value))}
+          className={cn(INPUT, "w-[82px] py-2 text-xs")}
+        >
+          {[10, 20, 30, 50, 100].map((value) => (
+            <option key={value} value={value}>{value}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex items-center justify-end gap-2">
+        <button type="button" onClick={() => onPageChange(1)} disabled={page <= 1} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#f5f7fa]" aria-label="Primeira página">
+          «
+        </button>
+        <button type="button" onClick={() => onPageChange(page - 1)} disabled={page <= 1} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#f5f7fa]" aria-label="Página anterior">
+          ‹
+        </button>
+        <span className="min-w-[92px] text-center text-xs font-bold text-[#0d1b2e]">{page} de {totalPages}</span>
+        <button type="button" onClick={() => onPageChange(page + 1)} disabled={page >= totalPages} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#f5f7fa]" aria-label="Próxima página">
+          ›
+        </button>
+        <button type="button" onClick={() => onPageChange(totalPages)} disabled={page >= totalPages} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#f5f7fa]" aria-label="Última página">
+          »
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Toast({ message, type = "success", onClose }: { message: string; type?: "success" | "error"; onClose: () => void }) {
   useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, [onClose]);
   return (
@@ -283,6 +376,7 @@ function QuickEquipmentModal({ onClose, onSaved }: {
   onClose: () => void;
   onSaved: (items: { type: any; brand: any; model: any }) => void;
 }) {
+  const { hasPermission } = useAuth();
   const [typeName, setTypeName] = useState("");
   const [brandName, setBrandName] = useState("");
   const [modelName, setModelName] = useState("");
@@ -327,7 +421,6 @@ function QuickEquipmentModal({ onClose, onSaved }: {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     } finally { setSaving(false); }
   };
-
   return (
     <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/35 p-4">
       <div className="absolute inset-0" onClick={onClose} />
@@ -337,13 +430,14 @@ function QuickEquipmentModal({ onClose, onSaved }: {
           <button type="button" onClick={onClose} className="p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa] rounded-lg" aria-label="Fechar"><X size={16} /></button>
         </div>
         <div className="p-4 space-y-3"><FInput label="Tipo de equipamento" required autoFocus value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Ex: Televisão" /><FInput label="Marca" required value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder="Ex: Samsung" /><FInput label="Modelo" required value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder="Ex: UN55CU7700" />{errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}</div>
-        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving || !typeName.trim() || !brandName.trim() || !modelName.trim()}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div>
+        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("equipment.create") && <BtnPrimary onClick={save} disabled={saving || !typeName.trim() || !brandName.trim() || !modelName.trim()}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
       </div>
     </div>
   );
 }
 
 function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; onSaved: (serviceType: any) => void }) {
+  const { hasPermission } = useAuth();
   const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true });
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -381,7 +475,7 @@ function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
           <FToggle label="Tipo ativo" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
           {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div>
+        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("service_types.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
       </div>
     </div>
   );
@@ -426,13 +520,107 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem" }: {
-  bucket: "service-images" | "product-images" | "brand-images" | "avatars" | "public-assets"; currentMediaId?: string | null; onUpload: (mediaId: string) => void; label?: string;
+async function getAuthenticatedSession() {
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!session?.user?.id) throw new Error("Não existe sessão autenticada. Faça login novamente para enviar imagens.");
+  console.log("[MEDIA] auth user:", session.user.id);
+  console.log("[MEDIA] access token exists:", !!session.access_token);
+  return session;
+}
+
+async function createMediaRecord({
+  bucket,
+  path,
+  file,
+}: {
+  bucket: "service-images" | "product-images" | "brand-images" | "avatars" | "public-assets";
+  path: string;
+  file: File;
+}) {
+  const session = await getAuthenticatedSession();
+
+  console.log("[MEDIA] auth user:", session.user.id);
+  console.log("[MEDIA] access token exists:", !!session.access_token);
+
+  const {
+    data,
+    error,
+  } = await supabase.functions.invoke("server", {
+    body: {
+      action: "upload_media_record",
+
+      bucket_id: bucket,
+
+      storage_path: path,
+
+      file_name: file.name,
+
+      file_size: file.size,
+
+      mime_type:
+        file.type || null,
+
+      alt_text:
+        file.name,
+    },
+  });
+
+  if (error) {
+    console.error(
+      "[MEDIA] Edge Function error:",
+      error
+    );
+
+    throw new Error(
+      error.message ||
+        "Não foi possível registrar a imagem."
+    );
+  }
+
+  if (!data?.success || !data?.media_id) {
+    console.error(
+      "[MEDIA] Invalid Edge Function response:",
+      data
+    );
+
+    throw new Error(
+      data?.error ||
+        "Não foi possível registrar a imagem."
+    );
+  }
+
+  console.log(
+    "[MEDIA] record created:",
+    {
+      mediaId:
+        data.media_id,
+
+      uploadedBy:
+        data.user_id,
+    }
+  );
+
+  return data.media_id as string;
+}
+
+function supabaseErrorMessage(error: unknown) {
+  if (error && typeof error === "object") {
+    const value = error as { message?: string; details?: string; hint?: string; code?: string };
+    return [value.message, value.details, value.hint, value.code ? `Código: ${value.code}` : ""].filter(Boolean).join(" | ");
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true }: {
+  bucket: "service-images" | "product-images" | "brand-images" | "avatars" | "public-assets"; currentMediaId?: string | null; onUpload: (mediaId: string) => void; label?: string; canUpload?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
-  const { user } = useAuth();
   const { url: currentUrl } = useMediaUrl(currentMediaId);
 
   useEffect(() => {
@@ -440,45 +628,114 @@ function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem" }: {
     return () => URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+const handleFile = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file =
+      e.target.files?.[0];
+
     if (!file) return;
 
-    const objectUrl = URL.createObjectURL(file);
+    const objectUrl =
+      URL.createObjectURL(file);
+
     setPreviewUrl(objectUrl);
     setUploading(true);
 
     try {
-      const ext = file.name.split(".").pop();
-      const path = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}.${ext}`;
-      const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
-      if (error) throw error;
+      const ext =
+        file.name
+          .split(".")
+          .pop()
+          ?.toLowerCase();
 
-      const { data: media, error: mediaError } = await supabase.from("media").insert({
-        bucket_id: bucket,
-        storage_path: path,
-        file_name: file.name,
-        file_size: file.size,
-        mime_type: file.type || null,
-        alt_text: file.name,
-        uploaded_by: user?.id || null,
-      }).select("id").single();
+      const path =
+        `${Date.now()}-${Math.random()
+          .toString(36)
+          .substr(2, 6)}.${ext}`;
 
-      if (mediaError) throw mediaError;
-      onUpload(media.id);
-      setPreviewUrl(null);
+      /* ================================================
+        Upload para Storage
+        ================================================ */
+
+      const {
+        error: uploadError,
+      } =
+        await supabase.storage
+          .from(bucket)
+          .upload(
+            path,
+            file,
+            {
+              upsert: true,
+            }
+          );
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      /* ================================================
+        Registro em public.media através da Edge Function
+        ================================================ */
+
+      try {
+        const mediaId =
+          await createMediaRecord({
+            bucket,
+            path,
+            file,
+          });
+
+        onUpload(mediaId);
+        setPreviewUrl(null);
+      } catch (mediaError) {
+        /*
+        * Se Storage funcionou mas public.media falhou,
+        * remove o arquivo para evitar arquivo órfão.
+        */
+
+        console.error(
+          "[MEDIA] media record error:",
+          mediaError
+        );
+
+        const {
+          error: removeError,
+        } =
+          await supabase.storage
+            .from(bucket)
+            .remove([
+              path,
+            ]);
+
+        if (removeError) {
+          console.warn(
+            "[MEDIA] orphan cleanup failed:",
+            removeError
+          );
+        }
+
+        throw mediaError;
+      }
     } catch (error) {
-      console.error("[SUPABASE]", {
-        error,
-        message: (error as any)?.message,
-        details: (error as any)?.details,
-        hint: (error as any)?.hint,
-        code: (error as any)?.code,
-      });
-      setPreviewUrl(null);
+      console.error(
+        "[SUPABASE] Image upload error:",
+        error
+      );
+
+      alert(
+        supabaseErrorMessage(
+          error
+        )
+      );
     } finally {
       setUploading(false);
-      if (ref.current) ref.current.value = "";
+
+      /*
+      * Permite selecionar novamente o mesmo arquivo.
+      */
+      e.currentTarget.value = "";
     }
   };
 
@@ -493,10 +750,10 @@ function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem" }: {
         </div>
       )}
       <input ref={ref} type="file" accept="image/*" onChange={handleFile} className="hidden" />
-      <button type="button" onClick={() => ref.current?.click()} disabled={uploading}
+      {canUpload && <button type="button" onClick={() => ref.current?.click()} disabled={uploading}
         className="flex items-center gap-2 text-xs font-bold text-[#0057e7] border border-[#0057e7]/40 hover:border-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg transition-colors disabled:opacity-50">
         <Upload size={13} /> {uploading ? "Enviando..." : displayUrl ? "Trocar imagem" : "Selecionar imagem"}
-      </button>
+      </button>}
     </div>
   );
 }
@@ -631,7 +888,7 @@ export function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
 
 function SidebarItem({ item, active, onClick }: { item: { id: string; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }; active: boolean; onClick: () => void }) {
   const Icon = item.icon;
-  return <button onClick={onClick} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all text-left", active ? "bg-[#0057e7] text-white shadow-lg shadow-[#0057e7]/25" : "text-white/60 hover:bg-white/8 hover:text-white")}><Icon size={16} className="flex-shrink-0" /><span>{item.label}</span></button>;
+  return <button type="button" onClick={onClick} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all text-left", active ? "bg-[#0057e7] text-white shadow-lg shadow-[#0057e7]/25" : "text-white/60 hover:bg-white/8 hover:text-white")}><Icon size={16} className="flex-shrink-0" /><span>{item.label}</span></button>;
 }
 
 function AdminHubPage({ title, description, items, onSelect }: { title: string; description: string; items: { id: string; label: string; description: string; icon: React.ComponentType<{ size?: number; className?: string }> }[]; onSelect: (id: string, label: string) => void }) {
@@ -641,14 +898,13 @@ function AdminHubPage({ title, description, items, onSelect }: { title: string; 
 /* ─────────────────────────── ADMIN DASHBOARD WRAPPER ─────────────────────────── */
 
 export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, role, loading, signOut, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState<AdminPageState>(null);
   const [focusedOrderId, setFocusedOrderId] = useState<string | null>(null);
 
-  const roleName = (profile as any)?.role_id === "gestor" || (profile as any)?.role === "gestor" ? "GESTOR" : "FUNCIONARIO";
-  const isGestor = roleName === "GESTOR";
+  const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
 
   const mainItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -658,23 +914,30 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     { id: "agenda", label: "Agenda", icon: CalendarDays },
   ];
   const siteItems = [
-    { id: "products", label: "Produtos", icon: Package, description: "Cadastre e gerencie os produtos exibidos na loja online." },
-    { id: "categories", label: "Categorias", icon: FolderTree, description: "Organize as categorias utilizadas pelos produtos do site." },
-    { id: "brands", label: "Marcas", icon: Tag, description: "Gerencie as marcas utilizadas no catálogo da loja." },
-    { id: "services", label: "Serviços do Site", icon: Wrench, description: "Cadastre e gerencie os serviços apresentados no site público." },
+    { id: "products", label: "Produtos", icon: Package, description: "Cadastre e gerencie os produtos exibidos na loja online.", permissionKey: "products.view" },
+    { id: "categories", label: "Categorias", icon: FolderTree, description: "Organize as categorias utilizadas pelos produtos do site.", permissionKey: "categories.view" },
+    { id: "brands", label: "Marcas", icon: Tag, description: "Gerencie as marcas utilizadas no catálogo da loja.", permissionKey: "brands.view" },
+    { id: "services", label: "Serviços do Site", icon: Wrench, description: "Cadastre e gerencie os serviços apresentados no site público.", permissionKey: "services.view" },
   ];
   const operationItems = [
-    { id: "equipment", label: "Equipamentos", icon: Wrench, description: "Cadastre equipamentos, marcas e modelos técnicos." },
-    { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica." },
-    { id: "serviceTypes", label: "Tipos de Atendimento", icon: List, description: "Configure tipos e previsão de atendimento das OS." },
-    { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS." },
-    { id: "orderStatuses", label: "Status da OS", icon: CheckCircle, description: "Gerencie os status do fluxo das ordens de serviço." },
-    { id: "employees", label: "Equipes / Funcionários", icon: Users, description: "Cadastre funcionários, técnicos e gestores da equipe." },
+    { id: "equipment", label: "Equipamentos", icon: Wrench, description: "Cadastre equipamentos, marcas e modelos técnicos.", permissionKey: "equipment.view" },
+    { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica.", permissionKey: "general_services.view" },
+    { id: "serviceTypes", label: "Tipos de Atendimento", icon: List, description: "Configure tipos e previsão de atendimento das OS.", permissionKey: "service_types.view" },
+    { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "orders.view" },
+    { id: "orderStatuses", label: "Status da OS", icon: CheckCircle, description: "Gerencie os status do fluxo das ordens de serviço.", permissionKey: "orders.view" },
+    { id: "employees", label: "Equipes / Funcionários", icon: Users, description: "Cadastre funcionários, técnicos e gestores da equipe.", permissionKey: "employees.view" },
   ];
   const utilityItems = [
     { id: "settings", label: "Configurações", icon: Settings },
     { id: "contact", label: "Contato", icon: Phone },
   ];
+  const permissionForTab: Record<string, string> = {
+    dashboard: "dashboard.view", quotes: "quotes.view", orders: "orders.view", customers: "customers.view", agenda: "agenda.view",
+    products: "products.view", categories: "categories.view", brands: "brands.view", services: "services.view", equipment: "equipment.view",
+    generalServices: "general_services.view", serviceTypes: "service_types.view", situations: "orders.view", orderStatuses: "orders.view",
+    employees: "employees.view", settings: "settings.view", contact: "contact.view",
+  };
+  const canAccessTab = (tab: string) => hasPermission(permissionForTab[tab] || `${tab}.view`);
 
   const SidebarContent = () => (
     <>
@@ -693,8 +956,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         </div>
         {/* Nav */}
         <div className="px-3 py-4 space-y-0.5">
-          {mainItems.map((item) => {
-            if (item.gestorOnly && !isGestor) return null;
+          {mainItems.filter(item => canAccessTab(item.id)).map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
             return (
@@ -706,9 +968,9 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
               </button>
             );
           })}
-          <SidebarItem item={{ id: "site", label: "Site", icon: Globe }} active={activeTab === "site"} onClick={() => { setActiveTab("site"); setPage(null); setSidebarOpen(false); }} />
-          <SidebarItem item={{ id: "operation", label: "Operação", icon: Settings }} active={activeTab === "operation"} onClick={() => { setActiveTab("operation"); setPage(null); setSidebarOpen(false); }} />
-          <div className="pt-3 space-y-0.5">{utilityItems.map(item => <SidebarItem key={item.id} item={item} active={activeTab === item.id} onClick={() => { setActiveTab(item.id as AdminTab); setPage(null); setSidebarOpen(false); }} />)}</div>
+          {hasPermission("site.view") && <SidebarItem item={{ id: "site", label: "Site", icon: Globe }} active={activeTab === "site"} onClick={() => { setActiveTab("site"); setPage(null); setSidebarOpen(false); }} />}
+          {["orders.view", "customers.view", "employees.view", "equipment.view", "service_types.view", "services.view", "general_services.view"].some(hasPermission) && <SidebarItem item={{ id: "operation", label: "Operação", icon: Settings }} active={activeTab === "operation"} onClick={() => { setActiveTab("operation"); setPage(null); setSidebarOpen(false); }} />}
+          <div className="pt-3 space-y-0.5">{utilityItems.filter(item => canAccessTab(item.id)).map(item => <SidebarItem key={item.id} item={item} active={activeTab === item.id} onClick={() => { setActiveTab(item.id as AdminTab); setPage(null); setSidebarOpen(false); }} />)}</div>
         </div>
         {/* Back to site */}
         <div className="px-3 pb-3">
@@ -805,25 +1067,25 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
         {/* Content */}
         <div className="flex-1 p-4 sm:p-6">
-          {activeTab === "dashboard" && <TabDashboard />}
-          {activeTab === "services" && <TabServices onBack={() => { setActiveTab("site"); setPage(null); }} />}
-          {activeTab === "categories" && <TabCategories onBack={() => { setActiveTab("site"); setPage(null); }} />}
-          {activeTab === "products" && <TabProducts onBack={() => { setActiveTab("site"); setPage(null); }} />}
-          {activeTab === "brands" && <TabBrands onBack={() => { setActiveTab("site"); setPage(null); }} />}
-          {activeTab === "site" && <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems} onSelect={(id, label) => { setPage({ breadcrumb: "Site", title: label, onBack: () => { setActiveTab("site"); setPage(null); } }); setActiveTab(id as AdminTab); }} />}
-          {activeTab === "operation" && <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems} onSelect={(id, label) => { setPage({ breadcrumb: "Operação", title: label, onBack: () => { setActiveTab("operation"); setPage(null); } }); setActiveTab(id as AdminTab); }} />}
-          {activeTab === "equipment" && <EquipmentAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "generalServices" && <GeneralServicesPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "serviceTypes" && <ServiceTypesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "situations" && <OSSituationsView onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "orderStatuses" && <OrderStatusesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "quotes" && <TabQuotes onNavigate={setActiveTab} />}
-          {activeTab === "orders" && <TabOrders onNavigate={setActiveTab} initialOrderId={focusedOrderId} onFocused={() => setFocusedOrderId(null)} />}
-          {activeTab === "agenda" && <TabAgenda onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />}
-          {activeTab === "customers" && <TabCustomers />}
-          {activeTab === "employees" && <TabEmployees onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "settings" && <TabSettings />}
-          {activeTab === "contact" && <TabContact />}
+          {activeTab === "dashboard" && canAccessTab("dashboard") && <TabDashboard />}
+          {activeTab === "services" && canAccessTab("services") && <TabServices onBack={() => { setActiveTab("site"); setPage(null); }} />}
+          {activeTab === "categories" && canAccessTab("categories") && <TabCategories onBack={() => { setActiveTab("site"); setPage(null); }} />}
+          {activeTab === "products" && canAccessTab("products") && <TabProducts onBack={() => { setActiveTab("site"); setPage(null); }} />}
+          {activeTab === "brands" && canAccessTab("brands") && <TabBrands onBack={() => { setActiveTab("site"); setPage(null); }} />}
+          {activeTab === "site" && <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey))} onSelect={(id, label) => { setPage({ breadcrumb: "Site", title: label, onBack: () => { setActiveTab("site"); setPage(null); } }); setActiveTab(id as AdminTab); }} />}
+          {activeTab === "operation" && <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey))} onSelect={(id, label) => { setPage({ breadcrumb: "Operação", title: label, onBack: () => { setActiveTab("operation"); setPage(null); } }); setActiveTab(id as AdminTab); }} />}
+          {activeTab === "equipment" && canAccessTab("equipment") && <EquipmentAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "generalServices" && canAccessTab("generalServices") && <GeneralServicesPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "serviceTypes" && canAccessTab("serviceTypes") && <ServiceTypesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "situations" && canAccessTab("situations") && <OSSituationsView onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "orderStatuses" && canAccessTab("orderStatuses") && <OrderStatusesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "quotes" && canAccessTab("quotes") && <TabQuotes onNavigate={setActiveTab} />}
+          {activeTab === "orders" && canAccessTab("orders") && <TabOrders onNavigate={setActiveTab} initialOrderId={focusedOrderId} onFocused={() => setFocusedOrderId(null)} />}
+          {activeTab === "agenda" && canAccessTab("agenda") && <TabAgenda onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />}
+          {activeTab === "customers" && canAccessTab("customers") && <TabCustomers />}
+          {activeTab === "employees" && canAccessTab("employees") && <TabEmployees onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "settings" && canAccessTab("settings") && <TabSettings />}
+          {activeTab === "contact" && canAccessTab("contact") && <TabContact />}
         </div>
       </main>
     </div>
@@ -843,11 +1105,11 @@ function TabDashboard() {
     setLoading(true);
     const [qAll, oAll, sActive, pActive, rQuotes, rOrders] = await Promise.all([
       supabase.from("quote_requests").select("id, status_id, request_status:request_statuses(name)"),
-      supabase.from("service_orders").select("id, os_number, tracking_token, status_id, created_at, updated_at, customer_id, order_status:order_statuses(name)"),
+      supabase.from("service_orders").select("id, os_number, tracking_token, status_id, created_at, updated_at, customer_id, order_status:order_statuses(name,color)"),
       supabase.from("services").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("quote_requests").select("id, protocol, created_at, customer_id, service_id, brand_id, request_status:request_statuses(name), customer:customers(full_name), service:services(title), brand:brands(name)").order("created_at", { ascending: false }).limit(5),
-      supabase.from("service_orders").select("id, os_number, service:services(title), created_at, updated_at, status_id, order_status:order_statuses(name), customer:customers(full_name)").order("created_at", { ascending: false }).limit(5),
+      supabase.from("service_orders").select("id, os_number, service:services(title), created_at, updated_at, status_id, order_status:order_statuses(name,color), customer:customers(full_name)").order("created_at", { ascending: false }).limit(5),
     ]);
     const quotes = qAll.data || [];
     const orders = oAll.data || [];
@@ -948,7 +1210,7 @@ function TabDashboard() {
                         <p className="text-xs text-[#5a6a82] truncate">{(o.customer as any)?.full_name || (o.service as any)?.title || "Assistência Técnica"}</p>
                       </div>
                       <div className="flex-shrink-0 text-right">
-                        <StatusBadge status={(o.order_status as any)?.name || "Em andamento"} />
+                        <StatusBadge status={(o.order_status as any)?.name || "Em andamento"} color={(o.order_status as any)?.color} />
                         <p className="text-[10px] text-[#5a6a82] mt-1">{fmtDate(o.updated_at || o.created_at)}</p>
                       </div>
                     </div>
@@ -972,6 +1234,7 @@ function GeneralServicesPanel({ onBack }: { onBack: () => void }) {
 }
 
 function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
+  const { hasPermission } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -984,13 +1247,15 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
   useEffect(() => { load(); }, []);
   const openNew = () => { setEditItem(null); setName(""); setActive(true); setFormOpen(true); };
   const openEdit = (item: any) => { setEditItem(item); setName(item.name || ""); setActive(item.is_active !== false); setFormOpen(true); };
-  const save = async () => { if (!name.trim()) { setToast({ msg: "Informe o nome do serviço.", type: "error" }); return; } setSaving(true); const result = editItem ? await updateGeneralService(editItem.id, { name: name.trim(), is_active: active }) : await createGeneralService({ name: name.trim(), is_active: active, sort_order: items.length }); setSaving(false); if (result.error) { console.error("[ADMIN] general service save error:", result.error); setToast({ msg: `Erro ao salvar serviço geral: ${result.error.message}`, type: "error" }); return; } setFormOpen(false); setToast({ msg: editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" }); load(); };
-  const toggle = async (item: any) => { const result = await setGeneralServiceActive(item.id, !item.is_active); if (result.error) { console.error("[ADMIN] general service toggle error:", result.error); setToast({ msg: `Erro ao atualizar serviço: ${result.error.message}`, type: "error" }); return; } load(); };
-  return <div className="space-y-5"><InternalBackButton onBack={onBack} />{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={<BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary>} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={openNew} addLabel="Novo serviço" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="flex items-center justify-between px-5 py-4 hover:bg-[#f8fafc]"><div><p className="font-bold text-[#0d1b2e]">{item.name}</p><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></div><div className="flex gap-1"><button onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno"><div className="p-5"><Section title="Serviço geral"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage></div>;
+  const canCreate = hasPermission("general_services.create");
+  const canEdit = hasPermission("general_services.edit");
+  const save = async () => { if (!(editItem ? canEdit : canCreate)) return; if (!name.trim()) { setToast({ msg: "Informe o nome do serviço.", type: "error" }); return; } setSaving(true); const result = editItem ? await updateGeneralService(editItem.id, { name: name.trim(), is_active: active }) : await createGeneralService({ name: name.trim(), is_active: active, sort_order: items.length }); setSaving(false); if (result.error) { console.error("[ADMIN] general service save error:", result.error); setToast({ msg: `Erro ao salvar serviço geral: ${result.error.message}`, type: "error" }); return; } setFormOpen(false); setToast({ msg: editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" }); load(); };
+  const toggle = async (item: any) => { if (!canEdit) return; const result = await setGeneralServiceActive(item.id, !item.is_active); if (result.error) { console.error("[ADMIN] general service toggle error:", result.error); setToast({ msg: `Erro ao atualizar serviço: ${result.error.message}`, type: "error" }); return; } load(); };
+  return <div className="space-y-5"><InternalBackButton onBack={onBack} />{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary> : null} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={canCreate ? openNew : undefined} addLabel="Novo serviço" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="flex items-center justify-between px-5 py-4 hover:bg-[#f8fafc]"><div><p className="font-bold text-[#0d1b2e]">{item.name}</p><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></div><div className="flex gap-1">{canEdit && <><button onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></>}</div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno"><div className="p-5"><Section title="Serviço geral"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div></AdminPage></div>;
 }
 
 function TabServices({ onBack }: { onBack: () => void }) {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [services, setServices] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
@@ -999,6 +1264,8 @@ function TabServices({ onBack }: { onBack: () => void }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [serviceView, setServiceView] = useState<"site" | "general">("site");
@@ -1026,6 +1293,7 @@ function TabServices({ onBack }: { onBack: () => void }) {
   const openEdit = (s: any) => { setEditItem(s); setDrawerOpen(true); };
 
   const handleDelete = async (id: string) => {
+    if (!hasPermission("services.delete")) return;
     console.log("[ADMIN] Deleting service:", id);
     const { error } = await supabase.from("services").delete().eq("id", id);
     if (error) {
@@ -1053,6 +1321,17 @@ function TabServices({ onBack }: { onBack: () => void }) {
   const filtered = services.filter(s =>
     !search || s.title?.toLowerCase().includes(search.toLowerCase())
   );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedServices = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   return (
     <div className="space-y-5">
@@ -1060,19 +1339,19 @@ function TabServices({ onBack }: { onBack: () => void }) {
       {delId && <ConfirmDialog message="Excluir este serviço e todos os dados associados?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Serviços do Site" subtitle={`${services.length} serviço${services.length !== 1 ? "s" : ""} cadastrado${services.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary></div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("services.create") && <BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-[#0d1b2e]/8 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar serviços..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar serviços..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
         </div>
 
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={Wrench} title={search ? "Nenhum resultado" : "Nenhum serviço cadastrado"} message={search ? `Nenhum serviço com "${search}"` : "Clique em Novo serviço para começar."} onAdd={!search ? openNew : undefined} addLabel="Novo serviço" />
+          <EmptyState icon={Wrench} title={search ? "Nenhum resultado" : "Nenhum serviço cadastrado"} message={search ? `Nenhum serviço com "${search}"` : "Clique em Novo serviço para começar."} onAdd={!search && hasPermission("services.create") ? openNew : undefined} addLabel="Novo serviço" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
@@ -1087,7 +1366,7 @@ function TabServices({ onBack }: { onBack: () => void }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
-                {filtered.map(s => {
+                {pagedServices.map(s => {
                   const cat = categories.find(c => c.id === s.category_id);
                   return (
                     <tr key={s.id} className="hover:bg-[#f8fafc]/80 transition-colors">
@@ -1107,11 +1386,11 @@ function TabServices({ onBack }: { onBack: () => void }) {
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openEdit(s)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors" title="Editar"><Edit2 size={15} /></button>
-                          <button onClick={() => toggleActive(s)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={s.is_active ? "Desativar" : "Ativar"}>
+                          {hasPermission("services.update") && <button onClick={() => openEdit(s)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors" title="Editar"><Edit2 size={15} /></button>}
+                          {hasPermission("services.update") && <button onClick={() => toggleActive(s)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={s.is_active ? "Desativar" : "Ativar"}>
                             {s.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
-                          </button>
-                          <button onClick={() => setDelId(s.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir"><Trash2 size={15} /></button>
+                          </button>}
+                          {hasPermission("services.delete") && <button onClick={() => setDelId(s.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir"><Trash2 size={15} /></button>}
                         </div>
                       </td>
                     </tr>
@@ -1121,6 +1400,13 @@ function TabServices({ onBack }: { onBack: () => void }) {
             </table>
           </div>
         )}
+        <PaginationBar
+          page={safePage}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
+          onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+        />
       </div>
 
       <ServiceDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); load(); }} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
@@ -1131,6 +1417,7 @@ function TabServices({ onBack }: { onBack: () => void }) {
 function ServiceDrawer({ open, onClose, editItem, categories, brands, products, userId, onToast }: {
   open: boolean; onClose: () => void; editItem: any | null; categories: any[]; brands: any[]; products: any[]; userId: string | null; onToast: (t: { msg: string; type: "success" | "error" }) => void;
 }) {
+  const { hasPermission } = useAuth();
   const [tab, setTab] = useState("info");
   const [saving, setSaving] = useState(false);
 
@@ -1227,6 +1514,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
   };
 
   const handleSave = async () => {
+    if (!(editItem ? hasPermission("services.update") : hasPermission("services.create"))) return;
     if (!name.trim()) { onToast({ msg: "Nome do serviço é obrigatório.", type: "error" }); return; }
     setSaving(true);
     try {
@@ -1464,7 +1752,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
               </div>
             </Section>
             <Section title="Imagem de capa">
-              <ImageUpload bucket="service-images" currentMediaId={coverMediaId} onUpload={setCoverMediaId} label="Imagem do serviço" />
+              <ImageUpload bucket="service-images" currentMediaId={coverMediaId} onUpload={setCoverMediaId} canUpload={editItem ? hasPermission("services.update") : hasPermission("services.create")} label="Imagem do serviço" />
             </Section>
           </>
         )}
@@ -1487,15 +1775,15 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
                     <FInput label={i === 0 ? "Preço (R$)" : undefined} value={v.price} onChange={(e: any) => { const n = [...variants]; n[i].price = e.target.value; setVariants(n); }} placeholder="Ex: 250.00 (vazio = consultar)" type="number" min="0" step="0.01" />
                     <FInput label={i === 0 ? "Descrição" : undefined} value={v.description} onChange={(e: any) => { const n = [...variants]; n[i].description = e.target.value; setVariants(n); }} placeholder="Descrição da variação" />
                   </div>
-                  <button type="button" onClick={() => setVariants(variants.filter((_, idx) => idx !== i))} className="mt-5 p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
+                  {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setVariants(variants.filter((_, idx) => idx !== i))} className="mt-5 p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
                     <X size={15} />
-                  </button>
+                  </button>}
                 </div>
               ))}
-              <button type="button" onClick={() => setVariants([...variants, { title: "", description: "", price: "" }])}
+              {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setVariants([...variants, { title: "", description: "", price: "" }])}
                 className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center transition-colors">
                 <Plus size={14} /> Adicionar variação
-              </button>
+              </button>}
             </Section>
           </>
         )}
@@ -1509,29 +1797,29 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
                 <CheckCircle size={14} className="text-emerald-500 flex-shrink-0" />
                 <input value={f} onChange={(e) => { const n = [...features]; n[i] = e.target.value; setFeatures(n); }}
                   className={cn(INPUT, "py-2 text-xs flex-1")} placeholder={`Item ${i + 1}...`} />
-                <button type="button" onClick={() => setFeatures(features.filter((_, idx) => idx !== i))} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
+                {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setFeatures(features.filter((_, idx) => idx !== i))} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
                   <X size={14} />
-                </button>
+                </button>}
               </div>
             ))}
-            <button type="button" onClick={() => setFeatures([...features, ""])}
+            {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setFeatures([...features, ""])}
               className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center mt-2 transition-colors">
               <Plus size={14} /> Adicionar item
-            </button>
+            </button>}
           </Section>
         )}
 
         {tab === "exclusions" && (
           <Section title="O que não está incluso">
-            {exclusions.map((item, index) => <div key={index} className="flex items-center gap-2 mb-2"><X size={14} className="text-red-500" /><input value={item} onChange={(event) => { const next = [...exclusions]; next[index] = event.target.value; setExclusions(next); }} className={cn(INPUT, "py-2 text-xs flex-1")} placeholder={`Item ${index + 1}...`} /><button type="button" onClick={() => setExclusions(exclusions.filter((_, itemIndex) => itemIndex !== index))} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><X size={14} /></button></div>)}
-            <button type="button" onClick={() => setExclusions([...exclusions, ""])} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center mt-2"><Plus size={14} /> Adicionar item</button>
+            {exclusions.map((item, index) => <div key={index} className="flex items-center gap-2 mb-2"><X size={14} className="text-red-500" /><input value={item} onChange={(event) => { const next = [...exclusions]; next[index] = event.target.value; setExclusions(next); }} className={cn(INPUT, "py-2 text-xs flex-1")} placeholder={`Item ${index + 1}...`} />{hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setExclusions(exclusions.filter((_, itemIndex) => itemIndex !== index))} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><X size={14} /></button>}</div>)}
+            {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setExclusions([...exclusions, ""])} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center mt-2"><Plus size={14} /> Adicionar item</button>}
           </Section>
         )}
 
         {tab === "factors" && (
           <Section title="Fatores que alteram preço">
-            {priceFactors.map((factor, index) => <div key={index} className="mb-3 p-3 bg-[#f8fafc] rounded-lg border border-[#0d1b2e]/8 grid grid-cols-1 sm:grid-cols-2 gap-3"><FInput label="Título" value={factor.name} onChange={(event: any) => { const next = [...priceFactors]; next[index].name = event.target.value; setPriceFactors(next); }} /><FSelect label="Impacto" value={factor.impact} onChange={(event: any) => { const next = [...priceFactors]; next[index].impact = event.target.value; setPriceFactors(next); }} options={[{ value: "increase", label: "Aumenta" }, { value: "decrease", label: "Reduz" }]} /><FInput label="Valor" type="number" value={factor.amount} onChange={(event: any) => { const next = [...priceFactors]; next[index].amount = event.target.value; setPriceFactors(next); }} /><FInput label="Unidade" value={factor.unit} onChange={(event: any) => { const next = [...priceFactors]; next[index].unit = event.target.value; setPriceFactors(next); }} /><div className="sm:col-span-2"><FTextarea label="Descrição" value={factor.description} onChange={(event: any) => { const next = [...priceFactors]; next[index].description = event.target.value; setPriceFactors(next); }} rows={2} /></div><button type="button" onClick={() => setPriceFactors(priceFactors.filter((_, factorIndex) => factorIndex !== index))} className="text-xs text-red-600 font-bold">Remover fator</button></div>)}
-            <button type="button" onClick={() => setPriceFactors([...priceFactors, { name: "", description: "", impact: "increase", amount: "", unit: "" }])} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center"><Plus size={14} /> Adicionar fator</button>
+            {priceFactors.map((factor, index) => <div key={index} className="mb-3 p-3 bg-[#f8fafc] rounded-lg border border-[#0d1b2e]/8 grid grid-cols-1 sm:grid-cols-2 gap-3"><FInput label="Título" value={factor.name} onChange={(event: any) => { const next = [...priceFactors]; next[index].name = event.target.value; setPriceFactors(next); }} /><FSelect label="Impacto" value={factor.impact} onChange={(event: any) => { const next = [...priceFactors]; next[index].impact = event.target.value; setPriceFactors(next); }} options={[{ value: "increase", label: "Aumenta" }, { value: "decrease", label: "Reduz" }]} /><FInput label="Valor" type="number" value={factor.amount} onChange={(event: any) => { const next = [...priceFactors]; next[index].amount = event.target.value; setPriceFactors(next); }} /><FInput label="Unidade" value={factor.unit} onChange={(event: any) => { const next = [...priceFactors]; next[index].unit = event.target.value; setPriceFactors(next); }} /><div className="sm:col-span-2"><FTextarea label="Descrição" value={factor.description} onChange={(event: any) => { const next = [...priceFactors]; next[index].description = event.target.value; setPriceFactors(next); }} rows={2} /></div>{hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setPriceFactors(priceFactors.filter((_, factorIndex) => factorIndex !== index))} className="text-xs text-red-600 font-bold">Remover fator</button>}</div>)}
+            {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setPriceFactors([...priceFactors, { name: "", description: "", impact: "increase", amount: "", unit: "" }])} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center"><Plus size={14} /> Adicionar fator</button>}
           </Section>
         )}
 
@@ -1545,9 +1833,9 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
                   <span className="text-xs font-bold text-[#5a6a82] mt-2.5 flex-shrink-0">P.</span>
                   <input value={f.question} onChange={(e) => { const n = [...faqs]; n[i].question = e.target.value; setFaqs(n); }}
                     className={cn(INPUT, "py-2 text-xs flex-1")} placeholder="Pergunta..." />
-                  <button type="button" onClick={() => setFaqs(faqs.filter((_, idx) => idx !== i))} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 mt-0.5">
+                  {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setFaqs(faqs.filter((_, idx) => idx !== i))} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 mt-0.5">
                     <X size={14} />
-                  </button>
+                  </button>}
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="text-xs font-bold text-[#5a6a82] mt-2.5 flex-shrink-0">R.</span>
@@ -1556,17 +1844,17 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
                 </div>
               </div>
             ))}
-            <button type="button" onClick={() => setFaqs([...faqs, { question: "", answer: "" }])}
+            {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setFaqs([...faqs, { question: "", answer: "" }])}
               className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center transition-colors">
               <Plus size={14} /> Adicionar pergunta
-            </button>
+            </button>}
           </Section>
         )}
 
         {tab === "sections" && (
           <Section title="Seções personalizadas">
-            {sections.map((section, index) => <div key={index} className="mb-3 p-3 bg-[#f8fafc] rounded-lg border border-[#0d1b2e]/8 space-y-3"><FInput label="Título" value={section.title} onChange={(event: any) => { const next = [...sections]; next[index].title = event.target.value; setSections(next); }} /><FTextarea label="Conteúdo" value={section.content} onChange={(event: any) => { const next = [...sections]; next[index].content = event.target.value; setSections(next); }} rows={3} /><button type="button" onClick={() => setSections(sections.filter((_, sectionIndex) => sectionIndex !== index))} className="text-xs text-red-600 font-bold">Remover seção</button></div>)}
-            <button type="button" onClick={() => setSections([...sections, { title: "", content: "" }])} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center"><Plus size={14} /> Adicionar seção</button>
+            {sections.map((section, index) => <div key={index} className="mb-3 p-3 bg-[#f8fafc] rounded-lg border border-[#0d1b2e]/8 space-y-3"><FInput label="Título" value={section.title} onChange={(event: any) => { const next = [...sections]; next[index].title = event.target.value; setSections(next); }} /><FTextarea label="Conteúdo" value={section.content} onChange={(event: any) => { const next = [...sections]; next[index].content = event.target.value; setSections(next); }} rows={3} />{hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setSections(sections.filter((_, sectionIndex) => sectionIndex !== index))} className="text-xs text-red-600 font-bold">Remover seção</button>}</div>)}
+            {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setSections([...sections, { title: "", content: "" }])} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg border border-dashed border-[#0057e7]/40 w-full justify-center"><Plus size={14} /> Adicionar seção</button>}
           </Section>
         )}
 
@@ -1589,10 +1877,10 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
         </p>
         <div className="flex gap-3">
           <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={handleSave} disabled={saving}>
+          {(editItem ? hasPermission("services.update") : hasPermission("services.create")) && <BtnPrimary onClick={handleSave} disabled={saving}>
             {saving ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
             {saving ? "Salvando..." : "Salvar serviço"}
-          </BtnPrimary>
+          </BtnPrimary>}
         </div>
       </div>
     </AdminPage>
@@ -1602,6 +1890,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
 /* ─────────────────────────── TAB: CATEGORIES ─────────────────────────── */
 
 function TabCategories({ onBack }: { onBack: () => void }) {
+  const { hasPermission } = useAuth();
   const [cats, setCats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -1627,6 +1916,7 @@ function TabCategories({ onBack }: { onBack: () => void }) {
   const openEdit = (c: any) => { setForm({ name: c.name || "", slug: c.slug || "", is_active: c.is_active ?? true, sort_order: c.sort_order ?? 0 }); setEditItem(c); setDrawerOpen(true); };
 
   const handleSave = async () => {
+    if (!(editItem ? hasPermission("categories.update") : hasPermission("categories.create"))) return;
     if (!form.name.trim()) { setToast({ msg: "Nome obrigatório.", type: "error" }); return; }
     setSaving(true);
     try {
@@ -1651,12 +1941,14 @@ function TabCategories({ onBack }: { onBack: () => void }) {
   };
 
   const handleDelete = async (id: string) => {
+    if (!hasPermission("categories.delete")) return;
     const { error } = await supabase.from("service_categories").delete().eq("id", id);
     if (error) { console.error("[ADMIN] service_categories delete error:", error); setToast({ msg: `Erro ao excluir categoria: ${error.message}`, type: "error" }); return; }
     setDelId(null); setToast({ msg: "Categoria excluída.", type: "success" }); load();
   };
 
   const toggleActive = async (category: any) => {
+    if (!hasPermission("categories.update")) return;
     const { error } = await supabase.from("service_categories").update({ is_active: !category.is_active }).eq("id", category.id);
     if (error) { console.error("[ADMIN] service_categories toggle error:", error); setToast({ msg: `Erro ao atualizar categoria: ${error.message}`, type: "error" }); return; }
     setToast({ msg: "Status atualizado!", type: "success" }); load();
@@ -1668,12 +1960,12 @@ function TabCategories({ onBack }: { onBack: () => void }) {
       {delId && <ConfirmDialog message="Excluir esta categoria? Serviços vinculados perderão a referência." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Categorias" subtitle={`${cats.length} categoria${cats.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Nova categoria</BtnPrimary></div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("categories.create") && <BtnPrimary onClick={openNew}><Plus size={16} /> Nova categoria</BtnPrimary>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : cats.length === 0 ? (
-          <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={openNew} addLabel="Nova categoria" />
+          <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={hasPermission("categories.create") ? openNew : undefined} addLabel="Nova categoria" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[500px]">
@@ -1695,9 +1987,8 @@ function TabCategories({ onBack }: { onBack: () => void }) {
                     <td className="px-4 py-3.5"><StatusBadge status={c.is_active ? "Ativo" : "Inativo"} /></td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(c)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button>
-                        <button onClick={() => toggleActive(c)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={c.is_active ? "Desativar" : "Ativar"}>{c.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button>
-                        <button onClick={() => setDelId(c.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
+                        {hasPermission("categories.update") && <><button onClick={() => openEdit(c)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button><button onClick={() => toggleActive(c)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={c.is_active ? "Desativar" : "Ativar"}>{c.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></>}
+                        {hasPermission("categories.delete") && <button onClick={() => setDelId(c.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>}
                       </div>
                     </td>
                   </tr>
@@ -1725,7 +2016,7 @@ function TabCategories({ onBack }: { onBack: () => void }) {
         </div>
         <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
           <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar categoria"}</BtnPrimary>
+          {(editItem ? hasPermission("categories.update") : hasPermission("categories.create")) && <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar categoria"}</BtnPrimary>}
         </div>
       </AdminPage>
     </div>
@@ -1737,6 +2028,7 @@ type EquipmentDraftBrand = { id?: string; name: string; is_active: boolean; mode
 type EquipmentDraft = { id?: string; name: string; is_active: boolean; brands: EquipmentDraftBrand[] };
 
 function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
+  const { hasPermission } = useAuth();
   const [types, setTypes] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [models, setModels] = useState<any[]>([]);
@@ -1778,6 +2070,7 @@ function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
   const removeModel = (typeIndex: number, brandIndex: number, modelIndex: number) => setDrafts(current => current.map((type, index) => index === typeIndex ? { ...type, brands: type.brands.map((brand, childIndex) => childIndex === brandIndex ? { ...brand, models: brand.models.filter((_, itemIndex) => itemIndex !== modelIndex) } : brand) } : type));
 
   const save = async () => {
+    if (!drafts.every(type => type.id ? hasPermission("equipment.edit") : hasPermission("equipment.create"))) return;
     if (drafts.some(type => !type.name.trim() || type.brands.some(brand => !brand.name.trim() || brand.models.some(model => !model.name.trim())))) { setToast({ msg: "Preencha equipamento, marcas e modelos antes de salvar.", type: "error" }); return; }
     const typeNames = new Set<string>();
     for (const type of drafts) {
@@ -1838,12 +2131,12 @@ function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      <PageHeader title="Equipamentos Técnicos" subtitle="Cadastro hierárquico usado nas ordens de serviço" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={15} /> Novo equipamento</BtnPrimary></div>} />
+      <PageHeader title="Equipamentos Técnicos" subtitle="Cadastro hierárquico usado nas ordens de serviço" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("equipment.create") && <BtnPrimary onClick={openNew}><Plus size={15} /> Novo equipamento</BtnPrimary>}</div>} />
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
-        {loading ? <LoadingState /> : types.length === 0 ? <EmptyState icon={Wrench} title="Nenhum equipamento cadastrado" message="Cadastre o primeiro equipamento com suas marcas e modelos." onAdd={openNew} addLabel="Novo equipamento" /> : <div className="divide-y divide-[#0d1b2e]/5">{types.map(type => <div key={type.id} className="px-5 py-4 flex items-center justify-between gap-3"><div><p className="font-bold text-[#0d1b2e]">{type.name}</p><p className="text-xs text-[#5a6a82]">{brands.filter(brand => brand.equipment_type_id === type.id).length} marca(s) técnica(s)</p></div><div className="flex items-center gap-2"><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} /><button onClick={() => openEdit(type)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar equipamento"><Edit2 size={14} /></button></div></div>)}</div>}
+        {loading ? <LoadingState /> : types.length === 0 ? <EmptyState icon={Wrench} title="Nenhum equipamento cadastrado" message="Cadastre o primeiro equipamento com suas marcas e modelos." onAdd={hasPermission("equipment.create") ? openNew : undefined} addLabel="Novo equipamento" /> : <div className="divide-y divide-[#0d1b2e]/5">{types.map(type => <div key={type.id} className="px-5 py-4 flex items-center justify-between gap-3"><div><p className="font-bold text-[#0d1b2e]">{type.name}</p><p className="text-xs text-[#5a6a82]">{brands.filter(brand => brand.equipment_type_id === type.id).length} marca(s) técnica(s)</p></div><div className="flex items-center gap-2"><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} />{hasPermission("equipment.edit") && <button onClick={() => openEdit(type)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar equipamento"><Edit2 size={14} /></button>}</div></div>)}</div>}
       </div>
       <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Equipamentos Técnicos" title="Cadastro de equipamentos" subtitle="Monte equipamento, marcas e modelos antes de salvar">
-        <div className="p-5 space-y-5">{drafts.map((type, typeIndex) => <Section key={`${type.id || "new"}-${typeIndex}`} title="Equipamento"><div className="flex items-end gap-2"><div className="flex-1"><FInput label="Nome do equipamento" required value={type.name} onChange={(e: any) => updateDraft(typeIndex, { name: e.target.value })} placeholder="Ex: Televisão" /></div>{drafts.length > 1 && <button type="button" onClick={() => setDrafts(current => current.filter((_, index) => index !== typeIndex))} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg" title="Remover equipamento"><Trash2 size={16} /></button>}</div><div className="mt-5 space-y-4"><div className="flex items-center justify-between"><h4 className="text-sm font-bold text-[#0d1b2e]">Marcas e modelos</h4><button type="button" onClick={() => addBrand(typeIndex)} className="p-1.5 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Adicionar marca"><Plus size={16} /></button></div>{type.brands.map((brand, brandIndex) => <div key={`${brand.id || "new-brand"}-${brandIndex}`} className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4"><div className="flex items-end gap-2"><div className="flex-1"><FInput label="Marca" required value={brand.name} onChange={(e: any) => updateBrand(typeIndex, brandIndex, { name: e.target.value })} placeholder="Ex: Samsung" /></div><button type="button" onClick={() => removeBrand(typeIndex, brandIndex)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg" title="Remover marca"><Trash2 size={15} /></button></div><div className="mt-3 pl-3 border-l-2 border-[#0057e7]/20 space-y-2"><div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Modelos</span><button type="button" onClick={() => addModel(typeIndex, brandIndex)} className="p-1 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Adicionar modelo"><Plus size={15} /></button></div>{brand.models.map((model, modelIndex) => <div key={`${model.id || "new-model"}-${modelIndex}`} className="flex items-center gap-2"><FInput value={model.name} required onChange={(e: any) => updateModel(typeIndex, brandIndex, modelIndex, { name: e.target.value })} placeholder="Nome do modelo" /><button type="button" onClick={() => removeModel(typeIndex, brandIndex, modelIndex)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Remover modelo"><Trash2 size={14} /></button></div>)}</div></div>)}</div></Section>)}<BtnSecondary onClick={addEquipment}><Plus size={15} /> Adicionar equipamento</BtnSecondary></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar estrutura"}</BtnPrimary></div>
+        <div className="p-5 space-y-5">{drafts.map((type, typeIndex) => <Section key={`${type.id || "new"}-${typeIndex}`} title="Equipamento"><div className="flex items-end gap-2"><div className="flex-1"><FInput label="Nome do equipamento" required value={type.name} onChange={(e: any) => updateDraft(typeIndex, { name: e.target.value })} placeholder="Ex: Televisão" /></div>{drafts.length > 1 && hasPermission("equipment.delete") && <button type="button" onClick={() => setDrafts(current => current.filter((_, index) => index !== typeIndex))} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg" title="Remover equipamento"><Trash2 size={16} /></button>}</div><div className="mt-5 space-y-4"><div className="flex items-center justify-between"><h4 className="text-sm font-bold text-[#0d1b2e]">Marcas e modelos</h4>{hasPermission("equipment.create") && <button type="button" onClick={() => addBrand(typeIndex)} className="p-1.5 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Adicionar marca"><Plus size={16} /></button>}</div>{type.brands.map((brand, brandIndex) => <div key={`${brand.id || "new-brand"}-${brandIndex}`} className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4"><div className="flex items-end gap-2"><div className="flex-1"><FInput label="Marca" required value={brand.name} onChange={(e: any) => updateBrand(typeIndex, brandIndex, { name: e.target.value })} placeholder="Ex: Samsung" /></div>{hasPermission("equipment.delete") && <button type="button" onClick={() => removeBrand(typeIndex, brandIndex)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg" title="Remover marca"><Trash2 size={15} /></button>}</div><div className="mt-3 pl-3 border-l-2 border-[#0057e7]/20 space-y-2"><div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Modelos</span>{hasPermission("equipment.create") && <button type="button" onClick={() => addModel(typeIndex, brandIndex)} className="p-1 text-[#0057e7] hover:bg-[#e8eef8] rounded-lg" title="Adicionar modelo"><Plus size={15} /></button>}</div>{brand.models.map((model, modelIndex) => <div key={`${model.id || "new-model"}-${modelIndex}`} className="flex items-center gap-2"><FInput value={model.name} required onChange={(e: any) => updateModel(typeIndex, brandIndex, modelIndex, { name: e.target.value })} placeholder="Nome do modelo" />{hasPermission("equipment.delete") && <button type="button" onClick={() => removeModel(typeIndex, brandIndex, modelIndex)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Remover modelo"><Trash2 size={14} /></button>}</div>)}</div></div>)}</div></Section>)}{hasPermission("equipment.create") && <BtnSecondary onClick={addEquipment}><Plus size={15} /> Adicionar equipamento</BtnSecondary>}</div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{drafts.length > 0 && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar estrutura"}</BtnPrimary>}</div>
       </AdminPage>
     </div>
   );
@@ -1852,7 +2145,7 @@ function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
 /* ─────────────────────────── TAB: PRODUCTS ─────────────────────────── */
 
 function TabProducts({ onBack }: { onBack: () => void }) {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [catalogView, setCatalogView] = useState<"store" | "equipment">("store");
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -1861,6 +2154,8 @@ function TabProducts({ onBack }: { onBack: () => void }) {
   const [editItem, setEditItem] = useState<any>(null);
   const [delId, setDelId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const [form, setForm] = useState({ name: "", slug: "", sku: "", short_description: "", description: "", price: "", compare_at_price: "", cover_media_id: "", is_active: true, is_featured: false, category_id: "", brand_id: "", external_platform: "", external_product_id: "", external_url: "" });
@@ -1887,6 +2182,7 @@ function TabProducts({ onBack }: { onBack: () => void }) {
   const openEdit = (p: any) => { setForm({ name: p.name || "", slug: p.slug || "", sku: p.sku || "", short_description: p.short_description || "", description: p.description || "", price: p.price == null ? "" : String(p.price), compare_at_price: p.compare_at_price == null ? "" : String(p.compare_at_price), cover_media_id: p.cover_media_id || "", is_active: p.is_active ?? true, is_featured: p.is_featured ?? false, category_id: p.category_id || "", brand_id: p.brand_id || "", external_platform: p.external_platform || "", external_product_id: p.external_product_id || "", external_url: p.external_url || "" }); setEditItem(p); setDrawerOpen(true); };
 
   const handleSave = async () => {
+    if (!(editItem ? hasPermission("products.update") : hasPermission("products.create"))) return;
     if (!form.name.trim()) { setToast({ msg: "Nome do produto é obrigatório.", type: "error" }); return; }
     setSaving(true);
     try {
@@ -1905,11 +2201,19 @@ function TabProducts({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const handleDelete = async (id: string) => { const { error } = await supabase.from("products").delete().eq("id", id); if (error) { console.error("[ADMIN] products delete error:", error); setToast({ msg: `Erro ao excluir produto: ${error.message}`, type: "error" }); return; } setDelId(null); setToast({ msg: "Produto excluído.", type: "success" }); load(); };
-  const toggleActive = async (p: any) => { const { error } = await supabase.from("products").update({ is_active: !p.is_active, updated_by: user?.id || null }).eq("id", p.id); if (error) { setToast({ msg: `Erro ao atualizar produto: ${error.message}`, type: "error" }); return; } setToast({ msg: "Status atualizado!", type: "success" }); load(); };
-  const toggleFeatured = async (p: any) => { const { error } = await supabase.from("products").update({ is_featured: !p.is_featured, updated_by: user?.id || null }).eq("id", p.id); if (error) { setToast({ msg: `Erro ao atualizar destaque: ${error.message}`, type: "error" }); return; } setToast({ msg: "Destaque atualizado!", type: "success" }); load(); };
+  const handleDelete = async (id: string) => { if (!hasPermission("products.delete")) return; const { error } = await supabase.from("products").delete().eq("id", id); if (error) { console.error("[ADMIN] products delete error:", error); setToast({ msg: `Erro ao excluir produto: ${error.message}`, type: "error" }); return; } setDelId(null); setToast({ msg: "Produto excluído.", type: "success" }); load(); };
+  const toggleActive = async (p: any) => { if (!hasPermission("products.update")) return; const { error } = await supabase.from("products").update({ is_active: !p.is_active, updated_by: user?.id || null }).eq("id", p.id); if (error) { setToast({ msg: `Erro ao atualizar produto: ${error.message}`, type: "error" }); return; } setToast({ msg: "Status atualizado!", type: "success" }); load(); };
+  const toggleFeatured = async (p: any) => { if (!hasPermission("products.update")) return; const { error } = await supabase.from("products").update({ is_featured: !p.is_featured, updated_by: user?.id || null }).eq("id", p.id); if (error) { setToast({ msg: `Erro ao atualizar destaque: ${error.message}`, type: "error" }); return; } setToast({ msg: "Destaque atualizado!", type: "success" }); load(); };
 
   const filtered = products.filter(p => !search || p.name?.toLowerCase().includes(search.toLowerCase()));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedProducts = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   if (catalogView === "equipment") return <EquipmentAdminPanel onBack={() => setCatalogView("store")} />;
 
@@ -1919,18 +2223,18 @@ function TabProducts({ onBack }: { onBack: () => void }) {
       {delId && <ConfirmDialog message="Excluir este produto permanentemente?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Produtos" subtitle={`${products.length} produto${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Novo produto</BtnPrimary></div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("products.create") && <BtnPrimary onClick={openNew}><Plus size={16} /> Novo produto</BtnPrimary>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-[#0d1b2e]/8">
           <div className="relative max-w-xs">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar produtos..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar produtos..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
         </div>
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={Package} title={search ? "Nenhum resultado" : "Nenhum produto cadastrado"} message="Adicione produtos para exibi-los na loja." onAdd={!search ? openNew : undefined} addLabel="Novo produto" />
+          <EmptyState icon={Package} title={search ? "Nenhum resultado" : "Nenhum produto cadastrado"} message="Adicione produtos para exibi-los na loja." onAdd={!search && hasPermission("products.create") ? openNew : undefined} addLabel="Novo produto" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
@@ -1945,7 +2249,7 @@ function TabProducts({ onBack }: { onBack: () => void }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
-                {filtered.map(p => (
+                {pagedProducts.map(p => (
                   <tr key={p.id} className="hover:bg-[#f8fafc]/80">
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
@@ -1955,13 +2259,12 @@ function TabProducts({ onBack }: { onBack: () => void }) {
                     </td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{p.categories?.name || "—"}</td>
                     <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{p.price ? `R$ ${Number(p.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consultar"}</td>
-                    <td className="px-4 py-3.5"><button onClick={() => toggleFeatured(p)} title={p.is_featured ? "Remover destaque" : "Destacar produto"}>{p.is_featured ? <Star size={15} className="text-amber-400 fill-amber-400" /> : <Star size={15} className="text-[#5a6a82]" />}</button></td>
+                    <td className="px-4 py-3.5">{hasPermission("products.update") && <button onClick={() => toggleFeatured(p)} title={p.is_featured ? "Remover destaque" : "Destacar produto"}>{p.is_featured ? <Star size={15} className="text-amber-400 fill-amber-400" /> : <Star size={15} className="text-[#5a6a82]" />}</button>}</td>
                     <td className="px-4 py-3.5"><StatusBadge status={p.is_active ? "Ativo" : "Inativo"} /></td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(p)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button>
-                        <button onClick={() => toggleActive(p)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><CheckCircle size={15} /></button>
-                        <button onClick={() => setDelId(p.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
+                        {hasPermission("products.update") && <><button onClick={() => openEdit(p)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button><button onClick={() => toggleActive(p)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><CheckCircle size={15} /></button></>}
+                        {hasPermission("products.delete") && <button onClick={() => setDelId(p.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>}
                       </div>
                     </td>
                   </tr>
@@ -1970,6 +2273,13 @@ function TabProducts({ onBack }: { onBack: () => void }) {
             </table>
           </div>
         )}
+        <PaginationBar
+          page={safePage}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
+          onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+        />
       </div>
 
       <AdminPage open={drawerOpen} onClose={() => setDrawerOpen(false)} breadcrumb="Produtos" title={editItem ? "Editar produto" : "Novo produto"} maxW="max-w-xl">
@@ -1989,7 +2299,7 @@ function TabProducts({ onBack }: { onBack: () => void }) {
               <FInput label="Preço (R$)" type="number" min="0" step="0.01" value={form.price} onChange={(e: any) => setForm({ ...form, price: e.target.value })} placeholder="Deixe em branco para consultar" hint="Vazio = 'Consultar preço'" />
               <FInput label="Preço de comparação (R$)" type="number" min="0" step="0.01" value={form.compare_at_price} onChange={(e: any) => setForm({ ...form, compare_at_price: e.target.value })} />
             </div>
-            <ImageUpload bucket="product-images" currentMediaId={form.cover_media_id} onUpload={mediaId => setForm({ ...form, cover_media_id: mediaId })} label="Imagem do produto" />
+            <ImageUpload bucket="product-images" currentMediaId={form.cover_media_id} onUpload={mediaId => setForm({ ...form, cover_media_id: mediaId })} canUpload={editItem ? hasPermission("products.update") : hasPermission("products.create")} label="Imagem do produto" />
           </Section>
           <Section title="Publicação">
             <div className="space-y-4">
@@ -2000,7 +2310,7 @@ function TabProducts({ onBack }: { onBack: () => void }) {
         </div>
         <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
           <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar produto"}</BtnPrimary>
+          {(editItem ? hasPermission("products.update") : hasPermission("products.create")) && <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar produto"}</BtnPrimary>}
         </div>
       </AdminPage>
     </div>
@@ -2010,6 +2320,7 @@ function TabProducts({ onBack }: { onBack: () => void }) {
 /* ─────────────────────────── TAB: BRANDS ─────────────────────────── */
 
 function TabBrands({ onBack }: { onBack: () => void }) {
+  const { hasPermission } = useAuth();
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -2027,6 +2338,7 @@ function TabBrands({ onBack }: { onBack: () => void }) {
   const openEdit = (b: any) => { setForm({ name: b.name || "", slug: b.slug || "", description: b.description || "", logo_media_id: b.logo_media_id || "", website_url: b.website_url || "", is_active: b.is_active ?? true, sort_order: b.sort_order ?? 0 }); setEditItem(b); setDrawerOpen(true); };
 
   const handleSave = async () => {
+    if (!(editItem ? hasPermission("brands.update") : hasPermission("brands.create"))) return;
     if (!form.name.trim()) { setToast({ msg: "Nome da marca é obrigatório.", type: "error" }); return; }
     setSaving(true);
     try {
@@ -2044,8 +2356,19 @@ function TabBrands({ onBack }: { onBack: () => void }) {
       setSaving(false);
     }
   };
-  const handleDelete = async (id: string) => { const { error } = await supabase.from("brands").delete().eq("id", id); if (error) { setToast({ msg: `Erro ao excluir marca: ${error.message}`, type: "error" }); return; } setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); load(); };
-  const toggleActive = async (brand: any) => { const { error } = await supabase.from("brands").update({ is_active: !brand.is_active }).eq("id", brand.id); if (error) { setToast({ msg: `Erro ao atualizar marca: ${error.message}`, type: "error" }); return; } setToast({ msg: "Status atualizado!", type: "success" }); load(); };
+  const handleDelete = async (id: string) => { if (!hasPermission("brands.delete")) return; const { error } = await supabase.from("brands").delete().eq("id", id); if (error) { setToast({ msg: `Erro ao excluir marca: ${error.message}`, type: "error" }); return; } setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); load(); };
+  const toggleActive = async (brand: any) => { if (!hasPermission("brands.update")) return; const { error } = await supabase.from("brands").update({ is_active: !brand.is_active }).eq("id", brand.id); if (error) { setToast({ msg: `Erro ao atualizar marca: ${error.message}`, type: "error" }); return; } setToast({ msg: "Status atualizado!", type: "success" }); load(); };
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const filteredBrands = brands;
+  const totalPages = Math.max(1, Math.ceil(filteredBrands.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedBrands = filteredBrands.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => { setPage(1); }, [brands.length]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   return (
     <div className="space-y-5">
@@ -2053,29 +2376,37 @@ function TabBrands({ onBack }: { onBack: () => void }) {
       {delId && <ConfirmDialog message="Excluir esta marca?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Marcas" subtitle={`${brands.length} marca${brands.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Nova marca</BtnPrimary></div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("brands.create") && <BtnPrimary onClick={openNew}><Plus size={16} /> Nova marca</BtnPrimary>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : brands.length === 0 ? (
-          <EmptyState icon={Tag} title="Nenhuma marca cadastrada" onAdd={openNew} addLabel="Nova marca" />
+          <EmptyState icon={Tag} title="Nenhuma marca cadastrada" onAdd={hasPermission("brands.create") ? openNew : undefined} addLabel="Nova marca" />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
-            {brands.map(b => (
-              <div key={b.id} className={cn("rounded-xl border p-4 flex flex-col items-center gap-3 transition-all hover:shadow-md", b.is_active ? "border-[#0d1b2e]/10 bg-white" : "border-[#0d1b2e]/5 bg-[#f8fafc] opacity-60")}>
-                <BrandAdminLogo mediaId={b.logo_media_id} name={b.name} />
-                <div className="text-center">
-                  <p className="font-bold text-[#0d1b2e] text-sm">{b.name}</p>
-                  <StatusBadge status={b.is_active ? "Ativo" : "Inativo"} />
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+              {pagedBrands.map(b => (
+                <div key={b.id} className={cn("rounded-xl border p-4 flex flex-col items-center gap-3 transition-all hover:shadow-md", b.is_active ? "border-[#0d1b2e]/10 bg-white" : "border-[#0d1b2e]/5 bg-[#f8fafc] opacity-60")}>
+                  <BrandAdminLogo mediaId={b.logo_media_id} name={b.name} />
+                  <div className="text-center">
+                    <p className="font-bold text-[#0d1b2e] text-sm">{b.name}</p>
+                    <StatusBadge status={b.is_active ? "Ativo" : "Inativo"} />
+                  </div>
+                  <div className="flex gap-1">
+                    {hasPermission("brands.update") && <><button onClick={() => openEdit(b)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={14} /></button><button onClick={() => toggleActive(b)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">{b.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button></>}
+                    {hasPermission("brands.delete") && <button onClick={() => setDelId(b.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>}
+                  </div>
                 </div>
-                <div className="flex gap-1">
-                  <button onClick={() => openEdit(b)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={14} /></button>
-                  <button onClick={() => toggleActive(b)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">{b.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button>
-                  <button onClick={() => setDelId(b.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <PaginationBar
+              page={safePage}
+              pageSize={pageSize}
+              totalItems={filteredBrands.length}
+              onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
+              onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+            />
+          </>
         )}
       </div>
 
@@ -2093,13 +2424,13 @@ function TabBrands({ onBack }: { onBack: () => void }) {
           </Section>
           <Section title="Logo">
             <div className="space-y-3">
-              <ImageUpload bucket="brand-images" currentMediaId={form.logo_media_id} onUpload={mediaId => setForm({ ...form, logo_media_id: mediaId })} label="Logo da marca" />
+              <ImageUpload bucket="brand-images" currentMediaId={form.logo_media_id} onUpload={mediaId => setForm({ ...form, logo_media_id: mediaId })} canUpload={editItem ? hasPermission("brands.update") : hasPermission("brands.create")} label="Logo da marca" />
             </div>
           </Section>
         </div>
         <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
           <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar marca"}</BtnPrimary>
+          {(editItem ? hasPermission("brands.update") : hasPermission("brands.create")) && <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar marca"}</BtnPrimary>}
         </div>
       </AdminPage>
     </div>
@@ -2109,13 +2440,16 @@ function TabBrands({ onBack }: { onBack: () => void }) {
 /* ─────────────────────────── TAB: QUOTES ─────────────────────────── */
 
 function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [quotes, setQuotes] = useState<any[]>([]);
   const [statuses, setStatuses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [detail, setDetail] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
@@ -2133,6 +2467,7 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   useEffect(() => { load(); }, []);
 
   const updateStatus = async (id: string, statusId: string) => {
+    if (!hasPermission("quotes.update") && !hasPermission("quotes.edit")) return;
     const selectedStatus = statuses.find((status) => status.id === statusId);
     const { error: updateError } = await supabase.from("quote_requests").update({ status_id: statusId }).eq("id", id);
     if (updateError) { console.error("[ADMIN] quote status update error:", updateError); setToast({ msg: `Erro ao atualizar status: ${updateError.message}`, type: "error" }); return; }
@@ -2141,6 +2476,20 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
     if (detail?.id === id) setDetail({ ...detail, status_id: statusId, statusName: selectedStatus?.name || "Sem status" });
     setToast({ msg: "Status atualizado!", type: "success" });
     load();
+  };
+
+  const handleDeleteQuote = async (id: string) => {
+    if (!hasPermission("quotes.delete")) return;
+    const { error } = await supabase.from("quote_requests").delete().eq("id", id);
+    if (error) {
+      setToast({ msg: `Não foi possível excluir o orçamento: ${error.message}`, type: "error" });
+      setDeleteId(null);
+      return;
+    }
+    setToast({ msg: "Orçamento excluído.", type: "success" });
+    setDeleteId(null);
+    setDetail(null);
+    await load();
   };
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -2155,6 +2504,14 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
     const matchStatus = !filterStatus || q.status_id === filterStatus;
     return matchSearch && matchStatus;
   });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedQuotes = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => { setPage(1); }, [search, filterStatus]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const InfoRow = ({ label, value }: { label: string; value?: string | null }) =>
     value ? <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-0.5">{label}</p><p className="text-sm font-medium text-[#0d1b2e] whitespace-pre-line">{value}</p></div> : null;
@@ -2162,6 +2519,7 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {deleteId && <ConfirmDialog message="Excluir este orçamento? Esta ação remove o registro da tabela de cotações." onConfirm={() => { void handleDeleteQuote(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       <PageHeader title="Orçamentos" subtitle={`${quotes.length} solicitaç${quotes.length !== 1 ? "ões" : "ão"} recebida${quotes.length !== 1 ? "s" : ""}`} actions={
         <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
@@ -2173,9 +2531,9 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
         <div className="px-4 py-3 border-b border-[#0d1b2e]/8 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por cliente, CPF, protocolo..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por cliente, CPF, protocolo..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={cn(INPUT, "py-2 text-xs sm:w-48")}>
+          <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} className={cn(INPUT, "py-2 text-xs sm:w-48")}>
             <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
@@ -2197,7 +2555,7 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
-                {filtered.map(q => (
+                {pagedQuotes.map(q => (
                   <tr key={q.id} onClick={() => setDetail(q)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2"><span aria-label={`Cor do status ${(q.request_status as any)?.name || "Sem status"}`} className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: (q.request_status as any)?.color || "transparent" }} /><span className="font-mono text-xs font-bold text-[#0057e7]">{q.protocol || q.id.slice(0, 8)}</span></div>
@@ -2213,14 +2571,19 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                       {!(q.service as any)?.title && !(q.brand as any)?.name && "—"}
                     </td>
                     <td className="px-4 py-3.5">
-                      <select value={q.status_id || ""} onClick={e => e.stopPropagation()} onChange={e => updateStatus(q.id, e.target.value)}
+                      {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <select value={q.status_id || ""} onClick={e => e.stopPropagation()} onChange={e => updateStatus(q.id, e.target.value)}
                         className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
                         {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      </select>
+                      </select>}
                     </td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(q.created_at)}</td>
                     <td className="px-4 py-3.5">
-                      <button onClick={() => setDetail(q)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => setDetail(q)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
+                        {hasPermission("quotes.delete") && (
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteId(q.id); }} title="Excluir orçamento" aria-label="Excluir orçamento" className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -2228,6 +2591,13 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
             </table>
           </div>
         )}
+        <PaginationBar
+          page={safePage}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
+          onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+        />
       </div>
 
       {/* Quote Detail Page */}
@@ -2275,18 +2645,22 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
             </div>
             <div className="sticky bottom-0 -mx-5 mt-5 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <select value={detail.status_id || ""} onChange={e => updateStatus(detail.id, e.target.value)} className={cn(INPUT, "py-2 text-sm w-auto min-w-36")}>
+                {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <select value={detail.status_id || ""} onChange={e => updateStatus(detail.id, e.target.value)} className={cn(INPUT, "py-2 text-sm w-auto min-w-36")}>
                   {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                <button onClick={async () => {
+                </select>}
+                {hasPermission("quotes.delete") && <button type="button" onClick={() => setDeleteId(detail.id)} className="flex items-center gap-2 whitespace-nowrap bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"><Trash2 size={13} /> Excluir</button>}
+                {hasPermission("quotes.convert") && <button onClick={async () => {
                 if (!detail) return;
+                if (!hasPermission("quotes.convert")) { setToast({ msg: "Você não possui permissão para converter orçamentos.", type: "error" }); return; }
                 const { data: existing } = await supabase.from("service_orders").select("id, os_number").eq("quote_request_id", detail.id).maybeSingle();
                 if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
                 const protocol = generateOsProtocol();
-                const { data: status } = await supabase.from("order_statuses").select("id").order("sort_order").limit(1).maybeSingle();
+                const { data: availableStatuses, error: statusError } = await supabase.from("order_statuses").select("id,name,sort_order").order("sort_order");
+                const status = initialOrderStatus(availableStatuses || []);
+                if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status inicial válido para a OS.", type: "error" }); return; }
                 const { error } = await supabase.from("service_orders").insert({
                   os_number: protocol, service_id: detail.service_id, quote_request_id: detail.id,
-                  customer_id: detail.customer_id, status_id: status?.id || null,
+                  customer_id: detail.customer_id, status_id: status.id,
                   customer_notes: detail.customer_message || null,
                 });
                 if (error) { setToast({ msg: `Erro ao criar OS: ${error.message}`, type: "error" }); return; }
@@ -2295,7 +2669,7 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 if (onNavigate) setTimeout(() => onNavigate("orders"), 1200);
                 }} className="flex items-center gap-2 whitespace-nowrap bg-[#0057e7] text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#0046c0] transition-colors">
                   <ClipboardList size={13} /> Converter em OS
-                </button>
+                </button>}
               </div>
               <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
             </div>
@@ -2325,21 +2699,173 @@ function ServiceTypesAdminPanel({ onBack }: { onBack: () => void }) {
 }
 
 function ServiceTypesAdminPanelContent() {
+  const { hasPermission } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true });
   const [saving, setSaving] = useState(false);
+  const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const load = async () => { setLoading(true); const { data, error } = await supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order,created_at,updated_at").order("sort_order").order("title"); if (error) setToast({ msg: `Erro ao carregar tipos: ${error.message}`, type: "error" }); setItems(data || []); setLoading(false); };
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("service_types")
+      .select("id,title,description,forecast_days,is_active,sort_order,created_at,updated_at")
+      .order("sort_order")
+      .order("title");
+    if (error) setToast({ msg: `Erro ao carregar tipos: ${error.message}`, type: "error" });
+    setItems(data || []);
+    setLoading(false);
+  };
+
   useEffect(() => { load(); }, []);
-  const openNew = () => { setEditItem(null); setForm({ title: "", description: "", forecast_days: "", is_active: true }); setFormOpen(true); };
-  const openEdit = (item: any) => { setEditItem(item); setForm({ title: item.title || "", description: item.description || "", forecast_days: item.forecast_days == null ? "" : String(item.forecast_days), is_active: item.is_active !== false }); setFormOpen(true); };
-  const save = async () => { if (!form.title.trim()) { setToast({ msg: "Informe o título do tipo de atendimento.", type: "error" }); return; } setSaving(true); const payload = { title: form.title.trim(), description: form.description.trim() || null, forecast_days: form.forecast_days ? Number(form.forecast_days) : null, is_active: form.is_active }; const result = editItem ? await supabase.from("service_types").update(payload).eq("id", editItem.id) : await supabase.from("service_types").insert({ ...payload, sort_order: items.length }); setSaving(false); if (result.error) { setToast({ msg: `Erro ao salvar tipo: ${result.error.message}`, type: "error" }); return; } setFormOpen(false); setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" }); load(); };
-  const toggle = async (item: any) => { const { error } = await supabase.from("service_types").update({ is_active: !item.is_active }).eq("id", item.id); if (error) setToast({ msg: `Erro ao atualizar tipo: ${error.message}`, type: "error" }); else load(); };
-  const remove = async (id: string) => { if (!confirm("Excluir este tipo de atendimento? OS relacionadas ficarão sem tipo.")) return; const { error } = await supabase.from("service_types").delete().eq("id", id); if (error) setToast({ msg: `Não foi possível excluir: ${error.message}`, type: "error" }); else load(); };
-  return <div className="space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Tipos de Atendimento" subtitle="Configuração dos tipos utilizados nas ordens de serviço" actions={<BtnPrimary onClick={openNew}><Plus size={15} /> Novo tipo</BtnPrimary>} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={List} title="Nenhum tipo cadastrado" message="Crie tipos para disponibilizá-los na Nova OS." onAdd={openNew} addLabel="Novo tipo" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="px-5 py-4 flex items-center justify-between gap-4"><div className="min-w-0"><p className="font-bold text-[#0d1b2e]">{item.title}</p><p className="text-xs text-[#5a6a82] truncate">{item.description || "Sem descrição"}{item.forecast_days != null && ` · ${item.forecast_days} dia(s)`}</p></div><div className="flex items-center gap-1 flex-shrink-0"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /><button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button><button type="button" onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button><button type="button" onClick={() => remove(item.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button></div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Tipos de Atendimento" title={editItem ? "Editar tipo de atendimento" : "Novo tipo de atendimento"} subtitle="Preencha os dados do tipo"><div className="p-5 space-y-4"><FInput label="Título" required value={form.title} onChange={(e: any) => setForm({ ...form, title: e.target.value })} /><FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} /><FInput label="Previsão em dias" type="number" min="0" value={form.forecast_days} onChange={(e: any) => setForm({ ...form, forecast_days: e.target.value })} /><FToggle label="Tipo ativo" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage></div>;
+
+  const openNew = () => {
+    setEditItem(null);
+    setForm({ title: "", description: "", forecast_days: "", is_active: true });
+    setFormOpen(true);
+  };
+
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setForm({
+      title: item.title || "",
+      description: item.description || "",
+      forecast_days: item.forecast_days == null ? "" : String(item.forecast_days),
+      is_active: item.is_active !== false,
+    });
+    setFormOpen(true);
+  };
+
+  const save = async () => {
+    if (!(editItem ? hasPermission("service_types.edit") : hasPermission("service_types.create"))) return;
+    if (!form.title.trim()) {
+      setToast({ msg: "Informe o título do tipo de atendimento.", type: "error" });
+      return;
+    }
+
+    setSaving(true);
+    const payload = {
+      title: form.title.trim(),
+      description: form.description.trim() || null,
+      forecast_days: form.forecast_days ? Number(form.forecast_days) : null,
+      is_active: form.is_active,
+    };
+    const result = editItem
+      ? await supabase.from("service_types").update(payload).eq("id", editItem.id)
+      : await supabase.from("service_types").insert({ ...payload, sort_order: items.length });
+    setSaving(false);
+
+    if (result.error) {
+      setToast({ msg: `Erro ao salvar tipo: ${result.error.message}`, type: "error" });
+      return;
+    }
+
+    setFormOpen(false);
+    setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" });
+    load();
+  };
+
+  const toggle = async (item: any) => {
+    if (!hasPermission("service_types.edit")) return;
+    const { error } = await supabase.from("service_types").update({ is_active: !item.is_active }).eq("id", item.id);
+    if (error) setToast({ msg: `Erro ao atualizar tipo: ${error.message}`, type: "error" });
+    else load();
+  };
+
+  const remove = async (id: string) => {
+    if (!hasPermission("service_types.delete")) return;
+    const { error } = await supabase.from("service_types").delete().eq("id", id);
+    if (error) setToast({ msg: `Não foi possível excluir: ${error.message}`, type: "error" });
+    else load();
+  };
+
+  return (
+    <div className="space-y-5">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {delId && (
+        <ConfirmDialog
+          message="Excluir este tipo de atendimento? OS relacionadas ficarão sem tipo."
+          onConfirm={() => {
+            setDelId(null);
+            void remove(delId);
+          }}
+          onCancel={() => setDelId(null)}
+        />
+      )}
+
+      <PageHeader
+        title="Tipos de Atendimento"
+        subtitle="Configuração dos tipos utilizados nas ordens de serviço"
+        actions={hasPermission("service_types.create") ? <BtnPrimary onClick={openNew}><Plus size={15} /> Novo tipo</BtnPrimary> : null}
+      />
+
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+        {loading ? (
+          <LoadingState />
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon={List}
+            title="Nenhum tipo cadastrado"
+            message="Crie tipos para disponibilizá-los na Nova OS."
+            onAdd={hasPermission("service_types.create") ? openNew : undefined}
+            addLabel="Novo tipo"
+          />
+        ) : (
+          <div className="divide-y divide-[#0d1b2e]/5">
+            {items.map(item => (
+              <div key={item.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-bold text-[#0d1b2e]">{item.title}</p>
+                  <p className="text-xs text-[#5a6a82] truncate">
+                    {item.description || "Sem descrição"}
+                    {item.forecast_days != null && ` · ${item.forecast_days} dia(s)`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <StatusBadge status={item.is_active ? "Ativo" : "Inativo"} />
+                  {hasPermission("service_types.edit") && (
+                    <>
+                      <button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button>
+                      <button type="button" onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button>
+                    </>
+                  )}
+                  {hasPermission("service_types.delete") && (
+                    <button type="button" onClick={() => setDelId(item.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <AdminPage
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        breadcrumb="Operação > Tipos de Atendimento"
+        title={editItem ? "Editar tipo de atendimento" : "Novo tipo de atendimento"}
+        subtitle="Preencha os dados do tipo"
+        maxW="max-w-xl"
+      >
+        <div className="p-5 space-y-4">
+          <FInput label="Título" required value={form.title} onChange={(e: any) => setForm({ ...form, title: e.target.value })} />
+          <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} />
+          <FInput label="Previsão em dias" type="number" min="0" value={form.forecast_days} onChange={(e: any) => setForm({ ...form, forecast_days: e.target.value })} />
+          <FToggle label="Tipo ativo" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
+        </div>
+        <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+          <BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>
+          {(editItem ? hasPermission("service_types.edit") : hasPermission("service_types.create")) && (
+            <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>
+          )}
+        </div>
+      </AdminPage>
+    </div>
+  );
 }
 
 function OrderStatusesAdminPanel({ onBack }: { onBack: () => void }) {
@@ -2347,45 +2873,167 @@ function OrderStatusesAdminPanel({ onBack }: { onBack: () => void }) {
 }
 
 function OrderStatusesAdminPanelContent() {
+  const { hasPermission } = useAuth();
+  if (!hasPermission("orders.view")) return null;
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [form, setForm] = useState({ name: "", color: "#0057e7", sort_order: 0 });
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const load = async () => { setLoading(true); const { data, error } = await supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order"); if (error) setToast({ msg: `Erro ao carregar status: ${error.message}`, type: "error" }); setItems(data || []); setLoading(false); };
-  useEffect(() => { load(); }, []);
-  const openNew = () => { setEditItem(null); setForm({ name: "", color: "#0057e7", sort_order: items.length }); setFormOpen(true); };
-  const openEdit = (item: any) => { setEditItem(item); setForm({ name: item.name || "", color: item.color || "#0057e7", sort_order: item.sort_order || 0 }); setFormOpen(true); };
-  const save = async () => { if (!form.name.trim()) { setToast({ msg: "Informe o nome do status.", type: "error" }); return; } setSaving(true); const payload = { name: form.name.trim(), color: form.color, sort_order: Number(form.sort_order) }; const result = editItem ? await supabase.from("order_statuses").update(payload).eq("id", editItem.id) : await supabase.from("order_statuses").insert(payload); setSaving(false); if (result.error) { setToast({ msg: `Erro ao salvar status: ${result.error.message}`, type: "error" }); return; } setFormOpen(false); setToast({ msg: editItem ? "Status atualizado." : "Status criado.", type: "success" }); load(); };
-  const remove = async (id: string) => { if (!confirm("Excluir este status? O histórico relacionado pode impedir a exclusão.")) return; const { error } = await supabase.from("order_statuses").delete().eq("id", id); if (error) setToast({ msg: `Não foi possível excluir: ${error.message}`, type: "error" }); else load(); };
-  return <div className="space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Status da OS" subtitle="Status principais utilizados pelas ordens de serviço" actions={<BtnPrimary onClick={openNew}><Plus size={15} /> Novo status</BtnPrimary>} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={CheckCircle} title="Nenhum status cadastrado" message="Cadastre o primeiro status da OS." onAdd={openNew} addLabel="Novo status" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="px-5 py-4 flex items-center justify-between"><div className="flex items-center gap-3"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color || "#0057e7" }} /><div><p className="font-bold text-[#0d1b2e]">{item.name}</p><p className="text-xs text-[#5a6a82]">Ordem {item.sort_order}</p></div></div><div className="flex gap-1"><button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button><button type="button" onClick={() => remove(item.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button></div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Status da OS" title={editItem ? "Editar status" : "Novo status"} subtitle="Configure o status da OS"><div className="p-5 space-y-4"><FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} /><FInput label="Cor" type="color" value={form.color} onChange={(e: any) => setForm({ ...form, color: e.target.value })} /><FInput label="Ordem de exibição" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} /></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage></div>;
-}
-
-function OSSituationsView({ onBack }: { onBack: () => void }) {
-  const { user } = useAuth();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editItem, setEditItem] = useState<any>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", slug: "", color: "", is_active: true, sort_order: 0 });
-  const [saving, setSaving] = useState(false);
+  const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("os_situations").select("id,name,slug,color,sort_order,is_active,created_at,updated_at").order("sort_order");
+    const { data, error } = await supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order");
+    if (error) setToast({ msg: `Erro ao carregar status: ${error.message}`, type: "error" });
+    setItems(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const openNew = () => {
+    setEditItem(null);
+    setForm({ name: "", color: "#0057e7", sort_order: items.length });
+    setFormOpen(true);
+  };
+
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setForm({ name: item.name || "", color: item.color || "#0057e7", sort_order: item.sort_order || 0 });
+    setFormOpen(true);
+  };
+
+  const save = async () => {
+    if (!(editItem ? hasPermission("orders.update") : hasPermission("orders.update"))) return;
+    if (!form.name.trim()) {
+      setToast({ msg: "Informe o nome do status.", type: "error" });
+      return;
+    }
+    if (!isHexColor(form.color)) {
+      setToast({ msg: "Informe uma cor HEX válida no formato #RRGGBB.", type: "error" });
+      return;
+    }
+
+    setSaving(true);
+    const payload = { name: form.name.trim(), color: form.color.trim().toUpperCase(), sort_order: Number(form.sort_order) };
+    const result = editItem
+      ? await supabase.from("order_statuses").update(payload).eq("id", editItem.id)
+      : await supabase.from("order_statuses").insert(payload);
+    setSaving(false);
+
+    if (result.error) {
+      setToast({ msg: `Erro ao salvar status: ${result.error.message}`, type: "error" });
+      return;
+    }
+
+    setFormOpen(false);
+    setToast({ msg: editItem ? "Status atualizado." : "Status criado.", type: "success" });
+    load();
+  };
+
+  const remove = async (id: string) => {
+    if (!hasPermission("orders.delete")) return;
+    const { error } = await supabase.from("order_statuses").delete().eq("id", id);
+    if (error) setToast({ msg: `Não foi possível excluir: ${error.message}`, type: "error" });
+    else load();
+  };
+
+  return (
+    <div className="space-y-5">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {delId && (
+        <ConfirmDialog
+          message="Excluir este status? O histórico relacionado pode impedir a exclusão."
+          onConfirm={() => {
+            setDelId(null);
+            void remove(delId);
+          }}
+          onCancel={() => setDelId(null)}
+        />
+      )}
+
+      <PageHeader
+        title="Status da OS"
+        subtitle="Status principais utilizados pelas ordens de serviço"
+        actions={hasPermission("orders.update") ? <BtnPrimary onClick={openNew}><Plus size={15} /> Novo status</BtnPrimary> : null}
+      />
+
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+        {loading ? (
+          <LoadingState />
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle}
+            title="Nenhum status cadastrado"
+            message="Cadastre o primeiro status da OS."
+            onAdd={hasPermission("orders.update") ? openNew : undefined}
+            addLabel="Novo status"
+          />
+        ) : (
+          <div className="divide-y divide-[#0d1b2e]/5">
+            {items.map(item => (
+              <div key={item.id} className="px-5 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color || "#0057e7" }} />
+                  <div>
+                    <p className="font-bold text-[#0d1b2e]">{item.name}</p>
+                    <p className="text-xs text-[#5a6a82]">Ordem {item.sort_order}</p>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  {hasPermission("orders.update") && <button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button>}
+                  {hasPermission("orders.delete") && <button type="button" onClick={() => setDelId(item.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Status da OS" title={editItem ? "Editar status" : "Novo status"} subtitle="Configure o status da OS">
+        <div className="p-5 space-y-4">
+          <FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
+          <FInput label="Cor" type="color" value={form.color} onChange={(e: any) => setForm({ ...form, color: e.target.value })} />
+          <FInput label="Ordem" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} />
+        </div>
+        <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+          <BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>
+          {hasPermission("orders.update") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}
+        </div>
+      </AdminPage>
+    </div>
+  );
+}function OSSituationsView({ onBack }: { onBack: () => void }) {
+  const { user, hasPermission } = useAuth();
+  if (!hasPermission("orders.view")) return null;
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", slug: "", color: "", hours: "", is_active: true, sort_order: 0 });
+  const [saving, setSaving] = useState(false);
+  const [delId, setDelId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("os_situations").select("id,name,slug,color,hours,sort_order,is_active,created_at,updated_at").order("sort_order");
     setItems(data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  const openNew = () => { setEditItem(null); setForm({ name: "", slug: "", color: "", is_active: true, sort_order: items.length }); setDrawerOpen(true); };
-  const openEdit = (s: any) => { setEditItem(s); setForm({ name: s.name || "", slug: s.slug || "", color: s.color || "", is_active: s.is_active, sort_order: s.sort_order }); setDrawerOpen(true); };
+  const openNew = () => { setEditItem(null); setForm({ name: "", slug: "", color: "", hours: "", is_active: true, sort_order: items.length }); setDrawerOpen(true); };
+  const openEdit = (s: any) => { setEditItem(s); setForm({ name: s.name || "", slug: s.slug || "", color: s.color || "", hours: s.hours == null ? "" : String(s.hours), is_active: s.is_active, sort_order: s.sort_order }); setDrawerOpen(true); };
 
   const save = async () => {
-    if (!form.name.trim()) return;
+    if (!hasPermission("orders.update")) return;
+    if (!form.name.trim()) { setToast({ msg: "Informe o nome da situação.", type: "error" }); return; }
+    if (form.color && !isHexColor(form.color)) { setToast({ msg: "Informe uma cor HEX válida no formato #RRGGBB.", type: "error" }); return; }
+    if (form.hours !== "" && (!Number.isFinite(Number(form.hours)) || Number(form.hours) < 0)) { setToast({ msg: "Informe uma quantidade de horas válida.", type: "error" }); return; }
     setSaving(true);
     const slug = form.slug.trim() || editItem?.slug?.trim() || slugify(form.name);
     if (!slug) {
@@ -2393,7 +3041,7 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
       setToast({ msg: "Informe um nome ou slug válido para a situação.", type: "error" });
       return;
     }
-    const payload = { name: form.name.trim(), slug, color: form.color || null, is_active: form.is_active, sort_order: Number(form.sort_order) };
+    const payload = { name: form.name.trim(), slug, color: form.color.trim().toUpperCase() || null, hours: form.hours === "" ? null : Number(form.hours), is_active: form.is_active, sort_order: Number(form.sort_order) };
     const { error } = editItem
       ? await supabase.from("os_situations").update(payload).eq("id", editItem.id)
       : await supabase.from("os_situations").insert(payload);
@@ -2405,7 +3053,7 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
   };
 
   const del = async (id: string) => {
-    if (!confirm("Remover esta situação?")) return;
+    if (!hasPermission("orders.delete")) return;
     await supabase.from("os_situations").delete().eq("id", id);
     load();
   };
@@ -2413,10 +3061,11 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {delId && <ConfirmDialog message="Remover esta situação?" onConfirm={() => { setDelId(null); void del(delId); }} onCancel={() => setDelId(null)} />}
       <PageHeader title="Situações da OS" subtitle="Etapas de progresso das ordens de serviço" actions={
         <div className="flex items-center gap-2">
           <InternalBackButton onBack={onBack} />
-          <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Nova Situação</button>
+          {hasPermission("orders.update") && <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Nova Situação</button>}
         </div>
       } />
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -2429,12 +3078,12 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
               {items.map(s => (
                 <tr key={s.id} className="hover:bg-[#f8fafc]/80">
                   <td className="px-4 py-3 text-[#5a6a82] text-xs font-mono">{s.sort_order}</td>
-                  <td className="px-4 py-3"><p className="font-semibold text-[#0d1b2e]">{s.name}</p>{s.slug && <p className="text-xs text-[#5a6a82]">{s.slug}</p>}</td>
+                  <td className="px-4 py-3"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color || "#0057e7" }} /><div><p className="font-semibold text-[#0d1b2e]">{s.name}</p><p className="text-xs text-[#5a6a82]">{s.hours == null ? "Horas não informadas" : `${s.hours} hora(s)`}{s.slug ? ` · ${s.slug}` : ""}</p></div></div></td>
                   <td className="px-4 py-3"><span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", s.is_active ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{s.is_active ? "Ativa" : "Inativa"}</span></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-end">
-                      <button onClick={() => openEdit(s)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#e8eef8] rounded-lg"><Edit2 size={14} /></button>
-                      <button onClick={() => del(s.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                      {hasPermission("orders.update") && <button onClick={() => openEdit(s)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#e8eef8] rounded-lg"><Edit2 size={14} /></button>}
+                      {hasPermission("orders.delete") && <button onClick={() => setDelId(s.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -2449,12 +3098,13 @@ function OSSituationsView({ onBack }: { onBack: () => void }) {
             <FInput label="Nome" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Em análise" />
             <FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} placeholder="ex: em-analise" />
             <FInput label="Cor" type="color" value={form.color || "#0057e7"} onChange={(e: any) => setForm({ ...form, color: e.target.value })} />
+            <FInput label="Horas" type="number" min="0" step="0.01" value={form.hours} onChange={(e: any) => setForm({ ...form, hours: e.target.value })} placeholder="Ex: 2,5" />
             <FInput label="Ordem de exibição" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} />
             <FToggle label="Situação ativa" checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} />
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
             <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
-            <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>
+            {hasPermission("orders.update") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}
           </div>
         </AdminPage>
       )}
@@ -2480,11 +3130,11 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const load = async () => {
     setLoading(true);
     const [ordersResult, employeesResult, servicesResult, generalServicesResult, situationsResult] = await Promise.all([
-      supabase.from("service_orders").select("id,os_number,scheduled_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color)").not("scheduled_at", "is", null).order("scheduled_at"),
+      supabase.from("service_orders").select("id,os_number,scheduled_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color,hours)").not("scheduled_at", "is", null).order("scheduled_at"),
       supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
       supabase.from("services").select("id,title").eq("is_active", true).order("title"),
       supabase.from("general_services").select("id,name").eq("is_active", true).order("name"),
-      supabase.from("os_situations").select("id,name").eq("is_active", true).order("sort_order"),
+      supabase.from("os_situations").select("id,name,hours").eq("is_active", true).order("sort_order"),
     ]);
     if (ordersResult.error) setToast({ msg: `Erro ao carregar agenda: ${ordersResult.error.message}`, type: "error" });
     setOrders(ordersResult.data || []);
@@ -2509,7 +3159,14 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
     const serviceId = (order.service as any)?.id || (order.general_service as any)?.id || "";
     return (!technicianFilter || (order.technician as any)?.id === technicianFilter) && (!statusFilter || (order.order_status as any)?.id === statusFilter) && (!situationFilter || (order.situation as any)?.id === situationFilter) && (!serviceFilter || serviceId === serviceFilter);
   });
-  const statuses = Array.from(new Map(orders.map(order => [(order.order_status as any)?.id, order.order_status]).filter(([id]) => id)).values());
+  const statuses = Array.from(
+    new Map(
+      orders.flatMap(order => {
+        const statusId = (order.order_status as any)?.id;
+        return statusId ? [[statusId, order.order_status] as const] : [];
+      })
+    ).values()
+  );
   const moveCursor = (amount: number) => {
     const next = new Date(cursor);
     if (view === "month") next.setMonth(next.getMonth() + amount);
@@ -2554,7 +3211,7 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
 }
 
 function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onFocused?: () => void }) {
-  const { user, profile } = useAuth();
+  const { user, profile, hasPermission } = useAuth();
   const [subView, setSubView] = useState<"list" | "situations">("list");
   const [displayMode, setDisplayMode] = useState<"list" | "kanban">(() => {
     if (typeof window === "undefined") return "list";
@@ -2577,8 +3234,11 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSituation, setFilterSituation] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -2589,10 +3249,11 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerDraft, setCustomerDraft] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [customerAddressDraft, setCustomerAddressDraft] = useState<Address>({ ...emptyAddress });
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [cnpjMessage, setCnpjMessage] = useState("");
   const [addressExpanded, setAddressExpanded] = useState(false);
   const [quickEquipment, setQuickEquipment] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(false);
-  const [quickServiceType, setQuickServiceType] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
   const dragOriginRef = useRef<any[] | null>(null);
@@ -2600,14 +3261,37 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
 
   const emptyForm = { service_id: "", general_service_id: "", service_type_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", assigned_to: user?.id || "", technician_id: "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "" };
   const [form, setForm] = useState(emptyForm);
+  const [needsScheduling, setNeedsScheduling] = useState(true);
+  const [orderImages, setOrderImages] = useState<OrderImage[]>([]);
+  const [initialOrderImageIds, setInitialOrderImageIds] = useState<string[]>([]);
+  const [viewImage, setViewImage] = useState<OrderImage | null>(null);
   const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const loadOrderImages = async (orderId: string) => {
+    const { data, error } = await supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", orderId).order("sort_order");
+    if (error) { console.error("[ADMIN] service order media load error:", error); setOrderImages([]); setInitialOrderImageIds([]); return; }
+    const images = (data || []).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
+    setOrderImages(images); setInitialOrderImageIds(images.map(image => image.mediaId).filter(Boolean));
+  };
+
+  const addOrderImages = (files: FileList | null) => {
+    const available = Math.max(0, 5 - orderImages.length);
+    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type)).slice(0, available);
+    setOrderImages(current => [...current, ...selected.map(file => ({ key: `new-${Date.now()}-${Math.random()}`, file, url: URL.createObjectURL(file), name: file.name }))]);
+  };
+
+  const removeOrderImage = (key: string) => setOrderImages(current => {
+    const removed = current.find(image => image.key === key);
+    if (removed?.url) URL.revokeObjectURL(removed.url);
+    return current.filter(image => image.key !== key);
+  });
 
   const load = async () => {
     setLoading(true);
     const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes] = await Promise.all([
-      supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
+      supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
       supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order"),
-      supabase.from("os_situations").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
+      supabase.from("os_situations").select("id,name,color,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
       supabase.from("services").select("id,title").eq("is_active", true).order("title"),
       supabase.from("brands").select("id,name").eq("is_active", true).order("name"),
@@ -2650,17 +3334,24 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   }, [initialOrderId, loading, orders]);
 
   const openDetail = async (o: any) => {
-    const { data: hist } = await supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false });
+    const [{ data: hist }, { data: mediaLinks }] = await Promise.all([
+      supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
+      supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", o.id).order("sort_order"),
+    ]);
+    const images = (mediaLinks || []).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
     setDetailHistory(hist || []);
+    setOrderImages(images);
     setDetail(o);
   };
 
   const openNew = () => {
-    setEditingOS(null); setForm(emptyForm); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
+    setEditingOS(null); setForm(emptyForm); setNeedsScheduling(true); setOrderImages([]); setInitialOrderImageIds([]); setViewImage(null); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
   };
 
-  const openEdit = (o: any) => {
+  const openEdit = async (o: any) => {
     setEditingOS(o);
+    setNeedsScheduling(true);
+    await loadOrderImages(o.id);
     setForm({ service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", assigned_to: o.assigned_to || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "" });
     setSelectedCustomer((o.customer as any) || null);
     const customer = (o.customer as any) || {};
@@ -2673,6 +3364,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   };
 
   const saveCustomer = async () => {
+    if (!hasPermission("customers.edit")) return;
     if (!selectedCustomer?.id) return;
     const validationError = validateCustomerForm(customerDraft);
     if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
@@ -2691,12 +3383,17 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   };
 
   const saveOS = async () => {
+    if (editingOS ? !hasPermission("orders.edit") : !hasPermission("orders.create")) { setToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" }); return; }
     if (!form.general_service_id && !form.service_id) { setToast({ msg: "Selecione o serviço geral da OS.", type: "error" }); return; }
     if (!editingOS && !form.service_type_id) { setToast({ msg: "Selecione o tipo de atendimento da OS.", type: "error" }); return; }
     const cid = selectedCustomer?.id || form.customer_id;
     if (!cid) { setToast({ msg: "Selecione um cliente.", type: "error" }); return; }
+    if (needsScheduling && !form.scheduled_at) { setToast({ msg: "Informe a data e hora agendadas ou selecione Não.", type: "error" }); return; }
     if (form.equipment_brand_id && !equipmentBrands.some(brand => brand.id === form.equipment_brand_id && brand.equipment_type_id === form.equipment_type_id)) { setToast({ msg: "A marca selecionada não pertence ao equipamento.", type: "error" }); return; }
     if (form.equipment_model_id && !equipmentModels.some(model => model.id === form.equipment_model_id && model.equipment_brand_id === form.equipment_brand_id)) { setToast({ msg: "O modelo selecionado não pertence à marca.", type: "error" }); return; }
+    const { data: availableStatuses, error: statusError } = await supabase.from("order_statuses").select("id,name,sort_order").order("sort_order");
+    const status = editingOS ? (availableStatuses || []).find(item => item.id === form.status_id) : initialOrderStatus(availableStatuses || []);
+    if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status válido para a OS.", type: "error" }); return; }
     setSaving(true);
     if (editingCustomer && selectedCustomer?.id) {
       const validationError = validateCustomerForm(customerDraft);
@@ -2712,22 +3409,68 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
       setSelectedCustomer({ ...selectedCustomer, ...customerPayload(customerDraft), addresses: [customerAddressDraft] });
       setEditingCustomer(false);
     }
-    const payload: any = { os_number: editingOS?.os_number || generateOsProtocol(), service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, service_type_id: form.service_type_id || null, seller_id: form.seller_id || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, ...(editingOS ? { status_id: form.status_id || null } : {}), situation_id: form.situation_id || null, customer_id: cid, assigned_to: editingOS ? form.assigned_to || null : user?.id || null, technician_id: form.technician_id || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, serial_number: form.serial_number || null, accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: form.scheduled_at || null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null };
+    const payload: any = { os_number: editingOS?.os_number || generateOsProtocol(), service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, service_type_id: form.service_type_id || null, seller_id: form.seller_id || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, status_id: status.id, situation_id: form.situation_id || null, customer_id: cid, assigned_to: editingOS ? form.assigned_to || null : user?.id || null, technician_id: form.technician_id || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, serial_number: form.serial_number || null, accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: needsScheduling ? form.scheduled_at || null : null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null };
     let error;
+    let savedOrderId = editingOS?.id as string | undefined;
     if (editingOS) {
       const r = await supabase.from("service_orders").update(payload).eq("id", editingOS.id);
       error = r.error;
     } else {
-      const r = await supabase.from("service_orders").insert(payload);
+      const r = await supabase.from("service_orders").insert(payload).select("id").single();
       error = r.error;
+      savedOrderId = r.data?.id;
+    }
+    if (error) { setSaving(false); setToast({ msg: `Erro ao salvar OS: ${error.message}`, type: "error" }); return; }
+    try {
+      if (!savedOrderId) throw new Error("A OS foi salva, mas não foi possível obter seu ID.");
+      const { data: existingLinks, error: linksError } = await supabase.from("service_order_media").select("id,media_id").eq("service_order_id", savedOrderId);
+      if (linksError) throw linksError;
+      const retainedMediaIds = new Set(orderImages.filter(image => image.mediaId).map(image => image.mediaId));
+      for (const link of existingLinks || []) {
+        if (!retainedMediaIds.has(link.media_id)) {
+          const { error: removeError } = await supabase.from("service_order_media").delete().eq("id", link.id);
+          if (removeError) throw removeError;
+        }
+      }
+      for (const [sortOrder, image] of orderImages.entries()) {
+        if (image.mediaId) {
+          const link = (existingLinks || []).find((item: any) => item.media_id === image.mediaId);
+          if (link) {
+            const { error: updateError } = await supabase.from("service_order_media").update({ sort_order: sortOrder }).eq("id", link.id);
+            if (updateError) throw updateError;
+          }
+        } else if (image.file) {
+          const mediaId = await uploadOrderImage(image.file);
+          const { error: insertError } = await supabase.from("service_order_media").insert({ service_order_id: savedOrderId, media_id: mediaId, sort_order: sortOrder });
+          if (insertError) throw insertError;
+        }
+      }
+    } catch (imageError) {
+      setSaving(false);
+      setToast({ msg: `OS salva, mas houve erro nas imagens: ${supabaseErrorMessage(imageError)}`, type: "error" });
+      return;
     }
     setSaving(false);
-    if (error) { setToast({ msg: `Erro ao salvar OS: ${error.message}`, type: "error" }); return; }
     setToast({ msg: `OS ${editingOS ? "atualizada" : "criada"} com sucesso!`, type: "success" });
     setFormOpen(false); setDetail(null); load();
   };
 
+  const handleDeleteOrder = async (id: string) => {
+    if (!hasPermission("orders.delete")) return;
+    const { error } = await supabase.from("service_orders").delete().eq("id", id);
+    if (error) {
+      setToast({ msg: `Não foi possível excluir a OS: ${error.message}`, type: "error" });
+      setDeleteId(null);
+      return;
+    }
+    setToast({ msg: "OS excluída.", type: "success" });
+    setDeleteId(null);
+    setDetail(null);
+    await load();
+  };
+
   const updateOrderStatus = async (order: any, statusId: string) => {
+    if (!hasPermission("orders.status")) { setToast({ msg: "Você não possui permissão para alterar o status.", type: "error" }); return; }
     const { error } = await supabase.from("service_orders").update({ status_id: statusId }).eq("id", order.id);
     if (error) { setToast({ msg: `Erro: ${error.message}`, type: "error" }); return; }
     await supabase.from("service_order_status_history").insert({ service_order_id: order.id, status_id: statusId, notes: null, is_visible_to_customer: false, created_by: user?.id || null });
@@ -2743,6 +3486,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   };
 
   const handleKanbanDrop = async (statusId: string) => {
+    if (!hasPermission("orders.status")) return;
     const order = orders.find(item => item.id === draggingId);
     const previousOrders = dragOriginRef.current;
     setDraggingId(null);
@@ -2783,6 +3527,19 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
     setCustomerSearch("");
   };
 
+  const lookupCustomerCnpj = async (value: string, baseForm = customerDraft) => {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length !== 14 || customerDraft.customerType !== "PJ") return;
+    setCnpjLoading(true); setCnpjMessage("");
+    try {
+      const data = await fetchCnpjData(digits);
+      const result = applyCnpjData(baseForm, customerAddressDraft, data);
+      setCustomerDraft(result.form); setCustomerAddressDraft(result.address);
+    } catch (error) {
+      setCnpjMessage(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
+    } finally { setCnpjLoading(false); }
+  };
+
   const fmtDate = (d?: string | null, time = false) => {
     if (!d) return "—";
     return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", ...(time ? { hour: "2-digit", minute: "2-digit" } : {}) });
@@ -2795,6 +3552,14 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
     const matchSituation = !filterSituation || o.situation_id === filterSituation;
     return matchSearch && matchStatus && matchSituation;
   });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedOrders = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => { setPage(1); }, [search, filterStatus, filterSituation]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   if (subView === "situations") return <OSSituationsView onBack={() => setSubView("list")} />;
 
@@ -2804,6 +3569,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {deleteId && <ConfirmDialog message="Excluir esta OS? Esta ação remove o registro principal da tabela de ordens de serviço." onConfirm={() => { void handleDeleteOrder(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       <PageHeader title="Ordens de Serviço" subtitle={`${orders.length} OS cadastrada${orders.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2 flex-wrap">
@@ -2811,7 +3577,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
             <button type="button" onClick={() => setViewMode("list")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "list" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><List size={13} /> Lista</button>
             <button type="button" onClick={() => setViewMode("kanban")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "kanban" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><LayoutDashboard size={13} /> Kanban</button>
           </div>
-          <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0]"><Plus size={13} /> Nova OS</button>
+          {hasPermission("orders.create") && <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0]"><Plus size={13} /> Nova OS</button>}
           <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5"><RefreshCw size={13} /> Atualizar</button>
           
         </div>
@@ -2821,12 +3587,12 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar OS, cliente ou serviço..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar OS, cliente ou serviço..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
         </div>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={cn(INPUT, "py-2 text-xs")}>
+        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} className={cn(INPUT, "py-2 text-xs")}>
           <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
-        <select value={filterSituation} onChange={e => setFilterSituation(e.target.value)} className={cn(INPUT, "py-2 text-xs")}>
+        <select value={filterSituation} onChange={e => { setFilterSituation(e.target.value); setPage(1); }} className={cn(INPUT, "py-2 text-xs")}>
           <option value="">Todas as situações</option>{situations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
@@ -2850,7 +3616,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
-                {filtered.map(o => (
+                {pagedOrders.map(o => (
                   <tr key={o.id} onClick={() => openDetail(o)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || o.id.slice(0, 8)}</span></div>
@@ -2862,16 +3628,17 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                     <td className="px-4 py-3.5">
                       <p className="font-medium text-[#0d1b2e] text-sm">{(o.service as any)?.title || "—"}</p>
                     </td>
-                    <td className="px-4 py-3.5"><StatusBadge status={(o.order_status as any)?.name || "—"} /></td>
-                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{(o.situation as any)?.name || "—"}</td>
+                    <td className="px-4 py-3.5"><StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} /></td>
+                    <td className="px-4 py-3.5"><StatusBadge status={(o.situation as any)?.name || "—"} color={(o.situation as any)?.color} /></td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{o.scheduled_at ? fmtDate(o.scheduled_at) : "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(o.created_at)}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2 justify-end">
-                        <select value={o.status_id || ""} onClick={event => event.stopPropagation()} onChange={event => updateOrderStatus(o, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
+                        {hasPermission("orders.status") && <select value={o.status_id || ""} onClick={event => event.stopPropagation()} onChange={event => updateOrderStatus(o, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
                           {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
-                        </select>
-                        <button onClick={(event) => { event.stopPropagation(); openEdit(o); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors"><Edit2 size={14} /> Editar</button>
+                        </select>}
+                        {hasPermission("orders.edit") && <button onClick={(event) => { event.stopPropagation(); openEdit(o); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors"><Edit2 size={14} /> Editar</button>}
+                        {hasPermission("orders.delete") && <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteId(o.id); }} className="flex items-center gap-1.5 text-xs font-bold text-red-600 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={14} /> Excluir</button>}
                       </div>
                     </td>
                   </tr>
@@ -2880,6 +3647,13 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
             </table>
           </div>
         )}
+        <PaginationBar
+          page={safePage}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
+          onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+        />
       </div> : <div className="overflow-x-auto pb-3">
         <div className="flex items-start gap-4 min-w-max">
           {statuses.map(status => {
@@ -2897,7 +3671,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                   {order.estimated_price != null && <p className="mt-2 text-xs font-bold text-[#0d1b2e]">R$ {Number(order.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>}
                   {order.scheduled_at && <p className="mt-1 text-[11px] text-[#5a6a82]">Agendado: {fmtDate(order.scheduled_at)}</p>}
                   {(order.assigned_profile as any)?.full_name && <p className="mt-1 text-[11px] text-[#5a6a82]">Responsável: {(order.assigned_profile as any).full_name}</p>}
-                  <div className="mt-3 flex items-center justify-end" onClick={event => event.stopPropagation()}><button type="button" draggable={false} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onDragStart={event => { event.preventDefault(); event.stopPropagation(); }} onClick={() => openEdit(order)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-2.5 py-1.5 rounded-lg"><Edit2 size={13} /> Editar</button></div>
+                  {hasPermission("orders.edit") && <div className="mt-3 flex items-center justify-end" onClick={event => event.stopPropagation()}><button type="button" draggable={false} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onDragStart={event => { event.preventDefault(); event.stopPropagation(); }} onClick={() => openEdit(order)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-2.5 py-1.5 rounded-lg"><Edit2 size={13} /> Editar</button></div>}
                 </div>)}
               </div>
             </div>;
@@ -2910,8 +3684,8 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
         <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Ordens de Serviço" title={detail.os_number || `OS #${detail.id.slice(0,8)}`} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-wrap gap-2 items-center">
-                <StatusBadge status={(detail.order_status as any)?.name || "—"} />
-                {(detail.situation as any)?.name && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#e8eef8] text-[#0057e7]">{(detail.situation as any).name}</span>}
+                <StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />
+                {(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}
               </div>
               <Section title="Cliente">
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -2943,6 +3717,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                   <InfoRow label="Valor" value={detail.estimated_price == null ? undefined : `R$ ${Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
                   <InfoRow label="Status" value={(detail.order_status as any)?.name} />
                   <InfoRow label="Situação" value={(detail.situation as any)?.name} />
+                  <InfoRow label="Horas da situação" value={(detail.situation as any)?.hours == null ? null : `${(detail.situation as any).hours} hora(s)`} />
                   <InfoRow label="Responsável" value={(detail.assigned_profile as any)?.full_name} />
                   <InfoRow label="Técnico" value={(detail.technician as any)?.full_name} />
                   <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
@@ -2950,6 +3725,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                   <InfoRow label="Data de conclusão" value={fmtDate(detail.completed_at)} />
                 </div>
               </Section>
+              {orderImages.length > 0 && <Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>}
               <Section title="Histórico">
                 {detailHistory.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum registro de alteração.</p> : (
                   <div className="space-y-2">
@@ -2972,8 +3748,9 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
             <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
               <div className="flex gap-2">
                 <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
-                <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>
-                <BtnPrimary onClick={() => { setDetail(null); openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>
+                {hasPermission("orders.status") && <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>}
+                {hasPermission("orders.edit") && <BtnPrimary onClick={() => { setDetail(null); openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>}
+                {hasPermission("orders.delete") && <button type="button" onClick={() => setDeleteId(detail.id)} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"><Trash2 size={14} /> Excluir</button>}
               </div>
             </div>
         </AdminPage>
@@ -2990,14 +3767,13 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                   {editingCustomer ? (
                     <div className="space-y-4">
                       <div className="grid sm:grid-cols-2 gap-3">
-                        <CustomerTypeToggle value={customerDraft.customerType} onChange={customerType => setCustomerDraft({ ...customerDraft, customerType })} />
+                        <CustomerTypeToggle value={customerDraft.customerType} disabled onChange={customerType => setCustomerDraft({ ...customerDraft, customerType })} />
                         {customerDraft.customerType === "PF" ? <>
                           <FInput label="Nome completo" required value={customerDraft.full_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, full_name: e.target.value })} />
-                          <FInput label="CPF" value={customerDraft.document} onChange={(e: any) => setCustomerDraft({ ...customerDraft, document: formatCpf(e.target.value) })} placeholder="000.000.000-00" />
+                          <FInput label="CPF" value={customerDraft.document} readOnly />
                         </> : <>
                           <FInput label="Nome fantasia" required value={customerDraft.trade_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, trade_name: e.target.value })} />
-                          <FInput label="Tipo" value="Pessoa Jurídica" readOnly />
-                          <FInput label="CNPJ" required value={customerDraft.cnpj} onChange={(e: any) => setCustomerDraft({ ...customerDraft, cnpj: formatCnpj(e.target.value) })} placeholder="00.000.000/0000-00" />
+                          <FInput label="CNPJ" required value={customerDraft.cnpj} readOnly />
                           <FInput label="Razão social" value={customerDraft.legal_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, legal_name: e.target.value })} />
                           <FInput label="Inscrição estadual" value={customerDraft.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setCustomerDraft({ ...customerDraft, state_registration: e.target.value })} />
                           <FInput label="Fundação" value={customerDraft.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setCustomerDraft({ ...customerDraft, foundation_date: formatFoundationDate(e.target.value) })} />
@@ -3009,7 +3785,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                       <Section title="Endereço do cliente">
                         <AddressFields value={customerAddressDraft} onChange={setCustomerAddressDraft} inputClassName={INPUT} />
                       </Section>
-                      <BtnPrimary onClick={saveCustomer} disabled={saving}>{saving ? "Salvando..." : "Salvar dados"}</BtnPrimary>
+                      {hasPermission("customers.edit") && <BtnPrimary onClick={saveCustomer} disabled={saving}>{saving ? "Salvando..." : "Salvar dados"}</BtnPrimary>}
                     </div>
                   ) : (
                     <>
@@ -3022,7 +3798,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                       </div>
                       <button type="button" onClick={() => setAddressExpanded(value => !value)} className="text-xs font-bold text-[#0057e7] hover:underline">{addressExpanded ? "Ocultar endereço ▲" : "Mostrar endereço ▼"}</button>
                       {addressExpanded && <div className="border-t border-[#0d1b2e]/8 pt-4"><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Endereço</p><div className="grid sm:grid-cols-3 gap-3">{(() => { const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0]; const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" }; return (["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null); })()}</div></div>}
-                      <div className="flex flex-wrap gap-2"><BtnSecondary onClick={() => { setSelectedCustomer(null); upF("customer_id", ""); }}><Users size={13} /> Trocar cliente</BtnSecondary><BtnSecondary onClick={() => setEditingCustomer(true)}><Edit2 size={13} /> Editar dados</BtnSecondary></div>
+                      <div className="flex flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={() => { setSelectedCustomer(null); upF("customer_id", ""); }}><Users size={13} /> Trocar cliente</BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)}><Edit2 size={13} /> Editar dados</BtnSecondary>}</div>
                     </>
                   )}
                   {editingCustomer && <button onClick={() => setEditingCustomer(false)} className="text-xs text-[#5a6a82] hover:underline">Cancelar edição</button>}
@@ -3034,7 +3810,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                       <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
                       <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
                     </div>
-                    <BtnPrimary onClick={() => setQuickCustomer(true)}><Plus size={13} /> Criar cliente</BtnPrimary>
+                    {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)}><Plus size={13} /> Criar cliente</BtnPrimary>}
                   </div>
                   {customerResults.length > 0 && (
                     <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
@@ -3052,7 +3828,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
 
             <Section title="Equipamento">
               <div className="grid sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2 flex items-end gap-2"><div className="flex-1"><FSelect label="Tipo de equipamento" value={form.equipment_type_id} onChange={(e: any) => { upF("equipment_type_id", e.target.value); upF("equipment_brand_id", ""); upF("equipment_model_id", ""); }} options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]} /></div><BtnPrimary className="h-[42px]" onClick={() => setQuickEquipment(true)}><Plus size={15} /> Criar equipamento</BtnPrimary></div>
+                <div className="sm:col-span-2 flex items-end gap-2"><div className="flex-1"><FSelect label="Tipo de equipamento" value={form.equipment_type_id} onChange={(e: any) => { upF("equipment_type_id", e.target.value); upF("equipment_brand_id", ""); upF("equipment_model_id", ""); }} options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]} /></div>{!editingOS && hasPermission("equipment.create") && <BtnPrimary className="h-[42px]" onClick={() => setQuickEquipment(true)}><Plus size={15} /> Criar equipamento</BtnPrimary>}</div>
                 <FSelect label="Marca técnica" value={form.equipment_brand_id} disabled={!form.equipment_type_id} onChange={(e: any) => { upF("equipment_brand_id", e.target.value); upF("equipment_model_id", ""); }} options={[{ value: "", label: form.equipment_type_id ? "Selecionar marca..." : "Selecione o tipo primeiro" }, ...equipmentBrands.filter(brand => brand.equipment_type_id === form.equipment_type_id).map(brand => ({ value: brand.id, label: brand.name }))]} />
                 <FSelect label="Modelo" value={form.equipment_model_id} disabled={!form.equipment_brand_id} onChange={(e: any) => upF("equipment_model_id", e.target.value)} options={[{ value: "", label: form.equipment_brand_id ? "Selecionar modelo..." : "Selecione a marca primeiro" }, ...equipmentModels.filter(model => model.equipment_brand_id === form.equipment_brand_id).map(model => ({ value: model.id, label: model.name }))]} />
                 <FInput label="Versão" value={form.model} onChange={(e: any) => upF("model", e.target.value)} />
@@ -3062,26 +3838,38 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
               </div>
             </Section>
 
+            <OrderImagesField images={orderImages} onAdd={addOrderImages} onRemove={removeOrderImage} onView={setViewImage} canEdit={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")} />
+
             <Section title="Informações da OS">
               <div className="grid sm:grid-cols-2 gap-4">
-                <div className="flex items-end gap-2"><div className="flex-1"><FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => upF("service_type_id", e.target.value)} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} /></div><BtnPrimary className="h-[42px] whitespace-nowrap" onClick={() => setQuickServiceType(true)}><Plus size={14} /> Criar novo</BtnPrimary></div>
+                <FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => upF("service_type_id", e.target.value)} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} />
                 <FSelect label="Serviço" value={form.general_service_id} required onChange={(e: any) => upF("general_service_id", e.target.value)} options={[{ value: "", label: "Selecionar serviço..." }, ...generalServices.map(service => ({ value: service.id, label: service.name }))]} />
                 <FSelect label="Situação" value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...situations.map(s => ({ value: s.id, label: s.name }))]} />
-                <FSelect label="Técnico" value={form.technician_id} onChange={(e: any) => upF("technician_id", e.target.value)} options={[{ value: "", label: "Nenhum técnico selecionado" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} />
-                <FSelect label="Vendedor" value={form.seller_id} onChange={(e: any) => upF("seller_id", e.target.value)} options={[{ value: "", label: "Nenhum vendedor selecionado" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} />
+                {hasPermission("orders.assign") && <><FSelect label="Técnico" value={form.technician_id} onChange={(e: any) => upF("technician_id", e.target.value)} options={[{ value: "", label: "Nenhum técnico selecionado" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} /><FSelect label="Vendedor" value={form.seller_id} onChange={(e: any) => upF("seller_id", e.target.value)} options={[{ value: "", label: "Nenhum vendedor selecionado" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} /></>}
                 <FSelect label="Prioridade" value={form.priority} onChange={(e: any) => upF("priority", e.target.value)} options={[{ value: "baixa", label: "Baixa" }, { value: "normal", label: "Normal" }, { value: "alta", label: "Alta" }, { value: "urgente", label: "Urgente" }]} />
-                <FInput label="Data agendada" type="datetime-local" value={form.scheduled_at} onChange={(e: any) => upF("scheduled_at", e.target.value)} />
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Necessita agendamento</label>
+                  <div className="flex gap-4 text-sm text-[#0d1b2e]">
+                    <label className="flex items-center gap-2"><input type="radio" checked={needsScheduling} onChange={() => setNeedsScheduling(true)} /> Sim</label>
+                    <label className="flex items-center gap-2"><input type="radio" checked={!needsScheduling} onChange={() => { setNeedsScheduling(false); upF("scheduled_at", ""); }} /> Não</label>
+                  </div>
+                </div>
+                {needsScheduling && <>
+                  <FInput label="Data agendada" type="date" required value={form.scheduled_at.slice(0, 10)} onChange={(e: any) => upF("scheduled_at", `${e.target.value}${form.scheduled_at.slice(10) || "T"}`)} />
+                  <FInput label="Hora agendada" type="time" required value={form.scheduled_at.slice(11, 16)} onChange={(e: any) => upF("scheduled_at", `${form.scheduled_at.slice(0, 10)}T${e.target.value}`)} />
+                  <FInput label="Valor" type="number" min="0" step="0.01" value={form.estimated_price} onChange={(e: any) => upF("estimated_price", e.target.value)} placeholder="0,00" />
+                </>}
               </div>
               <div className="space-y-4">
                 <FTextarea label="Descrição do problema" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={4} />
                 <FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />
-                <FInput label="Valor" type="number" min="0" step="0.01" value={form.estimated_price} onChange={(e: any) => upF("estimated_price", e.target.value)} placeholder="0,00" />
+                {!needsScheduling && <FInput label="Valor" type="number" min="0" step="0.01" value={form.estimated_price} onChange={(e: any) => upF("estimated_price", e.target.value)} placeholder="0,00" />}
               </div>
             </Section>
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
             <BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>
-            <BtnPrimary onClick={saveOS} disabled={saving}>{saving ? <Clock size={14} className="animate-spin" /> : <CheckCircle size={14} />}{saving ? "Salvando..." : "Salvar OS"}</BtnPrimary>
+            {(editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")) && <BtnPrimary onClick={saveOS} disabled={saving}>{saving ? <Clock size={14} className="animate-spin" /> : <CheckCircle size={14} />}{saving ? "Salvando..." : "Salvar OS"}</BtnPrimary>}
           </div>
         </AdminPage>
       )}
@@ -3105,13 +3893,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
           upF("customer_id", customer.id);
         }}
       />}
-      {quickServiceType && <ServiceTypeModal
-        onClose={() => setQuickServiceType(false)}
-        onSaved={serviceType => {
-          setServiceTypes(current => [...current, serviceType].sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title)));
-          upF("service_type_id", serviceType.id);
-        }}
-      />}
+      {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
     </div>
   );
 }
@@ -3119,9 +3901,12 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
 /* ─────────────────────────── TAB: CUSTOMERS ─────────────────────────── */
 
 function TabCustomers() {
+  const { hasPermission } = useAuth();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [detail, setDetail] = useState<any>(null);
   const [detailQuotes, setDetailQuotes] = useState<any[]>([]);
   const [detailOrders, setDetailOrders] = useState<any[]>([]);
@@ -3133,7 +3918,10 @@ function TabCustomers() {
   const [createForm, setCreateForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [createAddress, setCreateAddress] = useState<Address>({ ...emptyAddress });
   const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [cnpjMessage, setCnpjMessage] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -3153,7 +3941,7 @@ function TabCustomers() {
     setDetailLoading(true);
     const [quotesRes, ordersRes] = await Promise.all([
       supabase.from("quote_requests").select("id, protocol, created_at, status_id, estimated_price, final_price, customer_message, request_status:request_statuses(name), service:services(title), brand:brands(name)").eq("customer_id", c.id).order("created_at", { ascending: false }),
-      supabase.from("service_orders").select("id, os_number, service:services(title), created_at, scheduled_at, completed_at, internal_notes, customer_notes, status_id, order_status:order_statuses(name)").eq("customer_id", c.id).order("created_at", { ascending: false }),
+      supabase.from("service_orders").select("id, os_number, service:services(title), created_at, scheduled_at, completed_at, internal_notes, customer_notes, status_id, order_status:order_statuses(name,color)").eq("customer_id", c.id).order("created_at", { ascending: false }),
     ]);
     setDetailQuotes(quotesRes.data || []);
     setDetailOrders(ordersRes.data || []);
@@ -3161,6 +3949,7 @@ function TabCustomers() {
   };
 
   const handleSave = async () => {
+    if (!hasPermission("customers.edit")) { setToast({ msg: "Você não possui permissão para editar clientes.", type: "error" }); return; }
     const validationError = validateCustomerForm(editForm);
     if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSaving(true);
@@ -3180,6 +3969,7 @@ function TabCustomers() {
   };
 
   const handleCreate = async () => {
+    if (!hasPermission("customers.create")) { setToast({ msg: "Você não possui permissão para cadastrar clientes.", type: "error" }); return; }
     const validationError = validateCustomerForm(createForm);
     if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSaving(true);
@@ -3198,23 +3988,59 @@ function TabCustomers() {
     await load();
   };
 
+  const handleDeleteCustomer = async (id: string) => {
+    if (!hasPermission("customers.delete")) return;
+    const { error } = await supabase.from("customers").delete().eq("id", id);
+    if (error) {
+      setToast({ msg: `Não foi possível excluir o cliente: ${error.message}`, type: "error" });
+      setDeleteId(null);
+      return;
+    }
+    setToast({ msg: "Cliente excluído.", type: "success" });
+    setDeleteId(null);
+    setDetail(null);
+    await load();
+  };
+
   const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
 
   const normalizeDoc = (doc: string) => doc.replace(/\D/g, "");
+
+  const lookupCreateCnpj = async (value: string, baseForm = createForm) => {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length !== 14 || createForm.customerType !== "PJ") return;
+    setCnpjLoading(true); setCnpjMessage("");
+    try {
+      const data = await fetchCnpjData(digits);
+      const result = applyCnpjData(baseForm, createAddress, data);
+      setCreateForm(result.form); setCreateAddress(result.address);
+    } catch (error) {
+      setCnpjMessage(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
+    } finally { setCnpjLoading(false); }
+  };
 
   const filtered = customers.filter(c => {
     if (!search) return true;
     const s = search.toLowerCase();
     return (c.full_name || "").toLowerCase().includes(s) || (c.trade_name || "").toLowerCase().includes(s) || (c.legal_name || "").toLowerCase().includes(s) || (c.whatsapp || "").includes(search) || (c.email || "").toLowerCase().includes(s) || normalizeDoc(c.document || "").includes(normalizeDoc(search)) || normalizeDoc(c.cnpj || "").includes(normalizeDoc(search));
   });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedCustomers = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {deleteId && <ConfirmDialog message="Excluir este cliente? Esta ação remove o registro principal e pode falhar se houver dependências existentes no schema." onConfirm={() => { void handleDeleteCustomer(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       <PageHeader title="Clientes" subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2">
-          <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Cadastrar Cliente</button>
+          {hasPermission("customers.create") && <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Cadastrar Cliente</button>}
           <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
             <RefreshCw size={13} /> Atualizar
           </button>
@@ -3224,11 +4050,11 @@ function TabCustomers() {
         <div className="px-4 py-3 border-b border-[#0d1b2e]/8">
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, documento, WhatsApp ou e-mail..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por nome, documento, WhatsApp ou e-mail..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
         </div>
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." onAdd={() => setCreateOpen(true)} addLabel="Cadastrar Cliente" />
+          <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." onAdd={hasPermission("customers.create") ? () => setCreateOpen(true) : undefined} addLabel="Cadastrar Cliente" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
@@ -3243,7 +4069,7 @@ function TabCustomers() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
-                {filtered.map(c => (
+                {pagedCustomers.map(c => (
                   <tr key={c.id} className="hover:bg-[#f8fafc]/80">
                     <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{c.full_name}</td>
                     <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]"><span className="font-bold text-[#0057e7]">{c.customer_type === "PJ" ? "PJ" : "PF"}</span> · {c.customer_type === "PJ" ? (c.cnpj ? formatCnpj(c.cnpj) : "—") : (c.document ? formatCpf(c.document) : "—")}</td>
@@ -3251,7 +4077,12 @@ function TabCustomers() {
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82] truncate max-w-[160px]">{c.email || "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(c.created_at)}</td>
                     <td className="px-4 py-3.5">
-                      <button onClick={() => openDetail(c)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => openDetail(c)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
+                        {hasPermission("customers.delete") && (
+                          <button type="button" onClick={() => setDeleteId(c.id)} title="Excluir cliente" aria-label="Excluir cliente" className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -3259,6 +4090,13 @@ function TabCustomers() {
             </table>
           </div>
         )}
+        <PaginationBar
+          page={safePage}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
+          onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+        />
       </div>
 
       {/* Customer Detail Drawer */}
@@ -3270,14 +4108,14 @@ function TabCustomers() {
               {editMode ? (
                 <div className="space-y-3">
                   <div className="grid sm:grid-cols-2 gap-3">
-                    <CustomerTypeToggle value={editForm.customerType} onChange={customerType => setEditForm({ ...editForm, customerType })} />
+                    <CustomerTypeToggle value={editForm.customerType} disabled onChange={customerType => setEditForm({ ...editForm, customerType })} />
                     {editForm.customerType === "PF" ? <>
                     <FInput label="Nome completo" value={editForm.full_name} required onChange={(e: any) => setEditForm({ ...editForm, full_name: e.target.value })} />
                     <FInput label="CPF" value={editForm.document} onChange={(e: any) => setEditForm({ ...editForm, document: formatCpf(e.target.value) })} placeholder="000.000.000-00" />
                     </> : <>
                     <FInput label="Nome fantasia" value={editForm.trade_name} required onChange={(e: any) => setEditForm({ ...editForm, trade_name: e.target.value })} />
                     <FInput label="Tipo" value="Pessoa Jurídica" readOnly />
-                    <FInput label="CNPJ" value={editForm.cnpj} required onChange={(e: any) => setEditForm({ ...editForm, cnpj: formatCnpj(e.target.value) })} placeholder="00.000.000/0000-00" />
+                    <FInput label="CNPJ" value={editForm.cnpj} required readOnly placeholder="00.000.000/0000-00" />
                     <FInput label="Razão social" value={editForm.legal_name} onChange={(e: any) => setEditForm({ ...editForm, legal_name: e.target.value })} />
                     <FInput label="Inscrição estadual" value={editForm.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setEditForm({ ...editForm, state_registration: e.target.value })} />
                     <FInput label="Fundação" value={editForm.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setEditForm({ ...editForm, foundation_date: formatFoundationDate(e.target.value) })} />
@@ -3290,7 +4128,7 @@ function TabCustomers() {
                     <AddressFields value={editAddress} onChange={setEditAddress} inputClassName={INPUT} />
                   </Section>
                   <div className="flex gap-2 pt-1">
-                    <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</BtnPrimary>
+                    {hasPermission("customers.edit") && <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</BtnPrimary>}
                     <BtnSecondary onClick={() => setEditMode(false)}>Cancelar</BtnSecondary>
                   </div>
                   {((detail.addresses || []).length > 0) && (
@@ -3320,9 +4158,9 @@ function TabCustomers() {
                     <div className="sm:col-span-2"><p className="text-[10px] text-[#5a6a82] font-bold uppercase">E-mail</p><p className="font-medium text-[#0d1b2e]">{detail.email || "—"}</p></div>
                     <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Cadastrado em</p><p className="font-medium text-[#0d1b2e]">{fmtDate(detail.created_at)}</p></div>
                   </div>
-                  <button onClick={() => setEditMode(true)} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
+                  {hasPermission("customers.edit") && <button onClick={() => setEditMode(true)} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
                     <Edit2 size={12} /> Editar dados
-                  </button>
+                  </button>}
                 </div>
               )}
             </Section>
@@ -3364,7 +4202,7 @@ function TabCustomers() {
                         <div key={o.id} className="bg-[#f8fafc] border border-[#0d1b2e]/8 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-black text-xs text-[#0057e7]">#{o.os_number || o.id.slice(0, 8)}</span>
-                            <StatusBadge status={(o.order_status as any)?.name || "—"} />
+                            <StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} />
                           </div>
                           <p className="text-xs font-semibold text-[#0d1b2e]">{(o.service as any)?.title || "Ordem de Serviço"}</p>
                           {o.customer_notes && <p className="text-xs text-[#5a6a82] mt-0.5">{o.customer_notes}</p>}
@@ -3399,8 +4237,7 @@ function TabCustomers() {
                   <FInput label="CPF" value={createForm.document} placeholder="000.000.000-00" onChange={(e: any) => setCreateForm({ ...createForm, document: formatCpf(e.target.value) })} />
                 </> : <>
                   <FInput label="Nome fantasia" required value={createForm.trade_name} onChange={(e: any) => setCreateForm({ ...createForm, trade_name: e.target.value })} />
-                  <FInput label="Tipo" value="Pessoa Jurídica" readOnly />
-                  <FInput label="CNPJ" required value={createForm.cnpj} placeholder="00.000.000/0000-00" onChange={(e: any) => setCreateForm({ ...createForm, cnpj: formatCnpj(e.target.value) })} />
+                    <FInput label="CNPJ" required value={createForm.cnpj} placeholder="00.000.000/0000-00" onBlur={(e: any) => lookupCreateCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = formatCnpj(e.target.value); setCnpjMessage(""); setCreateForm({ ...createForm, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCreateCnpj(nextCnpj, { ...createForm, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : cnpjMessage || undefined} />
                   <FInput label="Razão social" value={createForm.legal_name} onChange={(e: any) => setCreateForm({ ...createForm, legal_name: e.target.value })} />
                   <FInput label="Inscrição estadual" value={createForm.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setCreateForm({ ...createForm, state_registration: e.target.value })} />
                   <FInput label="Fundação" value={createForm.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setCreateForm({ ...createForm, foundation_date: formatFoundationDate(e.target.value) })} />
@@ -3416,7 +4253,7 @@ function TabCustomers() {
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
             <BtnSecondary onClick={() => setCreateOpen(false)}>Cancelar</BtnSecondary>
-            <BtnPrimary onClick={handleCreate} disabled={saving}>{saving ? "Salvando..." : "Cadastrar Cliente"}</BtnPrimary>
+            {hasPermission("customers.create") && <BtnPrimary onClick={handleCreate} disabled={saving}>{saving ? "Salvando..." : "Cadastrar Cliente"}</BtnPrimary>}
           </div>
         </AdminPage>
       )}
@@ -3426,49 +4263,149 @@ function TabCustomers() {
 
 /* ─────────────────────────── TAB: EMPLOYEES ─────────────────────────── */
 
+function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
+  const { hasPermission } = useAuth();
+  const [roles, setRoles] = useState<any[]>([]);
+  const [permissions, setPermissions] = useState<any[]>([]);
+  const [roleCounts, setRoleCounts] = useState<Record<string, number>>({});
+  const [editing, setEditing] = useState<any>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "", is_active: true, selected: [] as string[] });
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const load = async () => {
+    const [{ data: roleData, error: roleError }, { data: permissionData, error: permissionError }, { data: employees }] = await Promise.all([
+      supabase.from("roles").select("id,name,description,is_system,is_active,sort_order").order("sort_order").order("name"),
+      supabase.from("permissions").select("id,key,label,description,module_name,sort_order").order("sort_order").order("label"),
+      supabase.from("employees").select("role_id"),
+    ]);
+    if (roleError || permissionError) { setToast({ msg: `Erro ao carregar permissões: ${(roleError || permissionError)?.message}`, type: "error" }); return; }
+    const counts: Record<string, number> = {};
+    (employees || []).forEach((employee: any) => { if (employee.role_id) counts[employee.role_id] = (counts[employee.role_id] || 0) + 1; });
+    setRoles(roleData || []); setPermissions(permissionData || []); setRoleCounts(counts);
+  };
+  useEffect(() => { load(); }, []);
+
+  const grouped = permissions.reduce<Record<string, any[]>>((groups, permission) => { const moduleName = permission.module_name || "Outros"; (groups[moduleName] ||= []).push(permission); return groups; }, {});
+  const openNew = () => { setEditing(null); setForm({ name: "", description: "", is_active: true, selected: [] }); setFormOpen(true); };
+  const openEdit = async (role: any) => {
+    const { data, error } = await supabase.from("role_permissions").select("permission_id").eq("role_id", role.id);
+    if (error) { setToast({ msg: `Erro ao carregar permissões da função: ${error.message}`, type: "error" }); return; }
+    setEditing(role); setForm({ name: role.name || "", description: role.description || "", is_active: role.is_active !== false, selected: (data || []).map((item: any) => item.permission_id) }); setFormOpen(true);
+  };
+  const save = async () => {
+    if (!hasPermission(editing ? "roles.edit" : "roles.create")) { setToast({ msg: "Você não possui permissão para salvar funções.", type: "error" }); return; }
+    if (!form.name.trim()) { setToast({ msg: "Informe o nome da função.", type: "error" }); return; }
+    setSaving(true);
+    const payload = { name: form.name.trim(), description: form.description.trim() || null, is_active: form.is_active };
+    const result = editing
+      ? await supabase.from("roles").update(payload).eq("id", editing.id).select("id").maybeSingle()
+      : await supabase.from("roles").insert({ ...payload, is_system: false, sort_order: roles.length }).select("id").maybeSingle();
+    if (result.error) console.error("Role save error:", { operation: editing ? "update" : "insert", table: "roles", code: result.error.code, message: result.error.message, details: result.error.details, hint: result.error.hint });
+    if (result.error || !result.data) { setSaving(false); setToast({ msg: `Erro ao salvar função: ${result.error?.message || "função não criada"}`, type: "error" }); return; }
+    const roleId = result.data.id;
+    const { error: deleteError } = await supabase.from("role_permissions").delete().eq("role_id", roleId);
+    if (deleteError) { console.error("Role permissions delete error:", { operation: "delete", table: "role_permissions", code: deleteError.code, message: deleteError.message, details: deleteError.details, hint: deleteError.hint }); setSaving(false); setToast({ msg: `Erro ao sincronizar permissões: ${deleteError.message}`, type: "error" }); return; }
+    if (form.selected.length) {
+      const { error: insertError } = await supabase.from("role_permissions").insert(form.selected.map(permissionId => ({ role_id: roleId, permission_id: permissionId })));
+      if (insertError) { console.error("Role permissions insert error:", { operation: "insert", table: "role_permissions", code: insertError.code, message: insertError.message, details: insertError.details, hint: insertError.hint }); setSaving(false); setToast({ msg: `Erro ao salvar permissões: ${insertError.message}`, type: "error" }); return; }
+    }
+    setSaving(false); setFormOpen(false); setToast({ msg: editing ? "Função atualizada." : "Função criada.", type: "success" }); load();
+  };
+  const togglePermission = (permissionId: string) => setForm(current => ({ ...current, selected: current.selected.includes(permissionId) ? current.selected.filter(id => id !== permissionId) : [...current.selected, permissionId] }));
+  const toggleGroup = (items: any[]) => { const ids = items.map(item => item.id); const allSelected = ids.every(id => form.selected.includes(id)); setForm(current => ({ ...current, selected: allSelected ? current.selected.filter(id => !ids.includes(id)) : Array.from(new Set([...current.selected, ...ids])) })); };
+  const allSelected = permissions.length > 0 && permissions.every(permission => form.selected.includes(permission.id));
+
+  return <div className="space-y-5">
+    {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    <PageHeader title="Funções e Permissões" subtitle="Defina os acessos disponíveis para cada perfil" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("roles.create") && <BtnPrimary onClick={openNew}><Plus size={15} /> Nova função</BtnPrimary>}</div>} />
+    <div className="bg-white rounded-xl border border-[#0d1b2e]/8 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm min-w-[720px]"><thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold"><tr><th className="px-4 py-3 text-left">Função</th><th className="px-4 py-3 text-left">Descrição</th><th className="px-4 py-3 text-left">Permissões</th><th className="px-4 py-3 text-left">Tipo</th><th className="px-4 py-3 text-left">Usuários</th><th className="px-4 py-3 text-right">Ações</th></tr></thead><tbody className="divide-y divide-[#0d1b2e]/5">{roles.map(role => <RoleRow key={role.id} role={role} permissionCount={role.permission_count} userCount={roleCounts[role.id] || 0} onEdit={() => openEdit(role)} />)}</tbody></table></div></div>
+    {formOpen && <AdminPage open={true} onClose={() => setFormOpen(false)} breadcrumb="Equipes" title={editing ? "Editar função" : "Nova função"} subtitle="Configure os acessos do perfil" maxW="max-w-3xl"><div className="p-5 space-y-5"><Section title="Dados da função"><div className="grid sm:grid-cols-2 gap-4"><FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} /><FInput label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} /><div className="sm:col-span-2"><FToggle label="Função ativa" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div></div></Section><Section title="Permissões"><div className="flex items-center justify-between mb-4"><label className="flex items-center gap-2 text-sm font-bold text-[#0d1b2e]"><input type="checkbox" checked={allSelected} onChange={() => toggleGroup(permissions)} /> Selecionar todas as permissões</label><span className="text-xs font-bold text-[#5a6a82]">{form.selected.length}/{permissions.length}</span></div><div className="space-y-3">{Object.entries(grouped).map(([moduleName, items]) => { const moduleItems = items as any[]; const selectedCount = moduleItems.filter(item => form.selected.includes(item.id)).length; return <div key={moduleName} className="border border-[#0d1b2e]/10 rounded-lg p-4"><div className="flex items-center justify-between mb-3"><label className="flex items-center gap-2 text-sm font-black text-[#0d1b2e]"><input type="checkbox" checked={selectedCount === moduleItems.length} onChange={() => toggleGroup(moduleItems)} /> {moduleName}</label><span className="text-[11px] text-[#5a6a82]">{selectedCount}/{moduleItems.length}</span></div><div className="grid sm:grid-cols-2 gap-2">{moduleItems.map(permission => <label key={permission.id} className="flex items-start gap-2 text-xs text-[#5a6a82]"><input type="checkbox" checked={form.selected.includes(permission.id)} onChange={() => togglePermission(permission.id)} /><span>{permission.label || permission.description || permission.key}</span></label>)}</div></div>; })}</div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{hasPermission(editing ? "roles.edit" : "roles.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar Permissões"}</BtnPrimary>}</div></AdminPage>}
+  </div>;
+}
+
+function RoleRow({ role, permissionCount, userCount, onEdit }: { role: any; permissionCount?: number; userCount: number; onEdit: () => void }) {
+  const [count, setCount] = useState(permissionCount);
+  const { hasPermission } = useAuth();
+  useEffect(() => { if (count != null) return; supabase.from("role_permissions").select("permission_id", { count: "exact", head: true }).eq("role_id", role.id).then(result => setCount(result.count || 0)); }, [role.id, count]);
+  return <tr className="hover:bg-[#f8fafc]/80"><td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{role.name}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{role.description || "—"}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{count ?? "—"}</td><td className="px-4 py-3.5"><StatusBadge status={role.is_system ? "Padrão" : "Personalizado"} /></td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{userCount}</td><td className="px-4 py-3.5 text-right">{hasPermission("roles.edit") && <button type="button" onClick={onEdit} className="text-xs font-bold text-[#0057e7] hover:underline">Editar</button>}</td></tr>;
+}
+
 function TabEmployees({ onBack }: { onBack: () => void }) {
+  const [activeArea, setActiveArea] = useState<"users" | "roles">("users");
+  const { user, hasPermission } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ full_name: "", cpf: "", phone: "", function_name: "Funcionário", is_active: true });
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [form, setForm] = useState({ full_name: "", cpf: "", phone: "", email: "", password: "", function_name: "Funcionário", role_id: "", is_active: true });
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await getEmployees();
+    const [{ data, error }, rolesResult] = await Promise.all([getEmployees(), supabase.from("roles").select("id,name,is_active").eq("is_active", true).order("sort_order").order("name")]);
     if (error) { console.error("[ADMIN] employees load error:", error); setToast({ msg: `Erro ao carregar equipes: ${error.message}`, type: "error" }); }
     else setEmployees(data || []);
+    if (rolesResult.error) setToast({ msg: `Erro ao carregar funções: ${rolesResult.error.message}`, type: "error" });
+    setRoles(rolesResult.data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  const openNew = () => { setEditItem(null); setForm({ full_name: "", cpf: "", phone: "", function_name: "Funcionário", is_active: true }); setFormOpen(true); };
-  const openEdit = (employee: any) => { setEditItem(employee); setForm({ full_name: employee.full_name || "", cpf: employee.cpf || "", phone: employee.phone || "", function_name: employee.function_name || "Funcionário", is_active: employee.is_active !== false }); setFormOpen(true); };
+  const openNew = () => { setEditItem(null); setForm({ full_name: "", cpf: "", phone: "", email: "", password: "", function_name: "Funcionário", role_id: roles[0]?.id || "", is_active: true }); setFormOpen(true); };
+  const openEdit = (employee: any) => {
+    setEditItem(employee);
+    setForm({ full_name: employee.full_name || "", cpf: employee.cpf || "", phone: employee.phone || "", email: "", password: "", function_name: employee.function_name || "Funcionário", role_id: employee.role_id || "", is_active: employee.is_active !== false });
+    setFormOpen(true);
+  };
   const normalizeCpf = (value: string) => value.replace(/\D/g, "");
   const formatCpf = (value: string) => {
     const digits = normalizeCpf(value).slice(0, 11);
     return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
   };
   const save = async () => {
+    if (!hasPermission(editItem ? "employees.edit" : "employees.create")) { setToast({ msg: "Você não possui permissão para salvar usuários.", type: "error" }); return; }
     const cpf = normalizeCpf(form.cpf);
     if (!form.full_name.trim() || cpf.length !== 11) { setToast({ msg: "Informe nome completo e um CPF válido.", type: "error" }); return; }
-    const duplicate = employees.some(employee => normalizeCpf(employee.cpf) === cpf && employee.id !== editItem?.id);
+    const normalizedEmail = String(form.email || "").trim().replace(/\s+/g, "").toLowerCase();
+    if (!editItem && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) { setToast({ msg: "Informe um e-mail válido.", type: "error" }); return; }
+    if (form.password && form.password.length < 8) { setToast({ msg: "A senha deve ter pelo menos 8 caracteres.", type: "error" }); return; }
+    if (!form.role_id) { setToast({ msg: "Selecione uma função para o funcionário.", type: "error" }); return; }
+    const duplicate = employees.some((e: any) => normalizeCpf(e.cpf) === cpf && e.id !== editItem?.id);
     if (duplicate) { setToast({ msg: "Este CPF já está cadastrado na equipe.", type: "error" }); return; }
     setSaving(true);
-    const payload = { full_name: form.full_name.trim(), cpf, phone: form.phone.trim() || null, function_name: form.function_name.trim() || "Funcionário", is_active: form.is_active };
-    const result = editItem ? await updateEmployee(editItem.id, payload) : await createEmployee({ ...payload, profile_id: null });
-    setSaving(false);
-    if (result.error) {
-      console.error("[ADMIN] employee save error:", result.error);
-      const duplicateError = result.error.code === "23505" || result.error.message.toLowerCase().includes("cpf");
-      setToast({ msg: duplicateError ? "Este CPF já está cadastrado na equipe." : `Erro ao salvar funcionário: ${result.error.message}`, type: "error" });
-      return;
+    try {
+      if (editItem) {
+        const { error: empErr } = await supabase.from("employees").update({
+          full_name: form.full_name.trim(), cpf, phone: form.phone.trim() || null,
+          function_name: form.function_name.trim() || "Funcionário", role_id: form.role_id || null, is_active: form.is_active,
+        }).eq("id", editItem.id);
+        if (empErr) throw new Error(`Erro ao atualizar funcionário: ${empErr.message}`);
+        if (editItem.profile_id) {
+          await supabase.from("profiles").update({ full_name: form.full_name.trim(), role_id: form.role_id || null, is_active: form.is_active }).eq("id", editItem.profile_id);
+        }
+      } else {
+        const { data: authData, error: authErr } = await supabase.auth.signUp({ email: normalizedEmail, password: form.password, options: { data: { full_name: form.full_name.trim() } } });
+        if (authErr || !authData.user) throw new Error(authErr?.message?.toLowerCase().includes("already") ? "E-mail já cadastrado." : authErr?.message || "Não foi possível criar o usuário.");
+        const userId = authData.user.id;
+        await supabase.from("profiles").upsert({ id: userId, full_name: form.full_name.trim(), role_id: form.role_id || null, is_active: true });
+        const { error: empErr } = await supabase.from("employees").insert({ profile_id: userId, full_name: form.full_name.trim(), cpf, phone: form.phone.trim() || null, function_name: form.function_name.trim() || "Funcionário", role_id: form.role_id || null, is_active: true });
+        if (empErr) throw new Error(`Erro ao criar funcionário: ${empErr.message}`);
+      }
+      setFormOpen(false); setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); load();
+    } catch (e: any) {
+      console.error("[ADMIN] employee save error:", e);
+      setToast({ msg: e.message || "Erro ao salvar funcionário.", type: "error" });
+    } finally {
+      setSaving(false);
     }
-    setFormOpen(false); setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); load();
   };
   const toggleActive = async (emp: any) => {
+    if (!hasPermission("employees.edit")) return;
     const currentlyActive = emp.is_active !== false;
     const { error } = await setEmployeeActive(emp.id, !currentlyActive);
     if (error) { console.error("[ADMIN] employee toggle error:", error); setToast({ msg: `Erro ao atualizar funcionário: ${error.message}`, type: "error" }); return; }
@@ -3476,11 +4413,28 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
     load();
   };
 
+  const deleteEmployee = async (employeeId: string) => {
+    if (!hasPermission("employees.delete")) return;
+    const { error } = await supabase.from("employees").delete().eq("id", employeeId);
+    if (error) {
+      setToast({ msg: `Não foi possível excluir o funcionário: ${error.message}`, type: "error" });
+      setDeleteId(null);
+      return;
+    }
+    setToast({ msg: "Funcionário excluído.", type: "success" });
+    setDeleteId(null);
+    await load();
+  };
+
+  if (activeArea === "roles" && hasPermission("roles.view")) return <RolePermissionsPanel onBack={() => setActiveArea("users")} />;
+
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {deleteId && <ConfirmDialog message="Excluir este funcionário? Isso remove o registro do funcionário, sem afetar o fluxo de ativação/desativação do status." onConfirm={() => { void deleteEmployee(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
-      <PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários da empresa" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} /><BtnPrimary onClick={openNew}><Plus size={16} /> Novo funcionário</BtnPrimary></div>} />
+      <PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários da empresa" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("employees.create") && <BtnPrimary onClick={openNew}><Plus size={16} /> Novo funcionário</BtnPrimary>}</div>} />
+      <div className="flex gap-1 border-b border-[#0d1b2e]/10"><button type="button" onClick={() => setActiveArea("users")} className={cn("px-4 py-2.5 text-xs font-bold border-b-2", activeArea === "users" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Usuários</button>{hasPermission("roles.view") && <button type="button" onClick={() => setActiveArea("roles")} className="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-[#5a6a82]">Funções e Permissões</button>}</div>
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : employees.length === 0 ? (
@@ -3508,7 +4462,7 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{emp.phone || "—"}</td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{emp.function_name || "—"}</td>
                       <td className="px-4 py-3.5"><StatusBadge status={active ? "Ativo" : "Inativo"} /></td>
-                      <td className="px-4 py-3.5"><div className="flex justify-end gap-1"><button onClick={(event) => { event.stopPropagation(); openEdit(emp); }} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={(event) => { event.stopPropagation(); toggleActive(emp); }} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={active ? "Desativar" : "Ativar"}>{active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></div></td>
+                      <td className="px-4 py-3.5"><div className="flex justify-end gap-1">{hasPermission("employees.edit") && <button onClick={(event) => { event.stopPropagation(); openEdit(emp); }} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button>}{hasPermission("employees.edit") && <button onClick={(event) => { event.stopPropagation(); toggleActive(emp); }} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={active ? "Desativar" : "Ativar"}>{active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button>}{hasPermission("employees.delete") && <button onClick={(event) => { event.stopPropagation(); setDeleteId(emp.id); }} className="p-1.5 text-[#5a6a82] hover:text-red-600 rounded-lg" title="Excluir funcionário"><Trash2 size={15} /></button>}</div></td>
                     </tr>
                   );
                 })}
@@ -3518,7 +4472,7 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
         )}
       </div>
       <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Equipes" title={editItem ? editItem.full_name : "Novo funcionário"} subtitle={editItem ? "Atualize os dados do funcionário" : "Cadastre um funcionário da empresa"}>
-        <div className="p-5 space-y-5"><Section title="Dados do funcionário"><div className="grid sm:grid-cols-2 gap-4"><FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} /><FInput label="CPF" required value={formatCpf(form.cpf)} onChange={(e: any) => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" /><FInput label="Número / telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} /><FSelect label="Função" value={form.function_name} onChange={(e: any) => setForm({ ...form, function_name: e.target.value })} options={[{ value: "Gestor", label: "Gestor" }, { value: "Técnico", label: "Técnico" }, { value: "Call Center", label: "Call Center" }, { value: "Suporte", label: "Suporte" }, { value: "Vendedor", label: "Vendedor" }, { value: "Outro", label: "Outro" }]} /><div className="sm:col-span-2"><FToggle label="Funcionário ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : editItem ? "Salvar alterações" : "Salvar funcionário"}</BtnPrimary></div>
+        <div className="p-5 space-y-5"><Section title="Dados do funcionário"><div className="grid sm:grid-cols-2 gap-4"><FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} /><FInput label="CPF" required value={formatCpf(form.cpf)} onChange={(e: any) => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" /><FInput label="Número / telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />{editItem ? <FInput label="Gmail" type="email" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} placeholder="usuario@gmail.com" /> : <FInput label="E-mail" type="email" required value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} />} {editItem && <FInput label="Nova senha" type="password" value={form.password} onChange={(e: any) => setForm({ ...form, password: e.target.value })} placeholder="Deixe em branco para manter" />}{!editItem && <FInput label="Senha" type="password" required value={form.password} onChange={(e: any) => setForm({ ...form, password: e.target.value })} />}<FSelect label="Função / Perfil" required value={form.role_id} onChange={(e: any) => setForm({ ...form, role_id: e.target.value })} options={[{ value: "", label: "Selecionar função..." }, ...roles.map(role => ({ value: role.id, label: role.name }))]} /><div className="sm:col-span-2"><FToggle label="Funcionário ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? hasPermission("employees.edit") : hasPermission("employees.create")) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : editItem ? "Salvar alterações" : "Salvar funcionário"}</BtnPrimary>}</div>
       </AdminPage>
     </div>
   );
@@ -3527,7 +4481,7 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
 /* ─────────────────────────── TAB: SETTINGS ─────────────────────────── */
 
 function TabSettings() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [settings, setSettings] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -3591,10 +4545,12 @@ function TabSettings() {
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <PageHeader title="Configurações do Site" subtitle="Controle as configurações globais do site" actions={
+        hasPermission("settings.update") && (
         <BtnPrimary onClick={handleSave} disabled={saving}>
           {saving ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
           {saving ? "Salvando..." : "Salvar tudo"}
         </BtnPrimary>
+        )
       } />
 
       {loading ? <LoadingState /> : (
@@ -3624,7 +4580,7 @@ function TabSettings() {
 /* ─────────────────────────── TAB: CONTACT ─────────────────────────── */
 
 function TabContact() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -3680,10 +4636,10 @@ function TabContact() {
           {groups.map((group) => <Section key={group.title} title={group.title}><div className="space-y-4">{group.fields.map(([key, label, placeholder]) => <FInput key={key} label={label} value={settings[key] || ""} onChange={(event: any) => updateSetting(key, event.target.value)} placeholder={placeholder} />)}</div></Section>)}
 
           <div className="flex items-center gap-3">
-            <BtnPrimary type="submit" disabled={saving}>
+            {hasPermission("contact.update") && <BtnPrimary type="submit" disabled={saving}>
               {saving ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
               {saving ? "Salvando..." : "Salvar contato"}
-            </BtnPrimary>
+            </BtnPrimary>}
             <p className="text-xs text-[#5a6a82]">Essas informações alimentam o site público.</p>
           </div>
         </form>
@@ -3696,10 +4652,13 @@ function QuickCustomerModal({ onClose, onSaved }: {
   onClose: () => void;
   onSaved: (customer: any) => void;
 }) {
+  const { hasPermission } = useAuth();
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [address, setAddress] = useState<Address>({ ...emptyAddress });
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [cnpjMessage, setCnpjMessage] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
 
@@ -3743,6 +4702,18 @@ function QuickCustomerModal({ onClose, onSaved }: {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     } finally { setSaving(false); }
   };
+  const lookupCnpj = async (value: string, baseForm = form) => {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length !== 14 || form.customerType !== "PJ") return;
+    setCnpjLoading(true); setCnpjMessage("");
+    try {
+      const data = await fetchCnpjData(digits);
+      const result = applyCnpjData(baseForm, address, data);
+      setForm(result.form); setAddress(result.address);
+    } catch (error) {
+      setCnpjMessage(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
+    } finally { setCnpjLoading(false); }
+  };
 
   return (
     <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/35 p-4">
@@ -3760,8 +4731,7 @@ function QuickCustomerModal({ onClose, onSaved }: {
               <FInput label="CPF" value={form.document} placeholder="000.000.000-00" onChange={(e: any) => setForm({ ...form, document: formatCpf(e.target.value) })} />
             </> : <>
               <FInput label="Nome fantasia" required value={form.trade_name} onChange={(e: any) => setForm({ ...form, trade_name: e.target.value })} />
-              <FInput label="Tipo" value="Pessoa Jurídica" readOnly />
-              <FInput label="CNPJ" required value={form.cnpj} placeholder="00.000.000/0000-00" onChange={(e: any) => setForm({ ...form, cnpj: formatCnpj(e.target.value) })} />
+              <FInput label="CNPJ" required value={form.cnpj} placeholder="00.000.000/0000-00" onBlur={(e: any) => lookupCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = formatCnpj(e.target.value); setCnpjMessage(""); setForm({ ...form, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCnpj(nextCnpj, { ...form, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : cnpjMessage || undefined} />
               <FInput label="Razão social" value={form.legal_name} onChange={(e: any) => setForm({ ...form, legal_name: e.target.value })} />
               <FInput label="Inscrição estadual" value={form.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setForm({ ...form, state_registration: e.target.value })} />
               <FInput label="Fundação" value={form.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setForm({ ...form, foundation_date: formatFoundationDate(e.target.value) })} />
@@ -3773,7 +4743,7 @@ function QuickCustomerModal({ onClose, onSaved }: {
           <Section title="Endereço do cliente"><AddressFields value={address} onChange={setAddress} inputClassName={INPUT} /></Section>
           {errorMessage && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{errorMessage}</p>}
         </div>
-        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-white px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Criar cliente"}</BtnPrimary></div>
+        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-white px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("customers.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Criar cliente"}</BtnPrimary>}</div>
       </div>
     </div>
   );
@@ -3783,4 +4753,129 @@ function InternalBackButton({ onBack, inHeader = false }: { onBack: () => void; 
   const contextualBack = React.useContext(AdminBackContext);
   if (!inHeader && contextualBack === onBack) return null;
   return <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5a6a82] hover:text-[#0057e7] transition-colors"><ArrowLeft size={14} /> Voltar</button>;
+}
+
+type OrderImage = { key: string; mediaId?: string; url?: string; file?: File; name: string };
+
+async function uploadOrderImage(file: File) {
+  const extension =
+    file.name
+      .split(".")
+      .pop()
+      ?.toLowerCase() || "jpg";
+
+  const path =
+    `orders/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}.${extension}`;
+
+  /* =====================================================
+     1. Upload físico para Storage
+     ===================================================== */
+
+  const {
+    error: uploadError,
+  } =
+    await supabase.storage
+      .from("service-images")
+      .upload(
+        path,
+        file,
+        {
+          upsert: true,
+        }
+      );
+
+  if (uploadError) {
+    console.error(
+      "[MEDIA] Storage upload error:",
+      uploadError
+    );
+
+    throw uploadError;
+  }
+
+  /* =====================================================
+     2. Registrar mídia através da Edge Function
+     ===================================================== */
+
+  try {
+    const mediaId =
+      await createMediaRecord({
+        bucket:
+          "service-images",
+
+        path,
+
+        file,
+      });
+
+    return mediaId;
+  } catch (error) {
+    /*
+     * O arquivo foi enviado para Storage, mas o registro
+     * em public.media falhou.
+     *
+     * Tenta limpar o arquivo órfão para não deixar lixo
+     * no bucket.
+     */
+
+    console.error(
+      "[MEDIA] Media record error:",
+      error
+    );
+
+    const {
+      error: removeError,
+    } =
+      await supabase.storage
+        .from("service-images")
+        .remove([
+          path,
+        ]);
+
+    if (removeError) {
+      console.warn(
+        "[MEDIA] Could not remove orphan storage file:",
+        removeError
+      );
+    }
+
+    throw error;
+  }
+}
+
+function OrderImageThumb({ image, onRemove, onView }: { image: OrderImage; onRemove?: () => void; onView?: () => void }) {
+  const { url: mediaUrl, loading, error } = useMediaUrl(image.mediaId);
+  const url = image.url || mediaUrl;
+
+  return (
+    <div className="relative group w-24 h-20 rounded-lg overflow-hidden border border-[#0d1b2e]/12 bg-[#f5f7fa]">
+      {loading ? (
+        <div className="w-full h-full flex items-center justify-center text-[10px] text-[#5a6a82]">Carregando...</div>
+      ) : url ? (
+        <button type="button" className="w-full h-full" onClick={onView}><img src={url} alt={image.name} className="w-full h-full object-cover" /></button>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-[10px] text-[#5a6a82] bg-[#f5f7fa]">{error ? "Imagem indisponível" : "Sem imagem"}</div>
+      )}
+      {onRemove && <button type="button" onClick={onRemove} aria-label={`Remover ${image.name}`} className="absolute top-1 right-1 p-1 rounded-full bg-[#0d1b2e]/75 text-white opacity-0 group-hover:opacity-100 transition-opacity"><X size={12} /></button>}
+    </div>
+  );
+}
+
+function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = true }: { images: OrderImage[]; onAdd: (files: FileList | null) => void; onRemove: (key: string) => void; onView?: (image: OrderImage) => void; canEdit?: boolean }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <Section title="Imagens da OS">
+      <div className="flex items-center justify-between gap-3 mb-3"><p className="text-xs text-[#5a6a82]">{images.length}/5 imagens</p>{canEdit && <button type="button" disabled={images.length >= 5} onClick={() => inputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Upload size={13} /> Adicionar imagens</button>}</div>
+      <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple className="hidden" onChange={event => { onAdd(event.target.files); event.currentTarget.value = ""; }} />
+      {images.length > 0 && <div className="flex flex-wrap gap-3">{images.map(image => <OrderImageThumb key={image.key} image={image} onRemove={canEdit ? () => onRemove(image.key) : undefined} onView={() => onView?.(image)} />)}</div>}
+    </Section>
+  );
+}
+
+function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: () => void }) {
+  const { url: mediaUrl } = useMediaUrl(image.mediaId);
+  const url = image.url || mediaUrl;
+  return url ? <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0d1b2e]/80 p-5" onClick={onClose}><button type="button" aria-label="Fechar imagem" onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/15 text-white"><X size={20} /></button><img src={url} alt={image.name} className="max-w-full max-h-full object-contain" onClick={event => event.stopPropagation()} /></div> : null;
 }
