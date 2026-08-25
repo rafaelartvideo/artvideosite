@@ -1337,23 +1337,9 @@ app.post(
 
 app.notFound(
   (c) => {
-    console.log(
-      "[SERVER] 404:",
-      c.req.method,
-      c.req.path
-    );
-
-    return res(
-      {
-        error:
-          "Rota não encontrada.",
-        method:
-          c.req.method,
-        path:
-          c.req.path,
-      },
-      404
-    );
+    console.log("[SERVER] 404:", c.req.method, c.req.path);
+    const origin = c.req.header("Origin");
+    return jsonResponse({ error: "Rota não encontrada.", method: c.req.method, path: c.req.path }, 404, origin);
   }
 );
 
