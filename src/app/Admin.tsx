@@ -11,12 +11,12 @@ import {
   AlertCircle, Clock, RefreshCw, X, ArrowLeft, Menu, Upload, AlertTriangle,
   Star, Filter, DollarSign, List, HelpCircle, ChevronDown, MessageCircle,
   Mail, MapPin, Instagram, Globe, Hash, Activity, Shield, CalendarDays,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Camera,
 } from "lucide-react";
 
 type AdminTab =
   | "dashboard" | "services" | "categories" | "products" | "brands"
-  | "equipment" | "generalServices" | "serviceTypes" | "situations" | "orderStatuses"
+  | "equipment" | "generalServices" | "serviceTypes" | "inventory" | "situations" | "orderStatuses"
   | "quotes" | "orders" | "agenda" | "customers" | "site" | "operation" | "employees" | "settings" | "contact";
 
 type AdminPageState = {
@@ -481,8 +481,8 @@ function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
   );
 }
 
-function AdminPage({ open, onClose, title, subtitle, breadcrumb, children }: {
-  open: boolean; onClose: () => void; title: string; subtitle?: string; breadcrumb: string; children: React.ReactNode; maxW?: string;
+function AdminPage({ open, onClose, title, subtitle, breadcrumb, children, fullPage = false }: {
+  open: boolean; onClose: () => void; title: string; subtitle?: string; breadcrumb: string; children: React.ReactNode; maxW?: string; fullPage?: boolean;
 }) {
   const navigation = React.useContext(AdminPageContext);
   const setPage = navigation?.setPage;
@@ -502,8 +502,8 @@ function AdminPage({ open, onClose, title, subtitle, breadcrumb, children }: {
 
   if (!open) return null;
   return (
-    <div className="fixed inset-x-0 bottom-0 top-[68px] left-0 md:left-60 z-[35] bg-[#f8fafc] overflow-y-auto">
-      <button type="button" onClick={onClose} aria-label="Fechar" className="fixed top-[80px] right-4 z-10 p-2 text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg shadow-sm hover:text-[#0057e7] hover:bg-[#f5f7fa]"><X size={16} /></button>
+    <div className="absolute inset-0 z-[35] bg-[#f8fafc]">
+      {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 z-10 p-2 text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg shadow-sm hover:text-[#0057e7] hover:bg-[#f5f7fa]"><X size={16} /></button>}
       <div className="max-w-6xl mx-auto w-full p-4 sm:p-8">{children}</div>
     </div>
   );
@@ -835,8 +835,35 @@ export function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const { data, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (authErr) { setError("Credenciais inválidas. Verifique seu e-mail e senha."); setLoading(false); return; }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const { data, error: authErr } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    console.log("[AUTH LOGIN]", {
+      email: normalizedEmail,
+      userId: data?.user?.id,
+      error: authErr
+        ? {
+            message: authErr.message,
+            status: authErr.status,
+            name: authErr.name,
+          }
+        : null,
+    });
+
+    if (authErr) {
+      console.error("[AUTH LOGIN ERROR]", {
+        message: authErr.message,
+        status: authErr.status,
+        name: authErr.name,
+      });
+      setError("Credenciais inválidas. Verifique seu e-mail e senha.");
+      setLoading(false);
+      return;
+    }
     if (data.user) {
       const { data: prof } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
       if (prof && (prof as any).is_active === false) {
@@ -923,6 +950,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     { id: "equipment", label: "Equipamentos", icon: Wrench, description: "Cadastre equipamentos, marcas e modelos técnicos.", permissionKey: "equipment.view" },
     { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica.", permissionKey: "general_services.view" },
     { id: "serviceTypes", label: "Tipos de Atendimento", icon: List, description: "Configure tipos e previsão de atendimento das OS.", permissionKey: "service_types.view" },
+    { id: "inventory", label: "Estoque", icon: Package, description: "Controle de itens, movimentações e histórico do estoque atual.", permissionKey: "orders.view" },
     { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "orders.view" },
     { id: "orderStatuses", label: "Status da OS", icon: CheckCircle, description: "Gerencie os status do fluxo das ordens de serviço.", permissionKey: "orders.view" },
     { id: "employees", label: "Equipes / Funcionários", icon: Users, description: "Cadastre funcionários, técnicos e gestores da equipe.", permissionKey: "employees.view" },
@@ -934,7 +962,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const permissionForTab: Record<string, string> = {
     dashboard: "dashboard.view", quotes: "quotes.view", orders: "orders.view", customers: "customers.view", agenda: "agenda.view",
     products: "products.view", categories: "categories.view", brands: "brands.view", services: "services.view", equipment: "equipment.view",
-    generalServices: "general_services.view", serviceTypes: "service_types.view", situations: "orders.view", orderStatuses: "orders.view",
+    generalServices: "general_services.view", serviceTypes: "service_types.view", inventory: "orders.view", situations: "orders.view", orderStatuses: "orders.view",
     employees: "employees.view", settings: "settings.view", contact: "contact.view",
   };
   const canAccessTab = (tab: string) => hasPermission(permissionForTab[tab] || `${tab}.view`);
@@ -999,7 +1027,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
   return (
     <AdminPageContext.Provider value={{ page, setPage }}>
-    <div className="min-h-screen bg-[#f8fafc] flex">
+    <div className="h-screen overflow-hidden bg-[#f8fafc] flex">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-60 flex-shrink-0 bg-[#0d1b2e] flex-col fixed left-0 top-0 h-full z-40">
         <SidebarContent />
@@ -1016,7 +1044,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
       )}
 
       {/* Main */}
-      <main className="flex-1 md:ml-60 flex flex-col min-h-screen overflow-x-hidden">
+      <main className="flex-1 md:ml-60 flex flex-col h-screen min-h-0 overflow-hidden">
         {/* Top header */}
         <header className="bg-white border-b border-[#0d1b2e]/8 px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
@@ -1066,7 +1094,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         </header>
 
         {/* Content */}
-        <div className="flex-1 p-4 sm:p-6">
+        <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           {activeTab === "dashboard" && canAccessTab("dashboard") && <TabDashboard />}
           {activeTab === "services" && canAccessTab("services") && <TabServices onBack={() => { setActiveTab("site"); setPage(null); }} />}
           {activeTab === "categories" && canAccessTab("categories") && <TabCategories onBack={() => { setActiveTab("site"); setPage(null); }} />}
@@ -1077,12 +1105,13 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
           {activeTab === "equipment" && canAccessTab("equipment") && <EquipmentAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "generalServices" && canAccessTab("generalServices") && <GeneralServicesPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "serviceTypes" && canAccessTab("serviceTypes") && <ServiceTypesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "inventory" && canAccessTab("inventory") && <TabInventory onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "situations" && canAccessTab("situations") && <OSSituationsView onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "orderStatuses" && canAccessTab("orderStatuses") && <OrderStatusesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "quotes" && canAccessTab("quotes") && <TabQuotes onNavigate={setActiveTab} />}
           {activeTab === "orders" && canAccessTab("orders") && <TabOrders onNavigate={setActiveTab} initialOrderId={focusedOrderId} onFocused={() => setFocusedOrderId(null)} />}
           {activeTab === "agenda" && canAccessTab("agenda") && <TabAgenda onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />}
-          {activeTab === "customers" && canAccessTab("customers") && <TabCustomers />}
+          {activeTab === "customers" && canAccessTab("customers") && <TabCustomers onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />}
           {activeTab === "employees" && canAccessTab("employees") && <TabEmployees onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "settings" && canAccessTab("settings") && <TabSettings />}
           {activeTab === "contact" && canAccessTab("contact") && <TabContact />}
@@ -3113,6 +3142,7 @@ function OrderStatusesAdminPanelContent() {
 }
 
 function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
+  const { user, hasPermission } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
@@ -3126,11 +3156,41 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const [serviceFilter, setServiceFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
+  const canViewAgenda = hasPermission("agenda.view") || hasPermission("orders.view");
+  const canViewOtherAgendas = hasPermission("agenda.view_others") || hasPermission("agenda.view-other-users") || hasPermission("employees.view");
 
   const load = async () => {
     setLoading(true);
+
+    let myEmployee: { id: string } | null = null;
+    if (user?.id) {
+      const { data: employeeData } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("profile_id", user.id)
+        .maybeSingle();
+      myEmployee = employeeData ?? null;
+      setMyEmployeeId(employeeData?.id ?? null);
+    }
+
+    let agendaQuery = supabase
+      .from("service_orders")
+      .select("id,os_number,scheduled_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color,hours)")
+      .not("scheduled_at", "is", null)
+      .order("scheduled_at");
+
+    if (!canViewOtherAgendas) {
+      const emptyUuid = "00000000-0000-0000-0000-000000000000";
+      if (myEmployee?.id) {
+        agendaQuery = agendaQuery.or(`technician_id.eq.${myEmployee.id},assigned_to.eq.${user?.id ?? emptyUuid}`);
+      } else {
+        agendaQuery = agendaQuery.eq("technician_id", emptyUuid);
+      }
+    }
+
     const [ordersResult, employeesResult, servicesResult, generalServicesResult, situationsResult] = await Promise.all([
-      supabase.from("service_orders").select("id,os_number,scheduled_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color,hours)").not("scheduled_at", "is", null).order("scheduled_at"),
+      agendaQuery,
       supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
       supabase.from("services").select("id,title").eq("is_active", true).order("title"),
       supabase.from("general_services").select("id,name").eq("is_active", true).order("name"),
@@ -3144,7 +3204,13 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
     setSituations(situationsResult.data || []);
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+
+  useEffect(() => { if (!canViewAgenda) return; void load(); }, [canViewAgenda, user?.id]);
+  useEffect(() => {
+    if (!canViewOtherAgendas && myEmployeeId) {
+      setTechnicianFilter(myEmployeeId);
+    }
+  }, [canViewOtherAgendas, myEmployeeId]);
 
   const dayKey = (date: Date) => {
     const year = date.getFullYear();
@@ -3155,9 +3221,10 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const parseDay = (key: string) => new Date(`${key}T00:00:00`);
   const eventDay = (order: any) => dayKey(new Date(order.scheduled_at));
   const eventLabel = (order: any) => (order.general_service as any)?.name || (order.service as any)?.title || "Serviço";
+  const effectiveTechnicianFilter = !canViewOtherAgendas ? myEmployeeId || "" : technicianFilter;
   const filteredOrders = orders.filter(order => {
     const serviceId = (order.service as any)?.id || (order.general_service as any)?.id || "";
-    return (!technicianFilter || (order.technician as any)?.id === technicianFilter) && (!statusFilter || (order.order_status as any)?.id === statusFilter) && (!situationFilter || (order.situation as any)?.id === situationFilter) && (!serviceFilter || serviceId === serviceFilter);
+    return (!effectiveTechnicianFilter || (order.technician as any)?.id === effectiveTechnicianFilter) && (!statusFilter || (order.order_status as any)?.id === statusFilter) && (!situationFilter || (order.situation as any)?.id === situationFilter) && (!serviceFilter || serviceId === serviceFilter);
   });
   const statuses = Array.from(
     new Map(
@@ -3238,6 +3305,12 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   const [pageSize, setPageSize] = useState(10);
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
+  const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
+  const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [solveOpen, setSolveOpen] = useState(false);
+  const [solveDraft, setSolveDraft] = useState({ diagnosis: "", solution: "", usedItems: [], cannotSolve: false, cannotSolveReason: "" } as { diagnosis: string; solution: string; usedItems: any[]; cannotSolve: boolean; cannotSolveReason: string });
+  const [solutionImages, setSolutionImages] = useState<OrderImage[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<any>(null);
@@ -3285,6 +3358,16 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
     if (removed?.url) URL.revokeObjectURL(removed.url);
     return current.filter(image => image.key !== key);
   });
+
+  const loadInventoryItems = async () => {
+    const { data, error } = await supabase.from("inventory_items").select("*").eq("is_active", true).order("name");
+    if (error) {
+      console.error("[ADMIN] inventory load error:", error);
+      setInventoryItems([]);
+      return;
+    }
+    setInventoryItems(data || []);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -3334,14 +3417,19 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   }, [initialOrderId, loading, orders]);
 
   const openDetail = async (o: any) => {
-    const [{ data: hist }, { data: mediaLinks }] = await Promise.all([
+    const [{ data: currentOrder }, { data: hist }, { data: mediaLinks }, { data: usedItems }] = await Promise.all([
+      supabase.from("service_orders").select("is_solved,cannot_be_solved,cannot_be_solved_reason").eq("id", o.id).maybeSingle(),
       supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
       supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", o.id).order("sort_order"),
+      supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
     ]);
-    const images = (mediaLinks || []).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
+    const orderImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
+    const solutionImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" }));
     setDetailHistory(hist || []);
-    setOrderImages(images);
-    setDetail(o);
+    setDetailUsedItems(usedItems || []);
+    setDetailSolutionImages(solutionImagesList);
+    setOrderImages(orderImagesList);
+    setDetail({ ...o, ...(currentOrder || {}) });
   };
 
   const openNew = () => {
@@ -3349,6 +3437,15 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
   };
 
   const openEdit = async (o: any) => {
+    const { data: currentOrder, error: currentOrderError } = await supabase.from("service_orders").select("is_solved,cannot_be_solved,cannot_be_solved_reason").eq("id", o.id).maybeSingle();
+    if (currentOrderError) {
+      setToast({ msg: `Não foi possível verificar o estado da OS: ${supabaseErrorMessage(currentOrderError)}`, type: "error" });
+      return;
+    }
+    if (currentOrder?.is_solved || o.is_solved) {
+      setToast({ msg: "Esta OS está solucionada e é somente leitura.", type: "error" });
+      return;
+    }
     setEditingOS(o);
     setNeedsScheduling(true);
     await loadOrderImages(o.id);
@@ -3382,8 +3479,107 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
     setToast({ msg: "Dados do cliente atualizados.", type: "success" });
   };
 
+  const saveOrderSolution = async (orderId: string) => {
+    if (!hasPermission("orders.solve")) {
+      setToast({ msg: "Você não possui permissão para resolver ordens de serviço.", type: "error" });
+      return;
+    }
+
+    if (detail?.cannot_be_solved && !solveDraft.cannotSolve) {
+      setSaving(true);
+      try {
+        const { error } = await supabase.from("service_orders").update({ cannot_be_solved: false, cannot_be_solved_reason: null }).eq("id", orderId);
+        if (error) throw error;
+        setDetail({ ...detail, cannot_be_solved: false, cannot_be_solved_reason: null });
+        setOrders(current => current.map(order => order.id === orderId ? { ...order, cannot_be_solved: false, cannot_be_solved_reason: null } : order));
+        setSolveOpen(false);
+        setToast({ msg: "Estado não solucionável removido. A OS continua pendente de resolução.", type: "success" });
+      } catch (error) {
+        setToast({ msg: `Não foi possível remover o estado não solucionável: ${supabaseErrorMessage(error)}`, type: "error" });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    if (solveDraft.cannotSolve) {
+      const reason = solveDraft.cannotSolveReason.trim();
+      if (!reason) {
+        setToast({ msg: "Informe a justificativa para esta OS não solucionável.", type: "error" });
+        return;
+      }
+      setSaving(true);
+      try {
+        const { error } = await supabase.from("service_orders").update({ cannot_be_solved: true, cannot_be_solved_reason: reason }).eq("id", orderId);
+        if (error) throw error;
+        const nextDetail = { ...detail, cannot_be_solved: true, cannot_be_solved_reason: reason };
+        setDetail(nextDetail);
+        setOrders(current => current.map(order => order.id === orderId ? { ...order, cannot_be_solved: true, cannot_be_solved_reason: reason } : order));
+        setSolveOpen(false);
+        setToast({ msg: "OS marcada como não solucionável.", type: "success" });
+      } catch (error) {
+        setToast({ msg: `Não foi possível salvar a justificativa: ${supabaseErrorMessage(error)}`, type: "error" });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    const diagnosis = solveDraft.diagnosis.trim();
+    const solution = solveDraft.solution.trim();
+    if (!diagnosis) {
+      setToast({ msg: "Informe o diagnóstico antes de concluir a solução.", type: "error" });
+      return;
+    }
+    if (!solution) {
+      setToast({ msg: "Informe a solução antes de concluir a OS.", type: "error" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error: resolveError } = await supabase.rpc("resolve_service_order", {
+        p_service_order_id: orderId,
+        p_diagnosis: diagnosis,
+        p_solution: solution,
+        p_used_items: solveDraft.usedItems.map(item => ({ inventory_item_id: item.inventory_item_id, quantity: Number(item.quantity) })),
+      });
+      if (resolveError) throw resolveError;
+
+      let solutionImageError: unknown = null;
+      try {
+        for (const [sortOrder, image] of solutionImages.entries()) {
+          if (image.file) {
+            const mediaId = await uploadOrderImage(image.file);
+            const { error: insertError } = await supabase.from("service_order_media").insert({ service_order_id: orderId, media_id: mediaId, sort_order: sortOrder + 1000 });
+            if (insertError) throw insertError;
+          }
+        }
+      } catch (error) {
+        solutionImageError = error;
+      }
+
+      const freshDetail = await supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").eq("id", orderId).maybeSingle();
+      if (freshDetail.data) setDetail(freshDetail.data);
+      const { data: usedData } = await supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", orderId).order("created_at", { ascending: false });
+      const { data: mediaLinks } = await supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", orderId).order("sort_order");
+      setDetailUsedItems(usedData || []);
+      setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
+      setDetailSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
+      setSolveOpen(false);
+      setToast({ msg: solutionImageError ? `OS resolvida, mas não foi possível salvar todas as imagens da solução: ${supabaseErrorMessage(solutionImageError)}` : "OS resolvida com sucesso.", type: solutionImageError ? "error" : "success" });
+      await loadInventoryItems();
+      await load();
+    } catch (error) {
+      setToast({ msg: `Não foi possível concluir a solução da OS: ${supabaseErrorMessage(error)}. Nenhuma alteração de estoque foi aplicada.`, type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveOS = async () => {
     if (editingOS ? !hasPermission("orders.edit") : !hasPermission("orders.create")) { setToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" }); return; }
+    if (editingOS?.is_solved) { setToast({ msg: "Esta OS está solucionada e é somente leitura.", type: "error" }); return; }
     if (!form.general_service_id && !form.service_id) { setToast({ msg: "Selecione o serviço geral da OS.", type: "error" }); return; }
     if (!editingOS && !form.service_type_id) { setToast({ msg: "Selecione o tipo de atendimento da OS.", type: "error" }); return; }
     const cid = selectedCustomer?.id || form.customer_id;
@@ -3455,6 +3651,46 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
     setFormOpen(false); setDetail(null); load();
   };
 
+  const openSolveOrder = async (order: any) => {
+    if (!hasPermission("orders.solve")) {
+      setToast({ msg: "Você não possui permissão para resolver a OS.", type: "error" });
+      return;
+    }
+    const { data: currentOrder, error: currentOrderError } = await supabase.from("service_orders").select("is_solved,diagnosis,solution,cannot_be_solved,cannot_be_solved_reason").eq("id", order.id).maybeSingle();
+    if (currentOrderError) {
+      setToast({ msg: `Não foi possível verificar o estado da OS: ${supabaseErrorMessage(currentOrderError)}`, type: "error" });
+      return;
+    }
+    if (currentOrder?.is_solved || order.is_solved) {
+      setToast({ msg: "Esta OS já foi solucionada e não pode ser solucionada novamente.", type: "error" });
+      return;
+    }
+    if (currentOrder?.cannot_be_solved || order.cannot_be_solved) {
+      setToast({ msg: "Esta OS está marcada como não solucionável e não pode ser resolvida novamente.", type: "error" });
+      return;
+    }
+    await loadInventoryItems();
+    const [{ data: usedItems }, { data: mediaLinks }] = await Promise.all([
+      supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", order.id).order("created_at", { ascending: false }),
+      supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", order.id).order("sort_order"),
+    ]);
+    setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
+    setSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
+    setSolveDraft({
+      diagnosis: currentOrder?.diagnosis || order.diagnosis || "",
+      solution: currentOrder?.solution || order.solution || "",
+      usedItems: (usedItems || []).map((item: any) => ({
+        id: item.id,
+        inventory_item_id: item.inventory_item_id,
+        name: item.inventory_item?.name || "",
+        quantity: Number(item.quantity || 0),
+      })),
+      cannotSolve: currentOrder?.cannot_be_solved ?? order.cannot_be_solved ?? false,
+      cannotSolveReason: currentOrder?.cannot_be_solved_reason || order.cannot_be_solved_reason || "",
+    });
+    setSolveOpen(true);
+  };
+
   const handleDeleteOrder = async (id: string) => {
     if (!hasPermission("orders.delete")) return;
     const { error } = await supabase.from("service_orders").delete().eq("id", id);
@@ -3478,6 +3714,15 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
     const updated = orders.map(o => o.id === order.id ? { ...o, status_id: statusId, order_status: statuses.find(status => status.id === statusId) || o.order_status } : o);
     setOrders(updated);
     if (detail?.id === order.id) setDetail({ ...detail, status_id: statusId, order_status: statuses.find(status => status.id === statusId) || detail.order_status });
+  };
+
+  const updateOrderSituation = async (order: any, situationId: string) => {
+    if (!hasPermission("orders.edit")) { setToast({ msg: "Você não possui permissão para alterar a situação.", type: "error" }); return; }
+    const { data, error } = await supabase.from("service_orders").update({ situation_id: situationId || null }).eq("id", order.id).select("situation_id").maybeSingle();
+    if (error) { setToast({ msg: `Erro ao alterar situação: ${supabaseErrorMessage(error)}`, type: "error" }); return; }
+    const situation = situations.find(item => item.id === (data?.situation_id || situationId));
+    setOrders(current => current.map(item => item.id === order.id ? { ...item, situation_id: data?.situation_id || situationId, situation: situation || null } : item));
+    if (detail?.id === order.id) setDetail({ ...detail, situation_id: data?.situation_id || situationId, situation: situation || null });
   };
 
   const setViewMode = (mode: "list" | "kanban") => {
@@ -3545,9 +3790,17 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
     return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", ...(time ? { hour: "2-digit", minute: "2-digit" } : {}) });
   };
 
+  const equipmentSummary = (o: any) => {
+    const type = (o.equipment_type as any)?.name;
+    const brand = (o.equipment_brand as any)?.name;
+    const model = (o.equipment_model as any)?.name || o.model;
+    const pieces = [type, [brand, model].filter(Boolean).join(" ")].filter(Boolean);
+    return pieces.join(" • ") || "—";
+  };
+
   const filtered = orders.filter(o => {
     const q = search.toLowerCase();
-    const matchSearch = !search || (o.os_number || "").toLowerCase().includes(q) || ((o.service as any)?.title || "").toLowerCase().includes(q) || ((o.customer as any)?.full_name || "").toLowerCase().includes(q);
+    const matchSearch = !search || (o.os_number || "").toLowerCase().includes(q) || ((o.service as any)?.title || "").toLowerCase().includes(q) || ((o.customer as any)?.full_name || "").toLowerCase().includes(q) || ((o.service_type as any)?.title || "").toLowerCase().includes(q) || equipmentSummary(o).toLowerCase().includes(q);
     const matchStatus = !filterStatus || o.status_id === filterStatus;
     const matchSituation = !filterSituation || o.situation_id === filterSituation;
     return matchSearch && matchStatus && matchSituation;
@@ -3571,6 +3824,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {deleteId && <ConfirmDialog message="Excluir esta OS? Esta ação remove o registro principal da tabela de ordens de serviço." onConfirm={() => { void handleDeleteOrder(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
+      {!detail && !formOpen && !solveOpen && <>
       <PageHeader title="Ordens de Serviço" subtitle={`${orders.length} OS cadastrada${orders.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2 flex-wrap">
           <div className="flex rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
@@ -3602,16 +3856,17 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
           <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={search || filterStatus || filterSituation ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[900px]">
+            <table className="w-full text-sm min-w-[1100px]">
               <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
                 <tr>
                   <th className="px-4 py-3 text-left w-28">Protocolo</th>
                   <th className="px-4 py-3 text-left">Cliente</th>
-                  <th className="px-4 py-3 text-left">Título / Equipamento</th>
-                  <th className="px-4 py-3 text-left w-28">Status</th>
-                  <th className="px-4 py-3 text-left w-32">Situação</th>
+                  <th className="px-4 py-3 text-left w-40">Tipo de atendimento</th>
+                  <th className="px-4 py-3 text-left w-40">Equipamento</th>
                   <th className="px-4 py-3 text-left w-24">Prioridade</th>
-                  <th className="px-4 py-3 text-left w-28">Abertura</th>
+                  <th className="px-4 py-3 text-left w-32">Data de agendamento</th>
+                  <th className="px-4 py-3 text-left w-28">Status</th>
+                  <th className="px-4 py-3 text-left w-36">Situação</th>
                   <th className="px-4 py-3 text-right w-28">Ações</th>
                 </tr>
               </thead>
@@ -3625,20 +3880,20 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                       <p className="font-semibold text-[#0d1b2e] text-sm">{(o.customer as any)?.full_name || "—"}</p>
                       <p className="text-[11px] text-[#5a6a82]">{(o.customer as any)?.whatsapp || (o.customer as any)?.phone || ""}</p>
                     </td>
-                    <td className="px-4 py-3.5">
-                      <p className="font-medium text-[#0d1b2e] text-sm">{(o.service as any)?.title || "—"}</p>
-                    </td>
-                    <td className="px-4 py-3.5"><StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} /></td>
-                    <td className="px-4 py-3.5"><StatusBadge status={(o.situation as any)?.name || "—"} color={(o.situation as any)?.color} /></td>
-                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{o.scheduled_at ? fmtDate(o.scheduled_at) : "—"}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(o.created_at)}</td>
+                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}</td>
+                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{equipmentSummary(o)}</td>
+                    <td className="px-4 py-3.5"><PriorityBadge priority={o.priority || "normal"} /></td>
+                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{o.scheduled_at ? fmtDate(o.scheduled_at, true) : "—"}</td>
+                    <td className="px-4 py-3.5"><div className="flex flex-wrap items-center gap-1.5"><StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} />{o.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">✓ Solucionada</span>}{o.cannot_be_solved && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></td>
+                    <td className="px-4 py-3.5">{(o.situation as any)?.name ? <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2 justify-end">
                         {hasPermission("orders.status") && <select value={o.status_id || ""} onClick={event => event.stopPropagation()} onChange={event => updateOrderStatus(o, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
                           {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
                         </select>}
-                        {hasPermission("orders.edit") && <button onClick={(event) => { event.stopPropagation(); openEdit(o); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors"><Edit2 size={14} /> Editar</button>}
-                        {hasPermission("orders.delete") && <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteId(o.id); }} className="flex items-center gap-1.5 text-xs font-bold text-red-600 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={14} /> Excluir</button>}
+                        {hasPermission("orders.edit") && <select value={o.situation_id || ""} onClick={event => event.stopPropagation()} onChange={event => void updateOrderSituation(o, event.target.value)} className="max-w-[130px] text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{situations.map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
+                        {hasPermission("orders.edit") && !o.is_solved && <button onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors"><Edit2 size={14} /> Editar</button>}
+                        {hasPermission("orders.delete") && !o.is_solved && <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteId(o.id); }} className="flex items-center gap-1.5 text-xs font-bold text-red-600 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={14} /> Excluir</button>}
                       </div>
                     </td>
                   </tr>
@@ -3670,17 +3925,23 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                   <p className="text-xs text-[#5a6a82] truncate">{(order.general_service as any)?.name || (order.service as any)?.title || "Serviço não informado"}</p>
                   {order.estimated_price != null && <p className="mt-2 text-xs font-bold text-[#0d1b2e]">R$ {Number(order.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>}
                   {order.scheduled_at && <p className="mt-1 text-[11px] text-[#5a6a82]">Agendado: {fmtDate(order.scheduled_at)}</p>}
-                  {(order.assigned_profile as any)?.full_name && <p className="mt-1 text-[11px] text-[#5a6a82]">Responsável: {(order.assigned_profile as any).full_name}</p>}
-                  {hasPermission("orders.edit") && <div className="mt-3 flex items-center justify-end" onClick={event => event.stopPropagation()}><button type="button" draggable={false} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onDragStart={event => { event.preventDefault(); event.stopPropagation(); }} onClick={() => openEdit(order)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-2.5 py-1.5 rounded-lg"><Edit2 size={13} /> Editar</button></div>}
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-[#5a6a82]" onClick={event => event.stopPropagation()}>
+                    <span className="font-semibold">Situação:</span>
+                    {hasPermission("orders.edit") ? <select value={order.situation_id || ""} onChange={event => void updateOrderSituation(order, event.target.value)} className="min-w-0 flex-1 rounded border border-[#0d1b2e]/15 bg-white px-1.5 py-1 text-[11px]"><option value="">Não definida</option>{situations.map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select> : <span className="truncate">{(order.situation as any)?.name || "Não definida"}</span>}
+                  </div>
+                  {order.is_solved && <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
+                  {order.cannot_be_solved && <span className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span>}
+                  {hasPermission("orders.edit") && !order.is_solved && <div className="mt-3 flex items-center justify-end" onClick={event => event.stopPropagation()}><button type="button" draggable={false} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onDragStart={event => { event.preventDefault(); event.stopPropagation(); }} onClick={() => void openEdit(order)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-2.5 py-1.5 rounded-lg"><Edit2 size={13} /> Editar</button></div>}
                 </div>)}
               </div>
             </div>;
           })}
         </div>
       </div>}
+      </>}
 
       {/* OS Detail Drawer */}
-      {detail && (
+      {detail && !solveOpen && (
         <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Ordens de Serviço" title={detail.os_number || `OS #${detail.id.slice(0,8)}`} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-wrap gap-2 items-center">
@@ -3709,20 +3970,32 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                   })}
                 </div>
               </Section>
+              <Section title="Equipamento">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || undefined} />
+                  <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || undefined} />
+                  <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || detail.model || undefined} />
+                  <InfoRow label="Versão" value={detail.model || undefined} />
+                  <InfoRow label="Número de série" value={detail.serial_number || undefined} />
+                  <InfoRow label="Lacre" value={detail.accessories || undefined} />
+                  <InfoRow label="Garantia" value={detail.equipment_condition || undefined} />
+                </div>
+              </Section>
               <Section title="Informações da OS">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Tipo de atendimento" value={(detail.service_type as any)?.title} />
                   <InfoRow label="Serviço" value={(detail.general_service as any)?.name || (detail.service as any)?.title} />
+                  <InfoRow label="Responsável" value={(detail.assigned_profile as any)?.full_name} />
                   <InfoRow label="Vendedor" value={(detail.seller as any)?.full_name} />
-                  <InfoRow label="Valor" value={detail.estimated_price == null ? undefined : `R$ ${Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                  <InfoRow label="Técnico" value={(detail.technician as any)?.full_name} />
                   <InfoRow label="Status" value={(detail.order_status as any)?.name} />
                   <InfoRow label="Situação" value={(detail.situation as any)?.name} />
-                  <InfoRow label="Horas da situação" value={(detail.situation as any)?.hours == null ? null : `${(detail.situation as any).hours} hora(s)`} />
-                  <InfoRow label="Responsável" value={(detail.assigned_profile as any)?.full_name} />
-                  <InfoRow label="Técnico" value={(detail.technician as any)?.full_name} />
+                  <InfoRow label="Prioridade" value={detail.priority ? PRIORITY_LABELS[detail.priority] || detail.priority : undefined} />
                   <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
                   <InfoRow label="Data de início" value={fmtDate(detail.started_at)} />
                   <InfoRow label="Data de conclusão" value={fmtDate(detail.completed_at)} />
+                  <InfoRow label="Valor" value={detail.estimated_price == null ? undefined : `R$ ${Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                  <InfoRow label="Horas da situação" value={(detail.situation as any)?.hours == null ? null : `${(detail.situation as any).hours} hora(s)`} />
                 </div>
               </Section>
               {orderImages.length > 0 && <Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>}
@@ -3743,14 +4016,29 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
                 )}
               </Section>
               {detail.internal_notes && <Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>}
-              {detail.customer_notes && <Section title="Observações do cliente"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>}
+              {detail.customer_notes && <Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>}
+              {(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && (
+                <Section title="Solução da OS">
+                  <div className="space-y-4">
+                    {detail.is_solved && <div className="flex items-center gap-2"><span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2.5 py-1 text-[10px] font-bold uppercase">✓ OS solucionada</span></div>}
+                    {detail.cannot_be_solved && <div className="space-y-1"><span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span><p className="text-sm text-[#0d1b2e] whitespace-pre-line"><strong>Justificativa:</strong> {detail.cannot_be_solved_reason}</p></div>}
+                    {detail.customer_notes && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Descrição do problema</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></div>}
+                    {detail.diagnosis && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Diagnóstico</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.diagnosis}</p></div>}
+                    {detail.solution && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Solução</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.solution}</p></div>}
+                    {detailUsedItems.length > 0 && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Produtos utilizados</p><div className="space-y-2">{detailUsedItems.map((item: any) => <div key={item.id} className="flex items-center justify-between rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2 text-sm"><span>{item.inventory_item?.name || "Produto"}</span><span className="font-bold text-[#0d1b2e]">{Number(item.quantity || 0)} {item.inventory_item?.unit || "un"}</span></div>)}</div></div>}
+                    {detailSolutionImages.length > 0 && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Imagens da solução</p><div className="flex flex-wrap gap-3">{detailSolutionImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></div>}
+                  </div>
+                </Section>
+              )}
             </div>
             <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
                 {hasPermission("orders.status") && <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>}
-                {hasPermission("orders.edit") && <BtnPrimary onClick={() => { setDetail(null); openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>}
-                {hasPermission("orders.delete") && <button type="button" onClick={() => setDeleteId(detail.id)} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"><Trash2 size={14} /> Excluir</button>}
+                {hasPermission("orders.edit") && <select value={detail.situation_id || ""} onChange={event => void updateOrderSituation(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{situations.map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
+                {hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && <BtnPrimary onClick={() => openSolveOrder(detail)}><CheckCircle size={14} /> Resolver OS</BtnPrimary>}
+                {hasPermission("orders.edit") && !detail.is_solved && <BtnPrimary onClick={() => { setDetail(null); void openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>}
+                {hasPermission("orders.delete") && !detail.is_solved && <button type="button" onClick={() => setDeleteId(detail.id)} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"><Trash2 size={14} /> Excluir</button>}
               </div>
             </div>
         </AdminPage>
@@ -3758,7 +4046,7 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
 
       {/* OS Create/Edit Page */}
       {formOpen && (
-        <AdminPage open={true} onClose={() => setFormOpen(false)} breadcrumb="Ordens de Serviço" title={editingOS ? `OS #${editingOS.os_number || editingOS.id.slice(0,8)}` : "Nova OS"} subtitle={editingOS ? "Atualize os dados do atendimento" : "Cadastre os dados do atendimento"} maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => setFormOpen(false)} breadcrumb={editingOS ? `Ordens de Serviço > OS #${editingOS.os_number || editingOS.id.slice(0,8)}` : "Ordens de Serviço"} title={editingOS ? "Editar OS" : "Nova OS"} subtitle={editingOS ? "Atualize os dados do atendimento" : "Cadastre os dados do atendimento"} maxW="max-w-2xl" fullPage={Boolean(editingOS)}>
           <div className="p-5 space-y-5">
             {/* Cliente */}
             <Section title="Cliente">
@@ -3893,14 +4181,497 @@ function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (ta
           upF("customer_id", customer.id);
         }}
       />}
+      {solveOpen && detail && <AdminPage open={true} onClose={() => setSolveOpen(false)} breadcrumb="Ordens de Serviço" title="Resolver OS" subtitle="Diagnóstico, solução e produtos utilizados" maxW="max-w-2xl">
+        <div className="p-5 space-y-5">
+          <Section title="Informações da OS">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <InfoRow label="Nº da OS" value={detail.os_number || `OS #${detail.id.slice(0, 8)}`} />
+              <InfoRow label="Serviço" value={(detail.service as any)?.title || (detail.general_service as any)?.name || "—"} />
+              <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || "—"} />
+              <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || (detail.brand as any)?.name || "—"} />
+              <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || detail.model || "—"} />
+              <InfoRow label="Versão" value={detail.model || "—"} />
+              <InfoRow label="Nº de série" value={detail.serial_number || "—"} />
+              <InfoRow label="Lacre" value={detail.accessories || "—"} />
+              <InfoRow label="Garantia" value={detail.equipment_condition || "—"} />
+            </div>
+          </Section>
+
+          <Section title="Descrição do problema">
+            <p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes || "Nenhuma descrição do problema registrada."}</p>
+          </Section>
+
+          <Section title="Diagnóstico">
+            <FTextarea label="Diagnóstico" value={solveDraft.diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: e.target.value }))} rows={5} />
+          </Section>
+
+          <Section title="Solução">
+            <FTextarea label="Solução" value={solveDraft.solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: e.target.value }))} rows={5} />
+          </Section>
+
+          <Section title="Resultado do atendimento">
+            <label className="flex items-start gap-2 text-sm font-bold text-[#0d1b2e]">
+              <input type="checkbox" checked={solveDraft.cannotSolve} onChange={event => setSolveDraft(current => ({ ...current, cannotSolve: event.target.checked }))} />
+              OS não pode ser solucionada
+            </label>
+            {solveDraft.cannotSolve && <div className="mt-3"><FTextarea label="Justificativa" value={solveDraft.cannotSolveReason} onChange={(e: any) => setSolveDraft(current => ({ ...current, cannotSolveReason: e.target.value }))} rows={4} hint="Informe por que esta OS não pode ser solucionada." /></div>}
+          </Section>
+
+          <Section title="Produtos utilizados">
+            <div className="space-y-3">
+              {solveDraft.usedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum produto adicionado.</p> : solveDraft.usedItems.map((item: any) => {
+                const stockItem = inventoryItems.find(entry => entry.id === item.inventory_item_id);
+                const available = Number(stockItem?.quantity ?? 0);
+                const requested = Number(item.quantity || 0);
+                const invalid = requested <= 0 || requested > available;
+                return (
+                  <div key={item.inventory_item_id} className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm text-[#0d1b2e]">{item.name}</p>
+                        <p className="text-[11px] text-[#5a6a82]">Disponível: {available} {stockItem?.unit || "un"}</p>
+                        {invalid && <p className="mt-1 text-[10px] font-bold text-red-600">Estoque insuficiente</p>}
+                      </div>
+                      <div className="w-24">
+                        <input type="number" min="1" value={item.quantity} onChange={(e: any) => setSolveDraft(current => ({ ...current, usedItems: current.usedItems.map(existing => existing.inventory_item_id === item.inventory_item_id ? { ...existing, quantity: Math.max(1, Number(e.target.value || 1)) } : existing) }))} className={cn(INPUT, "w-full text-center text-sm")} />
+                      </div>
+                      <button type="button" onClick={() => setSolveDraft(current => ({ ...current, usedItems: current.usedItems.filter(existing => existing.inventory_item_id !== item.inventory_item_id) }))} className="p-2 rounded-lg text-red-600 hover:bg-red-50"><Trash2 size={14} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="pt-2">
+                <select value="" onChange={(e: any) => {
+                  const selectedId = e.target.value;
+                  if (!selectedId) return;
+                  const item = inventoryItems.find(product => product.id === selectedId);
+                  if (!item) return;
+                  setSolveDraft(current => ({
+                    ...current,
+                    usedItems: current.usedItems.some(existing => existing.inventory_item_id === item.id)
+                      ? current.usedItems.map(existing => existing.inventory_item_id === item.id ? { ...existing, quantity: Number(existing.quantity || 0) + 1 } : existing)
+                      : [...current.usedItems, { inventory_item_id: item.id, name: item.name, quantity: 1 }],
+                  }));
+                  e.target.value = "";
+                }} className={cn(INPUT, "text-xs")}>
+                  <option value="">+ Adicionar produto</option>
+                  {inventoryItems.filter(item => item.is_active !== false).map(item => <option key={item.id} value={item.id}>{item.name} · Disponível: {Number(item.quantity ?? 0)} {item.unit || "un"}</option>)}
+                </select>
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Imagens da OS">
+            {orderImages.length > 0 ? <div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem da OS cadastrada.</p>}
+          </Section>
+
+          <Section title="Imagens da solução">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <p className="text-xs text-[#5a6a82]">{solutionImages.length}/5 imagens</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button type="button" disabled={solutionImages.length >= 5} onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
+                  input.multiple = true;
+                  input.onchange = (event: any) => {
+                    const files = event.target.files as FileList | null;
+                    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type)).slice(0, 5 - solutionImages.length);
+                    setSolutionImages(current => [...current, ...selected.map(file => ({ key: `solution-${Date.now()}-${Math.random()}`, file, url: URL.createObjectURL(file), name: file.name }))]);
+                  };
+                  input.click();
+                }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Upload size={13} /> Adicionar imagens</button>
+                <button type="button" disabled={solutionImages.length >= 5} onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = "image/*";
+                  input.capture = "environment";
+                  input.onchange = (event: any) => {
+                    const files = event.target.files as FileList | null;
+                    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type)).slice(0, 5 - solutionImages.length);
+                    setSolutionImages(current => [...current, ...selected.map(file => ({ key: `solution-cam-${Date.now()}-${Math.random()}`, file, url: URL.createObjectURL(file), name: file.name }))]);
+                  };
+                  input.click();
+                }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Camera size={13} /> Abrir câmera</button>
+              </div>
+            </div>
+            {solutionImages.length > 0 ? <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onRemove={() => setSolutionImages(current => current.filter(item => item.key !== image.key))} onView={() => setViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem adicionada para a solução.</p>}
+          </Section>
+        </div>
+        <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+          <BtnSecondary onClick={() => setSolveOpen(false)}>Cancelar</BtnSecondary>
+          <BtnPrimary onClick={() => {
+            if (solveDraft.cannotSolve) {
+              if (!solveDraft.cannotSolveReason.trim()) {
+                setToast({ msg: "Informe a justificativa para esta OS não solucionável.", type: "error" });
+                return;
+              }
+            }
+            const hasInvalidProducts = solveDraft.usedItems.some(item => {
+              const stockItem = inventoryItems.find(entry => entry.id === item.inventory_item_id);
+              return Number(item.quantity || 0) <= 0 || Number(item.quantity || 0) > Number(stockItem?.quantity ?? 0);
+            });
+            if (hasInvalidProducts) {
+              setToast({ msg: "Estoque insuficiente em pelo menos um produto. Ajuste a quantidade antes de concluir.", type: "error" });
+              return;
+            }
+            void saveOrderSolution(detail.id);
+          }} disabled={saving}><CheckCircle size={14} /> Concluir solução</BtnPrimary>
+        </div>
+      </AdminPage>}
       {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
+    </div>
+  );
+}
+
+function TabInventory({ onBack }: { onBack: () => void }) {
+  const { user, hasPermission } = useAuth();
+  const canViewInventory = hasPermission("inventory.view");
+  const canCreateInventory = hasPermission("inventory.create");
+  const canEditInventory = hasPermission("inventory.update");
+  const canDeleteInventory = hasPermission("inventory.delete");
+  const canManageInventory = canViewInventory || canCreateInventory || canEditInventory || canDeleteInventory;
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [form, setForm] = useState({ id: "", name: "", sku: "", description: "", unit: "un", quantity: "0", min_quantity: "0", is_active: true });
+  const [history, setHistory] = useState<any[]>([]);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [movementForm, setMovementForm] = useState({ type: "in", quantity: "", reason: "", service_order_id: "" });
+
+  const loadItems = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("inventory_items").select("*").order("name");
+    if (error) {
+      setToast({ msg: `Erro ao carregar estoque: ${error.message}`, type: "error" });
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    setItems(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { void loadItems(); }, []);
+
+  const openNew = () => {
+    setSelectedItem(null);
+    setForm({ id: "", name: "", sku: "", description: "", unit: "un", quantity: "0", min_quantity: "0", is_active: true });
+    setRecordOpen(true);
+  };
+
+  const openEdit = (item: any) => {
+    setSelectedItem(item);
+    setForm({
+      id: item.id,
+      name: item.name || "",
+      sku: item.sku || "",
+      description: item.description || "",
+      unit: item.unit || "un",
+      quantity: String(Number(item.quantity ?? 0)),
+      min_quantity: String(Number(item.min_quantity ?? 0)),
+      is_active: item.is_active !== false,
+    });
+    setRecordOpen(true);
+  };
+
+  const saveItem = async () => {
+    const canSaveItem = selectedItem ? canEditInventory : canCreateInventory;
+    if (!canSaveItem) {
+      setToast({ msg: "Você não possui permissão para gerenciar o estoque.", type: "error" });
+      return;
+    }
+    if (!form.name.trim()) {
+      setToast({ msg: "Informe o nome do item do estoque.", type: "error" });
+      return;
+    }
+    const payload = {
+      name: form.name.trim(),
+      sku: form.sku.trim() || null,
+      description: form.description.trim() || null,
+      unit: form.unit.trim() || "un",
+      quantity: Number(form.quantity || 0),
+      min_quantity: Number(form.min_quantity || 0),
+      is_active: form.is_active,
+    };
+
+    try {
+      const { error } = selectedItem
+        ? await supabase.from("inventory_items").update(payload).eq("id", selectedItem.id)
+        : await supabase.from("inventory_items").insert(payload);
+      if (error) throw error;
+      setToast({ msg: selectedItem ? "Item atualizado." : "Item cadastrado.", type: "success" });
+      setRecordOpen(false);
+      await loadItems();
+    } catch (error) {
+      setToast({ msg: `Erro ao salvar item: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+    }
+  };
+
+  const toggleActive = async (item: any) => {
+    if (!canEditInventory) {
+      setToast({ msg: "Você não possui permissão para alterar o status do item.", type: "error" });
+      return;
+    }
+    const next = !item.is_active;
+    const { error } = await supabase.from("inventory_items").update({ is_active: next }).eq("id", item.id);
+    if (error) {
+      setToast({ msg: `Erro ao alterar status: ${error.message}`, type: "error" });
+      return;
+    }
+    setToast({ msg: next ? "Item ativado." : "Item desativado.", type: "success" });
+    await loadItems();
+  };
+
+  const deleteItem = async (item: any) => {
+    if (!canDeleteInventory) {
+      setToast({ msg: "Você não possui permissão para excluir itens do estoque.", type: "error" });
+      return;
+    }
+    const { error } = await supabase.from("inventory_items").delete().eq("id", item.id);
+    if (error) {
+      setToast({ msg: `Erro ao excluir item: ${error.message}`, type: "error" });
+      return;
+    }
+    setToast({ msg: "Item excluído do estoque.", type: "success" });
+    await loadItems();
+  };
+
+  const openHistory = async (item: any) => {
+    setSelectedItem(item);
+    const { data, error } = await supabase
+      .from("inventory_movements")
+      .select("*, created_by_profile:profiles(full_name), service_order:service_orders(os_number)")
+      .eq("inventory_item_id", item.id)
+      .order("created_at", { ascending: false });
+    if (error) {
+      setToast({ msg: `Erro ao carregar histórico: ${error.message}`, type: "error" });
+      setHistory([]);
+      return;
+    }
+    setHistory(data || []);
+    setHistoryOpen(true);
+  };
+
+  const saveMovement = async () => {
+    if (!selectedItem) return;
+    if (!canEditInventory) {
+      setToast({ msg: "Você não possui permissão para movimentar o estoque.", type: "error" });
+      return;
+    }
+    const quantity = Number(movementForm.quantity || 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setToast({ msg: "Informe uma quantidade válida para a movimentação.", type: "error" });
+      return;
+    }
+    const { data: currentItem, error: currentItemError } = await supabase.from("inventory_items").select("id,name,quantity,is_active").eq("id", selectedItem.id).maybeSingle();
+    if (currentItemError) {
+      setToast({ msg: `Não foi possível validar o item: ${supabaseErrorMessage(currentItemError)}`, type: "error" });
+      return;
+    }
+    if (!currentItem) {
+      setToast({ msg: "O item do estoque não foi encontrado.", type: "error" });
+      return;
+    }
+    if (currentItem.is_active === false) {
+      setToast({ msg: "O item está inativo e não pode receber movimentações.", type: "error" });
+      return;
+    }
+    const current = Number(currentItem.quantity ?? 0);
+    const movementType = movementForm.type === "in" ? "IN" : movementForm.type === "out" ? "OUT" : movementForm.type === "adjust" ? "ADJUST" : null;
+    if (!movementType) {
+      setToast({ msg: "Tipo de movimentação inválido.", type: "error" });
+      return;
+    }
+    let nextQuantity = current;
+    if (movementType === "IN") nextQuantity = current + quantity;
+    if (movementType === "OUT") {
+      if (current < quantity) {
+        setToast({ msg: `Estoque insuficiente para saída: há ${current} unidade(s) disponíveis.`, type: "error" });
+        return;
+      }
+      nextQuantity = current - quantity;
+    }
+    if (movementType === "ADJUST") {
+      nextQuantity = quantity;
+    }
+
+    const insertPayload = {
+      inventory_item_id: selectedItem.id,
+      movement_type: movementType,
+      quantity,
+      reason: movementForm.reason.trim() || "Movimentação manual",
+      created_by: user?.id || null,
+      service_order_id: movementForm.service_order_id || null,
+    };
+
+    try {
+      const { error } = await supabase.from("inventory_movements").insert(insertPayload);
+      if (error) throw error;
+      const { error: updateError } = await supabase.from("inventory_items").update({ quantity: nextQuantity }).eq("id", selectedItem.id);
+      if (updateError) throw updateError;
+      setToast({ msg: "Movimentação registrada com sucesso.", type: "success" });
+      setHistoryOpen(false);
+      setSelectedItem(null);
+      setMovementForm({ type: "in", quantity: "", reason: "", service_order_id: "" });
+      await loadItems();
+    } catch (error) {
+      setToast({ msg: `Erro na movimentação: ${supabaseErrorMessage(error)}`, type: "error" });
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      <PageHeader title="Estoque" subtitle="Controle de itens, quantidade mínima e movimentações do almoxarifado" actions={
+        <div className="flex items-center gap-2">
+          <InternalBackButton onBack={onBack} />
+          {canCreateInventory && <BtnPrimary onClick={openNew}><Plus size={14} /> Novo item</BtnPrimary>}
+        </div>
+      } />
+
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+        {loading ? <LoadingState /> : items.length === 0 ? (
+          <EmptyState icon={Package} title="Nenhum item em estoque" message="Cadastre um item para começar a controlar o inventário." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[980px]">
+              <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
+                <tr>
+                  <th className="px-4 py-3 text-left">Nome</th>
+                  <th className="px-4 py-3 text-left">SKU</th>
+                  <th className="px-4 py-3 text-left">Unidade</th>
+                  <th className="px-4 py-3 text-left">Quantidade</th>
+                  <th className="px-4 py-3 text-left">Mínimo</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#0d1b2e]/5">
+                {items.map((item: any) => {
+                  const quantity = Number(item.quantity ?? 0);
+                  const minQuantity = Number(item.min_quantity ?? 0);
+                  const lowStock = quantity <= minQuantity;
+                  const isEmpty = quantity === 0;
+                  return (
+                    <tr key={item.id} className="hover:bg-[#f8fafc]/80">
+                      <td className="px-4 py-3.5">
+                        <div className="font-semibold text-[#0d1b2e]">{item.name}</div>
+                        {item.description && <div className="text-[11px] text-[#5a6a82]">{item.description}</div>}
+                      </td>
+                      <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]">{item.sku || "—"}</td>
+                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{item.unit || "un"}</td>
+                      <td className="px-4 py-3.5">
+                        <span className={cn("font-bold text-sm", isEmpty ? "text-red-700" : lowStock ? "text-amber-700" : "text-[#0d1b2e]")}>{quantity}</span>
+                        {isEmpty && <span className="ml-2 text-[10px] uppercase font-bold text-red-700">Sem estoque</span>}
+                        {!isEmpty && lowStock && <span className="ml-2 text-[10px] uppercase font-bold text-amber-700">Baixo</span>}
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{minQuantity}</td>
+                      <td className="px-4 py-3.5"><span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", item.is_active !== false ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active !== false ? "Ativo" : "Inativo"}</span></td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex justify-end gap-2">
+                          {canEditInventory && <button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button>}
+                          {canEditInventory && <button type="button" onClick={() => toggleActive(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active !== false ? "Desativar" : "Ativar"}>{item.is_active !== false ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button>}
+                          {canDeleteInventory && <button type="button" onClick={() => void deleteItem(item)} className="p-1.5 text-[#5a6a82] hover:text-red-600 rounded-lg" title="Excluir"><Trash2 size={14} /></button>}
+                          <button type="button" onClick={() => openHistory(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Movimentações"><List size={14} /></button>
+                          {canEditInventory && <button type="button" onClick={() => { setSelectedItem(item); setMovementForm({ type: "in", quantity: "", reason: "", service_order_id: "" }); setHistoryOpen(false); setRecordOpen(false); }} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Movimentar item">+</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {recordOpen && (
+        <AdminPage open={true} onClose={() => setRecordOpen(false)} breadcrumb="Operação > Estoque" title={selectedItem ? "Editar item" : "Novo item"} subtitle="Cadastro do item em estoque" maxW="max-w-xl">
+          <div className="p-5 space-y-4">
+            <FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
+            <FInput label="SKU" value={form.sku} onChange={(e: any) => setForm({ ...form, sku: e.target.value })} />
+            <FInput label="Unidade" value={form.unit} onChange={(e: any) => setForm({ ...form, unit: e.target.value })} />
+            <FInput label="Quantidade" type="number" min="0" value={form.quantity} onChange={(e: any) => setForm({ ...form, quantity: e.target.value })} />
+            <FInput label="Quantidade mínima" type="number" min="0" value={form.min_quantity} onChange={(e: any) => setForm({ ...form, min_quantity: e.target.value })} />
+            <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} />
+            <FToggle label="Item ativo" checked={form.is_active} onChange={(value) => setForm({ ...form, is_active: value })} />
+          </div>
+          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+            <BtnSecondary onClick={() => setRecordOpen(false)}>Cancelar</BtnSecondary>
+            {(selectedItem ? canEditInventory : canCreateInventory) && <BtnPrimary onClick={saveItem}>{selectedItem ? "Salvar" : "Cadastrar"}</BtnPrimary>}
+          </div>
+        </AdminPage>
+      )}
+
+      {selectedItem && !recordOpen && (
+        <AdminPage open={true} onClose={() => setSelectedItem(null)} breadcrumb="Operação > Estoque" title={`Movimentação — ${selectedItem.name}`} subtitle="Entrada, saída e ajuste de quantidade" maxW="max-w-xl">
+          <div className="p-5 space-y-4">
+            <div className="grid sm:grid-cols-2 gap-3 text-sm">
+              <div className="rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
+                <p className="text-[10px] uppercase text-[#5a6a82] font-bold">Quantidade atual</p>
+                <p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.quantity ?? 0)}</p>
+              </div>
+              <div className="rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
+                <p className="text-[10px] uppercase text-[#5a6a82] font-bold">Mínimo</p>
+                <p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.min_quantity ?? 0)}</p>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Tipo</label>
+              <select value={movementForm.type} onChange={(e: any) => setMovementForm({ ...movementForm, type: e.target.value })} className={cn(INPUT, "text-xs")}>
+                <option value="in">Entrada</option>
+                <option value="out">Saída</option>
+                <option value="adjust">Ajuste</option>
+              </select>
+            </div>
+            <FInput label="Quantidade" type="number" min="1" value={movementForm.quantity} onChange={(e: any) => setMovementForm({ ...movementForm, quantity: e.target.value })} />
+            <FInput label="Motivo" value={movementForm.reason} onChange={(e: any) => setMovementForm({ ...movementForm, reason: e.target.value })} />
+            <FInput label="OS relacionada (opcional)" value={movementForm.service_order_id} onChange={(e: any) => setMovementForm({ ...movementForm, service_order_id: e.target.value })} />
+          </div>
+          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+            <BtnSecondary onClick={() => setSelectedItem(null)}>Cancelar</BtnSecondary>
+            {canEditInventory && <BtnPrimary onClick={saveMovement}>Registrar</BtnPrimary>}
+          </div>
+        </AdminPage>
+      )}
+
+      {historyOpen && selectedItem && (
+        <AdminPage open={true} onClose={() => { setHistoryOpen(false); setSelectedItem(null); }} breadcrumb="Operação > Estoque" title={`Histórico — ${selectedItem.name}`} subtitle="Movimentações do item" maxW="max-w-2xl">
+          <div className="p-5">
+            {history.length === 0 ? (
+              <p className="text-sm text-[#5a6a82]">Nenhuma movimentação registrada para este item.</p>
+            ) : (
+              <div className="space-y-3">
+                {history.map((entry: any) => (
+                  <div key={entry.id} className="rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-bold uppercase text-[#5a6a82]">{entry.movement_type}</span>
+                      <span className={cn("text-xs font-bold", entry.movement_type === "out" ? "text-red-600" : entry.movement_type === "in" ? "text-green-600" : "text-amber-600")}>{entry.movement_type === "out" ? "-" : entry.movement_type === "in" ? "+" : "~"}{Number(entry.quantity || 0)}</span>
+                    </div>
+                    <div className="mt-2 text-sm text-[#0d1b2e]">{entry.reason || "Movimentação manual"}</div>
+                    <div className="mt-2 grid sm:grid-cols-2 gap-2 text-[11px] text-[#5a6a82]">
+                      <div><span className="font-bold">Data:</span> {entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : "—"}</div>
+                      <div><span className="font-bold">Usuário:</span> {entry.created_by_profile?.full_name || "—"}</div>
+                      <div><span className="font-bold">OS:</span> {entry.service_order?.os_number || "—"}</div>
+                      <div><span className="font-bold">Quantidade:</span> {Number(entry.quantity || 0)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </AdminPage>
+      )}
     </div>
   );
 }
 
 /* ─────────────────────────── TAB: CUSTOMERS ─────────────────────────── */
 
-function TabCustomers() {
+function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
   const { hasPermission } = useAuth();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -4070,13 +4841,13 @@ function TabCustomers() {
               </thead>
               <tbody className="divide-y divide-[#0d1b2e]/5">
                 {pagedCustomers.map(c => (
-                  <tr key={c.id} className="hover:bg-[#f8fafc]/80">
+                  <tr key={c.id} onClick={() => openDetail(c)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                     <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{c.full_name}</td>
                     <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]"><span className="font-bold text-[#0057e7]">{c.customer_type === "PJ" ? "PJ" : "PF"}</span> · {c.customer_type === "PJ" ? (c.cnpj ? formatCnpj(c.cnpj) : "—") : (c.document ? formatCpf(c.document) : "—")}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{c.whatsapp || "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82] truncate max-w-[160px]">{c.email || "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(c.created_at)}</td>
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-3.5" onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => openDetail(c)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
                         {hasPermission("customers.delete") && (
@@ -4199,7 +4970,7 @@ function TabCustomers() {
                   ) : (
                     <div className="space-y-2">
                       {detailOrders.map(o => (
-                        <div key={o.id} className="bg-[#f8fafc] border border-[#0d1b2e]/8 rounded-lg p-3">
+                        <button key={o.id} type="button" onClick={() => onOpenOrder?.(o.id)} className="w-full text-left bg-[#f8fafc] border border-[#0d1b2e]/8 rounded-lg p-3 hover:bg-[#eef5ff] transition-colors">
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-black text-xs text-[#0057e7]">#{o.os_number || o.id.slice(0, 8)}</span>
                             <StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} />
@@ -4211,7 +4982,7 @@ function TabCustomers() {
                             {o.scheduled_at && <span>Agendado: {fmtDate(o.scheduled_at)}</span>}
                             {o.completed_at && <span>Concluído: {fmtDate(o.completed_at)}</span>}
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -4287,31 +5058,77 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
   };
   useEffect(() => { load(); }, []);
 
-  const grouped = permissions.reduce<Record<string, any[]>>((groups, permission) => { const moduleName = permission.module_name || "Outros"; (groups[moduleName] ||= []).push(permission); return groups; }, {});
+  const grouped = permissions.reduce<Record<string, any[]>>((groups, permission) => {
+    const moduleName = permission.key?.startsWith("orders.") ? "Ordens de Serviço" : permission.key?.startsWith("inventory.") ? "Estoque" : permission.module_name || "Outros";
+    (groups[moduleName] ||= []).push(permission);
+    return groups;
+  }, {});
   const openNew = () => { setEditing(null); setForm({ name: "", description: "", is_active: true, selected: [] }); setFormOpen(true); };
+  const reloadRolePermissions = async (roleId: string) => {
+    const { data, error } = await supabase.from("role_permissions").select("permission_id").eq("role_id", roleId);
+    if (error) return error;
+    setForm(current => ({ ...current, selected: (data || []).map((item: any) => item.permission_id) }));
+    return null;
+  };
   const openEdit = async (role: any) => {
-    const { data, error } = await supabase.from("role_permissions").select("permission_id").eq("role_id", role.id);
-    if (error) { setToast({ msg: `Erro ao carregar permissões da função: ${error.message}`, type: "error" }); return; }
-    setEditing(role); setForm({ name: role.name || "", description: role.description || "", is_active: role.is_active !== false, selected: (data || []).map((item: any) => item.permission_id) }); setFormOpen(true);
+    setEditing(role); setForm({ name: role.name || "", description: role.description || "", is_active: role.is_active !== false, selected: [] });
+    const error = await reloadRolePermissions(role.id);
+    if (error) { setToast({ msg: `Erro ao carregar permissões da função: ${supabaseErrorMessage(error)}`, type: "error" }); return; }
+    setFormOpen(true);
   };
   const save = async () => {
     if (!hasPermission(editing ? "roles.edit" : "roles.create")) { setToast({ msg: "Você não possui permissão para salvar funções.", type: "error" }); return; }
     if (!form.name.trim()) { setToast({ msg: "Informe o nome da função.", type: "error" }); return; }
     setSaving(true);
     const payload = { name: form.name.trim(), description: form.description.trim() || null, is_active: form.is_active };
+    const roleId = editing?.id || crypto.randomUUID();
     const result = editing
-      ? await supabase.from("roles").update(payload).eq("id", editing.id).select("id").maybeSingle()
-      : await supabase.from("roles").insert({ ...payload, is_system: false, sort_order: roles.length }).select("id").maybeSingle();
-    if (result.error) console.error("Role save error:", { operation: editing ? "update" : "insert", table: "roles", code: result.error.code, message: result.error.message, details: result.error.details, hint: result.error.hint });
-    if (result.error || !result.data) { setSaving(false); setToast({ msg: `Erro ao salvar função: ${result.error?.message || "função não criada"}`, type: "error" }); return; }
-    const roleId = result.data.id;
-    const { error: deleteError } = await supabase.from("role_permissions").delete().eq("role_id", roleId);
-    if (deleteError) { console.error("Role permissions delete error:", { operation: "delete", table: "role_permissions", code: deleteError.code, message: deleteError.message, details: deleteError.details, hint: deleteError.hint }); setSaving(false); setToast({ msg: `Erro ao sincronizar permissões: ${deleteError.message}`, type: "error" }); return; }
-    if (form.selected.length) {
-      const { error: insertError } = await supabase.from("role_permissions").insert(form.selected.map(permissionId => ({ role_id: roleId, permission_id: permissionId })));
-      if (insertError) { console.error("Role permissions insert error:", { operation: "insert", table: "role_permissions", code: insertError.code, message: insertError.message, details: insertError.details, hint: insertError.hint }); setSaving(false); setToast({ msg: `Erro ao salvar permissões: ${insertError.message}`, type: "error" }); return; }
+      ? await supabase.from("roles").update(payload).eq("id", roleId)
+      : await supabase.from("roles").insert({ ...payload, id: roleId, is_system: false, sort_order: roles.length });
+    if (result.error) {
+      console.error("Role save error:", { operation: editing ? "update" : "insert", table: "roles", code: result.error.code, message: result.error.message, details: result.error.details, hint: result.error.hint });
+      setSaving(false);
+      setToast({ msg: `Erro ao ${editing ? "atualizar" : "criar"} função: ${supabaseErrorMessage(result.error)}`, type: "error" });
+      return;
     }
-    setSaving(false); setFormOpen(false); setToast({ msg: editing ? "Função atualizada." : "Função criada.", type: "success" }); load();
+
+    const previousPermissionIds = new Set<string>();
+    if (editing) {
+      const { data: currentPermissions, error: currentPermissionsError } = await supabase.from("role_permissions").select("permission_id").eq("role_id", roleId);
+      if (currentPermissionsError) {
+        setSaving(false);
+        setToast({ msg: `A função foi salva, mas não foi possível ler suas permissões: ${supabaseErrorMessage(currentPermissionsError)}`, type: "error" });
+        await load();
+        return;
+      }
+      (currentPermissions || []).forEach((item: any) => previousPermissionIds.add(item.permission_id));
+    }
+
+    const selectedPermissionIds = new Set(form.selected);
+    const permissionIdsToRemove = [...previousPermissionIds].filter(permissionId => !selectedPermissionIds.has(permissionId));
+    const permissionIdsToAdd = [...selectedPermissionIds].filter(permissionId => !previousPermissionIds.has(permissionId));
+    try {
+      for (const permissionId of permissionIdsToAdd) {
+        const { error } = await supabase.from("role_permissions").insert({ role_id: roleId, permission_id: permissionId });
+        if (error) throw error;
+      }
+      for (const permissionId of permissionIdsToRemove) {
+        const { error } = await supabase.from("role_permissions").delete().eq("role_id", roleId).eq("permission_id", permissionId);
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error("Role permissions save error:", { operation: "delta-sync", table: "role_permissions", error });
+      setSaving(false);
+      setToast({ msg: `A função foi salva, mas não foi possível sincronizar as permissões: ${supabaseErrorMessage(error)}`, type: "error" });
+      if (editing) {
+        const reloadError = await reloadRolePermissions(roleId);
+        if (reloadError) console.error("Role permissions reload error:", reloadError);
+      }
+      await load();
+      return;
+    }
+
+    setSaving(false); setFormOpen(false); setToast({ msg: editing ? "Função atualizada." : "Função criada.", type: "success" }); await load();
   };
   const togglePermission = (permissionId: string) => setForm(current => ({ ...current, selected: current.selected.includes(permissionId) ? current.selected.filter(id => id !== permissionId) : [...current.selected, permissionId] }));
   const toggleGroup = (items: any[]) => { const ids = items.map(item => item.id); const allSelected = ids.every(id => form.selected.includes(id)); setForm(current => ({ ...current, selected: allSelected ? current.selected.filter(id => !ids.includes(id)) : Array.from(new Set([...current.selected, ...ids])) })); };
@@ -4389,12 +5206,28 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
           await supabase.from("profiles").update({ full_name: form.full_name.trim(), role_id: form.role_id || null, is_active: form.is_active }).eq("id", editItem.profile_id);
         }
       } else {
-        const { data: authData, error: authErr } = await supabase.auth.signUp({ email: normalizedEmail, password: form.password, options: { data: { full_name: form.full_name.trim() } } });
-        if (authErr || !authData.user) throw new Error(authErr?.message?.toLowerCase().includes("already") ? "E-mail já cadastrado." : authErr?.message || "Não foi possível criar o usuário.");
-        const userId = authData.user.id;
-        await supabase.from("profiles").upsert({ id: userId, full_name: form.full_name.trim(), role_id: form.role_id || null, is_active: true });
-        const { error: empErr } = await supabase.from("employees").insert({ profile_id: userId, full_name: form.full_name.trim(), cpf, phone: form.phone.trim() || null, function_name: form.function_name.trim() || "Funcionário", role_id: form.role_id || null, is_active: true });
-        if (empErr) throw new Error(`Erro ao criar funcionário: ${empErr.message}`);
+        const { data, error: serverErr } = await supabase.functions.invoke("server", {
+          body: {
+            action: "create_employee_user",
+            email: normalizedEmail,
+            password: form.password,
+            full_name: form.full_name.trim(),
+            cpf,
+            phone: form.phone.trim() || null,
+            function_name: form.function_name.trim() || "Funcionário",
+            role_id: form.role_id || null,
+            is_active: true,
+          },
+        });
+
+        if (serverErr) {
+          console.error("[ADMIN] employee creation edge function error:", serverErr);
+          throw new Error(serverErr.message || "Não foi possível criar o usuário.");
+        }
+
+        if (!data?.success) {
+          throw new Error(data?.error || "Não foi possível criar o usuário.");
+        }
       }
       setFormOpen(false); setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); load();
     } catch (e: any) {
@@ -4865,10 +5698,21 @@ function OrderImageThumb({ image, onRemove, onView }: { image: OrderImage; onRem
 
 function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = true }: { images: OrderImage[]; onAdd: (files: FileList | null) => void; onRemove: (key: string) => void; onView?: (image: OrderImage) => void; canEdit?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   return (
     <Section title="Imagens da OS">
-      <div className="flex items-center justify-between gap-3 mb-3"><p className="text-xs text-[#5a6a82]">{images.length}/5 imagens</p>{canEdit && <button type="button" disabled={images.length >= 5} onClick={() => inputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Upload size={13} /> Adicionar imagens</button>}</div>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-xs text-[#5a6a82]">{images.length}/5 imagens</p>
+        {canEdit && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <button type="button" disabled={images.length >= 5} onClick={() => inputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Upload size={13} /> Adicionar imagens</button>
+            <button type="button" disabled={images.length >= 5} onClick={() => cameraInputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Camera size={13} /> Abrir câmera</button>
+          </div>
+        )}
+      </div>
       <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple className="hidden" onChange={event => { onAdd(event.target.files); event.currentTarget.value = ""; }} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { onAdd(event.target.files); event.currentTarget.value = ""; }} />
       {images.length > 0 && <div className="flex flex-wrap gap-3">{images.map(image => <OrderImageThumb key={image.key} image={image} onRemove={canEdit ? () => onRemove(image.key) : undefined} onView={() => onView?.(image)} />)}</div>}
     </Section>
   );

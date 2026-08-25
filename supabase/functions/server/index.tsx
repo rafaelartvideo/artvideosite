@@ -209,6 +209,64 @@ const employeeUserHandler = async (
       callerUserId
     );
 
+    if (body.action === "diagnose_auth_user") {
+      const { email } = body;
+      const normalizedEmail = String(email ?? "").trim().toLowerCase();
+
+      if (!normalizedEmail) {
+        return res(
+          {
+            error: "E-mail obrigatório para diagnóstico.",
+          },
+          400
+        );
+      }
+
+      const {
+        data: usersData,
+        error: usersError,
+      } = await adminClient.auth.admin.listUsers();
+
+      const authUser = usersData?.users.find(
+        (user) =>
+          user.email?.trim().toLowerCase() === normalizedEmail
+      );
+
+      console.log("[AUTH DIAGNOSTIC]", {
+        email: normalizedEmail,
+        found: !!authUser,
+        id: authUser?.id,
+        email_confirmed: authUser?.email_confirmed_at,
+        created_at: authUser?.created_at,
+        banned_until: authUser?.banned_until,
+        error: usersError
+          ? {
+              message: usersError.message,
+              status: usersError.status,
+              name: usersError.name,
+            }
+          : null,
+      });
+
+      return res(
+        {
+          success: true,
+          found: !!authUser,
+          user: authUser
+            ? {
+                id: authUser.id,
+                email: authUser.email,
+                email_confirmed_at: authUser.email_confirmed_at,
+                created_at: authUser.created_at,
+                banned_until: authUser.banned_until,
+              }
+            : null,
+          error: usersError ? usersError.message : null,
+        },
+        usersError ? 400 : 200
+      );
+    }
+
     /* =====================================================
        PROFILE
        ===================================================== */
@@ -1014,15 +1072,38 @@ const employeeUserHandler = async (
       authData.user.id;
 
     console.log(
-      "[SERVER] Auth user created:",
-      createdUserId
+      "[CREATE EMPLOYEE] Auth user created",
+      {
+        id: authData.user?.id,
+        email: authData.user?.email,
+        email_confirmed_at:
+          authData.user?.email_confirmed_at,
+      }
+    );
+
+    console.log(
+      "[CREATE EMPLOYEE] email confirmed",
+      {
+        email: normalizedEmail,
+        email_confirmed_at:
+          authData.user?.email_confirmed_at,
+      }
     );
 
     /* ---------------------------------------------------
        PROFILE
        --------------------------------------------------- */
 
+    console.log(
+      "[SERVER] creating profile:",
+      {
+        auth_user_id:
+          createdUserId,
+      }
+    );
+
     const {
+      data: createdProfile,
       error: newProfileError,
     } =
       await adminClient
@@ -1040,18 +1121,65 @@ const employeeUserHandler = async (
 
           is_active:
             true,
-        });
+        })
+        .select("id")
+        .single();
 
-    if (newProfileError) {
+    console.log(
+      "[SERVER] profile result:",
+      {
+        data: createdProfile,
+        error: newProfileError,
+      }
+    );
+
+    if (
+      newProfileError ||
+      !createdProfile
+    ) {
       console.error(
-        "[SERVER] profile creation error:",
-        newProfileError
+        "[SERVER] profile creation failed:",
+        {
+          auth_user_id:
+            createdUserId,
+          error: newProfileError,
+        }
       );
 
       throw new Error(
-        "Não foi possível criar o perfil do funcionário."
+        newProfileError?.message ||
+          "Não foi possível criar o perfil do funcionário."
       );
     }
+
+    if (
+      createdProfile.id !==
+      createdUserId
+    ) {
+      throw new Error(
+        "O ID do profile criado não corresponde ao usuário Auth."
+      );
+    }
+
+    console.log(
+      "[SERVER] profile confirmed:",
+      {
+        auth_user_id:
+          createdUserId,
+        profile_id:
+          createdProfile.id,
+      }
+    );
+
+    console.log(
+      "[CREATE EMPLOYEE] profile created",
+      {
+        auth_user_id:
+          createdUserId,
+        profile_id:
+          createdProfile.id,
+      }
+    );
 
     /* ---------------------------------------------------
        EMPLOYEE
@@ -1064,7 +1192,7 @@ const employeeUserHandler = async (
         .from("employees")
         .insert({
           profile_id:
-            createdUserId,
+            createdProfile.id,
 
           full_name:
             String(
@@ -1096,12 +1224,18 @@ const employeeUserHandler = async (
 
     if (employeeError) {
       console.error(
-        "[SERVER] employee creation error:",
-        employeeError
+        "[SERVER] employee creation failed:",
+        {
+          profile_id:
+            createdProfile.id,
+          error:
+            employeeError,
+        }
       );
 
       throw new Error(
-        "Não foi possível vincular o funcionário à função."
+        employeeError.message ||
+          "Não foi possível criar o funcionário."
       );
     }
 
@@ -1115,6 +1249,17 @@ const employeeUserHandler = async (
 
         role_name:
           role.name,
+      }
+    );
+
+    console.log(
+      "[CREATE EMPLOYEE] employee created",
+      {
+        user_id:
+          createdUserId,
+        profile_id:
+          createdProfile.id,
+        role_id,
       }
     );
 
