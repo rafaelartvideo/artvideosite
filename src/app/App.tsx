@@ -6,6 +6,7 @@ import { AdminLogin, AdminDashboard } from "@/app/Admin";
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress } from "@/lib/address";
 import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
+import { formatPhone } from "@/app/admin/shared";
 import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
 import {
   ShoppingCart, Menu, X, Tv, Wind, Monitor, Headphones, Cpu, Plug,
@@ -152,8 +153,8 @@ function Header({ cur, setPage }: { cur: Page; setPage: (p: Page) => void; }) {
 function Footer({ setPage }: { setPage: (p: Page) => void }) {
   const { settings } = useSiteSettings();
   const contactItems = [
-    ["Telefone", getSettingText(settings.phone) || getSettingText(settings.telefone)],
-    ["WhatsApp", getSettingText(settings.whatsapp) || getSettingText(settings.whatsapp_number)],
+    ["Telefone", formatPhone(getSettingText(settings.phone) || getSettingText(settings.telefone))],
+    ["WhatsApp", formatPhone(getSettingText(settings.whatsapp) || getSettingText(settings.whatsapp_number))],
     ["E-mail", getSettingText(settings.email)],
     ["Endereço", getSettingText(settings.address) || [settings.street, settings.number, settings.complement, settings.neighborhood, settings.city, settings.state].map(getSettingText).filter(Boolean).join(", ")],
   ].filter(([, value]) => Boolean(value));
@@ -1253,8 +1254,8 @@ function ContatoPage() {
   const whatsappNumber = whatsappDigits.startsWith("55") ? whatsappDigits : whatsappDigits ? `55${whatsappDigits}` : "";
   const address = getSettingText(settings.address) || [settings.street, settings.number, settings.complement, settings.neighborhood, settings.city, settings.state].map(getSettingText).filter(Boolean).join(", ");
   const contactDetails: { icon: React.ElementType; label: string; value: string }[] = [
-    { icon: MessageCircle, label: "WhatsApp", value: rawWhatsApp },
-    { icon: Phone, label: "Telefone", value: getSettingText(settings.phone) || getSettingText(settings.telefone) },
+    { icon: MessageCircle, label: "WhatsApp", value: formatPhone(rawWhatsApp) },
+    { icon: Phone, label: "Telefone", value: formatPhone(getSettingText(settings.phone) || getSettingText(settings.telefone)) },
     { icon: Mail, label: "E-mail", value: getSettingText(settings.email) },
     { icon: Instagram, label: "Instagram", value: getSettingText(settings.instagram) },
     { icon: MapPin, label: "Localização", value: address },
@@ -1325,7 +1326,7 @@ function ContatoPage() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">WhatsApp</label>
-                    <input className={inputCls} placeholder="(79) 9 9999-9999" value={form.whatsapp} onChange={(e) => update("whatsapp", e.target.value)} />
+                    <input className={inputCls} placeholder="(79) 9 9999-9999" value={form.whatsapp} onChange={(e) => update("whatsapp", formatPhone(e.target.value))} />
                   </div>
                 </div>
                 <div>
@@ -1482,8 +1483,8 @@ function OrcamentoPage() {
       const { data, error } = await supabase.rpc("submit_public_quote_request", {
         p_customer_type:   f.customerType,
         p_full_name:        (f.customerType === "PJ" ? f.tradeName : f.nome).trim(),
-        p_whatsapp:         f.whatsapp || null,
-        p_phone:            f.whatsapp || null,
+        p_whatsapp:         f.whatsapp.replace(/\D/g, "") || null,
+        p_phone:            f.whatsapp.replace(/\D/g, "") || null,
         p_email:            f.email || null,
         p_document:         f.customerType === "PF" && cpfRaw.length === 11 ? cpfRaw : null,
         p_trade_name:       f.customerType === "PJ" ? f.tradeName.trim() : null,
@@ -1619,7 +1620,7 @@ function OrcamentoPage() {
               {/* WhatsApp em destaque */}
               <div className="bg-[#f0fdf4] border-2 border-[#25d366]/40 rounded-xl p-4">
                 <label className="text-xs font-black text-[#16a34a] uppercase tracking-wide block mb-1.5 flex items-center gap-1"><MessageCircle size={12} /> WhatsApp * — principal canal de contato</label>
-                <input className="w-full bg-white border border-[#25d366]/40 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#25d366] transition-all" placeholder="(79) 9 9999-9999" value={f.whatsapp} onChange={e => up("whatsapp", e.target.value)} required />
+                <input className="w-full bg-white border border-[#25d366]/40 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#25d366] transition-all" placeholder="(79) 9 9999-9999" value={f.whatsapp} onChange={e => up("whatsapp", formatPhone(e.target.value))} required />
               </div>
               {f.customerType === "PF" ? <div className="grid sm:grid-cols-2 gap-4">
                 <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome completo *</label><input className={inputCls} placeholder="Seu nome" value={f.nome} onChange={e => up("nome", e.target.value)} required /></div>

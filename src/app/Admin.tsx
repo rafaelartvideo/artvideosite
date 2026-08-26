@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
-import { emptyAddress, type Address } from "@/lib/address";
+import { emptyAddress, fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
 import { createEmployee, getEmployees, getGeneralServices, createGeneralService, updateGeneralService, setGeneralServiceActive, setEmployeeActive, updateEmployee } from "@/lib/queries";
 import {
   LayoutDashboard, Wrench, FolderTree, Package, Tag, FileText, ClipboardList,
@@ -11,21 +11,21 @@ import {
   AlertCircle, Clock, RefreshCw, X, ArrowLeft, Menu, Upload, AlertTriangle,
   Star, Filter, DollarSign, List, HelpCircle, ChevronDown, MessageCircle,
   Mail, MapPin, Instagram, Globe, Hash, Activity, Shield, CalendarDays,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ListFilter, CalendarPlus, Check, UserPlus, Eraser,
 } from "lucide-react";
 import {
   type AdminTab, type AdminPageState, AdminPageContext, AdminBackContext,
-  cn, slugify, generateOsProtocol, initialOrderStatus, getWhatsAppUrl,
-  type CustomerType, type CustomerForm, emptyCustomerForm, customerFormFromCustomer, customerPayload,
-  validateCustomerForm, fetchCnpjData, applyCnpjData, formatCpf, formatCnpj,
-  formatFoundationDate, foundationDateToIso, foundationDateFromCustomer,
+  cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone, formatCpf, formatCnpj,
+  type CustomerType, type CustomerForm, emptyCustomerForm, customerFormFromCustomer, customerPayload, customerUpdatePayload, validateCustomerForm,
+  formatFoundationDate, foundationDateToIso, foundationDateFromCustomer, formatDateOnly, todayDateOnly,
   INPUT, FInput, FTextarea, FSelect, FToggle, CustomerTypeToggle,
   StatusBadge, LoadingState, EmptyState, BtnPrimary, BtnSecondary, Toast, ConfirmDialog,
   PageHeader, Section, AdminPage, PaginationBar, ImageUpload, ProductAdminThumb, BrandAdminLogo,
   supabaseErrorMessage, createMediaRecord, InternalBackButton,
   generateUniqueSlug, isHexColor,
 } from "./admin/shared";
-import { TabOrders } from "./admin/TabOrders";
+import { TabOrders, OSSituationsView } from "./admin/TabOrders";
+import type { Appointment, AppointmentPeriod, AppointmentSituation } from "@/lib/database.types";
 
 export function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const [email, setEmail] = useState("");
@@ -474,7 +474,7 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const load = async () => { setLoading(true); const { data, error } = await getGeneralServices(); if (error) { console.error("[ADMIN] general services load error:", error); setToast({ msg: `Erro ao carregar serviços gerais: ${error.message}`, type: "error" }); } else setItems(data || []); setLoading(false); };
+    const load = async () => { setLoading(true); const { data, error } = await getGeneralServices(); if (error) { console.error("[ADMIN] general services load error:", error); setToast({ msg: `Erro ao carregar serviços gerais: ${error.message}`, type: "error" }); } else setItems(data || []); setLoading(false); };
   useEffect(() => { load(); }, []);
   const openNew = () => { setEditItem(null); setName(""); setActive(true); setFormOpen(true); };
   const openEdit = (item: any) => { setEditItem(item); setName(item.name || ""); setActive(item.is_active !== false); setFormOpen(true); };
@@ -496,7 +496,7 @@ function TabServices({ onBack }: { onBack: () => void }) {
   const [editItem, setEditItem] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [serviceView, setServiceView] = useState<"site" | "general">("site");
@@ -1386,7 +1386,7 @@ function TabProducts({ onBack }: { onBack: () => void }) {
   const [delId, setDelId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const [form, setForm] = useState({ name: "", slug: "", sku: "", short_description: "", description: "", price: "", compare_at_price: "", cover_media_id: "", is_active: true, is_featured: false, category_id: "", brand_id: "", external_platform: "", external_product_id: "", external_url: "" });
@@ -1590,7 +1590,7 @@ function TabBrands({ onBack }: { onBack: () => void }) {
   const handleDelete = async (id: string) => { if (!hasPermission("brands.delete")) return; const { error } = await supabase.from("brands").delete().eq("id", id); if (error) { setToast({ msg: `Erro ao excluir marca: ${error.message}`, type: "error" }); return; } setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); load(); };
   const toggleActive = async (brand: any) => { if (!hasPermission("brands.update")) return; const { error } = await supabase.from("brands").update({ is_active: !brand.is_active }).eq("id", brand.id); if (error) { setToast({ msg: `Erro ao atualizar marca: ${error.message}`, type: "error" }); return; } setToast({ msg: "Status atualizado!", type: "success" }); load(); };
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const filteredBrands = brands;
   const totalPages = Math.max(1, Math.ceil(filteredBrands.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -1678,7 +1678,7 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -1793,7 +1793,7 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                     </td>
                     <td className="px-4 py-3.5">
                       <p className="font-bold text-[#0d1b2e] text-sm">{(q.customer as any)?.customer_type === "PJ" ? ((q.customer as any)?.trade_name || (q.customer as any)?.full_name || "—") : ((q.customer as any)?.full_name || "—")}</p>
-                      <p className="text-xs text-[#5a6a82]">{(q.customer as any)?.whatsapp || ""}</p>
+                      <p className="text-xs text-[#5a6a82]">{formatPhone((q.customer as any)?.whatsapp)}</p>
                     </td>
                     <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]"><span className="font-bold text-[#0057e7]">{(q.customer as any)?.customer_type === "PJ" ? "PJ" : "PF"}</span> · {(q.customer as any)?.customer_type === "PJ" ? ((q.customer as any)?.cnpj ? formatCnpj((q.customer as any).cnpj) : "—") : ((q.customer as any)?.document ? formatCpf((q.customer as any).document) : "—")}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">
@@ -1847,8 +1847,8 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                   </> : <InfoRow label="Nome completo" value={(detail.customer as any)?.full_name} />}
                   {(detail.customer as any)?.customer_type !== "PJ" && <InfoRow label="CPF" value={(detail.customer as any)?.document ? formatCpf((detail.customer as any).document) : null} />}
                   <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
-                  <InfoRow label="Telefone" value={(detail.customer as any)?.phone} />
-                  <InfoRow label="WhatsApp" value={(detail.customer as any)?.whatsapp} />
+                  <InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)} />
+                  <InfoRow label="WhatsApp" value={formatPhone((detail.customer as any)?.whatsapp)} />
                 </div>
               </Section>
               <Section title="Endereço">
@@ -1885,12 +1885,11 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 if (!hasPermission("quotes.convert")) { setToast({ msg: "Você não possui permissão para converter orçamentos.", type: "error" }); return; }
                 const { data: existing } = await supabase.from("service_orders").select("id, os_number").eq("quote_request_id", detail.id).maybeSingle();
                 if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
-                const protocol = generateOsProtocol();
                 const { data: availableStatuses, error: statusError } = await supabase.from("order_statuses").select("id,name,sort_order").order("sort_order");
                 const status = initialOrderStatus(availableStatuses || []);
                 if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status inicial válido para a OS.", type: "error" }); return; }
                 const { error } = await supabase.from("service_orders").insert({
-                  os_number: protocol, service_id: detail.service_id, quote_request_id: detail.id,
+                  service_id: detail.service_id, quote_request_id: detail.id,
                   customer_id: detail.customer_id, status_id: status.id,
                   customer_notes: detail.customer_message || null,
                 });
@@ -1911,19 +1910,6 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
 }
 
 /* ─────────────────────────── TAB: ORDERS ─────────────────────────── */
-
-const PRIORITY_COLORS: Record<string, string> = {
-  baixa:   "bg-[#e8eef8] text-[#5a6a82]",
-  normal:  "bg-[#e8f5e9] text-[#2e7d32]",
-  alta:    "bg-[#fff3e0] text-[#e65100]",
-  urgente: "bg-[#ffebee] text-[#c62828]",
-};
-const PRIORITY_LABELS: Record<string, string> = { baixa: "Baixa", normal: "Normal", alta: "Alta", urgente: "Urgente" };
-
-function PriorityBadge({ priority }: { priority?: string }) {
-  const p = priority || "normal";
-  return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap", PRIORITY_COLORS[p] || PRIORITY_COLORS.normal)}>{PRIORITY_LABELS[p] || p}</span>;
-}
 
 function ServiceTypesAdminPanel({ onBack }: { onBack: () => void }) {
   return <AdminBackContext.Provider value={onBack}><ServiceTypesAdminPanelContent /></AdminBackContext.Provider>;
@@ -2237,7 +2223,8 @@ function OrderStatusesAdminPanelContent() {
       </AdminPage>
     </div>
   );
-}function OSSituationsView({ onBack }: { onBack: () => void }) {
+}/* OSSituationsView moved to admin/TabOrders. */
+/*
   const { user, hasPermission } = useAuth();
   if (!hasPermission("orders.view")) return null;
   const [items, setItems] = useState<any[]>([]);
@@ -2343,19 +2330,53 @@ function OrderStatusesAdminPanelContent() {
   );
 }
 
+*/
+type AppointmentWithRelations = Appointment & {
+  customer?: any;
+  service_order?: any;
+  situation?: AppointmentSituation | null;
+  appointment_technicians?: { employee_id: string; employee?: { id: string; full_name: string } | null }[];
+  created_by_profile?: { id: string; full_name: string } | null;
+};
+
+type CalendarEvent =
+  | { kind: "service_order"; id: string; date: string; order: any }
+  | { kind: "appointment"; id: string; date: string; appointment: AppointmentWithRelations };
+
 function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const { user, hasPermission } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [generalServices, setGeneralServices] = useState<any[]>([]);
   const [situations, setSituations] = useState<any[]>([]);
+  const [appointmentSituations, setAppointmentSituations] = useState<AppointmentSituation[]>([]);
   const [view, setView] = useState<"month" | "week" | "day" | "agenda">("month");
   const [cursor, setCursor] = useState(() => new Date());
   const [technicianFilter, setTechnicianFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [situationFilter, setSituationFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [appointmentSubmodal, setAppointmentSubmodal] = useState<"address" | "technicians" | null>(null);
+  const [appointmentSaving, setAppointmentSaving] = useState(false);
+  const [appointmentCustomerSearch, setAppointmentCustomerSearch] = useState("");
+  const [appointmentCustomers, setAppointmentCustomers] = useState<any[]>([]);
+  const [appointmentCustomer, setAppointmentCustomer] = useState<any>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithRelations | null>(null);
+  const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
+  const [changingAppointmentCustomer, setChangingAppointmentCustomer] = useState(false);
+  const [appointmentCustomerSearchLoading, setAppointmentCustomerSearchLoading] = useState(false);
+  const [appointmentOrders, setAppointmentOrders] = useState<any[]>([]);
+  const [appointmentForm, setAppointmentForm] = useState({ customer_id: "", service_order_id: "", appointment_date: "", period: "no_time" as AppointmentPeriod, start_time: "", end_time: "", sector_location: "", situation_id: "", description: "", is_return: false, address_source: null as "customer" | "custom" | null, customer_address_id: "", zip_code: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" });
+  const [appointmentTechnicians, setAppointmentTechnicians] = useState<{ id: string; full_name: string }[]>([]);
+  const [selectedAppointmentTechnicians, setSelectedAppointmentTechnicians] = useState<string[]>([]);
+  const [appointmentTechnicianSearch, setAppointmentTechnicianSearch] = useState("");
+  const [appointmentSituationsLoading, setAppointmentSituationsLoading] = useState(true);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
@@ -2364,6 +2385,7 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
 
   const load = async () => {
     setLoading(true);
+    setAppointmentSituationsLoading(true);
 
     let myEmployee: { id: string } | null = null;
     if (user?.id) {
@@ -2378,7 +2400,7 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
 
     let agendaQuery = supabase
       .from("service_orders")
-      .select("id,os_number,scheduled_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color,hours)")
+      .select("id,os_number,scheduled_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color,hours)")
       .not("scheduled_at", "is", null)
       .order("scheduled_at");
 
@@ -2391,19 +2413,26 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
       }
     }
 
-    const [ordersResult, employeesResult, servicesResult, generalServicesResult, situationsResult] = await Promise.all([
+    const [ordersResult, appointmentsResult, employeesResult, servicesResult, generalServicesResult, situationsResult, appointmentSituationsResult] = await Promise.all([
       agendaQuery,
+      supabase.from("appointments").select("*, created_by_profile:profiles!created_by(id,full_name), customer:customers(id,full_name,document,cnpj,phone,whatsapp,addresses:customer_addresses(*)), service_order:service_orders(id,os_number,model,serial_number,service:services(title),general_service:general_services(name)), situation:appointment_situations(id,name,color,is_active,sort_order,created_at,updated_at), appointment_technicians(employee_id,employee:employees(id,full_name))").order("appointment_date"),
       supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
       supabase.from("services").select("id,title").eq("is_active", true).order("title"),
       supabase.from("general_services").select("id,name").eq("is_active", true).order("name"),
       supabase.from("os_situations").select("id,name,hours").eq("is_active", true).order("sort_order"),
+      supabase.from("appointment_situations").select("id,name,color,is_active,sort_order,created_at,updated_at").eq("is_active", true).order("sort_order").order("name"),
     ]);
     if (ordersResult.error) setToast({ msg: `Erro ao carregar agenda: ${ordersResult.error.message}`, type: "error" });
+    if (appointmentsResult.error) setToast({ msg: `Erro ao carregar agendamentos: ${appointmentsResult.error.message}`, type: "error" });
     setOrders(ordersResult.data || []);
+    setAppointments((appointmentsResult.data || []) as AppointmentWithRelations[]);
     setEmployees(employeesResult.data || []);
     setServices(servicesResult.data || []);
     setGeneralServices(generalServicesResult.data || []);
     setSituations(situationsResult.data || []);
+    setAppointmentSituations((appointmentSituationsResult.data || []) as AppointmentSituation[]);
+    setAppointmentTechnicians(employeesResult.data || []);
+    setAppointmentSituationsLoading(false);
     setLoading(false);
   };
 
@@ -2413,6 +2442,23 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
       setTechnicianFilter(myEmployeeId);
     }
   }, [canViewOtherAgendas, myEmployeeId]);
+  useEffect(() => {
+    const closeFilters = (event: MouseEvent) => {
+      if (!filterPanelRef.current?.contains(event.target as Node)) setFiltersOpen(false);
+    };
+    document.addEventListener("mousedown", closeFilters);
+    return () => document.removeEventListener("mousedown", closeFilters);
+  }, []);
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key !== "Escape") return; if (appointmentSubmodal) setAppointmentSubmodal(null); else if (appointmentModalOpen) setAppointmentModalOpen(false); else if (selectedAppointment) setSelectedAppointment(null); else setFiltersOpen(false); };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [appointmentSubmodal, appointmentModalOpen, selectedAppointment]);
+  useEffect(() => {
+    if (!appointmentModalOpen || appointmentForm.situation_id || appointmentSituations.length === 0) return;
+    const defaultSituation = appointmentSituations.find(item => String(item.name).trim().toLowerCase() === "agendado") ?? appointmentSituations[0];
+    setAppointmentForm(current => ({ ...current, situation_id: defaultSituation?.id ?? "" }));
+  }, [appointmentModalOpen, appointmentSituations, appointmentForm.situation_id]);
 
   const dayKey = (date: Date) => {
     const year = date.getFullYear();
@@ -2426,8 +2472,22 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const effectiveTechnicianFilter = !canViewOtherAgendas ? myEmployeeId || "" : technicianFilter;
   const filteredOrders = orders.filter(order => {
     const serviceId = (order.service as any)?.id || (order.general_service as any)?.id || "";
-    return (!effectiveTechnicianFilter || (order.technician as any)?.id === effectiveTechnicianFilter) && (!statusFilter || (order.order_status as any)?.id === statusFilter) && (!situationFilter || (order.situation as any)?.id === situationFilter) && (!serviceFilter || serviceId === serviceFilter);
+    const searchText = `${(order.customer as any)?.full_name || ""} ${order.os_number || ""}`.toLowerCase();
+    const technicianIds = [(order.technician as any)?.id, ...((order.technician_links || []).map((link: any) => link.employee_id))].filter(Boolean);
+    return (!search || searchText.includes(search.toLowerCase())) && (!effectiveTechnicianFilter || technicianIds.includes(effectiveTechnicianFilter)) && (!statusFilter || (order.order_status as any)?.id === statusFilter) && (!situationFilter || (order.situation as any)?.id === situationFilter) && (!serviceFilter || serviceId === serviceFilter);
   });
+  const referencedOrderIds = new Set(appointments.map(appointment => appointment.service_order_id).filter((id): id is string => Boolean(id)));
+  const serviceOrderEvents = filteredOrders.filter(order => !referencedOrderIds.has(order.id)).map(order => ({ kind: "service_order" as const, id: order.id, date: eventDay(order), order }));
+  const calendarEvents: CalendarEvent[] = [
+    ...serviceOrderEvents,
+    ...appointments.filter(appointment => {
+      const technicianIds = (appointment.appointment_technicians || []).map(item => item.employee_id);
+      const searchText = [appointment.customer?.full_name, appointment.description, appointment.sector_location, appointment.service_order?.os_number, ...((appointment.appointment_technicians || []).map(item => item.employee?.full_name || ""))].filter(Boolean).join(" ").toLowerCase();
+      const appointmentServiceId = appointment.service_order?.service?.id || appointment.service_order?.general_service?.id;
+      return (!search || searchText.includes(search.toLowerCase())) && (!effectiveTechnicianFilter || technicianIds.includes(effectiveTechnicianFilter)) && (!situationFilter || appointment.situation_id === situationFilter) && !statusFilter && (!serviceFilter || appointmentServiceId === serviceFilter);
+    }).map(appointment => ({ kind: "appointment" as const, id: appointment.id, date: appointment.appointment_date, appointment })),
+  ];
+  const activeFilterCount = [technicianFilter, statusFilter, situationFilter, serviceFilter].filter(Boolean).length;
   const statuses = Array.from(
     new Map(
       orders.flatMap(order => {
@@ -2446,12 +2506,23 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const today = () => setCursor(new Date());
   const rangeStart = () => {
     if (view === "month") return new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-    if (view === "week") { const start = new Date(cursor); start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); return start; }
+    if (view === "week") { const start = new Date(cursor); start.setDate(start.getDate() - start.getDay()); return start; }
     return new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
   };
   const days = (count: number) => Array.from({ length: count }, (_, index) => { const date = rangeStart(); date.setDate(date.getDate() + index); return date; });
-  const eventsFor = (date: Date) => filteredOrders.filter(order => eventDay(order) === dayKey(date));
-  const updateEventDate = async (order: any, targetDay: string) => {
+  const eventsFor = (date: Date) => calendarEvents.filter(event => event.date === dayKey(date));
+  const updateEventDate = async (event: CalendarEvent | any, targetDay: string) => {
+    if (!event.kind) {
+      const legacyEvent: CalendarEvent = { kind: "service_order", id: event.id, date: eventDay(event), order: event };
+      return updateEventDate(legacyEvent, targetDay);
+    }
+    if (event.kind === "appointment") {
+      const { error } = await supabase.from("appointments").update({ appointment_date: targetDay }).eq("id", event.id);
+      if (error) setToast({ msg: `Não foi possível mover o agendamento: ${error.message}`, type: "error" });
+      else { setAppointments(current => current.map(item => item.id === event.id ? { ...item, appointment_date: targetDay } : item)); setToast({ msg: "Agendamento atualizado.", type: "success" }); }
+      return;
+    }
+    const order = event.order;
     const oldDate = new Date(order.scheduled_at);
     const next = parseDay(targetDay);
     next.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0);
@@ -2459,12 +2530,120 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
     if (error) setToast({ msg: `Não foi possível mover a OS: ${error.message}`, type: "error" });
     else { setOrders(current => current.map(item => item.id === order.id ? { ...item, scheduled_at: next.toISOString() } : item)); setToast({ msg: "Agendamento atualizado.", type: "success" }); }
   };
-  const Event = ({ order }: { order: any }) => <button type="button" draggable onDragStart={event => { event.dataTransfer.setData("text/order-id", order.id); }} onClick={() => onOpenOrder(order.id)} className="w-full text-left rounded-md border-l-4 px-2 py-1.5 mb-1 bg-white shadow-sm hover:shadow-md" style={{ borderLeftColor: (order.order_status as any)?.color || "#0057e7" }}><p className="font-mono text-[10px] font-black text-[#0057e7] truncate">{order.os_number || `OS #${order.id.slice(0, 8)}`}</p><p className="text-[11px] font-semibold text-[#0d1b2e] truncate">{(order.customer as any)?.full_name || "Cliente"}</p><p className="text-[10px] text-[#5a6a82] truncate">{eventLabel(order)} · {new Date(order.scheduled_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>{(order.technician as any)?.full_name && <p className="text-[10px] text-[#5a6a82] truncate">{(order.technician as any).full_name}</p>}</button>;
+  const dropCalendarEvent = (dataTransfer: DataTransfer, targetDay: string) => {
+    const raw = dataTransfer.getData("text/calendar-event");
+    if (!raw) return;
+    try {
+      const dropped = JSON.parse(raw) as { kind: CalendarEvent["kind"]; id: string };
+      const event = calendarEvents.find(item => item.kind === dropped.kind && item.id === dropped.id);
+      if (event) void updateEventDate(event, targetDay);
+    } catch { setToast({ msg: "Não foi possível identificar o evento arrastado.", type: "error" }); }
+  };
+  const Event = ({ event, order }: { event?: CalendarEvent; order?: any }) => { const calendarEvent = event || { kind: "service_order" as const, id: order.id, date: eventDay(order), order }; const startDrag = (dragEvent: React.DragEvent) => { setDraggedEventId(calendarEvent.id); dragEvent.dataTransfer.setData("text/calendar-event", JSON.stringify({ kind: calendarEvent.kind, id: calendarEvent.id })); }; const stopDragClick = () => { if (draggedEventId === calendarEvent.id) { setDraggedEventId(null); return; } if (calendarEvent.kind === "service_order") onOpenOrder(calendarEvent.order.id); else setSelectedAppointment(calendarEvent.appointment); }; return calendarEvent.kind === "service_order" ? <button type="button" draggable onDragStart={startDrag} onClick={stopDragClick} className="mb-1 w-full rounded-md border-l-4 bg-white px-2 py-1.5 text-left shadow-sm hover:shadow-md" style={{ borderLeftColor: calendarEvent.order.order_status?.color || "#0057e7" }} title={`${calendarEvent.order.os_number || "OS"} - ${calendarEvent.order.customer?.full_name || "Cliente"}`}><p className="truncate font-mono text-[10px] font-black text-[#0057e7]">{calendarEvent.order.os_number || `OS #${calendarEvent.order.id.slice(0, 8)}`}</p><p className="truncate text-[11px] font-semibold text-[#0d1b2e]">{calendarEvent.order.customer?.full_name || "Cliente"}</p><p className="truncate text-[10px] text-[#5a6a82]">{eventLabel(calendarEvent.order)} · {new Date(calendarEvent.order.scheduled_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p></button> : <button type="button" draggable onDragStart={startDrag} onClick={stopDragClick} className="mb-1 w-full rounded-md border-l-4 bg-[#f8fbff] px-2 py-1.5 text-left shadow-sm hover:shadow-md" style={{ borderLeftColor: calendarEvent.appointment.situation?.color || "#00b4ff" }} title={calendarEvent.appointment.description || "Agendamento"}><p className="flex items-center gap-1 truncate text-[10px] font-black text-[#0057e7]"><CalendarPlus size={11} /> Agendamento</p><p className="truncate text-[11px] font-semibold text-[#0d1b2e]">{calendarEvent.appointment.customer?.full_name || "Cliente"}</p>{calendarEvent.appointment.description && <p className="line-clamp-2 text-[10px] text-[#5a6a82]">{calendarEvent.appointment.description}</p>}<p className="truncate text-[10px] text-[#5a6a82]">{calendarEvent.appointment.period === "custom" ? `${calendarEvent.appointment.start_time || ""} - ${calendarEvent.appointment.end_time || ""}` : calendarEvent.appointment.period}{calendarEvent.appointment.is_return ? " · Retorno" : ""}</p>{calendarEvent.appointment.service_order?.os_number && <p className="truncate text-[10px] font-semibold text-[#0057e7]">OS referenciada: {calendarEvent.appointment.service_order.os_number}</p>}</button>; };
 
   const title = view === "month" ? cursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : view === "day" ? cursor.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) : view === "week" ? `Semana de ${rangeStart().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}` : "Todos os agendamentos";
   const isToday = (date: Date) => dayKey(date) === dayKey(new Date());
+  const openAppointmentModal = () => {
+    const defaultSituation = appointmentSituations.find(item => String(item.name).trim().toLowerCase() === "agendado") ?? appointmentSituations[0];
+    setAppointmentForm({ customer_id: "", service_order_id: "", appointment_date: dayKey(cursor), period: "no_time", start_time: "", end_time: "", sector_location: "", situation_id: defaultSituation?.id ?? "", description: "", is_return: false, address_source: null, customer_address_id: "", zip_code: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" });
+    setAppointmentCustomer(null); setAppointmentOrders([]); setSelectedAppointmentTechnicians([]); setAppointmentCustomers([]); setAppointmentCustomerSearch(""); setChangingAppointmentCustomer(false); setAppointmentModalOpen(true);
+  };
+  const searchAppointmentCustomers = async (value: string) => {
+    setAppointmentCustomerSearch(value);
+    if (value.trim().length < 2) { setAppointmentCustomers([]); return; }
+    const term = value.trim();
+    setAppointmentCustomerSearchLoading(true);
+    try {
+      const { data, error } = await supabase.from("customers").select("id,customer_type,full_name,trade_name,document,cnpj,phone,whatsapp,addresses:customer_addresses(*)").or(`full_name.ilike.%${term}%,trade_name.ilike.%${term}%,document.ilike.%${term}%,cnpj.ilike.%${term}%,phone.ilike.%${term}%,whatsapp.ilike.%${term}%`).limit(8);
+      if (error) throw error;
+      setAppointmentCustomers(data || []);
+    } catch (error) {
+      console.error("[ADMIN] appointment customer search error:", error);
+      setAppointmentCustomers([]);
+      setToast({ msg: `Erro ao buscar clientes: ${supabaseErrorMessage(error)}`, type: "error" });
+    } finally { setAppointmentCustomerSearchLoading(false); }
+  };
+  const selectAppointmentCustomer = async (customer: any) => {
+    const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
+    setAppointmentCustomer(customer); setChangingAppointmentCustomer(false); setAppointmentCustomers([]); setAppointmentCustomerSearch("");
+    const { data } = await supabase.from("service_orders").select("id,os_number,model,serial_number,service:services(title),general_service:general_services(name)").eq("customer_id", customer.id).order("created_at", { ascending: false });
+    setAppointmentOrders(data || []);
+    setAppointmentForm(current => ({ ...current, customer_id: customer.id, service_order_id: "", address_source: address ? "customer" : "custom", customer_address_id: address?.id || "", zip_code: address?.zip_code || "", street: address?.street || "", number: address?.number || "", complement: address?.complement || "", neighborhood: address?.neighborhood || "", city: address?.city || "", state: address?.state || "" }));
+  };
+  const saveAppointment = async () => {
+    if (!appointmentForm.customer_id || !appointmentCustomer) { setToast({ msg: "Selecione um cliente para o agendamento.", type: "error" }); return; }
+    if (!appointmentForm.appointment_date) { setToast({ msg: "Informe a data do agendamento.", type: "error" }); return; }
+    if (appointmentForm.period === "custom" && (!appointmentForm.start_time || !appointmentForm.end_time || appointmentForm.end_time <= appointmentForm.start_time)) { setToast({ msg: "Informe um horário personalizado válido.", type: "error" }); return; }
+    const selectedSituation = appointmentSituations.find(item => item.id === appointmentForm.situation_id);
+    if (!selectedSituation) { setToast({ msg: "Selecione uma situação válida para o agendamento.", type: "error" }); return; }
+    setAppointmentSaving(true);
+    try {
+      const payload = { customer_id: appointmentForm.customer_id, service_order_id: appointmentForm.service_order_id || null, appointment_date: appointmentForm.appointment_date, period: appointmentForm.period, start_time: appointmentForm.period === "custom" ? appointmentForm.start_time : null, end_time: appointmentForm.period === "custom" ? appointmentForm.end_time : null, sector_location: appointmentForm.sector_location.trim() || null, situation_id: selectedSituation.id, description: appointmentForm.description.trim() || null, is_return: appointmentForm.is_return, address_source: appointmentForm.address_source, customer_address_id: appointmentForm.address_source === "customer" ? appointmentForm.customer_address_id || null : null, zip_code: appointmentForm.zip_code || null, street: appointmentForm.street || null, number: appointmentForm.number || null, complement: appointmentForm.complement || null, neighborhood: appointmentForm.neighborhood || null, city: appointmentForm.city || null, state: appointmentForm.state || null, created_by: user?.id || null };
+      const { data, error } = await supabase.from("appointments").insert(payload).select("*, created_by_profile:profiles!created_by(id,full_name), customer:customers(id,full_name,document,cnpj,phone,whatsapp), service_order:service_orders(id,os_number,model,serial_number,service:services(title),general_service:general_services(name)), situation:appointment_situations(id,name,color,is_active,sort_order,created_at,updated_at)").single();
+      if (error || !data) throw error || new Error("Agendamento não criado.");
+      if (selectedAppointmentTechnicians.length > 0) {
+        const { error: techniciansError } = await supabase.from("appointment_technicians").insert(selectedAppointmentTechnicians.map(employee_id => ({ appointment_id: data.id, employee_id })));
+        if (techniciansError) { await supabase.from("appointments").delete().eq("id", data.id); throw techniciansError; }
+      }
+      setAppointments(current => [...current, { ...data, appointment_technicians: selectedAppointmentTechnicians.map(employee_id => ({ employee_id, employee: appointmentTechnicians.find(item => item.id === employee_id) || null })) } as AppointmentWithRelations]);
+      setAppointmentModalOpen(false); setToast({ msg: "Agendamento criado.", type: "success" });
+    } catch (error) {
+      console.error("[ADMIN] appointment save error:", error);
+      setToast({ msg: `Erro ao criar agendamento: ${supabaseErrorMessage(error)}`, type: "error" });
+    } finally { setAppointmentSaving(false); }
+  };
+  const lookupAppointmentZip = async () => {
+    const zipCode = formatZipCode(appointmentForm.zip_code);
+    if (zipCode.replace(/\D/g, "").length !== 8) return;
+    const address = await fetchAddressByZipCode(zipCode);
+    if (!address) return;
+    setAppointmentForm(current => ({ ...current, zip_code: zipCode, street: address.street || current.street, neighborhood: address.neighborhood || current.neighborhood, city: address.city || current.city, state: address.state || current.state }));
+  };
+  const agendaToolbar = <div className="relative flex w-full flex-wrap items-center gap-2">
+    <div className="flex shrink-0 items-center gap-1">
+      <button type="button" onClick={() => moveCursor(-1)} aria-label="Período anterior" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] hover:bg-[#eef5ff] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><ChevronLeft size={16} /></button>
+      <button type="button" onClick={() => moveCursor(1)} aria-label="Próximo período" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] hover:bg-[#eef5ff] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><ChevronRight size={16} /></button>
+      <button type="button" onClick={today} className="h-9 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-xs font-bold text-[#0d1b2e] hover:bg-[#eef5ff] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40">Hoje</button>
+    </div>
+    <span className="whitespace-nowrap text-sm font-bold capitalize text-[#0d1b2e]">{title}</span>
+    <div className="relative min-w-[190px] flex-1 sm:max-w-[260px]"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar cliente, nº OS" className={cn(INPUT, "h-9 bg-white pl-9 py-2 text-xs")} /></div>
+    <div ref={filterPanelRef} className="relative"><button type="button" onClick={() => setFiltersOpen(value => !value)} aria-expanded={filtersOpen} aria-controls="agenda-filters" className="flex h-9 items-center gap-1.5 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-xs font-bold text-[#0d1b2e] hover:bg-[#eef5ff] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><ListFilter size={15} /> Filtrar{activeFilterCount > 0 && <span className="rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{activeFilterCount}</span>}</button>{filtersOpen && <div id="agenda-filters" className="absolute right-0 top-11 z-30 w-[min(18rem,calc(100vw-2rem))] space-y-3 rounded-xl border border-[#0d1b2e]/10 bg-white p-4 shadow-xl"><FSelect label="Técnico" value={technicianFilter} onChange={event => setTechnicianFilter(event.target.value)} options={[{ value: "", label: "Todos os técnicos" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} /><FSelect label="Status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)} options={[{ value: "", label: "Todos os status" }, ...statuses.map((status: any) => ({ value: status.id, label: status.name }))]} /><FSelect label="Situação" value={situationFilter} onChange={event => setSituationFilter(event.target.value)} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} /><FSelect label="Serviço" value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} options={[{ value: "", label: "Todos os serviços" }, ...services.map(service => ({ value: service.id, label: service.title })), ...generalServices.map(service => ({ value: service.id, label: service.name }))]} /><button type="button" onClick={() => { setTechnicianFilter(""); setStatusFilter(""); setSituationFilter(""); setServiceFilter(""); setFiltersOpen(false); }} className="flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-700"><Eraser size={13} /> Limpar filtros</button></div>}</div>
+    <div className="ml-auto flex flex-wrap items-center gap-1">
+      {hasPermission("agenda.view") && <button type="button" onClick={openAppointmentModal} className="flex h-9 items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 text-xs font-bold text-white shadow-sm hover:bg-[#0046c0] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><Plus size={15} /> Novo</button>}
+      {[{ value: "day" as const, label: "Dia" }, { value: "week" as const, label: "Semana" }, { value: "month" as const, label: "Mês" }, { value: "agenda" as const, label: "Lista" }].map(mode => <button key={mode.value} type="button" aria-pressed={view === mode.value} onClick={() => setView(mode.value)} className={cn("h-9 rounded-lg px-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40", view === mode.value ? "bg-[#0057e7] text-white" : "bg-white text-[#0d1b2e] hover:bg-[#eef5ff]")}>{mode.label}</button>)}
+    </div>
+    {appointmentModalOpen && <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/55 p-4" onClick={() => { if (!appointmentSubmodal) setAppointmentModalOpen(false); }}>
+      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><h2 className="font-black text-[#0d1b2e]">Novo agendamento</h2><button type="button" aria-label="Fechar" onClick={() => setAppointmentModalOpen(false)} className="rounded-full p-2 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={18} /></button></div>
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {appointmentCustomer && !changingAppointmentCustomer ? <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-[#0d1b2e]">{appointmentCustomer.customer_type === "PJ" ? (appointmentCustomer.trade_name || appointmentCustomer.legal_name || appointmentCustomer.full_name) : appointmentCustomer.full_name}</p><p className="text-xs font-semibold text-[#5a6a82]">{appointmentCustomer.customer_type === "PJ" ? "Pessoa jurídica" : "Pessoa física"}</p><p className="mt-1 text-xs text-[#5a6a82]">{appointmentCustomer.customer_type === "PJ" ? `CNPJ: ${formatCnpj(appointmentCustomer.cnpj || "")}` : `CPF: ${formatCpf(appointmentCustomer.document || "")}`}</p>{(appointmentCustomer.whatsapp || appointmentCustomer.phone) && <p className="text-xs text-[#5a6a82]">{appointmentCustomer.whatsapp ? `WhatsApp: ${formatPhone(appointmentCustomer.whatsapp)}` : `Telefone: ${formatPhone(appointmentCustomer.phone)}`}</p>}{appointmentCustomer.email && <p className="text-xs text-[#5a6a82]">E-mail: {appointmentCustomer.email}</p>}</div><div className="flex shrink-0 flex-col gap-1"><button type="button" onClick={() => { setChangingAppointmentCustomer(true); setAppointmentCustomerSearch(""); setAppointmentCustomers([]); }} className="text-xs font-bold text-[#0057e7] hover:underline">Trocar cliente</button><button type="button" onClick={() => { setAppointmentCustomer(null); setAppointmentOrders([]); setAppointmentCustomers([]); setAppointmentCustomerSearch(""); setAppointmentForm(current => ({ ...current, customer_id: "", service_order_id: "", address_source: null, customer_address_id: "", zip_code: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" })); setChangingAppointmentCustomer(false); }} className="flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-700"><X size={13} /> Remover</button></div></div></div> : <div className="relative"><FInput label="Cliente" required value={appointmentCustomerSearch} placeholder="Buscar por nome, CPF, CNPJ ou telefone" onChange={event => void searchAppointmentCustomers(event.target.value)} />{appointmentCustomer && <button type="button" onClick={() => { setChangingAppointmentCustomer(false); setAppointmentCustomerSearch(""); setAppointmentCustomers([]); }} className="mt-1 text-xs font-bold text-[#5a6a82] hover:text-[#0057e7]">Cancelar troca</button>}{appointmentCustomerSearchLoading && <p className="mt-1 text-xs text-[#5a6a82]">Buscando clientes...</p>}{!appointmentCustomerSearchLoading && appointmentCustomerSearch.trim().length >= 2 && appointmentCustomers.length === 0 && <p className="mt-1 text-xs text-[#5a6a82]">Nenhum cliente encontrado.</p>}{appointmentCustomers.length > 0 && <div className="absolute left-0 right-0 top-[4.5rem] z-10 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-white shadow-lg">{appointmentCustomers.map(customer => <button type="button" key={customer.id} onClick={() => void selectAppointmentCustomer(customer)} className="block w-full border-b border-[#0d1b2e]/5 px-3 py-2 text-left hover:bg-[#eef5ff]"><p className="text-sm font-bold text-[#0d1b2e]">{customer.full_name || customer.trade_name}</p><p className="text-xs text-[#5a6a82]">{customer.customer_type === "PJ" ? formatCnpj(customer.cnpj || "") : formatCpf(customer.document || "")} · {formatPhone(customer.phone || customer.whatsapp)}</p></button>)}</div>}</div>}
+          <FSelect label="OS relacionada (opcional)" disabled={!appointmentCustomer} value={appointmentForm.service_order_id} onChange={event => setAppointmentForm(current => ({ ...current, service_order_id: event.target.value }))} options={[{ value: "", label: appointmentCustomer ? "Nenhuma OS relacionada" : "Selecione um cliente primeiro" }, ...appointmentOrders.map(order => ({ value: order.id, label: `OS ${order.os_number || order.id.slice(0, 8)} — ${(order.service as any)?.title || (order.general_service as any)?.name || order.model || "Atendimento"}` }))]} />
+          <div className="grid gap-3 sm:grid-cols-2"><FInput label="Data" required type="date" value={appointmentForm.appointment_date} onChange={event => setAppointmentForm(current => ({ ...current, appointment_date: event.target.value }))} /><FSelect label="Horário/Período" value={appointmentForm.period} onChange={event => setAppointmentForm(current => ({ ...current, period: event.target.value as AppointmentPeriod }))} options={[{ value: "no_time", label: "Sem horário" }, { value: "morning", label: "Manhã" }, { value: "afternoon", label: "Tarde" }, { value: "evening", label: "Noite" }, { value: "custom", label: "Horário personalizado" }]} />{appointmentForm.period === "custom" && <><FInput label="Hora inicial" required type="time" value={appointmentForm.start_time} onChange={event => setAppointmentForm(current => ({ ...current, start_time: event.target.value }))} /><FInput label="Hora final" required type="time" value={appointmentForm.end_time} onChange={event => setAppointmentForm(current => ({ ...current, end_time: event.target.value }))} /></>}</div>
+          <div className="flex flex-wrap items-center gap-2"><button type="button" disabled={!appointmentCustomer} onClick={() => setAppointmentSubmodal("address")} className="rounded-lg border border-[#0057e7]/30 px-3 py-2 text-xs font-bold text-[#0057e7] disabled:opacity-50">{appointmentForm.address_source ? "Editar endereço" : "Adicionar endereço"}</button>{appointmentForm.address_source && <span className="text-xs text-[#5a6a82]">{[appointmentForm.street, appointmentForm.number, appointmentForm.city, appointmentForm.state].filter(Boolean).join(", ")}</span>}</div>
+          <div><div className="flex flex-wrap items-center gap-2">{selectedAppointmentTechnicians.map(id => <span key={id} className="inline-flex items-center gap-1 rounded-full bg-[#e8eef8] px-2.5 py-1 text-xs font-bold text-[#0057e7]">{appointmentTechnicians.find(item => item.id === id)?.full_name}<button type="button" onClick={() => setSelectedAppointmentTechnicians(current => current.filter(item => item !== id))} aria-label="Remover técnico"><X size={12} /></button></span>)}<button type="button" onClick={() => setAppointmentSubmodal("technicians")} className="rounded-lg border border-[#0057e7]/30 px-3 py-2 text-xs font-bold text-[#0057e7]"><UserPlus size={13} className="mr-1 inline" />Selecionar técnicos</button></div></div>
+          <div className="grid gap-3 sm:grid-cols-2"><FInput label="Setor/Local" placeholder="Ex.: Sala 5" value={appointmentForm.sector_location} onChange={event => setAppointmentForm(current => ({ ...current, sector_location: event.target.value }))} /><FSelect label="Situação" required disabled={appointmentSituationsLoading} value={appointmentForm.situation_id} onChange={event => setAppointmentForm(current => ({ ...current, situation_id: event.target.value }))} options={appointmentSituations.map(situation => ({ value: situation.id, label: situation.name }))} /></div>
+          <FTextarea label="Descrição" placeholder="O que será feito neste atendimento..." value={appointmentForm.description} onChange={event => setAppointmentForm(current => ({ ...current, description: event.target.value }))} rows={4} /><label className="flex items-center gap-2 text-sm font-semibold text-[#0d1b2e]"><input type="checkbox" checked={appointmentForm.is_return} onChange={event => setAppointmentForm(current => ({ ...current, is_return: event.target.checked }))} /> É retorno</label>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-5 py-4"><BtnSecondary onClick={() => setAppointmentModalOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void saveAppointment()} disabled={appointmentSaving || appointmentSituationsLoading}>{appointmentSaving ? "Agendando..." : <><Check size={15} /> Agendar</>}</BtnPrimary></div>
+        {appointmentSubmodal === "address" && <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0d1b2e]/45 p-4"><div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl"><div className="mb-4 flex items-center justify-between"><h3 className="font-black text-[#0d1b2e]">Endereço do atendimento</h3><button type="button" aria-label="Fechar endereço" onClick={() => setAppointmentSubmodal(null)} className="rounded-full p-2 hover:bg-[#f5f7fa]"><X size={17} /></button></div><label className="mb-4 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={appointmentForm.address_source === "customer"} onChange={event => { if (event.target.checked && appointmentCustomer) { const address = (appointmentCustomer.addresses || []).find((item: Address) => item.is_default) || appointmentCustomer.addresses?.[0]; setAppointmentForm(current => ({ ...current, address_source: "customer", customer_address_id: address?.id || "", zip_code: address?.zip_code || "", street: address?.street || "", number: address?.number || "", complement: address?.complement || "", neighborhood: address?.neighborhood || "", city: address?.city || "", state: address?.state || "" })); } else setAppointmentForm(current => ({ ...current, address_source: "custom", customer_address_id: "" })); }} /> Usar endereço cadastrado do cliente</label><div className="grid gap-3 sm:grid-cols-2"><FInput label="CEP" value={appointmentForm.zip_code} onChange={event => setAppointmentForm(current => ({ ...current, zip_code: event.target.value }))} /><FInput label="Rua" value={appointmentForm.street} onChange={event => setAppointmentForm(current => ({ ...current, street: event.target.value }))} /><FInput label="Número" value={appointmentForm.number} onChange={event => setAppointmentForm(current => ({ ...current, number: event.target.value }))} /><FInput label="Complemento" value={appointmentForm.complement} onChange={event => setAppointmentForm(current => ({ ...current, complement: event.target.value }))} /><FInput label="Bairro" value={appointmentForm.neighborhood} onChange={event => setAppointmentForm(current => ({ ...current, neighborhood: event.target.value }))} /><FInput label="Cidade" value={appointmentForm.city} onChange={event => setAppointmentForm(current => ({ ...current, city: event.target.value }))} /><FInput label="Estado" value={appointmentForm.state} onChange={event => setAppointmentForm(current => ({ ...current, state: event.target.value }))} /></div><div className="mt-4 flex justify-end gap-2"><BtnSecondary onClick={() => setAppointmentSubmodal(null)}>Cancelar</BtnSecondary><BtnPrimary onClick={() => setAppointmentSubmodal(null)}>Confirmar</BtnPrimary></div></div></div>}
+        {appointmentSubmodal === "technicians" && <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0d1b2e]/45 p-4"><div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl"><div className="mb-4 flex items-center justify-between"><h3 className="font-black text-[#0d1b2e]">Selecionar Técnicos</h3><button type="button" aria-label="Fechar técnicos" onClick={() => setAppointmentSubmodal(null)} className="rounded-full p-2 hover:bg-[#f5f7fa]"><X size={17} /></button></div><FInput label="Buscar" value={appointmentTechnicianSearch} onChange={event => setAppointmentTechnicianSearch(event.target.value)} placeholder="Nome do técnico" /><div className="mt-3 max-h-56 space-y-2 overflow-y-auto">{appointmentTechnicians.filter(employee => employee.full_name.toLowerCase().includes(appointmentTechnicianSearch.toLowerCase())).map(employee => <label key={employee.id} className="flex items-center gap-2 rounded-lg p-2 text-sm hover:bg-[#f8fafc]"><input type="checkbox" checked={selectedAppointmentTechnicians.includes(employee.id)} onChange={() => setSelectedAppointmentTechnicians(current => current.includes(employee.id) ? current.filter(id => id !== employee.id) : [...current, employee.id])} />{employee.full_name}</label>)}</div><div className="mt-4 flex justify-end"><BtnPrimary onClick={() => setAppointmentSubmodal(null)}>Confirmar</BtnPrimary></div></div></div>}
+      </div>
+    </div>}
+  </div>;
+  const agendaEvent = (event: CalendarEvent) => <Event key={`${event.kind}-${event.id}`} event={event} />;
+  const renderDayCell = (date: Date, adjacent = false) => <div key={dayKey(date)} className={cn("flex h-[150px] min-h-0 flex-col border-r border-b border-[#0d1b2e]/8 p-1", adjacent && "bg-[#f8fafc]", dayKey(date) === dayKey(cursor) && "bg-[#eef5ff] ring-1 ring-inset ring-[#0057e7]")} onDragOver={event => event.preventDefault()} onDrop={event => { if (!adjacent) dropCalendarEvent(event.dataTransfer, dayKey(date)); }}><div className="shrink-0"><p className={cn("mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold", isToday(date) ? "bg-[#0057e7] text-white" : adjacent ? "text-[#94a3b8]" : "text-[#5a6a82]")}>{date.getDate()}</p></div><div className="min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain pr-0.5">{adjacent ? null : eventsFor(date).map(agendaEvent)}</div></div>;
+  const firstDay = new Date(cursor.getFullYear(), cursor.getMonth(), 1).getDay();
+  const monthGrid = Array.from({ length: 42 }, (_, index) => { const date = new Date(cursor.getFullYear(), cursor.getMonth(), 1 - firstDay + index); return date; });
+  const formatAppointmentDate = (value: string) => { const [year, month, day] = value.split("-"); return year && month && day ? `${day}/${month}/${year}` : value; };
+  const appointmentPeriodLabel = (appointment: AppointmentWithRelations) => appointment.period === "no_time" ? "Sem horário" : appointment.period === "morning" ? "Manhã" : appointment.period === "afternoon" ? "Tarde" : appointment.period === "evening" ? "Noite" : `${appointment.start_time || ""} às ${appointment.end_time || ""}`;
+  const newAgendaView = <div className="space-y-4">
+    {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    <PageHeader title="Agenda" actions={agendaToolbar} />
+    {loading ? <LoadingState /> : view === "agenda" ? <div className="overflow-hidden rounded-xl border border-[#0d1b2e]/8 bg-white shadow-sm">{calendarEvents.length === 0 ? <EmptyState icon={CalendarDays} title="Nenhum agendamento" message="As OS e agendamentos aparecerão aqui." /> : calendarEvents.map(event => <div key={`${event.kind}-${event.id}`} className="border-b border-[#0d1b2e]/5 p-3"><Event event={event} /></div>)}</div> : view === "day" ? <div className="min-h-[420px] rounded-xl border border-[#0d1b2e]/8 bg-white p-4" onDragOver={event => event.preventDefault()} onDrop={event => dropCalendarEvent(event.dataTransfer, dayKey(cursor))}>{eventsFor(cursor).map(agendaEvent)}</div> : view === "week" ? <div className="overflow-x-auto rounded-xl border border-[#0d1b2e]/8 bg-white"><div className="grid min-w-[720px] grid-cols-7">{days(7).map(date => <div key={dayKey(date)} className="min-h-[420px] border-r border-[#0d1b2e]/8 last:border-r-0" onDragOver={event => event.preventDefault()} onDrop={event => dropCalendarEvent(event.dataTransfer, dayKey(date))}><div className={cn("border-b border-[#0d1b2e]/8 p-2 text-center", isToday(date) && "bg-[#eef5ff]")}><p className="text-[10px] font-bold uppercase text-[#5a6a82]">{date.toLocaleDateString("pt-BR", { weekday: "short" })}</p><p className={cn("mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-black", isToday(date) && "bg-[#0057e7] text-white")}>{date.getDate()}</p></div><div className="p-1">{eventsFor(date).map(agendaEvent)}</div></div>)}</div></div> : <div className="overflow-x-auto rounded-xl border border-[#0d1b2e]/8 bg-white"><div className="grid min-w-[720px] grid-cols-7 border-b border-[#0d1b2e]/8 bg-[#f8fafc]">{["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map(day => <div key={day} className="py-2 text-center text-[10px] font-bold uppercase text-[#5a6a82]">{day}</div>)}</div><div className="grid min-w-[720px] grid-cols-7 overflow-hidden rounded-b-xl">{monthGrid.map(date => renderDayCell(date, date.getMonth() !== cursor.getMonth()))}</div></div>}
+  </div>;
+  return <>{newAgendaView}{selectedAppointment && <div className="fixed inset-0 z-[190] flex items-center justify-center bg-[#0d1b2e]/55 p-4" onClick={() => setSelectedAppointment(null)}><div className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl" onClick={event => event.stopPropagation()}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h2 className="font-black text-[#0d1b2e]">Detalhes do agendamento</h2><span className="mt-1 inline-block rounded-full px-2 py-1 text-[10px] font-bold text-white" style={{ backgroundColor: selectedAppointment.situation?.color || "#0057e7" }}>{selectedAppointment.situation?.name || "Agendamento"}</span></div><button type="button" aria-label="Fechar detalhes" onClick={() => setSelectedAppointment(null)} className="rounded-full p-2 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={18} /></button></div><div className="space-y-4 p-5"><Section title="Cliente"><p className="font-bold text-[#0d1b2e]">{selectedAppointment.customer?.customer_type === "PJ" ? (selectedAppointment.customer.trade_name || selectedAppointment.customer.legal_name || selectedAppointment.customer.full_name) : selectedAppointment.customer?.full_name || "Cliente"}</p><p className="text-sm text-[#5a6a82]">{selectedAppointment.customer?.customer_type === "PJ" ? "Pessoa jurídica" : "Pessoa física"}</p><p className="text-sm text-[#5a6a82]">{selectedAppointment.customer?.customer_type === "PJ" ? `CNPJ: ${formatCnpj(selectedAppointment.customer?.cnpj || "")}` : `CPF: ${formatCpf(selectedAppointment.customer?.document || "")}`}</p>{(selectedAppointment.customer?.whatsapp || selectedAppointment.customer?.phone) && <p className="text-sm text-[#5a6a82]">{selectedAppointment.customer.whatsapp ? `WhatsApp: ${formatPhone(selectedAppointment.customer.whatsapp)}` : `Telefone: ${formatPhone(selectedAppointment.customer.phone)}`}</p>}{selectedAppointment.customer?.email && <p className="text-sm text-[#5a6a82]">E-mail: {selectedAppointment.customer.email}</p>}</Section><Section title="Agendamento"><p className="text-sm text-[#0d1b2e]">Data: {formatAppointmentDate(selectedAppointment.appointment_date)}</p><p className="text-sm text-[#0d1b2e]">Horário/Período: {appointmentPeriodLabel(selectedAppointment)}</p>{selectedAppointment.sector_location && <p className="text-sm text-[#0d1b2e]">Setor/Local: {selectedAppointment.sector_location}</p>}{selectedAppointment.description && <p className="whitespace-pre-wrap text-sm text-[#0d1b2e]">{selectedAppointment.description}</p>}<p className="text-sm text-[#0d1b2e]">É retorno: {selectedAppointment.is_return ? "Sim" : "Não"}</p></Section><Section title="Técnicos">{selectedAppointment.appointment_technicians?.length ? <div className="flex flex-wrap gap-2">{selectedAppointment.appointment_technicians.map(technician => <span key={technician.employee_id} className="rounded-full bg-[#e8eef8] px-2.5 py-1 text-xs font-bold text-[#0057e7]">{technician.employee?.full_name || "Técnico"}</span>)}</div> : <p className="text-sm text-[#5a6a82]">Nenhum técnico selecionado</p>}</Section><Section title="Endereço">{selectedAppointment.street || selectedAppointment.city || selectedAppointment.zip_code ? <p className="whitespace-pre-wrap text-sm text-[#0d1b2e]">{[selectedAppointment.zip_code, [selectedAppointment.street, selectedAppointment.number].filter(Boolean).join(", "), selectedAppointment.complement, selectedAppointment.neighborhood, [selectedAppointment.city, selectedAppointment.state].filter(Boolean).join(" - ")].filter(Boolean).join("\n")}</p> : <p className="text-sm text-[#5a6a82]">Endereço não informado</p>}</Section>{selectedAppointment.service_order_id && <Section title="OS relacionada"><p className="text-sm font-bold text-[#0057e7]">{selectedAppointment.service_order?.os_number ? `OS ${selectedAppointment.service_order.os_number}` : "OS relacionada"}</p><button type="button" onClick={() => { setSelectedAppointment(null); onOpenOrder(selectedAppointment.service_order_id as string); }} className="mt-2 rounded-lg border border-[#0057e7]/30 px-3 py-2 text-xs font-bold text-[#0057e7]">Abrir OS</button></Section>}</div><div className="flex justify-end border-t border-[#0d1b2e]/10 px-5 py-4"><BtnSecondary onClick={() => setSelectedAppointment(null)}>Fechar</BtnSecondary></div></div></div>}</>;
   if (view === "month") {
-    const firstDay = (new Date(cursor.getFullYear(), cursor.getMonth(), 1).getDay() + 6) % 7;
+    const firstDay = new Date(cursor.getFullYear(), cursor.getMonth(), 1).getDay();
     const monthDays = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
     return <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -2832,12 +3011,15 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
   const [detailQuotes, setDetailQuotes] = useState<any[]>([]);
   const [detailOrders, setDetailOrders] = useState<any[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [editMode, setEditMode] = useState(false);
+  const [editingCustomerData, setEditingCustomerData] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [editingCustomerAddress, setEditingCustomerAddress] = useState(false);
   const [editForm, setEditForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [editAddress, setEditAddress] = useState<Address>({ ...emptyAddress });
   const [createOpen, setCreateOpen] = useState(false);
@@ -2863,7 +3045,8 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
     setDetail(c);
     setEditForm(customerFormFromCustomer(c));
     setEditAddress({ ...emptyAddress, ...((c.addresses || []).find((address: Address) => address.is_default) || c.addresses?.[0] || {}) });
-    setEditMode(false);
+    setEditingCustomerData(false);
+    setEditingCustomerAddress(false);
     setDetailLoading(true);
     const [quotesRes, ordersRes] = await Promise.all([
       supabase.from("quote_requests").select("id, protocol, created_at, status_id, estimated_price, final_price, customer_message, request_status:request_statuses(name), service:services(title), brand:brands(name)").eq("customer_id", c.id).order("created_at", { ascending: false }),
@@ -2874,24 +3057,44 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
     setDetailLoading(false);
   };
 
-  const handleSave = async () => {
+  const handleSaveCustomerData = async () => {
     if (!hasPermission("customers.edit")) { setToast({ msg: "Você não possui permissão para editar clientes.", type: "error" }); return; }
     const validationError = validateCustomerForm(editForm);
     if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
-    setSaving(true);
-    const { error } = await supabase.from("customers").update(customerPayload(editForm)).eq("id", detail.id);
-    if (error) { setToast({ msg: `Erro ao salvar: ${error.message}`, type: "error" }); setSaving(false); return; }
-    const addressPayload = { customer_id: detail.id, zip_code: editAddress.zip_code || null, street: editAddress.street || null, number: editAddress.number || null, complement: editAddress.complement || null, neighborhood: editAddress.neighborhood || null, city: editAddress.city || null, state: editAddress.state || null, is_default: true };
-    const addressExists = (detail.addresses || []).find((address: Address) => address.is_default) || detail.addresses?.[0];
-    const addressResult = addressExists
-      ? await supabase.from("customer_addresses").update(addressPayload).eq("id", addressExists.id)
-      : await supabase.from("customer_addresses").insert(addressPayload);
-    if (addressResult.error) { setToast({ msg: `Cliente salvo, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); setSaving(false); return; }
-    setToast({ msg: "Cliente atualizado!", type: "success" });
-    setSaving(false);
-    setEditMode(false);
-    load();
-    openDetail({ ...detail, ...customerPayload(editForm) });
+    setSavingCustomer(true);
+    try {
+      const { error } = await supabase.from("customers").update(customerUpdatePayload(editForm)).eq("id", detail.id);
+      if (error) { setToast({ msg: `Erro ao salvar: ${error.message}`, type: "error" }); return; }
+      setToast({ msg: "Dados do cliente atualizados.", type: "success" });
+      setEditingCustomerData(false);
+      await load();
+      await openDetail({ ...detail, ...customerUpdatePayload(editForm) });
+    } catch (error) {
+      setToast({ msg: `Erro ao salvar: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
+
+  const handleSaveCustomerAddress = async () => {
+    if (!hasPermission("customers.edit")) { setToast({ msg: "Você não possui permissão para editar clientes.", type: "error" }); return; }
+    setSavingAddress(true);
+    try {
+      const addressPayload = { customer_id: detail.id, zip_code: editAddress.zip_code || null, street: editAddress.street || null, number: editAddress.number || null, complement: editAddress.complement || null, neighborhood: editAddress.neighborhood || null, city: editAddress.city || null, state: editAddress.state || null, is_default: true };
+      const addressExists = (detail.addresses || []).find((address: Address) => address.is_default) || detail.addresses?.[0];
+      const addressResult = addressExists
+        ? await supabase.from("customer_addresses").update(addressPayload).eq("id", addressExists.id).select().single()
+        : await supabase.from("customer_addresses").insert(addressPayload).select().single();
+      if (addressResult.error) { setToast({ msg: `Erro ao salvar endereço: ${addressResult.error.message}`, type: "error" }); return; }
+      setDetail({ ...detail, addresses: [addressResult.data || editAddress] });
+      setToast({ msg: "Endereço atualizado.", type: "success" });
+      setEditingCustomerAddress(false);
+      await load();
+    } catch (error) {
+      setToast({ msg: `Erro ao salvar endereço: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+    } finally {
+      setSavingAddress(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -2999,7 +3202,7 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
                   <tr key={c.id} onClick={() => openDetail(c)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                     <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{c.full_name}</td>
                     <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]"><span className="font-bold text-[#0057e7]">{c.customer_type === "PJ" ? "PJ" : "PF"}</span> · {c.customer_type === "PJ" ? (c.cnpj ? formatCnpj(c.cnpj) : "—") : (c.document ? formatCpf(c.document) : "—")}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{c.whatsapp || "—"}</td>
+                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{formatPhone(c.whatsapp) || "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82] truncate max-w-[160px]">{c.email || "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(c.created_at)}</td>
                     <td className="px-4 py-3.5" onClick={(event) => event.stopPropagation()}>
@@ -3031,43 +3234,29 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
           <div className="p-5 space-y-5">
             {/* Customer info */}
             <Section title="Informações do cliente">
-              {editMode ? (
+              {editingCustomerData ? (
                 <div className="space-y-3">
                   <div className="grid sm:grid-cols-2 gap-3">
                     <CustomerTypeToggle value={editForm.customerType} disabled onChange={customerType => setEditForm({ ...editForm, customerType })} />
                     {editForm.customerType === "PF" ? <>
                     <FInput label="Nome completo" value={editForm.full_name} required onChange={(e: any) => setEditForm({ ...editForm, full_name: e.target.value })} />
-                    <FInput label="CPF" value={editForm.document} onChange={(e: any) => setEditForm({ ...editForm, document: formatCpf(e.target.value) })} placeholder="000.000.000-00" />
+                    <FInput label="CPF" value={editForm.document} disabled />
+                    <div><FInput label="Data de nascimento" type="date" required value={editForm.birth_date} max={todayDateOnly()} onChange={(e: any) => setEditForm({ ...editForm, birth_date: e.target.value })} />{!editForm.birth_date && <p className="mt-1 text-xs text-red-600">Informe a data de nascimento.</p>}{editForm.birth_date > todayDateOnly() && <p className="mt-1 text-xs text-red-600">A data não pode ser futura.</p>}</div>
                     </> : <>
                     <FInput label="Nome fantasia" value={editForm.trade_name} required onChange={(e: any) => setEditForm({ ...editForm, trade_name: e.target.value })} />
-                    <FInput label="Tipo" value="Pessoa Jurídica" readOnly />
-                    <FInput label="CNPJ" value={editForm.cnpj} required readOnly placeholder="00.000.000/0000-00" />
+                    <FInput label="CNPJ" value={editForm.cnpj} required disabled placeholder="00.000.000/0000-00" />
                     <FInput label="Razão social" value={editForm.legal_name} onChange={(e: any) => setEditForm({ ...editForm, legal_name: e.target.value })} />
                     <FInput label="Inscrição estadual" value={editForm.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setEditForm({ ...editForm, state_registration: e.target.value })} />
                     <FInput label="Fundação" value={editForm.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setEditForm({ ...editForm, foundation_date: formatFoundationDate(e.target.value) })} />
                     </>}
-                    <FInput label="WhatsApp" value={editForm.whatsapp} onChange={(e: any) => setEditForm({ ...editForm, whatsapp: e.target.value })} />
-                    <FInput label="Telefone" value={editForm.phone} onChange={(e: any) => setEditForm({ ...editForm, phone: e.target.value })} />
+                    <FInput label="WhatsApp" value={editForm.whatsapp} onChange={(e: any) => setEditForm({ ...editForm, whatsapp: formatPhone(e.target.value) })} />
+                    <FInput label="Telefone" value={editForm.phone} onChange={(e: any) => setEditForm({ ...editForm, phone: formatPhone(e.target.value) })} />
                     <div className="sm:col-span-2"><FInput label="E-mail" type="email" value={editForm.email} onChange={(e: any) => setEditForm({ ...editForm, email: e.target.value })} /></div>
                   </div>
-                  <Section title="Dados de endereço">
-                    <AddressFields value={editAddress} onChange={setEditAddress} inputClassName={INPUT} />
-                  </Section>
                   <div className="flex gap-2 pt-1">
-                    {hasPermission("customers.edit") && <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</BtnPrimary>}
-                    <BtnSecondary onClick={() => setEditMode(false)}>Cancelar</BtnSecondary>
+                    {hasPermission("customers.edit") && <BtnPrimary onClick={() => void handleSaveCustomerData()} disabled={savingCustomer}>{savingCustomer ? "Salvando..." : "Salvar alterações"}</BtnPrimary>}
+                    <BtnSecondary onClick={() => { setEditForm(customerFormFromCustomer(detail)); setEditingCustomerData(false); }}>Cancelar</BtnSecondary>
                   </div>
-                  {((detail.addresses || []).length > 0) && (
-                    <Section title="Dados de endereço">
-                      <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                        {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map((key) => {
-                          const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" };
-                          const address = editAddress[key];
-                          return address ? <div key={key}><p className="text-[10px] text-[#5a6a82] font-bold uppercase">{labels[key]}</p><p className="font-medium text-[#0d1b2e]">{address}</p></div> : null;
-                        })}
-                      </div>
-                    </Section>
-                  )}
                 </div>
               ) : (
                 <div>
@@ -3078,16 +3267,46 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
                       <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">CNPJ</p><p className="font-medium text-[#0d1b2e]">{detail.cnpj ? formatCnpj(detail.cnpj) : "—"}</p></div>
                       <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Nome fantasia</p><p className="font-medium text-[#0d1b2e]">{detail.trade_name || detail.full_name || "—"}</p></div>
                       <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Razão social</p><p className="font-medium text-[#0d1b2e]">{detail.legal_name || "—"}</p></div>
-                    </> : <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">CPF</p><p className="font-medium text-[#0d1b2e]">{detail.document ? formatCpf(detail.document) : "—"}</p></div>}
-                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">WhatsApp</p><p className="font-medium text-[#0d1b2e]">{detail.whatsapp || "—"}</p></div>
-                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Telefone</p><p className="font-medium text-[#0d1b2e]">{detail.phone || "—"}</p></div>
+                    </> : <>
+                      <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">CPF</p><p className="font-medium text-[#0d1b2e]">{detail.document ? formatCpf(detail.document) : "—"}</p></div>
+                      {detail.birth_date && <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Data de nascimento</p><p className="font-medium text-[#0d1b2e]">{formatDateOnly(detail.birth_date)}</p></div>}
+                    </>}
+                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">WhatsApp</p><p className="font-medium text-[#0d1b2e]">{formatPhone(detail.whatsapp) || "—"}</p></div>
+                    <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Telefone</p><p className="font-medium text-[#0d1b2e]">{formatPhone(detail.phone) || "—"}</p></div>
                     <div className="sm:col-span-2"><p className="text-[10px] text-[#5a6a82] font-bold uppercase">E-mail</p><p className="font-medium text-[#0d1b2e]">{detail.email || "—"}</p></div>
                     <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Cadastrado em</p><p className="font-medium text-[#0d1b2e]">{fmtDate(detail.created_at)}</p></div>
                   </div>
-                  {hasPermission("customers.edit") && <button onClick={() => setEditMode(true)} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
+                  {hasPermission("customers.edit") && <button onClick={() => setEditingCustomerData(true)} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
                     <Edit2 size={12} /> Editar dados
                   </button>}
                 </div>
+              )}
+            </Section>
+
+            <Section title="Endereço">
+              {editingCustomerAddress ? (
+                <div className="space-y-3">
+                  <AddressFields value={editAddress} onChange={setEditAddress} inputClassName={INPUT} />
+                  <div className="flex gap-2 pt-1">
+                    {hasPermission("customers.edit") && <BtnPrimary onClick={() => void handleSaveCustomerAddress()} disabled={savingAddress}>{savingAddress ? "Salvando..." : "Salvar endereço"}</BtnPrimary>}
+                    <BtnSecondary onClick={() => { setEditingCustomerAddress(false); setEditAddress({ ...emptyAddress, ...((detail.addresses || []).find((address: Address) => address.is_default) || detail.addresses?.[0] || {}) }); }}>Cancelar</BtnSecondary>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {((detail.addresses || []).length > 0) ? (
+                    <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                      {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map((key) => {
+                        const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" };
+                        const address = (detail.addresses || []).find((item: Address) => item.is_default) || detail.addresses?.[0];
+                        return address?.[key] ? <div key={key}><p className="text-[10px] text-[#5a6a82] font-bold uppercase">{labels[key]}</p><p className="font-medium text-[#0d1b2e]">{address[key]}</p></div> : null;
+                      })}
+                    </div>
+                  ) : <p className="text-sm text-[#5a6a82]">Nenhum endereço cadastrado.</p>}
+                  {hasPermission("customers.edit") && <button onClick={() => setEditingCustomerAddress(true)} className="mt-3 flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
+                    <Edit2 size={12} /> Editar endereço
+                  </button>}
+                </>
               )}
             </Section>
 
@@ -3160,7 +3379,8 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
                 <CustomerTypeToggle value={createForm.customerType} onChange={customerType => setCreateForm({ ...createForm, customerType })} />
                 {createForm.customerType === "PF" ? <>
                   <FInput label="Nome completo" required value={createForm.full_name} onChange={(e: any) => setCreateForm({ ...createForm, full_name: e.target.value })} />
-                  <FInput label="CPF" value={createForm.document} placeholder="000.000.000-00" onChange={(e: any) => setCreateForm({ ...createForm, document: formatCpf(e.target.value) })} />
+                  <FInput label="CPF" required value={createForm.document} placeholder="000.000.000-00" onChange={(e: any) => setCreateForm({ ...createForm, document: formatCpf(e.target.value) })} />
+                  <div><FInput label="Data de nascimento" type="date" required value={createForm.birth_date} max={todayDateOnly()} onChange={(e: any) => setCreateForm({ ...createForm, birth_date: e.target.value })} />{!createForm.birth_date && <p className="mt-1 text-xs text-red-600">Informe a data de nascimento.</p>}{createForm.birth_date > todayDateOnly() && <p className="mt-1 text-xs text-red-600">A data não pode ser futura.</p>}</div>
                 </> : <>
                   <FInput label="Nome fantasia" required value={createForm.trade_name} onChange={(e: any) => setCreateForm({ ...createForm, trade_name: e.target.value })} />
                     <FInput label="CNPJ" required value={createForm.cnpj} placeholder="00.000.000/0000-00" onBlur={(e: any) => lookupCreateCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = formatCnpj(e.target.value); setCnpjMessage(""); setCreateForm({ ...createForm, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCreateCnpj(nextCnpj, { ...createForm, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : cnpjMessage || undefined} />
@@ -3169,8 +3389,8 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
                   <FInput label="Fundação" value={createForm.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setCreateForm({ ...createForm, foundation_date: formatFoundationDate(e.target.value) })} />
                 </>}
                 <FInput label="Email" type="email" value={createForm.email} onChange={(e: any) => setCreateForm({ ...createForm, email: e.target.value })} />
-                <FInput label="Telefone" required value={createForm.phone} onChange={(e: any) => setCreateForm({ ...createForm, phone: e.target.value })} />
-                <FInput label="WhatsApp" value={createForm.whatsapp} onChange={(e: any) => setCreateForm({ ...createForm, whatsapp: e.target.value })} />
+                <FInput label="Telefone" required value={createForm.phone} onChange={(e: any) => setCreateForm({ ...createForm, phone: formatPhone(e.target.value) })} />
+                <FInput label="WhatsApp" value={createForm.whatsapp} onChange={(e: any) => setCreateForm({ ...createForm, whatsapp: formatPhone(e.target.value) })} />
               </div>
             </Section>
             <Section title="Dados de endereço">
@@ -3331,14 +3551,10 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
   const openNew = () => { setEditItem(null); setForm({ full_name: "", cpf: "", phone: "", email: "", password: "", function_name: "Funcionário", role_id: roles[0]?.id || "", is_active: true }); setFormOpen(true); };
   const openEdit = (employee: any) => {
     setEditItem(employee);
-    setForm({ full_name: employee.full_name || "", cpf: employee.cpf || "", phone: employee.phone || "", email: "", password: "", function_name: employee.function_name || "Funcionário", role_id: employee.role_id || "", is_active: employee.is_active !== false });
+    setForm({ full_name: employee.full_name || "", cpf: employee.cpf || "", phone: formatPhone(employee.phone), email: "", password: "", function_name: employee.function_name || "Funcionário", role_id: employee.role_id || "", is_active: employee.is_active !== false });
     setFormOpen(true);
   };
   const normalizeCpf = (value: string) => value.replace(/\D/g, "");
-  const formatCpf = (value: string) => {
-    const digits = normalizeCpf(value).slice(0, 11);
-    return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-  };
   const save = async () => {
     if (!hasPermission(editItem ? "employees.edit" : "employees.create")) { setToast({ msg: "Você não possui permissão para salvar usuários.", type: "error" }); return; }
     const cpf = normalizeCpf(form.cpf);
@@ -3353,7 +3569,7 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
     try {
       if (editItem) {
         const { error: empErr } = await supabase.from("employees").update({
-          full_name: form.full_name.trim(), cpf, phone: form.phone.trim() || null,
+          full_name: form.full_name.trim(), cpf, phone: form.phone.replace(/\D/g, "") || null,
           function_name: form.function_name.trim() || "Funcionário", role_id: form.role_id || null, is_active: form.is_active,
         }).eq("id", editItem.id);
         if (empErr) throw new Error(`Erro ao atualizar funcionário: ${empErr.message}`);
@@ -3361,24 +3577,33 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
           await supabase.from("profiles").update({ full_name: form.full_name.trim(), role_id: form.role_id || null, is_active: form.is_active }).eq("id", editItem.profile_id);
         }
       } else {
-        const { data: authData, error: authErr } = await supabase.auth.signUp({
-          email: normalizedEmail,
-          password: form.password,
-          options: { data: { full_name: form.full_name.trim() } },
+        const { data, error: invokeError } = await supabase.functions.invoke("server", {
+          body: {
+            action: "create_employee_user",
+            email: normalizedEmail,
+            password: form.password,
+            full_name: form.full_name.trim(),
+            cpf,
+            phone: form.phone ? form.phone.replace(/\D/g, "") : null,
+            function_name: form.function_name.trim() || "Funcionário",
+            role_id: form.role_id,
+          },
         });
-        if (authErr || !authData.user) {
-          throw new Error(authErr?.message?.toLowerCase().includes("already") ? "E-mail já cadastrado." : authErr?.message || "Não foi possível criar o usuário.");
+        if (invokeError) {
+          let responseMessage = "";
+          const context = (invokeError as { context?: unknown }).context;
+          if (context instanceof Response) {
+            try {
+              const responseBody = await context.clone().json() as { error?: unknown };
+              responseMessage = typeof responseBody.error === "string" ? responseBody.error : "";
+            } catch {
+              responseMessage = "";
+            }
+          }
+          throw new Error(responseMessage || invokeError.message || "Não foi possível cadastrar o funcionário.");
         }
-        const userId = authData.user.id;
-        const { error: rpcErr } = await supabase.rpc("create_employee_record", {
-          p_profile_id: userId,
-          p_full_name: form.full_name.trim(),
-          p_cpf: cpf,
-          p_phone: form.phone.trim() || null,
-          p_function_name: form.function_name.trim() || "Funcionário",
-          p_role_id: form.role_id,
-        });
-        if (rpcErr) throw new Error(`Erro ao criar funcionário: ${rpcErr.message}`);
+        if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Não foi possível cadastrar o funcionário.");
+        if (data?.success !== true) throw new Error("Não foi possível cadastrar o funcionário.");
       }
       setFormOpen(false); setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); load();
     } catch (e: any) {
@@ -3443,7 +3668,7 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
                     <tr key={emp.id} onClick={() => openEdit(emp)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                       <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{emp.full_name}</td>
                       <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]">{formatCpf(emp.cpf)}</td>
-                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{emp.phone || "—"}</td>
+                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{formatPhone(emp.phone) || "—"}</td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{emp.function_name || "—"}</td>
                       <td className="px-4 py-3.5"><StatusBadge status={active ? "Ativo" : "Inativo"} /></td>
                       <td className="px-4 py-3.5"><div className="flex justify-end gap-1">{hasPermission("employees.edit") && <button onClick={(event) => { event.stopPropagation(); openEdit(emp); }} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button>}{hasPermission("employees.edit") && <button onClick={(event) => { event.stopPropagation(); toggleActive(emp); }} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={active ? "Desativar" : "Ativar"}>{active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button>}{hasPermission("employees.delete") && <button onClick={(event) => { event.stopPropagation(); setDeleteId(emp.id); }} className="p-1.5 text-[#5a6a82] hover:text-red-600 rounded-lg" title="Excluir funcionário"><Trash2 size={15} /></button>}</div></td>
@@ -3631,4 +3856,3 @@ function TabContact() {
     </div>
   );
 }
-

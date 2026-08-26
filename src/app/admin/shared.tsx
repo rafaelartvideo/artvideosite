@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useMediaUrl } from "@/lib/hooks";
+import type { Address } from "@/lib/address";
 import {
   Package, Tag, Clock, CheckCircle, AlertCircle, Plus, X, Upload, AlertTriangle,
   ArrowLeft,
@@ -42,15 +43,6 @@ export function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function generateOsProtocol() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const rand = Math.floor(Math.random() * 9000) + 1000;
-  return `OS-${y}${m}${d}-${rand}`;
-}
-
 export function initialOrderStatus(statuses: any[]) {
   const ordered = [...statuses].sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0));
   return ordered.find(status => /abert|novo|recebid|pendente/i.test(status.name || "")) || ordered[0] || null;
@@ -59,6 +51,14 @@ export function initialOrderStatus(statuses: any[]) {
 export function getWhatsAppUrl(value?: string | null) {
   const digits = (value || "").replace(/\D/g, "");
   return digits ? `https://wa.me/${digits}` : null;
+}
+
+export function formatPhone(value: string | number | null | undefined) {
+  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits ? `(${digits}` : "";
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 3)} ${digits.slice(3, 7)}-${digits.slice(7)}`;
 }
 
 export type CustomerType = "PF" | "PJ";
@@ -74,22 +74,23 @@ export type CustomerForm = {
   cnpj: string;
   state_registration: string;
   foundation_date: string;
+  birth_date: string;
 };
 
-export const emptyCustomerForm: CustomerForm = { customerType: "PF", full_name: "", email: "", phone: "", whatsapp: "", document: "", trade_name: "", legal_name: "", cnpj: "", state_registration: "", foundation_date: "" };
+export const emptyCustomerForm: CustomerForm = { customerType: "PF", full_name: "", email: "", phone: "", whatsapp: "", document: "", trade_name: "", legal_name: "", cnpj: "", state_registration: "", foundation_date: "", birth_date: "" };
 
 export function formatCpf(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
+  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 11);
   return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
 }
 
 export function formatCnpj(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 14);
+  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 14);
   return digits.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4").replace(/(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
 }
 
 export function formatFoundationDate(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
+  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 8);
   return digits.replace(/(\d{2})(\d)/, "$1/$2").replace(/(\d{2})\/(\d{2})(\d)/, "$1/$2/$3");
 }
 
@@ -104,20 +105,33 @@ export function foundationDateFromCustomer(value?: string | null) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 }
 
+export function formatDateOnly(value?: string | null) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
+}
+
+export function todayDateOnly() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 export function customerFormFromCustomer(customer: any): CustomerForm {
   const customerType: CustomerType = customer.customer_type === "PJ" ? "PJ" : "PF";
   return {
     customerType,
     full_name: customer.full_name || "",
     email: customer.email || "",
-    phone: customer.phone || "",
-    whatsapp: customer.whatsapp || "",
+    phone: formatPhone(customer.phone),
+    whatsapp: formatPhone(customer.whatsapp),
     document: formatCpf(customer.document || ""),
     trade_name: customer.trade_name || "",
     legal_name: customer.legal_name || "",
     cnpj: formatCnpj(customer.cnpj || ""),
     state_registration: customer.state_registration || "",
     foundation_date: foundationDateFromCustomer(customer.foundation_date),
+    birth_date: customer.birth_date || "",
   };
 }
 
@@ -126,20 +140,30 @@ export function customerPayload(form: CustomerForm) {
     customer_type: form.customerType,
     full_name: (form.customerType === "PJ" ? form.trade_name : form.full_name).trim(),
     email: form.email.trim() || null,
-    phone: form.phone.trim() || null,
-    whatsapp: form.whatsapp.trim() || null,
+    phone: form.phone.replace(/\D/g, "") || null,
+    whatsapp: form.whatsapp.replace(/\D/g, "") || null,
     document: form.customerType === "PF" ? form.document.replace(/\D/g, "") || null : null,
     trade_name: form.customerType === "PJ" ? form.trade_name.trim() || null : null,
     legal_name: form.customerType === "PJ" ? form.legal_name.trim() || null : null,
     cnpj: form.customerType === "PJ" ? form.cnpj.replace(/\D/g, "") || null : null,
     state_registration: form.customerType === "PJ" ? form.state_registration.trim() || null : null,
     foundation_date: form.customerType === "PJ" ? foundationDateToIso(form.foundation_date) : null,
+    birth_date: form.customerType === "PF" ? form.birth_date || null : null,
   };
+}
+
+export function customerUpdatePayload(form: CustomerForm) {
+  const payload = customerPayload(form);
+  const { customer_type: _customerType, document: _document, cnpj: _cnpj, ...editableFields } = payload;
+  return editableFields;
 }
 
 export function validateCustomerForm(form: CustomerForm) {
   if (!form.whatsapp.trim() && !form.phone.trim()) return "Telefone ou WhatsApp é obrigatório.";
   if (form.customerType === "PF" && !form.full_name.trim()) return "Nome completo é obrigatório.";
+  if (form.customerType === "PF" && form.document.replace(/\D/g, "").length !== 11) return "CPF é obrigatório e deve estar completo.";
+  if (form.customerType === "PF" && !form.birth_date) return "Data de nascimento é obrigatória.";
+  if (form.customerType === "PF" && form.birth_date > todayDateOnly()) return "A data de nascimento não pode ser futura.";
   if (form.customerType === "PJ" && !form.trade_name.trim()) return "Nome fantasia é obrigatório.";
   if (form.customerType === "PJ" && form.cnpj.replace(/\D/g, "").length !== 14) return "CNPJ é obrigatório e deve estar completo.";
   return null;
@@ -161,8 +185,8 @@ export function applyCnpjData(form: CustomerForm, address: Address, data: any) {
       state_registration: form.state_registration || data.inscricao_estadual || "",
       foundation_date: form.foundation_date || (data.data_inicio_atividade ? formatFoundationDate(data.data_inicio_atividade.split("-").reverse().join("/")) : ""),
       email: form.email || data.email || "",
-      phone: form.phone || data.ddd_telefone_1 || "",
-      whatsapp: form.whatsapp || data.ddd_telefone_1 || "",
+      phone: formatPhone(form.phone || data.ddd_telefone_1 || ""),
+      whatsapp: formatPhone(form.whatsapp || data.ddd_telefone_1 || ""),
     },
     address: {
       ...address,
@@ -195,9 +219,10 @@ export async function generateUniqueSlug(table: "service_categories" | "product_
 
 export const INPUT = "w-full bg-[#f8fafc] border border-[#0d1b2e]/15 rounded-lg px-3 py-2.5 text-sm text-[#0d1b2e] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/50 focus:border-[#0057e7] focus:bg-white transition-all placeholder-[#5a6a82]/50";
 
-export function FInput({ label, required, hint, ...props }: { label?: string; required?: boolean; hint?: string; [k: string]: any }) {
+export function FInput({ label, required, hint, disabled = false, ...props }: { label?: string; required?: boolean; hint?: string; disabled?: boolean; [k: string]: any }) {
   const isColorInput = props.type === "color";
-  const inputProps = { ...props, type: isColorInput ? "text" : props.type, maxLength: isColorInput ? 7 : props.maxLength, placeholder: isColorInput ? "#2563EB" : props.placeholder };
+  const { className, ...restProps } = props;
+  const inputProps = { ...restProps, type: isColorInput ? "text" : props.type, maxLength: isColorInput ? 7 : props.maxLength, placeholder: isColorInput ? "#2563EB" : props.placeholder };
   return (
     <div>
       {label && (
@@ -205,7 +230,7 @@ export function FInput({ label, required, hint, ...props }: { label?: string; re
           {label}{required && <span className="text-red-400">*</span>}
         </label>
       )}
-      <input className={INPUT} {...inputProps} />
+      <input className={cn(INPUT, disabled && "disabled:cursor-not-allowed disabled:bg-slate-100/60 disabled:text-slate-500 disabled:opacity-70 disabled:hover:bg-slate-100/60 disabled:focus:ring-0", className)} disabled={disabled} {...inputProps} />
       {(hint || isColorInput) && <p className="text-[10px] text-[#5a6a82] mt-1">{hint || "Use o formato #RRGGBB."}</p>}
     </div>
   );
@@ -328,7 +353,7 @@ export function PaginationBar({
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
           className={cn(INPUT, "w-[82px] py-2 text-xs")}
         >
-          {[10, 20, 30, 50, 100].map((value) => (
+          {[5, 10, 20, 30, 50, 100].map((value) => (
             <option key={value} value={value}>{value}</option>
           ))}
         </select>

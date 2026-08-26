@@ -54,19 +54,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Keep session in sync across tabs / token refreshes
     const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") return;
-      setSession(newSession);
+
       if (event === "SIGNED_IN" || event === "USER_UPDATED") {
-        if (event === "SIGNED_IN" && newSession?.user?.id === signedInUserRef.current) return;
-        if (newSession?.user) {
-          signedInUserRef.current = newSession.user.id;
-          loadAccess(newSession.user.id);
+        if (!newSession?.user) return;
+
+        const activeUserId = signedInUserRef.current ?? session?.user?.id ?? null;
+        if (activeUserId && newSession.user.id !== activeUserId) {
+          return;
         }
+
+        if (event === "SIGNED_IN" && newSession.user.id === signedInUserRef.current) return;
+
+        setSession(newSession);
+        signedInUserRef.current = newSession.user.id;
+        loadAccess(newSession.user.id);
         return;
       }
+
       if (event === "SIGNED_OUT") {
         signedInUserRef.current = null;
+        setSession(null);
         setProfile(null); setEmployee(null); setRole(null); setPermissions([]); setLoading(false);
+        return;
       }
+
+      setSession(newSession);
     });
 
     return () => { cancelled = true; listener.subscription.unsubscribe(); };

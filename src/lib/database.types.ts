@@ -253,6 +253,7 @@ export interface Customer {
   cnpj: string | null;
   state_registration: string | null;
   foundation_date: string | null;
+  birth_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -356,6 +357,16 @@ export interface ServiceType {
 export interface ServiceOrder {
   id: string;
   os_number: string | null;
+  order_type: "internal" | "external";
+  service_state: string | null;
+  service_city: string | null;
+  service_street: string | null;
+  service_zip_code: string | null;
+  service_neighborhood: string | null;
+  service_number: string | null;
+  service_complement: string | null;
+  service_address_source: "customer" | "custom" | null;
+  service_customer_address_id: string | null;
   tracking_token: string | null;
   quote_request_id: string | null;
   customer_id: string | null;
@@ -367,6 +378,7 @@ export interface ServiceOrder {
   started_at: string | null;
   completed_at: string | null;
   assigned_to: string | null;
+  assigned_profile?: { id: string; full_name: string | null } | null;
   technician_id: string | null;
   internal_notes: string | null;
   customer_notes: string | null;
@@ -509,4 +521,60 @@ export interface SitePageSection {
   sort_order: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface AppointmentSituation {
+  id: string;
+  name: string;
+  color: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AppointmentPeriod = "no_time" | "morning" | "afternoon" | "evening" | "custom";
+
+export interface Appointment {
+  id: string;
+  customer_id: string;
+  service_order_id: string | null;
+  appointment_date: string;
+  period: AppointmentPeriod;
+  start_time: string | null;
+  end_time: string | null;
+  sector_location: string | null;
+  situation_id: string | null;
+  description: string | null;
+  is_return: boolean;
+  address_source: "customer" | "custom" | null;
+  customer_address_id: string | null;
+  zip_code: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppointmentTechnician {
+  appointment_id: string;
+  employee_id: string;
+  created_at: string;
+}
+
+export interface ServiceOrderTechnician {
+  service_order_id: string;
+  employee_id: string;
+  created_at: string;
+}
+
+export interface ServiceOrderSeller {
+  service_order_id: string;
+  employee_id: string;
+  created_at: string;
 }

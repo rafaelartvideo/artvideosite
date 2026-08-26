@@ -3,25 +3,170 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
-import { emptyAddress, type Address } from "@/lib/address";
+import { emptyAddress, fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
 import {
   LayoutDashboard, ClipboardList, Edit2, Trash2, RefreshCw, Search, MessageCircle,
   Users, List, X, Plus, Clock, CheckCircle, Upload, AlertTriangle, ArrowLeft,
   ChevronLeft, ChevronRight, Phone, Star, DollarSign, HelpCircle, ChevronDown,
-  AlertCircle, FileText,
+  AlertCircle, FileText, Camera, Eraser,
 } from "lucide-react";
 import {
-  cn, slugify, generateOsProtocol, initialOrderStatus, getWhatsAppUrl,
-  CustomerType, CustomerForm, emptyCustomerForm, customerFormFromCustomer, customerPayload,
+  cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone,
+  CustomerType, CustomerForm, emptyCustomerForm, customerFormFromCustomer, customerPayload, customerUpdatePayload,
   validateCustomerForm, fetchCnpjData, applyCnpjData, formatCpf, formatCnpj,
-  formatFoundationDate, foundationDateToIso, foundationDateFromCustomer,
+  formatFoundationDate, foundationDateToIso, foundationDateFromCustomer, todayDateOnly,
   INPUT, FInput, FTextarea, FSelect, FToggle, CustomerTypeToggle,
   StatusBadge, LoadingState, EmptyState, BtnPrimary, BtnSecondary, Toast, ConfirmDialog,
   PageHeader, Section, AdminPage, PaginationBar, ImageUpload, ProductAdminThumb,
-  AdminBackContext, InternalBackButton, supabaseErrorMessage, createMediaRecord,
+  AdminBackContext, InternalBackButton, supabaseErrorMessage, createMediaRecord, isHexColor,
   type AdminTab,
 } from "./shared";
 import { getGeneralServices } from "@/lib/queries";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
+
+type OrderType = "internal" | "external";
+type ServiceAddressSource = "customer" | "custom";
+type IbgeState = { sigla: string; nome: string };
+type IbgeCity = { nome: string };
+type CityFilterOption = { name: string; state: string };
+type MultiSelectOption = { value: string; label: string };
+
+type ServiceOrderProfile = { id: string; full_name: string | null };
+type ServiceOrderWithRelations = { assigned_profile?: ServiceOrderProfile | ServiceOrderProfile[] | null };
+
+function getResponsibleName(order: ServiceOrderWithRelations) {
+  const profile = Array.isArray(order.assigned_profile) ? order.assigned_profile[0] : order.assigned_profile;
+  return profile?.full_name?.trim() || "Responsável não informado";
+}
+
+type EmployeeOption = { id: string; full_name: string; function_name?: string | null; is_active?: boolean };
+
+function EmployeeMultiSelect({ label, employees, selectedIds, onChange, disabled, placeholder, clearLabel }: {
+  label: string; employees: EmployeeOption[]; selectedIds: string[]; onChange: (ids: string[]) => void; disabled?: boolean; placeholder: string; clearLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (event: MouseEvent) => { if (!containerRef.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", close); document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", escape); };
+  }, []);
+  const filtered = employees.filter(employee => employee.full_name.toLowerCase().includes(search.toLowerCase()));
+  const toggle = (id: string) => onChange(selectedIds.includes(id) ? selectedIds.filter(selectedId => selectedId !== id) : [...selectedIds, id]);
+  return <div ref={containerRef} className="relative">
+    <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}</label>
+    <button type="button" disabled={disabled} onClick={() => setOpen(value => !value)} className={cn(INPUT, "min-h-[42px] text-left", disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>{selectedIds.length ? `${selectedIds.length} selecionado(s)` : placeholder}</button>
+    {selectedIds.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{selectedIds.map(id => <span key={id} className="inline-flex items-center gap-1 rounded-full bg-[#e8eef8] px-2 py-1 text-[11px] font-bold text-[#0057e7]">{employees.find(employee => employee.id === id)?.full_name || "Funcionário"}<button type="button" disabled={disabled} onClick={() => toggle(id)} aria-label={`Remover ${employees.find(employee => employee.id === id)?.full_name || "funcionário"}`}><X size={12} /></button></span>)}<button type="button" disabled={disabled} onClick={() => onChange([])} className="text-[11px] font-bold text-red-600 hover:text-red-700">{clearLabel}</button></div>}
+    {open && !disabled && <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-[#0d1b2e]/10 bg-white p-2 shadow-xl"><input autoFocus value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por nome" className={cn(INPUT, "mb-2 py-2 text-xs")} />{filtered.length === 0 ? <p className="px-2 py-3 text-xs text-[#5a6a82]">Nenhum funcionário encontrado.</p> : filtered.map(employee => <label key={employee.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-[#f5f7fa]"><input type="checkbox" checked={selectedIds.includes(employee.id)} onChange={() => toggle(employee.id)} />{employee.full_name}</label>)}</div>}
+  </div>;
+}
+
+const normalizeSearchText = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, " ");
+const normalizeSearchDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
+const normalizeSearchIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+const normalizeAddressLookup = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+
+const FALLBACK_STATES: IbgeState[] = [
+  { sigla: "AC", nome: "Acre" }, { sigla: "AL", nome: "Alagoas" }, { sigla: "AP", nome: "Amapá" }, { sigla: "AM", nome: "Amazonas" },
+  { sigla: "BA", nome: "Bahia" }, { sigla: "CE", nome: "Ceará" }, { sigla: "DF", nome: "Distrito Federal" }, { sigla: "ES", nome: "Espírito Santo" },
+  { sigla: "GO", nome: "Goiás" }, { sigla: "MA", nome: "Maranhão" }, { sigla: "MT", nome: "Mato Grosso" }, { sigla: "MS", nome: "Mato Grosso do Sul" },
+  { sigla: "MG", nome: "Minas Gerais" }, { sigla: "PA", nome: "Pará" }, { sigla: "PB", nome: "Paraíba" }, { sigla: "PR", nome: "Paraná" },
+  { sigla: "PE", nome: "Pernambuco" }, { sigla: "PI", nome: "Piauí" }, { sigla: "RJ", nome: "Rio de Janeiro" }, { sigla: "RN", nome: "Rio Grande do Norte" },
+  { sigla: "RS", nome: "Rio Grande do Sul" }, { sigla: "RO", nome: "Rondônia" }, { sigla: "RR", nome: "Roraima" }, { sigla: "SC", nome: "Santa Catarina" },
+  { sigla: "SP", nome: "São Paulo" }, { sigla: "SE", nome: "Sergipe" }, { sigla: "TO", nome: "Tocantins" },
+];
+
+const PRIORITY_COLORS: Record<string, string> = {
+  baixa:   "bg-[#e8eef8] text-[#5a6a82]",
+  normal:  "bg-[#e8f5e9] text-[#2e7d32]",
+  alta:    "bg-[#fff3e0] text-[#e65100]",
+  urgente: "bg-[#ffebee] text-[#c62828]",
+};
+const PRIORITY_LABELS: Record<string, string> = { baixa: "Baixa", normal: "Normal", alta: "Alta", urgente: "Urgente" };
+
+function PriorityBadge({ priority }: { priority?: string }) {
+  const p = priority || "normal";
+  return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap", PRIORITY_COLORS[p] || PRIORITY_COLORS.normal)}>{PRIORITY_LABELS[p] || p}</span>;
+}
+
+function OrderFilterMultiSelect({ label, options, selectedValues, onSelect, onRemove, placeholder, disabled = false, loading = false }: { label: string; options: MultiSelectOption[]; selectedValues: string[]; onSelect: (value: string) => void; onRemove: (value: string) => void; placeholder: string; disabled?: boolean; loading?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const normalizedQuery = normalizeSearchText(query);
+  const visibleOptions = options.filter(option => !normalizedQuery || normalizeSearchText(option.label).includes(normalizedQuery));
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => { if (!containerRef.current?.contains(event.target as Node)) setOpen(false); };
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => { document.removeEventListener("pointerdown", handlePointerDown); document.removeEventListener("keydown", handleKeyDown); };
+  }, []);
+
+  return <div ref={containerRef} className="relative w-full">
+    <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}</label>
+    <button type="button" disabled={disabled} onClick={() => setOpen(value => !value)} className={cn(INPUT, "h-[42px] w-full cursor-pointer text-left", disabled && "cursor-not-allowed opacity-60")}>
+      {selectedValues.length === 0 ? <span className="text-sm font-normal text-[#5a6a82]/70">{loading ? "Carregando..." : placeholder}</span> : <span className="text-sm font-normal text-[#0d1b2e]">{selectedValues.length} selecionado{selectedValues.length !== 1 ? "s" : ""}</span>}
+      <ChevronDown size={14} className="float-right mt-0.5" />
+    </button>
+    {selectedValues.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{selectedValues.map(value => <span key={value} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#0057e7] px-2.5 py-1 text-xs font-medium text-white"><span className="truncate">{options.find(option => option.value === value)?.label || value}</span><button type="button" onClick={event => { event.stopPropagation(); onRemove(value); }} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white hover:bg-[#0046c0]" aria-label={`Remover ${value}`}><X size={13} /></button></span>)}</div>}
+    {open && !disabled && <div className="absolute left-0 right-0 top-full z-[60] mt-1 overflow-hidden rounded-lg border border-[#0d1b2e]/15 bg-white shadow-lg">
+      <div className="border-b border-[#0d1b2e]/10 p-2"><input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar..." className={cn(INPUT, "py-2 text-xs")} /></div>
+      <div className="max-h-56 overflow-y-auto p-1">{loading ? <p className="p-3 text-xs text-[#5a6a82]">Carregando...</p> : visibleOptions.length === 0 ? <p className="p-3 text-xs text-[#5a6a82]">Nenhuma opção encontrada.</p> : visibleOptions.map(option => { const selected = selectedValues.includes(option.value); return <button type="button" key={option.value} onClick={() => onSelect(option.value)} className={cn("flex w-full items-center justify-between rounded px-2 py-2 text-left text-xs hover:bg-[#e8eef8]", selected && "bg-[#e8eef8] font-bold")}><span>{option.label}</span>{selected && <CheckCircle size={14} className="text-[#0057e7]" />}</button>; })}</div>
+    </div>}
+  </div>;
+}
+
+function OrderAddressSelect({ label, value, onChange, disabled, placeholder, options }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean; placeholder: string; options: { value: string; label: string }[] }) {
+  return <div>
+    <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}<span className="text-red-400">*</span></label>
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className={cn(INPUT, "h-[42px] w-full rounded-lg px-3 py-2.5 text-sm")}><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false} className="max-h-[min(18rem,var(--radix-select-content-available-height))] w-[var(--radix-select-trigger-width)]">
+        {options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  </div>;
+}
+
+export function OSSituationsView({ onBack }: { onBack: () => void }) {
+  const { hasPermission } = useAuth();
+  if (!hasPermission("orders.view")) return null;
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", slug: "", color: "", hours: "", is_active: true, sort_order: 0 });
+  const [saving, setSaving] = useState(false);
+  const [delId, setDelId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const load = async () => { setLoading(true); const { data } = await supabase.from("os_situations").select("id,name,slug,color,hours,sort_order,is_active,created_at,updated_at").order("sort_order"); setItems(data || []); setLoading(false); };
+  useEffect(() => { load(); }, []);
+  const openNew = () => { setEditItem(null); setForm({ name: "", slug: "", color: "", hours: "", is_active: true, sort_order: items.length }); setDrawerOpen(true); };
+  const openEdit = (item: any) => { setEditItem(item); setForm({ name: item.name || "", slug: item.slug || "", color: item.color || "", hours: item.hours == null ? "" : String(item.hours), is_active: item.is_active, sort_order: item.sort_order }); setDrawerOpen(true); };
+  const save = async () => {
+    if (!hasPermission("orders.update")) return;
+    if (!form.name.trim()) { setToast({ msg: "Informe o nome da situação.", type: "error" }); return; }
+    if (form.color && !isHexColor(form.color)) { setToast({ msg: "Informe uma cor HEX válida no formato #RRGGBB.", type: "error" }); return; }
+    setSaving(true);
+    const payload = { name: form.name.trim(), slug: form.slug.trim() || editItem?.slug?.trim() || slugify(form.name), color: form.color.trim().toUpperCase() || null, hours: form.hours === "" ? null : Number(form.hours), is_active: form.is_active, sort_order: Number(form.sort_order) };
+    const { error } = editItem ? await supabase.from("os_situations").update(payload).eq("id", editItem.id) : await supabase.from("os_situations").insert(payload);
+    setSaving(false);
+    if (error) { setToast({ msg: `Erro: ${error.message}`, type: "error" }); return; }
+    setDrawerOpen(false); load();
+  };
+  const remove = async (id: string) => { if (!hasPermission("orders.delete")) return; await supabase.from("os_situations").delete().eq("id", id); load(); };
+  return <div className="space-y-5">
+    {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    {delId && <ConfirmDialog message="Remover esta situação?" onConfirm={() => { setDelId(null); void remove(delId); }} onCancel={() => setDelId(null)} />}
+    <PageHeader title="Situações da OS" subtitle="Etapas de progresso das ordens de serviço" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("orders.update") && <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Nova Situação</button>}</div>} />
+    <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={List} title="Nenhuma situação" message="Crie situações para acompanhar as etapas das OS." /> : <table className="w-full text-sm"><tbody className="divide-y divide-[#0d1b2e]/5">{items.map(item => <tr key={item.id} className="hover:bg-[#f8fafc]/80"><td className="px-4 py-3 text-[#5a6a82] text-xs font-mono">{item.sort_order}</td><td className="px-4 py-3"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color || "#0057e7" }} /><div><p className="font-semibold text-[#0d1b2e]">{item.name}</p><p className="text-xs text-[#5a6a82]">{item.hours == null ? "Horas não informadas" : `${item.hours} hora(s)`}{item.slug ? ` · ${item.slug}` : ""}</p></div></div></td><td className="px-4 py-3"><span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", item.is_active ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active ? "Ativa" : "Inativa"}</span></td><td className="px-4 py-3"><div className="flex gap-2 justify-end">{hasPermission("orders.update") && <button onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#e8eef8] rounded-lg"><Edit2 size={14} /></button>}{hasPermission("orders.delete") && <button onClick={() => setDelId(item.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>}</div></td></tr>)}</tbody></table>}</div>
+    {drawerOpen && <AdminPage open={true} onClose={() => setDrawerOpen(false)} breadcrumb="Situações da OS" title={editItem ? "Editar situação" : "Nova situação"} maxW="max-w-md"><div className="p-5 space-y-4"><FInput label="Nome" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value })} /><FInput label="Slug" value={form.slug} onChange={(e: any) => setForm({ ...form, slug: e.target.value })} /><FInput label="Cor" type="color" value={form.color || "#0057e7"} onChange={(e: any) => setForm({ ...form, color: e.target.value })} /><FInput label="Horas" type="number" min="0" value={form.hours} onChange={(e: any) => setForm({ ...form, hours: e.target.value })} /><FInput label="Ordem de exibição" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} /><FToggle label="Situação ativa" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>{hasPermission("orders.update") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div></AdminPage>}
+  </div>;
+}
 
 function QuickEquipmentModal({ onClose, onSaved }: {
   onClose: () => void;
@@ -132,7 +277,7 @@ function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
   );
 }
 export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onFocused?: () => void }) {
-  const { user, profile, hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [subView, setSubView] = useState<"list" | "situations">("list");
   const [displayMode, setDisplayMode] = useState<"list" | "kanban">(() => {
     if (typeof window === "undefined") return "list";
@@ -155,8 +300,16 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSituation, setFilterSituation] = useState("");
+  const [filterOrderType, setFilterOrderType] = useState<OrderType | "">("");
+  const [selectedServiceTypeId, setSelectedServiceTypeId] = useState("");
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [selectedCities, setSelectedCities] = useState<CityFilterOption[]>([]);
+  const [cityFilterOptions, setCityFilterOptions] = useState<CityFilterOption[]>([]);
+  const [cityFiltersLoading, setCityFiltersLoading] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
@@ -174,8 +327,21 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [editingCustomer, setEditingCustomer] = useState(false);
+  const [selectedTechnicianIds, setSelectedTechnicianIds] = useState<string[]>([]);
+  const [selectedSellerIds, setSelectedSellerIds] = useState<string[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [customerAddressDraft, setCustomerAddressDraft] = useState<Address>({ ...emptyAddress });
+  const [serviceUseCustomerAddress, setServiceUseCustomerAddress] = useState(false);
+  const [serviceCustomerAddressOverride, setServiceCustomerAddressOverride] = useState(false);
+  const [serviceAddressMessage, setServiceAddressMessage] = useState("");
+  const [ibgeStates, setIbgeStates] = useState<IbgeState[]>([]);
+  const [ibgeStatesLoading, setIbgeStatesLoading] = useState(false);
+  const [ibgeCities, setIbgeCities] = useState<IbgeCity[]>([]);
+  const [ibgeCitiesLoading, setIbgeCitiesLoading] = useState(false);
+  const citiesCacheRef = useRef<Record<string, IbgeCity[]>>({});
+  const citiesRequestRef = useRef(0);
+  const filterCitiesRequestRef = useRef(0);
+  const zipRequestRef = useRef(0);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMessage, setCnpjMessage] = useState("");
   const [addressExpanded, setAddressExpanded] = useState(false);
@@ -186,13 +352,120 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const dragOriginRef = useRef<any[] | null>(null);
   const suppressCardClickRef = useRef(false);
 
-  const emptyForm = { service_id: "", general_service_id: "", service_type_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", assigned_to: user?.id || "", technician_id: "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "" };
+  const emptyForm = { service_id: "", general_service_id: "", service_type_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", technician_id: "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "", order_type: "internal" as OrderType, service_state: "", service_city: "", service_street: "", service_zip_code: "", service_neighborhood: "", service_number: "", service_complement: "", service_customer_address_id: "" };
   const [form, setForm] = useState(emptyForm);
   const [needsScheduling, setNeedsScheduling] = useState(true);
   const [orderImages, setOrderImages] = useState<OrderImage[]>([]);
   const [initialOrderImageIds, setInitialOrderImageIds] = useState<string[]>([]);
   const [viewImage, setViewImage] = useState<OrderImage | null>(null);
   const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const selectedServiceAddress = ((selectedCustomer?.addresses || []) as Address[]).find(address => address.is_default) || ((selectedCustomer?.addresses || []) as Address[])[0] || null;
+  const serviceAddressPreview: Address | null = serviceUseCustomerAddress
+    ? (serviceCustomerAddressOverride ? selectedServiceAddress : { id: form.service_customer_address_id || undefined, zip_code: form.service_zip_code, state: form.service_state, city: form.service_city, neighborhood: form.service_neighborhood, street: form.service_street, number: form.service_number, complement: form.service_complement })
+    : null;
+  const clearServiceAddress = () => {
+    upF("service_zip_code", ""); upF("service_state", ""); upF("service_city", ""); upF("service_neighborhood", "");
+    upF("service_street", ""); upF("service_number", ""); upF("service_complement", "");
+  };
+  const copyCustomerAddressToForm = (address: Address | null) => {
+    upF("service_zip_code", address?.zip_code || ""); upF("service_state", address?.state || ""); upF("service_city", address?.city || "");
+    upF("service_neighborhood", address?.neighborhood || ""); upF("service_street", address?.street || ""); upF("service_number", address?.number || ""); upF("service_complement", address?.complement || "");
+    if (address?.state) void loadIbgeCities(address.state, address.city);
+  };
+  const loadIbgeCities = async (state: string, preferredCity?: string) => {
+    const uf = state.trim().toUpperCase();
+    if (!uf) { setIbgeCities([]); return []; }
+    const requestId = ++citiesRequestRef.current;
+    const cached = citiesCacheRef.current[uf];
+    if (cached) {
+      setIbgeCities(cached);
+      if (preferredCity) {
+        const officialCity = cached.find(city => normalizeAddressLookup(city.nome) === normalizeAddressLookup(preferredCity));
+        if (officialCity) upF("service_city", officialCity.nome);
+      }
+      return cached;
+    }
+    setIbgeCitiesLoading(true);
+    try {
+      const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`);
+      if (!response.ok) throw new Error("Falha ao carregar cidades.");
+      const cities = await response.json() as IbgeCity[];
+      if (requestId !== citiesRequestRef.current) return [];
+      citiesCacheRef.current[uf] = cities;
+      setIbgeCities(cities);
+      if (preferredCity) {
+        const officialCity = cities.find(city => normalizeAddressLookup(city.nome) === normalizeAddressLookup(preferredCity));
+        if (officialCity) upF("service_city", officialCity.nome);
+      }
+      return cities;
+    } catch {
+      if (requestId === citiesRequestRef.current) setIbgeCities([]);
+      return [];
+    } finally {
+      if (requestId === citiesRequestRef.current) setIbgeCitiesLoading(false);
+    }
+  };
+
+  const loadFilterCities = async (states: string[]) => {
+    const requestId = ++filterCitiesRequestRef.current;
+    if (states.length === 0) { setCityFilterOptions([]); setCityFiltersLoading(false); return; }
+    setCityFiltersLoading(true);
+    const citiesByState = await Promise.all(states.map(async state => {
+      const uf = state.trim().toUpperCase();
+      const cached = citiesCacheRef.current[uf];
+      if (cached) return cached.map(city => ({ name: city.nome, state: uf }));
+      try {
+        const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`);
+        if (!response.ok) return [];
+        const cities = await response.json() as IbgeCity[];
+        citiesCacheRef.current[uf] = cities;
+        return cities.map(city => ({ name: city.nome, state: uf }));
+      } catch { return []; }
+    }));
+    if (requestId !== filterCitiesRequestRef.current) return;
+    const uniqueCities = new Map<string, CityFilterOption>();
+    citiesByState.flat().forEach(city => uniqueCities.set(`${city.state}:${normalizeSearchText(city.name)}`, city));
+    setCityFilterOptions(Array.from(uniqueCities.values()).sort((left, right) => left.state.localeCompare(right.state) || left.name.localeCompare(right.name)));
+    setCityFiltersLoading(false);
+  };
+
+  useEffect(() => { void loadFilterCities(selectedStates); }, [selectedStates]);
+  useEffect(() => { setSelectedCities(current => current.filter(city => selectedStates.includes(city.state))); }, [selectedStates]);
+
+  useEffect(() => {
+    let active = true;
+    setIbgeStatesLoading(true);
+    fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome")
+      .then(response => response.ok ? response.json() as Promise<IbgeState[]> : Promise.reject(new Error("Falha ao carregar estados.")))
+      .then(states => { if (active) setIbgeStates(states); })
+      .catch(() => { if (active) setIbgeStates(FALLBACK_STATES); })
+      .finally(() => { if (active) setIbgeStatesLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (form.order_type !== "external" || serviceUseCustomerAddress || normalizeSearchDigits(form.service_zip_code).length !== 8) return;
+    const requestId = ++zipRequestRef.current;
+    setServiceAddressMessage("");
+    const zipCode = formatZipCode(form.service_zip_code);
+    setIbgeCitiesLoading(true);
+    fetchAddressByZipCode(zipCode)
+      .then(async address => {
+        if (requestId !== zipRequestRef.current) return;
+        if (!address) { setServiceAddressMessage("CEP não encontrado. Verifique ou preencha o endereço manualmente."); return; }
+        upF("service_state", address.state || "");
+        upF("service_neighborhood", address.neighborhood || "");
+        upF("service_street", address.street || "");
+        const cities = await loadIbgeCities(address.state || "", address.city || "");
+        if (requestId !== zipRequestRef.current) return;
+        if (!cities.some(city => normalizeAddressLookup(city.nome) === normalizeAddressLookup(address.city))) upF("service_city", address.city || "");
+        setServiceAddressMessage("");
+      })
+      .catch(() => { if (requestId === zipRequestRef.current) setServiceAddressMessage("Não foi possível consultar o CEP agora. Preencha o endereço manualmente."); })
+      .finally(() => { if (requestId === zipRequestRef.current) setIbgeCitiesLoading(false); });
+    return () => { zipRequestRef.current += 1; };
+  }, [form.order_type, form.service_zip_code, serviceUseCustomerAddress]);
 
   const loadOrderImages = async (orderId: string) => {
     const { data, error } = await supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", orderId).order("sort_order");
@@ -226,7 +499,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const load = async () => {
     setLoading(true);
     const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes] = await Promise.all([
-      supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
+      supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
       supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order"),
       supabase.from("os_situations").select("id,name,color,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
@@ -270,9 +543,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     onFocused?.();
   }, [initialOrderId, loading, orders]);
 
+
   const openDetail = async (o: any) => {
     const [{ data: currentOrder }, { data: hist }, { data: mediaLinks }, { data: usedItems }] = await Promise.all([
-      supabase.from("service_orders").select("is_solved,cannot_be_solved,cannot_be_solved_reason").eq("id", o.id).maybeSingle(),
+      supabase.from("service_orders").select("is_solved,cannot_be_solved,cannot_be_solved_reason,assigned_profile:profiles!assigned_to(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active))").eq("id", o.id).maybeSingle(),
       supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
       supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", o.id).order("sort_order"),
       supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
@@ -287,7 +561,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const openNew = () => {
-    setEditingOS(null); setForm(emptyForm); setNeedsScheduling(true); setOrderImages([]); setInitialOrderImageIds([]); setViewImage(null); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
+    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]); setNeedsScheduling(true); setOrderImages([]); setInitialOrderImageIds([]); setViewImage(null); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
   };
 
   const openEdit = async (o: any) => {
@@ -301,9 +575,13 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       return;
     }
     setEditingOS(o);
+    setSelectedTechnicianIds(Array.from(new Set((o.technician_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(o.technician_id ? [o.technician_id] : []))));
+    setSelectedSellerIds(Array.from(new Set((o.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(o.seller_id ? [o.seller_id] : []))));
     setNeedsScheduling(true);
     await loadOrderImages(o.id);
-    setForm({ service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", assigned_to: o.assigned_to || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "" });
+    setForm({ service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "", order_type: o.order_type === "external" ? "external" : "internal", service_state: o.order_type === "external" ? o.service_state || "" : "", service_city: o.order_type === "external" ? o.service_city || "" : "", service_street: o.order_type === "external" ? o.service_street || "" : "", service_zip_code: o.order_type === "external" ? o.service_zip_code || "" : "", service_neighborhood: o.order_type === "external" ? o.service_neighborhood || "" : "", service_number: o.order_type === "external" ? o.service_number || "" : "", service_complement: o.order_type === "external" ? o.service_complement || "" : "", service_customer_address_id: o.order_type === "external" ? o.service_customer_address_id || "" : "" });
+    setServiceUseCustomerAddress(o.order_type === "external" && o.service_address_source === "customer"); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]);
+    if (o.order_type === "external" && o.service_state) void loadIbgeCities(o.service_state, o.service_city);
     setSelectedCustomer((o.customer as any) || null);
     const customer = (o.customer as any) || {};
     setCustomerDraft(customerFormFromCustomer(customer));
@@ -320,14 +598,14 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     const validationError = validateCustomerForm(customerDraft);
     if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSaving(true);
-    const { error: customerError } = await supabase.from("customers").update(customerPayload(customerDraft)).eq("id", selectedCustomer.id);
+    const { error: customerError } = await supabase.from("customers").update(customerUpdatePayload(customerDraft)).eq("id", selectedCustomer.id);
     if (customerError) { console.error("[ADMIN] customer update error:", customerError); setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
     const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
     const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
     const addressResult = address ? await supabase.from("customer_addresses").update(addressPayload).eq("id", address.id) : await supabase.from("customer_addresses").insert(addressPayload);
     setSaving(false);
     if (addressResult.error) { console.error("[ADMIN] customer address update error:", addressResult.error); setToast({ msg: `Cliente salvo, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); return; }
-    setSelectedCustomer({ ...selectedCustomer, ...customerPayload(customerDraft), addresses: [customerAddressDraft] });
+    setSelectedCustomer({ ...selectedCustomer, ...customerUpdatePayload(customerDraft), addresses: [customerAddressDraft] });
     setEditingCustomer(false);
     setAddressExpanded(true);
     setToast({ msg: "Dados do cliente atualizados.", type: "success" });
@@ -413,7 +691,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         solutionImageError = error;
       }
 
-      const freshDetail = await supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").eq("id", orderId).maybeSingle();
+      const freshDetail = await supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").eq("id", orderId).maybeSingle();
       if (freshDetail.data) setDetail(freshDetail.data);
       const { data: usedData } = await supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", orderId).order("created_at", { ascending: false });
       const { data: mediaLinks } = await supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", orderId).order("sort_order");
@@ -433,11 +711,33 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
   const saveOS = async () => {
     if (editingOS ? !hasPermission("orders.edit") : !hasPermission("orders.create")) { setToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" }); return; }
+    if (!editingOS && !user?.id) { setToast({ msg: "Não foi possível identificar o responsável pela OS.", type: "error" }); return; }
     if (editingOS?.is_solved) { setToast({ msg: "Esta OS está solucionada e é somente leitura.", type: "error" }); return; }
     if (!form.general_service_id && !form.service_id) { setToast({ msg: "Selecione o serviço geral da OS.", type: "error" }); return; }
     if (!editingOS && !form.service_type_id) { setToast({ msg: "Selecione o tipo de atendimento da OS.", type: "error" }); return; }
     const cid = selectedCustomer?.id || form.customer_id;
     if (!cid) { setToast({ msg: "Selecione um cliente.", type: "error" }); return; }
+    const historicalCustomerAddress: Address = { id: form.service_customer_address_id || undefined, zip_code: form.service_zip_code, state: form.service_state, city: form.service_city, neighborhood: form.service_neighborhood, street: form.service_street, number: form.service_number, complement: form.service_complement };
+    const selectedAddress = serviceUseCustomerAddress ? (serviceCustomerAddressOverride ? selectedServiceAddress : historicalCustomerAddress) : null;
+    const serviceAddress = selectedAddress || {
+      id: undefined,
+      zip_code: form.service_zip_code,
+      state: form.service_state,
+      city: form.service_city,
+      neighborhood: form.service_neighborhood,
+      street: form.service_street,
+      number: form.service_number,
+      complement: form.service_complement,
+    };
+    const serviceZipCode = String(serviceAddress.zip_code ?? "").trim();
+    const serviceState = String(serviceAddress.state ?? "").trim();
+    const serviceCity = String(serviceAddress.city ?? "").trim();
+    const serviceNeighborhood = String(serviceAddress.neighborhood ?? "").trim();
+    const serviceStreet = String(serviceAddress.street ?? "").trim();
+    const serviceNumber = String(serviceAddress.number ?? "").trim();
+    const serviceComplement = String(serviceAddress.complement ?? "").trim();
+    if (form.order_type === "external" && serviceUseCustomerAddress && !selectedAddress) { setToast({ msg: "Selecione um endereço cadastrado ou informe um endereço personalizado.", type: "error" }); return; }
+    if (form.order_type === "external" && (!serviceZipCode || !serviceState || !serviceCity || !serviceStreet || !serviceNumber)) { setToast({ msg: "Informe CEP, estado, cidade, rua e número para uma OS externa.", type: "error" }); return; }
     if (needsScheduling && !form.scheduled_at) { setToast({ msg: "Informe a data e hora agendadas ou selecione Não.", type: "error" }); return; }
     if (form.equipment_brand_id && !equipmentBrands.some(brand => brand.id === form.equipment_brand_id && brand.equipment_type_id === form.equipment_type_id)) { setToast({ msg: "A marca selecionada não pertence ao equipamento.", type: "error" }); return; }
     if (form.equipment_model_id && !equipmentModels.some(model => model.id === form.equipment_model_id && model.equipment_brand_id === form.equipment_brand_id)) { setToast({ msg: "O modelo selecionado não pertence à marca.", type: "error" }); return; }
@@ -448,7 +748,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (editingCustomer && selectedCustomer?.id) {
       const validationError = validateCustomerForm(customerDraft);
       if (validationError) { setToast({ msg: validationError, type: "error" }); setSaving(false); return; }
-      const { error: customerError } = await supabase.from("customers").update(customerPayload(customerDraft)).eq("id", selectedCustomer.id);
+      const { error: customerError } = await supabase.from("customers").update(customerUpdatePayload(customerDraft)).eq("id", selectedCustomer.id);
       if (customerError) { setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
       const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
       const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
@@ -456,21 +756,51 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         ? await supabase.from("customer_addresses").update(addressPayload).eq("id", address.id)
         : await supabase.from("customer_addresses").insert(addressPayload);
       if (addressResult.error) { setToast({ msg: `Cliente atualizado, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); setSaving(false); return; }
-      setSelectedCustomer({ ...selectedCustomer, ...customerPayload(customerDraft), addresses: [customerAddressDraft] });
+      setSelectedCustomer({ ...selectedCustomer, ...customerUpdatePayload(customerDraft), addresses: [customerAddressDraft] });
       setEditingCustomer(false);
     }
-    const payload: any = { os_number: editingOS?.os_number || generateOsProtocol(), service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, service_type_id: form.service_type_id || null, seller_id: form.seller_id || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, status_id: status.id, situation_id: form.situation_id || null, customer_id: cid, assigned_to: editingOS ? form.assigned_to || null : user?.id || null, technician_id: form.technician_id || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, serial_number: form.serial_number || null, accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: needsScheduling ? form.scheduled_at || null : null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null };
+    const payload = { service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, service_type_id: form.service_type_id || null, seller_id: selectedSellerIds[0] || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, status_id: status.id, situation_id: form.situation_id || null, customer_id: cid, ...(editingOS ? {} : { assigned_to: user?.id }), technician_id: selectedTechnicianIds[0] || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, ...(editingOS ? {} : { serial_number: form.serial_number || null }), accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: needsScheduling ? form.scheduled_at || null : null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null, order_type: form.order_type, service_zip_code: form.order_type === "external" ? serviceZipCode : null, service_state: form.order_type === "external" ? serviceState : null, service_city: form.order_type === "external" ? serviceCity : null, service_neighborhood: form.order_type === "external" ? serviceNeighborhood : null, service_street: form.order_type === "external" ? serviceStreet : null, service_number: form.order_type === "external" ? serviceNumber : null, service_complement: form.order_type === "external" ? serviceComplement : null, service_address_source: form.order_type === "external" ? (serviceUseCustomerAddress ? "customer" : "custom") : null, service_customer_address_id: form.order_type === "external" && serviceUseCustomerAddress ? selectedAddress?.id || null : null };
     let error;
     let savedOrderId = editingOS?.id as string | undefined;
     if (editingOS) {
       const r = await supabase.from("service_orders").update(payload).eq("id", editingOS.id);
       error = r.error;
     } else {
-      const r = await supabase.from("service_orders").insert(payload).select("id").single();
+      const r = await supabase.from("service_orders").insert(payload).select("id, os_number").single();
       error = r.error;
       savedOrderId = r.data?.id;
     }
     if (error) { setSaving(false); setToast({ msg: `Erro ao salvar OS: ${error.message}`, type: "error" }); return; }
+    const uniqueTechnicianIds = Array.from(new Set(selectedTechnicianIds));
+    const uniqueSellerIds = Array.from(new Set(selectedSellerIds));
+    const previousTechnicianIds = Array.from(new Set((editingOS?.technician_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOS?.technician_id ? [editingOS.technician_id] : [])));
+    const previousSellerIds = Array.from(new Set((editingOS?.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOS?.seller_id ? [editingOS.seller_id] : [])));
+    try {
+      if (editingOS) {
+        const { error: deleteTechniciansError } = await supabase.from("service_order_technicians").delete().eq("service_order_id", savedOrderId);
+        if (deleteTechniciansError) throw deleteTechniciansError;
+        const { error: deleteSellersError } = await supabase.from("service_order_sellers").delete().eq("service_order_id", savedOrderId);
+        if (deleteSellersError) throw deleteSellersError;
+      }
+      if (uniqueTechnicianIds.length) {
+        const { error: technicianError } = await supabase.from("service_order_technicians").insert(uniqueTechnicianIds.map(employee_id => ({ service_order_id: savedOrderId, employee_id })));
+        if (technicianError) throw technicianError;
+      }
+      if (uniqueSellerIds.length) {
+        const { error: sellerError } = await supabase.from("service_order_sellers").insert(uniqueSellerIds.map(employee_id => ({ service_order_id: savedOrderId, employee_id })));
+        if (sellerError) throw sellerError;
+      }
+    } catch (relationError) {
+      if (editingOS) {
+        await supabase.from("service_order_technicians").delete().eq("service_order_id", savedOrderId);
+        await supabase.from("service_order_sellers").delete().eq("service_order_id", savedOrderId);
+        if (previousTechnicianIds.length) await supabase.from("service_order_technicians").insert(previousTechnicianIds.map(employee_id => ({ service_order_id: savedOrderId, employee_id })));
+        if (previousSellerIds.length) await supabase.from("service_order_sellers").insert(previousSellerIds.map(employee_id => ({ service_order_id: savedOrderId, employee_id })));
+      }
+      setSaving(false);
+      setToast({ msg: `OS salva, mas não foi possível atualizar técnicos/vendedores: ${supabaseErrorMessage(relationError)}`, type: "error" });
+      return;
+    }
     try {
       if (!savedOrderId) throw new Error("A OS foi salva, mas não foi possível obter seu ID.");
       const { data: existingLinks, error: linksError } = await supabase.from("service_order_media").select("id,media_id").eq("service_order_id", savedOrderId);
@@ -611,7 +941,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const searchCustomers = async (q: string) => {
     setCustomerSearch(q);
     if (q.length < 2) { setCustomerResults([]); return; }
-    const { data } = await supabase.from("customers").select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)").or(`full_name.ilike.%${q}%,trade_name.ilike.%${q}%,document.ilike.%${q}%,cnpj.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
+    const { data } = await supabase.from("customers").select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,addresses:customer_addresses(*)").or(`full_name.ilike.%${q}%,trade_name.ilike.%${q}%,document.ilike.%${q}%,cnpj.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
     setCustomerResults(data || []);
   };
 
@@ -622,6 +952,17 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setCustomerAddressDraft({ ...emptyAddress, ...(address || {}) });
     setAddressExpanded(false);
     upF("customer_id", customer.id);
+    if (form.order_type === "external" && serviceUseCustomerAddress) {
+      if (address) {
+        setServiceAddressMessage("");
+        setServiceCustomerAddressOverride(true);
+        copyCustomerAddressToForm(address);
+      } else {
+        setServiceUseCustomerAddress(false);
+        setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento.");
+        clearServiceAddress();
+      }
+    }
     setCustomerResults([]);
     setCustomerSearch("");
   };
@@ -652,18 +993,51 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     return pieces.join(" • ") || "—";
   };
 
+  const stateLabel = (state: unknown) => {
+    const sigla = String(state ?? "").trim().toUpperCase();
+    if (!sigla) return "";
+    const ibgeState = ibgeStates.find(item => item.sigla.trim().toUpperCase() === sigla);
+    return ibgeState ? `${sigla} — ${ibgeState.nome}` : sigla;
+  };
+
+  const invalidPeriod = Boolean(dateFrom && dateTo && dateFrom > dateTo);
   const filtered = orders.filter(o => {
-    const q = search.toLowerCase();
-    const matchSearch = !search || (o.os_number || "").toLowerCase().includes(q) || ((o.service as any)?.title || "").toLowerCase().includes(q) || ((o.customer as any)?.full_name || "").toLowerCase().includes(q) || ((o.service_type as any)?.title || "").toLowerCase().includes(q) || equipmentSummary(o).toLowerCase().includes(q);
+    const q = normalizeSearchText(search);
+    const qDigits = normalizeSearchDigits(search);
+    const qIdentifier = normalizeSearchIdentifier(search);
+    const orderTypeLabel = o.order_type === "external" ? "externa external" : "interna internal";
+    const searchableState = stateLabel(o.service_state);
+    const customer = (o.customer as any) || {};
+    const searchableText = [o.os_number, `OS ${o.os_number || ""}`, orderTypeLabel, (o.service as any)?.title, customer.full_name, customer.trade_name, (o.service_type as any)?.title, equipmentSummary(o), o.model, o.serial_number, o.service_zip_code, o.service_state, searchableState, o.service_city, o.service_neighborhood, o.service_street, o.service_number, o.service_complement].map(normalizeSearchText).join(" ");
+    const normalizedOrderNumbers = [o.os_number, `OS ${o.os_number || ""}`].map(normalizeSearchIdentifier);
+    const customerIdentifiers = [customer.document, customer.cnpj];
+    const matchSearch = !q || searchableText.includes(q) || normalizedOrderNumbers.some(value => value.includes(qIdentifier)) || (qDigits.length > 0 && customerIdentifiers.some(value => normalizeSearchDigits(value).includes(qDigits)));
     const matchStatus = !filterStatus || o.status_id === filterStatus;
     const matchSituation = !filterSituation || o.situation_id === filterSituation;
-    return matchSearch && matchStatus && matchSituation;
+    const matchOrderType = !filterOrderType || o.order_type === filterOrderType;
+    const matchServiceType = !selectedServiceTypeId || o.service_type_id === selectedServiceTypeId;
+    const orderState = normalizeSearchText(o.service_state);
+    const matchState = selectedStates.length === 0 || selectedStates.some(state => {
+      const stateOption = ibgeStates.find(item => normalizeSearchText(item.sigla) === normalizeSearchText(state));
+      return orderState === normalizeSearchText(state) || (stateOption && orderState === normalizeSearchText(stateOption.nome));
+    });
+    const matchCity = selectedCities.length === 0 || selectedCities.some(city => normalizeSearchText(o.service_city) === normalizeSearchText(city.name) && orderState === normalizeSearchText(city.state));
+    const createdAt = o.created_at ? new Date(o.created_at) : null;
+    const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+    const toDateExclusive = dateTo ? new Date(`${dateTo}T00:00:00`) : null;
+    if (toDateExclusive) toDateExclusive.setDate(toDateExclusive.getDate() + 1);
+    const matchPeriod = invalidPeriod || (!!createdAt && (!fromDate || createdAt >= fromDate) && (!toDateExclusive || createdAt < toDateExclusive));
+    return matchSearch && matchStatus && matchSituation && matchOrderType && matchServiceType && matchState && matchCity && matchPeriod;
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedOrders = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  useEffect(() => { setPage(1); }, [search, filterStatus, filterSituation]);
+  const clearFilters = () => {
+    setSearch(""); setFilterStatus(""); setFilterSituation(""); setFilterOrderType(""); setSelectedServiceTypeId(""); setSelectedStates([]); setSelectedCities([]); setDateFrom(""); setDateTo("");
+  };
+
+  useEffect(() => { setPage(1); }, [search, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, selectedStates, selectedCities, dateFrom, dateTo]);
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
@@ -679,7 +1053,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       {deleteId && <ConfirmDialog message="Excluir esta OS? Esta ação remove o registro principal da tabela de ordens de serviço." onConfirm={() => { void handleDeleteOrder(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       {!detail && !formOpen && !solveOpen && <>
-      <PageHeader title="Ordens de Serviço" subtitle={`${orders.length} OS cadastrada${orders.length !== 1 ? "s" : ""}`} actions={
+      <PageHeader title="Ordens de Serviço" subtitle={`${filtered.length} OS encontrada${filtered.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2 flex-wrap">
           <div className="flex rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
             <button type="button" onClick={() => setViewMode("list")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "list" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><List size={13} /> Lista</button>
@@ -692,22 +1066,55 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       } />
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="relative">
+      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 space-y-3">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="space-y-1.5">
+          <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">BUSCA</label>
+          <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar OS, cliente ou serviço..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Nome, CPF, CNPJ, OS..." className={cn(INPUT, "h-[42px] pl-9 py-2 text-xs")} />
+          </div>
         </div>
-        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} className={cn(INPUT, "py-2 text-xs")}>
+        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">STATUS</label><select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
           <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        <select value={filterSituation} onChange={e => { setFilterSituation(e.target.value); setPage(1); }} className={cn(INPUT, "py-2 text-xs")}>
+        </select></div>
+        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">SITUAÇÕES</label><select value={filterSituation} onChange={e => { setFilterSituation(e.target.value); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
           <option value="">Todas as situações</option>{situations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+        </select></div>
+        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">TIPO</label><select value={filterOrderType} onChange={e => { setFilterOrderType(e.target.value as OrderType | ""); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
+          <option value="">Todos os tipos</option>
+          <option value="internal">Interna</option>
+          <option value="external">Externa</option>
+        </select></div>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
+          <div>
+            <OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={value => setSelectedStates(current => current.includes(value) ? current : [...current, value])} onRemove={value => setSelectedStates(current => current.filter(state => state !== value))} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />
+            {selectedStates.length > 0 && <button type="button" onClick={() => setSelectedStates([])} className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:underline"><Eraser size={12} />Limpar Estados</button>}
+          </div>
+          <OrderFilterMultiSelect label="Cidades" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={value => { const option = cityFilterOptions.find(city => `${city.state}:${city.name}` === value); if (option && !selectedCities.some(city => city.name === option.name && city.state === option.state)) setSelectedCities(current => [...current, option]); }} onRemove={value => setSelectedCities(current => current.filter(city => `${city.state}:${city.name}` !== value))} placeholder={selectedStates.length === 0 ? "Selecione ao menos um Estado" : "Selecionar Cidades"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />
+          <div>
+            <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Data inicial</label>
+            <input type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Data final</label>
+            <input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />
+            {invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}
+          </div>
+          <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo de Atendimento</label><select value={selectedServiceTypeId} onChange={e => { setSelectedServiceTypeId(e.target.value); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
+            <option value="">Todos os tipos</option>
+            {serviceTypes.map(serviceType => <option key={serviceType.id} value={serviceType.id}>{serviceType.title}</option>)}
+          </select></div>
+        </div>
+        <div className="flex justify-end">
+          {(search || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo) && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200"><Eraser size={14} />Limpar filtros</button>}
+        </div>
       </div>
 
       {displayMode === "list" ? <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={search || filterStatus || filterSituation ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
+          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={search || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[1100px]">
@@ -728,11 +1135,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 {pagedOrders.map(o => (
                   <tr key={o.id} onClick={() => openDetail(o)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                     <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || o.id.slice(0, 8)}</span></div>
+                      <div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || "—"}</span></div>
                     </td>
                     <td className="px-4 py-3.5">
                       <p className="font-semibold text-[#0d1b2e] text-sm">{(o.customer as any)?.full_name || "—"}</p>
-                      <p className="text-[11px] text-[#5a6a82]">{(o.customer as any)?.whatsapp || (o.customer as any)?.phone || ""}</p>
+                      <p className="text-[11px] text-[#5a6a82]">{formatPhone((o.customer as any)?.whatsapp || (o.customer as any)?.phone)}</p>
                     </td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}</td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{equipmentSummary(o)}</td>
@@ -774,7 +1181,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               </div>
               <div className="p-3 space-y-3 min-h-[180px]">
                 {statusOrders.length === 0 ? <p className="py-10 text-center text-xs text-[#5a6a82]">Solte uma OS aqui.</p> : statusOrders.map(order => <div key={order.id} draggable onDragStart={event => { dragOriginRef.current = orders; suppressCardClickRef.current = true; setDraggingId(order.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", order.id); }} onDragEnd={() => { setDraggingId(null); setDragOverStatusId(null); window.setTimeout(() => { suppressCardClickRef.current = false; }, 0); }} onClick={() => { if (suppressCardClickRef.current) { suppressCardClickRef.current = false; return; } openDetail(order); }} className={cn("bg-white rounded-lg border border-[#0d1b2e]/10 p-3 shadow-sm cursor-grab hover:border-[#0057e7]/30 transition-colors", draggingId === order.id && "opacity-50 cursor-grabbing")}>
-                  <div className="flex items-center gap-2 min-w-0"><span className="w-1.5 h-6 rounded-full flex-shrink-0" style={{ backgroundColor: status.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7] truncate">{order.os_number || order.id.slice(0, 8)}</span></div>
+                  <div className="flex items-center gap-2 min-w-0"><span className="w-1.5 h-6 rounded-full flex-shrink-0" style={{ backgroundColor: status.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7] truncate">{order.os_number || "—"}</span></div>
                   <p className="mt-3 font-semibold text-sm text-[#0d1b2e] truncate">{(order.customer as any)?.full_name || "Cliente não informado"}</p>
                   <p className="text-xs text-[#5a6a82] truncate">{(order.general_service as any)?.name || (order.service as any)?.title || "Serviço não informado"}</p>
                   {order.estimated_price != null && <p className="mt-2 text-xs font-bold text-[#0d1b2e]">R$ {Number(order.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>}
@@ -796,7 +1203,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
       {/* OS Detail Drawer */}
       {detail && !solveOpen && (
-        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Ordens de Serviço" title={detail.os_number || `OS #${detail.id.slice(0,8)}`} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-wrap gap-2 items-center">
                 <StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />
@@ -810,8 +1217,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     <InfoRow label="CNPJ" value={formatCnpj((detail.customer as any)?.cnpj || "")} />
                     <InfoRow label="Razão social" value={(detail.customer as any)?.legal_name} />
                   </> : <InfoRow label="CPF" value={(detail.customer as any)?.document ? formatCpf((detail.customer as any).document) : null} />}
-                  <InfoRow label="WhatsApp" value={(detail.customer as any)?.whatsapp} />
-                  <InfoRow label="Telefone" value={(detail.customer as any)?.phone} />
+                  <InfoRow label="WhatsApp" value={formatPhone((detail.customer as any)?.whatsapp)} />
+                  <InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)} />
                   <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
                 </div>
               </Section>
@@ -835,13 +1242,26 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   <InfoRow label="Garantia" value={detail.equipment_condition || undefined} />
                 </div>
               </Section>
+              <Section title="Local do atendimento">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <InfoRow label="Tipo da OS" value={detail.order_type === "external" ? "Externa" : "Interna"} />
+                  {detail.order_type === "external" && <InfoRow label="Origem do endereço" value={detail.service_address_source === "customer" ? "Endereço cadastrado do cliente" : "Endereço informado para esta OS"} />}
+                  {detail.order_type === "external" && <InfoRow label="CEP" value={detail.service_zip_code} />}
+                  {detail.order_type === "external" && <InfoRow label="Estado" value={stateLabel(detail.service_state)} />}
+                  {detail.order_type === "external" && <InfoRow label="Cidade" value={detail.service_city} />}
+                  {detail.order_type === "external" && <InfoRow label="Bairro" value={detail.service_neighborhood} />}
+                  {detail.order_type === "external" && <InfoRow label="Rua" value={detail.service_street} />}
+                  {detail.order_type === "external" && <InfoRow label="Número" value={detail.service_number} />}
+                  {detail.order_type === "external" && <InfoRow label="Complemento" value={detail.service_complement} />}
+                </div>
+              </Section>
               <Section title="Informações da OS">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Tipo de atendimento" value={(detail.service_type as any)?.title} />
                   <InfoRow label="Serviço" value={(detail.general_service as any)?.name || (detail.service as any)?.title} />
-                  <InfoRow label="Responsável" value={(detail.assigned_profile as any)?.full_name} />
-                  <InfoRow label="Vendedor" value={(detail.seller as any)?.full_name} />
-                  <InfoRow label="Técnico" value={(detail.technician as any)?.full_name} />
+                  <InfoRow label="Responsável" value={getResponsibleName(detail as ServiceOrderWithRelations)} />
+                  <InfoRow label="Vendedores" value={(detail.seller_links || []).length ? (detail.seller_links || []).map((link: any) => link.employee?.full_name).filter(Boolean).join(", ") : (detail.seller as any)?.full_name || "Nenhum vendedor atribuído"} />
+                  <InfoRow label="Técnicos" value={(detail.technician_links || []).length ? (detail.technician_links || []).map((link: any) => link.employee?.full_name).filter(Boolean).join(", ") : (detail.technician as any)?.full_name || "Nenhum técnico atribuído"} />
                   <InfoRow label="Status" value={(detail.order_status as any)?.name} />
                   <InfoRow label="Situação" value={(detail.situation as any)?.name} />
                   <InfoRow label="Prioridade" value={detail.priority ? PRIORITY_LABELS[detail.priority] || detail.priority : undefined} />
@@ -912,16 +1332,17 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                         <CustomerTypeToggle value={customerDraft.customerType} disabled onChange={customerType => setCustomerDraft({ ...customerDraft, customerType })} />
                         {customerDraft.customerType === "PF" ? <>
                           <FInput label="Nome completo" required value={customerDraft.full_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, full_name: e.target.value })} />
-                          <FInput label="CPF" value={customerDraft.document} readOnly />
+                          <FInput label="CPF" value={customerDraft.document} disabled />
+                          <div><FInput label="Data de nascimento" type="date" required value={customerDraft.birth_date} max={todayDateOnly()} onChange={(e: any) => setCustomerDraft({ ...customerDraft, birth_date: e.target.value })} />{!customerDraft.birth_date && <p className="mt-1 text-xs text-red-600">Informe a data de nascimento.</p>}</div>
                         </> : <>
                           <FInput label="Nome fantasia" required value={customerDraft.trade_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, trade_name: e.target.value })} />
-                          <FInput label="CNPJ" required value={customerDraft.cnpj} readOnly />
+                          <FInput label="CNPJ" required value={customerDraft.cnpj} disabled />
                           <FInput label="Razão social" value={customerDraft.legal_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, legal_name: e.target.value })} />
                           <FInput label="Inscrição estadual" value={customerDraft.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setCustomerDraft({ ...customerDraft, state_registration: e.target.value })} />
                           <FInput label="Fundação" value={customerDraft.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setCustomerDraft({ ...customerDraft, foundation_date: formatFoundationDate(e.target.value) })} />
                         </>}
-                        <FInput label="WhatsApp" value={customerDraft.whatsapp} onChange={(e: any) => setCustomerDraft({ ...customerDraft, whatsapp: e.target.value })} />
-                        <FInput label="Telefone" value={customerDraft.phone} onChange={(e: any) => setCustomerDraft({ ...customerDraft, phone: e.target.value })} />
+                          <FInput label="WhatsApp" value={customerDraft.whatsapp} onChange={(e: any) => setCustomerDraft({ ...customerDraft, whatsapp: formatPhone(e.target.value) })} />
+                          <FInput label="Telefone" value={customerDraft.phone} onChange={(e: any) => setCustomerDraft({ ...customerDraft, phone: formatPhone(e.target.value) })} />
                         <div className="sm:col-span-2"><FInput label="E-mail" type="email" value={customerDraft.email} onChange={(e: any) => setCustomerDraft({ ...customerDraft, email: e.target.value })} /></div>
                       </div>
                       <Section title="Endereço do cliente">
@@ -933,8 +1354,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     <>
                       <div className="grid sm:grid-cols-3 gap-3">
                         <InfoRow label="Nome" value={selectedCustomer.full_name} />
-                        <InfoRow label="Telefone" value={selectedCustomer.phone} />
-                        <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-0.5">WhatsApp</p><div className="flex items-center gap-2 text-sm font-medium text-[#0d1b2e]">{selectedCustomer.whatsapp || "—"}{getWhatsAppUrl(selectedCustomer.whatsapp) && <a href={getWhatsAppUrl(selectedCustomer.whatsapp) || "#"} target="_blank" rel="noreferrer" aria-label="Abrir WhatsApp do cliente" className="text-[#25d366] hover:text-[#1da851]"><MessageCircle size={16} /></a>}</div></div>
+                        <InfoRow label="Telefone" value={formatPhone(selectedCustomer.phone)} />
+                        <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-0.5">WhatsApp</p><div className="flex items-center gap-2 text-sm font-medium text-[#0d1b2e]">{formatPhone(selectedCustomer.whatsapp) || "—"}{getWhatsAppUrl(selectedCustomer.whatsapp) && <a href={getWhatsAppUrl(selectedCustomer.whatsapp) || "#"} target="_blank" rel="noreferrer" aria-label="Abrir WhatsApp do cliente" className="text-[#25d366] hover:text-[#1da851]"><MessageCircle size={16} /></a>}</div></div>
                         <InfoRow label="E-mail" value={selectedCustomer.email} />
                         <InfoRow label="Documento" value={selectedCustomer.document} />
                       </div>
@@ -959,7 +1380,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                       {customerResults.map(c => (
                         <button key={c.id} onClick={() => selectCustomer(c)} className="w-full text-left px-3 py-2 hover:bg-[#e8eef8] border-b last:border-b-0 border-[#0d1b2e]/5">
                           <p className="font-semibold text-sm text-[#0d1b2e]">{c.full_name}</p>
-                          <p className="text-xs text-[#5a6a82]">{c.customer_type === "PJ" ? formatCnpj(c.cnpj || "") : formatCpf(c.document || "")} {c.whatsapp && `· ${c.whatsapp}`}</p>
+                          <p className="text-xs text-[#5a6a82]">{c.customer_type === "PJ" ? formatCnpj(c.cnpj || "") : formatCpf(c.document || "")} {c.whatsapp && `· ${formatPhone(c.whatsapp)}`}</p>
                         </button>
                       ))}
                     </div>
@@ -974,9 +1395,58 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 <FSelect label="Marca técnica" value={form.equipment_brand_id} disabled={!form.equipment_type_id} onChange={(e: any) => { upF("equipment_brand_id", e.target.value); upF("equipment_model_id", ""); }} options={[{ value: "", label: form.equipment_type_id ? "Selecionar marca..." : "Selecione o tipo primeiro" }, ...equipmentBrands.filter(brand => brand.equipment_type_id === form.equipment_type_id).map(brand => ({ value: brand.id, label: brand.name }))]} />
                 <FSelect label="Modelo" value={form.equipment_model_id} disabled={!form.equipment_brand_id} onChange={(e: any) => upF("equipment_model_id", e.target.value)} options={[{ value: "", label: form.equipment_brand_id ? "Selecionar modelo..." : "Selecione a marca primeiro" }, ...equipmentModels.filter(model => model.equipment_brand_id === form.equipment_brand_id).map(model => ({ value: model.id, label: model.name }))]} />
                 <FInput label="Versão" value={form.model} onChange={(e: any) => upF("model", e.target.value)} />
-                <FInput label="Nº de série" value={form.serial_number} onChange={(e: any) => upF("serial_number", e.target.value)} />
+                <FInput label="Nº de série" value={form.serial_number} disabled={Boolean(editingOS)} onChange={(e: any) => upF("serial_number", e.target.value)} />
                 <FInput label="Lacre / garantia" value={form.accessories} onChange={(e: any) => upF("accessories", e.target.value)} />
                 <div className="sm:col-span-2"><FTextarea label="Observações do equipamento" value={form.equipment_condition} onChange={(e: any) => upF("equipment_condition", e.target.value)} rows={3} /></div>
+              </div>
+            </Section>
+
+            <Section title="Local do atendimento">
+              <div className="space-y-4">
+                <FSelect label="Tipo da OS" required value={form.order_type} onChange={(e: any) => {
+                  const orderType = e.target.value as OrderType;
+                  upF("order_type", orderType);
+                  setServiceAddressMessage("");
+                  if (orderType === "internal") { setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); clearServiceAddress(); }
+                  else if (selectedServiceAddress) { setServiceUseCustomerAddress(true); setServiceCustomerAddressOverride(true); copyCustomerAddressToForm(selectedServiceAddress); }
+                  else { setServiceUseCustomerAddress(false); setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento."); clearServiceAddress(); }
+                }} options={[{ value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} />
+                {form.order_type === "external" && <>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-[#0d1b2e]">
+                    <input type="checkbox" checked={serviceUseCustomerAddress} onChange={event => {
+                      if (event.target.checked && selectedServiceAddress) { setServiceUseCustomerAddress(true); setServiceCustomerAddressOverride(true); setServiceAddressMessage(""); copyCustomerAddressToForm(selectedServiceAddress); }
+                      else if (event.target.checked) { setServiceUseCustomerAddress(false); setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento."); }
+                      else { setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); clearServiceAddress(); }
+                    }} />
+                    Usar endereço cadastrado do cliente
+                  </label>
+                  {serviceAddressMessage && <p className="text-xs text-[#5a6a82]">{serviceAddressMessage}</p>}
+                  {serviceUseCustomerAddress && serviceAddressPreview ? <div className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 text-xs text-[#5a6a82]">
+                    <p className="mb-1 font-bold text-[#0d1b2e]">Endereço que será usado</p>
+                    <p>{[serviceAddressPreview.zip_code, [serviceAddressPreview.street, serviceAddressPreview.number].filter(Boolean).join(", "), serviceAddressPreview.complement, serviceAddressPreview.neighborhood, [serviceAddressPreview.city, serviceAddressPreview.state].filter(Boolean).join(" - ")].filter(Boolean).join(" · ")}</p>
+                  </div> : <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <FInput label="CEP" required value={form.service_zip_code} onChange={(e: any) => setForm(current => ({ ...current, service_zip_code: formatZipCode(e.target.value) }))} />
+                      {ibgeCitiesLoading && <p className="mt-1 text-[10px] text-[#5a6a82]">Consultando endereço...</p>}
+                      {serviceAddressMessage && <p className="mt-1 text-xs text-red-600">{serviceAddressMessage}</p>}
+                      {!form.service_zip_code.trim() && <p className="mt-1 text-xs text-red-600">Informe o CEP.</p>}
+                    </div>
+                    <div>
+                      <OrderAddressSelect label="Estado" value={form.service_state} disabled={ibgeStatesLoading} onChange={value => { upF("service_state", value); upF("service_city", ""); void loadIbgeCities(value); }} placeholder={ibgeStatesLoading ? "Carregando estados..." : "Selecionar estado..."} options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} />
+                      {!form.service_state.trim() && <p className="mt-1 text-xs text-red-600">Informe o estado.</p>}
+                    </div>
+                    <div>
+                      <OrderAddressSelect label="Cidade" value={form.service_city} disabled={!form.service_state || ibgeCitiesLoading} onChange={value => upF("service_city", value)} placeholder={!form.service_state ? "Selecione o estado primeiro" : ibgeCitiesLoading ? "Carregando cidades..." : "Selecionar cidade..."} options={ibgeCities.map(city => ({ value: city.nome, label: city.nome }))} />
+                      {!form.service_city.trim() && <p className="mt-1 text-xs text-red-600">Informe a cidade.</p>}
+                    </div>
+                    <FInput label="Bairro" value={form.service_neighborhood} onChange={(e: any) => upF("service_neighborhood", e.target.value)} />
+                    <div className="sm:col-span-2 grid sm:grid-cols-[1fr_10rem] gap-4">
+                      <div><FInput label="Rua" required value={form.service_street} onChange={(e: any) => upF("service_street", e.target.value)} />{!form.service_street.trim() && <p className="mt-1 text-xs text-red-600">Informe a rua.</p>}</div>
+                      <div><FInput label="Número" required value={form.service_number} onChange={(e: any) => upF("service_number", e.target.value)} />{!form.service_number.trim() && <p className="mt-1 text-xs text-red-600">Informe o número.</p>}</div>
+                    </div>
+                    <div className="sm:col-span-2"><FInput label="Complemento" value={form.service_complement} onChange={(e: any) => upF("service_complement", e.target.value)} /></div>
+                  </div>}
+                </>}
               </div>
             </Section>
 
@@ -987,7 +1457,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 <FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => upF("service_type_id", e.target.value)} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} />
                 <FSelect label="Serviço" value={form.general_service_id} required onChange={(e: any) => upF("general_service_id", e.target.value)} options={[{ value: "", label: "Selecionar serviço..." }, ...generalServices.map(service => ({ value: service.id, label: service.name }))]} />
                 <FSelect label="Situação" value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...situations.map(s => ({ value: s.id, label: s.name }))]} />
-                {hasPermission("orders.assign") && <><FSelect label="Técnico" value={form.technician_id} onChange={(e: any) => upF("technician_id", e.target.value)} options={[{ value: "", label: "Nenhum técnico selecionado" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} /><FSelect label="Vendedor" value={form.seller_id} onChange={(e: any) => upF("seller_id", e.target.value)} options={[{ value: "", label: "Nenhum vendedor selecionado" }, ...employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} /></>}
+                <EmployeeMultiSelect label="Técnicos" employees={employees} selectedIds={selectedTechnicianIds} onChange={setSelectedTechnicianIds} disabled={!hasPermission("orders.assign")} placeholder="Selecionar técnicos" clearLabel="Limpar Técnicos" />
+                <EmployeeMultiSelect label="Vendedores" employees={employees} selectedIds={selectedSellerIds} onChange={setSelectedSellerIds} disabled={!hasPermission("orders.assign")} placeholder="Selecionar vendedores" clearLabel="Limpar Vendedores" />
                 <FSelect label="Prioridade" value={form.priority} onChange={(e: any) => upF("priority", e.target.value)} options={[{ value: "baixa", label: "Baixa" }, { value: "normal", label: "Normal" }, { value: "alta", label: "Alta" }, { value: "urgente", label: "Urgente" }]} />
                 <div className="sm:col-span-2">
                   <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Necessita agendamento</label>
@@ -1033,13 +1504,18 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
           setCustomerResults([]);
           setCustomerSearch("");
           upF("customer_id", customer.id);
+          if (form.order_type === "external" && serviceUseCustomerAddress) {
+            const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
+            if (address) { setServiceCustomerAddressOverride(true); copyCustomerAddressToForm(address); }
+            else { setServiceUseCustomerAddress(false); setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento."); clearServiceAddress(); }
+          }
         }}
       />}
       {solveOpen && detail && <AdminPage open={true} onClose={() => setSolveOpen(false)} breadcrumb="Ordens de Serviço" title="Resolver OS" subtitle="Diagnóstico, solução e produtos utilizados" maxW="max-w-2xl">
         <div className="p-5 space-y-5">
           <Section title="Informações da OS">
             <div className="grid sm:grid-cols-2 gap-3">
-              <InfoRow label="Nº da OS" value={detail.os_number || `OS #${detail.id.slice(0, 8)}`} />
+              <InfoRow label="Nº da OS" value={detail.os_number} />
               <InfoRow label="Serviço" value={(detail.service as any)?.title || (detail.general_service as any)?.name || "—"} />
               <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || "—"} />
               <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || (detail.brand as any)?.name || "—"} />
@@ -1258,7 +1734,8 @@ function QuickCustomerModal({ onClose, onSaved }: {
             <CustomerTypeToggle value={form.customerType} onChange={customerType => setForm({ ...form, customerType })} />
             {form.customerType === "PF" ? <>
               <FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} />
-              <FInput label="CPF" value={form.document} placeholder="000.000.000-00" onChange={(e: any) => setForm({ ...form, document: formatCpf(e.target.value) })} />
+              <FInput label="CPF" required value={form.document} placeholder="000.000.000-00" onChange={(e: any) => setForm({ ...form, document: formatCpf(e.target.value) })} />
+              <div><FInput label="Data de nascimento" type="date" required value={form.birth_date} max={todayDateOnly()} onChange={(e: any) => setForm({ ...form, birth_date: e.target.value })} />{!form.birth_date && <p className="mt-1 text-xs text-red-600">Informe a data de nascimento.</p>}</div>
             </> : <>
               <FInput label="Nome fantasia" required value={form.trade_name} onChange={(e: any) => setForm({ ...form, trade_name: e.target.value })} />
               <FInput label="CNPJ" required value={form.cnpj} placeholder="00.000.000/0000-00" onBlur={(e: any) => lookupCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = formatCnpj(e.target.value); setCnpjMessage(""); setForm({ ...form, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCnpj(nextCnpj, { ...form, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : cnpjMessage || undefined} />
