@@ -378,6 +378,7 @@ export interface ServiceOrder {
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  solved_at: string | null;
   assigned_to: string | null;
   assigned_profile?: { id: string; full_name: string | null } | null;
   technician_id: string | null;

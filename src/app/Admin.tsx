@@ -2691,7 +2691,7 @@ function TabInventory({ onBack }: { onBack: () => void }) {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [form, setForm] = useState({ id: "", name: "", sku: "", description: "", unit: "un", quantity: "0", min_quantity: "0", is_active: true });
+  const [form, setForm] = useState({ id: "", name: "", sku: "", description: "", unit: "un", quantity: "0", min_quantity: "0", purchase_price: "", sale_price: "", is_active: true });
   const [history, setHistory] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [movementForm, setMovementForm] = useState({ type: "in", quantity: "", reason: "", service_order_id: "" });
@@ -2713,7 +2713,7 @@ function TabInventory({ onBack }: { onBack: () => void }) {
 
   const openNew = () => {
     setSelectedItem(null);
-    setForm({ id: "", name: "", sku: "", description: "", unit: "un", quantity: "0", min_quantity: "0", is_active: true });
+    setForm({ id: "", name: "", sku: "", description: "", unit: "un", quantity: "0", min_quantity: "0", purchase_price: "", sale_price: "", is_active: true });
     setRecordOpen(true);
   };
 
@@ -2727,6 +2727,8 @@ function TabInventory({ onBack }: { onBack: () => void }) {
       unit: item.unit || "un",
       quantity: String(Number(item.quantity ?? 0)),
       min_quantity: String(Number(item.min_quantity ?? 0)),
+      purchase_price: item.purchase_price == null ? "" : String(item.purchase_price),
+      sale_price: item.sale_price == null ? "" : String(item.sale_price),
       is_active: item.is_active !== false,
     });
     setRecordOpen(true);
@@ -2742,6 +2744,12 @@ function TabInventory({ onBack }: { onBack: () => void }) {
       setToast({ msg: "Informe o nome do item do estoque.", type: "error" });
       return;
     }
+    const purchasePrice = form.purchase_price.trim() === "" ? null : Number(form.purchase_price);
+    const salePrice = form.sale_price.trim() === "" ? null : Number(form.sale_price);
+    if ((purchasePrice !== null && (!Number.isFinite(purchasePrice) || purchasePrice < 0)) || (salePrice !== null && (!Number.isFinite(salePrice) || salePrice < 0))) {
+      setToast({ msg: "Informe valores de compra e venda válidos e não negativos.", type: "error" });
+      return;
+    }
     const payload = {
       name: form.name.trim(),
       sku: form.sku.trim() || null,
@@ -2749,6 +2757,8 @@ function TabInventory({ onBack }: { onBack: () => void }) {
       unit: form.unit.trim() || "un",
       quantity: Number(form.quantity || 0),
       min_quantity: Number(form.min_quantity || 0),
+      purchase_price: purchasePrice,
+      sale_price: salePrice,
       is_active: form.is_active,
     };
 
@@ -2764,6 +2774,8 @@ function TabInventory({ onBack }: { onBack: () => void }) {
       setToast({ msg: `Erro ao salvar item: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
     }
   };
+
+  const formatCurrency = (value: number | null | undefined) => value == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
   const toggleActive = async (item: any) => {
     if (!canEditInventory) {
@@ -2900,6 +2912,8 @@ function TabInventory({ onBack }: { onBack: () => void }) {
                   <th className="px-4 py-3 text-left">Unidade</th>
                   <th className="px-4 py-3 text-left">Quantidade</th>
                   <th className="px-4 py-3 text-left">Mínimo</th>
+                  <th className="px-4 py-3 text-left">Compra</th>
+                  <th className="px-4 py-3 text-left">Venda</th>
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-right">Ações</th>
                 </tr>
@@ -2924,6 +2938,8 @@ function TabInventory({ onBack }: { onBack: () => void }) {
                         {!isEmpty && lowStock && <span className="ml-2 text-[10px] uppercase font-bold text-amber-700">Baixo</span>}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{minQuantity}</td>
+                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{formatCurrency(item.purchase_price)}</td>
+                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{formatCurrency(item.sale_price)}</td>
                       <td className="px-4 py-3.5"><span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", item.is_active !== false ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active !== false ? "Ativo" : "Inativo"}</span></td>
                       <td className="px-4 py-3.5">
                         <div className="flex justify-end gap-2">
@@ -2951,6 +2967,10 @@ function TabInventory({ onBack }: { onBack: () => void }) {
             <FInput label="Unidade" value={form.unit} onChange={(e: any) => setForm({ ...form, unit: e.target.value })} />
             <FInput label="Quantidade" type="number" min="0" value={form.quantity} onChange={(e: any) => setForm({ ...form, quantity: e.target.value })} />
             <FInput label="Quantidade mínima" type="number" min="0" value={form.min_quantity} onChange={(e: any) => setForm({ ...form, min_quantity: e.target.value })} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FInput label="Valor de compra" type="number" min="0" step="0.01" value={form.purchase_price} onChange={(e: any) => setForm({ ...form, purchase_price: e.target.value })} />
+              <FInput label="Valor de venda" type="number" min="0" step="0.01" value={form.sale_price} onChange={(e: any) => setForm({ ...form, sale_price: e.target.value })} />
+            </div>
             <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} />
             <FToggle label="Item ativo" checked={form.is_active} onChange={(value) => setForm({ ...form, is_active: value })} />
           </div>
