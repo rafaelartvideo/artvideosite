@@ -10,12 +10,12 @@ import {
   Users, Settings, Phone, LogOut, Search, Plus, Edit2, Trash2, CheckCircle,
   AlertCircle, Clock, RefreshCw, X, ArrowLeft, Menu, Upload, AlertTriangle,
   Star, Filter, DollarSign, List, HelpCircle, ChevronDown, MessageCircle,
-  Mail, MapPin, Instagram, Globe, Hash, Activity, Shield, CalendarDays,
+  Mail, MapPin, Instagram, Globe, Hash, Activity, Shield, CalendarDays, Eye, EyeOff,
   ChevronLeft, ChevronRight, ListFilter, CalendarPlus, Check, UserPlus, Eraser,
 } from "lucide-react";
 import {
   type AdminTab, type AdminPageState, AdminPageContext, AdminBackContext,
-  cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone, formatCpf, formatCnpj,
+  cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone, formatCpf, formatCnpj, isValidCpf,
   type CustomerType, type CustomerForm, emptyCustomerForm, customerFormFromCustomer, customerPayload, customerUpdatePayload, validateCustomerForm,
   formatFoundationDate, foundationDateToIso, foundationDateFromCustomer, formatDateOnly, todayDateOnly,
   INPUT, FInput, FTextarea, FSelect, FToggle, CustomerTypeToggle,
@@ -26,10 +26,27 @@ import {
 } from "./admin/shared";
 import { TabOrders, OSSituationsView } from "./admin/TabOrders";
 import type { Appointment, AppointmentPeriod, AppointmentSituation } from "@/lib/database.types";
+import logoSolo from "@/imports/LogoSoloSemFundo.png";
+
+function PasswordField({ label, value, onChange, required = false, placeholder, resetKey }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; placeholder?: string; resetKey?: string | number }) {
+  const [showPassword, setShowPassword] = useState(false);
+  useEffect(() => { setShowPassword(false); }, [resetKey]);
+  const visibilityLabel = showPassword ? "Ocultar senha" : "Mostrar senha";
+  return <div>
+    <label className="flex items-baseline gap-1 text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}{required && <span className="text-red-400">*</span>}</label>
+    <div className="relative">
+      <input type={showPassword ? "text" : "password"} value={value} onChange={event => onChange(event.target.value)} required={required} placeholder={placeholder} className={cn(INPUT, "pr-11")} />
+      <button type="button" onClick={() => setShowPassword(current => !current)} aria-label={visibilityLabel} title={visibilityLabel} className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#5a6a82] hover:text-[#0057e7] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40 rounded" tabIndex={0}>
+        {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+      </button>
+    </div>
+  </div>;
+}
 
 export function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -83,11 +100,9 @@ export function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 bg-[#0057e7] rounded-xl flex items-center justify-center">
-              <Settings size={20} className="text-white" />
-            </div>
+            <img src={logoSolo} alt="" aria-hidden="true" className="h-10 w-10 shrink-0 object-contain" />
             <div className="text-left">
-              <span className="text-[9px] font-bold tracking-[0.3em] uppercase text-[#00b4ff] block">Painel Admin</span>
+              <span className="text-[9px] font-bold tracking-[0.3em] uppercase text-[#00b4ff] block">Eletrônica</span>
               <span className="text-xl font-black text-white block" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>ARTVIDEO</span>
             </div>
           </div>
@@ -102,7 +117,15 @@ export function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
           )}
           <form onSubmit={handleLogin} className="space-y-4">
             <FInput label="E-mail" type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} required placeholder="seu@email.com" />
-            <FInput label="Senha" type="password" value={password} onChange={(e: any) => setPassword(e.target.value)} required placeholder="••••••••" />
+            <div>
+              <label className="flex items-baseline gap-1 text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Senha<span className="text-red-400">*</span></label>
+              <div className="relative">
+                <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" className={cn(INPUT, "pr-11")} />
+                <button type="button" onClick={() => setShowPassword(current => !current)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#5a6a82] hover:text-[#0057e7] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40 rounded" tabIndex={0}>
+                  {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                </button>
+              </div>
+            </div>
             <button type="submit" disabled={loading}
               className="w-full bg-[#0057e7] text-white font-bold py-3 px-6 rounded-xl text-sm hover:bg-[#0046c0] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2">
               {loading ? <Clock size={18} className="animate-spin" /> : null}
@@ -173,16 +196,29 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     <>
       <div className="flex-1 overflow-y-auto">
         {/* Logo */}
-        <div className="px-4 pt-5 pb-4 border-b border-white/8">
+        <div className="flex h-20 items-center justify-center border-b border-white/8 px-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-[#0057e7] rounded-lg flex items-center justify-center flex-shrink-0">
-              <Settings size={16} className="text-white" />
-            </div>
+            <img src={logoSolo} alt="" aria-hidden="true" className="h-8 w-8 shrink-0 object-contain" />
             <div>
               <span className="text-[8px] font-bold tracking-[0.3em] uppercase text-[#00b4ff] block">Eletrônica</span>
               <span className="text-base font-black text-white block leading-none" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>ARTVIDEO</span>
             </div>
           </div>
+        </div>
+        {/* User footer */}
+        <div className="px-4 py-4 border-b border-white/8 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 bg-[#0057e7]/30 rounded-full flex items-center justify-center flex-shrink-0">
+              <Users size={14} className="text-[#00b4ff]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white truncate">{profile?.full_name || user?.email?.split("@")[0] || "Admin"}</p>
+              <span className="text-[9px] font-bold text-[#00b4ff] bg-[#00b4ff]/10 px-1.5 py-0.5 rounded uppercase tracking-wide">{roleName}</span>
+            </div>
+          </div>
+          <button onClick={() => signOut()} title="Sair" className="p-1.5 text-white/40 hover:text-red-400 hover:bg-white/8 rounded-lg transition-colors flex-shrink-0">
+            <LogOut size={16} />
+          </button>
         </div>
         {/* Nav */}
         <div className="px-3 py-4 space-y-0.5">
@@ -208,21 +244,6 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
             <ArrowLeft size={16} /> <span>Ver site público</span>
           </button>
         </div>
-      </div>
-      {/* User footer */}
-      <div className="px-4 py-4 border-t border-white/8 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 bg-[#0057e7]/30 rounded-full flex items-center justify-center flex-shrink-0">
-            <Users size={14} className="text-[#00b4ff]" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-white truncate">{profile?.full_name || user?.email?.split("@")[0] || "Admin"}</p>
-            <span className="text-[9px] font-bold text-[#00b4ff] bg-[#00b4ff]/10 px-1.5 py-0.5 rounded uppercase tracking-wide">{roleName}</span>
-          </div>
-        </div>
-        <button onClick={() => signOut()} title="Sair" className="p-1.5 text-white/40 hover:text-red-400 hover:bg-white/8 rounded-lg transition-colors flex-shrink-0">
-          <LogOut size={16} />
-        </button>
       </div>
     </>
   );
@@ -3030,6 +3051,8 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMessage, setCnpjMessage] = useState("");
+  const [cpfError, setCpfError] = useState("");
+  const cpfInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoading(true);
@@ -3099,6 +3122,11 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
 
   const handleCreate = async () => {
     if (!hasPermission("customers.create")) { setToast({ msg: "Você não possui permissão para cadastrar clientes.", type: "error" }); return; }
+    if (createForm.customerType === "PF" && !isValidCpf(createForm.document)) {
+      setCpfError("CPF inválido. Verifique os números informados.");
+      cpfInputRef.current?.focus();
+      return;
+    }
     const validationError = validateCustomerForm(createForm);
     if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSaving(true);
@@ -3113,6 +3141,7 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
     setCreateOpen(false);
     setCreateForm({ ...emptyCustomerForm });
     setCreateAddress({ ...emptyAddress });
+    setCpfError("");
     setSaving(false);
     await load();
   };
@@ -3169,7 +3198,7 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
 
       <PageHeader title="Clientes" subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2">
-          {hasPermission("customers.create") && <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Cadastrar Cliente</button>}
+          {hasPermission("customers.create") && <button onClick={() => { setCpfError(""); setCreateOpen(true); }} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Cadastrar Cliente</button>}
           <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
             <RefreshCw size={13} /> Atualizar
           </button>
@@ -3183,7 +3212,7 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
           </div>
         </div>
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." onAdd={hasPermission("customers.create") ? () => setCreateOpen(true) : undefined} addLabel="Cadastrar Cliente" />
+          <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." onAdd={hasPermission("customers.create") ? () => { setCpfError(""); setCreateOpen(true); } : undefined} addLabel="Cadastrar Cliente" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
@@ -3372,14 +3401,18 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
       )}
 
       {createOpen && (
-        <AdminPage open={true} onClose={() => setCreateOpen(false)} breadcrumb="Clientes" title="Novo cliente" subtitle="Preencha os dados do cliente" maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => { setCpfError(""); setCreateOpen(false); }} breadcrumb="Clientes" title="Novo cliente" subtitle="Preencha os dados do cliente" maxW="max-w-2xl">
           <div className="p-5 space-y-5">
             <Section title="Dados do cliente">
               <div className="grid sm:grid-cols-2 gap-4">
-                <CustomerTypeToggle value={createForm.customerType} onChange={customerType => setCreateForm({ ...createForm, customerType })} />
+                <CustomerTypeToggle value={createForm.customerType} onChange={customerType => { setCpfError(""); setCreateForm({ ...createForm, customerType }); }} />
                 {createForm.customerType === "PF" ? <>
                   <FInput label="Nome completo" required value={createForm.full_name} onChange={(e: any) => setCreateForm({ ...createForm, full_name: e.target.value })} />
-                  <FInput label="CPF" required value={createForm.document} placeholder="000.000.000-00" onChange={(e: any) => setCreateForm({ ...createForm, document: formatCpf(e.target.value) })} />
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">CPF<span className="text-red-400">*</span></label>
+                    <input ref={cpfInputRef} aria-invalid={Boolean(cpfError)} aria-describedby={cpfError ? "create-cpf-error" : undefined} required value={formatCpf(createForm.document)} placeholder="000.000.000-00" onBlur={() => { if (createForm.document.trim() && !isValidCpf(createForm.document)) setCpfError("CPF inválido. Verifique os números informados."); }} onChange={e => { const nextValue = formatCpf(e.target.value); setCreateForm({ ...createForm, document: nextValue }); if (!nextValue || isValidCpf(nextValue)) setCpfError(""); }} className={cn(INPUT, cpfError && "border-red-500 focus:border-red-500 focus:ring-red-500/50")} />
+                    {cpfError && <p id="create-cpf-error" className="mt-1 text-xs text-red-600">{cpfError}</p>}
+                  </div>
                   <div><FInput label="Data de nascimento" type="date" required value={createForm.birth_date} max={todayDateOnly()} onChange={(e: any) => setCreateForm({ ...createForm, birth_date: e.target.value })} />{!createForm.birth_date && <p className="mt-1 text-xs text-red-600">Informe a data de nascimento.</p>}{createForm.birth_date > todayDateOnly() && <p className="mt-1 text-xs text-red-600">A data não pode ser futura.</p>}</div>
                 </> : <>
                   <FInput label="Nome fantasia" required value={createForm.trade_name} onChange={(e: any) => setCreateForm({ ...createForm, trade_name: e.target.value })} />
@@ -3398,7 +3431,7 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
             </Section>
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
-            <BtnSecondary onClick={() => setCreateOpen(false)}>Cancelar</BtnSecondary>
+            <BtnSecondary onClick={() => { setCpfError(""); setCreateOpen(false); }}>Cancelar</BtnSecondary>
             {hasPermission("customers.create") && <BtnPrimary onClick={handleCreate} disabled={saving}>{saving ? "Salvando..." : "Cadastrar Cliente"}</BtnPrimary>}
           </div>
         </AdminPage>
@@ -3536,6 +3569,11 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({ full_name: "", cpf: "", phone: "", email: "", password: "", function_name: "Funcionário", role_id: "", is_active: true });
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const getEmployeeErrorMessage = (error: unknown) => {
+    if (error instanceof Error) return error.message;
+    if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+    return "Não foi possível atualizar o funcionário.";
+  };
 
   const load = async () => {
     setLoading(true);
@@ -3568,14 +3606,33 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
     setSaving(true);
     try {
       if (editItem) {
-        const { error: empErr } = await supabase.from("employees").update({
-          full_name: form.full_name.trim(), cpf, phone: form.phone.replace(/\D/g, "") || null,
-          function_name: form.function_name.trim() || "Funcionário", role_id: form.role_id || null, is_active: form.is_active,
-        }).eq("id", editItem.id);
-        if (empErr) throw new Error(`Erro ao atualizar funcionário: ${empErr.message}`);
-        if (editItem.profile_id) {
-          await supabase.from("profiles").update({ full_name: form.full_name.trim(), role_id: form.role_id || null, is_active: form.is_active }).eq("id", editItem.profile_id);
+        const updatePayload: Record<string, unknown> = {
+          action: "update_employee_user",
+          employee_id: editItem.id,
+          full_name: form.full_name.trim(),
+          cpf,
+          phone: form.phone.replace(/\D/g, "") || null,
+          function_name: form.function_name.trim() || null,
+          role_id: form.role_id,
+          is_active: form.is_active,
+          password: form.password || undefined,
+        };
+        if (normalizedEmail) updatePayload.email = normalizedEmail;
+        const { data, error: invokeError } = await supabase.functions.invoke("server", { body: updatePayload });
+        if (invokeError) {
+          const context = (invokeError as { context?: unknown }).context;
+          if (context instanceof Response) {
+            try {
+              const responseBody = await context.clone().json() as { error?: unknown };
+              if (responseBody.error) throw new Error(typeof responseBody.error === "string" ? responseBody.error : getEmployeeErrorMessage(responseBody.error));
+            } catch (error) {
+              if (error instanceof Error && error.message !== "Unexpected end of JSON input") throw error;
+            }
+          }
+          throw invokeError;
         }
+        if (data?.error) throw new Error(typeof data.error === "string" ? data.error : getEmployeeErrorMessage(data.error));
+        if (data?.success !== true) throw new Error("Não foi possível atualizar o funcionário.");
       } else {
         const { data, error: invokeError } = await supabase.functions.invoke("server", {
           body: {
@@ -3606,9 +3663,9 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
         if (data?.success !== true) throw new Error("Não foi possível cadastrar o funcionário.");
       }
       setFormOpen(false); setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); load();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[ADMIN] employee save error:", e);
-      setToast({ msg: e.message || "Erro ao salvar funcionário.", type: "error" });
+      setToast({ msg: getEmployeeErrorMessage(e), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -3664,12 +3721,13 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
               <tbody className="divide-y divide-[#0d1b2e]/5">
                 {employees.map(emp => {
                   const active = emp.is_active !== false;
+                  const role = Array.isArray(emp.role) ? emp.role[0] : emp.role;
                   return (
                     <tr key={emp.id} onClick={() => openEdit(emp)} className="hover:bg-[#f8fafc]/80 cursor-pointer">
                       <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{emp.full_name}</td>
                       <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]">{formatCpf(emp.cpf)}</td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{formatPhone(emp.phone) || "—"}</td>
-                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{emp.function_name || "—"}</td>
+                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{role?.name?.trim() || "Função não informada"}</td>
                       <td className="px-4 py-3.5"><StatusBadge status={active ? "Ativo" : "Inativo"} /></td>
                       <td className="px-4 py-3.5"><div className="flex justify-end gap-1">{hasPermission("employees.edit") && <button onClick={(event) => { event.stopPropagation(); openEdit(emp); }} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button>}{hasPermission("employees.edit") && <button onClick={(event) => { event.stopPropagation(); toggleActive(emp); }} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={active ? "Desativar" : "Ativar"}>{active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button>}{hasPermission("employees.delete") && <button onClick={(event) => { event.stopPropagation(); setDeleteId(emp.id); }} className="p-1.5 text-[#5a6a82] hover:text-red-600 rounded-lg" title="Excluir funcionário"><Trash2 size={15} /></button>}</div></td>
                     </tr>
@@ -3681,7 +3739,7 @@ function TabEmployees({ onBack }: { onBack: () => void }) {
         )}
       </div>
       <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Equipes" title={editItem ? editItem.full_name : "Novo funcionário"} subtitle={editItem ? "Atualize os dados do funcionário" : "Cadastre um funcionário da empresa"}>
-        <div className="p-5 space-y-5"><Section title="Dados do funcionário"><div className="grid sm:grid-cols-2 gap-4"><FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} /><FInput label="CPF" required value={formatCpf(form.cpf)} onChange={(e: any) => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" /><FInput label="Número / telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />{editItem ? <FInput label="Gmail" type="email" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} placeholder="usuario@gmail.com" /> : <FInput label="E-mail" type="email" required value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} />} {editItem && <FInput label="Nova senha" type="password" value={form.password} onChange={(e: any) => setForm({ ...form, password: e.target.value })} placeholder="Deixe em branco para manter" />}{!editItem && <FInput label="Senha" type="password" required value={form.password} onChange={(e: any) => setForm({ ...form, password: e.target.value })} />}<FSelect label="Função / Perfil" required value={form.role_id} onChange={(e: any) => setForm({ ...form, role_id: e.target.value })} options={[{ value: "", label: "Selecionar função..." }, ...roles.map(role => ({ value: role.id, label: role.name }))]} /><div className="sm:col-span-2"><FToggle label="Funcionário ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? hasPermission("employees.edit") : hasPermission("employees.create")) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : editItem ? "Salvar alterações" : "Salvar funcionário"}</BtnPrimary>}</div>
+        <div className="p-5 space-y-5"><Section title="Dados do funcionário"><div className="grid sm:grid-cols-2 gap-4"><FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} /><FInput label="CPF" required value={formatCpf(form.cpf)} onChange={(e: any) => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" /><FInput label="Número / telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />{editItem ? <FInput label="Gmail" type="email" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} placeholder="usuario@gmail.com" /> : <FInput label="E-mail" type="email" required value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} />} {editItem && <PasswordField key={`edit-${editItem.id}-${formOpen}`} label="Nova senha" value={form.password} onChange={value => setForm({ ...form, password: value })} placeholder="Deixe em branco para manter" resetKey={String(formOpen)} />}{!editItem && <PasswordField key={`create-${formOpen}`} label="Senha" required value={form.password} onChange={value => setForm({ ...form, password: value })} resetKey={String(formOpen)} />}<FSelect label="Função" required value={form.role_id} onChange={(e: any) => setForm({ ...form, role_id: e.target.value })} options={[{ value: "", label: "Selecionar função..." }, ...roles.map(role => ({ value: role.id, label: role.name }))]} /><div className="sm:col-span-2"><FToggle label="Funcionário ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? hasPermission("employees.edit") : hasPermission("employees.create")) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : editItem ? "Salvar alterações" : "Salvar funcionário"}</BtnPrimary>}</div>
       </AdminPage>
     </div>
   );

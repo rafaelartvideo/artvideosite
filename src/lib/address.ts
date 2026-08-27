@@ -44,29 +44,3 @@ export async function fetchAddressByZipCode(value: string): Promise<Partial<Addr
     state: data.uf || "",
   };
 }
-
-export type AddressSuggestion = Partial<Address> & { label: string };
-
-export async function searchAddressSuggestions(query: string): Promise<AddressSuggestion[]> {
-  if (query.trim().length < 3) return [];
-
-  const params = new URLSearchParams({
-    q: query,
-    format: "json",
-    addressdetails: "1",
-    countrycodes: "br",
-    limit: "5",
-  });
-  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`);
-  if (!response.ok) return [];
-  const results = await response.json();
-
-  return results.map((result: any) => ({
-    label: result.display_name,
-    street: result.address?.road || result.address?.pedestrian || "",
-    neighborhood: result.address?.suburb || result.address?.neighbourhood || "",
-    city: result.address?.city || result.address?.town || result.address?.municipality || "",
-    state: result.address?.state_code?.replace(/^BR-/, "") || "",
-    zip_code: formatZipCode(result.address?.postcode || ""),
-  }));
-}

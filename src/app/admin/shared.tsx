@@ -84,6 +84,19 @@ export function formatCpf(value: string) {
   return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
 }
 
+export function isValidCpf(value: string): boolean {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.length !== 11 || /^([0-9])\1{10}$/.test(digits)) return false;
+  const firstCheckDigit = digits.slice(0, 9).split("").reduce((sum, digit, index) => sum + Number(digit) * (10 - index), 0);
+  const firstRemainder = (firstCheckDigit * 10) % 11;
+  const firstExpected = firstRemainder === 10 ? 0 : firstRemainder;
+  if (firstExpected !== Number(digits[9])) return false;
+  const secondCheckDigit = digits.slice(0, 10).split("").reduce((sum, digit, index) => sum + Number(digit) * (11 - index), 0);
+  const secondRemainder = (secondCheckDigit * 10) % 11;
+  const secondExpected = secondRemainder === 10 ? 0 : secondRemainder;
+  return secondExpected === Number(digits[10]);
+}
+
 export function formatCnpj(value: string) {
   const digits = String(value ?? "").replace(/\D/g, "").slice(0, 14);
   return digits.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4").replace(/(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");

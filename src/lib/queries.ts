@@ -7,7 +7,7 @@ import type { GeneralService } from "./database.types";
 
 // ── Employees ────────────────────────────────────────────────
 export const getEmployees = () =>
-  supabase.from("employees").select("id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").order("full_name", { ascending: true });
+  supabase.from("employees").select("id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at,role:roles(id,name)").order("full_name", { ascending: true });
 
 export const getEmployeeById = (id: string) =>
   supabase.from("employees").select("id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").eq("id", id).maybeSingle();

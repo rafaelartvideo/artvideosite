@@ -357,6 +357,7 @@ export interface ServiceType {
 export interface ServiceOrder {
   id: string;
   os_number: string | null;
+  external_os_number: string | null;
   order_type: "internal" | "external";
   service_state: string | null;
   service_city: string | null;
