@@ -1418,6 +1418,18 @@ function foundationDateToIso(v: string) {
   const match = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
 }
+function birthDateToIso(v: string) { return foundationDateToIso(v); }
+function isValidBirthDate(v: string) {
+  const match = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return false;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day && date <= today;
+}
 function validateCpf(cpf: string) {
   const d = normalizeCpf(cpf);
   if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
@@ -1446,7 +1458,7 @@ function OrcamentoPage() {
   const { services, loading: servicesLoading } = useServices();
   const { categories } = useServiceCategories();
   const { brands, loading: brandsLoading } = useBrands();
-  const [f, setF] = useState({ customerType: "PF" as "PF" | "PJ", servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", tradeName: "", legalName: "", cnpj: "", stateRegistration: "", foundationDate: "", whatsapp: "", email: "" });
+  const [f, setF] = useState({ customerType: "PF" as "PF" | "PJ", servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", tradeName: "", legalName: "", cnpj: "", stateRegistration: "", foundationDate: "", whatsapp: "", phone: "", birthDate: "", email: "" });
   const [address, setAddress] = useState({ ...emptyAddress });
   const [sent, setSent] = useState(false);
   const [protocol, setProtocol] = useState<string | null>(null);
@@ -1464,13 +1476,18 @@ function OrcamentoPage() {
     setSubmitError(null);
     const cpfRaw = normalizeCpf(f.cpf);
     const cnpjRaw = normalizeCnpj(f.cnpj);
-    if (f.customerType === "PF" && cpfRaw.length > 0 && !validateCpf(cpfRaw)) {
+    if (f.customerType === "PF" && cpfRaw.length === 0) {
+      setSubmitError("Informe o CPF.");
+      return;
+    }
+    if (f.customerType === "PF" && !validateCpf(cpfRaw)) {
       setSubmitError("CPF inválido. Verifique o número informado.");
       return;
     }
     if (f.customerType === "PJ" && !f.tradeName.trim()) { setSubmitError("Informe o nome fantasia."); return; }
     if (f.customerType === "PJ" && cnpjRaw.length !== 14) { setSubmitError("Informe um CNPJ válido."); return; }
     if (!f.whatsapp.trim()) { setSubmitError("Informe o telefone ou WhatsApp principal."); return; }
+    if (f.customerType === "PF" && !isValidBirthDate(f.birthDate)) { setSubmitError("Informe uma data de nascimento válida e que não seja futura."); return; }
 
     setSubmitting(true);
     try {
@@ -1484,7 +1501,8 @@ function OrcamentoPage() {
         p_customer_type:   f.customerType,
         p_full_name:        (f.customerType === "PJ" ? f.tradeName : f.nome).trim(),
         p_whatsapp:         f.whatsapp.replace(/\D/g, "") || null,
-        p_phone:            f.whatsapp.replace(/\D/g, "") || null,
+        p_phone:            f.phone.replace(/\D/g, "") || null,
+        p_birth_date:       f.customerType === "PF" ? birthDateToIso(f.birthDate) : null,
         p_email:            f.email || null,
         p_document:         f.customerType === "PF" && cpfRaw.length === 11 ? cpfRaw : null,
         p_trade_name:       f.customerType === "PJ" ? f.tradeName.trim() : null,
@@ -1533,7 +1551,7 @@ function OrcamentoPage() {
             </div>
           )}
           <p className="text-white/70 text-base mb-8">Nossa equipe entrará em contato para avaliar sua solicitação.</p>
-          <Btn variant="primary" className="px-7 py-3 text-base" onClick={() => { setSent(false); setProtocol(null); setF({ customerType: "PF", servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", tradeName: "", legalName: "", cnpj: "", stateRegistration: "", foundationDate: "", whatsapp: "", email: "" }); setAddress({ ...emptyAddress }); }}>Nova solicitação</Btn>
+          <Btn variant="primary" className="px-7 py-3 text-base" onClick={() => { setSent(false); setProtocol(null); setF({ customerType: "PF", servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", tradeName: "", legalName: "", cnpj: "", stateRegistration: "", foundationDate: "", whatsapp: "", phone: "", birthDate: "", email: "" }); setAddress({ ...emptyAddress }); }}>Nova solicitação</Btn>
         </div>
       </section>
     </>
@@ -1624,7 +1642,9 @@ function OrcamentoPage() {
               </div>
               {f.customerType === "PF" ? <div className="grid sm:grid-cols-2 gap-4">
                 <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome completo *</label><input className={inputCls} placeholder="Seu nome" value={f.nome} onChange={e => up("nome", e.target.value)} required /></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CPF</label><input className={inputCls} placeholder="000.000.000-00" value={f.cpf} maxLength={14} onChange={e => up("cpf", formatCpf(e.target.value))} /><p className="text-xs text-[#5a6a82] mt-1">Usado para identificar seu cadastro.</p></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CPF *</label><input className={inputCls} placeholder="000.000.000-00" value={f.cpf} maxLength={14} onChange={e => up("cpf", formatCpf(e.target.value))} required /><p className="text-xs text-[#5a6a82] mt-1">Usado para identificar seu cadastro.</p></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Telefone</label><input className={inputCls} placeholder="(79) 3333-3333" value={f.phone} onChange={e => up("phone", formatPhone(e.target.value))} /></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Data de nascimento *</label><input className={inputCls} placeholder="dd/mm/aaaa" inputMode="numeric" maxLength={10} value={f.birthDate} onChange={e => up("birthDate", formatFoundationDate(e.target.value))} required /></div>
               </div> : <div className="grid sm:grid-cols-2 gap-4">
                 <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome fantasia *</label><input className={inputCls} placeholder="Nome comercial da empresa" value={f.tradeName} onChange={e => up("tradeName", e.target.value)} required /></div>
                 <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Tipo *</label><input className={inputCls} value="Pessoa Jurídica" readOnly /></div>
@@ -1659,6 +1679,8 @@ function OrcamentoPage() {
                   { label: "Descrição", val: f.descricao ? f.descricao.slice(0, 80) + (f.descricao.length > 80 ? "…" : "") : "—" },
                   { label: f.customerType === "PJ" ? "Nome fantasia" : "Nome", val: f.customerType === "PJ" ? f.tradeName || "—" : f.nome || "—" },
                   { label: "WhatsApp", val: f.whatsapp || "—" },
+                  { label: "Telefone", val: f.phone || "—" },
+                  ...(f.customerType === "PF" ? [{ label: "Nascimento", val: f.birthDate || "—" }] : []),
                 ].map(({ label, val }) => (
                   <div key={label} className="flex items-start gap-3 text-sm">
                     <span className="text-white/40 w-20 flex-shrink-0 font-semibold">{label}:</span>

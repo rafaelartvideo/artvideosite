@@ -8,7 +8,7 @@ import {
   LayoutDashboard, ClipboardList, Edit2, Trash2, RefreshCw, Search, MessageCircle,
   Users, List, X, Plus, Clock, CheckCircle, Upload, AlertTriangle, ArrowLeft,
   ChevronLeft, ChevronRight, Phone, Star, DollarSign, HelpCircle, ChevronDown,
-  AlertCircle, FileText, Camera, Eraser, ArrowUpDown, ArrowUpNarrowWide, ArrowDownWideNarrow, Check,
+  AlertCircle, FileText, Camera, Eraser, ArrowUpDown, ArrowUpNarrowWide, ArrowDownWideNarrow, Check, PackagePlus,
 } from "lucide-react";
 import {
   cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone,
@@ -34,10 +34,38 @@ type MultiSelectOption = { value: string; label: string };
 
 type ServiceOrderProfile = { id: string; full_name: string | null };
 type ServiceOrderWithRelations = { assigned_profile?: ServiceOrderProfile | ServiceOrderProfile[] | null };
+type PartRequestInventoryItem = { id: string; name: string; sku: string | null; unit: string | null; quantity: number; is_active: boolean };
+type SelectedPartRequestItem = { inventory_item_id: string; name: string; sku: string | null; unit: string; available_quantity: number; quantity: string };
+type ReviewPartRequestItem = { id: string; inventory_item_id: string; quantity: number; approved_quantity: number | null; source_test_item_id?: string | null; delivered_quantity?: number; delivered_at?: string | null; delivered_by?: string | null; returned_quantity?: number; damaged_quantity?: number; inventory_item?: { id: string; name: string; sku: string | null; unit: string | null; quantity: number } | null };
+type PartRequestItemForReview = ReviewPartRequestItem;
+type PartRequestForReview = { id: string; service_order_id: string; purpose?: "TEST" | "RESOLUTION" | null; status: string; notes: string | null; reviewed_by?: string | null; reviewed_at?: string | null; review_notes?: string | null; created_at: string; requester?: { full_name: string | null } | null; requested_by_profile?: { full_name: string | null } | null; items: PartRequestItemForReview[] };
+type TestResultRow = { requestItemId: string; action: "RETURN" | "USE_IN_RESOLUTION" | "DAMAGED"; quantity: string; notes: string };
 
 function getResponsibleName(order: ServiceOrderWithRelations) {
   const profile = Array.isArray(order.assigned_profile) ? order.assigned_profile[0] : order.assigned_profile;
   return profile?.full_name?.trim() || "Responsável não informado";
+}
+
+function CenteredModal({ children, onClose, className: _className }: { children: React.ReactNode; onClose: () => void; className?: string }) {
+  return <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/55 p-4" onClick={onClose}><div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl" onClick={event => event.stopPropagation()}>{children}</div></div>;
+}
+
+function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading, inventoryError, selectedItems, search, notes, purpose, submitting, onPurposeChange, onSearchChange, onNotesChange, onSelect, onQuantityChange, onRemove, onClose, onSubmit }: {
+  orderNumber?: string | null; inventoryItems: PartRequestInventoryItem[]; inventoryLoading: boolean; inventoryError: string; selectedItems: SelectedPartRequestItem[]; search: string; notes: string; purpose: "RESOLUTION" | "TEST"; submitting: boolean;
+  onPurposeChange: (purpose: "RESOLUTION" | "TEST") => void; onSearchChange: (value: string) => void; onNotesChange: (value: string) => void; onSelect: (item: PartRequestInventoryItem) => void; onQuantityChange: (id: string, value: string) => void; onRemove: (id: string) => void; onClose: () => void; onSubmit: () => void;
+}) {
+  const visibleItems = inventoryItems.filter(item => { const query = normalizeSearchText(search); return !query || normalizeSearchText(item.name).includes(query) || normalizeSearchText(item.sku).includes(query); });
+  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Pedir peças</h3><p className="mt-0.5 text-xs text-[#5a6a82]">OS {orderNumber || "—"}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-5 overflow-y-auto p-5"><div><label className="mb-1.5 block text-[11px] font-bold text-[#5a6a82]">Pesquisar peça</label><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input autoFocus value={search} onChange={event => onSearchChange(event.target.value)} placeholder="Pesquise por nome ou SKU" className={cn(INPUT, "h-[42px] pl-9 text-xs")} /></div></div><div className="space-y-2"><p className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Resultados</p>{inventoryLoading ? <p className="text-xs text-[#5a6a82]">Carregando peças do estoque...</p> : inventoryError ? <p className="text-xs text-red-600">{inventoryError}</p> : visibleItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum item encontrado.</p> : <div className="max-h-56 space-y-1 overflow-y-auto">{visibleItems.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#0d1b2e]/10 px-3 py-2 text-xs"><span className="min-w-0"><span className="block truncate font-semibold text-[#0d1b2e]">{item.name}</span><span className="text-[11px] text-[#5a6a82]">{item.sku ? `SKU: ${item.sku} · ` : ""}{Number(item.quantity)} {item.unit || "un"}</span></span><button type="button" onClick={() => onSelect(item)} className="shrink-0 rounded-lg border border-[#0057e7]/30 px-2.5 py-1.5 text-xs font-bold text-[#0057e7]">Adicionar</button></div>)}</div>}</div><div className="space-y-2"><p className="text-sm font-bold text-[#0d1b2e]">Peças selecionadas</p>{selectedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça selecionada.</p> : selectedItems.map(item => <div key={item.inventory_item_id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center gap-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.name}</p><p className="text-[11px] text-[#5a6a82]">Disponível: {item.available_quantity} {item.unit}</p></div><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={event => onQuantityChange(item.inventory_item_id, event.target.value)} className={cn(INPUT, "w-24 text-center text-sm")} /><button type="button" onClick={() => onRemove(item.inventory_item_id)} aria-label={`Remover ${item.name}`} className="p-2 text-red-600"><X size={14} /></button></div></div>)}</div><FTextarea label="Observações" value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder="Informe detalhes importantes sobre as peças solicitadas." /></div><div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Enviando..." : "Enviar solicitação"}</BtnPrimary></div></CenteredModal>;
+}
+
+function TestDeliveryModal({ request, orderNumber, submitting, onClose, onSubmit }: { request: PartRequestForReview; orderNumber?: string | null; submitting: boolean; onClose: () => void; onSubmit: () => void }) {
+  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Confirmar entrega</h3><p className="mt-0.5 text-xs text-[#5a6a82]">OS {orderNumber || "—"} · {request.requester?.full_name || "Solicitante não informado"}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5"><div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Ao confirmar, as quantidades aprovadas serão retiradas do estoque e ficarão sob responsabilidade do técnico da OS.</div><div className="space-y-2">{request.items.map(item => <div key={item.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 text-xs"><p className="font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-[#5a6a82]">Solicitado: {Number(item.quantity)} {item.inventory_item?.unit || "un"} · Aprovado: {Number(item.approved_quantity ?? 0)} {item.inventory_item?.unit || "un"} · Disponível: {Number(item.inventory_item?.quantity ?? 0)} {item.inventory_item?.unit || "un"}</p></div>)}</div></div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Entregando..." : "Confirmar entrega"}</BtnPrimary></div></CenteredModal>;
+}
+
+function TestResultModal({ request, rows, submitting, onRowsChange, onClose, onSubmit }: { request: PartRequestForReview; rows: TestResultRow[]; submitting: boolean; onRowsChange: (rows: TestResultRow[]) => void; onClose: () => void; onSubmit: () => void }) {
+  const getPendingQuantity = (item: PartRequestItemForReview) => Math.max(0, Number(item.delivered_quantity ?? 0) - Number(item.returned_quantity ?? 0) - Number(item.damaged_quantity ?? 0));
+  const pendingItems = request.items.filter(item => getPendingQuantity(item) > 0);
+  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Registrar resultado do teste</h3><p className="mt-0.5 text-xs text-[#5a6a82]">Defina o destino das peças entregues</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5">{pendingItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aguardando resultado.</p> : pendingItems.map(item => { const pending = getPendingQuantity(item); const used = rows.filter(row => row.requestItemId === item.id).reduce((sum, row) => sum + (Number(row.quantity) || 0), 0); return <div key={item.id} className="space-y-2 rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><p className="text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"} <span className="text-xs font-normal text-[#5a6a82]">· Aguardando: {Math.max(0, pending - used)} {item.inventory_item?.unit || "un"}</span></p>{rows.filter(row => row.requestItemId === item.id).map((row, index) => <div key={`${item.id}-${index}`} className="grid gap-2 sm:grid-cols-[1fr_6rem_1fr_auto]"><select value={row.action} onChange={event => onRowsChange(rows.map(current => current === row ? { ...current, action: event.target.value as TestResultRow["action"] } : current))} className={cn(INPUT, "text-xs")}><option value="RETURN">Devolver ao estoque</option><option value="USE_IN_RESOLUTION">Usar na resolução</option><option value="DAMAGED">Danificada</option></select><input type="number" min="0.01" step="0.01" value={row.quantity} onChange={event => onRowsChange(rows.map(current => current === row ? { ...current, quantity: event.target.value } : current))} className={cn(INPUT, "text-xs")} /><input value={row.notes} onChange={event => onRowsChange(rows.map(current => current === row ? { ...current, notes: event.target.value } : current))} placeholder={row.action === "DAMAGED" ? "Justificativa do dano" : "Observação (opcional)"} className={cn(INPUT, "text-xs")} /><button type="button" onClick={() => onRowsChange(rows.filter(current => current !== row))} className="p-2 text-red-600"><X size={14} /></button></div>)}<button type="button" onClick={() => onRowsChange([...rows, { requestItemId: item.id, action: "RETURN", quantity: "", notes: "" }])} className="text-xs font-bold text-[#0057e7]">Adicionar destino</button></div>; })}</div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Registrando..." : "Registrar resultado"}</BtnPrimary></div></CenteredModal>;
 }
 
 type EmployeeOption = { id: string; full_name: string; function_name?: string | null; is_active?: boolean };
@@ -287,6 +315,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [orders, setOrders] = useState<any[]>([]);
   const [statuses, setStatuses] = useState<any[]>([]);
   const [situations, setSituations] = useState<any[]>([]);
+  const [serviceTypeSituations, setServiceTypeSituations] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
@@ -315,9 +344,32 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
+  const [detailPartRequests, setDetailPartRequests] = useState<any[]>([]);
+  const [selectedPartRequest, setSelectedPartRequest] = useState<PartRequestForReview | null>(null);
+  const [partApprovalOpen, setPartApprovalOpen] = useState(false);
+  const [partRejectionOpen, setPartRejectionOpen] = useState(false);
+  const [approvalQuantities, setApprovalQuantities] = useState<Record<string, string>>({});
+  const [partReviewNotes, setPartReviewNotes] = useState("");
+  const [partReviewSubmitting, setPartReviewSubmitting] = useState(false);
   const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [solveOpen, setSolveOpen] = useState(false);
+  const [partRequestOpen, setPartRequestOpen] = useState(false);
+  const [partRequestInventory, setPartRequestInventory] = useState<PartRequestInventoryItem[]>([]);
+  const [partRequestInventoryLoading, setPartRequestInventoryLoading] = useState(false);
+  const [partRequestSearch, setPartRequestSearch] = useState("");
+  const [selectedPartRequestItems, setSelectedPartRequestItems] = useState<SelectedPartRequestItem[]>([]);
+  const [partRequestNotes, setPartRequestNotes] = useState("");
+  const [partRequestSubmitting, setPartRequestSubmitting] = useState(false);
+  const [partRequestInventoryError, setPartRequestInventoryError] = useState("");
+  const [partRequestPurpose, setPartRequestPurpose] = useState<"RESOLUTION" | "TEST">("RESOLUTION");
+  const [selectedDeliveryRequest, setSelectedDeliveryRequest] = useState<PartRequestForReview | null>(null);
+  const [deliveryOpen, setDeliveryOpen] = useState(false);
+  const [deliverySubmitting, setDeliverySubmitting] = useState(false);
+  const [selectedTestRequest, setSelectedTestRequest] = useState<PartRequestForReview | null>(null);
+  const [testResultOpen, setTestResultOpen] = useState(false);
+  const [testResultRows, setTestResultRows] = useState<TestResultRow[]>([]);
+  const [testResultSubmitting, setTestResultSubmitting] = useState(false);
   const [solveDraft, setSolveDraft] = useState({ diagnosis: "", solution: "", usedItems: [], cannotSolve: false, cannotSolveReason: "" } as { diagnosis: string; solution: string; usedItems: any[]; cannotSolve: boolean; cannotSolveReason: string });
   const [solutionImages, setSolutionImages] = useState<OrderImage[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -488,19 +540,43 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     return current.filter(image => image.key !== key);
   });
 
-  const loadInventoryItems = async () => {
-    const { data, error } = await supabase.from("inventory_items").select("*").eq("is_active", true).order("name");
-    if (error) {
-      console.error("[ADMIN] inventory load error:", error);
-      setInventoryItems([]);
-      return;
+  const loadPartRequestInventory = async () => {
+    setPartRequestInventoryLoading(true);
+    try {
+      const { data, error } = await supabase.from("inventory_items").select("id,name,sku,unit,quantity,is_active").eq("is_active", true).order("name");
+      if (error) {
+        console.error("[PART REQUEST] inventory load error", error);
+        setPartRequestInventory([]);
+        setPartRequestInventoryError(supabaseErrorMessage(error));
+        setToast({ msg: supabaseErrorMessage(error), type: "error" });
+      } else {
+        setPartRequestInventory((data || []) as PartRequestInventoryItem[]);
+        setPartRequestInventoryError("");
+      }
+    } catch (error) {
+      console.error("[PART REQUEST] inventory load error", error);
+      setPartRequestInventory([]);
+      setPartRequestInventoryError(supabaseErrorMessage(error));
+      setToast({ msg: supabaseErrorMessage(error), type: "error" });
+    } finally {
+      setPartRequestInventoryLoading(false);
     }
-    setInventoryItems(data || []);
+  };
+
+  const loadInventoryItems = async () => {
+    const { data, error } = await supabase.from("inventory_items").select("id,name,sku,unit,quantity,is_active").eq("is_active", true).order("name");
+    if (!error) setInventoryItems(data || []);
+  };
+
+  const loadPartRequests = async (orderId: string) => {
+    const { data, error } = await supabase.from("service_order_part_requests").select("id,service_order_id,requested_by,purpose,status,notes,reviewed_by,reviewed_at,review_notes,created_at,requested_by_profile:profiles!requested_by(full_name),reviewed_by_profile:profiles!reviewed_by(full_name),items:service_order_part_request_items(id,inventory_item_id,quantity,approved_quantity,source_test_item_id,delivered_quantity,delivered_at,delivered_by,returned_quantity,damaged_quantity,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", orderId).order("created_at", { ascending: false });
+    if (error) { console.error("[ADMIN] part requests load error:", error); setDetailPartRequests([]); return; }
+    setDetailPartRequests((data || []).map((request: any) => ({ ...request, requester: request.requested_by_profile || null, items: (request.items || []).map((item: any) => ({ ...item, request_status: request.status })) })));
   };
 
   const load = async () => {
     setLoading(true);
-    const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes] = await Promise.all([
+    const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes, serviceTypeSituationRes] = await Promise.all([
       supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
       supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order"),
       supabase.from("os_situations").select("id,name,color,sort_order").eq("is_active", true).order("sort_order"),
@@ -514,12 +590,13 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
       supabase.from("general_services").select("id,name,is_active,sort_order").eq("is_active", true).order("sort_order").order("name"),
       supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order").eq("is_active", true).order("sort_order").order("title"),
+      supabase.from("service_type_situations").select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order,situation:os_situations(id,name,color,hours,is_active)").order("sort_order"),
     ]);
     if (ordRes.error) {
       console.error("[ADMIN] service_orders load error:", { code: ordRes.error.code, message: ordRes.error.message, details: ordRes.error.details, hint: ordRes.error.hint });
       setToast({ msg: `Erro ao carregar OS: ${ordRes.error.message}`, type: "error" });
     } else setOrders(ordRes.data || []);
-    [statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes].forEach((result, index) => {
+    [statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes, serviceTypeSituationRes].forEach((result, index) => {
       if (result.error) console.error("[ADMIN] OS related query error:", index, result.error);
     });
     setStatuses(statRes.data || []);
@@ -534,6 +611,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setEmployees(employeeRes.data || []);
     setGeneralServices(generalServiceRes.data || []);
     setServiceTypes(serviceTypeRes.data || []);
+    setServiceTypeSituations(serviceTypeSituationRes.data || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -557,9 +635,135 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     const solutionImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" }));
     setDetailHistory(hist || []);
     setDetailUsedItems(usedItems || []);
+    await loadPartRequests(o.id);
     setDetailSolutionImages(solutionImagesList);
     setOrderImages(orderImagesList);
     setDetail({ ...o, ...(currentOrder || {}) });
+  };
+
+  const openPartRequestModal = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setPartRequestSearch("");
+    setPartRequestPurpose("RESOLUTION");
+    setSelectedPartRequestItems([]);
+    setPartRequestNotes("");
+    setPartRequestInventoryError("");
+    setPartRequestOpen(true);
+    void loadPartRequestInventory();
+  };
+
+  const closePartRequestModal = () => {
+    if (partRequestSubmitting) return;
+    setPartRequestOpen(false); setPartRequestSearch(""); setSelectedPartRequestItems([]); setPartRequestNotes(""); setPartRequestPurpose("RESOLUTION");
+  };
+
+  const selectPartRequestItem = (item: PartRequestInventoryItem) => setSelectedPartRequestItems(current => current.some(selected => selected.inventory_item_id === item.id) ? current : [...current, { inventory_item_id: item.id, name: item.name, sku: item.sku, unit: item.unit || "un", available_quantity: Number(item.quantity), quantity: "1" }]);
+  const updatePartRequestQuantity = (id: string, quantity: string) => setSelectedPartRequestItems(current => current.map(item => item.inventory_item_id === id ? { ...item, quantity } : item));
+  const removePartRequestItem = (id: string) => setSelectedPartRequestItems(current => current.filter(item => item.inventory_item_id !== id));
+  const clearPartRequestItems = () => setSelectedPartRequestItems([]);
+
+  const submitPartRequest = async () => {
+    if (!detail?.id || partRequestSubmitting) return;
+    if (selectedPartRequestItems.length === 0) { setToast({ msg: "Selecione pelo menos uma peça.", type: "error" }); return; }
+    for (const item of selectedPartRequestItems) { const quantity = Number(item.quantity); if (!item.quantity.trim() || !Number.isFinite(quantity) || quantity <= 0 || quantity > item.available_quantity) { setToast({ msg: `Informe uma quantidade válida para ${item.name}, sem exceder o estoque disponível.`, type: "error" }); return; } }
+    setPartRequestSubmitting(true);
+    try {
+      const { error } = await supabase.rpc("request_service_order_parts", { p_service_order_id: detail.id, p_items: selectedPartRequestItems.map(item => ({ inventory_item_id: item.inventory_item_id, quantity: Number(item.quantity) })), p_notes: partRequestNotes.trim() || null, p_purpose: partRequestPurpose });
+      if (error) throw error;
+    } catch (error) {
+      console.error("[PART REQUEST] submit error", error);
+      setPartRequestSubmitting(false);
+      setToast({ msg: supabaseErrorMessage(error), type: "error" });
+      return;
+    }
+    setPartRequestSubmitting(false); setPartRequestOpen(false); setPartRequestSearch(""); setSelectedPartRequestItems([]); setPartRequestNotes(""); setPartRequestPurpose("RESOLUTION"); setToast({ msg: "Solicitação de peças enviada para análise.", type: "success" }); await loadPartRequests(detail.id);
+  };
+
+  const openPartApproval = (event: React.MouseEvent<HTMLButtonElement>, request: PartRequestForReview) => {
+    event.preventDefault(); event.stopPropagation();
+    setSelectedPartRequest(request); setApprovalQuantities(Object.fromEntries(request.items.map(item => { const limit = item.source_test_item_id ? Number(item.quantity) : Math.min(Number(item.quantity), Number(item.inventory_item?.quantity ?? 0)); return [item.id, String(limit)]; }))); setPartReviewNotes(""); setPartRejectionOpen(false); setPartApprovalOpen(true);
+  };
+  const openPartRejection = (event: React.MouseEvent<HTMLButtonElement>, request: PartRequestForReview) => {
+    event.preventDefault(); event.stopPropagation();
+    setSelectedPartRequest(request); setPartReviewNotes(""); setPartApprovalOpen(false); setPartRejectionOpen(true);
+  };
+  const closePartReview = () => {
+    if (partReviewSubmitting) return;
+    setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes("");
+  };
+  const updateApprovalQuantity = (itemId: string, value: string) => setApprovalQuantities(current => ({ ...current, [itemId]: value }));
+  const approvePartRequest = async () => {
+    if (!selectedPartRequest || partReviewSubmitting) return;
+    const quantities = selectedPartRequest.items.map(item => ({ item, requestedQuantity: Number(item.quantity), availableQuantity: Number(item.inventory_item?.quantity ?? 0), approved: Number(approvalQuantities[item.id]) }));
+    if (!quantities.length || quantities.some(({ requestedQuantity, availableQuantity, approved }) => !Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || !Number.isFinite(availableQuantity) || !Number.isFinite(approved) || approved < 0)) { setToast({ msg: "Informe quantidades aprovadas válidas.", type: "error" }); return; }
+    if (quantities.some(({ requestedQuantity, approved }) => approved > requestedQuantity)) { setToast({ msg: "A quantidade aprovada não pode ser maior que a quantidade solicitada.", type: "error" }); return; }
+    if (quantities.some(({ item, availableQuantity, approved }) => !item.source_test_item_id && approved > availableQuantity)) { setToast({ msg: "A quantidade aprovada não pode ser maior que o estoque disponível.", type: "error" }); return; }
+    if (!quantities.some(({ approved }) => approved > 0)) { setToast({ msg: "Aprove uma quantidade maior que zero em pelo menos uma peça.", type: "error" }); return; }
+    setPartReviewSubmitting(true);
+    try {
+      const { error } = await supabase.rpc("review_service_order_part_request", { p_request_id: selectedPartRequest.id, p_decision: "APPROVED", p_items: selectedPartRequest.items.map(item => ({ request_item_id: item.id, approved_quantity: Number(approvalQuantities[item.id] || 0) })), p_review_notes: partReviewNotes.trim() || null });
+      if (error) throw error;
+      setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças aprovado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id);
+    } catch (error) { console.error("[PART REQUEST] approval error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
+    finally { setPartReviewSubmitting(false); }
+  };
+  const rejectPartRequest = async () => {
+    if (!selectedPartRequest || partReviewSubmitting) return;
+    if (!partReviewNotes.trim()) { setToast({ msg: "Informe o motivo da rejeição.", type: "error" }); return; }
+    setPartReviewSubmitting(true);
+    try {
+      const { error } = await supabase.rpc("review_service_order_part_request", { p_request_id: selectedPartRequest.id, p_decision: "REJECTED", p_items: [], p_review_notes: partReviewNotes.trim() });
+      if (error) throw error;
+      setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças rejeitado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id);
+    } catch (error) { console.error("[PART REQUEST] rejection error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
+    finally { setPartReviewSubmitting(false); }
+  };
+
+  const deliverTestRequest = async () => {
+    if (!selectedDeliveryRequest || deliverySubmitting) return;
+    setDeliverySubmitting(true);
+    try {
+      const { error } = await supabase.rpc("deliver_service_order_test_request", { p_request_id: selectedDeliveryRequest.id });
+      if (error) throw error;
+      setDeliveryOpen(false); setSelectedDeliveryRequest(null); setToast({ msg: "Peças entregues para teste.", type: "success" });
+      await loadPartRequests(detail.id); await load();
+    } catch (error) { console.error("[PART REQUEST] delivery error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
+    finally { setDeliverySubmitting(false); }
+  };
+
+  const submitTestResults = async () => {
+    if (!selectedTestRequest || testResultSubmitting) return;
+    if (!testResultRows.length) { setToast({ msg: "Informe pelo menos um resultado.", type: "error" }); return; }
+    const totals = new Map<string, number>();
+    for (const row of testResultRows) {
+      const quantity = Number(row.quantity); const item = selectedTestRequest.items.find(current => current.id === row.requestItemId);
+      if (!item || !Number.isFinite(quantity) || quantity <= 0 || row.action === "DAMAGED" && !row.notes.trim()) { setToast({ msg: row.action === "DAMAGED" ? "Informe a justificativa do dano." : "Informe quantidades válidas para o resultado.", type: "error" }); return; }
+      const pending = getTestPendingQuantity(selectedTestRequest, item); const total = (totals.get(row.requestItemId) || 0) + quantity; if (total > pending) { setToast({ msg: "A soma dos resultados não pode ultrapassar a quantidade aguardando resultado.", type: "error" }); return; } totals.set(row.requestItemId, total);
+    }
+    setTestResultSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc("record_service_order_test_results", { p_request_id: selectedTestRequest.id, p_actions: testResultRows.map(row => ({ request_item_id: row.requestItemId, action: row.action, quantity: Number(row.quantity), notes: row.notes.trim() || null })) });
+      if (error) throw error;
+      setTestResultOpen(false); setSelectedTestRequest(null); setTestResultRows([]); setToast({ msg: data?.resolution_request_id ? "Resultado do teste registrado. Um novo pedido para resolução foi criado e aguarda aprovação." : "Resultado do teste registrado.", type: "success" }); await loadPartRequests(detail.id); await load();
+    } catch (error) { console.error("[PART REQUEST] test results error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
+    finally { setTestResultSubmitting(false); }
+  };
+
+  const getTestPendingQuantity = (request: PartRequestForReview, item: PartRequestItemForReview) => {
+    const delivered = Number(item.delivered_quantity ?? 0);
+    const returned = Number(item.returned_quantity ?? 0);
+    const damaged = Number(item.damaged_quantity ?? 0);
+    const committedForResolution = detailPartRequests
+      .filter((candidate: PartRequestForReview) => candidate.purpose === "RESOLUTION")
+      .flatMap(candidate => candidate.items || [])
+      .filter(candidate => candidate.source_test_item_id === item.id)
+      .reduce((sum, candidate) => {
+        if (candidate === item) return sum;
+        const amount = String((candidate as any).request_status || "").toUpperCase() === "APPROVED" ? Number(candidate.approved_quantity ?? 0) : String((candidate as any).request_status || "").toUpperCase() === "PENDING" ? Number(candidate.quantity ?? 0) : 0;
+        return Number.isFinite(amount) ? sum + amount : sum;
+      }, 0);
+    return Math.max(0, delivered - returned - damaged - committedForResolution);
   };
 
   const openNew = () => {
@@ -581,7 +785,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setSelectedSellerIds(Array.from(new Set((o.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(o.seller_id ? [o.seller_id] : []))));
     setNeedsScheduling(true);
     await loadOrderImages(o.id);
-    setForm({ service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "", order_type: o.order_type === "external" ? "external" : "internal", service_state: o.order_type === "external" ? o.service_state || "" : "", service_city: o.order_type === "external" ? o.service_city || "" : "", service_street: o.order_type === "external" ? o.service_street || "" : "", service_zip_code: o.order_type === "external" ? o.service_zip_code || "" : "", service_neighborhood: o.order_type === "external" ? o.service_neighborhood || "" : "", service_number: o.order_type === "external" ? o.service_number || "" : "", service_complement: o.order_type === "external" ? o.service_complement || "" : "", service_customer_address_id: o.order_type === "external" ? o.service_customer_address_id || "" : "" });
+    setForm({ ...emptyForm, service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "", order_type: o.order_type === "external" ? "external" : "internal", service_state: o.order_type === "external" ? o.service_state || "" : "", service_city: o.order_type === "external" ? o.service_city || "" : "", service_street: o.order_type === "external" ? o.service_street || "" : "", service_zip_code: o.order_type === "external" ? o.service_zip_code || "" : "", service_neighborhood: o.order_type === "external" ? o.service_neighborhood || "" : "", service_number: o.order_type === "external" ? o.service_number || "" : "", service_complement: o.order_type === "external" ? o.service_complement || "" : "", service_customer_address_id: o.order_type === "external" ? o.service_customer_address_id || "" : "", external_os_number: o.external_os_number || "" });
     setServiceUseCustomerAddress(o.order_type === "external" && o.service_address_source === "customer"); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]);
     if (o.order_type === "external" && o.service_state) void loadIbgeCities(o.service_state, o.service_city);
     setSelectedCustomer((o.customer as any) || null);
@@ -670,6 +874,17 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       return;
     }
 
+    const hasUndestinedTestParts = detailPartRequests.some((request: PartRequestForReview) => request.purpose === "TEST" && request.items.some(item => {
+      const delivered = Number(item.delivered_quantity ?? 0);
+      const returned = Number(item.returned_quantity ?? 0);
+      const damaged = Number(item.damaged_quantity ?? 0);
+      return delivered - returned - damaged > 0 && getTestPendingQuantity(request, item) > 0;
+    }));
+    if (hasUndestinedTestParts) {
+      setToast({ msg: "Existem peças de teste aguardando devolução, dano ou solicitação para resolução.", type: "error" });
+      return;
+    }
+
     setSaving(true);
     try {
       const { error: resolveError } = await supabase.rpc("resolve_service_order", {
@@ -702,7 +917,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setDetailSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
       setSolveOpen(false);
       setToast({ msg: solutionImageError ? `OS resolvida, mas não foi possível salvar todas as imagens da solução: ${supabaseErrorMessage(solutionImageError)}` : "OS resolvida com sucesso.", type: solutionImageError ? "error" : "success" });
-      await loadInventoryItems();
       await load();
     } catch (error) {
       setToast({ msg: `Não foi possível concluir a solução da OS: ${supabaseErrorMessage(error)}. Nenhuma alteração de estoque foi aplicada.`, type: "error" });
@@ -857,22 +1071,21 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setToast({ msg: "Esta OS está marcada como não solucionável e não pode ser resolvida novamente.", type: "error" });
       return;
     }
-    await loadInventoryItems();
-    const [{ data: usedItems }, { data: mediaLinks }] = await Promise.all([
-      supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", order.id).order("created_at", { ascending: false }),
+    const [{ data: approvedRequests, error: approvedRequestsError }, { data: mediaLinks }] = await Promise.all([
+      supabase.from("service_order_part_requests").select("items:service_order_part_request_items(id,inventory_item_id,approved_quantity,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", order.id).eq("status", "APPROVED"),
       supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", order.id).order("sort_order"),
     ]);
+    if (approvedRequestsError) { setToast({ msg: `Não foi possível carregar as peças aprovadas: ${supabaseErrorMessage(approvedRequestsError)}`, type: "error" }); return; }
+    const approvedByInventory = new Map<string, any>();
+    (approvedRequests || []).flatMap((request: any) => request.items || []).forEach((item: any) => { const quantity = Number(item.approved_quantity); if (!item.inventory_item_id || !Number.isFinite(quantity) || quantity <= 0) return; const current = approvedByInventory.get(item.inventory_item_id); approvedByInventory.set(item.inventory_item_id, { ...item, approved_quantity: (current?.approved_quantity || 0) + quantity }); });
+    const approvedItems = Array.from(approvedByInventory.values());
+    setInventoryItems(approvedItems.map((item: any) => item.inventory_item).filter(Boolean));
     setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
     setSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
     setSolveDraft({
       diagnosis: currentOrder?.diagnosis || order.diagnosis || "",
       solution: currentOrder?.solution || order.solution || "",
-      usedItems: (usedItems || []).map((item: any) => ({
-        id: item.id,
-        inventory_item_id: item.inventory_item_id,
-        name: item.inventory_item?.name || "",
-        quantity: Number(item.quantity || 0),
-      })),
+      usedItems: approvedItems.map((item: any) => ({ id: item.id, inventory_item_id: item.inventory_item_id, name: item.inventory_item?.name || "", unit: item.inventory_item?.unit || "un", quantity: Number(item.approved_quantity) })),
       cannotSolve: currentOrder?.cannot_be_solved ?? order.cannot_be_solved ?? false,
       cannotSolveReason: currentOrder?.cannot_be_solved_reason || order.cannot_be_solved_reason || "",
     });
@@ -1057,6 +1270,23 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
+  const getSituationsForType = (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) => {
+    const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId).sort((left, right) => Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0));
+    if (links.length === 0) return situations;
+    const linkedSituationIds = new Set(links.map(link => link.situation_id));
+    const allowed = links.map(link => situations.find(situation => situation.id === link.situation_id)).filter(Boolean);
+    const historical = currentSituationId && !linkedSituationIds.has(currentSituationId) ? [currentSituation || situations.find(situation => situation.id === currentSituationId)].filter(Boolean) : [];
+    return [...historical, ...allowed];
+  };
+
+  const getSlaForOrder = (serviceTypeId?: string, situationId?: string, relatedSituation?: any) => {
+    const link = serviceTypeSituations.find(item => item.service_type_id === serviceTypeId && item.situation_id === situationId);
+    const situation = situations.find(item => item.id === situationId) || relatedSituation;
+    if (!link || !situation) return null;
+    const hours = Number(link.use_default_hours ? situation.hours : link.sla_hours);
+    return Number.isFinite(hours) && hours > 0 ? { hours, isDefault: link.use_default_hours !== false } : null;
+  };
+
   if (subView === "situations") return <OSSituationsView onBack={() => setSubView("list")} />;
 
   const InfoRow = ({ label, value }: { label: string; value?: string | null }) =>
@@ -1195,7 +1425,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                         {hasPermission("orders.status") && <select value={o.status_id || ""} onClick={event => event.stopPropagation()} onChange={event => updateOrderStatus(o, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
                           {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
                         </select>}
-                        {hasPermission("orders.edit") && <select value={o.situation_id || ""} onClick={event => event.stopPropagation()} onChange={event => void updateOrderSituation(o, event.target.value)} className="max-w-[130px] text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{situations.map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
+                        {hasPermission("orders.edit") && <select value={o.situation_id || ""} onClick={event => event.stopPropagation()} onChange={event => void updateOrderSituation(o, event.target.value)} className="max-w-[130px] text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(o.service_type_id, o.situation_id, o.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
                         {hasPermission("orders.edit") && !o.is_solved && <button onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors"><Edit2 size={14} /> Editar</button>}
                         {hasPermission("orders.delete") && !o.is_solved && <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteId(o.id); }} className="flex items-center gap-1.5 text-xs font-bold text-red-600 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={14} /> Excluir</button>}
                       </div>
@@ -1310,11 +1540,18 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   <InfoRow label="Status" value={(detail.order_status as any)?.name} />
                   <InfoRow label="Situação" value={(detail.situation as any)?.name} />
                   <InfoRow label="Prioridade" value={detail.priority ? PRIORITY_LABELS[detail.priority] || detail.priority : undefined} />
+                  <InfoRow label="Data de início" value={fmtDate(detail.created_at)} />
                   <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
-                  <InfoRow label="Data de início" value={fmtDate(detail.started_at)} />
                   <InfoRow label="Data de conclusão" value={fmtDate(detail.completed_at)} />
-                  <InfoRow label="Valor" value={detail.estimated_price == null ? undefined : `R$ ${Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
                   <InfoRow label="Horas da situação" value={(detail.situation as any)?.hours == null ? null : `${(detail.situation as any).hours} hora(s)`} />
+                  {(() => { const sla = getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation); return sla ? <InfoRow label="SLA da situação" value={`${sla.hours} hora(s) (${sla.isDefault ? "Padrão" : "Personalizado"})`} /> : null; })()}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-[#0057e7]/20 bg-[#f0f6ff] px-3 py-2 text-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0057e7]/10 text-[#0057e7]"><DollarSign size={16} /></div>
+                    <span className="font-bold text-[#0d1b2e]">Valor da OS</span>
+                  </div>
+                  <span className="font-black text-[#0057e7]">{detail.estimated_price == null ? "Valor não informado" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(detail.estimated_price))}</span>
                 </div>
               </Section>
               {orderImages.length > 0 && <Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>}
@@ -1336,6 +1573,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               </Section>
               {detail.internal_notes && <Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>}
               {detail.customer_notes && <Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>}
+              <Section title="Solicitações de peças">
+                {detailPartRequests.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma solicitação de peças para esta OS.</p> : <div className="space-y-3">{detailPartRequests.map((request: PartRequestForReview) => { const status = String(request.status || "").toUpperCase(); const statusLabel = status === "APPROVED" ? "Aprovada" : status === "REJECTED" ? "Rejeitada" : status === "CANCELLED" ? "Cancelada" : "Em análise"; const statusClass = status === "APPROVED" ? "bg-green-100 text-green-700" : status === "REJECTED" ? "bg-red-100 text-red-700" : status === "CANCELLED" ? "bg-[#f5f7fa] text-[#5a6a82]" : "bg-amber-100 text-amber-700"; return <div key={request.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={cn("rounded-full px-2 py-1 text-[10px] font-bold", statusClass)}>{statusLabel}</span><span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-bold text-blue-700">{purposeLabel(request.purpose)}</span><span className="text-[11px] text-[#5a6a82]">{request.requester?.full_name || "Solicitante não informado"} · {fmtDate(request.created_at, true)}</span></div>{request.notes && <p className="mt-2 whitespace-pre-line text-xs text-[#0d1b2e]">{request.notes}</p>}<div className="mt-2 space-y-1">{(request.items || []).map((item: PartRequestItemForReview) => <p key={item.id} className="text-xs text-[#5a6a82]">Solicitado: {Number(item.quantity)} {item.inventory_item?.unit || "un"}{item.approved_quantity != null && ` · Aprovado: ${Number(item.approved_quantity)} ${item.inventory_item?.unit || "un"}`} · {item.inventory_item?.name || "Peça"}</p>)}</div>{status !== "PENDING" && (request.reviewed_by_profile?.full_name || request.reviewed_at || request.review_notes) && <div className="mt-2 border-t border-[#0d1b2e]/8 pt-2 text-[11px] text-[#5a6a82]">Analisado por {request.reviewed_by_profile?.full_name || "Responsável não informado"}{request.reviewed_at ? ` em ${fmtDate(request.reviewed_at, true)}` : ""}{request.review_notes ? ` · ${request.review_notes}` : ""}</div>}{hasPermission("orders.manage_part_requests") && <div className="mt-3 flex flex-wrap justify-end gap-2">{status === "PENDING" && <><button type="button" onClick={event => openPartApproval(event, request)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">Aprovar</button><button type="button" onClick={event => openPartRejection(event, request)} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700">Rejeitar</button></>}{status === "REJECTED" && <button type="button" onClick={event => openPartApproval(event, request)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">Aprovar</button>}{status === "APPROVED" && (request.items || []).some(item => Number(item.delivered_quantity ?? 0) > 0) === false && <><button type="button" onClick={event => openPartRejection(event, request)} className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">Desaprovar</button>{request.purpose === "TEST" && <button type="button" onClick={() => { setSelectedDeliveryRequest(request); setDeliveryOpen(true); }} className="rounded-lg bg-[#0057e7] px-3 py-2 text-xs font-bold text-white hover:bg-[#0046c0]">Confirmar entrega</button>}{request.purpose === "TEST" && user?.id === detail?.assigned_to && request.items.some(item => getTestPendingQuantity(request, item) > 0) && <button type="button" onClick={() => { setSelectedTestRequest(request); setTestResultRows([]); setTestResultOpen(true); }} className="rounded-lg border border-[#0057e7]/30 px-3 py-2 text-xs font-bold text-[#0057e7]">Registrar resultado do teste</button>}</>}</div>}</div>; })}</div>}
+              </Section>
               {(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && (
                 <Section title="Solução da OS">
                   <div className="space-y-4">
@@ -1359,7 +1599,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               <div className="flex gap-2 flex-wrap">
                 <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
                 {hasPermission("orders.status") && <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>}
-                {hasPermission("orders.edit") && <select value={detail.situation_id || ""} onChange={event => void updateOrderSituation(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{situations.map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
+                {hasPermission("orders.edit") && <select value={detail.situation_id || ""} onChange={event => void updateOrderSituation(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
+                {hasPermission("orders.request_parts") && detail && detail.is_solved !== true && <button type="button" onClick={openPartRequestModal} className="inline-flex items-center gap-2 whitespace-nowrap border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer"><PackagePlus size={14} /> Pedir peças</button>}
                 {hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && <BtnPrimary onClick={() => openSolveOrder(detail)}><CheckCircle size={14} /> Resolver OS</BtnPrimary>}
                 {hasPermission("orders.edit") && !detail.is_solved && <BtnPrimary onClick={() => { setDetail(null); void openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>}
                 {hasPermission("orders.delete") && !detail.is_solved && <button type="button" onClick={() => setDeleteId(detail.id)} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"><Trash2 size={14} /> Excluir</button>}
@@ -1504,9 +1745,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
             <Section title="Informações da OS">
               <div className="grid sm:grid-cols-2 gap-4">
-                <FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => upF("service_type_id", e.target.value)} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} />
+                <FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => { const serviceTypeId = e.target.value; upF("service_type_id", serviceTypeId); const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId); if (form.situation_id && links.length > 0 && !links.some(link => link.situation_id === form.situation_id)) upF("situation_id", ""); }} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} />
                 <FSelect label="Serviço" value={form.general_service_id} required onChange={(e: any) => upF("general_service_id", e.target.value)} options={[{ value: "", label: "Selecionar serviço..." }, ...generalServices.map(service => ({ value: service.id, label: service.name }))]} />
-                <FSelect label="Situação" value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...situations.map(s => ({ value: s.id, label: s.name }))]} />
+                <div><FSelect label="Situação" value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...getSituationsForType(form.service_type_id, editingOS?.situation_id, editingOS?.situation).map(s => ({ value: s.id, label: s.name }))]} />{(() => { const sla = getSlaForOrder(form.service_type_id, form.situation_id); return sla ? <p className="mt-1 text-xs font-semibold text-[#5a6a82]">SLA desta situação: {sla.hours} horas ({sla.isDefault ? "padrão" : "personalizado"})</p> : null; })()}</div>
                 <EmployeeMultiSelect label="Técnicos" employees={employees} selectedIds={selectedTechnicianIds} onChange={setSelectedTechnicianIds} disabled={!hasPermission("orders.assign")} placeholder="Selecionar técnicos" clearLabel="Limpar Técnicos" />
                 <EmployeeMultiSelect label="Vendedores" employees={employees} selectedIds={selectedSellerIds} onChange={setSelectedSellerIds} disabled={!hasPermission("orders.assign")} placeholder="Selecionar vendedores" clearLabel="Limpar Vendedores" />
                 <FSelect label="Prioridade" value={form.priority} onChange={(e: any) => upF("priority", e.target.value)} options={[{ value: "baixa", label: "Baixa" }, { value: "normal", label: "Normal" }, { value: "alta", label: "Alta" }, { value: "urgente", label: "Urgente" }]} />
@@ -1599,7 +1840,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
           <Section title="Produtos utilizados">
             <div className="space-y-3">
-              {solveDraft.usedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum produto adicionado.</p> : solveDraft.usedItems.map((item: any) => {
+              {solveDraft.usedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aprovada para esta OS.</p> : solveDraft.usedItems.map((item: any) => {
                 const stockItem = inventoryItems.find(entry => entry.id === item.inventory_item_id);
                 const available = Number(stockItem?.quantity ?? 0);
                 const requested = Number(item.quantity || 0);
@@ -1609,35 +1850,13 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     <div className="flex items-start gap-3">
                       <div className="flex-1">
                         <p className="font-semibold text-sm text-[#0d1b2e]">{item.name}</p>
-                        <p className="text-[11px] text-[#5a6a82]">Disponível: {available} {stockItem?.unit || "un"}</p>
+                        <p className="text-[11px] text-[#5a6a82]">{requested} {item.unit || stockItem?.unit || "un"} aprovadas · Disponível: {available} {item.unit || stockItem?.unit || "un"}</p>
                         {invalid && <p className="mt-1 text-[10px] font-bold text-red-600">Estoque insuficiente</p>}
                       </div>
-                      <div className="w-24">
-                        <input type="number" min="1" value={item.quantity} onChange={(e: any) => setSolveDraft(current => ({ ...current, usedItems: current.usedItems.map(existing => existing.inventory_item_id === item.inventory_item_id ? { ...existing, quantity: Math.max(1, Number(e.target.value || 1)) } : existing) }))} className={cn(INPUT, "w-full text-center text-sm")} />
-                      </div>
-                      <button type="button" onClick={() => setSolveDraft(current => ({ ...current, usedItems: current.usedItems.filter(existing => existing.inventory_item_id !== item.inventory_item_id) }))} className="p-2 rounded-lg text-red-600 hover:bg-red-50"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 );
               })}
-              <div className="pt-2">
-                <select value="" onChange={(e: any) => {
-                  const selectedId = e.target.value;
-                  if (!selectedId) return;
-                  const item = inventoryItems.find(product => product.id === selectedId);
-                  if (!item) return;
-                  setSolveDraft(current => ({
-                    ...current,
-                    usedItems: current.usedItems.some(existing => existing.inventory_item_id === item.id)
-                      ? current.usedItems.map(existing => existing.inventory_item_id === item.id ? { ...existing, quantity: Number(existing.quantity || 0) + 1 } : existing)
-                      : [...current.usedItems, { inventory_item_id: item.id, name: item.name, quantity: 1 }],
-                  }));
-                  e.target.value = "";
-                }} className={cn(INPUT, "text-xs")}>
-                  <option value="">+ Adicionar produto</option>
-                  {inventoryItems.filter(item => item.is_active !== false).map(item => <option key={item.id} value={item.id}>{item.name} · Disponível: {Number(item.quantity ?? 0)} {item.unit || "un"}</option>)}
-                </select>
-              </div>
             </div>
           </Section>
 
@@ -1700,6 +1919,13 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         </div>
       </AdminPage>}
       {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
+      {partRequestOpen && detail && (
+        <PartRequestModal orderNumber={detail.os_number} inventoryItems={partRequestInventory} inventoryLoading={partRequestInventoryLoading} inventoryError={partRequestInventoryError} selectedItems={selectedPartRequestItems} search={partRequestSearch} notes={partRequestNotes} purpose={partRequestPurpose} submitting={partRequestSubmitting} onPurposeChange={setPartRequestPurpose} onSearchChange={setPartRequestSearch} onNotesChange={setPartRequestNotes} onSelect={selectPartRequestItem} onQuantityChange={updatePartRequestQuantity} onRemove={removePartRequestItem} onClose={closePartRequestModal} onSubmit={() => void submitPartRequest()} />
+      )}
+      {partApprovalOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={false} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={approvePartRequest} />}
+      {partRejectionOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={true} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={rejectPartRequest} />}
+      {deliveryOpen && selectedDeliveryRequest && <TestDeliveryModal request={selectedDeliveryRequest} orderNumber={detail?.os_number} submitting={deliverySubmitting} onClose={() => { if (!deliverySubmitting) { setDeliveryOpen(false); setSelectedDeliveryRequest(null); } }} onSubmit={() => void deliverTestRequest()} />}
+      {testResultOpen && selectedTestRequest && <TestResultModal request={selectedTestRequest} rows={testResultRows} submitting={testResultSubmitting} getPendingQuantity={getTestPendingQuantity} onRowsChange={setTestResultRows} onClose={() => { if (!testResultSubmitting) { setTestResultOpen(false); setSelectedTestRequest(null); setTestResultRows([]); } }} onSubmit={() => void submitTestResults()} />}
     </div>
   );
 }
@@ -1942,3 +2168,15 @@ function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: ()
   return url ? <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0d1b2e]/80 p-5" onClick={onClose}><button type="button" aria-label="Fechar imagem" onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/15 text-white"><X size={20} /></button><img src={url} alt={image.name} className="max-w-full max-h-full object-contain" onClick={event => event.stopPropagation()} /></div> : null;
 
 }
+
+function ReviewPartRequestModal({ request, orderNumber, rejection, approvalQuantities, notes, submitting, onNotesChange, onQuantityChange, onClose, onSubmit }: { request: PartRequestForReview; orderNumber?: string | null; rejection: boolean; approvalQuantities: Record<string, string>; notes: string; submitting: boolean; onNotesChange: (value: string) => void; onQuantityChange: (id: string, value: string) => void; onClose: () => void; onSubmit: () => void }) {
+  const subtitle = rejection ? "Revise as peças solicitadas e informe o motivo da rejeição" : `OS ${orderNumber || "—"} · ${request.requester?.full_name || "Solicitante não informado"}`;
+  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">{rejection ? "Rejeitar pedido de peças" : "Aprovar pedido de peças"}</h3><p className="mt-0.5 text-xs text-[#5a6a82]">{subtitle}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5"><div className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 text-xs text-[#5a6a82]"><p><strong>OS:</strong> {orderNumber || "—"}</p><p><strong>Solicitante:</strong> {request.requester?.full_name || "Solicitante não informado"}</p><p><strong>Solicitado em:</strong> {fmtReviewDate(request.created_at)}</p>{request.notes && <p className="mt-1 whitespace-pre-line"><strong>Observações:</strong> {request.notes}</p>}</div><p className="text-sm font-bold text-[#0d1b2e]">Peças solicitadas</p>{request.items.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça encontrada nesta solicitação.</p> : <div className="space-y-2">{request.items.map(item => { const requested = Number(item.quantity); const available = Number(item.inventory_item?.quantity ?? 0); return <div key={item.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-xs text-[#5a6a82]">{item.inventory_item?.sku ? `SKU: ${item.inventory_item.sku} · ` : ""}Solicitado: {requested} {item.inventory_item?.unit || "un"} · Disponível: {available} {item.inventory_item?.unit || "un"}</p></div>{!rejection && <div><label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade aprovada</label><input type="number" min="0" max={requested} step="0.01" value={approvalQuantities[item.id] ?? String(item.quantity)} onChange={event => onQuantityChange(item.id, event.target.value)} className={cn(INPUT, "w-28 text-center text-sm")} /></div>}</div></div>; })}</div>}<FTextarea label={rejection ? "Motivo da rejeição" : "Observação da análise"} required={rejection} value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder={rejection ? "Informe por que este pedido está sendo rejeitado." : undefined} /></div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? rejection ? "Rejeitando..." : "Aprovando..." : rejection ? "Confirmar rejeição" : "Confirmar aprovação"}</BtnPrimary></div></CenteredModal>;
+}
+
+function LegacyReviewPartRequestModal({ request, orderNumber, rejection, approvalQuantities, notes, submitting, onNotesChange, onQuantityChange, onClose, onSubmit }: { request: PartRequestForReview; orderNumber?: string | null; rejection: boolean; approvalQuantities: Record<string, string>; notes: string; submitting: boolean; onNotesChange: (value: string) => void; onQuantityChange: (id: string, value: string) => void; onClose: () => void; onSubmit: () => void }) {
+  return <CenteredModal onClose={onClose} className={rejection ? "max-w-md" : "max-w-2xl"}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">{rejection ? "Rejeitar pedido de peças" : "Aprovar pedido de peças"}</h3><p className="mt-0.5 text-xs text-[#5a6a82]">OS {orderNumber || "—"} · {request.requester?.full_name || "Solicitante não informado"}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5">{rejection ? <><p className="text-sm text-[#5a6a82]">Pedido com {request.items.length} peça(s) solicitado(s).</p><FTextarea label="Motivo da rejeição" required value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={4} /></> : <><p className="text-sm font-bold text-[#0d1b2e]">Peças solicitadas</p><div className="space-y-2">{request.items.map(item => { const requested = Number(item.quantity); const available = Number(item.inventory_item?.quantity ?? 0); return <div key={item.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-xs text-[#5a6a82]">{item.inventory_item?.sku ? `SKU: ${item.inventory_item.sku} · ` : ""}Solicitado: {requested} {item.inventory_item?.unit || "un"} · Disponível: {available} {item.inventory_item?.unit || "un"}</p></div><div><label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade aprovada</label><input type="number" min="0" step="0.01" value={approvalQuantities[item.id] ?? String(item.quantity)} onChange={event => onQuantityChange(item.id, event.target.value)} className={cn(INPUT, "w-28 text-center text-sm")} /></div></div></div>; })}</div><FTextarea label="Observação da análise" value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} /></>}</div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Enviando..." : rejection ? "Confirmar rejeição" : "Confirmar aprovação"}</BtnPrimary></div></CenteredModal>;
+}
+
+const fmtReviewDate = (value?: string | null) => value ? new Date(value).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+const purposeLabel = (purpose?: string | null) => purpose === "TEST" ? "Para teste" : "Para resolução";

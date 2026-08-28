@@ -337,6 +337,7 @@ export interface OsSituation {
   name: string;
   slug: string | null;
   color: string | null;
+  hours: number | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -349,6 +350,16 @@ export interface ServiceType {
   description: string | null;
   forecast_days: number | null;
   is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceTypeSituation {
+  service_type_id: string;
+  situation_id: string;
+  use_default_hours: boolean;
+  sla_hours: number | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -578,5 +589,45 @@ export interface ServiceOrderTechnician {
 export interface ServiceOrderSeller {
   service_order_id: string;
   employee_id: string;
+  created_at: string;
+}
+
+export interface ServiceOrderPartRequest {
+  id: string;
+  service_order_id: string;
+  requested_by: string;
+  purpose: "TEST" | "RESOLUTION";
+  status: string;
+  notes: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceOrderPartRequestItem {
+  id: string;
+  request_id: string;
+  inventory_item_id: string;
+  quantity: number;
+  approved_quantity: number | null;
+  source_test_item_id: string | null;
+  delivered_quantity: number;
+  delivered_at: string | null;
+  delivered_by: string | null;
+  returned_quantity: number;
+  damaged_quantity: number;
+  created_at: string;
+}
+
+export interface ServiceOrderPartTestEvent {
+  id: string;
+  service_order_id: string;
+  request_item_id: string;
+  event_type: "DELIVERED" | "RETURNED" | "RESOLUTION_REQUESTED" | "DAMAGED";
+  quantity: number;
+  notes: string | null;
+  created_by: string;
   created_at: string;
 }

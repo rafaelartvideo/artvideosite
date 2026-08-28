@@ -1942,19 +1942,25 @@ function ServiceTypesAdminPanelContent() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
-  const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true });
+  const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true, selectedSituations: [] as Array<{ situation_id: string; use_default_hours: boolean; sla_hours: string }> });
+  const [situations, setSituations] = useState<any[]>([]);
+  const [situationLinks, setSituationLinks] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("service_types")
-      .select("id,title,description,forecast_days,is_active,sort_order,created_at,updated_at")
-      .order("sort_order")
-      .order("title");
+    const [{ data, error }, { data: situationData, error: situationError }, { data: linkData, error: linkError }] = await Promise.all([
+      supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order,created_at,updated_at").order("sort_order").order("title"),
+      supabase.from("os_situations").select("id,name,color,hours,sort_order,is_active").eq("is_active", true).order("sort_order").order("name"),
+      supabase.from("service_type_situations").select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order"),
+    ]);
     if (error) setToast({ msg: `Erro ao carregar tipos: ${error.message}`, type: "error" });
+    if (situationError) setToast({ msg: `Erro ao carregar situações: ${situationError.message}`, type: "error" });
+    if (linkError) setToast({ msg: `Erro ao carregar configurações de SLA: ${linkError.message}`, type: "error" });
+    setSituations(situationData || []);
+    setSituationLinks(linkData || []);
     setItems(data || []);
     setLoading(false);
   };
@@ -1963,17 +1969,23 @@ function ServiceTypesAdminPanelContent() {
 
   const openNew = () => {
     setEditItem(null);
-    setForm({ title: "", description: "", forecast_days: "", is_active: true });
+    setForm({ title: "", description: "", forecast_days: "", is_active: true, selectedSituations: [] });
     setFormOpen(true);
   };
 
-  const openEdit = (item: any) => {
+  const openEdit = async (item: any) => {
     setEditItem(item);
+    const { data, error } = await supabase.from("service_type_situations").select("situation_id,use_default_hours,sla_hours,sort_order").eq("service_type_id", item.id).order("sort_order");
+    if (error) {
+      setToast({ msg: `Erro ao carregar situações do tipo: ${error.message}`, type: "error" });
+      return;
+    }
     setForm({
       title: item.title || "",
       description: item.description || "",
       forecast_days: item.forecast_days == null ? "" : String(item.forecast_days),
       is_active: item.is_active !== false,
+      selectedSituations: (data || []).map(link => ({ situation_id: link.situation_id, use_default_hours: link.use_default_hours !== false, sla_hours: link.sla_hours == null ? "" : String(link.sla_hours) })),
     });
     setFormOpen(true);
   };
@@ -1985,6 +1997,28 @@ function ServiceTypesAdminPanelContent() {
       return;
     }
 
+    const selectedSituations = [...form.selectedSituations].sort((left, right) => situations.findIndex(item => item.id === left.situation_id) - situations.findIndex(item => item.id === right.situation_id));
+    if (selectedSituations.length === 0) {
+      setToast({ msg: "Selecione pelo menos uma situação para o tipo de atendimento.", type: "error" });
+      return;
+    }
+    for (const selected of selectedSituations) {
+      const situation = situations.find(item => item.id === selected.situation_id);
+      if (selected.use_default_hours) {
+        const hours = Number(situation?.hours);
+        if (!Number.isFinite(hours) || hours <= 0) {
+          setToast({ msg: "Uma das situações selecionadas não possui horas padrão.", type: "error" });
+          return;
+        }
+      } else {
+        const hours = Number(selected.sla_hours);
+        if (!Number.isFinite(hours) || hours <= 0) {
+          setToast({ msg: "Informe um novo prazo válido para todas as situações personalizadas.", type: "error" });
+          return;
+        }
+      }
+    }
+
     setSaving(true);
     const payload = {
       title: form.title.trim(),
@@ -1992,19 +2026,34 @@ function ServiceTypesAdminPanelContent() {
       forecast_days: form.forecast_days ? Number(form.forecast_days) : null,
       is_active: form.is_active,
     };
-    const result = editItem
-      ? await supabase.from("service_types").update(payload).eq("id", editItem.id)
-      : await supabase.from("service_types").insert({ ...payload, sort_order: items.length });
-    setSaving(false);
-
-    if (result.error) {
-      setToast({ msg: `Erro ao salvar tipo: ${result.error.message}`, type: "error" });
-      return;
+    try {
+      let serviceTypeId = editItem?.id;
+      if (editItem) {
+        const { error } = await supabase.from("service_types").update(payload).eq("id", editItem.id);
+        if (error) throw error;
+        const { error: deleteError } = await supabase.from("service_type_situations").delete().eq("service_type_id", editItem.id);
+        if (deleteError) throw deleteError;
+      } else {
+        const { data, error } = await supabase.from("service_types").insert({ ...payload, sort_order: items.length }).select("id").single();
+        if (error || !data) throw error || new Error("Não foi possível obter o tipo criado.");
+        serviceTypeId = data.id;
+      }
+      const { error: linksError } = await supabase.from("service_type_situations").insert(selectedSituations.map((selected, sort_order) => ({
+        service_type_id: serviceTypeId,
+        situation_id: selected.situation_id,
+        use_default_hours: selected.use_default_hours,
+        sla_hours: selected.use_default_hours ? null : Number(selected.sla_hours),
+        sort_order,
+      })));
+      if (linksError) throw linksError;
+      setFormOpen(false);
+      setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" });
+      await load();
+    } catch (error) {
+      setToast({ msg: `Erro ao salvar tipo: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+    } finally {
+      setSaving(false);
     }
-
-    setFormOpen(false);
-    setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" });
-    load();
   };
 
   const toggle = async (item: any) => {
@@ -2061,6 +2110,15 @@ function ServiceTypesAdminPanelContent() {
                   <p className="text-xs text-[#5a6a82] truncate">
                     {item.description || "Sem descrição"}
                     {item.forecast_days != null && ` · ${item.forecast_days} dia(s)`}
+                    {(() => {
+                      const links = situationLinks.filter(link => link.service_type_id === item.id);
+                      const totalHours = links.reduce((total, link) => {
+                        const situation = situations.find(current => current.id === link.situation_id);
+                        const hours = Number(link.use_default_hours ? situation?.hours : link.sla_hours);
+                        return Number.isFinite(hours) && hours > 0 ? total + hours : total;
+                      }, 0);
+                      return links.length ? ` · ${links.length} situações · SLA total teórico: ${totalHours} horas` : " · Nenhuma situação configurada";
+                    })()}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -2093,6 +2151,34 @@ function ServiceTypesAdminPanelContent() {
           <FInput label="Título" required value={form.title} onChange={(e: any) => setForm({ ...form, title: e.target.value })} />
           <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} />
           <FInput label="Previsão em dias" type="number" min="0" value={form.forecast_days} onChange={(e: any) => setForm({ ...form, forecast_days: e.target.value })} />
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-bold text-[#0d1b2e]">Situações e SLA</p>
+              <p className="mt-1 text-xs text-[#5a6a82]">Selecione as situações permitidas e configure o prazo máximo de cada etapa.</p>
+            </div>
+            <div className="columns-1 sm:columns-2 gap-3">
+            {situations.map(situation => {
+              const selected = form.selectedSituations.find(item => item.situation_id === situation.id);
+              const defaultHours = Number(situation.hours);
+              const hasDefaultHours = Number.isFinite(defaultHours) && defaultHours > 0;
+              return <div key={situation.id} className="mb-3 w-full break-inside-avoid rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
+                <label className="flex items-center gap-2 text-sm font-semibold text-[#0d1b2e]">
+                  <input type="checkbox" checked={Boolean(selected)} onChange={event => setForm(current => ({ ...current, selectedSituations: event.target.checked ? [...current.selectedSituations, { situation_id: situation.id, use_default_hours: hasDefaultHours, sla_hours: "" }] : current.selectedSituations.filter(item => item.situation_id !== situation.id) }))} />
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} />
+                  <span>{situation.name}</span>
+                  {hasDefaultHours && <span className="text-xs font-normal text-[#5a6a82]">({defaultHours} horas)</span>}
+                </label>
+                {!hasDefaultHours && <p className="mt-1 ml-6 text-xs text-amber-700">Esta situação não possui horas padrão</p>}
+                {selected && <div className="mt-3 ml-6 space-y-2 text-xs text-[#0d1b2e]">
+                  <p className="font-bold">Horas:</p>
+                  <label className="flex items-center gap-2"><input type="radio" checked={selected.use_default_hours} disabled={!hasDefaultHours} onChange={() => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: true, sla_hours: "" } : item) }))} /> Manter padrão ({situation.hours == null ? "—" : `${situation.hours} horas`})</label>
+                  <label className="flex items-center gap-2"><input type="radio" checked={!selected.use_default_hours} onChange={() => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: false } : item) }))} /> Definir novo prazo</label>
+                  {!selected.use_default_hours && <FInput label="Prazo em horas" type="number" min="0.01" step="0.5" placeholder="Ex.: 8" value={selected.sla_hours} onChange={(e: any) => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}
+                </div>}
+              </div>;
+            })}
+            </div>
+          </div>
           <FToggle label="Tipo ativo" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
         </div>
         <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
@@ -3533,6 +3619,19 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     }
 
     const selectedPermissionIds = new Set(form.selected);
+    const permissionByKey = new Map(permissions.map(permission => [permission.key, permission.id]));
+    const viewPermissionId = permissionByKey.get("orders.view");
+    const viewAllPermissionId = permissionByKey.get("orders.view_all");
+    const requestPartsPermissionId = permissionByKey.get("orders.request_parts");
+    const managePartRequestsPermissionId = permissionByKey.get("orders.manage_part_requests");
+    if (viewPermissionId && (selectedPermissionIds.has(viewAllPermissionId) || selectedPermissionIds.has(requestPartsPermissionId) || selectedPermissionIds.has(managePartRequestsPermissionId))) selectedPermissionIds.add(viewPermissionId);
+    if (viewAllPermissionId && selectedPermissionIds.has(managePartRequestsPermissionId)) selectedPermissionIds.add(viewAllPermissionId);
+    if (viewPermissionId && !selectedPermissionIds.has(viewPermissionId)) {
+      if (viewAllPermissionId) selectedPermissionIds.delete(viewAllPermissionId);
+      if (requestPartsPermissionId) selectedPermissionIds.delete(requestPartsPermissionId);
+      if (managePartRequestsPermissionId) selectedPermissionIds.delete(managePartRequestsPermissionId);
+    }
+    if (viewAllPermissionId && !selectedPermissionIds.has(viewAllPermissionId) && managePartRequestsPermissionId) selectedPermissionIds.delete(managePartRequestsPermissionId);
     const permissionIdsToRemove = [...previousPermissionIds].filter(permissionId => !selectedPermissionIds.has(permissionId));
     const permissionIdsToAdd = [...selectedPermissionIds].filter(permissionId => !previousPermissionIds.has(permissionId));
     try {
@@ -3558,7 +3657,31 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
 
     setSaving(false); setFormOpen(false); setToast({ msg: editing ? "Função atualizada." : "Função criada.", type: "success" }); await load();
   };
-  const togglePermission = (permissionId: string) => setForm(current => ({ ...current, selected: current.selected.includes(permissionId) ? current.selected.filter(id => id !== permissionId) : [...current.selected, permissionId] }));
+  const togglePermission = (permissionId: string) => setForm(current => {
+    const permission = permissions.find(item => item.id === permissionId);
+    const nextSelected = new Set(current.selected);
+    const wasSelected = nextSelected.has(permissionId);
+    if (wasSelected) nextSelected.delete(permissionId);
+    else nextSelected.add(permissionId);
+    if (permission?.key === "orders.view") {
+      if (!nextSelected.has(permissionId)) {
+        permissions.filter(item => item.key === "orders.view_all" || item.key === "orders.request_parts" || item.key === "orders.manage_part_requests").forEach(item => nextSelected.delete(item.id));
+      }
+    } else if (permission?.key === "orders.view_all" || permission?.key === "orders.request_parts") {
+      const viewPermission = permissions.find(item => item.key === "orders.view");
+      if (viewPermission) nextSelected.add(viewPermission.id);
+      if (permission?.key === "orders.view_all" && wasSelected) {
+        const managePermission = permissions.find(item => item.key === "orders.manage_part_requests");
+        if (managePermission) nextSelected.delete(managePermission.id);
+      }
+    } else if (permission?.key === "orders.manage_part_requests") {
+      const viewPermission = permissions.find(item => item.key === "orders.view");
+      const viewAllPermission = permissions.find(item => item.key === "orders.view_all");
+      if (viewPermission) nextSelected.add(viewPermission.id);
+      if (viewAllPermission) nextSelected.add(viewAllPermission.id);
+    }
+    return { ...current, selected: Array.from(nextSelected) };
+  });
   const toggleGroup = (items: any[]) => { const ids = items.map(item => item.id); const allSelected = ids.every(id => form.selected.includes(id)); setForm(current => ({ ...current, selected: allSelected ? current.selected.filter(id => !ids.includes(id)) : Array.from(new Set([...current.selected, ...ids])) })); };
   const allSelected = permissions.length > 0 && permissions.every(permission => form.selected.includes(permission.id));
 
