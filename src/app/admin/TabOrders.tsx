@@ -36,18 +36,18 @@ type ServiceOrderProfile = { id: string; full_name: string | null };
 type ServiceOrderWithRelations = { assigned_profile?: ServiceOrderProfile | ServiceOrderProfile[] | null };
 type PartRequestInventoryItem = { id: string; name: string; sku: string | null; unit: string | null; quantity: number; is_active: boolean };
 type SelectedPartRequestItem = { inventory_item_id: string; name: string; sku: string | null; unit: string; available_quantity: number; quantity: string };
-type ReviewPartRequestItem = { id: string; inventory_item_id: string; quantity: number; approved_quantity: number | null; source_test_item_id?: string | null; delivered_quantity?: number; delivered_at?: string | null; delivered_by?: string | null; returned_quantity?: number; damaged_quantity?: number; inventory_item?: { id: string; name: string; sku: string | null; unit: string | null; quantity: number } | null };
+type ReviewPartRequestItem = { id: string; inventory_item_id: string; quantity: number; approved_quantity: number | null; source_test_item_id?: string | null; delivered_quantity?: number; delivered_at?: string | null; delivered_by?: string | null; returned_quantity?: number; damaged_quantity?: number; request_status?: string; inventory_item?: { id: string; name: string; sku: string | null; unit: string | null; quantity: number } | null };
 type PartRequestItemForReview = ReviewPartRequestItem;
-type PartRequestForReview = { id: string; service_order_id: string; purpose?: "TEST" | "RESOLUTION" | null; status: string; notes: string | null; reviewed_by?: string | null; reviewed_at?: string | null; review_notes?: string | null; created_at: string; requester?: { full_name: string | null } | null; requested_by_profile?: { full_name: string | null } | null; items: PartRequestItemForReview[] };
-type TestResultRow = { requestItemId: string; action: "RETURN" | "USE_IN_RESOLUTION" | "DAMAGED"; quantity: string; notes: string };
+type PartRequestForReview = { id: string; service_order_id: string; purpose?: "TEST" | "RESOLUTION" | null; status: string; notes: string | null; reviewed_by?: string | null; reviewed_at?: string | null; review_notes?: string | null; created_at: string; requester?: { full_name: string | null } | null; requested_by_profile?: { full_name: string | null } | null; reviewed_by_profile?: { full_name: string | null } | null; items: PartRequestItemForReview[] };
+type TestResultRow = { id: string; requestItemId: string; action: "RETURN" | "USE_IN_RESOLUTION" | "DAMAGED"; quantity: string; notes: string };
 
 function getResponsibleName(order: ServiceOrderWithRelations) {
   const profile = Array.isArray(order.assigned_profile) ? order.assigned_profile[0] : order.assigned_profile;
   return profile?.full_name?.trim() || "Responsável não informado";
 }
 
-function CenteredModal({ children, onClose, className: _className }: { children: React.ReactNode; onClose: () => void; className?: string }) {
-  return <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/55 p-4" onClick={onClose}><div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl" onClick={event => event.stopPropagation()}>{children}</div></div>;
+function CenteredModal({ children, onClose, className }: { children: React.ReactNode; onClose: () => void; className?: string }) {
+  return <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/55 p-4" onClick={onClose}><div className={cn("relative flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl", className || "max-w-2xl")} onClick={event => event.stopPropagation()}>{children}</div></div>;
 }
 
 function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading, inventoryError, selectedItems, search, notes, purpose, submitting, onPurposeChange, onSearchChange, onNotesChange, onSelect, onQuantityChange, onRemove, onClose, onSubmit }: {
@@ -55,17 +55,46 @@ function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading, inven
   onPurposeChange: (purpose: "RESOLUTION" | "TEST") => void; onSearchChange: (value: string) => void; onNotesChange: (value: string) => void; onSelect: (item: PartRequestInventoryItem) => void; onQuantityChange: (id: string, value: string) => void; onRemove: (id: string) => void; onClose: () => void; onSubmit: () => void;
 }) {
   const visibleItems = inventoryItems.filter(item => { const query = normalizeSearchText(search); return !query || normalizeSearchText(item.name).includes(query) || normalizeSearchText(item.sku).includes(query); });
-  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Pedir peças</h3><p className="mt-0.5 text-xs text-[#5a6a82]">OS {orderNumber || "—"}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-5 overflow-y-auto p-5"><div><label className="mb-1.5 block text-[11px] font-bold text-[#5a6a82]">Pesquisar peça</label><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input autoFocus value={search} onChange={event => onSearchChange(event.target.value)} placeholder="Pesquise por nome ou SKU" className={cn(INPUT, "h-[42px] pl-9 text-xs")} /></div></div><div className="space-y-2"><p className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Resultados</p>{inventoryLoading ? <p className="text-xs text-[#5a6a82]">Carregando peças do estoque...</p> : inventoryError ? <p className="text-xs text-red-600">{inventoryError}</p> : visibleItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum item encontrado.</p> : <div className="max-h-56 space-y-1 overflow-y-auto">{visibleItems.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#0d1b2e]/10 px-3 py-2 text-xs"><span className="min-w-0"><span className="block truncate font-semibold text-[#0d1b2e]">{item.name}</span><span className="text-[11px] text-[#5a6a82]">{item.sku ? `SKU: ${item.sku} · ` : ""}{Number(item.quantity)} {item.unit || "un"}</span></span><button type="button" onClick={() => onSelect(item)} className="shrink-0 rounded-lg border border-[#0057e7]/30 px-2.5 py-1.5 text-xs font-bold text-[#0057e7]">Adicionar</button></div>)}</div>}</div><div className="space-y-2"><p className="text-sm font-bold text-[#0d1b2e]">Peças selecionadas</p>{selectedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça selecionada.</p> : selectedItems.map(item => <div key={item.inventory_item_id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center gap-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.name}</p><p className="text-[11px] text-[#5a6a82]">Disponível: {item.available_quantity} {item.unit}</p></div><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={event => onQuantityChange(item.inventory_item_id, event.target.value)} className={cn(INPUT, "w-24 text-center text-sm")} /><button type="button" onClick={() => onRemove(item.inventory_item_id)} aria-label={`Remover ${item.name}`} className="p-2 text-red-600"><X size={14} /></button></div></div>)}</div><FTextarea label="Observações" value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder="Informe detalhes importantes sobre as peças solicitadas." /></div><div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Enviando..." : "Enviar solicitação"}</BtnPrimary></div></CenteredModal>;
+  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Pedir peças</h3><p className="mt-0.5 text-xs text-[#5a6a82]">OS {orderNumber || "—"}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-5 overflow-y-auto p-5"><div><p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Finalidade do pedido</p><div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => onPurposeChange("RESOLUTION")} className={cn("rounded-xl border p-3 text-left transition-colors", purpose === "RESOLUTION" ? "border-[#0057e7] bg-blue-50 text-[#0057e7]" : "border-[#0d1b2e]/10 bg-white text-[#0d1b2e] hover:border-[#0057e7]/35")}><span className="flex items-center gap-2 text-sm font-bold"><CheckCircle size={16} /> Para resolução</span><span className="mt-1 block text-[11px] font-normal text-[#5a6a82]">Peças que serão utilizadas diretamente para solucionar a OS.</span></button><button type="button" onClick={() => onPurposeChange("TEST")} className={cn("rounded-xl border p-3 text-left transition-colors", purpose === "TEST" ? "border-[#0057e7] bg-blue-50 text-[#0057e7]" : "border-[#0d1b2e]/10 bg-white text-[#0d1b2e] hover:border-[#0057e7]/35")}><span className="flex items-center gap-2 text-sm font-bold"><PackagePlus size={16} /> Para teste</span><span className="mt-1 block text-[11px] font-normal text-[#5a6a82]">Peças retiradas temporariamente para diagnóstico e teste.</span></button></div></div><div><label className="mb-1.5 block text-[11px] font-bold text-[#5a6a82]">Pesquisar peça</label><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input autoFocus value={search} onChange={event => onSearchChange(event.target.value)} placeholder="Pesquise por nome ou SKU" className={cn(INPUT, "h-[42px] pl-9 text-xs")} /></div></div><div className="space-y-2"><p className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Resultados</p>{inventoryLoading ? <p className="text-xs text-[#5a6a82]">Carregando peças do estoque...</p> : inventoryError ? <p className="text-xs text-red-600">{inventoryError}</p> : visibleItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum item encontrado.</p> : <div className="max-h-56 space-y-1 overflow-y-auto">{visibleItems.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#0d1b2e]/10 px-3 py-2 text-xs"><span className="min-w-0"><span className="block truncate font-semibold text-[#0d1b2e]">{item.name}</span><span className="text-[11px] text-[#5a6a82]">{item.sku ? `SKU: ${item.sku} · ` : ""}{Number(item.quantity)} {item.unit || "un"}</span></span><button type="button" onClick={() => onSelect(item)} className="shrink-0 rounded-lg border border-[#0057e7]/30 px-2.5 py-1.5 text-xs font-bold text-[#0057e7]">Adicionar</button></div>)}</div>}</div><div className="space-y-2"><p className="text-sm font-bold text-[#0d1b2e]">Peças selecionadas</p>{selectedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça selecionada.</p> : selectedItems.map(item => <div key={item.inventory_item_id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center gap-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.name}</p><p className="text-[11px] text-[#5a6a82]">Disponível: {item.available_quantity} {item.unit}</p></div><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={event => onQuantityChange(item.inventory_item_id, event.target.value)} className={cn(INPUT, "w-24 text-center text-sm")} /><button type="button" onClick={() => onRemove(item.inventory_item_id)} aria-label={`Remover ${item.name}`} className="p-2 text-red-600"><X size={14} /></button></div></div>)}</div><FTextarea label="Observações" value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder="Informe detalhes importantes sobre as peças solicitadas." /></div><div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Enviando..." : "Enviar solicitação"}</BtnPrimary></div></CenteredModal>;
 }
 
 function TestDeliveryModal({ request, orderNumber, submitting, onClose, onSubmit }: { request: PartRequestForReview; orderNumber?: string | null; submitting: boolean; onClose: () => void; onSubmit: () => void }) {
   return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Confirmar entrega</h3><p className="mt-0.5 text-xs text-[#5a6a82]">OS {orderNumber || "—"} · {request.requester?.full_name || "Solicitante não informado"}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5"><div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Ao confirmar, as quantidades aprovadas serão retiradas do estoque e ficarão sob responsabilidade do técnico da OS.</div><div className="space-y-2">{request.items.map(item => <div key={item.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 text-xs"><p className="font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-[#5a6a82]">Solicitado: {Number(item.quantity)} {item.inventory_item?.unit || "un"} · Aprovado: {Number(item.approved_quantity ?? 0)} {item.inventory_item?.unit || "un"} · Disponível: {Number(item.inventory_item?.quantity ?? 0)} {item.inventory_item?.unit || "un"}</p></div>)}</div></div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Entregando..." : "Confirmar entrega"}</BtnPrimary></div></CenteredModal>;
 }
 
-function TestResultModal({ request, rows, submitting, onRowsChange, onClose, onSubmit }: { request: PartRequestForReview; rows: TestResultRow[]; submitting: boolean; onRowsChange: (rows: TestResultRow[]) => void; onClose: () => void; onSubmit: () => void }) {
-  const getPendingQuantity = (item: PartRequestItemForReview) => Math.max(0, Number(item.delivered_quantity ?? 0) - Number(item.returned_quantity ?? 0) - Number(item.damaged_quantity ?? 0));
-  const pendingItems = request.items.filter(item => getPendingQuantity(item) > 0);
-  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Registrar resultado do teste</h3><p className="mt-0.5 text-xs text-[#5a6a82]">Defina o destino das peças entregues</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5">{pendingItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aguardando resultado.</p> : pendingItems.map(item => { const pending = getPendingQuantity(item); const used = rows.filter(row => row.requestItemId === item.id).reduce((sum, row) => sum + (Number(row.quantity) || 0), 0); return <div key={item.id} className="space-y-2 rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><p className="text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"} <span className="text-xs font-normal text-[#5a6a82]">· Aguardando: {Math.max(0, pending - used)} {item.inventory_item?.unit || "un"}</span></p>{rows.filter(row => row.requestItemId === item.id).map((row, index) => <div key={`${item.id}-${index}`} className="grid gap-2 sm:grid-cols-[1fr_6rem_1fr_auto]"><select value={row.action} onChange={event => onRowsChange(rows.map(current => current === row ? { ...current, action: event.target.value as TestResultRow["action"] } : current))} className={cn(INPUT, "text-xs")}><option value="RETURN">Devolver ao estoque</option><option value="USE_IN_RESOLUTION">Usar na resolução</option><option value="DAMAGED">Danificada</option></select><input type="number" min="0.01" step="0.01" value={row.quantity} onChange={event => onRowsChange(rows.map(current => current === row ? { ...current, quantity: event.target.value } : current))} className={cn(INPUT, "text-xs")} /><input value={row.notes} onChange={event => onRowsChange(rows.map(current => current === row ? { ...current, notes: event.target.value } : current))} placeholder={row.action === "DAMAGED" ? "Justificativa do dano" : "Observação (opcional)"} className={cn(INPUT, "text-xs")} /><button type="button" onClick={() => onRowsChange(rows.filter(current => current !== row))} className="p-2 text-red-600"><X size={14} /></button></div>)}<button type="button" onClick={() => onRowsChange([...rows, { requestItemId: item.id, action: "RETURN", quantity: "", notes: "" }])} className="text-xs font-bold text-[#0057e7]">Adicionar destino</button></div>; })}</div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Registrando..." : "Registrar resultado"}</BtnPrimary></div></CenteredModal>;
+function TestResultModal({ request, rows, submitting, getPendingQuantity, onRowsChange, onClose, onSubmit }: {
+  request: PartRequestForReview;
+  rows: TestResultRow[];
+  submitting: boolean;
+  getPendingQuantity: (request: PartRequestForReview, item: PartRequestItemForReview) => number;
+  onRowsChange: (rows: TestResultRow[]) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  const pendingItems = request.items.filter(item => getPendingQuantity(request, item) > 0);
+  return <CenteredModal onClose={onClose}>
+    <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4">
+      <div><h3 className="text-base font-bold text-[#0d1b2e]">Registrar resultado do teste</h3><p className="mt-0.5 text-xs text-[#5a6a82]">Defina o destino das peças entregues</p></div>
+      <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button>
+    </div>
+    <div className="min-h-0 space-y-4 overflow-y-auto p-5">
+      {pendingItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aguardando resultado.</p> : pendingItems.map(item => {
+        const pending = getPendingQuantity(request, item);
+        const used = rows.filter(row => row.requestItemId === item.id).reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+        return <div key={item.id} className="space-y-2 rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
+          <p className="text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"} <span className="text-xs font-normal text-[#5a6a82]">· Aguardando: {Math.max(0, pending - used)} {item.inventory_item?.unit || "un"}</span></p>
+          {rows.filter(row => row.requestItemId === item.id).map(row => <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_6rem_1fr_auto]">
+            <select value={row.action} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, action: event.target.value as TestResultRow["action"] } : current))} className={cn(INPUT, "text-xs")}><option value="RETURN">Devolver ao estoque</option><option value="USE_IN_RESOLUTION">Usar na resolução</option><option value="DAMAGED">Danificada</option></select>
+            <input type="number" min="0.01" max={pending} step="0.01" value={row.quantity} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, quantity: event.target.value } : current))} className={cn(INPUT, "text-xs")} />
+            <input value={row.notes} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, notes: event.target.value } : current))} placeholder={row.action === "DAMAGED" ? "Justificativa do dano" : "Observação (opcional)"} className={cn(INPUT, "text-xs")} />
+            <button type="button" onClick={() => onRowsChange(rows.filter(current => current.id !== row.id))} className="p-2 text-red-600"><X size={14} /></button>
+          </div>)}
+          <button type="button" disabled={used >= pending} onClick={() => onRowsChange([...rows, { id: crypto.randomUUID(), requestItemId: item.id, action: "RETURN", quantity: "", notes: "" }])} className="text-xs font-bold text-[#0057e7] disabled:cursor-not-allowed disabled:opacity-50">Adicionar destino</button>
+        </div>;
+      })}
+    </div>
+    <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Registrando..." : "Registrar resultado"}</BtnPrimary></div>
+  </CenteredModal>;
 }
 
 type EmployeeOption = { id: string; full_name: string; function_name?: string | null; is_active?: boolean };
@@ -704,7 +733,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     try {
       const { error } = await supabase.rpc("review_service_order_part_request", { p_request_id: selectedPartRequest.id, p_decision: "APPROVED", p_items: selectedPartRequest.items.map(item => ({ request_item_id: item.id, approved_quantity: Number(approvalQuantities[item.id] || 0) })), p_review_notes: partReviewNotes.trim() || null });
       if (error) throw error;
-      setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças aprovado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id);
+      setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças aprovado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id); await load();
     } catch (error) { console.error("[PART REQUEST] approval error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
     finally { setPartReviewSubmitting(false); }
   };
@@ -715,7 +744,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     try {
       const { error } = await supabase.rpc("review_service_order_part_request", { p_request_id: selectedPartRequest.id, p_decision: "REJECTED", p_items: [], p_review_notes: partReviewNotes.trim() });
       if (error) throw error;
-      setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças rejeitado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id);
+      setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças rejeitado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id); await load();
     } catch (error) { console.error("[PART REQUEST] rejection error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
     finally { setPartReviewSubmitting(false); }
   };
@@ -750,19 +779,23 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     finally { setTestResultSubmitting(false); }
   };
 
-  const getTestPendingQuantity = (request: PartRequestForReview, item: PartRequestItemForReview) => {
+  const getTestCommittedQuantity = (item: PartRequestItemForReview) => detailPartRequests
+    .filter((candidate: PartRequestForReview) => (candidate.purpose || "RESOLUTION") === "RESOLUTION")
+    .flatMap((candidate: PartRequestForReview) => candidate.items || [])
+    .filter((candidate: PartRequestItemForReview) => candidate.source_test_item_id === item.id)
+    .reduce((sum: number, candidate: PartRequestItemForReview) => {
+      const status = String(candidate.request_status || "").toUpperCase();
+      const amount = status === "APPROVED"
+        ? Number(candidate.approved_quantity ?? 0)
+        : status === "PENDING" ? Number(candidate.quantity ?? 0) : 0;
+      return Number.isFinite(amount) ? sum + amount : sum;
+    }, 0);
+
+  const getTestPendingQuantity = (_request: PartRequestForReview, item: PartRequestItemForReview) => {
     const delivered = Number(item.delivered_quantity ?? 0);
     const returned = Number(item.returned_quantity ?? 0);
     const damaged = Number(item.damaged_quantity ?? 0);
-    const committedForResolution = detailPartRequests
-      .filter((candidate: PartRequestForReview) => candidate.purpose === "RESOLUTION")
-      .flatMap(candidate => candidate.items || [])
-      .filter(candidate => candidate.source_test_item_id === item.id)
-      .reduce((sum, candidate) => {
-        if (candidate === item) return sum;
-        const amount = String((candidate as any).request_status || "").toUpperCase() === "APPROVED" ? Number(candidate.approved_quantity ?? 0) : String((candidate as any).request_status || "").toUpperCase() === "PENDING" ? Number(candidate.quantity ?? 0) : 0;
-        return Number.isFinite(amount) ? sum + amount : sum;
-      }, 0);
+    const committedForResolution = getTestCommittedQuantity(item);
     return Math.max(0, delivered - returned - damaged - committedForResolution);
   };
 
@@ -874,7 +907,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       return;
     }
 
-    const hasUndestinedTestParts = detailPartRequests.some((request: PartRequestForReview) => request.purpose === "TEST" && request.items.some(item => {
+    const hasUndestinedTestParts = detailPartRequests.some((request: PartRequestForReview) => (request.purpose || "RESOLUTION") === "TEST" && request.items.some(item => {
       const delivered = Number(item.delivered_quantity ?? 0);
       const returned = Number(item.returned_quantity ?? 0);
       const damaged = Number(item.damaged_quantity ?? 0);
@@ -1071,13 +1104,30 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setToast({ msg: "Esta OS está marcada como não solucionável e não pode ser resolvida novamente.", type: "error" });
       return;
     }
+    const hasUndestinedTestParts = detailPartRequests.some((request: PartRequestForReview) =>
+      (request.purpose || "RESOLUTION") === "TEST" &&
+      request.items.some(item => getTestPendingQuantity(request, item) > 0)
+    );
+    if (hasUndestinedTestParts) {
+      setToast({ msg: "Existem peças de teste aguardando devolução, dano ou solicitação para resolução.", type: "error" });
+      return;
+    }
     const [{ data: approvedRequests, error: approvedRequestsError }, { data: mediaLinks }] = await Promise.all([
-      supabase.from("service_order_part_requests").select("items:service_order_part_request_items(id,inventory_item_id,approved_quantity,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", order.id).eq("status", "APPROVED"),
+      supabase.from("service_order_part_requests").select("id,purpose,status,items:service_order_part_request_items(id,inventory_item_id,approved_quantity,source_test_item_id,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", order.id).eq("status", "APPROVED").eq("purpose", "RESOLUTION"),
       supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", order.id).order("sort_order"),
     ]);
     if (approvedRequestsError) { setToast({ msg: `Não foi possível carregar as peças aprovadas: ${supabaseErrorMessage(approvedRequestsError)}`, type: "error" }); return; }
     const approvedByInventory = new Map<string, any>();
-    (approvedRequests || []).flatMap((request: any) => request.items || []).forEach((item: any) => { const quantity = Number(item.approved_quantity); if (!item.inventory_item_id || !Number.isFinite(quantity) || quantity <= 0) return; const current = approvedByInventory.get(item.inventory_item_id); approvedByInventory.set(item.inventory_item_id, { ...item, approved_quantity: (current?.approved_quantity || 0) + quantity }); });
+    (approvedRequests || []).flatMap((request: any) => request.items || []).forEach((item: any) => {
+      const quantity = Number(item.approved_quantity);
+      if (!item.inventory_item_id || !Number.isFinite(quantity) || quantity <= 0) return;
+      const current = approvedByInventory.get(item.inventory_item_id);
+      approvedByInventory.set(item.inventory_item_id, {
+        ...item,
+        approved_quantity: Number(current?.approved_quantity || 0) + quantity,
+        prewithdrawn_quantity: Number(current?.prewithdrawn_quantity || 0) + (item.source_test_item_id ? quantity : 0),
+      });
+    });
     const approvedItems = Array.from(approvedByInventory.values());
     setInventoryItems(approvedItems.map((item: any) => item.inventory_item).filter(Boolean));
     setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
@@ -1085,7 +1135,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setSolveDraft({
       diagnosis: currentOrder?.diagnosis || order.diagnosis || "",
       solution: currentOrder?.solution || order.solution || "",
-      usedItems: approvedItems.map((item: any) => ({ id: item.id, inventory_item_id: item.inventory_item_id, name: item.inventory_item?.name || "", unit: item.inventory_item?.unit || "un", quantity: Number(item.approved_quantity) })),
+      usedItems: approvedItems.map((item: any) => ({ id: item.id, inventory_item_id: item.inventory_item_id, name: item.inventory_item?.name || "", unit: item.inventory_item?.unit || "un", quantity: Number(item.approved_quantity), approved_quantity: Number(item.approved_quantity), prewithdrawn_quantity: Number(item.prewithdrawn_quantity || 0) })),
       cannotSolve: currentOrder?.cannot_be_solved ?? order.cannot_be_solved ?? false,
       cannotSolveReason: currentOrder?.cannot_be_solved_reason || order.cannot_be_solved_reason || "",
     });
@@ -1574,7 +1624,53 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               {detail.internal_notes && <Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>}
               {detail.customer_notes && <Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>}
               <Section title="Solicitações de peças">
-                {detailPartRequests.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma solicitação de peças para esta OS.</p> : <div className="space-y-3">{detailPartRequests.map((request: PartRequestForReview) => { const status = String(request.status || "").toUpperCase(); const statusLabel = status === "APPROVED" ? "Aprovada" : status === "REJECTED" ? "Rejeitada" : status === "CANCELLED" ? "Cancelada" : "Em análise"; const statusClass = status === "APPROVED" ? "bg-green-100 text-green-700" : status === "REJECTED" ? "bg-red-100 text-red-700" : status === "CANCELLED" ? "bg-[#f5f7fa] text-[#5a6a82]" : "bg-amber-100 text-amber-700"; return <div key={request.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className={cn("rounded-full px-2 py-1 text-[10px] font-bold", statusClass)}>{statusLabel}</span><span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-bold text-blue-700">{purposeLabel(request.purpose)}</span><span className="text-[11px] text-[#5a6a82]">{request.requester?.full_name || "Solicitante não informado"} · {fmtDate(request.created_at, true)}</span></div>{request.notes && <p className="mt-2 whitespace-pre-line text-xs text-[#0d1b2e]">{request.notes}</p>}<div className="mt-2 space-y-1">{(request.items || []).map((item: PartRequestItemForReview) => <p key={item.id} className="text-xs text-[#5a6a82]">Solicitado: {Number(item.quantity)} {item.inventory_item?.unit || "un"}{item.approved_quantity != null && ` · Aprovado: ${Number(item.approved_quantity)} ${item.inventory_item?.unit || "un"}`} · {item.inventory_item?.name || "Peça"}</p>)}</div>{status !== "PENDING" && (request.reviewed_by_profile?.full_name || request.reviewed_at || request.review_notes) && <div className="mt-2 border-t border-[#0d1b2e]/8 pt-2 text-[11px] text-[#5a6a82]">Analisado por {request.reviewed_by_profile?.full_name || "Responsável não informado"}{request.reviewed_at ? ` em ${fmtDate(request.reviewed_at, true)}` : ""}{request.review_notes ? ` · ${request.review_notes}` : ""}</div>}{hasPermission("orders.manage_part_requests") && <div className="mt-3 flex flex-wrap justify-end gap-2">{status === "PENDING" && <><button type="button" onClick={event => openPartApproval(event, request)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">Aprovar</button><button type="button" onClick={event => openPartRejection(event, request)} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700">Rejeitar</button></>}{status === "REJECTED" && <button type="button" onClick={event => openPartApproval(event, request)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">Aprovar</button>}{status === "APPROVED" && (request.items || []).some(item => Number(item.delivered_quantity ?? 0) > 0) === false && <><button type="button" onClick={event => openPartRejection(event, request)} className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">Desaprovar</button>{request.purpose === "TEST" && <button type="button" onClick={() => { setSelectedDeliveryRequest(request); setDeliveryOpen(true); }} className="rounded-lg bg-[#0057e7] px-3 py-2 text-xs font-bold text-white hover:bg-[#0046c0]">Confirmar entrega</button>}{request.purpose === "TEST" && user?.id === detail?.assigned_to && request.items.some(item => getTestPendingQuantity(request, item) > 0) && <button type="button" onClick={() => { setSelectedTestRequest(request); setTestResultRows([]); setTestResultOpen(true); }} className="rounded-lg border border-[#0057e7]/30 px-3 py-2 text-xs font-bold text-[#0057e7]">Registrar resultado do teste</button>}</>}</div>}</div>; })}</div>}
+                {detailPartRequests.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma solicitação de peças para esta OS.</p> : <div className="space-y-3">
+                  {detailPartRequests.map((request: PartRequestForReview) => {
+                    const status = String(request.status || "").toUpperCase();
+                    const normalizedPurpose = request.purpose || "RESOLUTION";
+                    const hasDeliveredItems = request.items.some(item => Number(item.delivered_quantity ?? 0) > 0);
+                    const hasPendingTestResult = normalizedPurpose === "TEST" && request.items.some(item => getTestPendingQuantity(request, item) > 0);
+                    const statusLabel = status === "APPROVED" ? "Aprovada" : status === "REJECTED" ? "Rejeitada" : status === "CANCELLED" ? "Cancelada" : "Em análise";
+                    const statusClass = status === "APPROVED" ? "bg-green-100 text-green-700" : status === "REJECTED" ? "bg-red-100 text-red-700" : status === "CANCELLED" ? "bg-[#f5f7fa] text-[#5a6a82]" : "bg-amber-100 text-amber-700";
+                    return <div key={request.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className={cn("rounded-full px-2 py-1 text-[10px] font-bold", statusClass)}>{statusLabel}</span>
+                        <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-bold text-blue-700">{purposeLabel(normalizedPurpose)}</span>
+                        <span className="text-[11px] text-[#5a6a82]">{request.requester?.full_name || "Solicitante não informado"} · {fmtDate(request.created_at, true)}</span>
+                      </div>
+                      {request.notes && <p className="mt-2 whitespace-pre-line text-xs text-[#0d1b2e]">{request.notes}</p>}
+                      <div className="mt-2 space-y-2">{request.items.map(item => {
+                        const unit = item.inventory_item?.unit || "un";
+                        const delivered = Math.max(0, Number(item.delivered_quantity ?? 0));
+                        const returned = Math.max(0, Number(item.returned_quantity ?? 0));
+                        const damaged = Math.max(0, Number(item.damaged_quantity ?? 0));
+                        const committed = normalizedPurpose === "TEST" ? getTestCommittedQuantity(item) : 0;
+                        const pending = normalizedPurpose === "TEST" ? getTestPendingQuantity(request, item) : 0;
+                        return <div key={item.id} className="rounded-lg border border-[#0d1b2e]/8 bg-white p-2.5">
+                          <p className="text-xs font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p>
+                          <p className="mt-0.5 text-[11px] text-[#5a6a82]">Solicitado: {Number(item.quantity)} {unit}{item.approved_quantity != null && ` · Aprovado: ${Number(item.approved_quantity)} ${unit}`}</p>
+                          {item.source_test_item_id && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">Origem: peça testada</span>}
+                          {normalizedPurpose === "TEST" && delivered > 0 && <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] sm:grid-cols-5">
+                            <span className="rounded bg-blue-50 px-2 py-1 text-blue-700">Entregue: {delivered} {unit}</span>
+                            <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-700">Devolvida: {returned} {unit}</span>
+                            <span className="rounded bg-red-50 px-2 py-1 text-red-700">Danificada: {damaged} {unit}</span>
+                            <span className="rounded bg-violet-50 px-2 py-1 text-violet-700">Para resolução: {committed} {unit}</span>
+                            <span className="rounded bg-amber-50 px-2 py-1 text-amber-700">Aguardando: {pending} {unit}</span>
+                          </div>}
+                        </div>;
+                      })}</div>
+                      {status !== "PENDING" && (request.reviewed_by_profile?.full_name || request.reviewed_at || request.review_notes) && <div className="mt-2 border-t border-[#0d1b2e]/8 pt-2 text-[11px] text-[#5a6a82]">Analisado por {request.reviewed_by_profile?.full_name || "Responsável não informado"}{request.reviewed_at ? ` em ${fmtDate(request.reviewed_at, true)}` : ""}{request.review_notes ? ` · ${request.review_notes}` : ""}</div>}
+                      {status === "APPROVED" && normalizedPurpose === "TEST" && hasDeliveredItems && <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800"><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span>Peças já entregues — a análise não pode mais ser revertida.</span></div>}
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        {hasPermission("orders.manage_part_requests") && status === "PENDING" && <><button type="button" onClick={event => openPartApproval(event, request)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">Aprovar</button><button type="button" onClick={event => openPartRejection(event, request)} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700">Rejeitar</button></>}
+                        {hasPermission("orders.manage_part_requests") && status === "REJECTED" && <button type="button" onClick={event => openPartApproval(event, request)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">Aprovar</button>}
+                        {hasPermission("orders.manage_part_requests") && status === "APPROVED" && !hasDeliveredItems && <button type="button" onClick={event => openPartRejection(event, request)} className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">Desaprovar</button>}
+                        {hasPermission("orders.manage_part_requests") && status === "APPROVED" && normalizedPurpose === "TEST" && !hasDeliveredItems && <button type="button" onClick={() => { setSelectedDeliveryRequest(request); setDeliveryOpen(true); }} className="rounded-lg bg-[#0057e7] px-3 py-2 text-xs font-bold text-white hover:bg-[#0046c0]">Confirmar entrega</button>}
+                        {status === "APPROVED" && normalizedPurpose === "TEST" && hasDeliveredItems && hasPendingTestResult && user?.id === detail?.assigned_to && <button type="button" onClick={() => { setSelectedTestRequest(request); setTestResultRows([]); setTestResultOpen(true); }} className="rounded-lg border border-[#0057e7]/30 px-3 py-2 text-xs font-bold text-[#0057e7]">Registrar resultado do teste</button>}
+                      </div>
+                    </div>;
+                  })}
+                </div>}
               </Section>
               {(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && (
                 <Section title="Solução da OS">
@@ -1844,13 +1940,17 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 const stockItem = inventoryItems.find(entry => entry.id === item.inventory_item_id);
                 const available = Number(stockItem?.quantity ?? 0);
                 const requested = Number(item.quantity || 0);
-                const invalid = requested <= 0 || requested > available;
+                const approved = Number(item.approved_quantity ?? requested);
+                const prewithdrawn = Number(item.prewithdrawn_quantity ?? 0);
+                const stockRequired = Math.max(0, requested - prewithdrawn);
+                const invalid = requested <= 0 || requested > approved || stockRequired > available;
                 return (
                   <div key={item.inventory_item_id} className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
                     <div className="flex items-start gap-3">
                       <div className="flex-1">
                         <p className="font-semibold text-sm text-[#0d1b2e]">{item.name}</p>
                         <p className="text-[11px] text-[#5a6a82]">{requested} {item.unit || stockItem?.unit || "un"} aprovadas · Disponível: {available} {item.unit || stockItem?.unit || "un"}</p>
+                        {prewithdrawn > 0 && <p className="mt-1 text-[10px] font-bold text-violet-700">{prewithdrawn} {item.unit || stockItem?.unit || "un"} {prewithdrawn === 1 ? "já retirada" : "já retiradas"} para teste</p>}
                         {invalid && <p className="mt-1 text-[10px] font-bold text-red-600">Estoque insuficiente</p>}
                       </div>
                     </div>
@@ -1908,7 +2008,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
             }
             const hasInvalidProducts = solveDraft.usedItems.some(item => {
               const stockItem = inventoryItems.find(entry => entry.id === item.inventory_item_id);
-              return Number(item.quantity || 0) <= 0 || Number(item.quantity || 0) > Number(stockItem?.quantity ?? 0);
+              const requested = Number(item.quantity || 0);
+              const approved = Number(item.approved_quantity ?? requested);
+              const prewithdrawn = Number(item.prewithdrawn_quantity ?? 0);
+              return requested <= 0 || requested > approved || Math.max(0, requested - prewithdrawn) > Number(stockItem?.quantity ?? 0);
             });
             if (hasInvalidProducts) {
               setToast({ msg: "Estoque insuficiente em pelo menos um produto. Ajuste a quantidade antes de concluir.", type: "error" });
@@ -2171,11 +2274,7 @@ function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: ()
 
 function ReviewPartRequestModal({ request, orderNumber, rejection, approvalQuantities, notes, submitting, onNotesChange, onQuantityChange, onClose, onSubmit }: { request: PartRequestForReview; orderNumber?: string | null; rejection: boolean; approvalQuantities: Record<string, string>; notes: string; submitting: boolean; onNotesChange: (value: string) => void; onQuantityChange: (id: string, value: string) => void; onClose: () => void; onSubmit: () => void }) {
   const subtitle = rejection ? "Revise as peças solicitadas e informe o motivo da rejeição" : `OS ${orderNumber || "—"} · ${request.requester?.full_name || "Solicitante não informado"}`;
-  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">{rejection ? "Rejeitar pedido de peças" : "Aprovar pedido de peças"}</h3><p className="mt-0.5 text-xs text-[#5a6a82]">{subtitle}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5"><div className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 text-xs text-[#5a6a82]"><p><strong>OS:</strong> {orderNumber || "—"}</p><p><strong>Solicitante:</strong> {request.requester?.full_name || "Solicitante não informado"}</p><p><strong>Solicitado em:</strong> {fmtReviewDate(request.created_at)}</p>{request.notes && <p className="mt-1 whitespace-pre-line"><strong>Observações:</strong> {request.notes}</p>}</div><p className="text-sm font-bold text-[#0d1b2e]">Peças solicitadas</p>{request.items.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça encontrada nesta solicitação.</p> : <div className="space-y-2">{request.items.map(item => { const requested = Number(item.quantity); const available = Number(item.inventory_item?.quantity ?? 0); return <div key={item.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-xs text-[#5a6a82]">{item.inventory_item?.sku ? `SKU: ${item.inventory_item.sku} · ` : ""}Solicitado: {requested} {item.inventory_item?.unit || "un"} · Disponível: {available} {item.inventory_item?.unit || "un"}</p></div>{!rejection && <div><label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade aprovada</label><input type="number" min="0" max={requested} step="0.01" value={approvalQuantities[item.id] ?? String(item.quantity)} onChange={event => onQuantityChange(item.id, event.target.value)} className={cn(INPUT, "w-28 text-center text-sm")} /></div>}</div></div>; })}</div>}<FTextarea label={rejection ? "Motivo da rejeição" : "Observação da análise"} required={rejection} value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder={rejection ? "Informe por que este pedido está sendo rejeitado." : undefined} /></div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? rejection ? "Rejeitando..." : "Aprovando..." : rejection ? "Confirmar rejeição" : "Confirmar aprovação"}</BtnPrimary></div></CenteredModal>;
-}
-
-function LegacyReviewPartRequestModal({ request, orderNumber, rejection, approvalQuantities, notes, submitting, onNotesChange, onQuantityChange, onClose, onSubmit }: { request: PartRequestForReview; orderNumber?: string | null; rejection: boolean; approvalQuantities: Record<string, string>; notes: string; submitting: boolean; onNotesChange: (value: string) => void; onQuantityChange: (id: string, value: string) => void; onClose: () => void; onSubmit: () => void }) {
-  return <CenteredModal onClose={onClose} className={rejection ? "max-w-md" : "max-w-2xl"}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">{rejection ? "Rejeitar pedido de peças" : "Aprovar pedido de peças"}</h3><p className="mt-0.5 text-xs text-[#5a6a82]">OS {orderNumber || "—"} · {request.requester?.full_name || "Solicitante não informado"}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5">{rejection ? <><p className="text-sm text-[#5a6a82]">Pedido com {request.items.length} peça(s) solicitado(s).</p><FTextarea label="Motivo da rejeição" required value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={4} /></> : <><p className="text-sm font-bold text-[#0d1b2e]">Peças solicitadas</p><div className="space-y-2">{request.items.map(item => { const requested = Number(item.quantity); const available = Number(item.inventory_item?.quantity ?? 0); return <div key={item.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-xs text-[#5a6a82]">{item.inventory_item?.sku ? `SKU: ${item.inventory_item.sku} · ` : ""}Solicitado: {requested} {item.inventory_item?.unit || "un"} · Disponível: {available} {item.inventory_item?.unit || "un"}</p></div><div><label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade aprovada</label><input type="number" min="0" step="0.01" value={approvalQuantities[item.id] ?? String(item.quantity)} onChange={event => onQuantityChange(item.id, event.target.value)} className={cn(INPUT, "w-28 text-center text-sm")} /></div></div></div>; })}</div><FTextarea label="Observação da análise" value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} /></>}</div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Enviando..." : rejection ? "Confirmar rejeição" : "Confirmar aprovação"}</BtnPrimary></div></CenteredModal>;
+  return <CenteredModal onClose={onClose} className="max-w-2xl"><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">{rejection ? "Rejeitar pedido de peças" : "Aprovar pedido de peças"}</h3><p className="mt-0.5 text-xs text-[#5a6a82]">{subtitle}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5"><div className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 text-xs text-[#5a6a82]"><p><strong>OS:</strong> {orderNumber || "—"}</p><p><strong>Solicitante:</strong> {request.requester?.full_name || "Solicitante não informado"}</p><p><strong>Solicitado em:</strong> {fmtReviewDate(request.created_at)}</p>{request.notes && <p className="mt-1 whitespace-pre-line"><strong>Observações:</strong> {request.notes}</p>}</div><p className="text-sm font-bold text-[#0d1b2e]">Peças solicitadas</p>{request.items.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça encontrada nesta solicitação.</p> : <div className="space-y-2">{request.items.map(item => { const requested = Number(item.quantity); const available = Number(item.inventory_item?.quantity ?? 0); const isFromTest = Boolean(item.source_test_item_id); const effectiveLimit = isFromTest ? requested : Math.min(requested, available); return <div key={item.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-xs text-[#5a6a82]">{item.inventory_item?.sku ? `SKU: ${item.inventory_item.sku} · ` : ""}Solicitado: {requested} {item.inventory_item?.unit || "un"}{isFromTest ? "" : ` · Disponível: ${available} ${item.inventory_item?.unit || "un"}`}</p>{isFromTest && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">Origem: peça testada</span>}</div>{!rejection && <div><label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade aprovada</label><input type="number" min="0" max={effectiveLimit} step="0.01" value={approvalQuantities[item.id] ?? String(item.quantity)} onChange={event => onQuantityChange(item.id, event.target.value)} className={cn(INPUT, "w-28 text-center text-sm")} /></div>}</div></div>; })}</div>}<FTextarea label={rejection ? "Motivo da rejeição" : "Observação da análise"} required={rejection} value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder={rejection ? "Informe por que este pedido está sendo rejeitado." : undefined} /></div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? rejection ? "Rejeitando..." : "Aprovando..." : rejection ? "Confirmar rejeição" : "Confirmar aprovação"}</BtnPrimary></div></CenteredModal>;
 }
 
 const fmtReviewDate = (value?: string | null) => value ? new Date(value).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
