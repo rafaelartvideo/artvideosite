@@ -68,6 +68,7 @@ import { useOrderCustomerSelection } from "@/features/orders/presentation/useOrd
 import { useOrderServiceAddress } from "@/features/orders/presentation/useOrderServiceAddress";
 import { useOrderResolution } from "@/features/orders/presentation/useOrderResolution";
 import { useOrderDetails } from "@/features/orders/presentation/useOrderDetails";
+import { useOrderFormState } from "@/features/orders/presentation/useOrderFormState";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import type { Address } from "@/lib/address";
@@ -126,17 +127,29 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     reloadWorkspace,
   } = useOrdersWorkspace({ showToast: setToast });
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingOS, setEditingOS] = useState<any>(null);
   const [saving, setSaving] = useState(false);
-  const [selectedTechnicianIds, setSelectedTechnicianIds] = useState<string[]>([]);
-  const [selectedSellerIds, setSelectedSellerIds] = useState<string[]>([]);
-  const [quickEquipment, setQuickEquipment] = useState(false);
-  const [quickCustomer, setQuickCustomer] = useState(false);
 
-  const emptyForm = { service_id: "", general_service_id: "", service_type_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", technician_id: "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "", order_type: "internal" as OrderType, service_state: "", service_city: "", service_street: "", service_zip_code: "", service_neighborhood: "", service_number: "", service_complement: "", service_customer_address_id: "", external_os_number: "" };
-  const [form, setForm] = useState(emptyForm);
-  const [needsScheduling, setNeedsScheduling] = useState(true);
+  const {
+    formOpen,
+    editingOS,
+    selectedTechnicianIds,
+    setSelectedTechnicianIds,
+    selectedSellerIds,
+    setSelectedSellerIds,
+    quickEquipment,
+    setQuickEquipment,
+    quickCustomer,
+    setQuickCustomer,
+    form,
+    setForm,
+    needsScheduling,
+    setNeedsScheduling,
+    updateField: upF,
+    openNewForm,
+    hydrateOrderForm,
+    closeOrderForm,
+  } = useOrderFormState();
+
   const {
     orderImages,
     solutionImages,
@@ -151,7 +164,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     addSolutionImages,
     removeSolutionImage,
   } = useOrderImages();
-  const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const {
     customerSearch,
@@ -342,7 +354,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
 
   const openNew = () => {
-    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); resetServiceAddressState(); setNeedsScheduling(true); clearOrderImages(); setViewImage(null); clearCustomer(); setFormOpen(true);
+    openNewForm();
+    resetServiceAddressState();
+    clearOrderImages();
+    setViewImage(null);
+    clearCustomer();
   };
 
   const openEdit = async (o: any) => {
@@ -355,19 +371,14 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setToast({ msg: "Esta OS está solucionada e é somente leitura.", type: "error" });
       return;
     }
-    setEditingOS(o);
-    setSelectedTechnicianIds(Array.from(new Set((o.technician_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(o.technician_id ? [o.technician_id] : []))));
-    setSelectedSellerIds(Array.from(new Set((o.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(o.seller_id ? [o.seller_id] : []))));
-    setNeedsScheduling(true);
     await loadOrderImages(o.id);
-    setForm({ ...emptyForm, service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "", order_type: o.order_type === "external" ? "external" : "internal", service_state: o.order_type === "external" ? o.service_state || "" : "", service_city: o.order_type === "external" ? o.service_city || "" : "", service_street: o.order_type === "external" ? o.service_street || "" : "", service_zip_code: o.order_type === "external" ? o.service_zip_code || "" : "", service_neighborhood: o.order_type === "external" ? o.service_neighborhood || "" : "", service_number: o.order_type === "external" ? o.service_number || "" : "", service_complement: o.order_type === "external" ? o.service_complement || "" : "", service_customer_address_id: o.order_type === "external" ? o.service_customer_address_id || "" : "", external_os_number: o.external_os_number || "" });
+    hydrateOrderForm(o);
     hydrateServiceAddress({
       useCustomerAddress: o.order_type === "external" && o.service_address_source === "customer",
       state: o.order_type === "external" ? o.service_state : undefined,
       city: o.order_type === "external" ? o.service_city : undefined,
     });
     hydrateCustomer((o.customer as any) || null);
-    setFormOpen(true);
   };
 
   const saveCustomer = async () => {
@@ -454,10 +465,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     }
     setSaving(false);
     setToast({ msg: `OS ${editingOS ? "atualizada" : "criada"} com sucesso!`, type: "success" });
-    setFormOpen(false); closeDetail(); upF("external_os_number", ""); reloadWorkspace();
+    closeOrderForm(); closeDetail(); reloadWorkspace();
   };
-
-  const closeOrderForm = () => { setFormOpen(false); upF("external_os_number", ""); };
 
   const handleDeleteOrder = async (id: string) => {
     if (!hasPermission("orders.delete")) return;
