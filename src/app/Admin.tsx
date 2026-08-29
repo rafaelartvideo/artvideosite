@@ -48,6 +48,7 @@ import { AdminHubPage } from "@/features/admin-shell/presentation/AdminNavigatio
 import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { AdminHeader } from "@/features/admin-shell/presentation/AdminHeader";
 import { AdminLayout } from "@/features/admin-shell/presentation/AdminLayout";
+import { AdminContentRouter, type AdminRouteMap } from "@/features/admin-shell/presentation/AdminContentRouter";
 import { mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "@/features/admin-shell/navigation-config";
 
 /* ─────────────────────────── ADMIN DASHBOARD WRAPPER ─────────────────────────── */
@@ -64,6 +65,67 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const canAccessTab = (tab: string) => hasPermission(permissionForTab[tab] || `${tab}.view`);
 
 
+
+  const routes: AdminRouteMap = {
+    dashboard: { element: <TabDashboard /> },
+    services: { element: <TabServices onBack={() => { setActiveTab("site"); setPage(null); }} /> },
+    categories: { element: <TabCategories onBack={() => { setActiveTab("site"); setPage(null); }} /> },
+    products: { element: <TabProducts onBack={() => { setActiveTab("site"); setPage(null); }} /> },
+    brands: { element: <TabBrands onBack={() => { setActiveTab("site"); setPage(null); }} /> },
+    site: {
+      requiresPermission: false,
+      element: (
+        <AdminHubPage
+          title="Site"
+          description="Conteúdo e cadastros exibidos no site público."
+          items={siteItems.filter((item) => hasPermission(item.permissionKey))}
+          onSelect={(id, label) => {
+            setPage({ breadcrumb: "Site", title: label, onBack: () => { setActiveTab("site"); setPage(null); } });
+            setActiveTab(id as AdminTab);
+          }}
+        />
+      ),
+    },
+    operation: {
+      requiresPermission: false,
+      element: (
+        <AdminHubPage
+          title="Operação"
+          description="Cadastros e configurações internas da assistência técnica."
+          items={operationItems.filter((item) => hasPermission(item.permissionKey))}
+          onSelect={(id, label) => {
+            setPage({ breadcrumb: "Operação", title: label, onBack: () => { setActiveTab("operation"); setPage(null); } });
+            setActiveTab(id as AdminTab);
+          }}
+        />
+      ),
+    },
+    equipment: { element: <EquipmentAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
+    generalServices: { element: <GeneralServicesPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
+    serviceTypes: { element: <ServiceTypesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
+    inventory: { element: <TabInventory onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
+    situations: { element: <OSSituationsView onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
+    orderStatuses: { element: <OrderStatusesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
+    quotes: { element: <TabQuotes onNavigate={setActiveTab} /> },
+    orders: {
+      element: (
+        <TabOrders
+          onNavigate={setActiveTab}
+          initialOrderId={focusedOrderId}
+          onFocused={() => setFocusedOrderId(null)}
+        />
+      ),
+    },
+    agenda: {
+      element: <TabAgenda onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />,
+    },
+    customers: {
+      element: <TabCustomers onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />,
+    },
+    employees: { element: <TabEmployees onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
+    settings: { element: <TabSettings /> },
+    contact: { element: <TabContact /> },
+  };
 
   const sidebar = (
     <AdminSidebar
@@ -97,26 +159,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         }
       >
         <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
-          {activeTab === "dashboard" && canAccessTab("dashboard") && <TabDashboard />}
-          {activeTab === "services" && canAccessTab("services") && <TabServices onBack={() => { setActiveTab("site"); setPage(null); }} />}
-          {activeTab === "categories" && canAccessTab("categories") && <TabCategories onBack={() => { setActiveTab("site"); setPage(null); }} />}
-          {activeTab === "products" && canAccessTab("products") && <TabProducts onBack={() => { setActiveTab("site"); setPage(null); }} />}
-          {activeTab === "brands" && canAccessTab("brands") && <TabBrands onBack={() => { setActiveTab("site"); setPage(null); }} />}
-          {activeTab === "site" && <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey))} onSelect={(id, label) => { setPage({ breadcrumb: "Site", title: label, onBack: () => { setActiveTab("site"); setPage(null); } }); setActiveTab(id as AdminTab); }} />}
-          {activeTab === "operation" && <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey))} onSelect={(id, label) => { setPage({ breadcrumb: "Operação", title: label, onBack: () => { setActiveTab("operation"); setPage(null); } }); setActiveTab(id as AdminTab); }} />}
-          {activeTab === "equipment" && canAccessTab("equipment") && <EquipmentAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "generalServices" && canAccessTab("generalServices") && <GeneralServicesPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "serviceTypes" && canAccessTab("serviceTypes") && <ServiceTypesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "inventory" && canAccessTab("inventory") && <TabInventory onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "situations" && canAccessTab("situations") && <OSSituationsView onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "orderStatuses" && canAccessTab("orderStatuses") && <OrderStatusesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "quotes" && canAccessTab("quotes") && <TabQuotes onNavigate={setActiveTab} />}
-          {activeTab === "orders" && canAccessTab("orders") && <TabOrders onNavigate={setActiveTab} initialOrderId={focusedOrderId} onFocused={() => setFocusedOrderId(null)} />}
-          {activeTab === "agenda" && canAccessTab("agenda") && <TabAgenda onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />}
-          {activeTab === "customers" && canAccessTab("customers") && <TabCustomers onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />}
-          {activeTab === "employees" && canAccessTab("employees") && <TabEmployees onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "settings" && canAccessTab("settings") && <TabSettings />}
-          {activeTab === "contact" && canAccessTab("contact") && <TabContact />}
+          <AdminContentRouter activeTab={activeTab} routes={routes} canAccessTab={canAccessTab} />
         </div>
       </AdminLayout>
     </AdminPageContext.Provider>
