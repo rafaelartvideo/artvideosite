@@ -7,6 +7,11 @@ import {
 } from "@/features/orders/presentation/OrderQuickCreateModals";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import {
+  saveOrderCustomerAddress,
+  searchOrderCustomers,
+  updateOrderCustomer,
+} from "@/features/orders/infrastructure/orders-customer.repository";
+import {
   PartRequestModal,
   ReviewPartRequestModal,
   TestDeliveryModal,
@@ -670,11 +675,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     const validationError = validateCustomerForm(customerDraft);
     if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSaving(true);
-    const { error: customerError } = await supabase.from("customers").update(customerUpdatePayload(customerDraft)).eq("id", selectedCustomer.id);
+    const { error: customerError } = await updateOrderCustomer(selectedCustomer.id, customerUpdatePayload(customerDraft));
     if (customerError) { console.error("[ADMIN] customer update error:", customerError); setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
     const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
     const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
-    const addressResult = address ? await supabase.from("customer_addresses").update(addressPayload).eq("id", address.id) : await supabase.from("customer_addresses").insert(addressPayload);
+    const addressResult = await saveOrderCustomerAddress(address?.id || null, addressPayload);
     setSaving(false);
     if (addressResult.error) { console.error("[ADMIN] customer address update error:", addressResult.error); setToast({ msg: `Cliente salvo, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); return; }
     setSelectedCustomer({ ...selectedCustomer, ...customerUpdatePayload(customerDraft), addresses: [customerAddressDraft] });
@@ -830,13 +835,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (editingCustomer && selectedCustomer?.id) {
       const validationError = validateCustomerForm(customerDraft);
       if (validationError) { setToast({ msg: validationError, type: "error" }); setSaving(false); return; }
-      const { error: customerError } = await supabase.from("customers").update(customerUpdatePayload(customerDraft)).eq("id", selectedCustomer.id);
+      const { error: customerError } = await updateOrderCustomer(selectedCustomer.id, customerUpdatePayload(customerDraft));
       if (customerError) { setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
       const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
       const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
-      const addressResult = address
-        ? await supabase.from("customer_addresses").update(addressPayload).eq("id", address.id)
-        : await supabase.from("customer_addresses").insert(addressPayload);
+      const addressResult = await saveOrderCustomerAddress(address?.id || null, addressPayload);
       if (addressResult.error) { setToast({ msg: `Cliente atualizado, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); setSaving(false); return; }
       setSelectedCustomer({ ...selectedCustomer, ...customerUpdatePayload(customerDraft), addresses: [customerAddressDraft] });
       setEditingCustomer(false);
@@ -1041,7 +1044,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const searchCustomers = async (q: string) => {
     setCustomerSearch(q);
     if (q.length < 2) { setCustomerResults([]); return; }
-    const { data } = await supabase.from("customers").select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,addresses:customer_addresses(*)").or(`full_name.ilike.%${q}%,trade_name.ilike.%${q}%,document.ilike.%${q}%,cnpj.ilike.%${q}%,whatsapp.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
+    const { data } = await searchOrderCustomers(q);
     setCustomerResults(data || []);
   };
 
