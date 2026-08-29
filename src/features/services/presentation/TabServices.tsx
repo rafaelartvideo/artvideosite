@@ -3,7 +3,12 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
+  Activity,
+  DollarSign,
   Edit2,
+  FileText,
+  HelpCircle,
+  List,
   Plus,
   Search,
   Star,
@@ -12,7 +17,13 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import {
+  deleteService,
+  findUniqueServiceSlug,
+  loadServicesCatalog,
+  saveServiceAggregate,
+  setServiceActive,
+} from "../infrastructure/services.repository";
 import {
   AdminPage,
   BtnPrimary,
@@ -52,17 +63,18 @@ export function TabServices({ onBack }: { onBack: () => void }) {
 
   const load = async () => {
     setLoading(true);
-    const [sRes, cRes, bRes, pRes] = await Promise.all([
-      supabase.from("services").select("*, service_variants(*), service_inclusions(*), service_exclusions(*), service_price_factors(*), service_faqs(*), service_sections(*)").order("sort_order"),
-      supabase.from("service_categories").select("id, name").order("sort_order"),
-      supabase.from("brands").select("id, name").eq("is_active", true).order("sort_order"),
-      supabase.from("products").select("id, name").eq("is_active", true).order("created_at", { ascending: false }),
-    ]);
-    if (sRes.error) setToast({ msg: `Erro ao carregar serviços: ${sRes.error.message}`, type: "error" }); else setServices(sRes.data || []);
-    if (cRes.error) setToast({ msg: `Erro ao carregar categorias: ${cRes.error.message}`, type: "error" }); else setCategories(cRes.data || []);
-    if (bRes.error) setToast({ msg: `Erro ao carregar marcas: ${bRes.error.message}`, type: "error" }); else setBrands(bRes.data || []);
-    if (pRes.error) setToast({ msg: `Erro ao carregar produtos: ${pRes.error.message}`, type: "error" }); else setProducts(pRes.data || []);
-    setLoading(false);
+    try {
+      const catalog = await loadServicesCatalog();
+      setServices(catalog.services);
+      setCategories(catalog.categories);
+      setBrands(catalog.brands);
+      setProducts(catalog.products);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar serviços: ${message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -72,28 +84,27 @@ export function TabServices({ onBack }: { onBack: () => void }) {
 
   const handleDelete = async (id: string) => {
     if (!hasPermission("services.delete")) return;
-    console.log("[ADMIN] Deleting service:", id);
-    const { error } = await supabase.from("services").delete().eq("id", id);
-    if (error) {
-      console.error("[ADMIN] Delete error:", error);
-      setToast({ msg: `Erro ao excluir: ${error.message}`, type: "error" });
-      return;
+    try {
+      await deleteService(id);
+      setDelId(null);
+      setToast({ msg: "Serviço excluído com sucesso.", type: "success" });
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao excluir: ${message}`, type: "error" });
     }
-    setDelId(null);
-    setToast({ msg: "Serviço excluído com sucesso.", type: "success" });
-    load();
   };
 
-  const toggleActive = async (s: any) => {
-    console.log("[ADMIN] Toggling service active status:", s.id);
-    const { error } = await supabase.from("services").update({ is_active: !s.is_active }).eq("id", s.id);
-    if (error) {
-      console.error("[ADMIN] Toggle active error:", error);
-      setToast({ msg: `Erro ao atualizar: ${error.message}`, type: "error" });
-      return;
+  const toggleActive = async (service: any) => {
+    if (!hasPermission("services.update")) return;
+    try {
+      await setServiceActive(service.id, !service.is_active);
+      setToast({ msg: "Status atualizado com sucesso.", type: "success" });
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao atualizar: ${message}`, type: "error" });
     }
-    setToast({ msg: "Status atualizado com sucesso.", type: "success" });
-    load();
   };
 
   const filtered = services.filter(s =>
@@ -256,222 +267,58 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
 
   const autoSlug = slugify;
 
-  // Generate unique slug by checking for conflicts in Supabase
-  const generateUniqueServiceSlug = async (title: string, excludeId?: string): Promise<string> => {
-    const baseSlug = autoSlug(title);
-    console.log("[ADMIN] Generating slug for title:", title, "base slug:", baseSlug);
-    
-    // Query all services to find existing slugs
-    const { data: existingServices, error: queryError } = await supabase.from("services").select("id, slug");
-    if (queryError) {
-      console.error("[ADMIN] Error querying services for slug check:", queryError);
-      return baseSlug;
-    }
-    
-    // Filter out the current service being edited
-    const existingSlugs = existingServices
-      ?.filter((s: any) => !excludeId || s.id !== excludeId)
-      .map((s: any) => s.slug) || [];
-    
-    // Check if base slug is available
-    if (!existingSlugs.includes(baseSlug)) {
-      console.log("[ADMIN] Slug available:", baseSlug);
-      return baseSlug;
-    }
-    
-    // Find next available slug with number suffix
-    let counter = 2;
-    let candidateSlug = `${baseSlug}-${counter}`;
-    while (existingSlugs.includes(candidateSlug)) {
-      counter++;
-      candidateSlug = `${baseSlug}-${counter}`;
-    }
-    
-    console.log("[ADMIN] Slug available (with suffix):", candidateSlug);
-    return candidateSlug;
-  };
-
   const handleSave = async () => {
     if (!(editItem ? hasPermission("services.update") : hasPermission("services.create"))) return;
-    if (!name.trim()) { onToast({ msg: "Nome do serviço é obrigatório.", type: "error" }); return; }
+    if (!name.trim()) {
+      onToast({ msg: "Nome do serviço é obrigatório.", type: "error" });
+      return;
+    }
+
     setSaving(true);
     try {
-      console.log("[ADMIN] Saving service:", { title: name, is_active: active, is_featured: featured });
-      
-      
-      let finalSlug = slug;
-      
-      // For new services, always generate a unique slug
-      if (!editItem) {
-        finalSlug = await generateUniqueServiceSlug(name);
-        console.log("[ADMIN] Generated unique slug for new service:", finalSlug);
-      } else {
-        // For edits, only regenerate slug if title changed
-        const previousSlug = autoSlug(editItem.title || "");
-        const newSlug = autoSlug(name);
-        
-        if (previousSlug !== newSlug) {
-          // Title changed, generate new unique slug (excluding current service)
-          finalSlug = await generateUniqueServiceSlug(name, editItem.id);
-          console.log("[ADMIN] Title changed, generated new slug:", finalSlug);
-        } else {
-          // Title unchanged, keep existing slug
-          finalSlug = slug;
-          console.log("[ADMIN] Title unchanged, keeping existing slug:", finalSlug);
-        }
-      }
-      
-      const payload = { title: name.trim(), slug: finalSlug, category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, cover_media_id: coverMediaId || null, short_description: shortDesc || null, description: description || null, base_price: basePrice ? Number(basePrice) : null, price_mode: priceMode, is_active: active, is_featured: featured, sort_order: sortOrder, updated_by: userId };
-      let serviceId = editItem?.id;
-      
-      // Insert or Update main service
-      if (editItem) {
-        console.log("[ADMIN] Updating service:", serviceId);
-        const { error: updateError } = await supabase.from("services").update(payload).eq("id", serviceId);
-        if (updateError) {
-          console.error("[ADMIN] Service update error:", updateError);
-          onToast({ msg: `Erro ao atualizar serviço: ${updateError.message}`, type: "error" });
-          setSaving(false);
-          return;
-        }
-        console.log("[ADMIN] Service updated successfully");
-      } else {
-        console.log("[ADMIN] Creating new service");
-        const { data, error: insertError } = await supabase.from("services").insert({ ...payload, created_by: userId }).select().single();
-        if (insertError) {
-          console.error("[ADMIN] Service insert error:", insertError);
-          onToast({ msg: `Erro ao criar serviço: ${insertError.message}`, type: "error" });
-          setSaving(false);
-          return;
-        }
-        serviceId = data?.id;
-        console.log("[ADMIN] Service created with ID:", serviceId);
-      }
-      
-      if (!serviceId) {
-        onToast({ msg: "Erro: ID do serviço não obtido.", type: "error" });
-        setSaving(false);
-        return;
-      }
-      
-      // Save service variants
-      console.log("[ADMIN] Saving service variants:", variants.length);
-      const { error: deleteVariantsError } = await supabase.from("service_variants").delete().eq("service_id", serviceId);
-      if (deleteVariantsError) {
-        console.error("[ADMIN] Error deleting old variants:", deleteVariantsError);
-        onToast({ msg: `Erro ao remover variantes antigas: ${deleteVariantsError.message}`, type: "error" });
-        setSaving(false);
-        return;
-      }
-      
-      if (variants.length > 0) {
-        const { error: insertVariantsError } = await supabase.from("service_variants").insert(
-          variants.map((v, i) => ({
-            service_id: serviceId,
-            title: v.title,
-            description: v.description || null,
-            price: v.price ? Number(v.price) : null,
-            icon: null,
+      const baseSlug = autoSlug(name);
+      const titleChanged = editItem && autoSlug(editItem.title || "") !== baseSlug;
+      const finalSlug = !editItem || titleChanged
+        ? await findUniqueServiceSlug(baseSlug, editItem?.id)
+        : slug;
 
-            is_active: true,
-            sort_order: i,
-          }))
-        );
-        if (insertVariantsError) {
-          console.error("[ADMIN] Error inserting variants:", insertVariantsError);
-          onToast({ msg: `Erro ao salvar variantes: ${insertVariantsError.message}`, type: "error" });
-          setSaving(false);
-          return;
-        }
-        console.log("[ADMIN] Service variants saved");
-      }
-      
-      // Save service inclusions (formerly called "features" in the UI)
-      console.log("[ADMIN] Saving service inclusions:", features.filter(Boolean).length);
-      const { error: deleteInclusionsError } = await supabase.from("service_inclusions").delete().eq("service_id", serviceId);
-      if (deleteInclusionsError) {
-        console.error("[ADMIN] Error deleting old inclusions:", deleteInclusionsError);
-        onToast({ msg: `Erro ao remover inclusões antigas: ${deleteInclusionsError.message}`, type: "error" });
-        setSaving(false);
-        return;
-      }
-      
-      if (features.filter(Boolean).length > 0) {
-        const { error: insertInclusionsError } = await supabase.from("service_inclusions").insert(
-          features.filter(Boolean).map((f, i) => ({
-            service_id: serviceId,
-            description: f,
-            sort_order: i,
-          }))
-        );
-        if (insertInclusionsError) {
-          console.error("[ADMIN] Error inserting inclusions:", insertInclusionsError);
-          onToast({ msg: `Erro ao salvar inclusões: ${insertInclusionsError.message}`, type: "error" });
-          setSaving(false);
-          return;
-        }
-        console.log("[ADMIN] Service inclusions saved");
-      }
+      const payload = {
+        title: name.trim(),
+        slug: finalSlug,
+        category_id: categoryId || null,
+        brand_id: brandId || null,
+        product_id: productId || null,
+        cover_media_id: coverMediaId || null,
+        short_description: shortDesc || null,
+        description: description || null,
+        base_price: basePrice ? Number(basePrice) : null,
+        price_mode: priceMode,
+        is_active: active,
+        is_featured: featured,
+        sort_order: sortOrder,
+        updated_by: userId,
+      };
 
-      const { error: deleteExclusionsError } = await supabase.from("service_exclusions").delete().eq("service_id", serviceId);
-      if (deleteExclusionsError) { onToast({ msg: `Erro ao remover exclusões antigas: ${deleteExclusionsError.message}`, type: "error" }); return; }
-      const validExclusions = exclusions.filter(Boolean);
-      if (validExclusions.length > 0) {
-        const { error } = await supabase.from("service_exclusions").insert(validExclusions.map((description, sort_order) => ({ service_id: serviceId, description, sort_order })));
-        if (error) { onToast({ msg: `Erro ao salvar exclusões: ${error.message}`, type: "error" }); return; }
-      }
+      await saveServiceAggregate({
+        serviceId: editItem?.id,
+        payload,
+        userId,
+        variants,
+        inclusions: features,
+        exclusions,
+        priceFactors,
+        sections,
+        faqs,
+      });
 
-      const { error: deleteFactorsError } = await supabase.from("service_price_factors").delete().eq("service_id", serviceId);
-      if (deleteFactorsError) { onToast({ msg: `Erro ao remover fatores antigos: ${deleteFactorsError.message}`, type: "error" }); return; }
-      const validFactors = priceFactors.filter((factor) => factor.name.trim());
-      if (validFactors.length > 0) {
-        const { error } = await supabase.from("service_price_factors").insert(validFactors.map((factor, sort_order) => ({ service_id: serviceId, name: factor.name.trim(), description: factor.description || null, impact: factor.impact, amount: Number(factor.amount) || 0, unit: factor.unit || null, sort_order })));
-        if (error) { onToast({ msg: `Erro ao salvar fatores: ${error.message}`, type: "error" }); return; }
-      }
-
-      const { error: deleteSectionsError } = await supabase.from("service_sections").delete().eq("service_id", serviceId);
-      if (deleteSectionsError) { onToast({ msg: `Erro ao remover seções antigas: ${deleteSectionsError.message}`, type: "error" }); return; }
-      const validSections = sections.filter((section) => section.title.trim() && section.content.trim());
-      if (validSections.length > 0) {
-        const { error } = await supabase.from("service_sections").insert(validSections.map((section, sort_order) => ({ service_id: serviceId, title: section.title.trim(), content: section.content.trim(), sort_order })));
-        if (error) { onToast({ msg: `Erro ao salvar seções: ${error.message}`, type: "error" }); return; }
-      }
-      
-      // Save service FAQs
-      console.log("[ADMIN] Saving service FAQs:", faqs.filter(f => f.question).length);
-      const { error: deleteFaqsError } = await supabase.from("service_faqs").delete().eq("service_id", serviceId);
-      if (deleteFaqsError) {
-        console.error("[ADMIN] Error deleting old FAQs:", deleteFaqsError);
-        onToast({ msg: `Erro ao remover FAQs antigas: ${deleteFaqsError.message}`, type: "error" });
-        setSaving(false);
-        return;
-      }
-      
-      if (faqs.filter(f => f.question).length > 0) {
-        const { error: insertFaqsError } = await supabase.from("service_faqs").insert(
-          faqs.filter(f => f.question).map((f, i) => ({
-            service_id: serviceId,
-            question: f.question,
-            answer: f.answer,
-            section_id: null, is_active: true, sort_order: i,
-          }))
-        );
-        if (insertFaqsError) {
-          console.error("[ADMIN] Error inserting FAQs:", insertFaqsError);
-          onToast({ msg: `Erro ao salvar FAQs: ${insertFaqsError.message}`, type: "error" });
-          setSaving(false);
-          return;
-        }
-        console.log("[ADMIN] Service FAQs saved");
-      }
-      
-      console.log("[ADMIN] Service save completed successfully");
-      onToast({ msg: editItem ? "Serviço atualizado com sucesso!" : "Serviço criado com sucesso!", type: "success" });
+      onToast({
+        msg: editItem ? "Serviço atualizado com sucesso!" : "Serviço criado com sucesso!",
+        type: "success",
+      });
       onClose();
-    } catch (err) {
-      console.error("[ADMIN] Unexpected error saving service:", err);
-      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
-      onToast({ msg: `Erro ao salvar: ${errorMessage}`, type: "error" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erro desconhecido";
+      onToast({ msg: `Erro ao salvar: ${message}`, type: "error" });
     } finally {
       setSaving(false);
     }
