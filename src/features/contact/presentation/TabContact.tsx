@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle, Clock } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { getSiteSettings, saveSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
 import {
   BtnPrimary,
   FInput,
@@ -20,10 +20,17 @@ export function TabContact() {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("site_settings").select("setting_key, setting_value");
-    if (error) setToast({ msg: `Erro ao carregar contato: ${error.message}`, type: "error" });
-    else setSettings(Object.fromEntries((data || []).map((setting: any) => [setting.setting_key, setting.setting_value || ""])));
-    setLoading(false);
+    try {
+      const values = await getSiteSettings();
+      setSettings(Object.fromEntries(
+        Object.entries(values).map(([key, value]) => [key, String(value ?? "")]),
+      ));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "erro desconhecido";
+      setToast({ msg: `Erro ao carregar contato: ${message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 
@@ -31,13 +38,7 @@ export function TabContact() {
     e.preventDefault();
     setSaving(true);
     try {
-      for (const [setting_key, setting_value] of Object.entries(settings)) {
-        const { data, error } = await supabase.from("site_settings").upsert({ setting_key, setting_value, updated_by: user?.id || null }, { onConflict: "setting_key" }).select().single();
-        if (error) {
-          console.error("[ADMIN] Contact save error:", error);
-          throw error;
-        }
-      }
+      await saveSiteSettings(settings, user?.id ?? null);
       setToast({ msg: "Informações de contato salvas!", type: "success" });
     } catch (error) {
       console.error("[ADMIN] site settings contact save error:", error);
