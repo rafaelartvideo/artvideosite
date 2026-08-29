@@ -1051,6 +1051,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     orderType: filterOrderType,
     serviceTypeId: selectedServiceTypeId,
     states: selectedStates,
+    stateOptions: ibgeStates,
     cities: selectedCities,
     dateFrom,
     dateTo,

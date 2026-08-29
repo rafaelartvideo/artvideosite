@@ -15,6 +15,7 @@ export const filterServiceOrders = ({
   orderType,
   serviceTypeId,
   states,
+  stateOptions,
   cities,
   dateFrom,
   dateTo,
@@ -29,6 +30,7 @@ export const filterServiceOrders = ({
   orderType: string;
   serviceTypeId: string;
   states: string[];
+  stateOptions: Array<{ sigla: string; nome: string }>;
   cities: CityFilter[];
   dateFrom: string;
   dateTo: string;
@@ -86,11 +88,13 @@ export const filterServiceOrders = ({
       states.length === 0 ||
       states.some((state) => {
         const normalizedOption = normalizeSearchText(state);
+        const stateOption = stateOptions.find(
+          (item) => normalizeSearchText(item.sigla) === normalizedOption,
+        );
         return (
           normalizedState === normalizedOption ||
-          normalizeSearchText(getStateLabel(order.service_state)).includes(
-            normalizedOption,
-          )
+          (stateOption &&
+            normalizedState === normalizeSearchText(stateOption.nome))
         );
       });
     const matchesCity =
