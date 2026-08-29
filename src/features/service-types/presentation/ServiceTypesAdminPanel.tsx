@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle, Edit2, List, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import {
+  deleteServiceType,
+  getServiceTypeSituationLinks,
+  loadServiceTypesConfiguration,
+  saveServiceType,
+  setServiceTypeActive,
+} from "../infrastructure/service-types.repository";
 import {
   AdminBackContext,
   AdminPage,
@@ -37,18 +43,17 @@ function ServiceTypesAdminPanelContent() {
 
   const load = async () => {
     setLoading(true);
-    const [{ data, error }, { data: situationData, error: situationError }, { data: linkData, error: linkError }] = await Promise.all([
-      supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order,created_at,updated_at").order("sort_order").order("title"),
-      supabase.from("os_situations").select("id,name,color,hours,sort_order,is_active").eq("is_active", true).order("sort_order").order("name"),
-      supabase.from("service_type_situations").select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order"),
-    ]);
-    if (error) setToast({ msg: `Erro ao carregar tipos: ${error.message}`, type: "error" });
-    if (situationError) setToast({ msg: `Erro ao carregar situações: ${situationError.message}`, type: "error" });
-    if (linkError) setToast({ msg: `Erro ao carregar configurações de SLA: ${linkError.message}`, type: "error" });
-    setSituations(situationData || []);
-    setSituationLinks(linkData || []);
-    setItems(data || []);
-    setLoading(false);
+    try {
+      const configuration = await loadServiceTypesConfiguration();
+      setItems(configuration.serviceTypes);
+      setSituations(configuration.situations);
+      setSituationLinks(configuration.links);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar tipos: ${message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -61,19 +66,24 @@ function ServiceTypesAdminPanelContent() {
 
   const openEdit = async (item: any) => {
     setEditItem(item);
-    const { data, error } = await supabase.from("service_type_situations").select("situation_id,use_default_hours,sla_hours,sort_order").eq("service_type_id", item.id).order("sort_order");
-    if (error) {
-      setToast({ msg: `Erro ao carregar situações do tipo: ${error.message}`, type: "error" });
-      return;
+    try {
+      const links = await getServiceTypeSituationLinks(item.id);
+      setForm({
+        title: item.title || "",
+        description: item.description || "",
+        forecast_days: item.forecast_days == null ? "" : String(item.forecast_days),
+        is_active: item.is_active !== false,
+        selectedSituations: links.map((link) => ({
+          situation_id: link.situation_id,
+          use_default_hours: link.use_default_hours !== false,
+          sla_hours: link.sla_hours == null ? "" : String(link.sla_hours),
+        })),
+      });
+      setFormOpen(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar situações do tipo: ${message}`, type: "error" });
     }
-    setForm({
-      title: item.title || "",
-      description: item.description || "",
-      forecast_days: item.forecast_days == null ? "" : String(item.forecast_days),
-      is_active: item.is_active !== false,
-      selectedSituations: (data || []).map(link => ({ situation_id: link.situation_id, use_default_hours: link.use_default_hours !== false, sla_hours: link.sla_hours == null ? "" : String(link.sla_hours) })),
-    });
-    setFormOpen(true);
   };
 
   const save = async () => {
@@ -113,25 +123,12 @@ function ServiceTypesAdminPanelContent() {
       is_active: form.is_active,
     };
     try {
-      let serviceTypeId = editItem?.id;
-      if (editItem) {
-        const { error } = await supabase.from("service_types").update(payload).eq("id", editItem.id);
-        if (error) throw error;
-        const { error: deleteError } = await supabase.from("service_type_situations").delete().eq("service_type_id", editItem.id);
-        if (deleteError) throw deleteError;
-      } else {
-        const { data, error } = await supabase.from("service_types").insert({ ...payload, sort_order: items.length }).select("id").single();
-        if (error || !data) throw error || new Error("Não foi possível obter o tipo criado.");
-        serviceTypeId = data.id;
-      }
-      const { error: linksError } = await supabase.from("service_type_situations").insert(selectedSituations.map((selected, sort_order) => ({
-        service_type_id: serviceTypeId,
-        situation_id: selected.situation_id,
-        use_default_hours: selected.use_default_hours,
-        sla_hours: selected.use_default_hours ? null : Number(selected.sla_hours),
-        sort_order,
-      })));
-      if (linksError) throw linksError;
+      await saveServiceType({
+        serviceTypeId: editItem?.id,
+        payload,
+        sortOrder: items.length,
+        selectedSituations,
+      });
       setFormOpen(false);
       setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" });
       await load();
@@ -144,16 +141,24 @@ function ServiceTypesAdminPanelContent() {
 
   const toggle = async (item: any) => {
     if (!hasPermission("service_types.edit")) return;
-    const { error } = await supabase.from("service_types").update({ is_active: !item.is_active }).eq("id", item.id);
-    if (error) setToast({ msg: `Erro ao atualizar tipo: ${error.message}`, type: "error" });
-    else load();
+    try {
+      await setServiceTypeActive(item.id, !item.is_active);
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao atualizar tipo: ${message}`, type: "error" });
+    }
   };
 
   const remove = async (id: string) => {
     if (!hasPermission("service_types.delete")) return;
-    const { error } = await supabase.from("service_types").delete().eq("id", id);
-    if (error) setToast({ msg: `Não foi possível excluir: ${error.message}`, type: "error" });
-    else load();
+    try {
+      await deleteServiceType(id);
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Não foi possível excluir: ${message}`, type: "error" });
+    }
   };
 
   return (

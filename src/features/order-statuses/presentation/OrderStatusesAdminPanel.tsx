@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, Edit2, List, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import {
+  deleteOrderStatus,
+  listOrderStatuses,
+  saveOrderStatus,
+} from "../infrastructure/order-statuses.repository";
 import {
   AdminBackContext,
   AdminPage,
@@ -35,10 +39,14 @@ function OrderStatusesAdminPanelContent() {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order");
-    if (error) setToast({ msg: `Erro ao carregar status: ${error.message}`, type: "error" });
-    setItems(data || []);
-    setLoading(false);
+    try {
+      setItems(await listOrderStatuses());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar status: ${message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -68,15 +76,15 @@ function OrderStatusesAdminPanelContent() {
 
     setSaving(true);
     const payload = { name: form.name.trim(), color: form.color.trim().toUpperCase(), sort_order: Number(form.sort_order) };
-    const result = editItem
-      ? await supabase.from("order_statuses").update(payload).eq("id", editItem.id)
-      : await supabase.from("order_statuses").insert(payload);
-    setSaving(false);
-
-    if (result.error) {
-      setToast({ msg: `Erro ao salvar status: ${result.error.message}`, type: "error" });
+    try {
+      await saveOrderStatus(payload, editItem?.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setSaving(false);
+      setToast({ msg: `Erro ao salvar status: ${message}`, type: "error" });
       return;
     }
+    setSaving(false);
 
     setFormOpen(false);
     setToast({ msg: editItem ? "Status atualizado." : "Status criado.", type: "success" });
@@ -85,9 +93,13 @@ function OrderStatusesAdminPanelContent() {
 
   const remove = async (id: string) => {
     if (!hasPermission("orders.delete")) return;
-    const { error } = await supabase.from("order_statuses").delete().eq("id", id);
-    if (error) setToast({ msg: `Não foi possível excluir: ${error.message}`, type: "error" });
-    else load();
+    try {
+      await deleteOrderStatus(id);
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Não foi possível excluir: ${message}`, type: "error" });
+    }
   };
 
   return (
