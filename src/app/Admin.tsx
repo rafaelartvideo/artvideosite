@@ -1,36 +1,113 @@
-import React, { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   type AdminPageState,
   type AdminTab,
   AdminPageContext,
 } from "./admin/shared";
-import { TabOrders } from "./admin/TabOrders";
-import { OSSituationsView } from "@/features/order-situations/presentation/OSSituationsView";
 import { AdminContentRouter, type AdminRouteMap } from "@/features/admin-shell/presentation/AdminContentRouter";
 import { AdminHeader } from "@/features/admin-shell/presentation/AdminHeader";
 import { AdminLayout } from "@/features/admin-shell/presentation/AdminLayout";
 import { AdminHubPage } from "@/features/admin-shell/presentation/AdminNavigation";
 import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
-import { TabAgenda } from "@/features/appointments/presentation/TabAgenda";
-import { TabBrands } from "@/features/brands/presentation/TabBrands";
-import { TabCategories } from "@/features/categories/presentation/TabCategories";
-import { TabContact } from "@/features/contact/presentation/TabContact";
-import { TabCustomers } from "@/features/customers/presentation/TabCustomers";
-import { TabDashboard } from "@/features/dashboard/presentation/TabDashboard";
-import { EquipmentAdminPanel } from "@/features/equipment/presentation/EquipmentAdminPanel";
-import { TabEmployees } from "@/features/employees/presentation/TabEmployees";
-import { GeneralServicesPanel } from "@/features/general-services/presentation/GeneralServicesPanel";
-import { TabInventory } from "@/features/inventory/presentation/TabInventory";
-import { OrderStatusesAdminPanel } from "@/features/order-statuses/presentation/OrderStatusesAdminPanel";
-import { TabProducts } from "@/features/products/presentation/TabProducts";
-import { TabQuotes } from "@/features/quotes/presentation/TabQuotes";
-import { TabServices } from "@/features/services/presentation/TabServices";
-import { ServiceTypesAdminPanel } from "@/features/service-types/presentation/ServiceTypesAdminPanel";
-import { TabSettings } from "@/features/settings/presentation/TabSettings";
+
+const TabOrders = lazy(() =>
+  import("./admin/TabOrders").then(({ TabOrders }) => ({ default: TabOrders })),
+);
+const OSSituationsView = lazy(() =>
+  import("@/features/order-situations/presentation/OSSituationsView").then(
+    ({ OSSituationsView }) => ({ default: OSSituationsView }),
+  ),
+);
+const TabAgenda = lazy(() =>
+  import("@/features/appointments/presentation/TabAgenda").then(({ TabAgenda }) => ({ default: TabAgenda })),
+);
+const TabBrands = lazy(() =>
+  import("@/features/brands/presentation/TabBrands").then(({ TabBrands }) => ({ default: TabBrands })),
+);
+const TabCategories = lazy(() =>
+  import("@/features/categories/presentation/TabCategories").then(
+    ({ TabCategories }) => ({ default: TabCategories }),
+  ),
+);
+const TabContact = lazy(() =>
+  import("@/features/contact/presentation/TabContact").then(({ TabContact }) => ({ default: TabContact })),
+);
+const TabCustomers = lazy(() =>
+  import("@/features/customers/presentation/TabCustomers").then(
+    ({ TabCustomers }) => ({ default: TabCustomers }),
+  ),
+);
+const TabDashboard = lazy(() =>
+  import("@/features/dashboard/presentation/TabDashboard").then(
+    ({ TabDashboard }) => ({ default: TabDashboard }),
+  ),
+);
+const EquipmentAdminPanel = lazy(() =>
+  import("@/features/equipment/presentation/EquipmentAdminPanel").then(
+    ({ EquipmentAdminPanel }) => ({ default: EquipmentAdminPanel }),
+  ),
+);
+const TabEmployees = lazy(() =>
+  import("@/features/employees/presentation/TabEmployees").then(
+    ({ TabEmployees }) => ({ default: TabEmployees }),
+  ),
+);
+const GeneralServicesPanel = lazy(() =>
+  import("@/features/general-services/presentation/GeneralServicesPanel").then(
+    ({ GeneralServicesPanel }) => ({ default: GeneralServicesPanel }),
+  ),
+);
+const TabInventory = lazy(() =>
+  import("@/features/inventory/presentation/TabInventory").then(
+    ({ TabInventory }) => ({ default: TabInventory }),
+  ),
+);
+const OrderStatusesAdminPanel = lazy(() =>
+  import("@/features/order-statuses/presentation/OrderStatusesAdminPanel").then(
+    ({ OrderStatusesAdminPanel }) => ({ default: OrderStatusesAdminPanel }),
+  ),
+);
+const TabProducts = lazy(() =>
+  import("@/features/products/presentation/TabProducts").then(
+    ({ TabProducts }) => ({ default: TabProducts }),
+  ),
+);
+const TabQuotes = lazy(() =>
+  import("@/features/quotes/presentation/TabQuotes").then(({ TabQuotes }) => ({ default: TabQuotes })),
+);
+const TabServices = lazy(() =>
+  import("@/features/services/presentation/TabServices").then(
+    ({ TabServices }) => ({ default: TabServices }),
+  ),
+);
+const ServiceTypesAdminPanel = lazy(() =>
+  import("@/features/service-types/presentation/ServiceTypesAdminPanel").then(
+    ({ ServiceTypesAdminPanel }) => ({ default: ServiceTypesAdminPanel }),
+  ),
+);
+const TabSettings = lazy(() =>
+  import("@/features/settings/presentation/TabSettings").then(
+    ({ TabSettings }) => ({ default: TabSettings }),
+  ),
+)
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
+
+function AdminRouteLoading() {
+  return (
+    <div className="flex min-h-[320px] items-center justify-center">
+      <div className="flex items-center gap-3 text-sm text-[#5a6a82]">
+        <span
+          aria-hidden="true"
+          className="h-5 w-5 animate-spin rounded-full border-2 border-[#0057e7]/20 border-t-[#0057e7]"
+        />
+        Carregando módulo...
+      </div>
+    </div>
+  );
+}
 
 /* ─────────────────────────── ADMIN DASHBOARD WRAPPER ─────────────────────────── */
 
@@ -140,7 +217,9 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         }
       >
         <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
-          <AdminContentRouter activeTab={activeTab} routes={routes} canAccessTab={canAccessTab} />
+          <Suspense fallback={<AdminRouteLoading />}>
+            <AdminContentRouter activeTab={activeTab} routes={routes} canAccessTab={canAccessTab} />
+          </Suspense>
         </div>
       </AdminLayout>
     </AdminPageContext.Provider>
