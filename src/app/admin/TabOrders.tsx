@@ -17,6 +17,7 @@ import { OrderCustomerSection } from "@/features/orders/presentation/OrderCustom
 import { OrderEquipmentSection } from "@/features/orders/presentation/OrderEquipmentSection";
 import { OrderInformationSection } from "@/features/orders/presentation/OrderInformationSection";
 import { OrderServiceLocationSection } from "@/features/orders/presentation/OrderServiceLocationSection";
+import { OrderFormActions } from "@/features/orders/presentation/OrderFormActions";
 import {
   EmployeeMultiSelect,
   getPriorityLabel,
@@ -1363,10 +1364,12 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               getSla={getSlaForOrder}
             />
           </div>
-          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
-            <BtnSecondary onClick={closeOrderForm}>Cancelar</BtnSecondary>
-            {(editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")) && <BtnPrimary onClick={saveOS} disabled={saving}>{saving ? <Clock size={14} className="animate-spin" /> : <CheckCircle size={14} />}{saving ? "Salvando..." : "Salvar OS"}</BtnPrimary>}
-          </div>
+          <OrderFormActions
+            saving={saving}
+            canSave={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
+            onCancel={closeOrderForm}
+            onSave={() => { void saveOS(); }}
+          />
         </AdminPage>
       )}
       {quickEquipment && <QuickEquipmentModal
