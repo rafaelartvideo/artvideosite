@@ -30,10 +30,6 @@ import {
   type ServiceOrderWithRelations,
 } from "@/features/orders/presentation/OrderFormControls";
 import {
-  saveOrderCustomerAddress,
-  updateOrderCustomer,
-} from "@/features/orders/infrastructure/orders-customer.repository";
-import {
   PartRequestModal,
   ReviewPartRequestModal,
   TestDeliveryModal,
@@ -69,6 +65,7 @@ import { useOrderServiceAddress } from "@/features/orders/presentation/useOrderS
 import { useOrderResolution } from "@/features/orders/presentation/useOrderResolution";
 import { useOrderDetails } from "@/features/orders/presentation/useOrderDetails";
 import { useOrderFormState } from "@/features/orders/presentation/useOrderFormState";
+import { useOrderCustomerPersistence } from "@/features/orders/presentation/useOrderCustomerPersistence";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import type { Address } from "@/lib/address";
@@ -80,8 +77,7 @@ import {
 } from "lucide-react";
 import {
   cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone,
-  CustomerType, customerPayload, customerUpdatePayload,
-  validateCustomerForm, formatCpf, formatCnpj,
+  CustomerType, formatCpf, formatCnpj,
   formatFoundationDate, foundationDateToIso, foundationDateFromCustomer, todayDateOnly,
   INPUT, FInput, FTextarea, FSelect, FToggle, CustomerTypeToggle,
   StatusBadge, LoadingState, EmptyState, BtnPrimary, BtnSecondary, Toast, ConfirmDialog,
@@ -206,6 +202,21 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     form,
     setForm,
     selectedCustomer,
+  });
+
+  const {
+    saveCustomer,
+    saveCustomerBeforeOrder,
+  } = useOrderCustomerPersistence({
+    selectedCustomer,
+    setSelectedCustomer,
+    setEditingCustomer,
+    customerDraft,
+    customerAddressDraft,
+    setAddressExpanded,
+    setSaving,
+    hasPermission,
+    showToast: setToast,
   });
 
   const selectCustomer = (customer: any) => {
@@ -381,25 +392,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     hydrateCustomer((o.customer as any) || null);
   };
 
-  const saveCustomer = async () => {
-    if (!hasPermission("customers.edit")) return;
-    if (!selectedCustomer?.id) return;
-    const validationError = validateCustomerForm(customerDraft);
-    if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
-    setSaving(true);
-    const { error: customerError } = await updateOrderCustomer(selectedCustomer.id, customerUpdatePayload(customerDraft));
-    if (customerError) { console.error("[ADMIN] customer update error:", customerError); setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
-    const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
-    const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
-    const addressResult = await saveOrderCustomerAddress(address?.id || null, addressPayload);
-    setSaving(false);
-    if (addressResult.error) { console.error("[ADMIN] customer address update error:", addressResult.error); setToast({ msg: `Cliente salvo, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); return; }
-    setSelectedCustomer({ ...selectedCustomer, ...customerUpdatePayload(customerDraft), addresses: [customerAddressDraft] });
-    setEditingCustomer(false);
-    setAddressExpanded(true);
-    setToast({ msg: "Dados do cliente atualizados.", type: "success" });
-  };
-
   const saveOS = async () => {
     if (editingOS ? !hasPermission("orders.edit") : !hasPermission("orders.create")) { setToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" }); return; }
     const preparation = prepareOrderForm({
@@ -422,18 +414,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     const status = editingOS ? (availableStatuses || []).find(item => item.id === form.status_id) : initialOrderStatus(availableStatuses || []);
     if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status válido para a OS.", type: "error" }); return; }
     setSaving(true);
-    if (editingCustomer && selectedCustomer?.id) {
-      const validationError = validateCustomerForm(customerDraft);
-      if (validationError) { setToast({ msg: validationError, type: "error" }); setSaving(false); return; }
-      const { error: customerError } = await updateOrderCustomer(selectedCustomer.id, customerUpdatePayload(customerDraft));
-      if (customerError) { setToast({ msg: `Erro ao atualizar cliente: ${customerError.message}`, type: "error" }); setSaving(false); return; }
-      const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
-      const addressPayload = { customer_id: selectedCustomer.id, zip_code: customerAddressDraft.zip_code || null, street: customerAddressDraft.street || null, number: customerAddressDraft.number || null, complement: customerAddressDraft.complement || null, neighborhood: customerAddressDraft.neighborhood || null, city: customerAddressDraft.city || null, state: customerAddressDraft.state || null, is_default: true };
-      const addressResult = await saveOrderCustomerAddress(address?.id || null, addressPayload);
-      if (addressResult.error) { setToast({ msg: `Cliente atualizado, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); setSaving(false); return; }
-      setSelectedCustomer({ ...selectedCustomer, ...customerUpdatePayload(customerDraft), addresses: [customerAddressDraft] });
-      setEditingCustomer(false);
-    }
+    if (
+      editingCustomer &&
+      selectedCustomer?.id &&
+      !(await saveCustomerBeforeOrder())
+    ) return;
     const payload = buildOrderPayload({
       form,
       editingOrder: editingOS,
