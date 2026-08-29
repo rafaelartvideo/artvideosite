@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Edit2, Plus, Search, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import {
+  createCustomer,
+  createCustomerAddress,
+  deleteCustomer,
+  getCustomerHistory,
+  listCustomers,
+  saveCustomerAddress,
+  updateCustomer,
+} from "../infrastructure/customers.repository";
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress, type Address } from "@/lib/address";
 import {
@@ -65,10 +73,14 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("customers").select("*, addresses:customer_addresses(*)").order("created_at", { ascending: false });
-    if (error) setToast({ msg: `Erro ao carregar clientes: ${error.message}`, type: "error" });
-    else setCustomers(data || []);
-    setLoading(false);
+    try {
+      setCustomers(await listCustomers());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar clientes: ${message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -80,13 +92,18 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
     setEditingCustomerData(false);
     setEditingCustomerAddress(false);
     setDetailLoading(true);
-    const [quotesRes, ordersRes] = await Promise.all([
-      supabase.from("quote_requests").select("id, protocol, created_at, status_id, estimated_price, final_price, customer_message, request_status:request_statuses(name), service:services(title), brand:brands(name)").eq("customer_id", c.id).order("created_at", { ascending: false }),
-      supabase.from("service_orders").select("id, os_number, service:services(title), created_at, scheduled_at, completed_at, internal_notes, customer_notes, status_id, order_status:order_statuses(name,color)").eq("customer_id", c.id).order("created_at", { ascending: false }),
-    ]);
-    setDetailQuotes(quotesRes.data || []);
-    setDetailOrders(ordersRes.data || []);
-    setDetailLoading(false);
+    try {
+      const history = await getCustomerHistory(c.id);
+      setDetailQuotes(history.quotes);
+      setDetailOrders(history.orders);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar histórico do cliente: ${message}`, type: "error" });
+      setDetailQuotes([]);
+      setDetailOrders([]);
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const handleSaveCustomerData = async () => {
@@ -95,8 +112,7 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
     if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSavingCustomer(true);
     try {
-      const { error } = await supabase.from("customers").update(customerUpdatePayload(editForm)).eq("id", detail.id);
-      if (error) { setToast({ msg: `Erro ao salvar: ${error.message}`, type: "error" }); return; }
+      await updateCustomer(detail.id, customerUpdatePayload(editForm));
       setToast({ msg: "Dados do cliente atualizados.", type: "success" });
       setEditingCustomerData(false);
       await load();
@@ -114,11 +130,8 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
     try {
       const addressPayload = { customer_id: detail.id, zip_code: editAddress.zip_code || null, street: editAddress.street || null, number: editAddress.number || null, complement: editAddress.complement || null, neighborhood: editAddress.neighborhood || null, city: editAddress.city || null, state: editAddress.state || null, is_default: true };
       const addressExists = (detail.addresses || []).find((address: Address) => address.is_default) || detail.addresses?.[0];
-      const addressResult = addressExists
-        ? await supabase.from("customer_addresses").update(addressPayload).eq("id", addressExists.id).select().single()
-        : await supabase.from("customer_addresses").insert(addressPayload).select().single();
-      if (addressResult.error) { setToast({ msg: `Erro ao salvar endereço: ${addressResult.error.message}`, type: "error" }); return; }
-      setDetail({ ...detail, addresses: [addressResult.data || editAddress] });
+      const savedAddress = await saveCustomerAddress(addressPayload, addressExists?.id);
+      setDetail({ ...detail, addresses: [savedAddress || editAddress] });
       setToast({ msg: "Endereço atualizado.", type: "success" });
       setEditingCustomerAddress(false);
       await load();
@@ -139,12 +152,26 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
     const validationError = validateCustomerForm(createForm);
     if (validationError) { setToast({ msg: validationError, type: "error" }); return; }
     setSaving(true);
-    const { data: customer, error } = await supabase.from("customers").insert(customerPayload(createForm)).select().single();
-    if (error || !customer) { setToast({ msg: `Erro ao cadastrar: ${error?.message || "Cliente não criado."}`, type: "error" }); setSaving(false); return; }
+    let customer;
+    try {
+      customer = await createCustomer(customerPayload(createForm));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Cliente não criado.";
+      setToast({ msg: `Erro ao cadastrar: ${message}`, type: "error" });
+      setSaving(false);
+      return;
+    }
     const hasAddress = Object.values(createAddress).some(Boolean);
     if (hasAddress) {
-      const addressResult = await supabase.from("customer_addresses").insert({ customer_id: customer.id, zip_code: createAddress.zip_code || null, street: createAddress.street || null, number: createAddress.number || null, complement: createAddress.complement || null, neighborhood: createAddress.neighborhood || null, city: createAddress.city || null, state: createAddress.state || null, is_default: true });
-      if (addressResult.error) { setToast({ msg: `Cliente criado, mas erro no endereço: ${addressResult.error.message}`, type: "error" }); setSaving(false); await load(); return; }
+      try {
+        await createCustomerAddress({ customer_id: customer.id, zip_code: createAddress.zip_code || null, street: createAddress.street || null, number: createAddress.number || null, complement: createAddress.complement || null, neighborhood: createAddress.neighborhood || null, city: createAddress.city || null, state: createAddress.state || null, is_default: true });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setToast({ msg: `Cliente criado, mas erro no endereço: ${message}`, type: "error" });
+        setSaving(false);
+        await load();
+        return;
+      }
     }
     setToast({ msg: "Cliente cadastrado com sucesso!", type: "success" });
     setCreateOpen(false);
@@ -157,9 +184,11 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
 
   const handleDeleteCustomer = async (id: string) => {
     if (!hasPermission("customers.delete")) return;
-    const { error } = await supabase.from("customers").delete().eq("id", id);
-    if (error) {
-      setToast({ msg: `Não foi possível excluir o cliente: ${error.message}`, type: "error" });
+    try {
+      await deleteCustomer(id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Não foi possível excluir o cliente: ${message}`, type: "error" });
       setDeleteId(null);
       return;
     }
