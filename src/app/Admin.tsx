@@ -46,6 +46,7 @@ function PasswordField({ label, value, onChange, required = false, placeholder, 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
 import { AdminHubPage } from "@/features/admin-shell/presentation/AdminNavigation";
 import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
+import { AdminHeader } from "@/features/admin-shell/presentation/AdminHeader";
 import { mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "@/features/admin-shell/navigation-config";
 
 /* ─────────────────────────── ADMIN DASHBOARD WRAPPER ─────────────────────────── */
@@ -107,53 +108,12 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
       {/* Main */}
       <main className="flex-1 md:ml-60 flex flex-col h-screen min-h-0 overflow-hidden">
-        {/* Top header */}
-        <header className="bg-white border-b border-[#0d1b2e]/8 px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden text-[#0d1b2e] p-1.5 hover:bg-[#f5f7fa] rounded-lg">
-              <Menu size={20} />
-            </button>
-            <div>
-                {page && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-[#5a6a82] mb-0.5">
-                    <button type="button" onClick={page.onBack} className="font-semibold hover:text-[#0057e7] transition-colors">{page.breadcrumb}</button>
-                    <span aria-hidden="true">&gt;</span>
-                    <span className="truncate max-w-[180px]">{page.title}</span>
-                  </div>
-                )}
-              <h2 className="font-black text-[#0d1b2e] text-[15px]">
-                {page?.title || [...mainItems, { id: "site", label: "Site", icon: Globe }, { id: "operation", label: "Operação", icon: Settings }, ...utilityItems].find(m => m.id === activeTab)?.label}
-              </h2>
-              <p className="hidden sm:block text-[#5a6a82] mt-0.5 text-[14px]">
-                {page?.subtitle || ({
-                    dashboard: "Visão geral do sistema em tempo real",
-                    services: "Gerencie os serviços apresentados no site público",
-                    categories: "Organize os serviços e produtos por categoria",
-                    products: "Controle o catálogo de produtos da loja",
-                    brands: "Administre as marcas cadastradas",
-                    quotes: "Acompanhe e responda às solicitações recebidas",
-                    orders: "Abertura, acompanhamento e conclusão dos atendimentos",
-                    agenda: "Visualize e organize os atendimentos agendados",
-                    site: "Conteúdo e configurações do site público",
-                    operation: "Configurações internas da assistência técnica",
-                    equipment: "Cadastro técnico usado nas ordens de serviço",
-                    generalServices: "Serviços técnicos internos utilizados na operação",
-                    serviceTypes: "Configuração dos tipos de atendimento",
-                    situations: "Etapas de progresso das ordens de serviço",
-                    orderStatuses: "Status principais das ordens de serviço",
-                    customers: "Consulte clientes e seus dados de atendimento",
-                    employees: "Cadastro e gestão dos funcionários da empresa",
-                    settings: "Controle as configurações globais do site",
-                    contact: "Dados exibidos no site e usados nos contatos",
-                  } as Record<AdminTab, string>)[activeTab]}
-                </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-[#5a6a82]">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full inline-block" />
-            <span className="hidden sm:inline font-medium">Supabase conectado</span>
-          </div>
-        </header>
+        <AdminHeader
+          activeTab={activeTab}
+          page={page}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen((current) => !current)}
+        />
 
         {/* Content */}
         <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
