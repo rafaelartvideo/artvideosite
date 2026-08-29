@@ -57,7 +57,6 @@ import {
   getServiceOrderResolutionState,
   insertServiceOrderMedia,
   insertServiceOrderSellers,
-  insertServiceOrderStatusHistory,
   insertServiceOrderTechnicians,
   listApprovedResolutionPartRequests,
   listOrderStatusOptions,
@@ -68,8 +67,6 @@ import {
   resolveServiceOrder,
   updateServiceOrder,
   updateServiceOrderMediaSortOrder,
-  updateServiceOrderSituation,
-  updateServiceOrderStatus,
   listServiceOrderStatusHistory,
   listServiceOrderUsedItems,
 } from "@/features/orders/infrastructure/orders.repository";
@@ -83,6 +80,7 @@ import { useOrderImages } from "@/features/orders/presentation/useOrderImages";
 import { useOrderPartRequests } from "@/features/orders/presentation/useOrderPartRequests";
 import { useOrdersWorkspace } from "@/features/orders/presentation/useOrdersWorkspace";
 import { useOrderFilters } from "@/features/orders/presentation/useOrderFilters";
+import { useOrderListMutations } from "@/features/orders/presentation/useOrderListMutations";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress, fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
@@ -188,10 +186,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [addressExpanded, setAddressExpanded] = useState(false);
   const [quickEquipment, setQuickEquipment] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(false);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
-  const dragOriginRef = useRef<any[] | null>(null);
-  const suppressCardClickRef = useRef(false);
 
   const emptyForm = { service_id: "", general_service_id: "", service_type_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", technician_id: "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "", order_type: "internal" as OrderType, service_state: "", service_city: "", service_street: "", service_zip_code: "", service_neighborhood: "", service_number: "", service_complement: "", service_customer_address_id: "", external_os_number: "" };
   const [form, setForm] = useState(emptyForm);
@@ -350,6 +344,30 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   } = useOrderPartRequests({
     orderId: detail?.id,
     reloadOrders: reloadWorkspace,
+    showToast: setToast,
+    formatError: supabaseErrorMessage,
+  });
+
+  const {
+    draggingId,
+    dragOverStatusId,
+    setDragOverStatusId,
+    updateOrderStatus,
+    updateOrderSituation,
+    handleKanbanDrop,
+    handleCardDragStart,
+    handleCardDragEnd,
+    shouldSuppressCardOpen,
+    handleDragLeave,
+  } = useOrderListMutations({
+    orders,
+    setOrders,
+    statuses,
+    situations,
+    detail,
+    setDetail,
+    userId: user?.id,
+    hasPermission,
     showToast: setToast,
     formatError: supabaseErrorMessage,
   });
@@ -734,53 +752,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     await reloadWorkspace();
   };
 
-  const updateOrderStatus = async (order: any, statusId: string) => {
-    if (!hasPermission("orders.status")) { setToast({ msg: "Você não possui permissão para alterar o status.", type: "error" }); return; }
-    const { error } = await updateServiceOrderStatus(order.id, statusId);
-    if (error) { setToast({ msg: `Erro: ${error.message}`, type: "error" }); return; }
-    await insertServiceOrderStatusHistory(order.id, statusId, user?.id || null);
-    setToast({ msg: "Status atualizado!", type: "success" });
-    const updated = orders.map(o => o.id === order.id ? { ...o, status_id: statusId, order_status: statuses.find(status => status.id === statusId) || o.order_status } : o);
-    setOrders(updated);
-    if (detail?.id === order.id) setDetail({ ...detail, status_id: statusId, order_status: statuses.find(status => status.id === statusId) || detail.order_status });
-  };
-
-  const updateOrderSituation = async (order: any, situationId: string) => {
-    if (!hasPermission("orders.edit")) { setToast({ msg: "Você não possui permissão para alterar a situação.", type: "error" }); return; }
-    const { data, error } = await updateServiceOrderSituation(order.id, situationId || null);
-    if (error) { setToast({ msg: `Erro ao alterar situação: ${supabaseErrorMessage(error)}`, type: "error" }); return; }
-    const situation = situations.find(item => item.id === (data?.situation_id || situationId));
-    setOrders(current => current.map(item => item.id === order.id ? { ...item, situation_id: data?.situation_id || situationId, situation: situation || null } : item));
-    if (detail?.id === order.id) setDetail({ ...detail, situation_id: data?.situation_id || situationId, situation: situation || null });
-  };
-
   const setViewMode = (mode: "list" | "kanban") => {
     setDisplayMode(mode);
     window.localStorage.setItem("os_view_mode", mode);
-  };
-
-  const handleKanbanDrop = async (statusId: string) => {
-    if (!hasPermission("orders.status")) return;
-    const order = orders.find(item => item.id === draggingId);
-    const previousOrders = dragOriginRef.current;
-    setDraggingId(null);
-    setDragOverStatusId(null);
-    if (!order || order.status_id === statusId || !previousOrders) return;
-
-    const nextStatus = statuses.find(status => status.id === statusId);
-    setOrders(current => current.map(item => item.id === order.id ? { ...item, status_id: statusId, order_status: nextStatus || item.order_status } : item));
-    try {
-      const { error } = await updateServiceOrderStatus(order.id, statusId);
-      if (error) throw error;
-      const { error: historyError } = await insertServiceOrderStatusHistory(order.id, statusId, user?.id || null);
-      if (historyError) console.warn("[ADMIN] OS status history warning:", historyError.message);
-      setToast({ msg: `OS ${order.os_number || order.id.slice(0, 8)} movida para ${nextStatus?.name || "o novo status"}.`, type: "success" });
-    } catch (error) {
-      setOrders(previousOrders);
-      setToast({ msg: `Não foi possível alterar o status: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
-    } finally {
-      dragOriginRef.current = null;
-    }
   };
 
   const searchCustomers = async (q: string) => {
@@ -999,26 +973,12 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         dragOverStatusId={dragOverStatusId}
         hasPermission={hasPermission}
         onDragOver={setDragOverStatusId}
-        onDragLeave={(statusId) => setDragOverStatusId(current => current === statusId ? null : current)}
+        onDragLeave={handleDragLeave}
         onDrop={(statusId) => { void handleKanbanDrop(statusId); }}
-        onCardDragStart={(event, order) => {
-          dragOriginRef.current = orders;
-          suppressCardClickRef.current = true;
-          setDraggingId(order.id);
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", order.id);
-        }}
-        onCardDragEnd={() => {
-          setDraggingId(null);
-          setDragOverStatusId(null);
-          window.setTimeout(() => { suppressCardClickRef.current = false; }, 0);
-        }}
+        onCardDragStart={handleCardDragStart}
+        onCardDragEnd={handleCardDragEnd}
         onOpen={(order) => {
-          if (suppressCardClickRef.current) {
-            suppressCardClickRef.current = false;
-            return;
-          }
-          openDetail(order);
+          if (!shouldSuppressCardOpen()) openDetail(order);
         }}
         onSituationChange={(order, situationId) => { void updateOrderSituation(order, situationId); }}
         onEdit={(order) => { void openEdit(order); }}
