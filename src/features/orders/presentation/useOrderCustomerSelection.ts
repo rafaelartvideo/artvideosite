@@ -7,11 +7,7 @@ import {
 import { emptyAddress, type Address } from "@/lib/address";
 import { searchOrderCustomers } from "../infrastructure/orders-customer.repository";
 
-export function useOrderCustomerSelection({
-  onCustomerSelected,
-}: {
-  onCustomerSelected: (customer: any, address: Address | null) => void;
-}) {
+export function useOrderCustomerSelection() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -52,7 +48,7 @@ export function useOrderCustomerSelection({
 
   const selectCustomer = (customer: any) => {
     const address = hydrateCustomer(customer);
-    onCustomerSelected(customer, address);
+    return address;
   };
 
   const clearCustomer = () => {

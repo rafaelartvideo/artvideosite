@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   QuickEquipmentModal,
@@ -81,9 +81,10 @@ import { useOrdersWorkspace } from "@/features/orders/presentation/useOrdersWork
 import { useOrderFilters } from "@/features/orders/presentation/useOrderFilters";
 import { useOrderListMutations } from "@/features/orders/presentation/useOrderListMutations";
 import { useOrderCustomerSelection } from "@/features/orders/presentation/useOrderCustomerSelection";
+import { useOrderServiceAddress } from "@/features/orders/presentation/useOrderServiceAddress";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
-import { emptyAddress, fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
+import type { Address } from "@/lib/address";
 import {
   LayoutDashboard, ClipboardList, Edit2, Trash2, RefreshCw, Search, MessageCircle,
   Users, List, X, Plus, Clock, CheckCircle, Upload, AlertTriangle, ArrowLeft,
@@ -106,21 +107,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 type OrderType = "internal" | "external";
 type ServiceAddressSource = "customer" | "custom";
-type IbgeState = { sigla: string; nome: string };
-type IbgeCity = { nome: string };
-const normalizeSearchDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const normalizeSearchIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-const normalizeAddressLookup = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-
-const FALLBACK_STATES: IbgeState[] = [
-  { sigla: "AC", nome: "Acre" }, { sigla: "AL", nome: "Alagoas" }, { sigla: "AP", nome: "Amapá" }, { sigla: "AM", nome: "Amazonas" },
-  { sigla: "BA", nome: "Bahia" }, { sigla: "CE", nome: "Ceará" }, { sigla: "DF", nome: "Distrito Federal" }, { sigla: "ES", nome: "Espírito Santo" },
-  { sigla: "GO", nome: "Goiás" }, { sigla: "MA", nome: "Maranhão" }, { sigla: "MT", nome: "Mato Grosso" }, { sigla: "MS", nome: "Mato Grosso do Sul" },
-  { sigla: "MG", nome: "Minas Gerais" }, { sigla: "PA", nome: "Pará" }, { sigla: "PB", nome: "Paraíba" }, { sigla: "PR", nome: "Paraná" },
-  { sigla: "PE", nome: "Pernambuco" }, { sigla: "PI", nome: "Piauí" }, { sigla: "RJ", nome: "Rio de Janeiro" }, { sigla: "RN", nome: "Rio Grande do Norte" },
-  { sigla: "RS", nome: "Rio Grande do Sul" }, { sigla: "RO", nome: "Rondônia" }, { sigla: "RR", nome: "Roraima" }, { sigla: "SC", nome: "Santa Catarina" },
-  { sigla: "SP", nome: "São Paulo" }, { sigla: "SE", nome: "Sergipe" }, { sigla: "TO", nome: "Tocantins" },
-];
 
 export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onFocused?: () => void }) {
   const { user, profile, hasPermission } = useAuth();
@@ -165,16 +152,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [saving, setSaving] = useState(false);
   const [selectedTechnicianIds, setSelectedTechnicianIds] = useState<string[]>([]);
   const [selectedSellerIds, setSelectedSellerIds] = useState<string[]>([]);
-  const [serviceUseCustomerAddress, setServiceUseCustomerAddress] = useState(false);
-  const [serviceCustomerAddressOverride, setServiceCustomerAddressOverride] = useState(false);
-  const [serviceAddressMessage, setServiceAddressMessage] = useState("");
-  const [ibgeStates, setIbgeStates] = useState<IbgeState[]>([]);
-  const [ibgeStatesLoading, setIbgeStatesLoading] = useState(false);
-  const [ibgeCities, setIbgeCities] = useState<IbgeCity[]>([]);
-  const [ibgeCitiesLoading, setIbgeCitiesLoading] = useState(false);
-  const citiesCacheRef = useRef<Record<string, IbgeCity[]>>({});
-  const citiesRequestRef = useRef(0);
-  const zipRequestRef = useRef(0);
   const [quickEquipment, setQuickEquipment] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(false);
 
@@ -211,107 +188,51 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     addressExpanded,
     setAddressExpanded,
     searchCustomers,
-    selectCustomer,
+    selectCustomer: selectCustomerState,
     hydrateCustomer,
     clearCustomer,
-  } = useOrderCustomerSelection({
-    onCustomerSelected: (customer, address) => {
-      upF("customer_id", customer.id);
-      if (form.order_type !== "external" || !serviceUseCustomerAddress) return;
-      if (address) {
-        setServiceAddressMessage("");
-        setServiceCustomerAddressOverride(true);
-        copyCustomerAddressToForm(address);
-      } else {
-        setServiceUseCustomerAddress(false);
-        setServiceAddressMessage(
-          "Este cliente não possui endereço cadastrado. Preencha o local do atendimento.",
-        );
-        clearServiceAddress();
-      }
-    },
+  } = useOrderCustomerSelection();
+
+  const {
+    serviceUseCustomerAddress,
+    setServiceUseCustomerAddress,
+    serviceCustomerAddressOverride,
+    setServiceCustomerAddressOverride,
+    serviceAddressMessage,
+    setServiceAddressMessage,
+    ibgeStates,
+    ibgeStatesLoading,
+    ibgeCities,
+    ibgeCitiesLoading,
+    selectedServiceAddress,
+    serviceAddressPreview,
+    clearServiceAddress,
+    copyCustomerAddressToForm,
+    loadIbgeCities,
+    resetServiceAddressState,
+    hydrateServiceAddress,
+  } = useOrderServiceAddress({
+    form,
+    setForm,
+    selectedCustomer,
   });
 
-  const selectedServiceAddress = ((selectedCustomer?.addresses || []) as Address[]).find(address => address.is_default) || ((selectedCustomer?.addresses || []) as Address[])[0] || null;
-  const serviceAddressPreview: Address | null = serviceUseCustomerAddress
-    ? (serviceCustomerAddressOverride ? selectedServiceAddress : { id: form.service_customer_address_id || undefined, zip_code: form.service_zip_code, state: form.service_state, city: form.service_city, neighborhood: form.service_neighborhood, street: form.service_street, number: form.service_number, complement: form.service_complement })
-    : null;
-  const clearServiceAddress = () => {
-    upF("service_zip_code", ""); upF("service_state", ""); upF("service_city", ""); upF("service_neighborhood", "");
-    upF("service_street", ""); upF("service_number", ""); upF("service_complement", "");
-  };
-  const copyCustomerAddressToForm = (address: Address | null) => {
-    upF("service_zip_code", address?.zip_code || ""); upF("service_state", address?.state || ""); upF("service_city", address?.city || "");
-    upF("service_neighborhood", address?.neighborhood || ""); upF("service_street", address?.street || ""); upF("service_number", address?.number || ""); upF("service_complement", address?.complement || "");
-    if (address?.state) void loadIbgeCities(address.state, address.city);
-  };
-  const loadIbgeCities = async (state: string, preferredCity?: string) => {
-    const uf = state.trim().toUpperCase();
-    if (!uf) { setIbgeCities([]); return []; }
-    const requestId = ++citiesRequestRef.current;
-    const cached = citiesCacheRef.current[uf];
-    if (cached) {
-      setIbgeCities(cached);
-      if (preferredCity) {
-        const officialCity = cached.find(city => normalizeAddressLookup(city.nome) === normalizeAddressLookup(preferredCity));
-        if (officialCity) upF("service_city", officialCity.nome);
-      }
-      return cached;
-    }
-    setIbgeCitiesLoading(true);
-    try {
-      const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`);
-      if (!response.ok) throw new Error("Falha ao carregar cidades.");
-      const cities = await response.json() as IbgeCity[];
-      if (requestId !== citiesRequestRef.current) return [];
-      citiesCacheRef.current[uf] = cities;
-      setIbgeCities(cities);
-      if (preferredCity) {
-        const officialCity = cities.find(city => normalizeAddressLookup(city.nome) === normalizeAddressLookup(preferredCity));
-        if (officialCity) upF("service_city", officialCity.nome);
-      }
-      return cities;
-    } catch {
-      if (requestId === citiesRequestRef.current) setIbgeCities([]);
-      return [];
-    } finally {
-      if (requestId === citiesRequestRef.current) setIbgeCitiesLoading(false);
+  const selectCustomer = (customer: any) => {
+    const address = selectCustomerState(customer);
+    upF("customer_id", customer.id);
+    if (form.order_type !== "external" || !serviceUseCustomerAddress) return;
+    if (address) {
+      setServiceAddressMessage("");
+      setServiceCustomerAddressOverride(true);
+      copyCustomerAddressToForm(address);
+    } else {
+      setServiceUseCustomerAddress(false);
+      setServiceAddressMessage(
+        "Este cliente não possui endereço cadastrado. Preencha o local do atendimento.",
+      );
+      clearServiceAddress();
     }
   };
-
-  useEffect(() => {
-    let active = true;
-    setIbgeStatesLoading(true);
-    fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome")
-      .then(response => response.ok ? response.json() as Promise<IbgeState[]> : Promise.reject(new Error("Falha ao carregar estados.")))
-      .then(states => { if (active) setIbgeStates(states); })
-      .catch(() => { if (active) setIbgeStates(FALLBACK_STATES); })
-      .finally(() => { if (active) setIbgeStatesLoading(false); });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    if (form.order_type !== "external" || serviceUseCustomerAddress || normalizeSearchDigits(form.service_zip_code).length !== 8) return;
-    const requestId = ++zipRequestRef.current;
-    setServiceAddressMessage("");
-    const zipCode = formatZipCode(form.service_zip_code);
-    setIbgeCitiesLoading(true);
-    fetchAddressByZipCode(zipCode)
-      .then(async address => {
-        if (requestId !== zipRequestRef.current) return;
-        if (!address) { setServiceAddressMessage("CEP não encontrado. Verifique ou preencha o endereço manualmente."); return; }
-        upF("service_state", address.state || "");
-        upF("service_neighborhood", address.neighborhood || "");
-        upF("service_street", address.street || "");
-        const cities = await loadIbgeCities(address.state || "", address.city || "");
-        if (requestId !== zipRequestRef.current) return;
-        if (!cities.some(city => normalizeAddressLookup(city.nome) === normalizeAddressLookup(address.city))) upF("service_city", address.city || "");
-        setServiceAddressMessage("");
-      })
-      .catch(() => { if (requestId === zipRequestRef.current) setServiceAddressMessage("Não foi possível consultar o CEP agora. Preencha o endereço manualmente."); })
-      .finally(() => { if (requestId === zipRequestRef.current) setIbgeCitiesLoading(false); });
-    return () => { zipRequestRef.current += 1; };
-  }, [form.order_type, form.service_zip_code, serviceUseCustomerAddress]);
 
   const loadInventoryItems = async () => {
     const { data, error } = await listActivePartInventory();
@@ -424,7 +345,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const openNew = () => {
-    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]); setNeedsScheduling(true); clearOrderImages(); setViewImage(null); clearCustomer(); setFormOpen(true);
+    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); resetServiceAddressState(); setNeedsScheduling(true); clearOrderImages(); setViewImage(null); clearCustomer(); setFormOpen(true);
   };
 
   const openEdit = async (o: any) => {
@@ -443,8 +364,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setNeedsScheduling(true);
     await loadOrderImages(o.id);
     setForm({ ...emptyForm, service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "", order_type: o.order_type === "external" ? "external" : "internal", service_state: o.order_type === "external" ? o.service_state || "" : "", service_city: o.order_type === "external" ? o.service_city || "" : "", service_street: o.order_type === "external" ? o.service_street || "" : "", service_zip_code: o.order_type === "external" ? o.service_zip_code || "" : "", service_neighborhood: o.order_type === "external" ? o.service_neighborhood || "" : "", service_number: o.order_type === "external" ? o.service_number || "" : "", service_complement: o.order_type === "external" ? o.service_complement || "" : "", service_customer_address_id: o.order_type === "external" ? o.service_customer_address_id || "" : "", external_os_number: o.external_os_number || "" });
-    setServiceUseCustomerAddress(o.order_type === "external" && o.service_address_source === "customer"); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]);
-    if (o.order_type === "external" && o.service_state) void loadIbgeCities(o.service_state, o.service_city);
+    hydrateServiceAddress({
+      useCustomerAddress: o.order_type === "external" && o.service_address_source === "customer",
+      state: o.order_type === "external" ? o.service_state : undefined,
+      city: o.order_type === "external" ? o.service_city : undefined,
+    });
     hydrateCustomer((o.customer as any) || null);
     setFormOpen(true);
   };
