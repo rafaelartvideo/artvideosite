@@ -13,8 +13,15 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
-import { fetchAddressByZipCode, formatZipCode } from "@/lib/address";
+import {
+  createAppointment,
+  listCustomerServiceOrders,
+  loadAgendaData,
+  searchAppointmentCustomers as searchCustomers,
+  updateAppointmentDate,
+  updateServiceOrderSchedule,
+} from "../infrastructure/appointments.repository";
+import { fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
 import type {
   Appointment,
   AppointmentPeriod,
@@ -94,54 +101,27 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const load = async () => {
     setLoading(true);
     setAppointmentSituationsLoading(true);
-
-    let myEmployee: { id: string } | null = null;
-    if (user?.id) {
-      const { data: employeeData } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("profile_id", user.id)
-        .maybeSingle();
-      myEmployee = employeeData ?? null;
-      setMyEmployeeId(employeeData?.id ?? null);
+    try {
+      const data = await loadAgendaData({
+        userId: user?.id ?? null,
+        canViewOtherAgendas,
+      });
+      setMyEmployeeId(data.myEmployeeId);
+      setOrders(data.orders);
+      setAppointments(data.appointments as AppointmentWithRelations[]);
+      setEmployees(data.employees);
+      setServices(data.services);
+      setGeneralServices(data.generalServices);
+      setSituations(data.situations);
+      setAppointmentSituations(data.appointmentSituations as AppointmentSituation[]);
+      setAppointmentTechnicians(data.employees);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar agenda: ${message}`, type: "error" });
+    } finally {
+      setAppointmentSituationsLoading(false);
+      setLoading(false);
     }
-
-    let agendaQuery = supabase
-      .from("service_orders")
-      .select("id,os_number,scheduled_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color,hours)")
-      .not("scheduled_at", "is", null)
-      .order("scheduled_at");
-
-    if (!canViewOtherAgendas) {
-      const emptyUuid = "00000000-0000-0000-0000-000000000000";
-      if (myEmployee?.id) {
-        agendaQuery = agendaQuery.or(`technician_id.eq.${myEmployee.id},assigned_to.eq.${user?.id ?? emptyUuid}`);
-      } else {
-        agendaQuery = agendaQuery.eq("technician_id", emptyUuid);
-      }
-    }
-
-    const [ordersResult, appointmentsResult, employeesResult, servicesResult, generalServicesResult, situationsResult, appointmentSituationsResult] = await Promise.all([
-      agendaQuery,
-      supabase.from("appointments").select("*, created_by_profile:profiles!created_by(id,full_name), customer:customers(id,full_name,document,cnpj,phone,whatsapp,addresses:customer_addresses(*)), service_order:service_orders(id,os_number,model,serial_number,service:services(title),general_service:general_services(name)), situation:appointment_situations(id,name,color,is_active,sort_order,created_at,updated_at), appointment_technicians(employee_id,employee:employees(id,full_name))").order("appointment_date"),
-      supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
-      supabase.from("services").select("id,title").eq("is_active", true).order("title"),
-      supabase.from("general_services").select("id,name").eq("is_active", true).order("name"),
-      supabase.from("os_situations").select("id,name,hours").eq("is_active", true).order("sort_order"),
-      supabase.from("appointment_situations").select("id,name,color,is_active,sort_order,created_at,updated_at").eq("is_active", true).order("sort_order").order("name"),
-    ]);
-    if (ordersResult.error) setToast({ msg: `Erro ao carregar agenda: ${ordersResult.error.message}`, type: "error" });
-    if (appointmentsResult.error) setToast({ msg: `Erro ao carregar agendamentos: ${appointmentsResult.error.message}`, type: "error" });
-    setOrders(ordersResult.data || []);
-    setAppointments((appointmentsResult.data || []) as AppointmentWithRelations[]);
-    setEmployees(employeesResult.data || []);
-    setServices(servicesResult.data || []);
-    setGeneralServices(generalServicesResult.data || []);
-    setSituations(situationsResult.data || []);
-    setAppointmentSituations((appointmentSituationsResult.data || []) as AppointmentSituation[]);
-    setAppointmentTechnicians(employeesResult.data || []);
-    setAppointmentSituationsLoading(false);
-    setLoading(false);
   };
 
   useEffect(() => { if (!canViewAgenda) return; void load(); }, [canViewAgenda, user?.id]);
@@ -225,18 +205,28 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
       return updateEventDate(legacyEvent, targetDay);
     }
     if (event.kind === "appointment") {
-      const { error } = await supabase.from("appointments").update({ appointment_date: targetDay }).eq("id", event.id);
-      if (error) setToast({ msg: `Não foi possível mover o agendamento: ${error.message}`, type: "error" });
-      else { setAppointments(current => current.map(item => item.id === event.id ? { ...item, appointment_date: targetDay } : item)); setToast({ msg: "Agendamento atualizado.", type: "success" }); }
+      try {
+        await updateAppointmentDate(event.id, targetDay);
+        setAppointments(current => current.map(item => item.id === event.id ? { ...item, appointment_date: targetDay } : item));
+        setToast({ msg: "Agendamento atualizado.", type: "success" });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setToast({ msg: `Não foi possível mover o agendamento: ${message}`, type: "error" });
+      }
       return;
     }
     const order = event.order;
     const oldDate = new Date(order.scheduled_at);
     const next = parseDay(targetDay);
     next.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0);
-    const { error } = await supabase.from("service_orders").update({ scheduled_at: next.toISOString() }).eq("id", order.id);
-    if (error) setToast({ msg: `Não foi possível mover a OS: ${error.message}`, type: "error" });
-    else { setOrders(current => current.map(item => item.id === order.id ? { ...item, scheduled_at: next.toISOString() } : item)); setToast({ msg: "Agendamento atualizado.", type: "success" }); }
+    try {
+      await updateServiceOrderSchedule(order.id, next.toISOString());
+      setOrders(current => current.map(item => item.id === order.id ? { ...item, scheduled_at: next.toISOString() } : item));
+      setToast({ msg: "Agendamento atualizado.", type: "success" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Não foi possível mover a OS: ${message}`, type: "error" });
+    }
   };
   const dropCalendarEvent = (dataTransfer: DataTransfer, targetDay: string) => {
     const raw = dataTransfer.getData("text/calendar-event");
@@ -262,9 +252,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
     const term = value.trim();
     setAppointmentCustomerSearchLoading(true);
     try {
-      const { data, error } = await supabase.from("customers").select("id,customer_type,full_name,trade_name,document,cnpj,phone,whatsapp,addresses:customer_addresses(*)").or(`full_name.ilike.%${term}%,trade_name.ilike.%${term}%,document.ilike.%${term}%,cnpj.ilike.%${term}%,phone.ilike.%${term}%,whatsapp.ilike.%${term}%`).limit(8);
-      if (error) throw error;
-      setAppointmentCustomers(data || []);
+      setAppointmentCustomers(await searchCustomers(term));
     } catch (error) {
       console.error("[ADMIN] appointment customer search error:", error);
       setAppointmentCustomers([]);
@@ -274,8 +262,12 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const selectAppointmentCustomer = async (customer: any) => {
     const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
     setAppointmentCustomer(customer); setChangingAppointmentCustomer(false); setAppointmentCustomers([]); setAppointmentCustomerSearch("");
-    const { data } = await supabase.from("service_orders").select("id,os_number,model,serial_number,service:services(title),general_service:general_services(name)").eq("customer_id", customer.id).order("created_at", { ascending: false });
-    setAppointmentOrders(data || []);
+    try {
+      setAppointmentOrders(await listCustomerServiceOrders(customer.id));
+    } catch (error) {
+      setAppointmentOrders([]);
+      setToast({ msg: `Erro ao carregar OS do cliente: ${supabaseErrorMessage(error)}`, type: "error" });
+    }
     setAppointmentForm(current => ({ ...current, customer_id: customer.id, service_order_id: "", address_source: address ? "customer" : "custom", customer_address_id: address?.id || "", zip_code: address?.zip_code || "", street: address?.street || "", number: address?.number || "", complement: address?.complement || "", neighborhood: address?.neighborhood || "", city: address?.city || "", state: address?.state || "" }));
   };
   const saveAppointment = async () => {
@@ -287,12 +279,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
     setAppointmentSaving(true);
     try {
       const payload = { customer_id: appointmentForm.customer_id, service_order_id: appointmentForm.service_order_id || null, appointment_date: appointmentForm.appointment_date, period: appointmentForm.period, start_time: appointmentForm.period === "custom" ? appointmentForm.start_time : null, end_time: appointmentForm.period === "custom" ? appointmentForm.end_time : null, sector_location: appointmentForm.sector_location.trim() || null, situation_id: selectedSituation.id, description: appointmentForm.description.trim() || null, is_return: appointmentForm.is_return, address_source: appointmentForm.address_source, customer_address_id: appointmentForm.address_source === "customer" ? appointmentForm.customer_address_id || null : null, zip_code: appointmentForm.zip_code || null, street: appointmentForm.street || null, number: appointmentForm.number || null, complement: appointmentForm.complement || null, neighborhood: appointmentForm.neighborhood || null, city: appointmentForm.city || null, state: appointmentForm.state || null, created_by: user?.id || null };
-      const { data, error } = await supabase.from("appointments").insert(payload).select("*, created_by_profile:profiles!created_by(id,full_name), customer:customers(id,full_name,document,cnpj,phone,whatsapp), service_order:service_orders(id,os_number,model,serial_number,service:services(title),general_service:general_services(name)), situation:appointment_situations(id,name,color,is_active,sort_order,created_at,updated_at)").single();
-      if (error || !data) throw error || new Error("Agendamento não criado.");
-      if (selectedAppointmentTechnicians.length > 0) {
-        const { error: techniciansError } = await supabase.from("appointment_technicians").insert(selectedAppointmentTechnicians.map(employee_id => ({ appointment_id: data.id, employee_id })));
-        if (techniciansError) { await supabase.from("appointments").delete().eq("id", data.id); throw techniciansError; }
-      }
+      const data = await createAppointment(payload, selectedAppointmentTechnicians);
       setAppointments(current => [...current, { ...data, appointment_technicians: selectedAppointmentTechnicians.map(employee_id => ({ employee_id, employee: appointmentTechnicians.find(item => item.id === employee_id) || null })) } as AppointmentWithRelations]);
       setAppointmentModalOpen(false); setToast({ msg: "Agendamento criado.", type: "success" });
     } catch (error) {
