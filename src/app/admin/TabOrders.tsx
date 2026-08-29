@@ -7,6 +7,7 @@ import {
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import { OrdersTable } from "@/features/orders/presentation/OrdersTable";
 import { OrdersKanban } from "@/features/orders/presentation/OrdersKanban";
+import { OrdersHeader } from "@/features/orders/presentation/OrdersHeader";
 import {
   EmployeeMultiSelect,
   getResponsibleName,
@@ -1112,17 +1113,14 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       {deleteId && <ConfirmDialog message="Excluir esta OS? Esta ação remove o registro principal da tabela de ordens de serviço." onConfirm={() => { void handleDeleteOrder(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       {!detail && !formOpen && !solveOpen && <>
-      <PageHeader title="Ordens de Serviço" subtitle={`${filtered.length} OS encontrada${filtered.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex gap-2 flex-wrap">
-          <div className="flex rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
-            <button type="button" onClick={() => setViewMode("list")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "list" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><List size={13} /> Lista</button>
-            <button type="button" onClick={() => setViewMode("kanban")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "kanban" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><LayoutDashboard size={13} /> Kanban</button>
-          </div>
-          {hasPermission("orders.create") && <button onClick={openNew} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0]"><Plus size={13} /> Nova OS</button>}
-          <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5"><RefreshCw size={13} /> Atualizar</button>
-          
-        </div>
-      } />
+      <OrdersHeader
+        total={filtered.length}
+        displayMode={displayMode}
+        canCreate={hasPermission("orders.create")}
+        onDisplayModeChange={setViewMode}
+        onCreate={openNew}
+        onRefresh={() => { void load(); }}
+      />
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 space-y-3">
