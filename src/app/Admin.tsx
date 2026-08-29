@@ -44,7 +44,8 @@ function PasswordField({ label, value, onChange, required = false, placeholder, 
 }
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
-import { AdminHubPage, SidebarItem } from "@/features/admin-shell/presentation/AdminNavigation";
+import { AdminHubPage } from "@/features/admin-shell/presentation/AdminNavigation";
+import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "@/features/admin-shell/navigation-config";
 
 /* ─────────────────────────── ADMIN DASHBOARD WRAPPER ─────────────────────────── */
@@ -60,68 +61,26 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
   const canAccessTab = (tab: string) => hasPermission(permissionForTab[tab] || `${tab}.view`);
 
-  const SidebarContent = () => (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Logo */}
-        <div className="flex h-20 items-center justify-center border-b border-white/8 px-3">
-          <div className="flex items-center gap-2.5">
-            <img src={logoSolo} alt="" aria-hidden="true" className="h-8 w-8 shrink-0 object-contain" />
-            <div>
-              <span className="text-[8px] font-bold tracking-[0.3em] uppercase text-[#00b4ff] block">Eletrônica</span>
-              <span className="text-base font-black text-white block leading-none" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>ARTVIDEO</span>
-            </div>
-          </div>
-        </div>
-        {/* User footer */}
-        <div className="px-4 py-4 border-b border-white/8 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 bg-[#0057e7]/30 rounded-full flex items-center justify-center flex-shrink-0">
-              <Users size={14} className="text-[#00b4ff]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-white truncate">{profile?.full_name || user?.email?.split("@")[0] || "Admin"}</p>
-              <span className="text-[9px] font-bold text-[#00b4ff] bg-[#00b4ff]/10 px-1.5 py-0.5 rounded uppercase tracking-wide">{roleName}</span>
-            </div>
-          </div>
-          <button onClick={() => signOut()} title="Sair" className="p-1.5 text-white/40 hover:text-red-400 hover:bg-white/8 rounded-lg transition-colors flex-shrink-0">
-            <LogOut size={16} />
-          </button>
-        </div>
-        {/* Nav */}
-        <div className="px-3 py-4 space-y-0.5">
-          {mainItems.filter(item => canAccessTab(item.id)).map((item) => {
-            const Icon = item.icon;
-            const active = activeTab === item.id;
-            return (
-              <button key={item.id} onClick={() => { setActiveTab(item.id as AdminTab); setPage(null); setSidebarOpen(false); }}
-                className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all text-left",
-                  active ? "bg-[#0057e7] text-white shadow-lg shadow-[#0057e7]/25" : "text-white/60 hover:bg-white/8 hover:text-white")}>
-                <Icon size={17} className="flex-shrink-0" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-          {hasPermission("site.view") && <SidebarItem item={{ id: "site", label: "Site", icon: Globe }} active={activeTab === "site"} onClick={() => { setActiveTab("site"); setPage(null); setSidebarOpen(false); }} />}
-          {["orders.view", "customers.view", "employees.view", "equipment.view", "service_types.view", "services.view", "general_services.view"].some(hasPermission) && <SidebarItem item={{ id: "operation", label: "Operação", icon: Settings }} active={activeTab === "operation"} onClick={() => { setActiveTab("operation"); setPage(null); setSidebarOpen(false); }} />}
-          <div className="pt-3 space-y-0.5">{utilityItems.filter(item => canAccessTab(item.id)).map(item => <SidebarItem key={item.id} item={item} active={activeTab === item.id} onClick={() => { setActiveTab(item.id as AdminTab); setPage(null); setSidebarOpen(false); }} />)}</div>
-        </div>
-        {/* Back to site */}
-        <div className="px-3 pb-3">
-          <button onClick={onBackToSite} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/40 hover:text-white/70 hover:bg-white/5 transition-all">
-            <ArrowLeft size={16} /> <span>Ver site público</span>
-          </button>
-        </div>
-      </div>
-    </>
-  );
+
 
   return (
     <AdminPageContext.Provider value={{ page, setPage }}>
     <div className="h-screen overflow-hidden bg-[#f8fafc] flex">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-60 flex-shrink-0 bg-[#0d1b2e] flex-col fixed left-0 top-0 h-full z-40">
-        <SidebarContent />
+        <AdminSidebar
+          activeTab={activeTab}
+          userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
+          roleName={roleName}
+          hasPermission={hasPermission}
+          onNavigate={(tab) => {
+            setActiveTab(tab);
+            setPage(null);
+            setSidebarOpen(false);
+          }}
+          onSignOut={() => signOut()}
+          onBackToSite={onBackToSite}
+        />
       </aside>
 
       {/* Mobile sidebar overlay */}
@@ -129,7 +88,19 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         <>
           <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
           <aside className="fixed left-0 top-0 h-full w-64 bg-[#0d1b2e] flex flex-col z-50 md:hidden">
-            <SidebarContent />
+            <AdminSidebar
+          activeTab={activeTab}
+          userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
+          roleName={roleName}
+          hasPermission={hasPermission}
+          onNavigate={(tab) => {
+            setActiveTab(tab);
+            setPage(null);
+            setSidebarOpen(false);
+          }}
+          onSignOut={() => signOut()}
+          onBackToSite={onBackToSite}
+        />
           </aside>
         </>
       )}
