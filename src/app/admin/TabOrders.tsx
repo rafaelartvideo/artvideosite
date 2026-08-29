@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
 import {
   QuickEquipmentModal,
   ServiceTypeModal,
@@ -36,18 +35,21 @@ import {
   createServiceOrder,
   deleteServiceOrder,
   deleteServiceOrderMediaLink,
+  getFullServiceOrder,
   getServiceOrderDetail,
   getServiceOrderResolutionState,
   insertServiceOrderMedia,
   insertServiceOrderSellers,
   insertServiceOrderStatusHistory,
   insertServiceOrderTechnicians,
+  listApprovedResolutionPartRequests,
   listOrderStatusOptions,
   listServiceOrderMedia,
   listServiceOrderMediaLinks,
   loadOrdersWorkspace,
   markServiceOrderSolvable,
   markServiceOrderUnsolvable,
+  resolveServiceOrder,
   updateServiceOrder,
   updateServiceOrderMediaSortOrder,
   updateServiceOrderSituation,
@@ -768,11 +770,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
     setSaving(true);
     try {
-      const { error: resolveError } = await supabase.rpc("resolve_service_order", {
-        p_service_order_id: orderId,
-        p_diagnosis: diagnosis,
-        p_solution: solution,
-        p_used_items: solveDraft.usedItems.map(item => ({ inventory_item_id: item.inventory_item_id, quantity: Number(item.quantity) })),
+      const { error: resolveError } = await resolveServiceOrder({
+        serviceOrderId: orderId,
+        diagnosis,
+        solution,
+        usedItems: solveDraft.usedItems.map(item => ({ inventory_item_id: item.inventory_item_id, quantity: Number(item.quantity) })),
       });
       if (resolveError) throw resolveError;
 
@@ -789,7 +791,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         solutionImageError = error;
       }
 
-      const freshDetail = await supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").eq("id", orderId).maybeSingle();
+      const freshDetail = await getFullServiceOrder(orderId);
       if (freshDetail.data) setDetail(freshDetail.data);
       const { data: usedData } = await listServiceOrderUsedItems(orderId);
       const { data: mediaLinks } = await listServiceOrderMedia(orderId);
@@ -959,7 +961,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       return;
     }
     const [{ data: approvedRequests, error: approvedRequestsError }, { data: mediaLinks }] = await Promise.all([
-      supabase.from("service_order_part_requests").select("id,purpose,status,items:service_order_part_request_items(id,inventory_item_id,approved_quantity,source_test_item_id,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", order.id).eq("status", "APPROVED").eq("purpose", "RESOLUTION"),
+      listApprovedResolutionPartRequests(order.id),
       listServiceOrderMedia(order.id),
     ]);
     if (approvedRequestsError) { setToast({ msg: `Não foi possível carregar as peças aprovadas: ${supabaseErrorMessage(approvedRequestsError)}`, type: "error" }); return; }

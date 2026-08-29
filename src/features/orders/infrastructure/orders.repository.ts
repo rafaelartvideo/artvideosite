@@ -181,3 +181,41 @@ export const insertServiceOrderMedia = (
     media_id: mediaId,
     sort_order: sortOrder,
   });
+
+type ResolutionUsedItem = {
+  inventory_item_id: string;
+  quantity: number;
+};
+
+export const resolveServiceOrder = ({
+  serviceOrderId,
+  diagnosis,
+  solution,
+  usedItems,
+}: {
+  serviceOrderId: string;
+  diagnosis: string;
+  solution: string;
+  usedItems: ResolutionUsedItem[];
+}) =>
+  supabase.rpc("resolve_service_order", {
+    p_service_order_id: serviceOrderId,
+    p_diagnosis: diagnosis,
+    p_solution: solution,
+    p_used_items: usedItems,
+  });
+
+export const getFullServiceOrder = (serviceOrderId: string) =>
+  supabase
+    .from("service_orders")
+    .select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)")
+    .eq("id", serviceOrderId)
+    .maybeSingle();
+
+export const listApprovedResolutionPartRequests = (serviceOrderId: string) =>
+  supabase
+    .from("service_order_part_requests")
+    .select("id,purpose,status,items:service_order_part_request_items(id,inventory_item_id,approved_quantity,source_test_item_id,inventory_item:inventory_items(id,name,sku,unit,quantity))")
+    .eq("service_order_id", serviceOrderId)
+    .eq("status", "APPROVED")
+    .eq("purpose", "RESOLUTION");
