@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle, Edit2, FolderTree, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import {
+  deleteCategory,
+  listCategories,
+  saveCategory,
+  setCategoryActive,
+} from "../infrastructure/categories.repository";
 import {
   AdminPage,
   BtnPrimary,
@@ -34,10 +39,14 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("service_categories").select("*").order("sort_order");
-    if (error) setToast({ msg: `Erro ao carregar categorias: ${error.message}`, type: "error" });
-    else setCats(data || []);
-    setLoading(false);
+    try {
+      setCats(await listCategories());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar categorias: ${message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 
@@ -54,13 +63,7 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
       const nameChanged = editItem && editItem.name !== form.name.trim();
       const finalSlug = !editItem || nameChanged || !editItem.slug ? await generateUniqueSlug("service_categories", form.name, editItem?.id) : editItem.slug;
       const payload = { ...form, name: form.name.trim(), slug: finalSlug };
-      const { data, error } = editItem
-        ? await supabase.from("service_categories").update(payload).eq("id", editItem.id).select().single()
-        : await supabase.from("service_categories").insert(payload).select().single();
-      if (error) {
-        console.error("[ADMIN] service_categories save error:", error);
-        throw error;
-      }
+      await saveCategory(payload, editItem?.id);
       setDrawerOpen(false);
       setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" });
       load();
@@ -73,16 +76,27 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
 
   const handleDelete = async (id: string) => {
     if (!hasPermission("categories.delete")) return;
-    const { error } = await supabase.from("service_categories").delete().eq("id", id);
-    if (error) { console.error("[ADMIN] service_categories delete error:", error); setToast({ msg: `Erro ao excluir categoria: ${error.message}`, type: "error" }); return; }
-    setDelId(null); setToast({ msg: "Categoria excluída.", type: "success" }); load();
+    try {
+      await deleteCategory(id);
+      setDelId(null);
+      setToast({ msg: "Categoria excluída.", type: "success" });
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao excluir categoria: ${message}`, type: "error" });
+    }
   };
 
   const toggleActive = async (category: any) => {
     if (!hasPermission("categories.update")) return;
-    const { error } = await supabase.from("service_categories").update({ is_active: !category.is_active }).eq("id", category.id);
-    if (error) { console.error("[ADMIN] service_categories toggle error:", error); setToast({ msg: `Erro ao atualizar categoria: ${error.message}`, type: "error" }); return; }
-    setToast({ msg: "Status atualizado!", type: "success" }); load();
+    try {
+      await setCategoryActive(category.id, !category.is_active);
+      setToast({ msg: "Status atualizado!", type: "success" });
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao atualizar categoria: ${message}`, type: "error" });
+    }
   };
 
   return (

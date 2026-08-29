@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle, Edit2, Plus, Tag, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import {
+  deleteBrand,
+  listBrands,
+  saveBrand,
+  setBrandActive,
+} from "../infrastructure/brands.repository";
 import {
   AdminPage,
   BrandAdminLogo,
@@ -36,7 +41,17 @@ export function TabBrands({ onBack }: { onBack: () => void }) {
   const [form, setForm] = useState({ name: "", slug: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: 0 });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { setLoading(true); const { data, error } = await supabase.from("brands").select("*").order("sort_order"); if (error) setToast({ msg: `Erro ao carregar marcas: ${error.message}`, type: "error" }); else setBrands(data || []); setLoading(false); };
+  const load = async () => {
+    setLoading(true);
+    try {
+      setBrands(await listBrands());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar marcas: ${message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => { load(); }, []);
 
   const autoSlug = slugify;
@@ -51,8 +66,7 @@ export function TabBrands({ onBack }: { onBack: () => void }) {
       const nameChanged = editItem && editItem.name !== form.name.trim();
       const finalSlug = !editItem || nameChanged || !editItem.slug ? await generateUniqueSlug("brands", form.name, editItem?.id) : editItem.slug;
       const payload = { ...form, name: form.name.trim(), slug: finalSlug, logo_media_id: form.logo_media_id || null, website_url: form.website_url || null, description: form.description || null };
-      const { data, error } = editItem ? await supabase.from("brands").update(payload).eq("id", editItem.id).select().single() : await supabase.from("brands").insert(payload).select().single();
-      if (error) { console.error("[ADMIN] brands save error:", error); throw error; }
+      await saveBrand(payload, editItem?.id);
       setDrawerOpen(false);
       setToast({ msg: editItem ? "Marca atualizada!" : "Marca criada!", type: "success" });
       load();
@@ -62,8 +76,30 @@ export function TabBrands({ onBack }: { onBack: () => void }) {
       setSaving(false);
     }
   };
-  const handleDelete = async (id: string) => { if (!hasPermission("brands.delete")) return; const { error } = await supabase.from("brands").delete().eq("id", id); if (error) { setToast({ msg: `Erro ao excluir marca: ${error.message}`, type: "error" }); return; } setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); load(); };
-  const toggleActive = async (brand: any) => { if (!hasPermission("brands.update")) return; const { error } = await supabase.from("brands").update({ is_active: !brand.is_active }).eq("id", brand.id); if (error) { setToast({ msg: `Erro ao atualizar marca: ${error.message}`, type: "error" }); return; } setToast({ msg: "Status atualizado!", type: "success" }); load(); };
+  const handleDelete = async (id: string) => {
+    if (!hasPermission("brands.delete")) return;
+    try {
+      await deleteBrand(id);
+      setDelId(null);
+      setToast({ msg: "Marca excluída.", type: "success" });
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao excluir marca: ${message}`, type: "error" });
+    }
+  };
+
+  const toggleActive = async (brand: any) => {
+    if (!hasPermission("brands.update")) return;
+    try {
+      await setBrandActive(brand.id, !brand.is_active);
+      setToast({ msg: "Status atualizado!", type: "success" });
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao atualizar marca: ${message}`, type: "error" });
+    }
+  };
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const filteredBrands = brands;
