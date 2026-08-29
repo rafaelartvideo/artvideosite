@@ -12,6 +12,7 @@ import { OrdersFilters } from "@/features/orders/presentation/OrdersFilters";
 import { OrderSolutionSummary } from "@/features/orders/presentation/OrderSolutionSummary";
 import { OrderPartRequestsSection } from "@/features/orders/presentation/OrderPartRequestsSection";
 import { InfoRow, OrderDetailsContent } from "@/features/orders/presentation/OrderDetailsContent";
+import { OrderDetailsActions } from "@/features/orders/presentation/OrderDetailsActions";
 import {
   EmployeeMultiSelect,
   getPriorityLabel,
@@ -1264,17 +1265,19 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 onViewImage={setViewImage}
               />
             </div>
-            <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
-              <div className="flex gap-2 flex-wrap">
-                <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
-                {hasPermission("orders.status") && <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>}
-                {hasPermission("orders.edit") && <select value={detail.situation_id || ""} onChange={event => void updateOrderSituation(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
-                {hasPermission("orders.request_parts") && detail && detail.is_solved !== true && <button type="button" onClick={openPartRequestModal} className="inline-flex items-center gap-2 whitespace-nowrap border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer"><PackagePlus size={14} /> Pedir peças</button>}
-                {hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && <BtnPrimary onClick={() => openSolveOrder(detail)}><CheckCircle size={14} /> Resolver OS</BtnPrimary>}
-                {hasPermission("orders.edit") && !detail.is_solved && <BtnPrimary onClick={() => { setDetail(null); void openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>}
-                {hasPermission("orders.delete") && !detail.is_solved && <button type="button" onClick={() => setDeleteId(detail.id)} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"><Trash2 size={14} /> Excluir</button>}
-              </div>
-            </div>
+            <OrderDetailsActions
+              detail={detail}
+              statuses={statuses}
+              situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)}
+              hasPermission={hasPermission}
+              onClose={() => setDetail(null)}
+              onStatusChange={(statusId) => updateOrderStatus(detail, statusId)}
+              onSituationChange={(situationId) => { void updateOrderSituation(detail, situationId); }}
+              onRequestParts={openPartRequestModal}
+              onResolve={() => openSolveOrder(detail)}
+              onEdit={() => { setDetail(null); void openEdit(detail); }}
+              onDelete={() => setDeleteId(detail.id)}
+            />
         </AdminPage>
       )}
 
