@@ -11,7 +11,7 @@ import { OrdersHeader } from "@/features/orders/presentation/OrdersHeader";
 import { OrdersFilters } from "@/features/orders/presentation/OrdersFilters";
 import { OrderSolutionSummary } from "@/features/orders/presentation/OrderSolutionSummary";
 import { OrderPartRequestsSection } from "@/features/orders/presentation/OrderPartRequestsSection";
-import { OrderDetailsContent } from "@/features/orders/presentation/OrderDetailsContent";
+import { InfoRow, OrderDetailsContent } from "@/features/orders/presentation/OrderDetailsContent";
 import {
   EmployeeMultiSelect,
   getPriorityLabel,

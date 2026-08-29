@@ -17,7 +17,7 @@ import {
   type OrderImage,
 } from "./OrderImages";
 
-function InfoRow({
+export function InfoRow({
   label,
   value,
 }: {
