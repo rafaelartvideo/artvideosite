@@ -6,6 +6,7 @@ import {
 } from "@/features/orders/presentation/OrderQuickCreateModals";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import { OrdersTable } from "@/features/orders/presentation/OrdersTable";
+import { OrdersKanban } from "@/features/orders/presentation/OrdersKanban";
 import {
   EmployeeMultiSelect,
   getResponsibleName,
@@ -1211,35 +1212,39 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         totalPages={totalPages}
         onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
         onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
-      /> : <div className="overflow-x-auto pb-3">
-        <div className="flex items-start gap-4 min-w-max">
-          {statuses.map(status => {
-            const statusOrders = filtered.filter(order => order.status_id === status.id);
-            return <div key={status.id} onDragOver={event => { event.preventDefault(); setDragOverStatusId(status.id); }} onDragLeave={() => setDragOverStatusId(current => current === status.id ? null : current)} onDrop={event => { event.preventDefault(); void handleKanbanDrop(status.id); }} className={cn("w-[300px] flex-shrink-0 bg-[#f8fafc] rounded-xl border overflow-hidden transition-colors", dragOverStatusId === status.id ? "border-[#0057e7] bg-[#e8eef8]" : "border-[#0d1b2e]/8")}>
-              <div className="px-4 py-3 border-b border-[#0d1b2e]/8 bg-white flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: status.color || "transparent" }} /><span className="font-bold text-sm text-[#0d1b2e] truncate">{status.name}</span></div>
-                <span className="text-xs font-bold text-[#5a6a82]">{statusOrders.length}</span>
-              </div>
-              <div className="p-3 space-y-3 min-h-[180px]">
-                {statusOrders.length === 0 ? <p className="py-10 text-center text-xs text-[#5a6a82]">Solte uma OS aqui.</p> : statusOrders.map(order => <div key={order.id} draggable onDragStart={event => { dragOriginRef.current = orders; suppressCardClickRef.current = true; setDraggingId(order.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", order.id); }} onDragEnd={() => { setDraggingId(null); setDragOverStatusId(null); window.setTimeout(() => { suppressCardClickRef.current = false; }, 0); }} onClick={() => { if (suppressCardClickRef.current) { suppressCardClickRef.current = false; return; } openDetail(order); }} className={cn("bg-white rounded-lg border border-[#0d1b2e]/10 p-3 shadow-sm cursor-grab hover:border-[#0057e7]/30 transition-colors", draggingId === order.id && "opacity-50 cursor-grabbing")}>
-                  <div className="flex items-center gap-2 min-w-0"><span className="w-1.5 h-6 rounded-full flex-shrink-0" style={{ backgroundColor: status.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7] truncate">{order.os_number || "—"}</span></div>
-                  <p className="mt-3 font-semibold text-sm text-[#0d1b2e] truncate">{(order.customer as any)?.full_name || "Cliente não informado"}</p>
-                  <p className="text-xs text-[#5a6a82] truncate">{(order.general_service as any)?.name || (order.service as any)?.title || "Serviço não informado"}</p>
-                  {order.estimated_price != null && <p className="mt-2 text-xs font-bold text-[#0d1b2e]">R$ {Number(order.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>}
-                  {order.scheduled_at && <p className="mt-1 text-[11px] text-[#5a6a82]">Agendado: {fmtDate(order.scheduled_at)}</p>}
-                  <div className="mt-2 flex items-center gap-2 text-[11px] text-[#5a6a82]" onClick={event => event.stopPropagation()}>
-                    <span className="font-semibold">Situação:</span>
-                    {hasPermission("orders.edit") ? <select value={order.situation_id || ""} onChange={event => void updateOrderSituation(order, event.target.value)} className="min-w-0 flex-1 rounded border border-[#0d1b2e]/15 bg-white px-1.5 py-1 text-[11px]"><option value="">Não definida</option>{situations.map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select> : <span className="truncate">{(order.situation as any)?.name || "Não definida"}</span>}
-                  </div>
-                  {order.is_solved && <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
-                  {order.cannot_be_solved && <span className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span>}
-                  {hasPermission("orders.edit") && !order.is_solved && <div className="mt-3 flex items-center justify-end" onClick={event => event.stopPropagation()}><button type="button" draggable={false} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onDragStart={event => { event.preventDefault(); event.stopPropagation(); }} onClick={() => void openEdit(order)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-2.5 py-1.5 rounded-lg"><Edit2 size={13} /> Editar</button></div>}
-                </div>)}
-              </div>
-            </div>;
-          })}
-        </div>
-      </div>}
+      /> : <OrdersKanban
+        statuses={statuses}
+        filteredOrders={filtered}
+        situations={situations}
+        draggingId={draggingId}
+        dragOverStatusId={dragOverStatusId}
+        hasPermission={hasPermission}
+        onDragOver={setDragOverStatusId}
+        onDragLeave={(statusId) => setDragOverStatusId(current => current === statusId ? null : current)}
+        onDrop={(statusId) => { void handleKanbanDrop(statusId); }}
+        onCardDragStart={(event, order) => {
+          dragOriginRef.current = orders;
+          suppressCardClickRef.current = true;
+          setDraggingId(order.id);
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", order.id);
+        }}
+        onCardDragEnd={() => {
+          setDraggingId(null);
+          setDragOverStatusId(null);
+          window.setTimeout(() => { suppressCardClickRef.current = false; }, 0);
+        }}
+        onOpen={(order) => {
+          if (suppressCardClickRef.current) {
+            suppressCardClickRef.current = false;
+            return;
+          }
+          openDetail(order);
+        }}
+        onSituationChange={(order, situationId) => { void updateOrderSituation(order, situationId); }}
+        onEdit={(order) => { void openEdit(order); }}
+        formatDate={fmtDate}
+      />}
       </>}
 
       {/* OS Detail Drawer */}
