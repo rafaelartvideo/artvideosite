@@ -1,8 +1,22 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle, Edit2, Eye, EyeOff, Plus, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
-import { getEmployees, setEmployeeActive } from "@/lib/queries";
+import {
+  addRolePermission,
+  countRolePermissions,
+  createRole,
+  deleteEmployeeRecord,
+  getEmployees,
+  getRolePermissionIds,
+  invokeEmployeeCommand,
+  listActiveRoles,
+  listEmployeeRoleIds,
+  listPermissions,
+  listRoles,
+  removeRolePermission,
+  setEmployeeActive,
+  updateRole,
+} from "../infrastructure/employees.repository";
 import {
   AdminPage,
   BtnPrimary,
@@ -22,6 +36,7 @@ import {
   Section,
   StatusBadge,
   Toast,
+  supabaseErrorMessage,
 } from "@/app/admin/shared";
 
 function PasswordField({ label, value, onChange, required = false, placeholder, resetKey }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; placeholder?: string; resetKey?: string | number }) {
@@ -52,9 +67,9 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
 
   const load = async () => {
     const [{ data: roleData, error: roleError }, { data: permissionData, error: permissionError }, { data: employees }] = await Promise.all([
-      supabase.from("roles").select("id,name,description,is_system,is_active,sort_order").order("sort_order").order("name"),
-      supabase.from("permissions").select("id,key,label,description,module_name,sort_order").order("sort_order").order("label"),
-      supabase.from("employees").select("role_id"),
+      listRoles(),
+      listPermissions(),
+      listEmployeeRoleIds(),
     ]);
     if (roleError || permissionError) { setToast({ msg: `Erro ao carregar permissões: ${(roleError || permissionError)?.message}`, type: "error" }); return; }
     const counts: Record<string, number> = {};
@@ -70,7 +85,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
   }, {});
   const openNew = () => { setEditing(null); setForm({ name: "", description: "", is_active: true, selected: [] }); setFormOpen(true); };
   const reloadRolePermissions = async (roleId: string) => {
-    const { data, error } = await supabase.from("role_permissions").select("permission_id").eq("role_id", roleId);
+    const { data, error } = await getRolePermissionIds(roleId);
     if (error) return error;
     setForm(current => ({ ...current, selected: (data || []).map((item: any) => item.permission_id) }));
     return null;
@@ -88,8 +103,8 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     const payload = { name: form.name.trim(), description: form.description.trim() || null, is_active: form.is_active };
     const roleId = editing?.id || crypto.randomUUID();
     const result = editing
-      ? await supabase.from("roles").update(payload).eq("id", roleId)
-      : await supabase.from("roles").insert({ ...payload, id: roleId, is_system: false, sort_order: roles.length });
+      ? await updateRole(roleId, payload)
+      : await createRole({ ...payload, id: roleId, is_system: false, sort_order: roles.length });
     if (result.error) {
       console.error("Role save error:", { operation: editing ? "update" : "insert", table: "roles", code: result.error.code, message: result.error.message, details: result.error.details, hint: result.error.hint });
       setSaving(false);
@@ -99,7 +114,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
 
     const previousPermissionIds = new Set<string>();
     if (editing) {
-      const { data: currentPermissions, error: currentPermissionsError } = await supabase.from("role_permissions").select("permission_id").eq("role_id", roleId);
+      const { data: currentPermissions, error: currentPermissionsError } = await getRolePermissionIds(roleId);
       if (currentPermissionsError) {
         setSaving(false);
         setToast({ msg: `A função foi salva, mas não foi possível ler suas permissões: ${supabaseErrorMessage(currentPermissionsError)}`, type: "error" });
@@ -127,11 +142,11 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     const permissionIdsToAdd = [...selectedPermissionIds].filter(permissionId => !previousPermissionIds.has(permissionId));
     try {
       for (const permissionId of permissionIdsToAdd) {
-        const { error } = await supabase.from("role_permissions").insert({ role_id: roleId, permission_id: permissionId });
+        const { error } = await addRolePermission(roleId, permissionId);
         if (error) throw error;
       }
       for (const permissionId of permissionIdsToRemove) {
-        const { error } = await supabase.from("role_permissions").delete().eq("role_id", roleId).eq("permission_id", permissionId);
+        const { error } = await removeRolePermission(roleId, permissionId);
         if (error) throw error;
       }
     } catch (error) {
@@ -187,7 +202,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
 function RoleRow({ role, permissionCount, userCount, onEdit }: { role: any; permissionCount?: number; userCount: number; onEdit: () => void }) {
   const [count, setCount] = useState(permissionCount);
   const { hasPermission } = useAuth();
-  useEffect(() => { if (count != null) return; supabase.from("role_permissions").select("permission_id", { count: "exact", head: true }).eq("role_id", role.id).then(result => setCount(result.count || 0)); }, [role.id, count]);
+  useEffect(() => { if (count != null) return; countRolePermissions(role.id).then(result => setCount(result.count || 0)); }, [role.id, count]);
   return <tr className="hover:bg-[#f8fafc]/80"><td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{role.name}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{role.description || "—"}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{count ?? "—"}</td><td className="px-4 py-3.5"><StatusBadge status={role.is_system ? "Padrão" : "Personalizado"} /></td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{userCount}</td><td className="px-4 py-3.5 text-right">{hasPermission("roles.edit") && <button type="button" onClick={onEdit} className="text-xs font-bold text-[#0057e7] hover:underline">Editar</button>}</td></tr>;
 }
 
@@ -211,7 +226,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
 
   const load = async () => {
     setLoading(true);
-    const [{ data, error }, rolesResult] = await Promise.all([getEmployees(), supabase.from("roles").select("id,name,is_active").eq("is_active", true).order("sort_order").order("name")]);
+    const [{ data, error }, rolesResult] = await Promise.all([getEmployees(), listActiveRoles()]);
     if (error) { console.error("[ADMIN] employees load error:", error); setToast({ msg: `Erro ao carregar equipes: ${error.message}`, type: "error" }); }
     else setEmployees(data || []);
     if (rolesResult.error) setToast({ msg: `Erro ao carregar funções: ${rolesResult.error.message}`, type: "error" });
@@ -252,7 +267,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
           password: form.password || undefined,
         };
         if (normalizedEmail) updatePayload.email = normalizedEmail;
-        const { data, error: invokeError } = await supabase.functions.invoke("server", { body: updatePayload });
+        const { data, error: invokeError } = await invokeEmployeeCommand(updatePayload);
         if (invokeError) {
           const context = (invokeError as { context?: unknown }).context;
           if (context instanceof Response) {
@@ -268,8 +283,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
         if (data?.error) throw new Error(typeof data.error === "string" ? data.error : getEmployeeErrorMessage(data.error));
         if (data?.success !== true) throw new Error("Não foi possível atualizar o funcionário.");
       } else {
-        const { data, error: invokeError } = await supabase.functions.invoke("server", {
-          body: {
+        const { data, error: invokeError } = await invokeEmployeeCommand({
             action: "create_employee_user",
             email: normalizedEmail,
             password: form.password,
@@ -278,7 +292,6 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
             phone: form.phone ? form.phone.replace(/\D/g, "") : null,
             function_name: form.function_name.trim() || "Funcionário",
             role_id: form.role_id,
-          },
         });
         if (invokeError) {
           let responseMessage = "";
@@ -315,7 +328,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
 
   const deleteEmployee = async (employeeId: string) => {
     if (!hasPermission("employees.delete")) return;
-    const { error } = await supabase.from("employees").delete().eq("id", employeeId);
+    const { error } = await deleteEmployeeRecord(employeeId);
     if (error) {
       setToast({ msg: `Não foi possível excluir o funcionário: ${error.message}`, type: "error" });
       setDeleteId(null);
