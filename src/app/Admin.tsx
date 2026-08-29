@@ -49,7 +49,7 @@ import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { AdminHeader } from "@/features/admin-shell/presentation/AdminHeader";
 import { AdminLayout } from "@/features/admin-shell/presentation/AdminLayout";
 import { AdminContentRouter, type AdminRouteMap } from "@/features/admin-shell/presentation/AdminContentRouter";
-import { mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "@/features/admin-shell/navigation-config";
+import { operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 
 /* ─────────────────────────── ADMIN DASHBOARD WRAPPER ─────────────────────────── */
 
@@ -62,7 +62,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
   const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
 
-  const canAccessTab = (tab: string) => hasPermission(permissionForTab[tab] || `${tab}.view`);
+  const canAccessTab = (tab: AdminTab) => hasPermission(permissionForTab[tab]);
 
 
 
