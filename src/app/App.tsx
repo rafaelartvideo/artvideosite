@@ -1,8 +1,13 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useServices, useServiceCategories, useFeaturedProducts, useBrands, useServiceDetailBySlug, useProductDetailBySlug, useSiteSettings, useProducts } from "@/lib/hooks";
-import { AdminLogin, AdminDashboard } from "@/app/Admin";
+const AdminLogin = lazy(() =>
+  import("@/app/Admin").then(({ AdminLogin }) => ({ default: AdminLogin })),
+);
+const AdminDashboard = lazy(() =>
+  import("@/app/Admin").then(({ AdminDashboard }) => ({ default: AdminDashboard })),
+);
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress } from "@/lib/address";
 import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
@@ -1941,17 +1946,28 @@ function AppContent({
   const { session, loading } = useAuth();
 
   if (isAdminRoute) {
-    if (loading) {
-      return (
-        <div className="min-h-screen bg-[#0d1b2e] flex items-center justify-center text-white font-bold text-sm">
-          Carregando painel...
-        </div>
-      );
-    }
-    if (!session) {
-      return <AdminLogin onLoginSuccess={() => setIsAdminRoute(true)} />;
-    }
-    return <AdminDashboard onBackToSite={() => { window.history.pushState({}, "", "/"); setIsAdminRoute(false); }} />;
+    const adminFallback = (
+      <div className="min-h-screen bg-[#0d1b2e] flex items-center justify-center text-white font-bold text-sm">
+        Carregando painel...
+      </div>
+    );
+
+    if (loading) return adminFallback;
+
+    return (
+      <Suspense fallback={adminFallback}>
+        {!session ? (
+          <AdminLogin onLoginSuccess={() => setIsAdminRoute(true)} />
+        ) : (
+          <AdminDashboard
+            onBackToSite={() => {
+              window.history.pushState({}, "", "/");
+              setIsAdminRoute(false);
+            }}
+          />
+        )}
+      </Suspense>
+    );
   }
 
   return (
