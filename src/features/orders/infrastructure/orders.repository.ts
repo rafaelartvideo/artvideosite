@@ -106,3 +106,78 @@ export const updateServiceOrderSituation = (
     .eq("id", serviceOrderId)
     .select("situation_id")
     .maybeSingle();
+
+export const createServiceOrder = (payload: Record<string, unknown>) =>
+  supabase
+    .from("service_orders")
+    .insert(payload)
+    .select("id,os_number,external_os_number")
+    .single();
+
+export const updateServiceOrder = (
+  serviceOrderId: string,
+  payload: Record<string, unknown>,
+) => supabase.from("service_orders").update(payload).eq("id", serviceOrderId);
+
+export const clearServiceOrderTechnicians = (serviceOrderId: string) =>
+  supabase
+    .from("service_order_technicians")
+    .delete()
+    .eq("service_order_id", serviceOrderId);
+
+export const clearServiceOrderSellers = (serviceOrderId: string) =>
+  supabase
+    .from("service_order_sellers")
+    .delete()
+    .eq("service_order_id", serviceOrderId);
+
+export const insertServiceOrderTechnicians = (
+  serviceOrderId: string,
+  employeeIds: string[],
+) =>
+  supabase.from("service_order_technicians").insert(
+    employeeIds.map((employeeId) => ({
+      service_order_id: serviceOrderId,
+      employee_id: employeeId,
+    })),
+  );
+
+export const insertServiceOrderSellers = (
+  serviceOrderId: string,
+  employeeIds: string[],
+) =>
+  supabase.from("service_order_sellers").insert(
+    employeeIds.map((employeeId) => ({
+      service_order_id: serviceOrderId,
+      employee_id: employeeId,
+    })),
+  );
+
+export const listServiceOrderMediaLinks = (serviceOrderId: string) =>
+  supabase
+    .from("service_order_media")
+    .select("id,media_id")
+    .eq("service_order_id", serviceOrderId);
+
+export const deleteServiceOrderMediaLink = (linkId: string) =>
+  supabase.from("service_order_media").delete().eq("id", linkId);
+
+export const updateServiceOrderMediaSortOrder = (
+  linkId: string,
+  sortOrder: number,
+) =>
+  supabase
+    .from("service_order_media")
+    .update({ sort_order: sortOrder })
+    .eq("id", linkId);
+
+export const insertServiceOrderMedia = (
+  serviceOrderId: string,
+  mediaId: string,
+  sortOrder: number,
+) =>
+  supabase.from("service_order_media").insert({
+    service_order_id: serviceOrderId,
+    media_id: mediaId,
+    sort_order: sortOrder,
+  });

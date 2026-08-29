@@ -31,15 +31,25 @@ import {
   purposeLabel,
 } from "@/features/orders/application/part-request.formatters";
 import {
+  clearServiceOrderSellers,
+  clearServiceOrderTechnicians,
+  createServiceOrder,
   deleteServiceOrder,
+  deleteServiceOrderMediaLink,
   getServiceOrderDetail,
   getServiceOrderResolutionState,
+  insertServiceOrderMedia,
+  insertServiceOrderSellers,
   insertServiceOrderStatusHistory,
+  insertServiceOrderTechnicians,
   listOrderStatusOptions,
   listServiceOrderMedia,
+  listServiceOrderMediaLinks,
   loadOrdersWorkspace,
   markServiceOrderSolvable,
   markServiceOrderUnsolvable,
+  updateServiceOrder,
+  updateServiceOrderMediaSortOrder,
   updateServiceOrderSituation,
   updateServiceOrderStatus,
   listServiceOrderStatusHistory,
@@ -771,7 +781,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         for (const [sortOrder, image] of solutionImages.entries()) {
           if (image.file) {
             const mediaId = await uploadOrderImage(image.file);
-            const { error: insertError } = await supabase.from("service_order_media").insert({ service_order_id: orderId, media_id: mediaId, sort_order: sortOrder + 1000 });
+            const { error: insertError } = await insertServiceOrderMedia(orderId, mediaId, sortOrder + 1000);
             if (insertError) throw insertError;
           }
         }
@@ -781,8 +791,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
       const freshDetail = await supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").eq("id", orderId).maybeSingle();
       if (freshDetail.data) setDetail(freshDetail.data);
-      const { data: usedData } = await supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", orderId).order("created_at", { ascending: false });
-      const { data: mediaLinks } = await supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", orderId).order("sort_order");
+      const { data: usedData } = await listServiceOrderUsedItems(orderId);
+      const { data: mediaLinks } = await listServiceOrderMedia(orderId);
       setDetailUsedItems(usedData || []);
       setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
       setDetailSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
@@ -848,10 +858,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     let error;
     let savedOrderId = editingOS?.id as string | undefined;
     if (editingOS) {
-      const r = await supabase.from("service_orders").update(payload).eq("id", editingOS.id);
+      const r = await updateServiceOrder(editingOS.id, payload);
       error = r.error;
     } else {
-      const r = await supabase.from("service_orders").insert(payload).select("id,os_number,external_os_number").single();
+      const r = await createServiceOrder(payload);
       error = r.error;
       savedOrderId = r.data?.id;
     }
@@ -862,25 +872,25 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     const previousSellerIds = Array.from(new Set((editingOS?.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOS?.seller_id ? [editingOS.seller_id] : [])));
     try {
       if (editingOS) {
-        const { error: deleteTechniciansError } = await supabase.from("service_order_technicians").delete().eq("service_order_id", savedOrderId);
+        const { error: deleteTechniciansError } = await clearServiceOrderTechnicians(savedOrderId);
         if (deleteTechniciansError) throw deleteTechniciansError;
-        const { error: deleteSellersError } = await supabase.from("service_order_sellers").delete().eq("service_order_id", savedOrderId);
+        const { error: deleteSellersError } = await clearServiceOrderSellers(savedOrderId);
         if (deleteSellersError) throw deleteSellersError;
       }
       if (uniqueTechnicianIds.length) {
-        const { error: technicianError } = await supabase.from("service_order_technicians").insert(uniqueTechnicianIds.map(employee_id => ({ service_order_id: savedOrderId, employee_id })));
+        const { error: technicianError } = await insertServiceOrderTechnicians(savedOrderId, uniqueTechnicianIds);
         if (technicianError) throw technicianError;
       }
       if (uniqueSellerIds.length) {
-        const { error: sellerError } = await supabase.from("service_order_sellers").insert(uniqueSellerIds.map(employee_id => ({ service_order_id: savedOrderId, employee_id })));
+        const { error: sellerError } = await insertServiceOrderSellers(savedOrderId, uniqueSellerIds);
         if (sellerError) throw sellerError;
       }
     } catch (relationError) {
       if (editingOS) {
-        await supabase.from("service_order_technicians").delete().eq("service_order_id", savedOrderId);
-        await supabase.from("service_order_sellers").delete().eq("service_order_id", savedOrderId);
-        if (previousTechnicianIds.length) await supabase.from("service_order_technicians").insert(previousTechnicianIds.map(employee_id => ({ service_order_id: savedOrderId, employee_id })));
-        if (previousSellerIds.length) await supabase.from("service_order_sellers").insert(previousSellerIds.map(employee_id => ({ service_order_id: savedOrderId, employee_id })));
+        await clearServiceOrderTechnicians(savedOrderId);
+        await clearServiceOrderSellers(savedOrderId);
+        if (previousTechnicianIds.length) await insertServiceOrderTechnicians(savedOrderId, previousTechnicianIds);
+        if (previousSellerIds.length) await insertServiceOrderSellers(savedOrderId, previousSellerIds);
       }
       setSaving(false);
       setToast({ msg: `OS salva, mas não foi possível atualizar técnicos/vendedores: ${supabaseErrorMessage(relationError)}`, type: "error" });
@@ -888,12 +898,12 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     }
     try {
       if (!savedOrderId) throw new Error("A OS foi salva, mas não foi possível obter seu ID.");
-      const { data: existingLinks, error: linksError } = await supabase.from("service_order_media").select("id,media_id").eq("service_order_id", savedOrderId);
+      const { data: existingLinks, error: linksError } = await listServiceOrderMediaLinks(savedOrderId);
       if (linksError) throw linksError;
       const retainedMediaIds = new Set(orderImages.filter(image => image.mediaId).map(image => image.mediaId));
       for (const link of existingLinks || []) {
         if (!retainedMediaIds.has(link.media_id)) {
-          const { error: removeError } = await supabase.from("service_order_media").delete().eq("id", link.id);
+          const { error: removeError } = await deleteServiceOrderMediaLink(link.id);
           if (removeError) throw removeError;
         }
       }
@@ -901,12 +911,12 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         if (image.mediaId) {
           const link = (existingLinks || []).find((item: any) => item.media_id === image.mediaId);
           if (link) {
-            const { error: updateError } = await supabase.from("service_order_media").update({ sort_order: sortOrder }).eq("id", link.id);
+            const { error: updateError } = await updateServiceOrderMediaSortOrder(link.id, sortOrder);
             if (updateError) throw updateError;
           }
         } else if (image.file) {
           const mediaId = await uploadOrderImage(image.file);
-          const { error: insertError } = await supabase.from("service_order_media").insert({ service_order_id: savedOrderId, media_id: mediaId, sort_order: sortOrder });
+          const { error: insertError } = await insertServiceOrderMedia(savedOrderId, mediaId, sortOrder);
           if (insertError) throw insertError;
         }
       }
@@ -950,7 +960,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     }
     const [{ data: approvedRequests, error: approvedRequestsError }, { data: mediaLinks }] = await Promise.all([
       supabase.from("service_order_part_requests").select("id,purpose,status,items:service_order_part_request_items(id,inventory_item_id,approved_quantity,source_test_item_id,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", order.id).eq("status", "APPROVED").eq("purpose", "RESOLUTION"),
-      supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", order.id).order("sort_order"),
+      listServiceOrderMedia(order.id),
     ]);
     if (approvedRequestsError) { setToast({ msg: `Não foi possível carregar as peças aprovadas: ${supabaseErrorMessage(approvedRequestsError)}`, type: "error" }); return; }
     const approvedByInventory = new Map<string, any>();
