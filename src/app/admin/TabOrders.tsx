@@ -29,10 +29,10 @@ import {
 } from "@/features/orders/application/order-form";
 import { persistServiceOrder } from "@/features/orders/application/order-submission";
 import {
-  deleteServiceOrder,
-  getServiceOrderResolutionState,
-  listOrderStatusOptions,
-} from "@/features/orders/infrastructure/orders.repository";
+  getOrderEditState,
+  getOrderSubmissionStatus,
+  removeServiceOrder,
+} from "@/features/orders/application/order-management";
 import {
   OrderImageLightbox,
   OrderImagesField,
@@ -50,7 +50,6 @@ import { useOrderDetails } from "@/features/orders/presentation/useOrderDetails"
 import { useOrderFormState } from "@/features/orders/presentation/useOrderFormState";
 import { useOrderCustomerPersistence } from "@/features/orders/presentation/useOrderCustomerPersistence";
 import {
-  initialOrderStatus,
   Toast,
   ConfirmDialog,
   AdminPage,
@@ -341,7 +340,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const openEdit = async (o: any) => {
-    const { data: currentOrder, error: currentOrderError } = await getServiceOrderResolutionState(o.id);
+    const { data: currentOrder, error: currentOrderError } = await getOrderEditState(o.id);
     if (currentOrderError) {
       setToast({ msg: `Não foi possível verificar o estado da OS: ${supabaseErrorMessage(currentOrderError)}`, type: "error" });
       return;
@@ -378,8 +377,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setToast({ msg: preparation.error, type: "error" });
       return;
     }
-    const { data: availableStatuses, error: statusError } = await listOrderStatusOptions();
-    const status = editingOS ? (availableStatuses || []).find(item => item.id === form.status_id) : initialOrderStatus(availableStatuses || []);
+    const { status, error: statusError } = await getOrderSubmissionStatus({
+      editingOrder: editingOS,
+      statusId: form.status_id,
+    });
     if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status válido para a OS.", type: "error" }); return; }
     setSaving(true);
     if (
@@ -423,7 +424,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
   const handleDeleteOrder = async (id: string) => {
     if (!hasPermission("orders.delete")) return;
-    const { error } = await deleteServiceOrder(id);
+    const { error } = await removeServiceOrder(id);
     if (error) {
       setToast({ msg: `Não foi possível excluir a OS: ${error.message}`, type: "error" });
       setDeleteId(null);
