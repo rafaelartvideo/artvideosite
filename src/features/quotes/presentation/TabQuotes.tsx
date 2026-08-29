@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { ClipboardList, FileText, RefreshCw, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import {
+  createServiceOrderFromQuote,
+  deleteQuote,
+  findServiceOrderByQuote,
+  insertQuoteStatusHistory,
+  listOrderStatuses,
+  listQuotes,
+  listRequestStatuses,
+  updateQuoteStatus,
+} from "../infrastructure/quotes.repository";
 import {
   type AdminTab,
   AdminPage,
@@ -38,8 +47,8 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
   const load = async () => {
     setLoading(true);
     const [quotesResult, statusResult] = await Promise.all([
-      supabase.from("quote_requests").select("id, protocol, created_at, updated_at, requested_at, assigned_to, status_id, customer_id, service_id, brand_id, product_id, customer_message, estimated_price, final_price, request_status:request_statuses(id,name,color), customer:customers(id,customer_type,full_name,whatsapp,email,document,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(title), brand:brands(name), product:products(name)").order("created_at", { ascending: false }),
-      supabase.from("request_statuses").select("id, name, color, sort_order").order("sort_order"),
+      listQuotes(),
+      listRequestStatuses(),
     ]);
     if (quotesResult.error) setToast({ msg: `Erro ao carregar orçamentos: ${quotesResult.error.message}`, type: "error" });
     else setQuotes((quotesResult.data || []).map((q: any) => ({ ...q, statusName: q.request_status?.name || "Sem status" })));
@@ -52,9 +61,9 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
   const updateStatus = async (id: string, statusId: string) => {
     if (!hasPermission("quotes.update") && !hasPermission("quotes.edit")) return;
     const selectedStatus = statuses.find((status) => status.id === statusId);
-    const { error: updateError } = await supabase.from("quote_requests").update({ status_id: statusId }).eq("id", id);
+    const { error: updateError } = await updateQuoteStatus(id, statusId);
     if (updateError) { console.error("[ADMIN] quote status update error:", updateError); setToast({ msg: `Erro ao atualizar status: ${updateError.message}`, type: "error" }); return; }
-    const { error: historyError } = await supabase.from("quote_status_history").insert({ quote_request_id: id, status_id: statusId, created_by: user?.id || null });
+    const { error: historyError } = await insertQuoteStatusHistory(id, statusId, user?.id || null);
     if (historyError) console.warn("[ADMIN] quote status history warning:", historyError.message);
     if (detail?.id === id) setDetail({ ...detail, status_id: statusId, statusName: selectedStatus?.name || "Sem status" });
     setToast({ msg: "Status atualizado!", type: "success" });
@@ -63,7 +72,7 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
 
   const handleDeleteQuote = async (id: string) => {
     if (!hasPermission("quotes.delete")) return;
-    const { error } = await supabase.from("quote_requests").delete().eq("id", id);
+    const { error } = await deleteQuote(id);
     if (error) {
       setToast({ msg: `Não foi possível excluir o orçamento: ${error.message}`, type: "error" });
       setDeleteId(null);
@@ -235,12 +244,12 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
                 {hasPermission("quotes.convert") && <button onClick={async () => {
                 if (!detail) return;
                 if (!hasPermission("quotes.convert")) { setToast({ msg: "Você não possui permissão para converter orçamentos.", type: "error" }); return; }
-                const { data: existing } = await supabase.from("service_orders").select("id, os_number").eq("quote_request_id", detail.id).maybeSingle();
+                const { data: existing } = await findServiceOrderByQuote(detail.id);
                 if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
-                const { data: availableStatuses, error: statusError } = await supabase.from("order_statuses").select("id,name,sort_order").order("sort_order");
+                const { data: availableStatuses, error: statusError } = await listOrderStatuses();
                 const status = initialOrderStatus(availableStatuses || []);
                 if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status inicial válido para a OS.", type: "error" }); return; }
-                const { error } = await supabase.from("service_orders").insert({
+                const { error } = await createServiceOrderFromQuote({
                   service_id: detail.service_id, quote_request_id: detail.id,
                   customer_id: detail.customer_id, status_id: status.id,
                   customer_notes: detail.customer_message || null,
