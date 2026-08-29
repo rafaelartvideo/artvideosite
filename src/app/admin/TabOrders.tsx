@@ -41,12 +41,7 @@ import {
   TestResultModal,
 } from "@/features/orders/presentation/PartRequestModals";
 import type { PartRequestForReview } from "@/features/orders/domain/part-request.types";
-import { normalizeSearchText } from "@/features/orders/application/order-search";
 import { validateOrderResolution } from "@/features/orders/application/order-resolution";
-import {
-  filterServiceOrders,
-  sortServiceOrders,
-} from "@/features/orders/application/order-list";
 import {
   fmtReviewDate,
   purposeLabel,
@@ -87,6 +82,7 @@ import {
 import { useOrderImages } from "@/features/orders/presentation/useOrderImages";
 import { useOrderPartRequests } from "@/features/orders/presentation/useOrderPartRequests";
 import { useOrdersWorkspace } from "@/features/orders/presentation/useOrdersWorkspace";
+import { useOrderFilters } from "@/features/orders/presentation/useOrderFilters";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress, fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
@@ -114,7 +110,6 @@ type OrderType = "internal" | "external";
 type ServiceAddressSource = "customer" | "custom";
 type IbgeState = { sigla: string; nome: string };
 type IbgeCity = { nome: string };
-type CityFilterOption = { name: string; state: string };
 const normalizeSearchDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const normalizeSearchIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeAddressLookup = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
@@ -159,20 +154,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     loading,
     reloadWorkspace,
   } = useOrdersWorkspace({ showToast: setToast });
-  const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterSituation, setFilterSituation] = useState("");
-  const [filterOrderType, setFilterOrderType] = useState<OrderType | "">("");
-  const [selectedServiceTypeId, setSelectedServiceTypeId] = useState("");
-  const [orderSort, setOrderSort] = useState<"" | "asc" | "desc">("");
-  const [selectedStates, setSelectedStates] = useState<string[]>([]);
-  const [selectedCities, setSelectedCities] = useState<CityFilterOption[]>([]);
-  const [cityFilterOptions, setCityFilterOptions] = useState<CityFilterOption[]>([]);
-  const [cityFiltersLoading, setCityFiltersLoading] = useState(false);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
@@ -201,7 +182,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [ibgeCitiesLoading, setIbgeCitiesLoading] = useState(false);
   const citiesCacheRef = useRef<Record<string, IbgeCity[]>>({});
   const citiesRequestRef = useRef(0);
-  const filterCitiesRequestRef = useRef(0);
   const zipRequestRef = useRef(0);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMessage, setCnpjMessage] = useState("");
@@ -278,32 +258,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       if (requestId === citiesRequestRef.current) setIbgeCitiesLoading(false);
     }
   };
-
-  const loadFilterCities = async (states: string[]) => {
-    const requestId = ++filterCitiesRequestRef.current;
-    if (states.length === 0) { setCityFilterOptions([]); setCityFiltersLoading(false); return; }
-    setCityFiltersLoading(true);
-    const citiesByState = await Promise.all(states.map(async state => {
-      const uf = state.trim().toUpperCase();
-      const cached = citiesCacheRef.current[uf];
-      if (cached) return cached.map(city => ({ name: city.nome, state: uf }));
-      try {
-        const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`);
-        if (!response.ok) return [];
-        const cities = await response.json() as IbgeCity[];
-        citiesCacheRef.current[uf] = cities;
-        return cities.map(city => ({ name: city.nome, state: uf }));
-      } catch { return []; }
-    }));
-    if (requestId !== filterCitiesRequestRef.current) return;
-    const uniqueCities = new Map<string, CityFilterOption>();
-    citiesByState.flat().forEach(city => uniqueCities.set(`${city.state}:${normalizeSearchText(city.name)}`, city));
-    setCityFilterOptions(Array.from(uniqueCities.values()).sort((left, right) => left.state.localeCompare(right.state) || left.name.localeCompare(right.name)));
-    setCityFiltersLoading(false);
-  };
-
-  useEffect(() => { void loadFilterCities(selectedStates); }, [selectedStates]);
-  useEffect(() => { setSelectedCities(current => current.filter(city => selectedStates.includes(city.state))); }, [selectedStates]);
 
   useEffect(() => {
     let active = true;
@@ -891,38 +845,49 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     return ibgeState ? `${sigla} — ${ibgeState.nome}` : sigla;
   };
 
-  const invalidPeriod = Boolean(dateFrom && dateTo && dateFrom > dateTo);
-  const filtered = filterServiceOrders({
-    orders,
+  const {
     search,
-    statusId: filterStatus,
-    situationId: filterSituation,
-    orderType: filterOrderType,
-    serviceTypeId: selectedServiceTypeId,
-    states: selectedStates,
-    stateOptions: ibgeStates,
-    cities: selectedCities,
+    setSearch,
+    filterStatus,
+    setFilterStatus,
+    filterSituation,
+    setFilterSituation,
+    filterOrderType,
+    setFilterOrderType,
+    selectedServiceTypeId,
+    setSelectedServiceTypeId,
+    orderSort,
+    setOrderSort,
+    selectedStates,
+    setSelectedStates,
+    selectedCities,
+    setSelectedCities,
+    cityFilterOptions,
+    cityFiltersLoading,
     dateFrom,
+    setDateFrom,
     dateTo,
+    setDateTo,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     invalidPeriod,
+    filteredOrders: filtered,
+    pagedOrders,
+    totalPages,
+    safePage,
+    orderLabel,
+    clearFilters,
+  } = useOrderFilters({
+    orders,
+    stateOptions: ibgeStates,
     getStateLabel: stateLabel,
     getEquipmentSummary: equipmentSummary,
   });
-  const sorted = sortServiceOrders(filtered, orderSort);
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const pagedOrders = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenar";
-  const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
-
-  const clearFilters = () => {
-    setSearch(""); setFilterStatus(""); setFilterSituation(""); setFilterOrderType(""); setSelectedServiceTypeId(""); setSelectedStates([]); setSelectedCities([]); setDateFrom(""); setDateTo("");
-  };
-
-  useEffect(() => { setPage(1); }, [search, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  const OrderSortIcon = orderSort === "asc"
+    ? ArrowUpNarrowWide
+    : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
 
   const getSituationsForType = (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) => {
     const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId).sort((left, right) => Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0));
