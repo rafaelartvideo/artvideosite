@@ -51,12 +51,8 @@ import {
 } from "@/features/orders/application/part-request.formatters";
 import {
   deleteServiceOrder,
-  getServiceOrderDetail,
   getServiceOrderResolutionState,
   listOrderStatusOptions,
-  listServiceOrderMedia,
-  listServiceOrderStatusHistory,
-  listServiceOrderUsedItems,
 } from "@/features/orders/infrastructure/orders.repository";
 import {
   OrderImageLightbox,
@@ -71,6 +67,7 @@ import { useOrderListMutations } from "@/features/orders/presentation/useOrderLi
 import { useOrderCustomerSelection } from "@/features/orders/presentation/useOrderCustomerSelection";
 import { useOrderServiceAddress } from "@/features/orders/presentation/useOrderServiceAddress";
 import { useOrderResolution } from "@/features/orders/presentation/useOrderResolution";
+import { useOrderDetails } from "@/features/orders/presentation/useOrderDetails";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import type { Address } from "@/lib/address";
@@ -128,10 +125,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     loading,
     reloadWorkspace,
   } = useOrdersWorkspace({ showToast: setToast });
-  const [detail, setDetail] = useState<any>(null);
-  const [detailHistory, setDetailHistory] = useState<any[]>([]);
-  const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
-  const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<any>(null);
@@ -270,10 +263,24 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     getTestCommittedQuantity,
     getTestPendingQuantity,
   } = useOrderPartRequests({
-    orderId: detail?.id,
     reloadOrders: reloadWorkspace,
     showToast: setToast,
     formatError: supabaseErrorMessage,
+  });
+
+  const {
+    detail,
+    setDetail,
+    detailHistory,
+    detailUsedItems,
+    setDetailUsedItems,
+    detailSolutionImages,
+    setDetailSolutionImages,
+    openDetail,
+    closeDetail,
+  } = useOrderDetails({
+    loadPartRequests,
+    replaceOrderImages,
   });
 
   const {
@@ -333,23 +340,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     onFocused?.();
   }, [initialOrderId, loading, orders]);
 
-
-  const openDetail = async (o: any) => {
-    const [{ data: currentOrder }, { data: hist }, { data: mediaLinks }, { data: usedItems }] = await Promise.all([
-      getServiceOrderDetail(o.id),
-      listServiceOrderStatusHistory(o.id),
-      listServiceOrderMedia(o.id),
-      listServiceOrderUsedItems(o.id),
-    ]);
-    const orderImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
-    const solutionImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" }));
-    setDetailHistory(hist || []);
-    setDetailUsedItems(usedItems || []);
-    await loadPartRequests(o.id);
-    setDetailSolutionImages(solutionImagesList);
-    replaceOrderImages(orderImagesList);
-    setDetail({ ...o, ...(currentOrder || {}) });
-  };
 
   const openNew = () => {
     setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); resetServiceAddressState(); setNeedsScheduling(true); clearOrderImages(); setViewImage(null); clearCustomer(); setFormOpen(true);
@@ -464,7 +454,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     }
     setSaving(false);
     setToast({ msg: `OS ${editingOS ? "atualizada" : "criada"} com sucesso!`, type: "success" });
-    setFormOpen(false); setDetail(null); upF("external_os_number", ""); reloadWorkspace();
+    setFormOpen(false); closeDetail(); upF("external_os_number", ""); reloadWorkspace();
   };
 
   const closeOrderForm = () => { setFormOpen(false); upF("external_os_number", ""); };
@@ -479,7 +469,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     }
     setToast({ msg: "OS excluída.", type: "success" });
     setDeleteId(null);
-    setDetail(null);
+    closeDetail();
     await reloadWorkspace();
   };
 
@@ -677,7 +667,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
       {/* OS Detail Drawer */}
       {detail && !solveOpen && (
-        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => closeDetail()} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <OrderDetailsContent
                 detail={detail}
@@ -717,12 +707,12 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               statuses={statuses}
               situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)}
               hasPermission={hasPermission}
-              onClose={() => setDetail(null)}
+              onClose={() => closeDetail()}
               onStatusChange={(statusId) => updateOrderStatus(detail, statusId)}
               onSituationChange={(situationId) => { void updateOrderSituation(detail, situationId); }}
               onRequestParts={openPartRequestModal}
               onResolve={() => openSolveOrder(detail)}
-              onEdit={() => { setDetail(null); void openEdit(detail); }}
+              onEdit={() => { closeDetail(); void openEdit(detail); }}
               onDelete={() => setDeleteId(detail.id)}
             />
         </AdminPage>
@@ -851,7 +841,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       />
       {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
       {partRequestOpen && detail && (
-        <PartRequestModal orderNumber={detail.os_number} inventoryItems={partRequestInventory} inventoryLoading={partRequestInventoryLoading} inventoryError={partRequestInventoryError} selectedItems={selectedPartRequestItems} search={partRequestSearch} notes={partRequestNotes} purpose={partRequestPurpose} submitting={partRequestSubmitting} onPurposeChange={setPartRequestPurpose} onSearchChange={setPartRequestSearch} onNotesChange={setPartRequestNotes} onSelect={selectPartRequestItem} onQuantityChange={updatePartRequestQuantity} onRemove={removePartRequestItem} onClose={closePartRequestModal} onSubmit={() => void submitPartRequest()} />
+        <PartRequestModal orderNumber={detail.os_number} inventoryItems={partRequestInventory} inventoryLoading={partRequestInventoryLoading} inventoryError={partRequestInventoryError} selectedItems={selectedPartRequestItems} search={partRequestSearch} notes={partRequestNotes} purpose={partRequestPurpose} submitting={partRequestSubmitting} onPurposeChange={setPartRequestPurpose} onSearchChange={setPartRequestSearch} onNotesChange={setPartRequestNotes} onSelect={selectPartRequestItem} onQuantityChange={updatePartRequestQuantity} onRemove={removePartRequestItem} onClose={closePartRequestModal} onSubmit={() => void submitPartRequest(detail.id)} />
       )}
       {partApprovalOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={false} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={approvePartRequest} />}
       {partRejectionOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={true} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={rejectPartRequest} />}

@@ -18,12 +18,10 @@ import {
 type ToastMessage = { msg: string; type: "success" | "error" };
 
 export function useOrderPartRequests({
-  orderId,
   reloadOrders,
   showToast,
   formatError,
 }: {
-  orderId?: string;
   reloadOrders: () => Promise<void>;
   showToast: (toast: ToastMessage) => void;
   formatError: (error: unknown) => string;
@@ -135,8 +133,8 @@ export function useOrderPartRequests({
     );
   };
 
-  const submitPartRequest = async () => {
-    if (!orderId || partRequestSubmitting) return;
+  const submitPartRequest = async (serviceOrderId: string) => {
+    if (!serviceOrderId || partRequestSubmitting) return;
     if (selectedPartRequestItems.length === 0) {
       showToast({ msg: "Selecione pelo menos uma peça.", type: "error" });
       return;
@@ -152,7 +150,7 @@ export function useOrderPartRequests({
     setPartRequestSubmitting(true);
     try {
       const { error } = await requestServiceOrderParts({
-        serviceOrderId: orderId,
+        serviceOrderId,
         items: selectedPartRequestItems.map(item => ({
           inventory_item_id: item.inventory_item_id,
           quantity: Number(item.quantity),
@@ -167,7 +165,7 @@ export function useOrderPartRequests({
       setPartRequestNotes("");
       setPartRequestPurpose("RESOLUTION");
       showToast({ msg: "Solicitação de peças enviada para análise.", type: "success" });
-      await loadPartRequests(orderId);
+      await loadPartRequests(serviceOrderId);
     } catch (error) {
       console.error("[PART REQUEST] submit error", error);
       showToast({ msg: formatError(error), type: "error" });
@@ -213,14 +211,14 @@ export function useOrderPartRequests({
     setApprovalQuantities(current => ({ ...current, [itemId]: value }));
   };
 
-  const finishReview = async (message: string) => {
+  const finishReview = async (message: string, serviceOrderId: string) => {
     setPartApprovalOpen(false);
     setPartRejectionOpen(false);
     setSelectedPartRequest(null);
     setApprovalQuantities({});
     setPartReviewNotes("");
     showToast({ msg: message, type: "success" });
-    if (orderId) await loadPartRequests(orderId);
+    await loadPartRequests(serviceOrderId);
     await reloadOrders();
   };
 
@@ -266,7 +264,7 @@ export function useOrderPartRequests({
         reviewNotes: partReviewNotes.trim() || null,
       });
       if (error) throw error;
-      await finishReview("Pedido de peças aprovado.");
+      await finishReview("Pedido de peças aprovado.", selectedPartRequest.service_order_id);
     } catch (error) {
       console.error("[PART REQUEST] approval error", error);
       showToast({ msg: formatError(error), type: "error" });
@@ -291,7 +289,7 @@ export function useOrderPartRequests({
         reviewNotes: partReviewNotes.trim(),
       });
       if (error) throw error;
-      await finishReview("Pedido de peças rejeitado.");
+      await finishReview("Pedido de peças rejeitado.", selectedPartRequest.service_order_id);
     } catch (error) {
       console.error("[PART REQUEST] rejection error", error);
       showToast({ msg: formatError(error), type: "error" });
@@ -312,7 +310,8 @@ export function useOrderPartRequests({
   };
 
   const deliverTestRequest = async () => {
-    if (!selectedDeliveryRequest || deliverySubmitting || !orderId) return;
+    if (!selectedDeliveryRequest || deliverySubmitting) return;
+    const serviceOrderId = selectedDeliveryRequest.service_order_id;
     setDeliverySubmitting(true);
     try {
       const { error } = await deliverServiceOrderTestRequest(selectedDeliveryRequest.id);
@@ -320,7 +319,7 @@ export function useOrderPartRequests({
       setDeliveryOpen(false);
       setSelectedDeliveryRequest(null);
       showToast({ msg: "Peças entregues para teste.", type: "success" });
-      await loadPartRequests(orderId);
+      await loadPartRequests(serviceOrderId);
       await reloadOrders();
     } catch (error) {
       console.error("[PART REQUEST] delivery error", error);
@@ -364,7 +363,7 @@ export function useOrderPartRequests({
   };
 
   const submitTestResults = async () => {
-    if (!selectedTestRequest || testResultSubmitting || !orderId) return;
+    if (!selectedTestRequest || testResultSubmitting) return;
     if (!testResultRows.length) {
       showToast({ msg: "Informe pelo menos um resultado.", type: "error" });
       return;
@@ -392,6 +391,7 @@ export function useOrderPartRequests({
       totals.set(row.requestItemId, total);
     }
 
+    const serviceOrderId = selectedTestRequest.service_order_id;
     setTestResultSubmitting(true);
     try {
       const { data, error } = await recordServiceOrderTestResults({
@@ -413,7 +413,7 @@ export function useOrderPartRequests({
           : "Resultado do teste registrado.",
         type: "success",
       });
-      await loadPartRequests(orderId);
+      await loadPartRequests(serviceOrderId);
       await reloadOrders();
     } catch (error) {
       console.error("[PART REQUEST] test results error", error);
