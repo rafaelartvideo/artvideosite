@@ -44,26 +44,17 @@ import {
   buildOrderPayload,
   prepareOrderForm,
 } from "@/features/orders/application/order-form";
+import { persistServiceOrder } from "@/features/orders/application/order-submission";
 import {
   fmtReviewDate,
   purposeLabel,
 } from "@/features/orders/application/part-request.formatters";
 import {
-  clearServiceOrderSellers,
-  clearServiceOrderTechnicians,
-  createServiceOrder,
   deleteServiceOrder,
-  deleteServiceOrderMediaLink,
   getServiceOrderDetail,
   getServiceOrderResolutionState,
-  insertServiceOrderMedia,
-  insertServiceOrderSellers,
-  insertServiceOrderTechnicians,
   listOrderStatusOptions,
   listServiceOrderMedia,
-  listServiceOrderMediaLinks,
-  updateServiceOrder,
-  updateServiceOrderMediaSortOrder,
   listServiceOrderStatusHistory,
   listServiceOrderUsedItems,
 } from "@/features/orders/infrastructure/orders.repository";
@@ -453,74 +444,22 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       needsScheduling,
       serviceUseCustomerAddress,
     });
-    let error;
-    let savedOrderId = editingOS?.id as string | undefined;
-    if (editingOS) {
-      const r = await updateServiceOrder(editingOS.id, payload);
-      error = r.error;
-    } else {
-      const r = await createServiceOrder(payload);
-      error = r.error;
-      savedOrderId = r.data?.id;
-    }
-    if (error) { setSaving(false); setToast({ msg: `Erro ao salvar OS: ${error.message}`, type: "error" }); return; }
-    const uniqueTechnicianIds = Array.from(new Set(selectedTechnicianIds));
-    const uniqueSellerIds = Array.from(new Set(selectedSellerIds));
-    const previousTechnicianIds = Array.from(new Set((editingOS?.technician_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOS?.technician_id ? [editingOS.technician_id] : [])));
-    const previousSellerIds = Array.from(new Set((editingOS?.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOS?.seller_id ? [editingOS.seller_id] : [])));
-    try {
-      if (editingOS) {
-        const { error: deleteTechniciansError } = await clearServiceOrderTechnicians(savedOrderId);
-        if (deleteTechniciansError) throw deleteTechniciansError;
-        const { error: deleteSellersError } = await clearServiceOrderSellers(savedOrderId);
-        if (deleteSellersError) throw deleteSellersError;
-      }
-      if (uniqueTechnicianIds.length) {
-        const { error: technicianError } = await insertServiceOrderTechnicians(savedOrderId, uniqueTechnicianIds);
-        if (technicianError) throw technicianError;
-      }
-      if (uniqueSellerIds.length) {
-        const { error: sellerError } = await insertServiceOrderSellers(savedOrderId, uniqueSellerIds);
-        if (sellerError) throw sellerError;
-      }
-    } catch (relationError) {
-      if (editingOS) {
-        await clearServiceOrderTechnicians(savedOrderId);
-        await clearServiceOrderSellers(savedOrderId);
-        if (previousTechnicianIds.length) await insertServiceOrderTechnicians(savedOrderId, previousTechnicianIds);
-        if (previousSellerIds.length) await insertServiceOrderSellers(savedOrderId, previousSellerIds);
-      }
+    const submission = await persistServiceOrder({
+      editingOrder: editingOS,
+      payload,
+      selectedTechnicianIds,
+      selectedSellerIds,
+      orderImages,
+      uploadImage: uploadOrderImage,
+    });
+    if (!submission.success) {
       setSaving(false);
-      setToast({ msg: `OS salva, mas não foi possível atualizar técnicos/vendedores: ${supabaseErrorMessage(relationError)}`, type: "error" });
-      return;
-    }
-    try {
-      if (!savedOrderId) throw new Error("A OS foi salva, mas não foi possível obter seu ID.");
-      const { data: existingLinks, error: linksError } = await listServiceOrderMediaLinks(savedOrderId);
-      if (linksError) throw linksError;
-      const retainedMediaIds = new Set(orderImages.filter(image => image.mediaId).map(image => image.mediaId));
-      for (const link of existingLinks || []) {
-        if (!retainedMediaIds.has(link.media_id)) {
-          const { error: removeError } = await deleteServiceOrderMediaLink(link.id);
-          if (removeError) throw removeError;
-        }
-      }
-      for (const [sortOrder, image] of orderImages.entries()) {
-        if (image.mediaId) {
-          const link = (existingLinks || []).find((item: any) => item.media_id === image.mediaId);
-          if (link) {
-            const { error: updateError } = await updateServiceOrderMediaSortOrder(link.id, sortOrder);
-            if (updateError) throw updateError;
-          }
-        } else if (image.file) {
-          const mediaId = await uploadOrderImage(image.file);
-          const { error: insertError } = await insertServiceOrderMedia(savedOrderId, mediaId, sortOrder);
-          if (insertError) throw insertError;
-        }
-      }
-    } catch (imageError) {
-      setSaving(false);
-      setToast({ msg: `OS salva, mas houve erro nas imagens: ${supabaseErrorMessage(imageError)}`, type: "error" });
+      const message = submission.stage === "record"
+        ? `Erro ao salvar OS: ${supabaseErrorMessage(submission.error)}`
+        : submission.stage === "relations"
+          ? `OS salva, mas não foi possível atualizar técnicos/vendedores: ${supabaseErrorMessage(submission.error)}`
+          : `OS salva, mas houve erro nas imagens: ${supabaseErrorMessage(submission.error)}`;
+      setToast({ msg: message, type: "error" });
       return;
     }
     setSaving(false);
