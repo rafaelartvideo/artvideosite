@@ -5,7 +5,8 @@ import {
   type AdminTab,
   AdminPageContext,
 } from "./admin/shared";
-import { OSSituationsView, TabOrders } from "./admin/TabOrders";
+import { TabOrders } from "./admin/TabOrders";
+import { OSSituationsView } from "@/features/order-situations/presentation/OSSituationsView";
 import { AdminContentRouter, type AdminRouteMap } from "@/features/admin-shell/presentation/AdminContentRouter";
 import { AdminHeader } from "@/features/admin-shell/presentation/AdminHeader";
 import { AdminLayout } from "@/features/admin-shell/presentation/AdminLayout";
