@@ -41,6 +41,10 @@ import {
 } from "@/features/orders/presentation/PartRequestModals";
 import { validateOrderResolution } from "@/features/orders/application/order-resolution";
 import {
+  buildOrderPayload,
+  prepareOrderForm,
+} from "@/features/orders/application/order-form";
+import {
   fmtReviewDate,
   purposeLabel,
 } from "@/features/orders/application/part-request.formatters";
@@ -406,36 +410,22 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
   const saveOS = async () => {
     if (editingOS ? !hasPermission("orders.edit") : !hasPermission("orders.create")) { setToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" }); return; }
-    if (!editingOS && !user?.id) { setToast({ msg: "Não foi possível identificar o responsável pela OS.", type: "error" }); return; }
-    if (editingOS?.is_solved) { setToast({ msg: "Esta OS está solucionada e é somente leitura.", type: "error" }); return; }
-    if (!form.general_service_id && !form.service_id) { setToast({ msg: "Selecione o serviço geral da OS.", type: "error" }); return; }
-    if (!editingOS && !form.service_type_id) { setToast({ msg: "Selecione o tipo de atendimento da OS.", type: "error" }); return; }
-    const cid = selectedCustomer?.id || form.customer_id;
-    if (!cid) { setToast({ msg: "Selecione um cliente.", type: "error" }); return; }
-    const historicalCustomerAddress: Address = { id: form.service_customer_address_id || undefined, zip_code: form.service_zip_code, state: form.service_state, city: form.service_city, neighborhood: form.service_neighborhood, street: form.service_street, number: form.service_number, complement: form.service_complement };
-    const selectedAddress = serviceUseCustomerAddress ? (serviceCustomerAddressOverride ? selectedServiceAddress : historicalCustomerAddress) : null;
-    const serviceAddress = selectedAddress || {
-      id: undefined,
-      zip_code: form.service_zip_code,
-      state: form.service_state,
-      city: form.service_city,
-      neighborhood: form.service_neighborhood,
-      street: form.service_street,
-      number: form.service_number,
-      complement: form.service_complement,
-    };
-    const serviceZipCode = String(serviceAddress.zip_code ?? "").trim();
-    const serviceState = String(serviceAddress.state ?? "").trim();
-    const serviceCity = String(serviceAddress.city ?? "").trim();
-    const serviceNeighborhood = String(serviceAddress.neighborhood ?? "").trim();
-    const serviceStreet = String(serviceAddress.street ?? "").trim();
-    const serviceNumber = String(serviceAddress.number ?? "").trim();
-    const serviceComplement = String(serviceAddress.complement ?? "").trim();
-    if (form.order_type === "external" && serviceUseCustomerAddress && !selectedAddress) { setToast({ msg: "Selecione um endereço cadastrado ou informe um endereço personalizado.", type: "error" }); return; }
-    if (form.order_type === "external" && (!serviceZipCode || !serviceState || !serviceCity || !serviceStreet || !serviceNumber)) { setToast({ msg: "Informe CEP, estado, cidade, rua e número para uma OS externa.", type: "error" }); return; }
-    if (needsScheduling && !form.scheduled_at) { setToast({ msg: "Informe a data e hora agendadas ou selecione Não.", type: "error" }); return; }
-    if (form.equipment_brand_id && !equipmentBrands.some(brand => brand.id === form.equipment_brand_id && brand.equipment_type_id === form.equipment_type_id)) { setToast({ msg: "A marca selecionada não pertence ao equipamento.", type: "error" }); return; }
-    if (form.equipment_model_id && !equipmentModels.some(model => model.id === form.equipment_model_id && model.equipment_brand_id === form.equipment_brand_id)) { setToast({ msg: "O modelo selecionado não pertence à marca.", type: "error" }); return; }
+    const preparation = prepareOrderForm({
+      form,
+      editingOrder: editingOS,
+      userId: user?.id,
+      selectedCustomerId: selectedCustomer?.id,
+      serviceUseCustomerAddress,
+      serviceCustomerAddressOverride,
+      selectedServiceAddress,
+      needsScheduling,
+      equipmentBrands,
+      equipmentModels,
+    });
+    if ("error" in preparation) {
+      setToast({ msg: preparation.error, type: "error" });
+      return;
+    }
     const { data: availableStatuses, error: statusError } = await listOrderStatusOptions();
     const status = editingOS ? (availableStatuses || []).find(item => item.id === form.status_id) : initialOrderStatus(availableStatuses || []);
     if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status válido para a OS.", type: "error" }); return; }
@@ -452,7 +442,17 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setSelectedCustomer({ ...selectedCustomer, ...customerUpdatePayload(customerDraft), addresses: [customerAddressDraft] });
       setEditingCustomer(false);
     }
-    const payload = { service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, service_type_id: form.service_type_id || null, seller_id: selectedSellerIds[0] || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, status_id: status.id, situation_id: form.situation_id || null, customer_id: cid, ...(editingOS ? {} : { assigned_to: user?.id }), technician_id: selectedTechnicianIds[0] || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, ...(editingOS ? {} : { serial_number: form.serial_number || null, external_os_number: form.external_os_number.trim() || null }), accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: needsScheduling ? form.scheduled_at || null : null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null, order_type: form.order_type, service_zip_code: form.order_type === "external" ? serviceZipCode : null, service_state: form.order_type === "external" ? serviceState : null, service_city: form.order_type === "external" ? serviceCity : null, service_neighborhood: form.order_type === "external" ? serviceNeighborhood : null, service_street: form.order_type === "external" ? serviceStreet : null, service_number: form.order_type === "external" ? serviceNumber : null, service_complement: form.order_type === "external" ? serviceComplement : null, service_address_source: form.order_type === "external" ? (serviceUseCustomerAddress ? "customer" : "custom") : null, service_customer_address_id: form.order_type === "external" && serviceUseCustomerAddress ? selectedAddress?.id || null : null };
+    const payload = buildOrderPayload({
+      form,
+      editingOrder: editingOS,
+      userId: user?.id,
+      statusId: status.id,
+      prepared: preparation.prepared,
+      selectedTechnicianIds,
+      selectedSellerIds,
+      needsScheduling,
+      serviceUseCustomerAddress,
+    });
     let error;
     let savedOrderId = editingOS?.id as string | undefined;
     if (editingOS) {
