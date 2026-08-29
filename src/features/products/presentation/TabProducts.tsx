@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, Edit2, Package, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import {
+  deleteProduct,
+  loadProductCatalog,
+  saveProduct,
+  updateProductFlags,
+} from "../infrastructure/products.repository";
 import {
   AdminPage,
   BtnPrimary,
@@ -45,15 +50,16 @@ export function TabProducts({ onBack }: { onBack: () => void }) {
 
   const load = async () => {
     setLoading(true);
-    const [pRes, cRes] = await Promise.all([
-      supabase.from("products").select("*, product_categories(name)").order("created_at", { ascending: false }),
-      supabase.from("product_categories").select("id, name").order("sort_order"),
-    ]);
-    if (pRes.error) setToast({ msg: `Erro ao carregar produtos: ${pRes.error.message}`, type: "error" });
-    else setProducts(pRes.data || []);
-    if (cRes.error) setToast({ msg: `Erro ao carregar categorias: ${cRes.error.message}`, type: "error" });
-    else setCategories(cRes.data || []);
-    setLoading(false);
+    try {
+      const catalog = await loadProductCatalog();
+      setProducts(catalog.products);
+      setCategories(catalog.categories);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar produtos: ${message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 
@@ -71,8 +77,7 @@ export function TabProducts({ onBack }: { onBack: () => void }) {
       const nameChanged = editItem && editItem.name !== form.name.trim();
       const finalSlug = !editItem || nameChanged || !editItem.slug ? await generateUniqueSlug("products", form.name, editItem?.id) : editItem.slug;
       const payload = { name: form.name.trim(), slug: finalSlug, sku: form.sku || null, short_description: form.short_description || null, description: form.description || null, price: form.price ? Number(form.price) : null, compare_at_price: form.compare_at_price ? Number(form.compare_at_price) : null, cover_media_id: form.cover_media_id || null, is_active: form.is_active, is_featured: form.is_featured, category_id: form.category_id || null, brand_id: form.brand_id || null, external_platform: form.external_platform || null, external_product_id: form.external_product_id || null, external_url: form.external_url || null, updated_by: user?.id || null };
-      const { data, error } = editItem ? await supabase.from("products").update(payload).eq("id", editItem.id).select().single() : await supabase.from("products").insert({ ...payload, created_by: user?.id || null }).select().single();
-      if (error) { console.error("[ADMIN] products save error:", error); throw error; }
+      await saveProduct(payload, editItem?.id, user?.id ?? null);
       setDrawerOpen(false);
       setToast({ msg: editItem ? "Produto atualizado!" : "Produto criado!", type: "success" });
       load();
@@ -83,9 +88,42 @@ export function TabProducts({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const handleDelete = async (id: string) => { if (!hasPermission("products.delete")) return; const { error } = await supabase.from("products").delete().eq("id", id); if (error) { console.error("[ADMIN] products delete error:", error); setToast({ msg: `Erro ao excluir produto: ${error.message}`, type: "error" }); return; } setDelId(null); setToast({ msg: "Produto excluído.", type: "success" }); load(); };
-  const toggleActive = async (p: any) => { if (!hasPermission("products.update")) return; const { error } = await supabase.from("products").update({ is_active: !p.is_active, updated_by: user?.id || null }).eq("id", p.id); if (error) { setToast({ msg: `Erro ao atualizar produto: ${error.message}`, type: "error" }); return; } setToast({ msg: "Status atualizado!", type: "success" }); load(); };
-  const toggleFeatured = async (p: any) => { if (!hasPermission("products.update")) return; const { error } = await supabase.from("products").update({ is_featured: !p.is_featured, updated_by: user?.id || null }).eq("id", p.id); if (error) { setToast({ msg: `Erro ao atualizar destaque: ${error.message}`, type: "error" }); return; } setToast({ msg: "Destaque atualizado!", type: "success" }); load(); };
+  const handleDelete = async (id: string) => {
+    if (!hasPermission("products.delete")) return;
+    try {
+      await deleteProduct(id);
+      setDelId(null);
+      setToast({ msg: "Produto excluído.", type: "success" });
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao excluir produto: ${message}`, type: "error" });
+    }
+  };
+
+  const toggleActive = async (product: any) => {
+    if (!hasPermission("products.update")) return;
+    try {
+      await updateProductFlags(product.id, { is_active: !product.is_active }, user?.id ?? null);
+      setToast({ msg: "Status atualizado!", type: "success" });
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao atualizar produto: ${message}`, type: "error" });
+    }
+  };
+
+  const toggleFeatured = async (product: any) => {
+    if (!hasPermission("products.update")) return;
+    try {
+      await updateProductFlags(product.id, { is_featured: !product.is_featured }, user?.id ?? null);
+      setToast({ msg: "Destaque atualizado!", type: "success" });
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao atualizar destaque: ${message}`, type: "error" });
+    }
+  };
 
   const filtered = products.filter(p => !search || p.name?.toLowerCase().includes(search.toLowerCase()));
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
