@@ -8,6 +8,7 @@ import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomer
 import { OrdersTable } from "@/features/orders/presentation/OrdersTable";
 import { OrdersKanban } from "@/features/orders/presentation/OrdersKanban";
 import { OrdersHeader } from "@/features/orders/presentation/OrdersHeader";
+import { OrdersFilters } from "@/features/orders/presentation/OrdersFilters";
 import {
   EmployeeMultiSelect,
   getResponsibleName,
@@ -1122,73 +1123,45 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         onRefresh={() => { void load(); }}
       />
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 space-y-3">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="space-y-1.5">
-          <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">BUSCA</label>
-          <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Nome, CPF, CNPJ, OS ou OS Externa..." className={cn(INPUT, "h-[42px] pl-9 py-2 text-xs")} />
-          </div>
-        </div>
-        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">STATUS</label><select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
-          <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select></div>
-        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">SITUAÇÕES</label><select value={filterSituation} onChange={e => { setFilterSituation(e.target.value); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
-          <option value="">Todas as situações</option>{situations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select></div>
-        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">TIPO</label><select value={filterOrderType} onChange={e => { setFilterOrderType(e.target.value as OrderType | ""); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
-          <option value="">Todos os tipos</option>
-          <option value="internal">Interna</option>
-          <option value="external">Externa</option>
-        </select></div>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
-          <div>
-            <OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={value => setSelectedStates(current => current.includes(value) ? current : [...current, value])} onRemove={value => setSelectedStates(current => current.filter(state => state !== value))} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />
-            {selectedStates.length > 0 && <button type="button" onClick={() => setSelectedStates([])} className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:underline"><Eraser size={12} />Limpar Estados</button>}
-          </div>
-          <OrderFilterMultiSelect label="Cidades" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={value => { const option = cityFilterOptions.find(city => `${city.state}:${city.name}` === value); if (option && !selectedCities.some(city => city.name === option.name && city.state === option.state)) setSelectedCities(current => [...current, option]); }} onRemove={value => setSelectedCities(current => current.filter(city => `${city.state}:${city.name}` !== value))} placeholder={selectedStates.length === 0 ? "Selecione ao menos um Estado" : "Selecionar Cidades"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />
-          <div>
-            <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Data inicial</label>
-            <input type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Data final</label>
-            <input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />
-            {invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}
-          </div>
-          <div className="lg:col-span-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-            <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo de Atendimento</label><select value={selectedServiceTypeId} onChange={e => { setSelectedServiceTypeId(e.target.value); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
-              <option value="">Todos os tipos</option>
-              {serviceTypes.map(serviceType => <option key={serviceType.id} value={serviceType.id}>{serviceType.title}</option>)}
-            </select></div>
-            <div className="flex items-end justify-start">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button type="button" aria-label={`Ordenação atual: ${orderLabel}`} title={`Ordenação atual: ${orderLabel}`} className={cn("inline-flex h-[42px] w-fit items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-xs font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40", orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]")}>
-                  <OrderSortIcon size={15} className="text-[#0057e7]" />
-                  <span className="hidden sm:inline">{orderLabel}</span>
-                  <span className="sm:hidden">Ordenar</span>
-                  <ChevronDown size={14} className="text-[#5a6a82]" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[190px]">
-                {([["", "Ordenação padrão", ArrowUpDown], ["asc", "OS crescente", ArrowUpNarrowWide], ["desc", "OS decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => { setOrderSort(value); setPage(1); }} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}>
-                  <Icon size={15} className={orderSort === value ? "text-[#0057e7]" : "text-[#5a6a82]"} />
-                  <span>{label}</span>
-                  {orderSort === value && <Check size={15} className="ml-auto text-[#0057e7]" />}
-                </DropdownMenuItem>)}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            </div>
-          </div>
-        </div>
-        <div className="flex justify-end">
-          {(search || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo) && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200"><Eraser size={14} />Limpar filtros</button>}
-        </div>
-      </div>
+      <OrdersFilters
+        search={search}
+        statusId={filterStatus}
+        situationId={filterSituation}
+        orderType={filterOrderType}
+        serviceTypeId={selectedServiceTypeId}
+        selectedStates={selectedStates}
+        selectedCities={selectedCities}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        orderSort={orderSort}
+        statuses={statuses}
+        situations={situations}
+        serviceTypes={serviceTypes}
+        stateOptions={ibgeStates}
+        cityOptions={cityFilterOptions}
+        statesLoading={ibgeStatesLoading}
+        citiesLoading={cityFiltersLoading}
+        invalidPeriod={invalidPeriod}
+        onSearchChange={(value) => { setSearch(value); setPage(1); }}
+        onStatusChange={(value) => { setFilterStatus(value); setPage(1); }}
+        onSituationChange={(value) => { setFilterSituation(value); setPage(1); }}
+        onOrderTypeChange={(value) => { setFilterOrderType(value as OrderType | ""); setPage(1); }}
+        onServiceTypeChange={(value) => { setSelectedServiceTypeId(value); setPage(1); }}
+        onStateSelect={(value) => setSelectedStates(current => current.includes(value) ? current : [...current, value])}
+        onStateRemove={(value) => setSelectedStates(current => current.filter(state => state !== value))}
+        onStatesClear={() => setSelectedStates([])}
+        onCitySelect={(value) => {
+          const option = cityFilterOptions.find(city => `${city.state}:${city.name}` === value);
+          if (option && !selectedCities.some(city => city.name === option.name && city.state === option.state)) {
+            setSelectedCities(current => [...current, option]);
+          }
+        }}
+        onCityRemove={(value) => setSelectedCities(current => current.filter(city => `${city.state}:${city.name}` !== value))}
+        onDateFromChange={setDateFrom}
+        onDateToChange={setDateTo}
+        onOrderSortChange={(value) => { setOrderSort(value); setPage(1); }}
+        onClear={clearFilters}
+      />
 
       {displayMode === "list" ? <OrdersTable
         loading={loading}
