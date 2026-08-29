@@ -61,7 +61,7 @@ export function OrdersTable({
   return (
 <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={search || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
+          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={hasActiveFilters ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[1100px]">
@@ -114,8 +114,8 @@ export function OrdersTable({
           page={safePage}
           pageSize={pageSize}
           totalItems={filtered.length}
-          onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
-          onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+          onPageChange={(nextPage) => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))}
+          onPageSizeChange={(nextPageSize) => onPageSizeChange(nextPageSize)}
         />
       </div>
   );
