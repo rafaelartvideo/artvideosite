@@ -31,7 +31,6 @@ import {
 } from "@/features/orders/presentation/OrderFormControls";
 import {
   saveOrderCustomerAddress,
-  searchOrderCustomers,
   updateOrderCustomer,
 } from "@/features/orders/infrastructure/orders-customer.repository";
 import {
@@ -81,6 +80,7 @@ import { useOrderPartRequests } from "@/features/orders/presentation/useOrderPar
 import { useOrdersWorkspace } from "@/features/orders/presentation/useOrdersWorkspace";
 import { useOrderFilters } from "@/features/orders/presentation/useOrderFilters";
 import { useOrderListMutations } from "@/features/orders/presentation/useOrderListMutations";
+import { useOrderCustomerSelection } from "@/features/orders/presentation/useOrderCustomerSelection";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress, fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
@@ -92,8 +92,8 @@ import {
 } from "lucide-react";
 import {
   cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone,
-  CustomerType, CustomerForm, emptyCustomerForm, customerFormFromCustomer, customerPayload, customerUpdatePayload,
-  validateCustomerForm, fetchCnpjData, applyCnpjData, formatCpf, formatCnpj,
+  CustomerType, customerPayload, customerUpdatePayload,
+  validateCustomerForm, formatCpf, formatCnpj,
   formatFoundationDate, foundationDateToIso, foundationDateFromCustomer, todayDateOnly,
   INPUT, FInput, FTextarea, FSelect, FToggle, CustomerTypeToggle,
   StatusBadge, LoadingState, EmptyState, BtnPrimary, BtnSecondary, Toast, ConfirmDialog,
@@ -163,14 +163,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [formOpen, setFormOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<any>(null);
   const [saving, setSaving] = useState(false);
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [customerResults, setCustomerResults] = useState<any[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
-  const [editingCustomer, setEditingCustomer] = useState(false);
   const [selectedTechnicianIds, setSelectedTechnicianIds] = useState<string[]>([]);
   const [selectedSellerIds, setSelectedSellerIds] = useState<string[]>([]);
-  const [customerDraft, setCustomerDraft] = useState<CustomerForm>({ ...emptyCustomerForm });
-  const [customerAddressDraft, setCustomerAddressDraft] = useState<Address>({ ...emptyAddress });
   const [serviceUseCustomerAddress, setServiceUseCustomerAddress] = useState(false);
   const [serviceCustomerAddressOverride, setServiceCustomerAddressOverride] = useState(false);
   const [serviceAddressMessage, setServiceAddressMessage] = useState("");
@@ -181,9 +175,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const citiesCacheRef = useRef<Record<string, IbgeCity[]>>({});
   const citiesRequestRef = useRef(0);
   const zipRequestRef = useRef(0);
-  const [cnpjLoading, setCnpjLoading] = useState(false);
-  const [cnpjMessage, setCnpjMessage] = useState("");
-  const [addressExpanded, setAddressExpanded] = useState(false);
   const [quickEquipment, setQuickEquipment] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(false);
 
@@ -205,6 +196,41 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     removeSolutionImage,
   } = useOrderImages();
   const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const {
+    customerSearch,
+    customerResults,
+    selectedCustomer,
+    setSelectedCustomer,
+    editingCustomer,
+    setEditingCustomer,
+    customerDraft,
+    setCustomerDraft,
+    customerAddressDraft,
+    setCustomerAddressDraft,
+    addressExpanded,
+    setAddressExpanded,
+    searchCustomers,
+    selectCustomer,
+    hydrateCustomer,
+    clearCustomer,
+  } = useOrderCustomerSelection({
+    onCustomerSelected: (customer, address) => {
+      upF("customer_id", customer.id);
+      if (form.order_type !== "external" || !serviceUseCustomerAddress) return;
+      if (address) {
+        setServiceAddressMessage("");
+        setServiceCustomerAddressOverride(true);
+        copyCustomerAddressToForm(address);
+      } else {
+        setServiceUseCustomerAddress(false);
+        setServiceAddressMessage(
+          "Este cliente não possui endereço cadastrado. Preencha o local do atendimento.",
+        );
+        clearServiceAddress();
+      }
+    },
+  });
 
   const selectedServiceAddress = ((selectedCustomer?.addresses || []) as Address[]).find(address => address.is_default) || ((selectedCustomer?.addresses || []) as Address[])[0] || null;
   const serviceAddressPreview: Address | null = serviceUseCustomerAddress
@@ -398,7 +424,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const openNew = () => {
-    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]); setNeedsScheduling(true); clearOrderImages(); setViewImage(null); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
+    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]); setNeedsScheduling(true); clearOrderImages(); setViewImage(null); clearCustomer(); setFormOpen(true);
   };
 
   const openEdit = async (o: any) => {
@@ -419,13 +445,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setForm({ ...emptyForm, service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "", order_type: o.order_type === "external" ? "external" : "internal", service_state: o.order_type === "external" ? o.service_state || "" : "", service_city: o.order_type === "external" ? o.service_city || "" : "", service_street: o.order_type === "external" ? o.service_street || "" : "", service_zip_code: o.order_type === "external" ? o.service_zip_code || "" : "", service_neighborhood: o.order_type === "external" ? o.service_neighborhood || "" : "", service_number: o.order_type === "external" ? o.service_number || "" : "", service_complement: o.order_type === "external" ? o.service_complement || "" : "", service_customer_address_id: o.order_type === "external" ? o.service_customer_address_id || "" : "", external_os_number: o.external_os_number || "" });
     setServiceUseCustomerAddress(o.order_type === "external" && o.service_address_source === "customer"); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]);
     if (o.order_type === "external" && o.service_state) void loadIbgeCities(o.service_state, o.service_city);
-    setSelectedCustomer((o.customer as any) || null);
-    const customer = (o.customer as any) || {};
-    setCustomerDraft(customerFormFromCustomer(customer));
-    const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
-    setCustomerAddressDraft({ ...emptyAddress, ...(address || {}) });
-    setEditingCustomer(false); setAddressExpanded(false);
-    setCustomerSearch(""); setCustomerResults([]);
+    hydrateCustomer((o.customer as any) || null);
     setFormOpen(true);
   };
 
@@ -757,48 +777,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     window.localStorage.setItem("os_view_mode", mode);
   };
 
-  const searchCustomers = async (q: string) => {
-    setCustomerSearch(q);
-    if (q.length < 2) { setCustomerResults([]); return; }
-    const { data } = await searchOrderCustomers(q);
-    setCustomerResults(data || []);
-  };
-
-  const selectCustomer = (customer: any) => {
-    const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
-    setSelectedCustomer(customer);
-    setCustomerDraft(customerFormFromCustomer(customer));
-    setCustomerAddressDraft({ ...emptyAddress, ...(address || {}) });
-    setAddressExpanded(false);
-    upF("customer_id", customer.id);
-    if (form.order_type === "external" && serviceUseCustomerAddress) {
-      if (address) {
-        setServiceAddressMessage("");
-        setServiceCustomerAddressOverride(true);
-        copyCustomerAddressToForm(address);
-      } else {
-        setServiceUseCustomerAddress(false);
-        setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento.");
-        clearServiceAddress();
-      }
-    }
-    setCustomerResults([]);
-    setCustomerSearch("");
-  };
-
-  const lookupCustomerCnpj = async (value: string, baseForm = customerDraft) => {
-    const digits = value.replace(/\D/g, "");
-    if (digits.length !== 14 || customerDraft.customerType !== "PJ") return;
-    setCnpjLoading(true); setCnpjMessage("");
-    try {
-      const data = await fetchCnpjData(digits);
-      const result = applyCnpjData(baseForm, customerAddressDraft, data);
-      setCustomerDraft(result.form); setCustomerAddressDraft(result.address);
-    } catch (error) {
-      setCnpjMessage(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
-    } finally { setCnpjLoading(false); }
-  };
-
   const fmtDate = (d?: string | null, time = false) => {
     if (!d) return "—";
     return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", ...(time ? { hour: "2-digit", minute: "2-digit" } : {}) });
@@ -1062,7 +1040,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               saveCustomer={() => { void saveCustomer(); }}
               searchCustomers={(query) => { void searchCustomers(query); }}
               selectCustomer={selectCustomer}
-              onClearCustomer={() => { setSelectedCustomer(null); upF("customer_id", ""); }}
+              onClearCustomer={() => { clearCustomer(); upF("customer_id", ""); }}
               onCreateCustomer={() => setQuickCustomer(true)}
             />
 
@@ -1136,19 +1114,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       />}
       {quickCustomer && <QuickCustomerModal
         onClose={() => setQuickCustomer(false)}
-        onSaved={customer => {
-          setSelectedCustomer(customer);
-          setCustomerDraft(customerFormFromCustomer(customer));
-          setCustomerAddressDraft({ ...emptyAddress, ...(customer.addresses?.[0] || {}) });
-          setCustomerResults([]);
-          setCustomerSearch("");
-          upF("customer_id", customer.id);
-          if (form.order_type === "external" && serviceUseCustomerAddress) {
-            const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
-            if (address) { setServiceCustomerAddressOverride(true); copyCustomerAddressToForm(address); }
-            else { setServiceUseCustomerAddress(false); setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento."); clearServiceAddress(); }
-          }
-        }}
+        onSaved={selectCustomer}
       />}
       <OrderResolutionPage
         open={solveOpen}
