@@ -11,6 +11,7 @@ import {
   cn,
   ConfirmDialog,
   CustomerTypeToggle,
+  EmptyState,
   emptyCustomerForm,
   FInput,
   formatCnpj,
