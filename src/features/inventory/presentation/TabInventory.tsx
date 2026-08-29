@@ -9,7 +9,15 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import {
+  deleteInventoryItem,
+  getInventoryItem,
+  listInventoryItems,
+  listInventoryMovements,
+  recordInventoryMovement,
+  saveInventoryItem,
+  setInventoryItemActive,
+} from "../infrastructure/inventory.repository";
 import {
   AdminPage,
   BtnPrimary,
@@ -45,15 +53,15 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
 
   const loadItems = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("inventory_items").select("*").order("name");
-    if (error) {
-      setToast({ msg: `Erro ao carregar estoque: ${error.message}`, type: "error" });
+    try {
+      setItems(await listInventoryItems());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar estoque: ${message}`, type: "error" });
       setItems([]);
+    } finally {
       setLoading(false);
-      return;
     }
-    setItems(data || []);
-    setLoading(false);
   };
 
   useEffect(() => { void loadItems(); }, []);
@@ -110,10 +118,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
     };
 
     try {
-      const { error } = selectedItem
-        ? await supabase.from("inventory_items").update(payload).eq("id", selectedItem.id)
-        : await supabase.from("inventory_items").insert(payload);
-      if (error) throw error;
+      await saveInventoryItem(payload, selectedItem?.id);
       setToast({ msg: selectedItem ? "Item atualizado." : "Item cadastrado.", type: "success" });
       setRecordOpen(false);
       await loadItems();
@@ -130,9 +135,11 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       return;
     }
     const next = !item.is_active;
-    const { error } = await supabase.from("inventory_items").update({ is_active: next }).eq("id", item.id);
-    if (error) {
-      setToast({ msg: `Erro ao alterar status: ${error.message}`, type: "error" });
+    try {
+      await setInventoryItemActive(item.id, next);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao alterar status: ${message}`, type: "error" });
       return;
     }
     setToast({ msg: next ? "Item ativado." : "Item desativado.", type: "success" });
@@ -144,9 +151,11 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       setToast({ msg: "Você não possui permissão para excluir itens do estoque.", type: "error" });
       return;
     }
-    const { error } = await supabase.from("inventory_items").delete().eq("id", item.id);
-    if (error) {
-      setToast({ msg: `Erro ao excluir item: ${error.message}`, type: "error" });
+    try {
+      await deleteInventoryItem(item.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao excluir item: ${message}`, type: "error" });
       return;
     }
     setToast({ msg: "Item excluído do estoque.", type: "success" });
@@ -155,18 +164,14 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
 
   const openHistory = async (item: any) => {
     setSelectedItem(item);
-    const { data, error } = await supabase
-      .from("inventory_movements")
-      .select("*, created_by_profile:profiles(full_name), service_order:service_orders(os_number)")
-      .eq("inventory_item_id", item.id)
-      .order("created_at", { ascending: false });
-    if (error) {
-      setToast({ msg: `Erro ao carregar histórico: ${error.message}`, type: "error" });
+    try {
+      setHistory(await listInventoryMovements(item.id));
+      setHistoryOpen(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar histórico: ${message}`, type: "error" });
       setHistory([]);
-      return;
     }
-    setHistory(data || []);
-    setHistoryOpen(true);
   };
 
   const saveMovement = async () => {
@@ -180,9 +185,11 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       setToast({ msg: "Informe uma quantidade válida para a movimentação.", type: "error" });
       return;
     }
-    const { data: currentItem, error: currentItemError } = await supabase.from("inventory_items").select("id,name,quantity,is_active").eq("id", selectedItem.id).maybeSingle();
-    if (currentItemError) {
-      setToast({ msg: `Não foi possível validar o item: ${supabaseErrorMessage(currentItemError)}`, type: "error" });
+    let currentItem;
+    try {
+      currentItem = await getInventoryItem(selectedItem.id);
+    } catch (error) {
+      setToast({ msg: `Não foi possível validar o item: ${supabaseErrorMessage(error)}`, type: "error" });
       return;
     }
     if (!currentItem) {
@@ -222,10 +229,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
     };
 
     try {
-      const { error } = await supabase.from("inventory_movements").insert(insertPayload);
-      if (error) throw error;
-      const { error: updateError } = await supabase.from("inventory_items").update({ quantity: nextQuantity }).eq("id", selectedItem.id);
-      if (updateError) throw updateError;
+      await recordInventoryMovement(insertPayload, selectedItem.id, nextQuantity);
       setToast({ msg: "Movimentação registrada com sucesso.", type: "success" });
       setHistoryOpen(false);
       setSelectedItem(null);
