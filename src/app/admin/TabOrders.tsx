@@ -26,6 +26,12 @@ import {
   purposeLabel,
 } from "@/features/orders/application/part-request.formatters";
 import {
+  getServiceOrderDetail,
+  listServiceOrderMedia,
+  listServiceOrderStatusHistory,
+  listServiceOrderUsedItems,
+} from "@/features/orders/infrastructure/orders.repository";
+import {
   deliverServiceOrderTestRequest,
   listActivePartInventory,
   listServiceOrderPartRequests,
@@ -488,10 +494,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
   const openDetail = async (o: any) => {
     const [{ data: currentOrder }, { data: hist }, { data: mediaLinks }, { data: usedItems }] = await Promise.all([
-      supabase.from("service_orders").select("is_solved,solved_at,cannot_be_solved,cannot_be_solved_reason,assigned_profile:profiles!assigned_to(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active))").eq("id", o.id).maybeSingle(),
-      supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
-      supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", o.id).order("sort_order"),
-      supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
+      getServiceOrderDetail(o.id),
+      listServiceOrderStatusHistory(o.id),
+      listServiceOrderMedia(o.id),
+      listServiceOrderUsedItems(o.id),
     ]);
     const orderImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
     const solutionImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" }));
