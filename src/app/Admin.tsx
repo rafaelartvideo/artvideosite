@@ -47,6 +47,7 @@ export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
 import { AdminHubPage } from "@/features/admin-shell/presentation/AdminNavigation";
 import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { AdminHeader } from "@/features/admin-shell/presentation/AdminHeader";
+import { AdminLayout } from "@/features/admin-shell/presentation/AdminLayout";
 import { mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "@/features/admin-shell/navigation-config";
 
 /* ─────────────────────────── ADMIN DASHBOARD WRAPPER ─────────────────────────── */
@@ -64,58 +65,37 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
 
 
+  const sidebar = (
+    <AdminSidebar
+      activeTab={activeTab}
+      userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
+      roleName={roleName}
+      hasPermission={hasPermission}
+      onNavigate={(tab) => {
+        setActiveTab(tab);
+        setPage(null);
+        setSidebarOpen(false);
+      }}
+      onSignOut={() => signOut()}
+      onBackToSite={onBackToSite}
+    />
+  );
+
   return (
     <AdminPageContext.Provider value={{ page, setPage }}>
-    <div className="h-screen overflow-hidden bg-[#f8fafc] flex">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-60 flex-shrink-0 bg-[#0d1b2e] flex-col fixed left-0 top-0 h-full z-40">
-        <AdminSidebar
-          activeTab={activeTab}
-          userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
-          roleName={roleName}
-          hasPermission={hasPermission}
-          onNavigate={(tab) => {
-            setActiveTab(tab);
-            setPage(null);
-            setSidebarOpen(false);
-          }}
-          onSignOut={() => signOut()}
-          onBackToSite={onBackToSite}
-        />
-      </aside>
-
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
-          <aside className="fixed left-0 top-0 h-full w-64 bg-[#0d1b2e] flex flex-col z-50 md:hidden">
-            <AdminSidebar
-          activeTab={activeTab}
-          userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
-          roleName={roleName}
-          hasPermission={hasPermission}
-          onNavigate={(tab) => {
-            setActiveTab(tab);
-            setPage(null);
-            setSidebarOpen(false);
-          }}
-          onSignOut={() => signOut()}
-          onBackToSite={onBackToSite}
-        />
-          </aside>
-        </>
-      )}
-
-      {/* Main */}
-      <main className="flex-1 md:ml-60 flex flex-col h-screen min-h-0 overflow-hidden">
-        <AdminHeader
-          activeTab={activeTab}
-          page={page}
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen((current) => !current)}
-        />
-
-        {/* Content */}
+      <AdminLayout
+        sidebar={sidebar}
+        mobileSidebarOpen={sidebarOpen}
+        onCloseMobileSidebar={() => setSidebarOpen(false)}
+        header={
+          <AdminHeader
+            activeTab={activeTab}
+            page={page}
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={() => setSidebarOpen((current) => !current)}
+          />
+        }
+      >
         <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           {activeTab === "dashboard" && canAccessTab("dashboard") && <TabDashboard />}
           {activeTab === "services" && canAccessTab("services") && <TabServices onBack={() => { setActiveTab("site"); setPage(null); }} />}
@@ -138,8 +118,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
           {activeTab === "settings" && canAccessTab("settings") && <TabSettings />}
           {activeTab === "contact" && canAccessTab("contact") && <TabContact />}
         </div>
-      </main>
-    </div>
+      </AdminLayout>
     </AdminPageContext.Provider>
   );
 }
