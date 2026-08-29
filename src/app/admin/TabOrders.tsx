@@ -35,6 +35,10 @@ import type {
 } from "@/features/orders/domain/part-request.types";
 import { normalizeSearchText } from "@/features/orders/application/order-search";
 import {
+  filterServiceOrders,
+  sortServiceOrders,
+} from "@/features/orders/application/order-list";
+import {
   fmtReviewDate,
   purposeLabel,
 } from "@/features/orders/application/part-request.formatters";
@@ -1039,43 +1043,22 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const invalidPeriod = Boolean(dateFrom && dateTo && dateFrom > dateTo);
-  const filtered = orders.filter(o => {
-    const q = normalizeSearchText(search);
-    const qDigits = normalizeSearchDigits(search);
-    const qIdentifier = normalizeSearchIdentifier(search);
-    const orderTypeLabel = o.order_type === "external" ? "externa external" : "interna internal";
-    const searchableState = stateLabel(o.service_state);
-    const customer = (o.customer as any) || {};
-    const searchableText = [o.os_number, `OS ${o.os_number || ""}`, o.external_os_number, orderTypeLabel, (o.service as any)?.title, customer.full_name, customer.trade_name, (o.service_type as any)?.title, equipmentSummary(o), o.model, o.serial_number, o.service_zip_code, o.service_state, searchableState, o.service_city, o.service_neighborhood, o.service_street, o.service_number, o.service_complement].map(normalizeSearchText).join(" ");
-    const normalizedOrderNumbers = [o.os_number, `OS ${o.os_number || ""}`].map(normalizeSearchIdentifier);
-    const customerIdentifiers = [customer.document, customer.cnpj];
-    const matchSearch = !q || searchableText.includes(q) || normalizedOrderNumbers.some(value => value.includes(qIdentifier)) || (qDigits.length > 0 && customerIdentifiers.some(value => normalizeSearchDigits(value).includes(qDigits)));
-    const matchStatus = !filterStatus || o.status_id === filterStatus;
-    const matchSituation = !filterSituation || o.situation_id === filterSituation;
-    const matchOrderType = !filterOrderType || o.order_type === filterOrderType;
-    const matchServiceType = !selectedServiceTypeId || o.service_type_id === selectedServiceTypeId;
-    const orderState = normalizeSearchText(o.service_state);
-    const matchState = selectedStates.length === 0 || selectedStates.some(state => {
-      const stateOption = ibgeStates.find(item => normalizeSearchText(item.sigla) === normalizeSearchText(state));
-      return orderState === normalizeSearchText(state) || (stateOption && orderState === normalizeSearchText(stateOption.nome));
-    });
-    const matchCity = selectedCities.length === 0 || selectedCities.some(city => normalizeSearchText(o.service_city) === normalizeSearchText(city.name) && orderState === normalizeSearchText(city.state));
-    const createdAt = o.created_at ? new Date(o.created_at) : null;
-    const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
-    const toDateExclusive = dateTo ? new Date(`${dateTo}T00:00:00`) : null;
-    if (toDateExclusive) toDateExclusive.setDate(toDateExclusive.getDate() + 1);
-    const matchPeriod = invalidPeriod || (!!createdAt && (!fromDate || createdAt >= fromDate) && (!toDateExclusive || createdAt < toDateExclusive));
-    return matchSearch && matchStatus && matchSituation && matchOrderType && matchServiceType && matchState && matchCity && matchPeriod;
+  const filtered = filterServiceOrders({
+    orders,
+    search,
+    statusId: filterStatus,
+    situationId: filterSituation,
+    orderType: filterOrderType,
+    serviceTypeId: selectedServiceTypeId,
+    states: selectedStates,
+    cities: selectedCities,
+    dateFrom,
+    dateTo,
+    invalidPeriod,
+    getStateLabel: stateLabel,
+    getEquipmentSummary: equipmentSummary,
   });
-  const sorted = orderSort ? [...filtered].sort((left, right) => {
-    const leftNumber = Number(String(left.os_number ?? "").match(/\d+/)?.[0] ?? Number.POSITIVE_INFINITY);
-    const rightNumber = Number(String(right.os_number ?? "").match(/\d+/)?.[0] ?? Number.POSITIVE_INFINITY);
-    const numberComparison = leftNumber - rightNumber;
-    if (numberComparison !== 0) return orderSort === "asc" ? numberComparison : -numberComparison;
-    const dateComparison = String(left.created_at ?? "").localeCompare(String(right.created_at ?? ""));
-    if (dateComparison !== 0) return orderSort === "asc" ? dateComparison : -dateComparison;
-    return String(left.id ?? "").localeCompare(String(right.id ?? ""));
-  }) : filtered;
+  const sorted = sortServiceOrders(filtered, orderSort);
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedOrders = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
