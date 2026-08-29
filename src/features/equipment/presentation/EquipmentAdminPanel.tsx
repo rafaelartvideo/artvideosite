@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react";
 import { Edit2, Plus, Trash2, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import type {
+  EquipmentCatalog,
+  EquipmentDraft,
+  EquipmentDraftBrand,
+  EquipmentDraftModel,
+  EquipmentTypeRow,
+} from "../domain/equipment";
+import {
+  loadEquipmentCatalog,
+  saveEquipmentHierarchy,
+} from "../infrastructure/equipment.repository";
 import {
   AdminPage,
   BtnPrimary,
@@ -12,20 +22,15 @@ import {
   LoadingState,
   PageHeader,
   Section,
-  slugify,
   StatusBadge,
   Toast,
 } from "@/app/admin/shared";
 
-type EquipmentDraftModel = { id?: string; name: string; is_active: boolean };
-type EquipmentDraftBrand = { id?: string; name: string; is_active: boolean; models: EquipmentDraftModel[] };
-type EquipmentDraft = { id?: string; name: string; is_active: boolean; brands: EquipmentDraftBrand[] };
-
 export function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();
-  const [types, setTypes] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
-  const [models, setModels] = useState<any[]>([]);
+  const [types, setTypes] = useState<EquipmentCatalog["types"]>([]);
+  const [brands, setBrands] = useState<EquipmentCatalog["brands"]>([]);
+  const [models, setModels] = useState<EquipmentCatalog["models"]>([]);
   const [drafts, setDrafts] = useState<EquipmentDraft[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -34,18 +39,22 @@ export function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
 
   const load = async () => {
     setLoading(true);
-    const [typeRes, brandRes, modelRes] = await Promise.all([
-      supabase.from("equipment_types").select("*").order("sort_order").order("name"),
-      supabase.from("equipment_brands").select("*").order("sort_order").order("name"),
-      supabase.from("equipment_models").select("*").order("sort_order").order("name"),
-    ]);
-    const error = typeRes.error || brandRes.error || modelRes.error;
-    if (error) setToast({ msg: `Erro ao carregar equipamentos: ${error.message}`, type: "error" });
-    setTypes(typeRes.data || []); setBrands(brandRes.data || []); setModels(modelRes.data || []); setLoading(false);
+    try {
+      const catalog = await loadEquipmentCatalog();
+      setTypes(catalog.types);
+      setBrands(catalog.brands);
+      setModels(catalog.models);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao carregar equipamentos: ${message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
   };
+
   useEffect(() => { load(); }, []);
 
-  const makeDraft = (type?: any): EquipmentDraft => ({
+  const makeDraft = (type?: EquipmentTypeRow): EquipmentDraft => ({
     id: type?.id, name: type?.name || "", is_active: type?.is_active ?? true,
     brands: brands.filter(brand => brand.equipment_type_id === type?.id).map(brand => ({
       id: brand.id, name: brand.name, is_active: brand.is_active,
@@ -53,7 +62,7 @@ export function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
     })),
   });
   const openNew = () => { setDrafts([makeDraft()]); setFormOpen(true); };
-  const openEdit = (type: any) => { setDrafts([makeDraft(type)]); setFormOpen(true); };
+  const openEdit = (type: EquipmentTypeRow) => { setDrafts([makeDraft(type)]); setFormOpen(true); };
   const addEquipment = () => setDrafts(current => [...current, makeDraft()]);
   const updateDraft = (index: number, value: Partial<EquipmentDraft>) => setDrafts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...value } : item));
   const addBrand = (typeIndex: number) => setDrafts(current => current.map((type, index) => index === typeIndex ? { ...type, brands: [...type.brands, { name: "", is_active: true, models: [{ name: "", is_active: true }] }] } : type));
@@ -86,37 +95,7 @@ export function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
     }
     setSaving(true);
     try {
-      for (const type of drafts) {
-        const originalType = type.id ? types.find(item => item.id === type.id) : null;
-        const originalBrands = originalType ? brands.filter(item => item.equipment_type_id === originalType.id) : [];
-        const typePayload = { name: type.name.trim(), slug: slugify(type.name), is_active: type.is_active, sort_order: 0 };
-        const typeResult = type.id ? await supabase.from("equipment_types").update(typePayload).eq("id", type.id).select("id").single() : await supabase.from("equipment_types").insert(typePayload).select("id").single();
-        if (typeResult.error || !typeResult.data) throw typeResult.error || new Error("Tipo de equipamento não foi salvo.");
-        const typeId = typeResult.data.id;
-        for (const brand of type.brands) {
-          const originalBrand = brand.id ? originalBrands.find(item => item.id === brand.id) : null;
-          const originalModels = originalBrand ? models.filter(item => item.equipment_brand_id === originalBrand.id) : [];
-          const brandPayload = { name: brand.name.trim(), slug: slugify(brand.name), equipment_type_id: typeId, is_active: brand.is_active, sort_order: 0 };
-          const brandResult = brand.id ? await supabase.from("equipment_brands").update(brandPayload).eq("id", brand.id).select("id").single() : await supabase.from("equipment_brands").insert(brandPayload).select("id").single();
-          if (brandResult.error || !brandResult.data) throw brandResult.error || new Error("Marca técnica não foi salva.");
-          const brandId = brandResult.data.id;
-          for (const model of brand.models) {
-            const modelPayload = { name: model.name.trim(), slug: slugify(model.name), equipment_brand_id: brandId, is_active: model.is_active, sort_order: 0 };
-            const modelResult = model.id ? await supabase.from("equipment_models").update(modelPayload).eq("id", model.id) : await supabase.from("equipment_models").insert(modelPayload);
-            if (modelResult.error) throw modelResult.error;
-          }
-          for (const oldModel of originalModels.filter(item => !brand.models.some(model => model.id === item.id))) {
-            const removeModelResult = await supabase.from("equipment_models").delete().eq("id", oldModel.id);
-            if (removeModelResult.error) throw removeModelResult.error;
-          }
-        }
-        for (const oldBrand of originalBrands.filter(item => !type.brands.some(brand => brand.id === item.id))) {
-          const removeModelsResult = await supabase.from("equipment_models").delete().eq("equipment_brand_id", oldBrand.id);
-          if (removeModelsResult.error) throw removeModelsResult.error;
-          const removeBrandResult = await supabase.from("equipment_brands").delete().eq("id", oldBrand.id);
-          if (removeBrandResult.error) throw removeBrandResult.error;
-        }
-      }
+      await saveEquipmentHierarchy(drafts, { types, brands, models });
       setFormOpen(false); setToast({ msg: "Equipamentos salvos com sucesso.", type: "success" }); await load();
     } catch (error) { setToast({ msg: `Erro ao salvar estrutura: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
     finally { setSaving(false); }
