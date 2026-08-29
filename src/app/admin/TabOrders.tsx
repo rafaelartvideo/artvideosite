@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
-import {
-  QuickEquipmentModal,
-  ServiceTypeModal,
-} from "@/features/orders/presentation/OrderQuickCreateModals";
+import { QuickEquipmentModal } from "@/features/orders/presentation/OrderQuickCreateModals";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import { OrdersTable } from "@/features/orders/presentation/OrdersTable";
 import { OrdersKanban } from "@/features/orders/presentation/OrdersKanban";
@@ -11,7 +8,7 @@ import { OrdersHeader } from "@/features/orders/presentation/OrdersHeader";
 import { OrdersFilters } from "@/features/orders/presentation/OrdersFilters";
 import { OrderSolutionSummary } from "@/features/orders/presentation/OrderSolutionSummary";
 import { OrderPartRequestsSection } from "@/features/orders/presentation/OrderPartRequestsSection";
-import { InfoRow, OrderDetailsContent } from "@/features/orders/presentation/OrderDetailsContent";
+import { OrderDetailsContent } from "@/features/orders/presentation/OrderDetailsContent";
 import { OrderDetailsActions } from "@/features/orders/presentation/OrderDetailsActions";
 import { OrderCustomerSection } from "@/features/orders/presentation/OrderCustomerSection";
 import { OrderEquipmentSection } from "@/features/orders/presentation/OrderEquipmentSection";
@@ -19,16 +16,6 @@ import { OrderInformationSection } from "@/features/orders/presentation/OrderInf
 import { OrderServiceLocationSection } from "@/features/orders/presentation/OrderServiceLocationSection";
 import { OrderFormActions } from "@/features/orders/presentation/OrderFormActions";
 import { OrderResolutionPage } from "@/features/orders/presentation/OrderResolutionPage";
-import {
-  EmployeeMultiSelect,
-  getPriorityLabel,
-  getResponsibleName,
-  OrderAddressSelect,
-  OrderFilterMultiSelect,
-  PriorityBadge,
-  type MultiSelectOption,
-  type ServiceOrderWithRelations,
-} from "@/features/orders/presentation/OrderFormControls";
 import {
   PartRequestModal,
   ReviewPartRequestModal,
@@ -41,10 +28,6 @@ import {
   prepareOrderForm,
 } from "@/features/orders/application/order-form";
 import { persistServiceOrder } from "@/features/orders/application/order-submission";
-import {
-  fmtReviewDate,
-  purposeLabel,
-} from "@/features/orders/application/part-request.formatters";
 import {
   deleteServiceOrder,
   getServiceOrderResolutionState,
@@ -66,31 +49,16 @@ import { useOrderResolution } from "@/features/orders/presentation/useOrderResol
 import { useOrderDetails } from "@/features/orders/presentation/useOrderDetails";
 import { useOrderFormState } from "@/features/orders/presentation/useOrderFormState";
 import { useOrderCustomerPersistence } from "@/features/orders/presentation/useOrderCustomerPersistence";
-import { useMediaUrl } from "@/lib/hooks";
-import { AddressFields } from "@/app/components/AddressFields";
-import type { Address } from "@/lib/address";
 import {
-  LayoutDashboard, ClipboardList, Edit2, Trash2, RefreshCw, Search, MessageCircle,
-  Users, List, X, Plus, Clock, CheckCircle, Upload, AlertTriangle, ArrowLeft,
-  ChevronLeft, ChevronRight, Phone, Star, DollarSign, HelpCircle, ChevronDown,
-  AlertCircle, FileText, Camera, Eraser, ArrowUpDown, ArrowUpNarrowWide, ArrowDownWideNarrow, Check, PackagePlus,
-} from "lucide-react";
-import {
-  cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone,
-  CustomerType, formatCpf, formatCnpj,
-  formatFoundationDate, foundationDateToIso, foundationDateFromCustomer, todayDateOnly,
-  INPUT, FInput, FTextarea, FSelect, FToggle, CustomerTypeToggle,
-  StatusBadge, LoadingState, EmptyState, BtnPrimary, BtnSecondary, Toast, ConfirmDialog,
-  PageHeader, Section, AdminPage, PaginationBar, ImageUpload, ProductAdminThumb,
-  AdminBackContext, InternalBackButton, supabaseErrorMessage, createMediaRecord, isHexColor,
+  initialOrderStatus,
+  Toast,
+  ConfirmDialog,
+  AdminPage,
+  supabaseErrorMessage,
   type AdminTab,
 } from "./shared";
-import { getGeneralServices } from "@/lib/queries";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/app/components/ui/dropdown-menu";
 
 type OrderType = "internal" | "external";
-type ServiceAddressSource = "customer" | "custom";
-const normalizeSearchIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onFocused?: () => void }) {
   const { user, profile, hasPermission } = useAuth();
@@ -532,10 +500,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     getStateLabel: stateLabel,
     getEquipmentSummary: equipmentSummary,
   });
-  const OrderSortIcon = orderSort === "asc"
-    ? ArrowUpNarrowWide
-    : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
-
   const getSituationsForType = (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) => {
     const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId).sort((left, right) => Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0));
     if (links.length === 0) return situations;
