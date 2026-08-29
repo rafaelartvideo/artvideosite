@@ -18,6 +18,7 @@ import { OrderEquipmentSection } from "@/features/orders/presentation/OrderEquip
 import { OrderInformationSection } from "@/features/orders/presentation/OrderInformationSection";
 import { OrderServiceLocationSection } from "@/features/orders/presentation/OrderServiceLocationSection";
 import { OrderFormActions } from "@/features/orders/presentation/OrderFormActions";
+import { OrderResolutionPage } from "@/features/orders/presentation/OrderResolutionPage";
 import {
   EmployeeMultiSelect,
   getPriorityLabel,
@@ -48,6 +49,7 @@ import type {
   TestResultRow,
 } from "@/features/orders/domain/part-request.types";
 import { normalizeSearchText } from "@/features/orders/application/order-search";
+import { validateOrderResolution } from "@/features/orders/application/order-resolution";
 import {
   filterServiceOrders,
   sortServiceOrders,
@@ -1397,129 +1399,27 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
           }
         }}
       />}
-      {solveOpen && detail && <AdminPage open={true} onClose={() => setSolveOpen(false)} breadcrumb="Ordens de Serviço" title="Resolver OS" subtitle="Diagnóstico, solução e produtos utilizados" maxW="max-w-2xl">
-        <div className="p-5 space-y-5">
-          <Section title="Informações da OS">
-            <div className="grid sm:grid-cols-2 gap-3">
-              <InfoRow label="Nº da OS" value={detail.os_number} />
-              <InfoRow label="Serviço" value={(detail.service as any)?.title || (detail.general_service as any)?.name || "—"} />
-              <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || "—"} />
-              <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || (detail.brand as any)?.name || "—"} />
-              <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || detail.model || "—"} />
-              <InfoRow label="Versão" value={detail.model || "—"} />
-              <InfoRow label="Nº de série" value={detail.serial_number || "—"} />
-              <InfoRow label="Lacre" value={detail.accessories || "—"} />
-              <InfoRow label="Garantia" value={detail.equipment_condition || "—"} />
-            </div>
-          </Section>
-
-          <Section title="Descrição do problema">
-            <p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes || "Nenhuma descrição do problema registrada."}</p>
-          </Section>
-
-          <Section title="Diagnóstico">
-            <FTextarea label="Diagnóstico" value={solveDraft.diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: e.target.value }))} rows={5} />
-          </Section>
-
-          <Section title="Solução">
-            <FTextarea label="Solução" value={solveDraft.solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: e.target.value }))} rows={5} />
-          </Section>
-
-          <Section title="Resultado do atendimento">
-            <label className="flex items-start gap-2 text-sm font-bold text-[#0d1b2e]">
-              <input type="checkbox" checked={solveDraft.cannotSolve} onChange={event => setSolveDraft(current => ({ ...current, cannotSolve: event.target.checked }))} />
-              OS não pode ser solucionada
-            </label>
-            {solveDraft.cannotSolve && <div className="mt-3"><FTextarea label="Justificativa" value={solveDraft.cannotSolveReason} onChange={(e: any) => setSolveDraft(current => ({ ...current, cannotSolveReason: e.target.value }))} rows={4} hint="Informe por que esta OS não pode ser solucionada." /></div>}
-          </Section>
-
-          <Section title="Produtos utilizados">
-            <div className="space-y-3">
-              {solveDraft.usedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aprovada para esta OS.</p> : solveDraft.usedItems.map((item: any) => {
-                const stockItem = inventoryItems.find(entry => entry.id === item.inventory_item_id);
-                const available = Number(stockItem?.quantity ?? 0);
-                const requested = Number(item.quantity || 0);
-                const approved = Number(item.approved_quantity ?? requested);
-                const prewithdrawn = Number(item.prewithdrawn_quantity ?? 0);
-                const stockRequired = Math.max(0, requested - prewithdrawn);
-                const invalid = requested <= 0 || requested > approved || stockRequired > available;
-                return (
-                  <div key={item.inventory_item_id} className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm text-[#0d1b2e]">{item.name}</p>
-                        <p className="text-[11px] text-[#5a6a82]">{requested} {item.unit || stockItem?.unit || "un"} aprovadas · Disponível: {available} {item.unit || stockItem?.unit || "un"}</p>
-                        {prewithdrawn > 0 && <p className="mt-1 text-[10px] font-bold text-violet-700">{prewithdrawn} {item.unit || stockItem?.unit || "un"} {prewithdrawn === 1 ? "já retirada" : "já retiradas"} para teste</p>}
-                        {invalid && <p className="mt-1 text-[10px] font-bold text-red-600">Estoque insuficiente</p>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Section>
-
-          <Section title="Imagens da OS">
-            {orderImages.length > 0 ? <div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem da OS cadastrada.</p>}
-          </Section>
-
-          <Section title="Imagens da solução">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <p className="text-xs text-[#5a6a82]">{solutionImages.length}/5 imagens</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button type="button" disabled={solutionImages.length >= 5} onClick={() => {
-                  const input = document.createElement("input");
-                  input.type = "file";
-                  input.accept = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
-                  input.multiple = true;
-                  input.onchange = (event: any) => {
-                    const files = event.target.files as FileList | null;
-                    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type)).slice(0, 5 - solutionImages.length);
-                    setSolutionImages(current => [...current, ...selected.map(file => ({ key: `solution-${Date.now()}-${Math.random()}`, file, url: URL.createObjectURL(file), name: file.name }))]);
-                  };
-                  input.click();
-                }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Upload size={13} /> Adicionar imagens</button>
-                <button type="button" disabled={solutionImages.length >= 5} onClick={() => {
-                  const input = document.createElement("input");
-                  input.type = "file";
-                  input.accept = "image/*";
-                  input.capture = "environment";
-                  input.onchange = (event: any) => {
-                    const files = event.target.files as FileList | null;
-                    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type)).slice(0, 5 - solutionImages.length);
-                    setSolutionImages(current => [...current, ...selected.map(file => ({ key: `solution-cam-${Date.now()}-${Math.random()}`, file, url: URL.createObjectURL(file), name: file.name }))]);
-                  };
-                  input.click();
-                }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Camera size={13} /> Abrir câmera</button>
-              </div>
-            </div>
-            {solutionImages.length > 0 ? <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onRemove={() => setSolutionImages(current => current.filter(item => item.key !== image.key))} onView={() => setViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem adicionada para a solução.</p>}
-          </Section>
-        </div>
-        <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
-          <BtnSecondary onClick={() => setSolveOpen(false)}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={() => {
-            if (solveDraft.cannotSolve) {
-              if (!solveDraft.cannotSolveReason.trim()) {
-                setToast({ msg: "Informe a justificativa para esta OS não solucionável.", type: "error" });
-                return;
-              }
-            }
-            const hasInvalidProducts = solveDraft.usedItems.some(item => {
-              const stockItem = inventoryItems.find(entry => entry.id === item.inventory_item_id);
-              const requested = Number(item.quantity || 0);
-              const approved = Number(item.approved_quantity ?? requested);
-              const prewithdrawn = Number(item.prewithdrawn_quantity ?? 0);
-              return requested <= 0 || requested > approved || Math.max(0, requested - prewithdrawn) > Number(stockItem?.quantity ?? 0);
-            });
-            if (hasInvalidProducts) {
-              setToast({ msg: "Estoque insuficiente em pelo menos um produto. Ajuste a quantidade antes de concluir.", type: "error" });
-              return;
-            }
-            void saveOrderSolution(detail.id);
-          }} disabled={saving}><CheckCircle size={14} /> Concluir solução</BtnPrimary>
-        </div>
-      </AdminPage>}
+      <OrderResolutionPage
+        open={solveOpen}
+        detail={detail}
+        solveDraft={solveDraft}
+        setSolveDraft={setSolveDraft}
+        inventoryItems={inventoryItems}
+        orderImages={orderImages}
+        solutionImages={solutionImages}
+        setSolutionImages={setSolutionImages}
+        saving={saving}
+        onClose={() => setSolveOpen(false)}
+        onViewImage={setViewImage}
+        onSubmit={() => {
+          const validationError = validateOrderResolution(solveDraft, inventoryItems);
+          if (validationError) {
+            setToast({ msg: validationError, type: "error" });
+            return;
+          }
+          void saveOrderSolution(detail.id);
+        }}
+      />
       {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
       {partRequestOpen && detail && (
         <PartRequestModal orderNumber={detail.os_number} inventoryItems={partRequestInventory} inventoryLoading={partRequestInventoryLoading} inventoryError={partRequestInventoryError} selectedItems={selectedPartRequestItems} search={partRequestSearch} notes={partRequestNotes} purpose={partRequestPurpose} submitting={partRequestSubmitting} onPurposeChange={setPartRequestPurpose} onSearchChange={setPartRequestSearch} onNotesChange={setPartRequestNotes} onSelect={selectPartRequestItem} onQuantityChange={updatePartRequestQuantity} onRemove={removePartRequestItem} onClose={closePartRequestModal} onSubmit={() => void submitPartRequest()} />
