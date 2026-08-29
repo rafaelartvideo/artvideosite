@@ -22,12 +22,18 @@ import {
 } from "@/app/admin/shared";
 
 export function OrderStatusesAdminPanel({ onBack }: { onBack: () => void }) {
-  return <AdminBackContext.Provider value={onBack}><OrderStatusesAdminPanelContent /></AdminBackContext.Provider>;
+  const { hasPermission } = useAuth();
+  if (!hasPermission("orders.view")) return null;
+
+  return (
+    <AdminBackContext.Provider value={onBack}>
+      <OrderStatusesAdminPanelContent />
+    </AdminBackContext.Provider>
+  );
 }
 
 function OrderStatusesAdminPanelContent() {
   const { hasPermission } = useAuth();
-  if (!hasPermission("orders.view")) return null;
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
