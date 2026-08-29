@@ -40,14 +40,7 @@ import {
   TestDeliveryModal,
   TestResultModal,
 } from "@/features/orders/presentation/PartRequestModals";
-import type {
-  PartRequestForReview,
-  PartRequestInventoryItem,
-  PartRequestItemForReview,
-  ReviewPartRequestItem,
-  SelectedPartRequestItem,
-  TestResultRow,
-} from "@/features/orders/domain/part-request.types";
+import type { PartRequestForReview } from "@/features/orders/domain/part-request.types";
 import { normalizeSearchText } from "@/features/orders/application/order-search";
 import { validateOrderResolution } from "@/features/orders/application/order-resolution";
 import {
@@ -86,20 +79,14 @@ import {
   listServiceOrderStatusHistory,
   listServiceOrderUsedItems,
 } from "@/features/orders/infrastructure/orders.repository";
-import {
-  deliverServiceOrderTestRequest,
-  listActivePartInventory,
-  listServiceOrderPartRequests,
-  recordServiceOrderTestResults,
-  requestServiceOrderParts,
-  reviewServiceOrderPartRequest,
-} from "@/features/orders/infrastructure/orders-part-requests.repository";
+import { listActivePartInventory } from "@/features/orders/infrastructure/orders-part-requests.repository";
 import {
   OrderImageLightbox,
   OrderImagesField,
   uploadOrderImage,
 } from "@/features/orders/presentation/OrderImages";
 import { useOrderImages } from "@/features/orders/presentation/useOrderImages";
+import { useOrderPartRequests } from "@/features/orders/presentation/useOrderPartRequests";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress, fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
@@ -181,32 +168,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
-  const [detailPartRequests, setDetailPartRequests] = useState<any[]>([]);
-  const [selectedPartRequest, setSelectedPartRequest] = useState<PartRequestForReview | null>(null);
-  const [partApprovalOpen, setPartApprovalOpen] = useState(false);
-  const [partRejectionOpen, setPartRejectionOpen] = useState(false);
-  const [approvalQuantities, setApprovalQuantities] = useState<Record<string, string>>({});
-  const [partReviewNotes, setPartReviewNotes] = useState("");
-  const [partReviewSubmitting, setPartReviewSubmitting] = useState(false);
   const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [solveOpen, setSolveOpen] = useState(false);
-  const [partRequestOpen, setPartRequestOpen] = useState(false);
-  const [partRequestInventory, setPartRequestInventory] = useState<PartRequestInventoryItem[]>([]);
-  const [partRequestInventoryLoading, setPartRequestInventoryLoading] = useState(false);
-  const [partRequestSearch, setPartRequestSearch] = useState("");
-  const [selectedPartRequestItems, setSelectedPartRequestItems] = useState<SelectedPartRequestItem[]>([]);
-  const [partRequestNotes, setPartRequestNotes] = useState("");
-  const [partRequestSubmitting, setPartRequestSubmitting] = useState(false);
-  const [partRequestInventoryError, setPartRequestInventoryError] = useState("");
-  const [partRequestPurpose, setPartRequestPurpose] = useState<"RESOLUTION" | "TEST">("RESOLUTION");
-  const [selectedDeliveryRequest, setSelectedDeliveryRequest] = useState<PartRequestForReview | null>(null);
-  const [deliveryOpen, setDeliveryOpen] = useState(false);
-  const [deliverySubmitting, setDeliverySubmitting] = useState(false);
-  const [selectedTestRequest, setSelectedTestRequest] = useState<PartRequestForReview | null>(null);
-  const [testResultOpen, setTestResultOpen] = useState(false);
-  const [testResultRows, setTestResultRows] = useState<TestResultRow[]>([]);
-  const [testResultSubmitting, setTestResultSubmitting] = useState(false);
   const [solveDraft, setSolveDraft] = useState({ diagnosis: "", solution: "", usedItems: [], cannotSolve: false, cannotSolveReason: "" } as { diagnosis: string; solution: string; usedItems: any[]; cannotSolve: boolean; cannotSolveReason: string });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -368,38 +332,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     return () => { zipRequestRef.current += 1; };
   }, [form.order_type, form.service_zip_code, serviceUseCustomerAddress]);
 
-  const loadPartRequestInventory = async () => {
-    setPartRequestInventoryLoading(true);
-    try {
-      const { data, error } = await listActivePartInventory();
-      if (error) {
-        console.error("[PART REQUEST] inventory load error", error);
-        setPartRequestInventory([]);
-        setPartRequestInventoryError(supabaseErrorMessage(error));
-        setToast({ msg: supabaseErrorMessage(error), type: "error" });
-      } else {
-        setPartRequestInventory((data || []) as PartRequestInventoryItem[]);
-        setPartRequestInventoryError("");
-      }
-    } catch (error) {
-      console.error("[PART REQUEST] inventory load error", error);
-      setPartRequestInventory([]);
-      setPartRequestInventoryError(supabaseErrorMessage(error));
-      setToast({ msg: supabaseErrorMessage(error), type: "error" });
-    } finally {
-      setPartRequestInventoryLoading(false);
-    }
-  };
-
   const loadInventoryItems = async () => {
     const { data, error } = await listActivePartInventory();
     if (!error) setInventoryItems(data || []);
-  };
-
-  const loadPartRequests = async (orderId: string) => {
-    const { data, error } = await listServiceOrderPartRequests(orderId);
-    if (error) { console.error("[ADMIN] part requests load error:", error); setDetailPartRequests([]); return; }
-    setDetailPartRequests((data || []).map((request: any) => ({ ...request, requester: request.requested_by_profile || null, items: (request.items || []).map((item: any) => ({ ...item, request_status: request.status })) })));
   };
 
   const load = async () => {
@@ -427,6 +362,63 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setServiceTypeSituations(serviceTypeSituationRes.data || []);
     setLoading(false);
   };
+
+  const {
+    detailPartRequests,
+    selectedPartRequest,
+    partApprovalOpen,
+    partRejectionOpen,
+    approvalQuantities,
+    partReviewNotes,
+    setPartReviewNotes,
+    partReviewSubmitting,
+    partRequestOpen,
+    partRequestInventory,
+    partRequestInventoryLoading,
+    partRequestSearch,
+    setPartRequestSearch,
+    selectedPartRequestItems,
+    partRequestNotes,
+    setPartRequestNotes,
+    partRequestSubmitting,
+    partRequestInventoryError,
+    partRequestPurpose,
+    setPartRequestPurpose,
+    selectedDeliveryRequest,
+    deliveryOpen,
+    deliverySubmitting,
+    selectedTestRequest,
+    testResultOpen,
+    testResultRows,
+    setTestResultRows,
+    testResultSubmitting,
+    loadPartRequests,
+    openPartRequestModal,
+    closePartRequestModal,
+    selectPartRequestItem,
+    updatePartRequestQuantity,
+    removePartRequestItem,
+    openPartApproval,
+    openPartRejection,
+    closePartReview,
+    updateApprovalQuantity,
+    approvePartRequest,
+    rejectPartRequest,
+    openDeliveryRequest,
+    closeDeliveryRequest,
+    deliverTestRequest,
+    openTestResult,
+    closeTestResult,
+    submitTestResults,
+    getTestCommittedQuantity,
+    getTestPendingQuantity,
+  } = useOrderPartRequests({
+    orderId: detail?.id,
+    reloadOrders: load,
+    showToast: setToast,
+    formatError: supabaseErrorMessage,
+  });
+
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
@@ -452,135 +444,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setDetailSolutionImages(solutionImagesList);
     replaceOrderImages(orderImagesList);
     setDetail({ ...o, ...(currentOrder || {}) });
-  };
-
-  const openPartRequestModal = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setPartRequestSearch("");
-    setPartRequestPurpose("RESOLUTION");
-    setSelectedPartRequestItems([]);
-    setPartRequestNotes("");
-    setPartRequestInventoryError("");
-    setPartRequestOpen(true);
-    void loadPartRequestInventory();
-  };
-
-  const closePartRequestModal = () => {
-    if (partRequestSubmitting) return;
-    setPartRequestOpen(false); setPartRequestSearch(""); setSelectedPartRequestItems([]); setPartRequestNotes(""); setPartRequestPurpose("RESOLUTION");
-  };
-
-  const selectPartRequestItem = (item: PartRequestInventoryItem) => setSelectedPartRequestItems(current => current.some(selected => selected.inventory_item_id === item.id) ? current : [...current, { inventory_item_id: item.id, name: item.name, sku: item.sku, unit: item.unit || "un", available_quantity: Number(item.quantity), quantity: "1" }]);
-  const updatePartRequestQuantity = (id: string, quantity: string) => setSelectedPartRequestItems(current => current.map(item => item.inventory_item_id === id ? { ...item, quantity } : item));
-  const removePartRequestItem = (id: string) => setSelectedPartRequestItems(current => current.filter(item => item.inventory_item_id !== id));
-  const clearPartRequestItems = () => setSelectedPartRequestItems([]);
-
-  const submitPartRequest = async () => {
-    if (!detail?.id || partRequestSubmitting) return;
-    if (selectedPartRequestItems.length === 0) { setToast({ msg: "Selecione pelo menos uma peça.", type: "error" }); return; }
-    for (const item of selectedPartRequestItems) { const quantity = Number(item.quantity); if (!item.quantity.trim() || !Number.isFinite(quantity) || quantity <= 0 || quantity > item.available_quantity) { setToast({ msg: `Informe uma quantidade válida para ${item.name}, sem exceder o estoque disponível.`, type: "error" }); return; } }
-    setPartRequestSubmitting(true);
-    try {
-      const { error } = await requestServiceOrderParts({ serviceOrderId: detail.id, items: selectedPartRequestItems.map(item => ({ inventory_item_id: item.inventory_item_id, quantity: Number(item.quantity) })), notes: partRequestNotes.trim() || null, purpose: partRequestPurpose });
-      if (error) throw error;
-    } catch (error) {
-      console.error("[PART REQUEST] submit error", error);
-      setPartRequestSubmitting(false);
-      setToast({ msg: supabaseErrorMessage(error), type: "error" });
-      return;
-    }
-    setPartRequestSubmitting(false); setPartRequestOpen(false); setPartRequestSearch(""); setSelectedPartRequestItems([]); setPartRequestNotes(""); setPartRequestPurpose("RESOLUTION"); setToast({ msg: "Solicitação de peças enviada para análise.", type: "success" }); await loadPartRequests(detail.id);
-  };
-
-  const openPartApproval = (event: React.MouseEvent<HTMLButtonElement>, request: PartRequestForReview) => {
-    event.preventDefault(); event.stopPropagation();
-    setSelectedPartRequest(request); setApprovalQuantities(Object.fromEntries(request.items.map(item => { const limit = item.source_test_item_id ? Number(item.quantity) : Math.min(Number(item.quantity), Number(item.inventory_item?.quantity ?? 0)); return [item.id, String(limit)]; }))); setPartReviewNotes(""); setPartRejectionOpen(false); setPartApprovalOpen(true);
-  };
-  const openPartRejection = (event: React.MouseEvent<HTMLButtonElement>, request: PartRequestForReview) => {
-    event.preventDefault(); event.stopPropagation();
-    setSelectedPartRequest(request); setPartReviewNotes(""); setPartApprovalOpen(false); setPartRejectionOpen(true);
-  };
-  const closePartReview = () => {
-    if (partReviewSubmitting) return;
-    setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes("");
-  };
-  const updateApprovalQuantity = (itemId: string, value: string) => setApprovalQuantities(current => ({ ...current, [itemId]: value }));
-  const approvePartRequest = async () => {
-    if (!selectedPartRequest || partReviewSubmitting) return;
-    const quantities = selectedPartRequest.items.map(item => ({ item, requestedQuantity: Number(item.quantity), availableQuantity: Number(item.inventory_item?.quantity ?? 0), approved: Number(approvalQuantities[item.id]) }));
-    if (!quantities.length || quantities.some(({ requestedQuantity, availableQuantity, approved }) => !Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || !Number.isFinite(availableQuantity) || !Number.isFinite(approved) || approved < 0)) { setToast({ msg: "Informe quantidades aprovadas válidas.", type: "error" }); return; }
-    if (quantities.some(({ requestedQuantity, approved }) => approved > requestedQuantity)) { setToast({ msg: "A quantidade aprovada não pode ser maior que a quantidade solicitada.", type: "error" }); return; }
-    if (quantities.some(({ item, availableQuantity, approved }) => !item.source_test_item_id && approved > availableQuantity)) { setToast({ msg: "A quantidade aprovada não pode ser maior que o estoque disponível.", type: "error" }); return; }
-    if (!quantities.some(({ approved }) => approved > 0)) { setToast({ msg: "Aprove uma quantidade maior que zero em pelo menos uma peça.", type: "error" }); return; }
-    setPartReviewSubmitting(true);
-    try {
-      const { error } = await reviewServiceOrderPartRequest({ requestId: selectedPartRequest.id, decision: "APPROVED", items: selectedPartRequest.items.map(item => ({ request_item_id: item.id, approved_quantity: Number(approvalQuantities[item.id] || 0) })), reviewNotes: partReviewNotes.trim() || null });
-      if (error) throw error;
-      setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças aprovado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id); await load();
-    } catch (error) { console.error("[PART REQUEST] approval error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
-    finally { setPartReviewSubmitting(false); }
-  };
-  const rejectPartRequest = async () => {
-    if (!selectedPartRequest || partReviewSubmitting) return;
-    if (!partReviewNotes.trim()) { setToast({ msg: "Informe o motivo da rejeição.", type: "error" }); return; }
-    setPartReviewSubmitting(true);
-    try {
-      const { error } = await reviewServiceOrderPartRequest({ requestId: selectedPartRequest.id, decision: "REJECTED", items: [], reviewNotes: partReviewNotes.trim() });
-      if (error) throw error;
-      setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças rejeitado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id); await load();
-    } catch (error) { console.error("[PART REQUEST] rejection error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
-    finally { setPartReviewSubmitting(false); }
-  };
-
-  const deliverTestRequest = async () => {
-    if (!selectedDeliveryRequest || deliverySubmitting) return;
-    setDeliverySubmitting(true);
-    try {
-      const { error } = await deliverServiceOrderTestRequest(selectedDeliveryRequest.id);
-      if (error) throw error;
-      setDeliveryOpen(false); setSelectedDeliveryRequest(null); setToast({ msg: "Peças entregues para teste.", type: "success" });
-      await loadPartRequests(detail.id); await load();
-    } catch (error) { console.error("[PART REQUEST] delivery error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
-    finally { setDeliverySubmitting(false); }
-  };
-
-  const submitTestResults = async () => {
-    if (!selectedTestRequest || testResultSubmitting) return;
-    if (!testResultRows.length) { setToast({ msg: "Informe pelo menos um resultado.", type: "error" }); return; }
-    const totals = new Map<string, number>();
-    for (const row of testResultRows) {
-      const quantity = Number(row.quantity); const item = selectedTestRequest.items.find(current => current.id === row.requestItemId);
-      if (!item || !Number.isFinite(quantity) || quantity <= 0 || row.action === "DAMAGED" && !row.notes.trim()) { setToast({ msg: row.action === "DAMAGED" ? "Informe a justificativa do dano." : "Informe quantidades válidas para o resultado.", type: "error" }); return; }
-      const pending = getTestPendingQuantity(selectedTestRequest, item); const total = (totals.get(row.requestItemId) || 0) + quantity; if (total > pending) { setToast({ msg: "A soma dos resultados não pode ultrapassar a quantidade aguardando resultado.", type: "error" }); return; } totals.set(row.requestItemId, total);
-    }
-    setTestResultSubmitting(true);
-    try {
-      const { data, error } = await recordServiceOrderTestResults({ requestId: selectedTestRequest.id, actions: testResultRows.map(row => ({ request_item_id: row.requestItemId, action: row.action, quantity: Number(row.quantity), notes: row.notes.trim() || null })) });
-      if (error) throw error;
-      setTestResultOpen(false); setSelectedTestRequest(null); setTestResultRows([]); setToast({ msg: data?.resolution_request_id ? "Resultado do teste registrado. Um novo pedido para resolução foi criado e aguarda aprovação." : "Resultado do teste registrado.", type: "success" }); await loadPartRequests(detail.id); await load();
-    } catch (error) { console.error("[PART REQUEST] test results error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
-    finally { setTestResultSubmitting(false); }
-  };
-
-  const getTestCommittedQuantity = (item: PartRequestItemForReview) => detailPartRequests
-    .filter((candidate: PartRequestForReview) => (candidate.purpose || "RESOLUTION") === "RESOLUTION")
-    .flatMap((candidate: PartRequestForReview) => candidate.items || [])
-    .filter((candidate: PartRequestItemForReview) => candidate.source_test_item_id === item.id)
-    .reduce((sum: number, candidate: PartRequestItemForReview) => {
-      const status = String(candidate.request_status || "").toUpperCase();
-      const amount = status === "APPROVED"
-        ? Number(candidate.approved_quantity ?? 0)
-        : status === "PENDING" ? Number(candidate.quantity ?? 0) : 0;
-      return Number.isFinite(amount) ? sum + amount : sum;
-    }, 0);
-
-  const getTestPendingQuantity = (_request: PartRequestForReview, item: PartRequestItemForReview) => {
-    const delivered = Number(item.delivered_quantity ?? 0);
-    const returned = Number(item.returned_quantity ?? 0);
-    const damaged = Number(item.damaged_quantity ?? 0);
-    const committedForResolution = getTestCommittedQuantity(item);
-    return Math.max(0, delivered - returned - damaged - committedForResolution);
   };
 
   const openNew = () => {
@@ -1242,15 +1105,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 getPendingQuantity={getTestPendingQuantity}
                 onApprove={openPartApproval}
                 onReject={openPartRejection}
-                onDelivery={(request) => {
-                  setSelectedDeliveryRequest(request);
-                  setDeliveryOpen(true);
-                }}
-                onTestResult={(request) => {
-                  setSelectedTestRequest(request);
-                  setTestResultRows([]);
-                  setTestResultOpen(true);
-                }}
+                onDelivery={openDeliveryRequest}
+                onTestResult={openTestResult}
               />
               <OrderSolutionSummary
                 detail={detail}
@@ -1418,8 +1274,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       )}
       {partApprovalOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={false} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={approvePartRequest} />}
       {partRejectionOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={true} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={rejectPartRequest} />}
-      {deliveryOpen && selectedDeliveryRequest && <TestDeliveryModal request={selectedDeliveryRequest} orderNumber={detail?.os_number} submitting={deliverySubmitting} onClose={() => { if (!deliverySubmitting) { setDeliveryOpen(false); setSelectedDeliveryRequest(null); } }} onSubmit={() => void deliverTestRequest()} />}
-      {testResultOpen && selectedTestRequest && <TestResultModal request={selectedTestRequest} rows={testResultRows} submitting={testResultSubmitting} getPendingQuantity={getTestPendingQuantity} onRowsChange={setTestResultRows} onClose={() => { if (!testResultSubmitting) { setTestResultOpen(false); setSelectedTestRequest(null); setTestResultRows([]); } }} onSubmit={() => void submitTestResults()} />}
+      {deliveryOpen && selectedDeliveryRequest && <TestDeliveryModal request={selectedDeliveryRequest} orderNumber={detail?.os_number} submitting={deliverySubmitting} onClose={closeDeliveryRequest} onSubmit={() => void deliverTestRequest()} />}
+      {testResultOpen && selectedTestRequest && <TestResultModal request={selectedTestRequest} rows={testResultRows} submitting={testResultSubmitting} getPendingQuantity={getTestPendingQuantity} onRowsChange={setTestResultRows} onClose={closeTestResult} onSubmit={() => void submitTestResults()} />}
     </div>
   );
 }
