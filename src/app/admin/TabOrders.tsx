@@ -68,7 +68,6 @@ import {
   listOrderStatusOptions,
   listServiceOrderMedia,
   listServiceOrderMediaLinks,
-  loadOrdersWorkspace,
   markServiceOrderSolvable,
   markServiceOrderUnsolvable,
   resolveServiceOrder,
@@ -87,6 +86,7 @@ import {
 } from "@/features/orders/presentation/OrderImages";
 import { useOrderImages } from "@/features/orders/presentation/useOrderImages";
 import { useOrderPartRequests } from "@/features/orders/presentation/useOrderPartRequests";
+import { useOrdersWorkspace } from "@/features/orders/presentation/useOrdersWorkspace";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress, fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
@@ -131,26 +131,34 @@ const FALLBACK_STATES: IbgeState[] = [
 
 export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onFocused?: () => void }) {
   const { user, profile, hasPermission } = useAuth();
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [subView, setSubView] = useState<"list" | "situations">("list");
   const [displayMode, setDisplayMode] = useState<"list" | "kanban">(() => {
     if (typeof window === "undefined") return "list";
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
-  const [orders, setOrders] = useState<any[]>([]);
-  const [statuses, setStatuses] = useState<any[]>([]);
-  const [situations, setSituations] = useState<any[]>([]);
-  const [serviceTypeSituations, setServiceTypeSituations] = useState<any[]>([]);
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [services, setServices] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [equipmentTypes, setEquipmentTypes] = useState<any[]>([]);
-  const [equipmentBrands, setEquipmentBrands] = useState<any[]>([]);
-  const [equipmentModels, setEquipmentModels] = useState<any[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [serviceTypes, setServiceTypes] = useState<any[]>([]);
-  const [generalServices, setGeneralServices] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    orders,
+    setOrders,
+    statuses,
+    situations,
+    serviceTypeSituations,
+    profiles,
+    services,
+    brands,
+    products,
+    equipmentTypes,
+    setEquipmentTypes,
+    equipmentBrands,
+    setEquipmentBrands,
+    equipmentModels,
+    setEquipmentModels,
+    employees,
+    serviceTypes,
+    generalServices,
+    loading,
+    reloadWorkspace,
+  } = useOrdersWorkspace({ showToast: setToast });
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSituation, setFilterSituation] = useState("");
@@ -176,7 +184,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [formOpen, setFormOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<any>(null);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -337,32 +344,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (!error) setInventoryItems(data || []);
   };
 
-  const load = async () => {
-    setLoading(true);
-    const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes, serviceTypeSituationRes] = await loadOrdersWorkspace();
-    if (ordRes.error) {
-      console.error("[ADMIN] service_orders load error:", { code: ordRes.error.code, message: ordRes.error.message, details: ordRes.error.details, hint: ordRes.error.hint });
-      setToast({ msg: `Erro ao carregar OS: ${ordRes.error.message}`, type: "error" });
-    } else setOrders(ordRes.data || []);
-    [statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes, serviceTypeSituationRes].forEach((result, index) => {
-      if (result.error) console.error("[ADMIN] OS related query error:", index, result.error);
-    });
-    setStatuses(statRes.data || []);
-    setSituations(sitRes.data || []);
-    setProfiles(profRes.data || []);
-    setServices(serviceRes.data || []);
-    setBrands(brandRes.data || []);
-    setProducts(productRes.data || []);
-    setEquipmentTypes(equipmentTypeRes.data || []);
-    setEquipmentBrands(equipmentBrandRes.data || []);
-    setEquipmentModels(equipmentModelRes.data || []);
-    setEmployees(employeeRes.data || []);
-    setGeneralServices(generalServiceRes.data || []);
-    setServiceTypes(serviceTypeRes.data || []);
-    setServiceTypeSituations(serviceTypeSituationRes.data || []);
-    setLoading(false);
-  };
-
   const {
     detailPartRequests,
     selectedPartRequest,
@@ -414,12 +395,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     getTestPendingQuantity,
   } = useOrderPartRequests({
     orderId: detail?.id,
-    reloadOrders: load,
+    reloadOrders: reloadWorkspace,
     showToast: setToast,
     formatError: supabaseErrorMessage,
   });
-
-  useEffect(() => { load(); }, []);
 
   useEffect(() => {
     if (!initialOrderId || loading) return;
@@ -597,7 +576,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setDetailSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
       setSolveOpen(false);
       setToast({ msg: solutionImageError ? `OS resolvida, mas não foi possível salvar todas as imagens da solução: ${supabaseErrorMessage(solutionImageError)}` : "OS resolvida com sucesso.", type: solutionImageError ? "error" : "success" });
-      await load();
+      await reloadWorkspace();
     } catch (error) {
       setToast({ msg: `Não foi possível concluir a solução da OS: ${supabaseErrorMessage(error)}. Nenhuma alteração de estoque foi aplicada.`, type: "error" });
     } finally {
@@ -726,7 +705,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     }
     setSaving(false);
     setToast({ msg: `OS ${editingOS ? "atualizada" : "criada"} com sucesso!`, type: "success" });
-    setFormOpen(false); setDetail(null); upF("external_os_number", ""); load();
+    setFormOpen(false); setDetail(null); upF("external_os_number", ""); reloadWorkspace();
   };
 
   const closeOrderForm = () => { setFormOpen(false); upF("external_os_number", ""); };
@@ -798,7 +777,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setToast({ msg: "OS excluída.", type: "success" });
     setDeleteId(null);
     setDetail(null);
-    await load();
+    await reloadWorkspace();
   };
 
   const updateOrderStatus = async (order: any, statusId: string) => {
@@ -984,7 +963,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         canCreate={hasPermission("orders.create")}
         onDisplayModeChange={setViewMode}
         onCreate={openNew}
-        onRefresh={() => { void load(); }}
+        onRefresh={() => { void reloadWorkspace(); }}
       />
 
       <OrdersFilters
