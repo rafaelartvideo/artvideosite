@@ -26,9 +26,17 @@ import {
   purposeLabel,
 } from "@/features/orders/application/part-request.formatters";
 import {
+  deleteServiceOrder,
   getServiceOrderDetail,
+  getServiceOrderResolutionState,
+  insertServiceOrderStatusHistory,
+  listOrderStatusOptions,
   listServiceOrderMedia,
   loadOrdersWorkspace,
+  markServiceOrderSolvable,
+  markServiceOrderUnsolvable,
+  updateServiceOrderSituation,
+  updateServiceOrderStatus,
   listServiceOrderStatusHistory,
   listServiceOrderUsedItems,
 } from "@/features/orders/infrastructure/orders.repository";
@@ -629,7 +637,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const openEdit = async (o: any) => {
-    const { data: currentOrder, error: currentOrderError } = await supabase.from("service_orders").select("is_solved,cannot_be_solved,cannot_be_solved_reason").eq("id", o.id).maybeSingle();
+    const { data: currentOrder, error: currentOrderError } = await getServiceOrderResolutionState(o.id);
     if (currentOrderError) {
       setToast({ msg: `Não foi possível verificar o estado da OS: ${supabaseErrorMessage(currentOrderError)}`, type: "error" });
       return;
@@ -684,7 +692,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (detail?.cannot_be_solved && !solveDraft.cannotSolve) {
       setSaving(true);
       try {
-        const { error } = await supabase.from("service_orders").update({ cannot_be_solved: false, cannot_be_solved_reason: null }).eq("id", orderId);
+        const { error } = await markServiceOrderSolvable(orderId);
         if (error) throw error;
         setDetail({ ...detail, cannot_be_solved: false, cannot_be_solved_reason: null });
         setOrders(current => current.map(order => order.id === orderId ? { ...order, cannot_be_solved: false, cannot_be_solved_reason: null } : order));
@@ -706,7 +714,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       }
       setSaving(true);
       try {
-        const { error } = await supabase.from("service_orders").update({ cannot_be_solved: true, cannot_be_solved_reason: reason }).eq("id", orderId);
+        const { error } = await markServiceOrderUnsolvable(orderId, reason);
         if (error) throw error;
         const nextDetail = { ...detail, cannot_be_solved: true, cannot_be_solved_reason: reason };
         setDetail(nextDetail);
@@ -815,7 +823,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (needsScheduling && !form.scheduled_at) { setToast({ msg: "Informe a data e hora agendadas ou selecione Não.", type: "error" }); return; }
     if (form.equipment_brand_id && !equipmentBrands.some(brand => brand.id === form.equipment_brand_id && brand.equipment_type_id === form.equipment_type_id)) { setToast({ msg: "A marca selecionada não pertence ao equipamento.", type: "error" }); return; }
     if (form.equipment_model_id && !equipmentModels.some(model => model.id === form.equipment_model_id && model.equipment_brand_id === form.equipment_brand_id)) { setToast({ msg: "O modelo selecionado não pertence à marca.", type: "error" }); return; }
-    const { data: availableStatuses, error: statusError } = await supabase.from("order_statuses").select("id,name,sort_order").order("sort_order");
+    const { data: availableStatuses, error: statusError } = await listOrderStatusOptions();
     const status = editingOS ? (availableStatuses || []).find(item => item.id === form.status_id) : initialOrderStatus(availableStatuses || []);
     if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status válido para a OS.", type: "error" }); return; }
     setSaving(true);
@@ -916,7 +924,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setToast({ msg: "Você não possui permissão para resolver a OS.", type: "error" });
       return;
     }
-    const { data: currentOrder, error: currentOrderError } = await supabase.from("service_orders").select("is_solved,diagnosis,solution,cannot_be_solved,cannot_be_solved_reason").eq("id", order.id).maybeSingle();
+    const { data: currentOrder, error: currentOrderError } = await getServiceOrderResolutionState(order.id);
     if (currentOrderError) {
       setToast({ msg: `Não foi possível verificar o estado da OS: ${supabaseErrorMessage(currentOrderError)}`, type: "error" });
       return;
@@ -969,7 +977,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
   const handleDeleteOrder = async (id: string) => {
     if (!hasPermission("orders.delete")) return;
-    const { error } = await supabase.from("service_orders").delete().eq("id", id);
+    const { error } = await deleteServiceOrder(id);
     if (error) {
       setToast({ msg: `Não foi possível excluir a OS: ${error.message}`, type: "error" });
       setDeleteId(null);
@@ -983,9 +991,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
   const updateOrderStatus = async (order: any, statusId: string) => {
     if (!hasPermission("orders.status")) { setToast({ msg: "Você não possui permissão para alterar o status.", type: "error" }); return; }
-    const { error } = await supabase.from("service_orders").update({ status_id: statusId }).eq("id", order.id);
+    const { error } = await updateServiceOrderStatus(order.id, statusId);
     if (error) { setToast({ msg: `Erro: ${error.message}`, type: "error" }); return; }
-    await supabase.from("service_order_status_history").insert({ service_order_id: order.id, status_id: statusId, notes: null, is_visible_to_customer: false, created_by: user?.id || null });
+    await insertServiceOrderStatusHistory(order.id, statusId, user?.id || null);
     setToast({ msg: "Status atualizado!", type: "success" });
     const updated = orders.map(o => o.id === order.id ? { ...o, status_id: statusId, order_status: statuses.find(status => status.id === statusId) || o.order_status } : o);
     setOrders(updated);
@@ -994,7 +1002,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
   const updateOrderSituation = async (order: any, situationId: string) => {
     if (!hasPermission("orders.edit")) { setToast({ msg: "Você não possui permissão para alterar a situação.", type: "error" }); return; }
-    const { data, error } = await supabase.from("service_orders").update({ situation_id: situationId || null }).eq("id", order.id).select("situation_id").maybeSingle();
+    const { data, error } = await updateServiceOrderSituation(order.id, situationId || null);
     if (error) { setToast({ msg: `Erro ao alterar situação: ${supabaseErrorMessage(error)}`, type: "error" }); return; }
     const situation = situations.find(item => item.id === (data?.situation_id || situationId));
     setOrders(current => current.map(item => item.id === order.id ? { ...item, situation_id: data?.situation_id || situationId, situation: situation || null } : item));
@@ -1017,9 +1025,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     const nextStatus = statuses.find(status => status.id === statusId);
     setOrders(current => current.map(item => item.id === order.id ? { ...item, status_id: statusId, order_status: nextStatus || item.order_status } : item));
     try {
-      const { error } = await supabase.from("service_orders").update({ status_id: statusId }).eq("id", order.id);
+      const { error } = await updateServiceOrderStatus(order.id, statusId);
       if (error) throw error;
-      const { error: historyError } = await supabase.from("service_order_status_history").insert({ service_order_id: order.id, status_id: statusId, notes: null, is_visible_to_customer: false, created_by: user?.id || null });
+      const { error: historyError } = await insertServiceOrderStatusHistory(order.id, statusId, user?.id || null);
       if (historyError) console.warn("[ADMIN] OS status history warning:", historyError.message);
       setToast({ msg: `OS ${order.os_number || order.id.slice(0, 8)} movida para ${nextStatus?.name || "o novo status"}.`, type: "success" });
     } catch (error) {

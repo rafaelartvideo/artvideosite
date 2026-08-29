@@ -48,3 +48,61 @@ export const loadOrdersWorkspace = () =>
     supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order").eq("is_active", true).order("sort_order").order("title"),
     supabase.from("service_type_situations").select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order,situation:os_situations(id,name,color,hours,is_active)").order("sort_order"),
   ]);
+
+export const getServiceOrderResolutionState = (serviceOrderId: string) =>
+  supabase
+    .from("service_orders")
+    .select("is_solved,diagnosis,solution,cannot_be_solved,cannot_be_solved_reason")
+    .eq("id", serviceOrderId)
+    .maybeSingle();
+
+export const markServiceOrderSolvable = (serviceOrderId: string) =>
+  supabase
+    .from("service_orders")
+    .update({ cannot_be_solved: false, cannot_be_solved_reason: null })
+    .eq("id", serviceOrderId);
+
+export const markServiceOrderUnsolvable = (
+  serviceOrderId: string,
+  reason: string,
+) =>
+  supabase
+    .from("service_orders")
+    .update({ cannot_be_solved: true, cannot_be_solved_reason: reason })
+    .eq("id", serviceOrderId);
+
+export const listOrderStatusOptions = () =>
+  supabase.from("order_statuses").select("id,name,sort_order").order("sort_order");
+
+export const deleteServiceOrder = (serviceOrderId: string) =>
+  supabase.from("service_orders").delete().eq("id", serviceOrderId);
+
+export const updateServiceOrderStatus = (
+  serviceOrderId: string,
+  statusId: string,
+) =>
+  supabase.from("service_orders").update({ status_id: statusId }).eq("id", serviceOrderId);
+
+export const insertServiceOrderStatusHistory = (
+  serviceOrderId: string,
+  statusId: string,
+  createdBy: string | null,
+) =>
+  supabase.from("service_order_status_history").insert({
+    service_order_id: serviceOrderId,
+    status_id: statusId,
+    notes: null,
+    is_visible_to_customer: false,
+    created_by: createdBy,
+  });
+
+export const updateServiceOrderSituation = (
+  serviceOrderId: string,
+  situationId: string | null,
+) =>
+  supabase
+    .from("service_orders")
+    .update({ situation_id: situationId })
+    .eq("id", serviceOrderId)
+    .select("situation_id")
+    .maybeSingle();
