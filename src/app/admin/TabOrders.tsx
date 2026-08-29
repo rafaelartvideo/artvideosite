@@ -7,6 +7,12 @@ import {
 } from "@/features/orders/presentation/OrderQuickCreateModals";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import {
+  deliverServiceOrderTestRequest,
+  recordServiceOrderTestResults,
+  requestServiceOrderParts,
+  reviewServiceOrderPartRequest,
+} from "@/features/orders/infrastructure/orders-part-requests.repository";
+import {
   OrderImageLightbox,
   OrderImagesField,
   uploadOrderImage,
@@ -565,7 +571,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     for (const item of selectedPartRequestItems) { const quantity = Number(item.quantity); if (!item.quantity.trim() || !Number.isFinite(quantity) || quantity <= 0 || quantity > item.available_quantity) { setToast({ msg: `Informe uma quantidade válida para ${item.name}, sem exceder o estoque disponível.`, type: "error" }); return; } }
     setPartRequestSubmitting(true);
     try {
-      const { error } = await supabase.rpc("request_service_order_parts", { p_service_order_id: detail.id, p_items: selectedPartRequestItems.map(item => ({ inventory_item_id: item.inventory_item_id, quantity: Number(item.quantity) })), p_notes: partRequestNotes.trim() || null, p_purpose: partRequestPurpose });
+      const { error } = await requestServiceOrderParts({ serviceOrderId: detail.id, items: selectedPartRequestItems.map(item => ({ inventory_item_id: item.inventory_item_id, quantity: Number(item.quantity) })), notes: partRequestNotes.trim() || null, purpose: partRequestPurpose });
       if (error) throw error;
     } catch (error) {
       console.error("[PART REQUEST] submit error", error);
@@ -598,7 +604,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (!quantities.some(({ approved }) => approved > 0)) { setToast({ msg: "Aprove uma quantidade maior que zero em pelo menos uma peça.", type: "error" }); return; }
     setPartReviewSubmitting(true);
     try {
-      const { error } = await supabase.rpc("review_service_order_part_request", { p_request_id: selectedPartRequest.id, p_decision: "APPROVED", p_items: selectedPartRequest.items.map(item => ({ request_item_id: item.id, approved_quantity: Number(approvalQuantities[item.id] || 0) })), p_review_notes: partReviewNotes.trim() || null });
+      const { error } = await reviewServiceOrderPartRequest({ requestId: selectedPartRequest.id, decision: "APPROVED", items: selectedPartRequest.items.map(item => ({ request_item_id: item.id, approved_quantity: Number(approvalQuantities[item.id] || 0) })), reviewNotes: partReviewNotes.trim() || null });
       if (error) throw error;
       setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças aprovado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id); await load();
     } catch (error) { console.error("[PART REQUEST] approval error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
@@ -609,7 +615,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (!partReviewNotes.trim()) { setToast({ msg: "Informe o motivo da rejeição.", type: "error" }); return; }
     setPartReviewSubmitting(true);
     try {
-      const { error } = await supabase.rpc("review_service_order_part_request", { p_request_id: selectedPartRequest.id, p_decision: "REJECTED", p_items: [], p_review_notes: partReviewNotes.trim() });
+      const { error } = await reviewServiceOrderPartRequest({ requestId: selectedPartRequest.id, decision: "REJECTED", items: [], reviewNotes: partReviewNotes.trim() });
       if (error) throw error;
       setPartReviewSubmitting(false); setPartApprovalOpen(false); setPartRejectionOpen(false); setSelectedPartRequest(null); setApprovalQuantities({}); setPartReviewNotes(""); setToast({ msg: "Pedido de peças rejeitado.", type: "success" }); if (detail?.id) await loadPartRequests(detail.id); await load();
     } catch (error) { console.error("[PART REQUEST] rejection error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
@@ -620,7 +626,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (!selectedDeliveryRequest || deliverySubmitting) return;
     setDeliverySubmitting(true);
     try {
-      const { error } = await supabase.rpc("deliver_service_order_test_request", { p_request_id: selectedDeliveryRequest.id });
+      const { error } = await deliverServiceOrderTestRequest(selectedDeliveryRequest.id);
       if (error) throw error;
       setDeliveryOpen(false); setSelectedDeliveryRequest(null); setToast({ msg: "Peças entregues para teste.", type: "success" });
       await loadPartRequests(detail.id); await load();
@@ -639,7 +645,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     }
     setTestResultSubmitting(true);
     try {
-      const { data, error } = await supabase.rpc("record_service_order_test_results", { p_request_id: selectedTestRequest.id, p_actions: testResultRows.map(row => ({ request_item_id: row.requestItemId, action: row.action, quantity: Number(row.quantity), notes: row.notes.trim() || null })) });
+      const { data, error } = await recordServiceOrderTestResults({ requestId: selectedTestRequest.id, actions: testResultRows.map(row => ({ request_item_id: row.requestItemId, action: row.action, quantity: Number(row.quantity), notes: row.notes.trim() || null })) });
       if (error) throw error;
       setTestResultOpen(false); setSelectedTestRequest(null); setTestResultRows([]); setToast({ msg: data?.resolution_request_id ? "Resultado do teste registrado. Um novo pedido para resolução foi criado e aguarda aprovação." : "Resultado do teste registrado.", type: "success" }); await loadPartRequests(detail.id); await load();
     } catch (error) { console.error("[PART REQUEST] test results error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
