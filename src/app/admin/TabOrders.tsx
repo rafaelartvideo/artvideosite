@@ -98,8 +98,8 @@ import {
   OrderImageLightbox,
   OrderImagesField,
   uploadOrderImage,
-  type OrderImage,
 } from "@/features/orders/presentation/OrderImages";
+import { useOrderImages } from "@/features/orders/presentation/useOrderImages";
 import { useMediaUrl } from "@/lib/hooks";
 import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress, fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
@@ -208,7 +208,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [testResultRows, setTestResultRows] = useState<TestResultRow[]>([]);
   const [testResultSubmitting, setTestResultSubmitting] = useState(false);
   const [solveDraft, setSolveDraft] = useState({ diagnosis: "", solution: "", usedItems: [], cannotSolve: false, cannotSolveReason: "" } as { diagnosis: string; solution: string; usedItems: any[]; cannotSolve: boolean; cannotSolveReason: string });
-  const [solutionImages, setSolutionImages] = useState<OrderImage[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<any>(null);
@@ -246,9 +245,20 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const emptyForm = { service_id: "", general_service_id: "", service_type_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", technician_id: "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "", order_type: "internal" as OrderType, service_state: "", service_city: "", service_street: "", service_zip_code: "", service_neighborhood: "", service_number: "", service_complement: "", service_customer_address_id: "", external_os_number: "" };
   const [form, setForm] = useState(emptyForm);
   const [needsScheduling, setNeedsScheduling] = useState(true);
-  const [orderImages, setOrderImages] = useState<OrderImage[]>([]);
-  const [initialOrderImageIds, setInitialOrderImageIds] = useState<string[]>([]);
-  const [viewImage, setViewImage] = useState<OrderImage | null>(null);
+  const {
+    orderImages,
+    solutionImages,
+    viewImage,
+    setViewImage,
+    loadOrderImages,
+    replaceOrderImages,
+    clearOrderImages,
+    addOrderImages,
+    removeOrderImage,
+    replaceSolutionImages,
+    addSolutionImages,
+    removeSolutionImage,
+  } = useOrderImages();
   const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const selectedServiceAddress = ((selectedCustomer?.addresses || []) as Address[]).find(address => address.is_default) || ((selectedCustomer?.addresses || []) as Address[])[0] || null;
@@ -358,25 +368,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     return () => { zipRequestRef.current += 1; };
   }, [form.order_type, form.service_zip_code, serviceUseCustomerAddress]);
 
-  const loadOrderImages = async (orderId: string) => {
-    const { data, error } = await listServiceOrderMedia(orderId);
-    if (error) { console.error("[ADMIN] service order media load error:", error); setOrderImages([]); setInitialOrderImageIds([]); return; }
-    const images = (data || []).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
-    setOrderImages(images); setInitialOrderImageIds(images.map(image => image.mediaId).filter(Boolean));
-  };
-
-  const addOrderImages = (files: FileList | null) => {
-    const available = Math.max(0, 5 - orderImages.length);
-    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type)).slice(0, available);
-    setOrderImages(current => [...current, ...selected.map(file => ({ key: `new-${Date.now()}-${Math.random()}`, file, url: URL.createObjectURL(file), name: file.name }))]);
-  };
-
-  const removeOrderImage = (key: string) => setOrderImages(current => {
-    const removed = current.find(image => image.key === key);
-    if (removed?.url) URL.revokeObjectURL(removed.url);
-    return current.filter(image => image.key !== key);
-  });
-
   const loadPartRequestInventory = async () => {
     setPartRequestInventoryLoading(true);
     try {
@@ -459,7 +450,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setDetailUsedItems(usedItems || []);
     await loadPartRequests(o.id);
     setDetailSolutionImages(solutionImagesList);
-    setOrderImages(orderImagesList);
+    replaceOrderImages(orderImagesList);
     setDetail({ ...o, ...(currentOrder || {}) });
   };
 
@@ -593,7 +584,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const openNew = () => {
-    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]); setNeedsScheduling(true); setOrderImages([]); setInitialOrderImageIds([]); setViewImage(null); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
+    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]); setNeedsScheduling(true); clearOrderImages(); setViewImage(null); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
   };
 
   const openEdit = async (o: any) => {
@@ -739,7 +730,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       const { data: usedData } = await listServiceOrderUsedItems(orderId);
       const { data: mediaLinks } = await listServiceOrderMedia(orderId);
       setDetailUsedItems(usedData || []);
-      setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
+      replaceOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
       setDetailSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
       setSolveOpen(false);
       setToast({ msg: solutionImageError ? `OS resolvida, mas não foi possível salvar todas as imagens da solução: ${supabaseErrorMessage(solutionImageError)}` : "OS resolvida com sucesso.", type: solutionImageError ? "error" : "success" });
@@ -921,8 +912,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     });
     const approvedItems = Array.from(approvedByInventory.values());
     setInventoryItems(approvedItems.map((item: any) => item.inventory_item).filter(Boolean));
-    setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
-    setSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
+    replaceOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
+    replaceSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
     setSolveDraft({
       diagnosis: currentOrder?.diagnosis || order.diagnosis || "",
       solution: currentOrder?.solution || order.solution || "",
@@ -1407,7 +1398,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         inventoryItems={inventoryItems}
         orderImages={orderImages}
         solutionImages={solutionImages}
-        setSolutionImages={setSolutionImages}
+        onAddSolutionImages={addSolutionImages}
+        onRemoveSolutionImage={removeSolutionImage}
         saving={saving}
         onClose={() => setSolveOpen(false)}
         onViewImage={setViewImage}

@@ -21,7 +21,8 @@ export function OrderResolutionPage({
   inventoryItems,
   orderImages,
   solutionImages,
-  setSolutionImages,
+  onAddSolutionImages,
+  onRemoveSolutionImage,
   saving,
   onClose,
   onSubmit,
@@ -34,7 +35,8 @@ export function OrderResolutionPage({
   inventoryItems: any[];
   orderImages: OrderImage[];
   solutionImages: OrderImage[];
-  setSolutionImages: Dispatch<SetStateAction<OrderImage[]>>;
+  onAddSolutionImages: (files: FileList | null, keyPrefix?: string) => void;
+  onRemoveSolutionImage: (key: string) => void;
   saving: boolean;
   onClose: () => void;
   onSubmit: () => void;
@@ -118,9 +120,7 @@ export function OrderResolutionPage({
                   input.accept = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
                   input.multiple = true;
                   input.onchange = (event: any) => {
-                    const files = event.target.files as FileList | null;
-                    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type)).slice(0, 5 - solutionImages.length);
-                    setSolutionImages(current => [...current, ...selected.map(file => ({ key: `solution-${Date.now()}-${Math.random()}`, file, url: URL.createObjectURL(file), name: file.name }))]);
+                    onAddSolutionImages(event.target.files as FileList | null, "solution");
                   };
                   input.click();
                 }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Upload size={13} /> Adicionar imagens</button>
@@ -130,15 +130,13 @@ export function OrderResolutionPage({
                   input.accept = "image/*";
                   input.capture = "environment";
                   input.onchange = (event: any) => {
-                    const files = event.target.files as FileList | null;
-                    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type)).slice(0, 5 - solutionImages.length);
-                    setSolutionImages(current => [...current, ...selected.map(file => ({ key: `solution-cam-${Date.now()}-${Math.random()}`, file, url: URL.createObjectURL(file), name: file.name }))]);
+                    onAddSolutionImages(event.target.files as FileList | null, "solution-cam");
                   };
                   input.click();
                 }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Camera size={13} /> Abrir câmera</button>
               </div>
             </div>
-            {solutionImages.length > 0 ? <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onRemove={() => setSolutionImages(current => current.filter(item => item.key !== image.key))} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem adicionada para a solução.</p>}
+            {solutionImages.length > 0 ? <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onRemove={() => onRemoveSolutionImage(image.key)} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem adicionada para a solução.</p>}
           </Section>
         </div>
         <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
