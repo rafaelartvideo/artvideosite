@@ -52,6 +52,9 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 const PRIORITY_LABELS: Record<string, string> = { baixa: "Baixa", normal: "Normal", alta: "Alta", urgente: "Urgente" };
 
+export const getPriorityLabel = (priority?: string | null) =>
+  priority ? PRIORITY_LABELS[priority] || priority : "";
+
 export function PriorityBadge({ priority }: { priority?: string }) {
   const p = priority || "normal";
   return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap", PRIORITY_COLORS[p] || PRIORITY_COLORS.normal)}>{PRIORITY_LABELS[p] || p}</span>;

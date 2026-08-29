@@ -11,6 +11,7 @@ import { OrdersHeader } from "@/features/orders/presentation/OrdersHeader";
 import { OrdersFilters } from "@/features/orders/presentation/OrdersFilters";
 import {
   EmployeeMultiSelect,
+  getPriorityLabel,
   getResponsibleName,
   OrderAddressSelect,
   OrderFilterMultiSelect,
@@ -1283,7 +1284,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   <InfoRow label="Técnicos" value={(detail.technician_links || []).length ? (detail.technician_links || []).map((link: any) => link.employee?.full_name).filter(Boolean).join(", ") : (detail.technician as any)?.full_name || "Nenhum técnico atribuído"} />
                   <InfoRow label="Status" value={(detail.order_status as any)?.name} />
                   <InfoRow label="Situação" value={(detail.situation as any)?.name} />
-                  <InfoRow label="Prioridade" value={detail.priority ? PRIORITY_LABELS[detail.priority] || detail.priority : undefined} />
+                  <InfoRow label="Prioridade" value={getPriorityLabel(detail.priority) || undefined} />
                   <InfoRow label="Data de início" value={fmtDate(detail.created_at)} />
                   <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
                   <InfoRow label="Data de conclusão" value={fmtDate(detail.completed_at)} />
