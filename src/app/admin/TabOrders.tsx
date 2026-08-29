@@ -8,6 +8,8 @@ import {
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import {
   deliverServiceOrderTestRequest,
+  listActivePartInventory,
+  listServiceOrderPartRequests,
   recordServiceOrderTestResults,
   requestServiceOrderParts,
   reviewServiceOrderPartRequest,
@@ -445,7 +447,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const loadPartRequestInventory = async () => {
     setPartRequestInventoryLoading(true);
     try {
-      const { data, error } = await supabase.from("inventory_items").select("id,name,sku,unit,quantity,is_active").eq("is_active", true).order("name");
+      const { data, error } = await listActivePartInventory();
       if (error) {
         console.error("[PART REQUEST] inventory load error", error);
         setPartRequestInventory([]);
@@ -466,12 +468,12 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const loadInventoryItems = async () => {
-    const { data, error } = await supabase.from("inventory_items").select("id,name,sku,unit,quantity,is_active").eq("is_active", true).order("name");
+    const { data, error } = await listActivePartInventory();
     if (!error) setInventoryItems(data || []);
   };
 
   const loadPartRequests = async (orderId: string) => {
-    const { data, error } = await supabase.from("service_order_part_requests").select("id,service_order_id,requested_by,purpose,status,notes,reviewed_by,reviewed_at,review_notes,created_at,requested_by_profile:profiles!requested_by(full_name),reviewed_by_profile:profiles!reviewed_by(full_name),items:service_order_part_request_items(id,inventory_item_id,quantity,approved_quantity,source_test_item_id,delivered_quantity,delivered_at,delivered_by,returned_quantity,damaged_quantity,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", orderId).order("created_at", { ascending: false });
+    const { data, error } = await listServiceOrderPartRequests(orderId);
     if (error) { console.error("[ADMIN] part requests load error:", error); setDetailPartRequests([]); return; }
     setDetailPartRequests((data || []).map((request: any) => ({ ...request, requester: request.requested_by_profile || null, items: (request.items || []).map((item: any) => ({ ...item, request_status: request.status })) })));
   };
