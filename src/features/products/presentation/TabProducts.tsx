@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, Edit2, Package, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   deleteProduct,
   loadProductCatalog,
@@ -36,9 +38,14 @@ import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function TabProducts({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();
-  const [products, setProducts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const catalogQuery = useQuery({
+    queryKey: queryKeys.catalog.products(),
+    queryFn: loadProductCatalog,
+  });
+  const products = catalogQuery.data?.products ?? [];
+  const categories = catalogQuery.data?.categories ?? [];
+  const loading = catalogQuery.isPending;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [delId, setDelId] = useState<string | null>(null);
@@ -50,20 +57,17 @@ export function TabProducts({ onBack }: { onBack: () => void }) {
   const [form, setForm] = useState({ name: "", slug: "", sku: "", short_description: "", description: "", price: "", compare_at_price: "", cover_media_id: "", is_active: true, is_featured: false, category_id: "", brand_id: "", external_platform: "", external_product_id: "", external_url: "" });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const catalog = await loadProductCatalog();
-      setProducts(catalog.products);
-      setCategories(catalog.categories);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar produtos: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!catalogQuery.error) return;
+    const message = catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error);
+    setToast({ msg: `Erro ao carregar produtos: ${message}`, type: "error" });
+  }, [catalogQuery.error]);
+
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.products() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.featuredProducts() }),
+  ]);
 
   const autoSlug = slugify;
   const catOptions = [{ value: "", label: "Sem categoria" }, ...categories.map(c => ({ value: c.id, label: c.name }))];
@@ -82,7 +86,7 @@ export function TabProducts({ onBack }: { onBack: () => void }) {
       await saveProduct(payload, editItem?.id, user?.id ?? null);
       setDrawerOpen(false);
       setToast({ msg: editItem ? "Produto atualizado!" : "Produto criado!", type: "success" });
-      load();
+      await refresh();
     } catch (error) {
       setToast({ msg: `Erro ao salvar produto: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
     } finally {
@@ -96,7 +100,7 @@ export function TabProducts({ onBack }: { onBack: () => void }) {
       await deleteProduct(id);
       setDelId(null);
       setToast({ msg: "Produto excluído.", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao excluir produto: ${message}`, type: "error" });
@@ -108,7 +112,7 @@ export function TabProducts({ onBack }: { onBack: () => void }) {
     try {
       await updateProductFlags(product.id, { is_active: !product.is_active }, user?.id ?? null);
       setToast({ msg: "Status atualizado!", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao atualizar produto: ${message}`, type: "error" });
@@ -120,7 +124,7 @@ export function TabProducts({ onBack }: { onBack: () => void }) {
     try {
       await updateProductFlags(product.id, { is_featured: !product.is_featured }, user?.id ?? null);
       setToast({ msg: "Destaque atualizado!", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao atualizar destaque: ${message}`, type: "error" });
