@@ -8,7 +8,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -109,17 +109,9 @@ export function OrdersFilters({
           <input value={search} onChange={e => onSearchChange(e.target.value)} placeholder="Nome, CPF, CNPJ, OS ou OS Externa..." className={cn(INPUT, "h-[42px] pl-9 py-2 text-xs")} />
           </div>
         </div>
-        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">STATUS</label><select value={filterStatus} onChange={e => onStatusChange(e.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
-          <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select></div>
-        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">SITUAÇÕES</label><select value={filterSituation} onChange={e => onSituationChange(e.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
-          <option value="">Todas as situações</option>{situations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select></div>
-        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">TIPO</label><select value={filterOrderType} onChange={e => onOrderTypeChange(e.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
-          <option value="">Todos os tipos</option>
-          <option value="internal">Interna</option>
-          <option value="external">Externa</option>
-        </select></div>
+        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">STATUS</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} className="text-xs" ariaLabel="Filtrar por status" /></div>
+        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">SITUAÇÕES</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(s => ({ value: s.id, label: s.name }))]} className="text-xs" ariaLabel="Filtrar por situação" /></div>
+        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">TIPO</label><AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="text-xs" ariaLabel="Filtrar por tipo da OS" /></div>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
           <div>
@@ -137,10 +129,7 @@ export function OrdersFilters({
             {invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}
           </div>
           <div className="lg:col-span-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-            <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo de Atendimento</label><select value={selectedServiceTypeId} onChange={e => onServiceTypeChange(e.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
-              <option value="">Todos os tipos</option>
-              {serviceTypes.map(serviceType => <option key={serviceType.id} value={serviceType.id}>{serviceType.title}</option>)}
-            </select></div>
+            <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>
             <div className="flex items-end justify-start">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

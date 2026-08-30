@@ -1,6 +1,5 @@
 import React from "react";
-import { cn } from "@/shared/domain/formatters";
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 
 export function PaginationBar({ page, pageSize, totalItems, onPageChange, onPageSizeChange }: {
   page: number;
@@ -16,9 +15,7 @@ export function PaginationBar({ page, pageSize, totalItems, onPageChange, onPage
   return <div className="flex flex-col gap-3 border-t border-[#0d1b2e]/8 bg-[#f8fafc] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
     <div className="flex items-center gap-2 text-xs text-[#5a6a82]">
       <span>Linhas:</span>
-      <select value={pageSize} onChange={event => onPageSizeChange(Number(event.target.value))} className={cn(INPUT, "w-[82px] py-2 text-xs")}>
-        {[5, 10, 20, 30, 50, 100].map(value => <option key={value} value={value}>{value}</option>)}
-      </select>
+      <div className="w-[82px]"><AdminSelect value={pageSize} onValueChange={value => onPageSizeChange(Number(value))} options={[5, 10, 20, 30, 50, 100].map(value => ({ value, label: String(value) }))} className="min-h-8 py-1.5 text-xs" ariaLabel="Linhas por página" /></div>
     </div>
     <div className="flex items-center justify-end gap-2">
       <button type="button" onClick={() => onPageChange(1)} disabled={page <= 1} className={pageButton} aria-label="Primeira página">«</button>

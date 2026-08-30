@@ -11,6 +11,19 @@ import {
 } from "@/shared/ui/primitives/select";
 
 export const INPUT = "w-full bg-[#f8fafc] border border-[#0d1b2e]/15 rounded-lg px-3 py-2.5 text-sm text-[#0d1b2e] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/50 focus:border-[#0057e7] focus:bg-white transition-all placeholder-[#5a6a82]/50";
+const EMPTY_SELECT_VALUE = "__admin_select_empty__";
+
+export function AdminSelect({ value, defaultValue, onValueChange, options, disabled, required, name, className, ariaLabel }: { value?: string | number; defaultValue?: string | number; onValueChange: (value: string) => void; options: { value: string | number; label: string }[]; disabled?: boolean; required?: boolean; name?: string; className?: string; ariaLabel?: string }) {
+  const toSelectValue = (optionValue: unknown) => optionValue === "" || optionValue == null ? EMPTY_SELECT_VALUE : String(optionValue);
+  return <Select value={value !== undefined ? toSelectValue(value) : undefined} defaultValue={defaultValue !== undefined ? toSelectValue(defaultValue) : undefined} onValueChange={nextValue => onValueChange(nextValue === EMPTY_SELECT_VALUE ? "" : nextValue)} disabled={disabled} required={required} name={name}>
+    <SelectTrigger className={cn(INPUT, "h-auto min-h-[42px] cursor-pointer text-left", className)} aria-label={ariaLabel}>
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent className="border-[#0d1b2e]/10 bg-white text-[#0d1b2e] shadow-xl">
+      {options.map(option => <SelectItem key={String(option.value) || EMPTY_SELECT_VALUE} value={toSelectValue(option.value)} className="cursor-pointer focus:bg-[#eef5ff] focus:text-[#0057e7]">{option.label}</SelectItem>)}
+    </SelectContent>
+  </Select>;
+}
 
 export function FInput({ label, required, hint, disabled = false, ...props }: { label?: string; required?: boolean; hint?: string; disabled?: boolean; [key: string]: any }) {
   const isColorInput = props.type === "color";
@@ -48,20 +61,10 @@ export function FTextarea({ label, rows = 3, ...props }: { label?: string; rows?
 }
 
 export function FSelect({ label, options, ...props }: { label?: string; options: { value: string; label: string }[]; [key: string]: any }) {
-  const { value, defaultValue, onChange, disabled, required, name, className, ...rootProps } = props;
-  const emptyValue = "__fselect_empty__";
-  const toSelectValue = (optionValue: unknown) => optionValue === "" || optionValue == null ? emptyValue : String(optionValue);
-  const emitChange = (nextValue: string) => onChange?.({ target: { value: nextValue === emptyValue ? "" : nextValue } });
+  const { value, defaultValue, onChange, disabled, required, name, className } = props;
   return <div>
     {label && <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}{required && <span className="text-red-400">*</span>}</label>}
-    <Select value={value !== undefined ? toSelectValue(value) : undefined} defaultValue={defaultValue !== undefined ? toSelectValue(defaultValue) : undefined} onValueChange={emitChange} disabled={disabled} required={required} name={name} {...rootProps}>
-      <SelectTrigger className={cn(INPUT, "h-auto min-h-[42px] cursor-pointer text-left", className)} aria-label={label}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent className="border-[#0d1b2e]/10 bg-white text-[#0d1b2e] shadow-xl">
-        {options.map(option => <SelectItem key={option.value || emptyValue} value={toSelectValue(option.value)} className="cursor-pointer focus:bg-[#eef5ff] focus:text-[#0057e7]">{option.label}</SelectItem>)}
-      </SelectContent>
-    </Select>
+    <AdminSelect value={value} defaultValue={defaultValue} onValueChange={nextValue => onChange?.({ target: { value: nextValue } })} options={options} disabled={disabled} required={required} name={name} className={className} ariaLabel={label} />
   </div>;
 }
 
