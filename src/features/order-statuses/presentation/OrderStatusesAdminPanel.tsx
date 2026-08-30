@@ -173,4 +173,4 @@ function OrderStatusesAdminPanelContent() {
       </AdminPage>
     </div>
   );
-}/* OSSituationsView moved to admin/TabOrders. */
+}/* OSSituationsView moved to features/orders/presentation/TabOrders. */

@@ -13,7 +13,7 @@ import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 
 const TabOrders = lazy(() =>
-  import("./admin/TabOrders").then(({ TabOrders }) => ({ default: TabOrders })),
+  import("@/features/orders/presentation/TabOrders").then(({ TabOrders }) => ({ default: TabOrders })),
 );
 const OSSituationsView = lazy(() =>
   import("@/features/order-situations/presentation/OSSituationsView").then(

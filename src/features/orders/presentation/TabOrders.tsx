@@ -55,7 +55,7 @@ import {
   AdminPage,
   supabaseErrorMessage,
   type AdminTab,
-} from "./shared";
+} from "@/app/admin/shared";
 
 type OrderType = "internal" | "external";
 
@@ -810,4 +810,3 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     </div>
   );
 }
-
