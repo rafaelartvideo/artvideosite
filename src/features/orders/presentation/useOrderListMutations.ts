@@ -24,6 +24,7 @@ export function useOrderListMutations({
   hasPermission,
   showToast,
   formatError,
+  syncRelatedCaches,
 }: {
   orders: any[];
   setOrders: Dispatch<SetStateAction<any[]>>;
@@ -35,6 +36,7 @@ export function useOrderListMutations({
   hasPermission: (permission: string) => boolean;
   showToast: (toast: ToastMessage) => void;
   formatError: (error: unknown) => string;
+  syncRelatedCaches: () => Promise<void>;
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
@@ -50,13 +52,8 @@ export function useOrderListMutations({
       return;
     }
 
-    const { error } = await updateServiceOrderStatus(order.id, statusId);
-    if (error) {
-      showToast({ msg: `Erro: ${error.message}`, type: "error" });
-      return;
-    }
-
-    await insertServiceOrderStatusHistory(order.id, statusId, userId || null);
+    const previousOrders = orders;
+    const previousDetail = detail;
     const nextStatus = statuses.find(status => status.id === statusId);
     setOrders(current => current.map(item =>
       item.id === order.id
@@ -68,7 +65,18 @@ export function useOrderListMutations({
         ? { ...current, status_id: statusId, order_status: nextStatus || current.order_status }
         : current,
     );
+
+    const { error } = await updateServiceOrderStatus(order.id, statusId);
+    if (error) {
+      setOrders(previousOrders);
+      setDetail(previousDetail);
+      showToast({ msg: `Erro: ${error.message}`, type: "error" });
+      return;
+    }
+
+    await insertServiceOrderStatusHistory(order.id, statusId, userId || null);
     showToast({ msg: "Status atualizado!", type: "success" });
+    await syncRelatedCaches();
   };
 
   const updateOrderSituation = async (order: any, situationId: string) => {
@@ -80,11 +88,35 @@ export function useOrderListMutations({
       return;
     }
 
+    const previousOrders = orders;
+    const previousDetail = detail;
+    const optimisticSituation = situations.find(item => item.id === situationId);
+    setOrders(current => current.map(item =>
+      item.id === order.id
+        ? {
+            ...item,
+            situation_id: situationId || null,
+            situation: optimisticSituation || null,
+          }
+        : item,
+    ));
+    setDetail((current: any) =>
+      current?.id === order.id
+        ? {
+            ...current,
+            situation_id: situationId || null,
+            situation: optimisticSituation || null,
+          }
+        : current,
+    );
+
     const { data, error } = await updateServiceOrderSituation(
       order.id,
       situationId || null,
     );
     if (error) {
+      setOrders(previousOrders);
+      setDetail(previousDetail);
       showToast({
         msg: `Erro ao alterar situação: ${formatError(error)}`,
         type: "error",
@@ -112,6 +144,7 @@ export function useOrderListMutations({
           }
         : current,
     );
+    await syncRelatedCaches();
   };
 
   const handleKanbanDrop = async (statusId: string) => {
@@ -147,6 +180,7 @@ export function useOrderListMutations({
         msg: `OS ${order.os_number || order.id.slice(0, 8)} movida para ${nextStatus?.name || "o novo status"}.`,
         type: "success",
       });
+      await syncRelatedCaches();
     } catch (error) {
       setOrders(previousOrders);
       showToast({

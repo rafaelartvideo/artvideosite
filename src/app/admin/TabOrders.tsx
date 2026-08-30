@@ -321,6 +321,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     hasPermission,
     showToast: setToast,
     formatError: supabaseErrorMessage,
+    syncRelatedCaches: reloadWorkspace,
   });
 
   useEffect(() => {
