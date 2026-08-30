@@ -30,6 +30,7 @@ import {
 import { cn } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
+  AdminSelect,
   FInput,
   FTextarea,
   FToggle,
@@ -351,11 +352,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
             </div>
             <div>
               <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Tipo</label>
-              <select value={movementForm.type} onChange={(e: any) => setMovementForm({ ...movementForm, type: e.target.value })} className={cn(INPUT, "text-xs")}>
-                <option value="in">Entrada</option>
-                <option value="out">Saída</option>
-                <option value="adjust">Ajuste</option>
-              </select>
+              <AdminSelect value={movementForm.type} onValueChange={type => setMovementForm({ ...movementForm, type })} options={[{ value: "in", label: "Entrada" }, { value: "out", label: "Saída" }, { value: "adjust", label: "Ajuste" }]} className="text-xs" ariaLabel="Tipo de movimentação" />
             </div>
             <FInput label="Quantidade" type="number" min="1" value={movementForm.quantity} onChange={(e: any) => setMovementForm({ ...movementForm, quantity: e.target.value })} />
             <FInput label="Motivo" value={movementForm.reason} onChange={(e: any) => setMovementForm({ ...movementForm, reason: e.target.value })} />
