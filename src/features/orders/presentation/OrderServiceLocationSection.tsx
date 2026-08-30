@@ -3,6 +3,7 @@ import { formatZipCode } from "@/lib/address";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { Section } from "@/shared/ui/admin/AdminLayout";
 import { OrderAddressSelect } from "./OrderFormControls";
+import { Checkbox } from "@/shared/ui/primitives/checkbox";
 
 type OrderType = "internal" | "external";
 
@@ -57,9 +58,9 @@ export function OrderServiceLocationSection({
                 }} options={[{ value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} />
                 {form.order_type === "external" && <>
                   <label className="flex items-center gap-2 text-sm font-semibold text-[#0d1b2e]">
-                    <input type="checkbox" checked={serviceUseCustomerAddress} onChange={event => {
-                      if (event.target.checked && selectedServiceAddress) { setServiceUseCustomerAddress(true); setServiceCustomerAddressOverride(true); setServiceAddressMessage(""); copyCustomerAddressToForm(selectedServiceAddress); }
-                      else if (event.target.checked) { setServiceUseCustomerAddress(false); setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento."); }
+                    <Checkbox checked={serviceUseCustomerAddress} onCheckedChange={checked => {
+                      if (checked === true && selectedServiceAddress) { setServiceUseCustomerAddress(true); setServiceCustomerAddressOverride(true); setServiceAddressMessage(""); copyCustomerAddressToForm(selectedServiceAddress); }
+                      else if (checked === true) { setServiceUseCustomerAddress(false); setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento."); }
                       else { setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); clearServiceAddress(); }
                     }} />
                     Usar endereço cadastrado do cliente

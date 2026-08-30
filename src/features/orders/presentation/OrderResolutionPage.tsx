@@ -8,6 +8,7 @@ import {
 } from "@/shared/ui/admin/AdminLayout";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { InfoRow } from "./OrderDetailsContent";
+import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import {
   OrderImageThumb,
   type OrderImage,
@@ -74,7 +75,7 @@ export function OrderResolutionPage({
 
           <Section title="Resultado do atendimento">
             <label className="flex items-start gap-2 text-sm font-bold text-[#0d1b2e]">
-              <input type="checkbox" checked={solveDraft.cannotSolve} onChange={event => setSolveDraft(current => ({ ...current, cannotSolve: event.target.checked }))} />
+              <Checkbox checked={solveDraft.cannotSolve} onCheckedChange={checked => setSolveDraft(current => ({ ...current, cannotSolve: checked === true }))} />
               OS não pode ser solucionada
             </label>
             {solveDraft.cannotSolve && <div className="mt-3"><FTextarea label="Justificativa" value={solveDraft.cannotSolveReason} onChange={(e: any) => setSolveDraft(current => ({ ...current, cannotSolveReason: e.target.value }))} rows={4} hint="Informe por que esta OS não pode ser solucionada." /></div>}
