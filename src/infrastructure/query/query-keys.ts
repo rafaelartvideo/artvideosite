@@ -21,6 +21,10 @@ export const queryKeys = {
     lists: () => ["customers", "list"] as const,
     history: (customerId: string) => ["customers", "history", customerId] as const,
   },
+  generalServices: {
+    all: ["general-services"] as const,
+    lists: () => ["general-services", "list"] as const,
+  },
   inventory: {
     all: ["inventory"] as const,
     lists: () => ["inventory", "list"] as const,
