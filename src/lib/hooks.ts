@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/infrastructure/query/query-keys";
+import { getSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
 import * as queries from "./queries";
 import type { Service, ServiceCategory, Product, Brand, Media } from "./database.types";
 
@@ -227,19 +230,22 @@ export function useBrands() {
 }
 
 export function useSiteSettings() {
-  const [settings, setSettings] = useState<Record<string, unknown>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.settings(),
+    queryFn: getSiteSettings,
+  });
 
-  useEffect(() => {
-    queries.getSiteSettings().then(({ data, error: queryError }) => {
-      if (queryError) setError(queryError.message);
-      else setSettings(Object.fromEntries((data || []).map((setting) => [setting.setting_key, setting.setting_value ?? ""])));
-      setLoading(false);
-    });
-  }, []);
+  const error = query.error
+    ? query.error instanceof Error
+      ? query.error.message
+      : "Erro ao buscar configurações do site"
+    : null;
 
-  return { settings, loading, error };
+  return {
+    settings: query.data ?? {},
+    loading: query.isPending,
+    error,
+  };
 }
 
 // ── Media ─────────────────────────────────────────────────────
