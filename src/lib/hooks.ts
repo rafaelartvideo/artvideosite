@@ -1,232 +1,119 @@
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { getSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
 import * as queries from "./queries";
-import type { Service, ServiceCategory, Product, Brand, Media } from "./database.types";
+import type { Service, ServiceCategory, Product, Brand } from "./database.types";
 
-// ── Services ──────────────────────────────────────────────────
+async function unwrapQuery<T>(
+  request: PromiseLike<{ data: T; error: { message: string } | null }>,
+): Promise<T> {
+  const { data, error } = await request;
+  if (error) throw error;
+  return data;
+}
+
+function queryError(error: unknown, fallback: string) {
+  if (!error) return null;
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function useServices() {
-  const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error: err } = await queries.getServices();
-        if (err) throw err;
-        setServices(data || []);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao buscar serviços");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  return { services, loading, error };
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.services(),
+    queryFn: () => unwrapQuery<Service[]>(queries.getServices()).then((data) => data ?? []),
+  });
+  return {
+    services: query.data ?? [],
+    loading: query.isPending,
+    error: queryError(query.error, "Erro ao buscar serviços"),
+  };
 }
 
 export function useServiceById(id: string) {
-  const [service, setService] = useState<Service | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error: err } = await queries.getServiceById(id);
-        if (err) throw err;
-        setService(data);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao buscar serviço");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id]);
-
-  return { service, loading, error };
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.serviceById(id),
+    queryFn: () => unwrapQuery<Service | null>(queries.getServiceById(id)),
+    enabled: Boolean(id),
+  });
+  return {
+    service: query.data ?? null,
+    loading: query.isPending,
+    error: queryError(query.error, "Erro ao buscar serviço"),
+  };
 }
 
 export function useServiceDetailBySlug(slug: string | null) {
-  const [detail, setDetail] = useState<any | null>(null);
-  const [loading, setLoading] = useState(Boolean(slug));
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!slug) {
-      setDetail(null);
-      setLoading(false);
-      setError(null);
-      return () => { active = false; };
-    }
-
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const { data, error: queryError } = await queries.getServiceDetailBySlug(slug);
-        if (!active) return;
-        if (queryError) {
-          setError(queryError.message);
-          setDetail(null);
-        } else {
-          setDetail(data);
-        }
-      } catch (e) {
-        if (!active) return;
-        setError(e instanceof Error ? e.message : "Erro ao buscar serviço");
-        setDetail(null);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    load();
-    return () => { active = false; };
-  }, [slug]);
-
-  return { detail, loading, error };
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.service(slug ?? ""),
+    queryFn: () => unwrapQuery<any | null>(queries.getServiceDetailBySlug(slug!)),
+    enabled: Boolean(slug),
+  });
+  return {
+    detail: query.data ?? null,
+    loading: Boolean(slug) && query.isPending,
+    error: queryError(query.error, "Erro ao buscar serviço"),
+  };
 }
 
-// ── Service Categories ────────────────────────────────────────
 export function useServiceCategories() {
-  const [categories, setCategories] = useState<ServiceCategory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error: err } = await queries.getServiceCategories();
-        if (err) throw err;
-        setCategories(data || []);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao buscar categorias");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  return { categories, loading, error };
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.categories(),
+    queryFn: () => unwrapQuery<ServiceCategory[]>(queries.getServiceCategories()).then((data) => data ?? []),
+  });
+  return {
+    categories: query.data ?? [],
+    loading: query.isPending,
+    error: queryError(query.error, "Erro ao buscar categorias"),
+  };
 }
 
-// ── Products ──────────────────────────────────────────────────
 export function useProducts() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error: err } = await queries.getProducts();
-        if (err) throw err;
-        setProducts(data || []);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao buscar produtos");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  return { products, loading, error };
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.products(),
+    queryFn: () => unwrapQuery<Product[]>(queries.getProducts()).then((data) => data ?? []),
+  });
+  return {
+    products: query.data ?? [],
+    loading: query.isPending,
+    error: queryError(query.error, "Erro ao buscar produtos"),
+  };
 }
 
 export function useFeaturedProducts() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error: err } = await queries.getFeaturedProducts();
-        if (err) throw err;
-        setProducts(data || []);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao buscar produtos em destaque");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  return { products, loading, error };
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.featuredProducts(),
+    queryFn: () => unwrapQuery<Product[]>(queries.getFeaturedProducts()).then((data) => data ?? []),
+  });
+  return {
+    products: query.data ?? [],
+    loading: query.isPending,
+    error: queryError(query.error, "Erro ao buscar produtos em destaque"),
+  };
 }
 
 export function useProductDetailBySlug(slug: string | null) {
-  const [detail, setDetail] = useState<any | null>(null);
-  const [loading, setLoading] = useState(Boolean(slug));
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!slug) {
-      setDetail(null);
-      setLoading(false);
-      setError(null);
-      return () => { active = false; };
-    }
-
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const { data, error: queryError } = await queries.getProductDetailBySlug(slug);
-        if (!active) return;
-        if (queryError) {
-          setError(queryError.message);
-          setDetail(null);
-        } else {
-          setDetail(data);
-        }
-      } catch (e) {
-        if (!active) return;
-        setError(e instanceof Error ? e.message : "Erro ao buscar produto");
-        setDetail(null);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    load();
-    return () => { active = false; };
-  }, [slug]);
-
-  return { detail, loading, error };
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.product(slug ?? ""),
+    queryFn: () => unwrapQuery<any | null>(queries.getProductDetailBySlug(slug!)),
+    enabled: Boolean(slug),
+  });
+  return {
+    detail: query.data ?? null,
+    loading: Boolean(slug) && query.isPending,
+    error: queryError(query.error, "Erro ao buscar produto"),
+  };
 }
 
-// ── Brands ────────────────────────────────────────────────────
 export function useBrands() {
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error: err } = await queries.getBrands();
-        if (err) throw err;
-        setBrands(data || []);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao buscar marcas");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  return { brands, loading, error };
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.brands(),
+    queryFn: () => unwrapQuery<Brand[]>(queries.getBrands()).then((data) => data ?? []),
+  });
+  return {
+    brands: query.data ?? [],
+    loading: query.isPending,
+    error: queryError(query.error, "Erro ao buscar marcas"),
+  };
 }
 
 export function useSiteSettings() {
@@ -234,81 +121,32 @@ export function useSiteSettings() {
     queryKey: queryKeys.publicSite.settings(),
     queryFn: getSiteSettings,
   });
-
-  const error = query.error
-    ? query.error instanceof Error
-      ? query.error.message
-      : "Erro ao buscar configurações do site"
-    : null;
-
   return {
     settings: query.data ?? {},
     loading: query.isPending,
-    error,
+    error: queryError(query.error, "Erro ao buscar configurações do site"),
   };
 }
 
-// ── Media ─────────────────────────────────────────────────────
 export function useMediaUrl(mediaId: string | null | undefined) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(Boolean(mediaId));
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!mediaId) {
-      setUrl(null);
-      setLoading(false);
-      setError(null);
-      return () => { active = false; };
-    }
-
-    (async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        console.log("[MEDIA LOAD] OS ID:", mediaId);
-        const { data, error: err } = await queries.getMediaById(mediaId);
-        if (!active) return;
-
-        if (err || !data) {
-          console.error("[MEDIA LOAD] error:", err ?? "Imagem não encontrada");
-          setUrl(null);
-          setError(err?.message ?? "Imagem não encontrada");
-          return;
-        }
-
-        console.log("[MEDIA LOAD] records:", data);
-        const bucketName = (data as any).bucket_id ?? (data as any).bucket_name ?? null;
-        const storagePath = data.storage_path ?? null;
-        console.log("[MEDIA LOAD] bucket:", bucketName);
-        console.log("[MEDIA LOAD] storage path:", storagePath);
-
-        if (bucketName && storagePath) {
-          const generatedUrl = queries.getPublicStorageUrl(bucketName, storagePath);
-          console.log("[MEDIA LOAD] generated URL:", generatedUrl);
-          setUrl(generatedUrl || null);
-          if (!generatedUrl) setError("Imagem indisponível");
-        } else {
-          console.warn("[MEDIA LOAD] missing bucket or storage path for media id:", mediaId);
-          setUrl(null);
-          setError("Imagem indisponível");
-        }
-      } catch (e) {
-        if (!active) return;
-        const message = e instanceof Error ? e.message : "Erro ao buscar imagem";
-        console.error("[MEDIA LOAD] error:", message);
-        setError(message);
-        setUrl(null);
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-
-    return () => { active = false; };
-  }, [mediaId]);
-
-  return { url, loading, error };
+  const query = useQuery({
+    queryKey: queryKeys.publicSite.media(mediaId ?? ""),
+    queryFn: async () => {
+      const media = await unwrapQuery<any | null>(queries.getMediaById(mediaId!));
+      if (!media) throw new Error("Imagem não encontrada");
+      const bucketName = media.bucket_id ?? media.bucket_name ?? null;
+      const storagePath = media.storage_path ?? null;
+      if (!bucketName || !storagePath) throw new Error("Imagem indisponível");
+      const url = queries.getPublicStorageUrl(bucketName, storagePath);
+      if (!url) throw new Error("Imagem indisponível");
+      return url;
+    },
+    enabled: Boolean(mediaId),
+    staleTime: 30 * 60_000,
+  });
+  return {
+    url: query.data ?? null,
+    loading: Boolean(mediaId) && query.isPending,
+    error: queryError(query.error, "Erro ao buscar imagem"),
+  };
 }

@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "../../../infrastructure/query/query-keys";
 import {
   getServiceOrderDetail,
   listServiceOrderMedia,
@@ -18,44 +20,64 @@ export function useOrderDetails({
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
   const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
-  const openDetail = async (order: any) => {
-    const [
-      { data: currentOrder },
-      { data: history },
-      { data: mediaLinks },
-      { data: usedItems },
-    ] = await Promise.all([
-      getServiceOrderDetail(order.id),
-      listServiceOrderStatusHistory(order.id),
-      listServiceOrderMedia(order.id),
-      listServiceOrderUsedItems(order.id),
-    ]);
+  const detailQuery = useQuery({
+    queryKey: queryKeys.orders.detail(selectedOrder?.id || ""),
+    enabled: Boolean(selectedOrder?.id),
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [
+        { data: currentOrder },
+        { data: history },
+        { data: mediaLinks },
+        { data: usedItems },
+      ] = await Promise.all([
+        getServiceOrderDetail(selectedOrder.id),
+        listServiceOrderStatusHistory(selectedOrder.id),
+        listServiceOrderMedia(selectedOrder.id),
+        listServiceOrderUsedItems(selectedOrder.id),
+      ]);
 
-    const orderImages = (mediaLinks || [])
-      .filter((item: any) => Number(item.sort_order ?? 0) < 1000)
-      .map((item: any) => ({
-        key: item.id,
-        mediaId: item.media_id,
-        name: item.media?.file_name || "Imagem da OS",
-      }));
-    const solutionImages = (mediaLinks || [])
-      .filter((item: any) => Number(item.sort_order ?? 0) >= 1000)
-      .map((item: any) => ({
-        key: item.id,
-        mediaId: item.media_id,
-        name: item.media?.file_name || "Imagem da solução",
-      }));
+      const orderImages = (mediaLinks || [])
+        .filter((item: any) => Number(item.sort_order ?? 0) < 1000)
+        .map((item: any) => ({
+          key: item.id,
+          mediaId: item.media_id,
+          name: item.media?.file_name || "Imagem da OS",
+        }));
+      const solutionImages = (mediaLinks || [])
+        .filter((item: any) => Number(item.sort_order ?? 0) >= 1000)
+        .map((item: any) => ({
+          key: item.id,
+          mediaId: item.media_id,
+          name: item.media?.file_name || "Imagem da solução",
+        }));
 
+      return { currentOrder, history, usedItems, orderImages, solutionImages };
+    },
+  });
+
+  useEffect(() => {
+    if (!detailQuery.data || !selectedOrder) return;
+    const { currentOrder, history, usedItems, orderImages, solutionImages } = detailQuery.data;
     setDetailHistory(history || []);
     setDetailUsedItems(usedItems || []);
-    await loadPartRequests(order.id);
     setDetailSolutionImages(solutionImages);
     replaceOrderImages(orderImages);
-    setDetail({ ...order, ...(currentOrder || {}) });
+    setDetail({ ...selectedOrder, ...(currentOrder || {}) });
+    void loadPartRequests(selectedOrder.id);
+  }, [detailQuery.data]);
+
+  const openDetail = (order: any) => {
+    setSelectedOrder(order);
+    setDetail(order);
   };
 
-  const closeDetail = () => setDetail(null);
+  const closeDetail = () => {
+    setDetail(null);
+    setSelectedOrder(null);
+  };
 
   return {
     detail,

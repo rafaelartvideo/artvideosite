@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, FileText, RefreshCw, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   createServiceOrderFromQuote,
   deleteQuote,
@@ -33,9 +35,27 @@ import {
 
 export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const { user, hasPermission } = useAuth();
-  const [quotes, setQuotes] = useState<any[]>([]);
-  const [statuses, setStatuses] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const quotesQuery = useQuery({
+    queryKey: queryKeys.quotes.lists(),
+    queryFn: async () => {
+      const [quotesResult, statusResult] = await Promise.all([
+        listQuotes(),
+        listRequestStatuses(),
+      ]);
+      if (quotesResult.error) throw quotesResult.error;
+      if (statusResult.error) throw statusResult.error;
+      return {
+        quotes: (quotesResult.data || []).map((quote: any) => ({
+          ...quote,
+          statusName: quote.request_status?.name || "Sem status",
+        })),
+        statuses: statusResult.data || [],
+      };
+    },
+  });
+  const quotes = quotesQuery.data?.quotes ?? [];
+  const statuses = quotesQuery.data?.statuses ?? [];
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [page, setPage] = useState(1);
@@ -44,19 +64,21 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    const [quotesResult, statusResult] = await Promise.all([
-      listQuotes(),
-      listRequestStatuses(),
+  useEffect(() => {
+    if (!quotesQuery.error) return;
+    setToast({
+      msg: `Erro ao carregar orçamentos: ${quotesQuery.error instanceof Error ? quotesQuery.error.message : String(quotesQuery.error)}`,
+      type: "error",
+    });
+  }, [quotesQuery.error]);
+
+  const syncQuotes = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard() }),
     ]);
-    if (quotesResult.error) setToast({ msg: `Erro ao carregar orçamentos: ${quotesResult.error.message}`, type: "error" });
-    else setQuotes((quotesResult.data || []).map((q: any) => ({ ...q, statusName: q.request_status?.name || "Sem status" })));
-    if (statusResult.error) setToast({ msg: `Erro ao carregar status: ${statusResult.error.message}`, type: "error" });
-    else setStatuses(statusResult.data || []);
-    setLoading(false);
   };
-  useEffect(() => { load(); }, []);
 
   const updateStatus = async (id: string, statusId: string) => {
     if (!hasPermission("quotes.update") && !hasPermission("quotes.edit")) return;
@@ -67,7 +89,7 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
     if (historyError) console.warn("[ADMIN] quote status history warning:", historyError.message);
     if (detail?.id === id) setDetail({ ...detail, status_id: statusId, statusName: selectedStatus?.name || "Sem status" });
     setToast({ msg: "Status atualizado!", type: "success" });
-    load();
+    await syncQuotes();
   };
 
   const handleDeleteQuote = async (id: string) => {
@@ -81,7 +103,7 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
     setToast({ msg: "Orçamento excluído.", type: "success" });
     setDeleteId(null);
     setDetail(null);
-    await load();
+    await syncQuotes();
   };
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -114,8 +136,8 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
       {deleteId && <ConfirmDialog message="Excluir este orçamento? Esta ação remove o registro da tabela de cotações." onConfirm={() => { void handleDeleteQuote(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       <PageHeader title="Orçamentos" subtitle={`${quotes.length} solicitaç${quotes.length !== 1 ? "ões" : "ão"} recebida${quotes.length !== 1 ? "s" : ""}`} actions={
-        <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
-          <RefreshCw size={13} /> Atualizar
+        <button onClick={() => void quotesQuery.refetch()} disabled={quotesQuery.isFetching} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors disabled:opacity-60">
+          <RefreshCw size={13} className={quotesQuery.isFetching ? "animate-spin" : ""} /> Atualizar
         </button>
       } />
 
@@ -130,7 +152,7 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
           </select>
         </div>
 
-        {loading ? <LoadingState /> : filtered.length === 0 ? (
+        {quotesQuery.isPending ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState icon={FileText} title="Nenhuma solicitação" message="As solicitações de orçamento aparecem aqui." />
         ) : (
           <div className="overflow-x-auto">

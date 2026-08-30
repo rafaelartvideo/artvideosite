@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   ClipboardList,
@@ -15,32 +15,32 @@ import {
   StatusBadge,
 } from "@/app/admin/shared";
 import { loadDashboardOverview } from "../infrastructure/dashboard.repository";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 
 export function TabDashboard() {
-  const [stats, setStats] = useState({ quotesPending: 0, quotesAnalysis: 0, ordersActive: 0, ordersWaiting: 0, servicesActive: 0, productsActive: 0 });
-  const [recentQuotes, setRecentQuotes] = useState<any[]>([]);
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    setLoading(true);
+  const dashboardQuery = useQuery({
+    queryKey: queryKeys.admin.dashboard(),
+    queryFn: async () => {
     const [qAll, oAll, sActive, pActive, rQuotes, rOrders] = await loadDashboardOverview();
     const quotes = qAll.data || [];
     const orders = oAll.data || [];
-    setStats({
+    return {
+      stats: {
       quotesPending: quotes.filter((q: any) => ((q.request_status as any)?.name || "").toLowerCase().includes("pend")).length,
       quotesAnalysis: quotes.filter((q: any) => { const n = ((q.request_status as any)?.name || "").toLowerCase(); return n.includes("anál") || n.includes("analise") || n.includes("análise"); }).length,
       ordersActive: orders.filter((o: any) => { const n = ((o.order_status as any)?.name || "").toLowerCase(); return n.includes("manutenç") || n.includes("andamento") || n.includes("execuç"); }).length,
       ordersWaiting: orders.filter((o: any) => { const n = ((o.order_status as any)?.name || "").toLowerCase(); return n.includes("aguard") || n.includes("client"); }).length,
       servicesActive: sActive.count || 0,
       productsActive: pActive.count || 0,
-    });
-    setRecentQuotes(rQuotes.data || []);
-    setRecentOrders(rOrders.data || []);
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
+      },
+      recentQuotes: rQuotes.data || [],
+      recentOrders: rOrders.data || [],
+    };
+    },
+  });
+  const stats = dashboardQuery.data?.stats ?? { quotesPending: 0, quotesAnalysis: 0, ordersActive: 0, ordersWaiting: 0, servicesActive: 0, productsActive: 0 };
+  const recentQuotes = dashboardQuery.data?.recentQuotes ?? [];
+  const recentOrders = dashboardQuery.data?.recentOrders ?? [];
 
   const cards = [
     { label: "Orçamentos pendentes", val: stats.quotesPending, icon: FileText, color: "text-amber-600 bg-amber-50 border-amber-100" },
@@ -56,12 +56,12 @@ export function TabDashboard() {
   return (
     <div className="space-y-6">
       <PageHeader title="Dashboard" subtitle="Visão geral do sistema em tempo real" actions={
-        <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
-          <RefreshCw size={13} /> Atualizar
+        <button onClick={() => void dashboardQuery.refetch()} disabled={dashboardQuery.isFetching} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors disabled:opacity-60">
+          <RefreshCw size={13} className={dashboardQuery.isFetching ? "animate-spin" : ""} /> Atualizar
         </button>
       } />
 
-      {loading ? <LoadingState /> : (
+      {dashboardQuery.isPending ? <LoadingState /> : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {cards.map((c) => {

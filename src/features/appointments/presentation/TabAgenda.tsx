@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
   CalendarPlus,
@@ -13,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   createAppointment,
   listCustomerServiceOrders,
@@ -90,22 +92,29 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const [appointmentTechnicians, setAppointmentTechnicians] = useState<{ id: string; full_name: string }[]>([]);
   const [selectedAppointmentTechnicians, setSelectedAppointmentTechnicians] = useState<string[]>([]);
   const [appointmentTechnicianSearch, setAppointmentTechnicianSearch] = useState("");
-  const [appointmentSituationsLoading, setAppointmentSituationsLoading] = useState(true);
   const filterPanelRef = useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
   const canViewAgenda = hasPermission("agenda.view") || hasPermission("orders.view");
   const canViewOtherAgendas = hasPermission("agenda.view_others") || hasPermission("agenda.view-other-users") || hasPermission("employees.view");
+  const queryClient = useQueryClient();
+  const agendaQuery = useQuery({
+    queryKey: queryKeys.appointments.list({
+      userId: user?.id ?? null,
+      canViewOtherAgendas,
+    }),
+    queryFn: () => loadAgendaData({
+      userId: user?.id ?? null,
+      canViewOtherAgendas,
+    }),
+    enabled: canViewAgenda,
+  });
+  const loading = canViewAgenda && agendaQuery.isPending;
+  const appointmentSituationsLoading = loading;
 
-  const load = async () => {
-    setLoading(true);
-    setAppointmentSituationsLoading(true);
-    try {
-      const data = await loadAgendaData({
-        userId: user?.id ?? null,
-        canViewOtherAgendas,
-      });
+  useEffect(() => {
+    const data = agendaQuery.data;
+    if (data) {
       setMyEmployeeId(data.myEmployeeId);
       setOrders(data.orders);
       setAppointments(data.appointments as AppointmentWithRelations[]);
@@ -115,16 +124,14 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
       setSituations(data.situations);
       setAppointmentSituations(data.appointmentSituations as AppointmentSituation[]);
       setAppointmentTechnicians(data.employees);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar agenda: ${message}`, type: "error" });
-    } finally {
-      setAppointmentSituationsLoading(false);
-      setLoading(false);
     }
-  };
+  }, [agendaQuery.data]);
 
-  useEffect(() => { if (!canViewAgenda) return; void load(); }, [canViewAgenda, user?.id]);
+  useEffect(() => {
+    if (!agendaQuery.error) return;
+    const message = agendaQuery.error instanceof Error ? agendaQuery.error.message : String(agendaQuery.error);
+    setToast({ msg: `Erro ao carregar agenda: ${message}`, type: "error" });
+  }, [agendaQuery.error]);
   useEffect(() => {
     if (!canViewOtherAgendas && myEmployeeId) {
       setTechnicianFilter(myEmployeeId);
@@ -209,6 +216,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
         await updateAppointmentDate(event.id, targetDay);
         setAppointments(current => current.map(item => item.id === event.id ? { ...item, appointment_date: targetDay } : item));
         setToast({ msg: "Agendamento atualizado.", type: "success" });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setToast({ msg: `Não foi possível mover o agendamento: ${message}`, type: "error" });
@@ -223,6 +231,10 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
       await updateServiceOrderSchedule(order.id, next.toISOString());
       setOrders(current => current.map(item => item.id === order.id ? { ...item, scheduled_at: next.toISOString() } : item));
       setToast({ msg: "Agendamento atualizado.", type: "success" });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
+      ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Não foi possível mover a OS: ${message}`, type: "error" });
@@ -282,6 +294,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
       const data = await createAppointment(payload, selectedAppointmentTechnicians);
       setAppointments(current => [...current, { ...data, appointment_technicians: selectedAppointmentTechnicians.map(employee_id => ({ employee_id, employee: appointmentTechnicians.find(item => item.id === employee_id) || null })) } as AppointmentWithRelations]);
       setAppointmentModalOpen(false); setToast({ msg: "Agendamento criado.", type: "success" });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
     } catch (error) {
       console.error("[ADMIN] appointment save error:", error);
       setToast({ msg: `Erro ao criar agendamento: ${supabaseErrorMessage(error)}`, type: "error" });

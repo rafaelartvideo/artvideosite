@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle, Edit2, Eye, EyeOff, Plus, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   addRolePermission,
   countRolePermissions,
@@ -209,9 +211,21 @@ function RoleRow({ role, permissionCount, userCount, onEdit }: { role: any; perm
 export function TabEmployees({ onBack }: { onBack: () => void }) {
   const [activeArea, setActiveArea] = useState<"users" | "roles">("users");
   const { user, hasPermission } = useAuth();
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [roles, setRoles] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const employeesQuery = useQuery({
+    queryKey: queryKeys.employees.lists(),
+    queryFn: async () => {
+      const [{ data, error }, rolesResult] = await Promise.all([
+        getEmployees(),
+        listActiveRoles(),
+      ]);
+      if (error) throw error;
+      if (rolesResult.error) throw rolesResult.error;
+      return { employees: data || [], roles: rolesResult.data || [] };
+    },
+  });
+  const employees = employeesQuery.data?.employees ?? [];
+  const roles = employeesQuery.data?.roles ?? [];
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -224,16 +238,16 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
     return "Não foi possível atualizar o funcionário.";
   };
 
-  const load = async () => {
-    setLoading(true);
-    const [{ data, error }, rolesResult] = await Promise.all([getEmployees(), listActiveRoles()]);
-    if (error) { console.error("[ADMIN] employees load error:", error); setToast({ msg: `Erro ao carregar equipes: ${error.message}`, type: "error" }); }
-    else setEmployees(data || []);
-    if (rolesResult.error) setToast({ msg: `Erro ao carregar funções: ${rolesResult.error.message}`, type: "error" });
-    setRoles(rolesResult.data || []);
-    setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!employeesQuery.error) return;
+    setToast({
+      msg: `Erro ao carregar equipes: ${employeesQuery.error instanceof Error ? employeesQuery.error.message : String(employeesQuery.error)}`,
+      type: "error",
+    });
+  }, [employeesQuery.error]);
+  const refreshEmployees = () => queryClient.invalidateQueries({
+    queryKey: queryKeys.employees.all,
+  });
 
   const openNew = () => { setEditItem(null); setForm({ full_name: "", cpf: "", phone: "", email: "", password: "", function_name: "Funcionário", role_id: roles[0]?.id || "", is_active: true }); setFormOpen(true); };
   const openEdit = (employee: any) => {
@@ -309,7 +323,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
         if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Não foi possível cadastrar o funcionário.");
         if (data?.success !== true) throw new Error("Não foi possível cadastrar o funcionário.");
       }
-      setFormOpen(false); setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); load();
+      setFormOpen(false); setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); await refreshEmployees();
     } catch (e: unknown) {
       console.error("[ADMIN] employee save error:", e);
       setToast({ msg: getEmployeeErrorMessage(e), type: "error" });
@@ -323,7 +337,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
     const { error } = await setEmployeeActive(emp.id, !currentlyActive);
     if (error) { console.error("[ADMIN] employee toggle error:", error); setToast({ msg: `Erro ao atualizar funcionário: ${error.message}`, type: "error" }); return; }
     setToast({ msg: `Funcionário ${currentlyActive ? "desativado" : "ativado"}.`, type: "success" });
-    load();
+    await refreshEmployees();
   };
 
   const deleteEmployee = async (employeeId: string) => {
@@ -336,7 +350,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
     }
     setToast({ msg: "Funcionário excluído.", type: "success" });
     setDeleteId(null);
-    await load();
+    await refreshEmployees();
   };
 
   if (activeArea === "roles" && hasPermission("roles.view")) return <RolePermissionsPanel onBack={() => setActiveArea("users")} />;
@@ -350,7 +364,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
       <div className="flex gap-1 border-b border-[#0d1b2e]/10"><button type="button" onClick={() => setActiveArea("users")} className={cn("px-4 py-2.5 text-xs font-bold border-b-2", activeArea === "users" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Usuários</button>{hasPermission("roles.view") && <button type="button" onClick={() => setActiveArea("roles")} className="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-[#5a6a82]">Funções e Permissões</button>}</div>
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
-        {loading ? <LoadingState /> : employees.length === 0 ? (
+        {employeesQuery.isPending ? <LoadingState /> : employees.length === 0 ? (
           <EmptyState icon={Users} title="Nenhum funcionário cadastrado" message="Cadastre o primeiro funcionário da equipe." onAdd={openNew} addLabel="Novo funcionário" />
         ) : (
           <div className="overflow-x-auto">

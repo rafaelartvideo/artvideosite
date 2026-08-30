@@ -1,4 +1,6 @@
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "../../../infrastructure/query/query-keys";
 import type {
   PartRequestForReview,
   PartRequestInventoryItem,
@@ -26,6 +28,8 @@ export function useOrderPartRequests({
   showToast: (toast: ToastMessage) => void;
   formatError: (error: unknown) => string;
 }) {
+  const queryClient = useQueryClient();
+  const [activeOrderId, setActiveOrderId] = useState("");
   const [detailPartRequests, setDetailPartRequests] = useState<PartRequestForReview[]>([]);
   const [selectedPartRequest, setSelectedPartRequest] = useState<PartRequestForReview | null>(null);
   const [partApprovalOpen, setPartApprovalOpen] = useState(false);
@@ -50,11 +54,42 @@ export function useOrderPartRequests({
   const [testResultRows, setTestResultRows] = useState<TestResultRow[]>([]);
   const [testResultSubmitting, setTestResultSubmitting] = useState(false);
 
+  const normalizePartRequests = (data: any[] | null | undefined) => (data || []).map((request: any) => ({
+    ...request,
+    requester: request.requested_by_profile || null,
+    items: (request.items || []).map((item: any) => ({
+      ...item,
+      request_status: request.status,
+    })),
+  }));
+
+  const partRequestsQuery = useQuery({
+    queryKey: queryKeys.orders.partRequests(activeOrderId),
+    enabled: Boolean(activeOrderId),
+    staleTime: 15_000,
+    queryFn: async () => {
+      const { data, error } = await listServiceOrderPartRequests(activeOrderId);
+      if (error) throw error;
+      return normalizePartRequests(data);
+    },
+  });
+
+  useEffect(() => {
+    if (partRequestsQuery.data) setDetailPartRequests(partRequestsQuery.data);
+  }, [partRequestsQuery.data]);
+
   const loadPartRequestInventory = async () => {
     setPartRequestInventoryLoading(true);
     try {
-      const { data, error } = await listActivePartInventory();
-      if (error) throw error;
+      const data = await queryClient.fetchQuery({
+        queryKey: queryKeys.inventory.active(),
+        staleTime: 30_000,
+        queryFn: async () => {
+          const result = await listActivePartInventory();
+          if (result.error) throw result.error;
+          return result.data || [];
+        },
+      });
       setPartRequestInventory((data || []) as PartRequestInventoryItem[]);
       setPartRequestInventoryError("");
     } catch (error) {
@@ -69,20 +104,22 @@ export function useOrderPartRequests({
   };
 
   const loadPartRequests = async (serviceOrderId: string) => {
-    const { data, error } = await listServiceOrderPartRequests(serviceOrderId);
-    if (error) {
+    setActiveOrderId(serviceOrderId);
+    try {
+      const data = await queryClient.fetchQuery({
+        queryKey: queryKeys.orders.partRequests(serviceOrderId),
+        staleTime: 0,
+        queryFn: async () => {
+          const result = await listServiceOrderPartRequests(serviceOrderId);
+          if (result.error) throw result.error;
+          return normalizePartRequests(result.data);
+        },
+      });
+      setDetailPartRequests(data);
+    } catch (error) {
       console.error("[ADMIN] part requests load error:", error);
       setDetailPartRequests([]);
-      return;
     }
-    setDetailPartRequests((data || []).map((request: any) => ({
-      ...request,
-      requester: request.requested_by_profile || null,
-      items: (request.items || []).map((item: any) => ({
-        ...item,
-        request_status: request.status,
-      })),
-    })));
   };
 
   const openPartRequestModal = (event: MouseEvent<HTMLButtonElement>) => {
