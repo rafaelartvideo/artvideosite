@@ -6,7 +6,7 @@ import { emptyAddress } from "@/lib/address";
 import { useBrands, useServiceCategories, useServices } from "@/lib/hooks";
 import { submitPublicQuote } from "../application/submit-public-quote";
 import { EMPTY_PUBLIC_QUOTE_FORM, formatCnpj, formatCpf, formatPublicDate } from "../domain/public-quote";
-import { PublicButton as Btn, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
+import { PublicButton as Btn, PublicSelect, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
 
 export function PublicQuotePage() {
   const { services, loading: servicesLoading } = useServices();
@@ -21,7 +21,6 @@ export function PublicQuotePage() {
   const up = (k: string, v: string) => setF(prev => ({ ...prev, [k]: v }));
 
   const inputCls = "w-full bg-[#f5f7fa] border border-[#0d1b2e]/15 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#0057e7] transition-all";
-  const selectCls = inputCls + " cursor-pointer";
   const selectedService = services.find((service) => service.id === f.servico);
   const selectedBrand = brands.find(b => b.id === f.marca);
 
@@ -82,13 +81,7 @@ export function PublicQuotePage() {
                 Sobre o serviço
               </h2>
               <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Selecione o serviço *</label>
-              <select className={selectCls} value={f.servico} onChange={e => up("servico", e.target.value)} required>
-                <option value="">{servicesLoading ? "Carregando serviços..." : "Escolha um serviço..."}</option>
-                {services.map((service) => {
-                  const category = categories.find((item) => item.id === service.category_id);
-                  return <option key={service.id} value={service.id}>{service.title}{category ? ` - ${category.name}` : ""}</option>;
-                })}
-              </select>
+              <PublicSelect value={f.servico} onValueChange={value => up("servico", value)} required ariaLabel="Selecione o serviço" options={[{ value: "", label: servicesLoading ? "Carregando serviços..." : "Escolha um serviço..." }, ...services.map(service => { const category = categories.find(item => item.id === service.category_id); return { value: service.id, label: `${service.title}${category ? ` - ${category.name}` : ""}` }; })]} />
             </div>
 
             {/* 2 — Equipamento */}
@@ -100,13 +93,7 @@ export function PublicQuotePage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Marca</label>
-                  <select className={selectCls} value={f.marca} onChange={e => up("marca", e.target.value)}>
-                    <option value="">Selecione a marca...</option>
-                    {brands.filter(brand => brand.is_active).map(brand => (
-                      <option key={brand.id} value={brand.id}>{brand.name}</option>
-                    ))}
-                    <option value="Outra marca">Outra marca</option>
-                  </select>
+                  <PublicSelect value={f.marca} onValueChange={value => up("marca", value)} ariaLabel="Selecione a marca" options={[{ value: "", label: brandsLoading ? "Carregando marcas..." : "Selecione a marca..." }, ...brands.filter(brand => brand.is_active).map(brand => ({ value: brand.id, label: brand.name })), { value: "Outra marca", label: "Outra marca" }]} />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Modelo</label>
