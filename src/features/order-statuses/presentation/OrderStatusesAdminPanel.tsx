@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, Edit2, List, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminBackContext } from "@/features/admin-shell/application/AdminNavigationContext";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   deleteOrderStatus,
   listOrderStatuses,
@@ -35,8 +37,13 @@ export function OrderStatusesAdminPanel({ onBack }: { onBack: () => void }) {
 
 function OrderStatusesAdminPanelContent() {
   const { hasPermission } = useAuth();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const statusesQuery = useQuery({
+    queryKey: queryKeys.orderStatuses.lists(),
+    queryFn: listOrderStatuses,
+  });
+  const items = statusesQuery.data ?? [];
+  const loading = statusesQuery.isPending;
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [form, setForm] = useState({ name: "", color: "#0057e7", sort_order: 0 });
@@ -44,19 +51,13 @@ function OrderStatusesAdminPanelContent() {
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      setItems(await listOrderStatuses());
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar status: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!statusesQuery.error) return;
+    const message = statusesQuery.error instanceof Error ? statusesQuery.error.message : String(statusesQuery.error);
+    setToast({ msg: `Erro ao carregar status: ${message}`, type: "error" });
+  }, [statusesQuery.error]);
 
-  useEffect(() => { load(); }, []);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.orderStatuses.all });
 
   const openNew = () => {
     setEditItem(null);
@@ -95,14 +96,14 @@ function OrderStatusesAdminPanelContent() {
 
     setFormOpen(false);
     setToast({ msg: editItem ? "Status atualizado." : "Status criado.", type: "success" });
-    load();
+    await refresh();
   };
 
   const remove = async (id: string) => {
     if (!hasPermission("orders.delete")) return;
     try {
       await deleteOrderStatus(id);
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Não foi possível excluir: ${message}`, type: "error" });
