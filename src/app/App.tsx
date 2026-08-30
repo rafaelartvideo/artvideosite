@@ -1,19 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
-import { useSiteSettings } from "@/lib/hooks";
 const AdminLogin = lazy(() =>
   import("@/app/Admin").then(({ AdminLogin }) => ({ default: AdminLogin })),
 );
 const AdminDashboard = lazy(() =>
   import("@/app/Admin").then(({ AdminDashboard }) => ({ default: AdminDashboard })),
 );
-import { AddressFields } from "@/app/components/AddressFields";
-import { emptyAddress } from "@/lib/address";
-import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
-import { formatPhone } from "@/app/admin/shared";
-import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
-import { getBusinessHours, getSettingText } from "@/features/public-shell/application/site-settings";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 import { PublicShell, WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";
 import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
@@ -26,11 +18,10 @@ import { AboutPage } from "@/features/institutional/presentation/AboutPage";
 import { ContactPage } from "@/features/contact-public/presentation/ContactPage";
 import { TechnicalAssistancePage } from "@/features/technical-assistance/presentation/TechnicalAssistancePage";
 import { ServiceTrackingSection } from "@/features/service-tracking/presentation/ServiceTrackingSection";
+import { PublicQuotePage } from "@/features/public-quotes/presentation/PublicQuotePage";
 import {
-  Tv, Wind, Monitor, Headphones, Cpu, Plug,
-  Package, Gamepad2, Wrench, Settings, ArrowRight, Phone, Instagram,
-  ChevronRight, Zap, CheckCircle, ChevronDown, Search,
-  MapPin, Mail, Clock, Star, Shield, Users, Layers, AlertCircle,
+  Wind, Plug, Package, ArrowRight, ChevronRight, Zap, CheckCircle,
+  ChevronDown, MapPin, Layers, X,
 } from "lucide-react";
 
 /* ─── shared components ─── */
@@ -301,316 +292,6 @@ function CepChecker() {
   );
 }
 
-/* ─── Orçamento Page ─── */
-
-function normalizeCpf(v: string) { return v.replace(/\D/g, ""); }
-function formatCpf(v: string) {
-  const d = normalizeCpf(v).slice(0, 11);
-  return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
-}
-function normalizeCnpj(v: string) { return v.replace(/\D/g, ""); }
-function formatCnpj(v: string) {
-  const d = normalizeCnpj(v).slice(0, 14);
-  return d.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4").replace(/(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
-}
-function formatFoundationDate(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 8);
-  return d.replace(/(\d{2})(\d)/, "$1/$2").replace(/(\d{2})\/(\d{2})(\d)/, "$1/$2/$3");
-}
-function foundationDateToIso(v: string) {
-  const match = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
-}
-function birthDateToIso(v: string) { return foundationDateToIso(v); }
-function isValidBirthDate(v: string) {
-  const match = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) return false;
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  const year = Number(match[3]);
-  const date = new Date(year, month - 1, day);
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
-  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day && date <= today;
-}
-function validateCpf(cpf: string) {
-  const d = normalizeCpf(cpf);
-  if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
-  let sum = 0;
-  for (let i = 0; i < 9; i++) sum += parseInt(d[i]) * (10 - i);
-  let r = (sum * 10) % 11;
-  if (r === 10 || r === 11) r = 0;
-  if (r !== parseInt(d[9])) return false;
-  sum = 0;
-  for (let i = 0; i < 10; i++) sum += parseInt(d[i]) * (11 - i);
-  r = (sum * 10) % 11;
-  if (r === 10 || r === 11) r = 0;
-  return r === parseInt(d[10]);
-}
-
-function generateProtocol() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const rand = Math.floor(Math.random() * 9000) + 1000;
-  return `ORC-${y}${m}${day}-${rand}`;
-}
-
-function OrcamentoPage() {
-  const { services, loading: servicesLoading } = useServices();
-  const { categories } = useServiceCategories();
-  const { brands, loading: brandsLoading } = useBrands();
-  const [f, setF] = useState({ customerType: "PF" as "PF" | "PJ", servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", tradeName: "", legalName: "", cnpj: "", stateRegistration: "", foundationDate: "", whatsapp: "", phone: "", birthDate: "", email: "" });
-  const [address, setAddress] = useState({ ...emptyAddress });
-  const [sent, setSent] = useState(false);
-  const [protocol, setProtocol] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const up = (k: string, v: string) => setF(prev => ({ ...prev, [k]: v }));
-
-  const inputCls = "w-full bg-[#f5f7fa] border border-[#0d1b2e]/15 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#0057e7] transition-all";
-  const selectCls = inputCls + " cursor-pointer";
-  const selectedService = services.find((service) => service.id === f.servico);
-  const selectedBrand = brands.find(b => b.id === f.marca);
-
-  const submitQuote = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setSubmitError(null);
-    const cpfRaw = normalizeCpf(f.cpf);
-    const cnpjRaw = normalizeCnpj(f.cnpj);
-    if (f.customerType === "PF" && cpfRaw.length === 0) {
-      setSubmitError("Informe o CPF.");
-      return;
-    }
-    if (f.customerType === "PF" && !validateCpf(cpfRaw)) {
-      setSubmitError("CPF inválido. Verifique o número informado.");
-      return;
-    }
-    if (f.customerType === "PJ" && !f.tradeName.trim()) { setSubmitError("Informe o nome fantasia."); return; }
-    if (f.customerType === "PJ" && cnpjRaw.length !== 14) { setSubmitError("Informe um CNPJ válido."); return; }
-    if (!f.whatsapp.trim()) { setSubmitError("Informe o telefone ou WhatsApp principal."); return; }
-    if (f.customerType === "PF" && !isValidBirthDate(f.birthDate)) { setSubmitError("Informe uma data de nascimento válida e que não seja futura."); return; }
-
-    setSubmitting(true);
-    try {
-      const newProtocol = generateProtocol();
-      const brandNote = f.marca === "Outra marca" && f.outraMarca ? `Marca: ${f.outraMarca}` : null;
-      const modelNote = f.modelo ? `Modelo: ${f.modelo}` : null;
-      const extraNotes = [brandNote, modelNote].filter(Boolean).join(" | ");
-      const fullMessage = [f.descricao, extraNotes].filter(Boolean).join("\n") || null;
-
-      const { data, error } = await supabase.rpc("submit_public_quote_request", {
-        p_customer_type:   f.customerType,
-        p_full_name:        (f.customerType === "PJ" ? f.tradeName : f.nome).trim(),
-        p_whatsapp:         f.whatsapp.replace(/\D/g, "") || null,
-        p_phone:            f.phone.replace(/\D/g, "") || null,
-        p_birth_date:       f.customerType === "PF" ? birthDateToIso(f.birthDate) : null,
-        p_email:            f.email || null,
-        p_document:         f.customerType === "PF" && cpfRaw.length === 11 ? cpfRaw : null,
-        p_trade_name:       f.customerType === "PJ" ? f.tradeName.trim() : null,
-        p_legal_name:       f.customerType === "PJ" ? f.legalName.trim() || null : null,
-        p_cnpj:             f.customerType === "PJ" ? cnpjRaw : null,
-        p_state_registration: f.customerType === "PJ" ? f.stateRegistration.trim() || null : null,
-        p_foundation_date:  f.customerType === "PJ" ? foundationDateToIso(f.foundationDate) : null,
-        p_service_id:       f.servico || null,
-        p_brand_id:         f.marca && f.marca !== "Outra marca" ? f.marca : null,
-        p_customer_message: fullMessage,
-        p_protocol:         newProtocol,
-        p_zip_code:         address.zip_code || null,
-        p_street:           address.street || null,
-        p_number:           address.number || null,
-        p_complement:       address.complement || null,
-        p_neighborhood:     address.neighborhood || null,
-        p_city:             address.city || null,
-        p_state:            address.state || null,
-      });
-
-      if (error) throw new Error(`Erro ao enviar solicitação: ${error.message}`);
-      const result = data as { success: boolean; error?: string };
-      if (!result.success) throw new Error(result.error || "Erro ao processar solicitação.");
-
-      setProtocol(newProtocol);
-      setSent(true);
-    } catch (err) {
-      console.error("[PUBLIC] Quote request error:", err);
-      setSubmitError(err instanceof Error ? err.message : "Erro ao enviar solicitação. Tente novamente.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (sent) return (
-    <>
-      <section className="bg-[#0d1b2e] py-14 sm:py-20">
-        <div className="max-w-xl mx-auto px-4 sm:px-6 text-center">
-          <div className="w-16 h-16 bg-[#0057e7] rounded-2xl flex items-center justify-center mx-auto mb-6"><CheckCircle size={32} className="text-white" /></div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Solicitação enviada!</h1>
-          {protocol && (
-            <div className="bg-white/10 border border-white/20 rounded-xl px-6 py-4 mb-6">
-              <p className="text-white/60 text-xs uppercase tracking-widest mb-1">Protocolo</p>
-              <p className="text-2xl font-black text-white font-mono">{protocol}</p>
-              <p className="text-white/50 text-xs mt-1">Guarde este número para acompanhar sua solicitação.</p>
-            </div>
-          )}
-          <p className="text-white/70 text-base mb-8">Nossa equipe entrará em contato para avaliar sua solicitação.</p>
-          <Btn variant="primary" className="px-7 py-3 text-base" onClick={() => { setSent(false); setProtocol(null); setF({ customerType: "PF", servico: "", marca: "", outraMarca: "", modelo: "", descricao: "", nome: "", cpf: "", tradeName: "", legalName: "", cnpj: "", stateRegistration: "", foundationDate: "", whatsapp: "", phone: "", birthDate: "", email: "" }); setAddress({ ...emptyAddress }); }}>Nova solicitação</Btn>
-        </div>
-      </section>
-    </>
-  );
-
-  return (
-    <>
-      <section className="bg-[#0d1b2e] py-12 sm:py-16">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
-          <SectionLabel light>Solicitação de orçamento</SectionLabel>
-          <h1 className="text-4xl sm:text-5xl font-black text-white mb-3" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Conte o que você precisa</h1>
-          <p className="text-white/70 text-base">Preencha as informações abaixo e nossa equipe poderá entender melhor o serviço que você precisa.</p>
-        </div>
-      </section>
-
-      <section className="py-12 bg-[#f5f7fa]">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6">
-          <form className="space-y-6" onSubmit={submitQuote}>
-
-            {/* 1 — Serviço */}
-            <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 p-6">
-              <h2 className="text-lg font-black text-[#0d1b2e] mb-4 flex items-center gap-2" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                <span className="w-6 h-6 bg-[#0057e7] rounded-md flex items-center justify-center text-white text-xs font-black">1</span>
-                Sobre o serviço
-              </h2>
-              <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Selecione o serviço *</label>
-              <select className={selectCls} value={f.servico} onChange={e => up("servico", e.target.value)} required>
-                <option value="">{servicesLoading ? "Carregando serviços..." : "Escolha um serviço..."}</option>
-                {services.map((service) => {
-                  const category = categories.find((item) => item.id === service.category_id);
-                  return <option key={service.id} value={service.id}>{service.title}{category ? ` - ${category.name}` : ""}</option>;
-                })}
-              </select>
-            </div>
-
-            {/* 2 — Equipamento */}
-            <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 p-6 space-y-4">
-              <h2 className="text-lg font-black text-[#0d1b2e] mb-1 flex items-center gap-2" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                <span className="w-6 h-6 bg-[#0057e7] rounded-md flex items-center justify-center text-white text-xs font-black">2</span>
-                Sobre o equipamento
-              </h2>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Marca</label>
-                  <select className={selectCls} value={f.marca} onChange={e => up("marca", e.target.value)}>
-                    <option value="">Selecione a marca...</option>
-                    {brands.filter(brand => brand.is_active).map(brand => (
-                      <option key={brand.id} value={brand.id}>{brand.name}</option>
-                    ))}
-                    <option value="Outra marca">Outra marca</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Modelo</label>
-                  <input className={inputCls} placeholder="Ex: Split 12.000 BTUs" value={f.modelo} onChange={e => up("modelo", e.target.value)} />
-                </div>
-              </div>
-              {f.marca === "Outra marca" && (
-                <div>
-                  <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Informe a marca</label>
-                  <input className={inputCls} placeholder="Nome da marca" value={f.outraMarca} onChange={e => up("outraMarca", e.target.value)} />
-                </div>
-              )}
-              <div>
-                <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Descreva o problema ou o que você precisa</label>
-                <textarea className={`${inputCls} resize-none`} rows={4} placeholder="Conte brevemente o que aconteceu ou o que você precisa realizar." value={f.descricao} onChange={e => up("descricao", e.target.value)} />
-              </div>
-            </div>
-
-            {/* 3 — Dados pessoais */}
-            <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 p-6 space-y-4">
-              <h2 className="text-lg font-black text-[#0d1b2e] mb-1 flex items-center gap-2" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                <span className="w-6 h-6 bg-[#0057e7] rounded-md flex items-center justify-center text-white text-xs font-black">3</span>
-                Seus dados
-              </h2>
-              <div>
-                <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Tipo de cliente</label>
-                <div className="grid grid-cols-2 rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
-                  {[{ value: "PF", label: "PESSOA FÍSICA" }, { value: "PJ", label: "PESSOA JURÍDICA" }].map(option => (
-                    <button key={option.value} type="button" onClick={() => up("customerType", option.value)} className={`px-3 py-3 text-xs font-black tracking-wide transition-colors ${f.customerType === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]"}`} aria-pressed={f.customerType === option.value}>{option.label}</button>
-                  ))}
-                </div>
-              </div>
-              {/* WhatsApp em destaque */}
-              <div className="bg-[#f0fdf4] border-2 border-[#25d366]/40 rounded-xl p-4">
-                <label className="text-xs font-black text-[#16a34a] uppercase tracking-wide block mb-1.5 flex items-center gap-1"><MessageCircle size={12} /> WhatsApp * — principal canal de contato</label>
-                <input className="w-full bg-white border border-[#25d366]/40 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#25d366] transition-all" placeholder="(79) 9 9999-9999" value={f.whatsapp} onChange={e => up("whatsapp", formatPhone(e.target.value))} required />
-              </div>
-              {f.customerType === "PF" ? <div className="grid sm:grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome completo *</label><input className={inputCls} placeholder="Seu nome" value={f.nome} onChange={e => up("nome", e.target.value)} required /></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CPF *</label><input className={inputCls} placeholder="000.000.000-00" value={f.cpf} maxLength={14} onChange={e => up("cpf", formatCpf(e.target.value))} required /><p className="text-xs text-[#5a6a82] mt-1">Usado para identificar seu cadastro.</p></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Telefone</label><input className={inputCls} placeholder="(79) 3333-3333" value={f.phone} onChange={e => up("phone", formatPhone(e.target.value))} /></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Data de nascimento *</label><input className={inputCls} placeholder="dd/mm/aaaa" inputMode="numeric" maxLength={10} value={f.birthDate} onChange={e => up("birthDate", formatFoundationDate(e.target.value))} required /></div>
-              </div> : <div className="grid sm:grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome fantasia *</label><input className={inputCls} placeholder="Nome comercial da empresa" value={f.tradeName} onChange={e => up("tradeName", e.target.value)} required /></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Tipo *</label><input className={inputCls} value="Pessoa Jurídica" readOnly /></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CNPJ *</label><input className={inputCls} placeholder="00.000.000/0000-00" value={f.cnpj} maxLength={18} onChange={e => up("cnpj", formatCnpj(e.target.value))} required /></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Razão social</label><input className={inputCls} value={f.legalName} onChange={e => up("legalName", e.target.value)} /></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Inscrição estadual</label><input className={inputCls} placeholder="Deixe em branco se não for contribuinte · ISENTO se isento" value={f.stateRegistration} onChange={e => up("stateRegistration", e.target.value)} /></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Fundação</label><input className={inputCls} placeholder="dd/mm/aaaa" inputMode="numeric" maxLength={10} value={f.foundationDate} onChange={e => up("foundationDate", formatFoundationDate(e.target.value))} /></div>
-              </div>}
-              <div>
-                <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">E-mail</label>
-                <input type="email" className={inputCls} placeholder="seu@email.com" value={f.email} onChange={e => up("email", e.target.value)} />
-              </div>
-            </div>
-
-            {/* 4 — Dados de endereço */}
-            <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 p-6 space-y-4">
-              <h2 className="text-lg font-black text-[#0d1b2e] mb-1 flex items-center gap-2" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                <span className="w-6 h-6 bg-[#0057e7] rounded-md flex items-center justify-center text-white text-xs font-black">4</span>
-                Dados de endereço
-              </h2>
-              <AddressFields value={address} onChange={setAddress} inputClassName={inputCls} />
-            </div>
-
-            {/* 5 — Resumo */}
-            <div className="bg-[#0d1b2e] rounded-2xl p-6">
-              <h2 className="text-lg font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Revise sua solicitação</h2>
-              <div className="space-y-2">
-                {[
-                  { label: "Serviço", val: selectedService?.title || "—" },
-                  { label: "Marca", val: f.marca === "Outra marca" ? f.outraMarca || "Outra marca" : selectedBrand?.name || "—" },
-                  { label: "Modelo", val: f.modelo || "—" },
-                  { label: "Descrição", val: f.descricao ? f.descricao.slice(0, 80) + (f.descricao.length > 80 ? "…" : "") : "—" },
-                  { label: f.customerType === "PJ" ? "Nome fantasia" : "Nome", val: f.customerType === "PJ" ? f.tradeName || "—" : f.nome || "—" },
-                  { label: "WhatsApp", val: f.whatsapp || "—" },
-                  { label: "Telefone", val: f.phone || "—" },
-                  ...(f.customerType === "PF" ? [{ label: "Nascimento", val: f.birthDate || "—" }] : []),
-                ].map(({ label, val }) => (
-                  <div key={label} className="flex items-start gap-3 text-sm">
-                    <span className="text-white/40 w-20 flex-shrink-0 font-semibold">{label}:</span>
-                    <span className="text-white/85">{val}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Submit */}
-            <div className="text-center space-y-3">
-              {submitError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{submitError}</p>}
-              <Btn variant="primary" className="w-full py-4 text-base" disabled={submitting}>
-                {submitting ? "Enviando..." : "Solicitar orçamento"}
-              </Btn>
-              <p className="text-xs text-[#5a6a82]">Após o envio, nossa equipe entrará em contato para avaliar sua solicitação.</p>
-              <p className="text-xs text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg px-4 py-3 leading-relaxed">
-                Os valores apresentados ou informados previamente podem variar conforme as condições do equipamento, local e serviço necessário. O orçamento final será confirmado pela equipe.
-              </p>
-            </div>
-          </form>
-        </div>
-      </section>
-    </>
-  );
-}
-
 /* ─── App ─── */
 export default function App() {
   const [page, setPageState] = useState<Page>("home");
@@ -754,7 +435,7 @@ function AppContent({
         {page === "servico" && <ServiceDetailPage slug={serviceSlug} setPage={setPage} />}
         {page === "sobre" && <AboutPage setPage={setPage} />}
         {page === "contato" && <ContactPage />}
-        {page === "orcamento" && <OrcamentoPage />}
+        {page === "orcamento" && <PublicQuotePage />}
         {page === "assistencia" && <TechnicalAssistancePage setPage={setPage} />}
     </PublicShell>
   );
