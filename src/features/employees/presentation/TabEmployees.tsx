@@ -61,27 +61,50 @@ function PasswordField({ label, value, onChange, required = false, placeholder, 
 
 function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();
-  const [roles, setRoles] = useState<any[]>([]);
-  const [permissions, setPermissions] = useState<any[]>([]);
-  const [roleCounts, setRoleCounts] = useState<Record<string, number>>({});
+  const queryClient = useQueryClient();
+  const rolesQuery = useQuery({
+    queryKey: queryKeys.employees.roles(),
+    queryFn: async () => {
+      const [
+        { data: roleData, error: roleError },
+        { data: permissionData, error: permissionError },
+        { data: employees, error: employeesError },
+      ] = await Promise.all([
+        listRoles(),
+        listPermissions(),
+        listEmployeeRoleIds(),
+      ]);
+      const error = roleError || permissionError || employeesError;
+      if (error) throw error;
+      const roleCounts: Record<string, number> = {};
+      (employees || []).forEach((employee: any) => {
+        if (employee.role_id) roleCounts[employee.role_id] = (roleCounts[employee.role_id] || 0) + 1;
+      });
+      return {
+        roles: roleData || [],
+        permissions: permissionData || [],
+        roleCounts,
+      };
+    },
+  });
+  const roles = rolesQuery.data?.roles ?? [];
+  const permissions = rolesQuery.data?.permissions ?? [];
+  const roleCounts = rolesQuery.data?.roleCounts ?? {};
   const [editing, setEditing] = useState<any>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", is_active: true, selected: [] as string[] });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const load = async () => {
-    const [{ data: roleData, error: roleError }, { data: permissionData, error: permissionError }, { data: employees }] = await Promise.all([
-      listRoles(),
-      listPermissions(),
-      listEmployeeRoleIds(),
-    ]);
-    if (roleError || permissionError) { setToast({ msg: `Erro ao carregar permissões: ${(roleError || permissionError)?.message}`, type: "error" }); return; }
-    const counts: Record<string, number> = {};
-    (employees || []).forEach((employee: any) => { if (employee.role_id) counts[employee.role_id] = (counts[employee.role_id] || 0) + 1; });
-    setRoles(roleData || []); setPermissions(permissionData || []); setRoleCounts(counts);
-  };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!rolesQuery.error) return;
+    const message = rolesQuery.error instanceof Error ? rolesQuery.error.message : String(rolesQuery.error);
+    setToast({ msg: `Erro ao carregar permissões: ${message}`, type: "error" });
+  }, [rolesQuery.error]);
+
+  const refreshRoles = () => queryClient.invalidateQueries({
+    queryKey: queryKeys.employees.all,
+  });
 
   const grouped = permissions.reduce<Record<string, any[]>>((groups, permission) => {
     const moduleName = permission.key?.startsWith("orders.") ? "Ordens de Serviço" : permission.key?.startsWith("inventory.") ? "Estoque" : permission.module_name || "Outros";
@@ -123,7 +146,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
       if (currentPermissionsError) {
         setSaving(false);
         setToast({ msg: `A função foi salva, mas não foi possível ler suas permissões: ${supabaseErrorMessage(currentPermissionsError)}`, type: "error" });
-        await load();
+        await refreshRoles();
         return;
       }
       (currentPermissions || []).forEach((item: any) => previousPermissionIds.add(item.permission_id));
@@ -162,11 +185,11 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
         const reloadError = await reloadRolePermissions(roleId);
         if (reloadError) console.error("Role permissions reload error:", reloadError);
       }
-      await load();
+      await refreshRoles();
       return;
     }
 
-    setSaving(false); setFormOpen(false); setToast({ msg: editing ? "Função atualizada." : "Função criada.", type: "success" }); await load();
+    setSaving(false); setFormOpen(false); setToast({ msg: editing ? "Função atualizada." : "Função criada.", type: "success" }); await refreshRoles();
   };
   const togglePermission = (permissionId: string) => setForm(current => {
     const permission = permissions.find(item => item.id === permissionId);
