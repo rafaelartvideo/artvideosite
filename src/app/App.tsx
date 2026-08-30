@@ -8,16 +8,21 @@ const AdminDashboard = lazy(() =>
 );
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
-import { HomePage } from "@/features/home/presentation/HomePage";
-import { ServicesPage } from "@/features/public-services/presentation/ServicesPage";
-import { ServiceDetailPage } from "@/features/public-services/presentation/ServiceDetailPage";
-import { StorePage } from "@/features/public-store/presentation/StorePage";
-import { ProductDetailPage } from "@/features/public-store/presentation/ProductDetailPage";
-import { AboutPage } from "@/features/institutional/presentation/AboutPage";
-import { ContactPage } from "@/features/contact-public/presentation/ContactPage";
-import { TechnicalAssistancePage } from "@/features/technical-assistance/presentation/TechnicalAssistancePage";
-import { ServiceTrackingSection } from "@/features/service-tracking/presentation/ServiceTrackingSection";
-import { PublicQuotePage } from "@/features/public-quotes/presentation/PublicQuotePage";
+
+const HomePage = lazy(() => import("@/features/home/presentation/HomePage").then(module => ({ default: module.HomePage })));
+const ServicesPage = lazy(() => import("@/features/public-services/presentation/ServicesPage").then(module => ({ default: module.ServicesPage })));
+const ServiceDetailPage = lazy(() => import("@/features/public-services/presentation/ServiceDetailPage").then(module => ({ default: module.ServiceDetailPage })));
+const StorePage = lazy(() => import("@/features/public-store/presentation/StorePage").then(module => ({ default: module.StorePage })));
+const ProductDetailPage = lazy(() => import("@/features/public-store/presentation/ProductDetailPage").then(module => ({ default: module.ProductDetailPage })));
+const AboutPage = lazy(() => import("@/features/institutional/presentation/AboutPage").then(module => ({ default: module.AboutPage })));
+const ContactPage = lazy(() => import("@/features/contact-public/presentation/ContactPage").then(module => ({ default: module.ContactPage })));
+const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistance/presentation/TechnicalAssistancePage").then(module => ({ default: module.TechnicalAssistancePage })));
+const ServiceTrackingSection = lazy(() => import("@/features/service-tracking/presentation/ServiceTrackingSection").then(module => ({ default: module.ServiceTrackingSection })));
+const PublicQuotePage = lazy(() => import("@/features/public-quotes/presentation/PublicQuotePage").then(module => ({ default: module.PublicQuotePage })));
+
+function PublicPageFallback() {
+  return <div className="min-h-[55vh] bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">Carregando página...</div>;
+}
 /* ─── App ─── */
 export default function App() {
   const [page, setPageState] = useState<Page>("home");
@@ -154,6 +159,7 @@ function AppContent({
 
   return (
     <PublicShell page={page} setPage={setPage}>
+      <Suspense fallback={<PublicPageFallback />}>
         {page === "home" && <HomePage setPage={setPage} onSelectService={onSelectService} onSelectProduct={onSelectProduct} trackingSection={<ServiceTrackingSection />} />}
         {page === "loja" && <StorePage setPage={setPage} onSelectProduct={onSelectProduct} />}
         {page === "produto" && <ProductDetailPage slug={productSlug} setPage={setPage} />}
@@ -163,6 +169,7 @@ function AppContent({
         {page === "contato" && <ContactPage />}
         {page === "orcamento" && <PublicQuotePage />}
         {page === "assistencia" && <TechnicalAssistancePage setPage={setPage} />}
+      </Suspense>
     </PublicShell>
   );
 }
