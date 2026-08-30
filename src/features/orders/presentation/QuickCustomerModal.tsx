@@ -23,6 +23,7 @@ import {
   createQuickCustomer,
   createQuickCustomerAddress,
 } from "../infrastructure/orders-customer.repository";
+import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 
 export function QuickCustomerModal({ onClose, onSaved }: {
   onClose: () => void;
@@ -92,8 +93,9 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   };
 
   return (
-    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/35 p-4">
-      <div className="absolute inset-0" onClick={onClose} />
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent showClose={false} className="max-w-2xl border-0 bg-transparent p-0 shadow-none">
+      <DialogTitle className="sr-only">Criar cliente</DialogTitle>
       <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="sticky top-0 z-10 flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 bg-white px-4 py-3 select-none">
           <div><h3 className="text-sm font-bold text-[#0d1b2e]">Criar cliente</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre o cliente sem sair da Nova OS</p></div>
@@ -122,6 +124,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
         </div>
         <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-white px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("customers.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Criar cliente"}</BtnPrimary>}</div>
       </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

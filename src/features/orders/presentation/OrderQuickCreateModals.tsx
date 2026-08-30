@@ -13,6 +13,7 @@ import {
   findEquipmentModelByName,
   findEquipmentTypeByName,
 } from "../infrastructure/orders-catalog.repository";
+import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 
 export function QuickEquipmentModal({ onClose, onSaved }: {
   onClose: () => void;
@@ -64,8 +65,9 @@ export function QuickEquipmentModal({ onClose, onSaved }: {
     } finally { setSaving(false); }
   };
   return (
-    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/35 p-4">
-      <div className="absolute inset-0" onClick={onClose} />
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent showClose={false} className="max-w-sm border-0 bg-transparent p-0 shadow-none">
+      <DialogTitle className="sr-only">Adicionar novo equipamento</DialogTitle>
       <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10 overflow-hidden">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 px-4 py-3 select-none">
           <div><h3 className="text-sm font-bold text-[#0d1b2e]">Adicionar novo equipamento</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre a hierarquia completa</p></div>
@@ -74,7 +76,8 @@ export function QuickEquipmentModal({ onClose, onSaved }: {
         <div className="p-4 space-y-3"><FInput label="Tipo de equipamento" required autoFocus value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Ex: Televisão" /><FInput label="Marca" required value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder="Ex: Samsung" /><FInput label="Modelo" required value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder="Ex: UN55CU7700" />{errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}</div>
         <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("equipment.create") && <BtnPrimary onClick={save} disabled={saving || !typeName.trim() || !brandName.trim() || !modelName.trim()}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
       </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -103,8 +106,9 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
     setSaving(false);
   };
   return (
-    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/35 p-4">
-      <div className="absolute inset-0" onClick={onClose} />
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent showClose={false} className="max-w-sm border-0 bg-transparent p-0 shadow-none">
+      <DialogTitle className="sr-only">Novo tipo de atendimento</DialogTitle>
       <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10 overflow-hidden">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 px-4 py-3 select-none">
           <div><h3 className="text-sm font-bold text-[#0d1b2e]">Novo tipo de atendimento</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre sem sair da OS</p></div>
@@ -119,6 +123,7 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
         </div>
         <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("service_types.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
       </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
