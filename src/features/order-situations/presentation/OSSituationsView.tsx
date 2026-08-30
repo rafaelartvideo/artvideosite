@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, List, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   AdminPage,
   BtnPrimary,
@@ -27,16 +29,25 @@ import {
 export function OSSituationsView({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();
   if (!hasPermission("orders.view")) return null;
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const situationsQuery = useQuery({
+    queryKey: queryKeys.orderSituations.lists(),
+    queryFn: listOrderSituations,
+  });
+  const items = situationsQuery.data ?? [];
+  const loading = situationsQuery.isPending;
   const [editItem, setEditItem] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState({ name: "", slug: "", color: "", hours: "", is_active: true, sort_order: 0 });
   const [saving, setSaving] = useState(false);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const load = async () => { setLoading(true); const { data } = await listOrderSituations(); setItems(data || []); setLoading(false); };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!situationsQuery.error) return;
+    const message = situationsQuery.error instanceof Error ? situationsQuery.error.message : String(situationsQuery.error);
+    setToast({ msg: `Erro ao carregar situações: ${message}`, type: "error" });
+  }, [situationsQuery.error]);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.orderSituations.all });
   const openNew = () => { setEditItem(null); setForm({ name: "", slug: "", color: "", hours: "", is_active: true, sort_order: items.length }); setDrawerOpen(true); };
   const openEdit = (item: any) => { setEditItem(item); setForm({ name: item.name || "", slug: item.slug || "", color: item.color || "", hours: item.hours == null ? "" : String(item.hours), is_active: item.is_active, sort_order: item.sort_order }); setDrawerOpen(true); };
   const save = async () => {
@@ -45,12 +56,29 @@ export function OSSituationsView({ onBack }: { onBack: () => void }) {
     if (form.color && !isHexColor(form.color)) { setToast({ msg: "Informe uma cor HEX válida no formato #RRGGBB.", type: "error" }); return; }
     setSaving(true);
     const payload = { name: form.name.trim(), slug: form.slug.trim() || editItem?.slug?.trim() || slugify(form.name), color: form.color.trim().toUpperCase() || null, hours: form.hours === "" ? null : Number(form.hours), is_active: form.is_active, sort_order: Number(form.sort_order) };
-    const { error } = editItem ? await updateOrderSituation(editItem.id, payload) : await createOrderSituation(payload);
-    setSaving(false);
-    if (error) { setToast({ msg: `Erro: ${error.message}`, type: "error" }); return; }
-    setDrawerOpen(false); load();
+    try {
+      if (editItem) await updateOrderSituation(editItem.id, payload);
+      else await createOrderSituation(payload);
+      setDrawerOpen(false);
+      setToast({ msg: editItem ? "Situação atualizada." : "Situação criada.", type: "success" });
+      await refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Erro ao salvar situação: ${message}`, type: "error" });
+    } finally {
+      setSaving(false);
+    }
   };
-  const remove = async (id: string) => { if (!hasPermission("orders.delete")) return; await deleteOrderSituation(id); load(); };
+  const remove = async (id: string) => {
+    if (!hasPermission("orders.delete")) return;
+    try {
+      await deleteOrderSituation(id);
+      await refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ msg: `Não foi possível remover a situação: ${message}`, type: "error" });
+    }
+  };
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {delId && <ConfirmDialog message="Remover esta situação?" onConfirm={() => { setDelId(null); void remove(delId); }} onCancel={() => setDelId(null)} />}
