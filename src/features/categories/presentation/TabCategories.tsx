@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle, Edit2, FolderTree, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   deleteCategory,
   listCategories,
@@ -28,8 +30,13 @@ import { slugify } from "@/shared/domain/formatters";
 
 export function TabCategories({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();
-  const [cats, setCats] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.catalog.categories(),
+    queryFn: listCategories,
+  });
+  const cats = categoriesQuery.data ?? [];
+  const loading = categoriesQuery.isPending;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [delId, setDelId] = useState<string | null>(null);
@@ -38,18 +45,16 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
   const [form, setForm] = useState({ name: "", slug: "", is_active: true, sort_order: 0 });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      setCats(await listCategories());
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar categorias: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!categoriesQuery.error) return;
+    const message = categoriesQuery.error instanceof Error ? categoriesQuery.error.message : String(categoriesQuery.error);
+    setToast({ msg: `Erro ao carregar categorias: ${message}`, type: "error" });
+  }, [categoriesQuery.error]);
+
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.categories() }),
+  ]);
 
   const autoSlug = slugify;
 
@@ -67,7 +72,7 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
       await saveCategory(payload, editItem?.id);
       setDrawerOpen(false);
       setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" });
-      load();
+      await refresh();
     } catch (error) {
       setToast({ msg: `Erro ao salvar categoria: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
     } finally {
@@ -81,7 +86,7 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
       await deleteCategory(id);
       setDelId(null);
       setToast({ msg: "Categoria excluída.", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao excluir categoria: ${message}`, type: "error" });
@@ -93,7 +98,7 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
     try {
       await setCategoryActive(category.id, !category.is_active);
       setToast({ msg: "Status atualizado!", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao atualizar categoria: ${message}`, type: "error" });
