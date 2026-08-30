@@ -2,6 +2,13 @@ import React from "react";
 import type { CustomerType } from "@/features/customers/domain/customer-form";
 import { cn } from "@/shared/domain/formatters";
 import { Switch } from "@/shared/ui/primitives/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/primitives/select";
 
 export const INPUT = "w-full bg-[#f8fafc] border border-[#0d1b2e]/15 rounded-lg px-3 py-2.5 text-sm text-[#0d1b2e] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/50 focus:border-[#0057e7] focus:bg-white transition-all placeholder-[#5a6a82]/50";
 
@@ -41,11 +48,20 @@ export function FTextarea({ label, rows = 3, ...props }: { label?: string; rows?
 }
 
 export function FSelect({ label, options, ...props }: { label?: string; options: { value: string; label: string }[]; [key: string]: any }) {
+  const { value, defaultValue, onChange, disabled, required, name, className, ...rootProps } = props;
+  const emptyValue = "__fselect_empty__";
+  const toSelectValue = (optionValue: unknown) => optionValue === "" || optionValue == null ? emptyValue : String(optionValue);
+  const emitChange = (nextValue: string) => onChange?.({ target: { value: nextValue === emptyValue ? "" : nextValue } });
   return <div>
-    {label && <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}</label>}
-    <select className={cn(INPUT, "cursor-pointer")} {...props}>
-      {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
+    {label && <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}{required && <span className="text-red-400">*</span>}</label>}
+    <Select value={value !== undefined ? toSelectValue(value) : undefined} defaultValue={defaultValue !== undefined ? toSelectValue(defaultValue) : undefined} onValueChange={emitChange} disabled={disabled} required={required} name={name} {...rootProps}>
+      <SelectTrigger className={cn(INPUT, "h-auto min-h-[42px] cursor-pointer text-left", className)} aria-label={label}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="border-[#0d1b2e]/10 bg-white text-[#0d1b2e] shadow-xl">
+        {options.map(option => <SelectItem key={option.value || emptyValue} value={toSelectValue(option.value)} className="cursor-pointer focus:bg-[#eef5ff] focus:text-[#0057e7]">{option.label}</SelectItem>)}
+      </SelectContent>
+    </Select>
   </div>;
 }
 
