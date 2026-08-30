@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Trash2, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import type {
   EquipmentCatalog,
   EquipmentDraft,
@@ -30,31 +32,30 @@ import { FInput } from "@/shared/ui/admin/AdminFormControls";
 
 export function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();
-  const [types, setTypes] = useState<EquipmentCatalog["types"]>([]);
-  const [brands, setBrands] = useState<EquipmentCatalog["brands"]>([]);
-  const [models, setModels] = useState<EquipmentCatalog["models"]>([]);
+  const canView = hasPermission("equipment.view");
+  const queryClient = useQueryClient();
+  const catalogQuery = useQuery({
+    queryKey: queryKeys.equipment.catalog(),
+    queryFn: loadEquipmentCatalog,
+    enabled: canView,
+  });
+  const types = catalogQuery.data?.types ?? [];
+  const brands = catalogQuery.data?.brands ?? [];
+  const models = catalogQuery.data?.models ?? [];
   const [drafts, setDrafts] = useState<EquipmentDraft[]>([]);
   const [formOpen, setFormOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const loading = catalogQuery.isPending;
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const catalog = await loadEquipmentCatalog();
-      setTypes(catalog.types);
-      setBrands(catalog.brands);
-      setModels(catalog.models);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar equipamentos: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!catalogQuery.error) return;
+    const message = catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error);
+    setToast({ msg: `Erro ao carregar equipamentos: ${message}`, type: "error" });
+  }, [catalogQuery.error]);
 
-  useEffect(() => { load(); }, []);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all });
+  if (!canView) return null;
 
   const makeDraft = (type?: EquipmentTypeRow): EquipmentDraft => ({
     id: type?.id, name: type?.name || "", is_active: type?.is_active ?? true,
@@ -98,7 +99,7 @@ export function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
     setSaving(true);
     try {
       await saveEquipmentHierarchy(drafts, { types, brands, models });
-      setFormOpen(false); setToast({ msg: "Equipamentos salvos com sucesso.", type: "success" }); await load();
+      setFormOpen(false); setToast({ msg: "Equipamentos salvos com sucesso.", type: "success" }); await refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar estrutura: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
