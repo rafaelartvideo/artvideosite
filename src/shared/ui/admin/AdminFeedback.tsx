@@ -1,6 +1,16 @@
 import React, { useEffect } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle, Clock, Package, Plus, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/primitives/alert-dialog";
 
 export function isHexColor(value: string) {
   return /^#[0-9A-Fa-f]{6}$/.test(value.trim());
@@ -71,21 +81,21 @@ export function Toast({ message, type = "success", onClose }: { message: string;
 }
 
 export function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
-  return <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[150]">
-    <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-[#0d1b2e]/10">
-      <div className="flex items-start gap-3 mb-5">
-        <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+  return <AlertDialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+    <AlertDialogContent className="max-w-sm rounded-2xl border-[#0d1b2e]/10 bg-white">
+      <AlertDialogHeader className="flex-row items-start gap-3 text-left">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100">
           <AlertTriangle size={18} className="text-red-600" />
         </div>
         <div>
-          <p className="font-bold text-[#0d1b2e] mb-1">Confirmar exclusão</p>
-          <p className="text-sm text-[#5a6a82] leading-relaxed">{message}</p>
+          <AlertDialogTitle className="mb-1 text-base font-bold text-[#0d1b2e]">Confirmar exclusão</AlertDialogTitle>
+          <AlertDialogDescription className="text-sm leading-relaxed text-[#5a6a82]">{message}</AlertDialogDescription>
         </div>
-      </div>
-      <div className="flex gap-3 justify-end">
-        <button onClick={onCancel} className="px-4 py-2 border border-[#0d1b2e]/15 rounded-lg text-sm font-bold text-[#0d1b2e] hover:bg-[#f5f7fa] transition-colors">Cancelar</button>
-        <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">Excluir</button>
-      </div>
-    </div>
-  </div>;
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel className="border-[#0d1b2e]/15 text-[#0d1b2e] hover:bg-[#f5f7fa]">Cancelar</AlertDialogCancel>
+        <AlertDialogAction onClick={onConfirm} className="bg-red-600 text-white hover:bg-red-700">Excluir</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>;
 }
