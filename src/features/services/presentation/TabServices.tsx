@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   CheckCircle,
@@ -17,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   deleteService,
   findUniqueServiceSlug,
@@ -52,11 +54,16 @@ import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function TabServices({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();
-  const [services, setServices] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const catalogQuery = useQuery({
+    queryKey: queryKeys.catalog.services(),
+    queryFn: loadServicesCatalog,
+  });
+  const services = catalogQuery.data?.services ?? [];
+  const categories = catalogQuery.data?.categories ?? [];
+  const brands = catalogQuery.data?.brands ?? [];
+  const products = catalogQuery.data?.products ?? [];
+  const loading = catalogQuery.isPending;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [search, setSearch] = useState("");
@@ -65,23 +72,17 @@ export function TabServices({ onBack }: { onBack: () => void }) {
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const catalog = await loadServicesCatalog();
-      setServices(catalog.services);
-      setCategories(catalog.categories);
-      setBrands(catalog.brands);
-      setProducts(catalog.products);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar serviços: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!catalogQuery.error) return;
+    const message = catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error);
+    setToast({ msg: `Erro ao carregar serviços: ${message}`, type: "error" });
+  }, [catalogQuery.error]);
 
-  useEffect(() => { load(); }, []);
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard() }),
+  ]);
 
   const openNew = () => { setEditItem(null); setDrawerOpen(true); };
   const openEdit = (s: any) => { setEditItem(s); setDrawerOpen(true); };
@@ -92,7 +93,7 @@ export function TabServices({ onBack }: { onBack: () => void }) {
       await deleteService(id);
       setDelId(null);
       setToast({ msg: "Serviço excluído com sucesso.", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao excluir: ${message}`, type: "error" });
@@ -104,7 +105,7 @@ export function TabServices({ onBack }: { onBack: () => void }) {
     try {
       await setServiceActive(service.id, !service.is_active);
       setToast({ msg: "Status atualizado com sucesso.", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao atualizar: ${message}`, type: "error" });
@@ -202,7 +203,7 @@ export function TabServices({ onBack }: { onBack: () => void }) {
         />
       </div>
 
-      <ServiceDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); load(); }} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
+      <ServiceDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); void refresh(); }} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
     </div>
   );
 }
