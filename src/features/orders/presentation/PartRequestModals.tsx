@@ -2,7 +2,7 @@ import React from "react";
 import { CheckCircle, PackagePlus, Search, X } from "lucide-react";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
-import { FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { normalizeSearchText } from "../application/order-search";
 import { fmtReviewDate } from "../application/part-request.formatters";
 import type {
@@ -57,7 +57,7 @@ export function TestResultModal({ request, rows, submitting, getPendingQuantity,
         return <div key={item.id} className="space-y-2 rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
           <p className="text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"} <span className="text-xs font-normal text-[#5a6a82]">· Aguardando: {Math.max(0, pending - used)} {item.inventory_item?.unit || "un"}</span></p>
           {rows.filter(row => row.requestItemId === item.id).map(row => <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_6rem_1fr_auto]">
-            <select value={row.action} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, action: event.target.value as TestResultRow["action"] } : current))} className={cn(INPUT, "text-xs")}><option value="RETURN">Devolver ao estoque</option><option value="USE_IN_RESOLUTION">Usar na resolução</option><option value="DAMAGED">Danificada</option></select>
+            <AdminSelect value={row.action} onValueChange={value => onRowsChange(rows.map(current => current.id === row.id ? { ...current, action: value as TestResultRow["action"] } : current))} options={[{ value: "RETURN", label: "Devolver ao estoque" }, { value: "USE_IN_RESOLUTION", label: "Usar na resolução" }, { value: "DAMAGED", label: "Danificada" }]} className="text-xs" ariaLabel="Destino da peça testada" />
             <input type="number" min="0.01" max={pending} step="0.01" value={row.quantity} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, quantity: event.target.value } : current))} className={cn(INPUT, "text-xs")} />
             <input value={row.notes} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, notes: event.target.value } : current))} placeholder={row.action === "DAMAGED" ? "Justificativa do dano" : "Observação (opcional)"} className={cn(INPUT, "text-xs")} />
             <button type="button" onClick={() => onRowsChange(rows.filter(current => current.id !== row.id))} className="p-2 text-red-600"><X size={14} /></button>

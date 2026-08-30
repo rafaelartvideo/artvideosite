@@ -1,6 +1,7 @@
 import type React from "react";
 import { Edit2 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
+import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 
 export function OrdersKanban({
   statuses,
@@ -54,7 +55,7 @@ export function OrdersKanban({
                   {order.scheduled_at && <p className="mt-1 text-[11px] text-[#5a6a82]">Agendado: {formatDate(order.scheduled_at)}</p>}
                   <div className="mt-2 flex items-center gap-2 text-[11px] text-[#5a6a82]" onClick={event => event.stopPropagation()}>
                     <span className="font-semibold">Situação:</span>
-                    {hasPermission("orders.edit") ? <select value={order.situation_id || ""} onChange={event => onSituationChange(order, event.target.value)} className="min-w-0 flex-1 rounded border border-[#0d1b2e]/15 bg-white px-1.5 py-1 text-[11px]"><option value="">Não definida</option>{situations.map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select> : <span className="truncate">{(order.situation as any)?.name || "Não definida"}</span>}
+                    {hasPermission("orders.edit") ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => onSituationChange(order, value)} options={[{ value: "", label: "Não definida" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-8 px-1.5 py-1 text-[11px]" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div> : <span className="truncate">{(order.situation as any)?.name || "Não definida"}</span>}
                   </div>
                   {order.is_solved && <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
                   {order.cannot_be_solved && <span className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span>}

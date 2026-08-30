@@ -3,6 +3,7 @@ import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFe
 import { formatPhone } from "@/shared/domain/formatters";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { PriorityBadge } from "./OrderFormControls";
+import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 
 export function OrdersTable({
   loading,
@@ -92,10 +93,8 @@ export function OrdersTable({
                     <td className="px-4 py-3.5">{(o.situation as any)?.name ? <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2 justify-end">
-                        {hasPermission("orders.status") && <select value={o.status_id || ""} onClick={event => event.stopPropagation()} onChange={event => updateOrderStatus(o, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
-                          {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
-                        </select>}
-                        {hasPermission("orders.edit") && <select value={o.situation_id || ""} onClick={event => event.stopPropagation()} onChange={event => void updateOrderSituation(o, event.target.value)} className="max-w-[130px] text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(o.service_type_id, o.situation_id, o.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
+                        {hasPermission("orders.status") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.status_id || ""} onValueChange={value => updateOrderStatus(o, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Status da OS ${o.os_number || ""}`} /></div>}
+                        {hasPermission("orders.edit") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.situation_id || ""} onValueChange={value => void updateOrderSituation(o, value)} options={[{ value: "", label: "Situação" }, ...getSituationsForType(o.service_type_id, o.situation_id, o.situation).map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div>}
                         {hasPermission("orders.edit") && !o.is_solved && <button onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors"><Edit2 size={14} /> Editar</button>}
                         {hasPermission("orders.delete") && !o.is_solved && <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteId(o.id); }} className="flex items-center gap-1.5 text-xs font-bold text-red-600 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={14} /> Excluir</button>}
                       </div>
