@@ -30,7 +30,6 @@ export function useOrderPartRequests({
 }) {
   const queryClient = useQueryClient();
   const [activeOrderId, setActiveOrderId] = useState("");
-  const [detailPartRequests, setDetailPartRequests] = useState<PartRequestForReview[]>([]);
   const [selectedPartRequest, setSelectedPartRequest] = useState<PartRequestForReview | null>(null);
   const [partApprovalOpen, setPartApprovalOpen] = useState(false);
   const [partRejectionOpen, setPartRejectionOpen] = useState(false);
@@ -38,13 +37,10 @@ export function useOrderPartRequests({
   const [partReviewNotes, setPartReviewNotes] = useState("");
   const [partReviewSubmitting, setPartReviewSubmitting] = useState(false);
   const [partRequestOpen, setPartRequestOpen] = useState(false);
-  const [partRequestInventory, setPartRequestInventory] = useState<PartRequestInventoryItem[]>([]);
-  const [partRequestInventoryLoading, setPartRequestInventoryLoading] = useState(false);
   const [partRequestSearch, setPartRequestSearch] = useState("");
   const [selectedPartRequestItems, setSelectedPartRequestItems] = useState<SelectedPartRequestItem[]>([]);
   const [partRequestNotes, setPartRequestNotes] = useState("");
   const [partRequestSubmitting, setPartRequestSubmitting] = useState(false);
-  const [partRequestInventoryError, setPartRequestInventoryError] = useState("");
   const [partRequestPurpose, setPartRequestPurpose] = useState<"RESOLUTION" | "TEST">("RESOLUTION");
   const [selectedDeliveryRequest, setSelectedDeliveryRequest] = useState<PartRequestForReview | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
@@ -74,34 +70,26 @@ export function useOrderPartRequests({
     },
   });
 
-  useEffect(() => {
-    if (partRequestsQuery.data) setDetailPartRequests(partRequestsQuery.data);
-  }, [partRequestsQuery.data]);
+  const detailPartRequests = partRequestsQuery.data ?? [];
+  const inventoryQuery = useQuery({
+    queryKey: queryKeys.inventory.active(),
+    enabled: partRequestOpen,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const result = await listActivePartInventory();
+      if (result.error) throw result.error;
+      return (result.data || []) as PartRequestInventoryItem[];
+    },
+  });
+  const partRequestInventory = inventoryQuery.data ?? [];
+  const partRequestInventoryLoading = inventoryQuery.isPending && partRequestOpen;
+  const partRequestInventoryError = inventoryQuery.error ? formatError(inventoryQuery.error) : "";
 
-  const loadPartRequestInventory = async () => {
-    setPartRequestInventoryLoading(true);
-    try {
-      const data = await queryClient.fetchQuery({
-        queryKey: queryKeys.inventory.active(),
-        staleTime: 30_000,
-        queryFn: async () => {
-          const result = await listActivePartInventory();
-          if (result.error) throw result.error;
-          return result.data || [];
-        },
-      });
-      setPartRequestInventory((data || []) as PartRequestInventoryItem[]);
-      setPartRequestInventoryError("");
-    } catch (error) {
-      console.error("[PART REQUEST] inventory load error", error);
-      const message = formatError(error);
-      setPartRequestInventory([]);
-      setPartRequestInventoryError(message);
-      showToast({ msg: message, type: "error" });
-    } finally {
-      setPartRequestInventoryLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!inventoryQuery.error) return;
+    console.error("[PART REQUEST] inventory load error", inventoryQuery.error);
+    showToast({ msg: formatError(inventoryQuery.error), type: "error" });
+  }, [inventoryQuery.error]);
 
   const loadPartRequests = async (serviceOrderId: string) => {
     setActiveOrderId(serviceOrderId);
@@ -115,10 +103,10 @@ export function useOrderPartRequests({
           return normalizePartRequests(result.data);
         },
       });
-      setDetailPartRequests(data);
+      return data;
     } catch (error) {
       console.error("[ADMIN] part requests load error:", error);
-      setDetailPartRequests([]);
+      return [];
     }
   };
 
@@ -129,9 +117,7 @@ export function useOrderPartRequests({
     setPartRequestPurpose("RESOLUTION");
     setSelectedPartRequestItems([]);
     setPartRequestNotes("");
-    setPartRequestInventoryError("");
     setPartRequestOpen(true);
-    void loadPartRequestInventory();
   };
 
   const closePartRequestModal = () => {
