@@ -34,7 +34,7 @@ import {
   LoadingState,
   Toast,
 } from "@/shared/ui/admin/AdminFeedback";
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
@@ -151,9 +151,7 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por cliente, CPF, protocolo..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
-          <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} className={cn(INPUT, "py-2 text-xs sm:w-48")}>
-            <option value="">Todos os status</option>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <div className="sm:w-48"><AdminSelect value={filterStatus} onValueChange={value => { setFilterStatus(value); setPage(1); }} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="min-h-9 py-2 text-xs" ariaLabel="Filtrar orçamentos por status" /></div>
         </div>
 
         {quotesQuery.isPending ? <LoadingState /> : filtered.length === 0 ? (
@@ -189,10 +187,7 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
                       {!(q.service as any)?.title && !(q.brand as any)?.name && "—"}
                     </td>
                     <td className="px-4 py-3.5">
-                      {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <select value={q.status_id || ""} onClick={e => e.stopPropagation()} onChange={e => updateStatus(q.id, e.target.value)}
-                        className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1 font-bold bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0057e7]/30">
-                        {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      </select>}
+                      {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <div className="w-36" onClick={event => event.stopPropagation()}><AdminSelect value={q.status_id || ""} onValueChange={value => updateStatus(q.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="min-h-8 py-1 text-xs font-bold" ariaLabel={`Status do orçamento ${q.protocol || ""}`} /></div>}
                     </td>
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(q.created_at)}</td>
                     <td className="px-4 py-3.5">
@@ -263,9 +258,7 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
             </div>
             <div className="sticky bottom-0 -mx-5 mt-5 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <select value={detail.status_id || ""} onChange={e => updateStatus(detail.id, e.target.value)} className={cn(INPUT, "py-2 text-sm w-auto min-w-36")}>
-                  {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>}
+                {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <div className="min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}
                 {hasPermission("quotes.delete") && <button type="button" onClick={() => setDeleteId(detail.id)} className="flex items-center gap-2 whitespace-nowrap bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"><Trash2 size={13} /> Excluir</button>}
                 {hasPermission("quotes.convert") && <button onClick={async () => {
                 if (!detail) return;
