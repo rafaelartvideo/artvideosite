@@ -24,6 +24,7 @@ import {
 } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
 
 export function ServiceTypesAdminPanel({ onBack }: { onBack: () => void }) {
   return <AdminBackContext.Provider value={onBack}><ServiceTypesAdminPanelContent /></AdminBackContext.Provider>;
@@ -263,8 +264,10 @@ function ServiceTypesAdminPanelContent() {
                 {!hasDefaultHours && <p className="mt-1 ml-6 text-xs text-amber-700">Esta situação não possui horas padrão</p>}
                 {selected && <div className="mt-3 ml-6 space-y-2 text-xs text-[#0d1b2e]">
                   <p className="font-bold">Horas:</p>
-                  <label className="flex items-center gap-2"><input type="radio" checked={selected.use_default_hours} disabled={!hasDefaultHours} onChange={() => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: true, sla_hours: "" } : item) }))} /> Manter padrão ({situation.hours == null ? "—" : `${situation.hours} horas`})</label>
-                  <label className="flex items-center gap-2"><input type="radio" checked={!selected.use_default_hours} onChange={() => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: false } : item) }))} /> Definir novo prazo</label>
+                  <RadioGroup value={selected.use_default_hours ? "default" : "custom"} onValueChange={value => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: value === "default", ...(value === "default" ? { sla_hours: "" } : {}) } : item) }))} className="gap-2">
+                    <label className="flex cursor-pointer items-center gap-2"><RadioGroupItem value="default" disabled={!hasDefaultHours} /> Manter padrão ({situation.hours == null ? "—" : `${situation.hours} horas`})</label>
+                    <label className="flex cursor-pointer items-center gap-2"><RadioGroupItem value="custom" /> Definir novo prazo</label>
+                  </RadioGroup>
                   {!selected.use_default_hours && <FInput label="Prazo em horas" type="number" min="0.01" step="0.5" placeholder="Ex.: 8" value={selected.sla_hours} onChange={(e: any) => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}
                 </div>}
               </div>;
