@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle, Edit2, Plus, Tag, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   deleteBrand,
   listBrands,
@@ -30,8 +32,13 @@ import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function TabBrands({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();
-  const [brands, setBrands] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const brandsQuery = useQuery({
+    queryKey: queryKeys.catalog.brands(),
+    queryFn: listBrands,
+  });
+  const brands = brandsQuery.data ?? [];
+  const loading = brandsQuery.isPending;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [delId, setDelId] = useState<string | null>(null);
@@ -39,18 +46,16 @@ export function TabBrands({ onBack }: { onBack: () => void }) {
   const [form, setForm] = useState({ name: "", slug: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: 0 });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      setBrands(await listBrands());
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar marcas: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!brandsQuery.error) return;
+    const message = brandsQuery.error instanceof Error ? brandsQuery.error.message : String(brandsQuery.error);
+    setToast({ msg: `Erro ao carregar marcas: ${message}`, type: "error" });
+  }, [brandsQuery.error]);
+
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.brands() }),
+  ]);
 
   const autoSlug = slugify;
   const openNew = () => { setForm({ name: "", slug: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: 0 }); setEditItem(null); setDrawerOpen(true); };
@@ -67,7 +72,7 @@ export function TabBrands({ onBack }: { onBack: () => void }) {
       await saveBrand(payload, editItem?.id);
       setDrawerOpen(false);
       setToast({ msg: editItem ? "Marca atualizada!" : "Marca criada!", type: "success" });
-      load();
+      await refresh();
     } catch (error) {
       setToast({ msg: `Erro ao salvar marca: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
     } finally {
@@ -80,7 +85,7 @@ export function TabBrands({ onBack }: { onBack: () => void }) {
       await deleteBrand(id);
       setDelId(null);
       setToast({ msg: "Marca excluída.", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao excluir marca: ${message}`, type: "error" });
@@ -92,7 +97,7 @@ export function TabBrands({ onBack }: { onBack: () => void }) {
     try {
       await setBrandActive(brand.id, !brand.is_active);
       setToast({ msg: "Status atualizado!", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao atualizar marca: ${message}`, type: "error" });
