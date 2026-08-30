@@ -56,6 +56,10 @@ export const queryKeys = {
     brands: () => ["catalog", "brands"] as const,
     categories: () => ["catalog", "categories"] as const,
   },
+  orderSituations: {
+    all: ["order-situations"] as const,
+    lists: () => ["order-situations", "list"] as const,
+  },
   orderStatuses: {
     all: ["order-statuses"] as const,
     lists: () => ["order-statuses", "list"] as const,
