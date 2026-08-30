@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle, ChevronDown, X } from "lucide-react";
-import { cn, INPUT } from "@/shared/admin/AdminPrimitives";
+import { cn } from "@/shared/domain/formatters";
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import {
   Select,
   SelectContent,

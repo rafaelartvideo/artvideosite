@@ -11,15 +11,16 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
+  InternalBackButton,
+  PageHeader,
+} from "@/shared/ui/admin/AdminLayout";
+import {
   ConfirmDialog,
   EmptyState,
-  FInput,
-  FToggle,
-  InternalBackButton,
   LoadingState,
-  PageHeader,
   Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFeedback";
+import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
 
 export function OrderStatusesAdminPanel({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();

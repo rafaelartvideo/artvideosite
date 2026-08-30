@@ -5,14 +5,9 @@ import {
   useSaveSiteSettingsMutation,
   useSiteSettingsQuery,
 } from "@/features/settings/presentation/useSiteSettingsQuery";
-import {
-  BtnPrimary,
-  FInput,
-  LoadingState,
-  PageHeader,
-  Section,
-  Toast,
-} from "@/shared/admin/AdminPrimitives";
+import { BtnPrimary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { FInput } from "@/shared/ui/admin/AdminFormControls";
+import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 
 export function TabContact() {
   const { user, hasPermission } = useAuth();

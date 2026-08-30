@@ -13,16 +13,16 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
+  PageHeader,
+} from "@/shared/ui/admin/AdminLayout";
+import {
   ConfirmDialog,
   EmptyState,
-  FInput,
-  FTextarea,
-  FToggle,
   LoadingState,
-  PageHeader,
   StatusBadge,
   Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFeedback";
+import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 
 export function ServiceTypesAdminPanel({ onBack }: { onBack: () => void }) {
   return <AdminBackContext.Provider value={onBack}><ServiceTypesAdminPanelContent /></AdminBackContext.Provider>;

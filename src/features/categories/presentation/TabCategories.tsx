@@ -11,19 +11,20 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
-  ConfirmDialog,
-  EmptyState,
-  FInput,
-  FToggle,
-  generateUniqueSlug,
   InternalBackButton,
-  LoadingState,
   PageHeader,
   Section,
-  slugify,
+} from "@/shared/ui/admin/AdminLayout";
+import {
+  ConfirmDialog,
+  EmptyState,
+  LoadingState,
   StatusBadge,
   Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFeedback";
+import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
+import { slugify } from "@/shared/domain/formatters";
 
 export function TabCategories({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();

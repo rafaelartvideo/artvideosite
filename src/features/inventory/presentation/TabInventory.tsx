@@ -24,17 +24,17 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
-  cn,
-  EmptyState,
+  InternalBackButton,
+  PageHeader,
+} from "@/shared/ui/admin/AdminLayout";
+import { cn } from "@/shared/domain/formatters";
+import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import {
   FInput,
   FTextarea,
   FToggle,
   INPUT,
-  InternalBackButton,
-  LoadingState,
-  PageHeader,
-  Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFormControls";
 
 export function TabInventory({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();

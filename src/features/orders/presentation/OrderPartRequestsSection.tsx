@@ -1,6 +1,7 @@
 import type React from "react";
 import { AlertTriangle } from "lucide-react";
-import { cn, Section } from "@/shared/admin/AdminPrimitives";
+import { cn } from "@/shared/domain/formatters";
+import { Section } from "@/shared/ui/admin/AdminLayout";
 import { purposeLabel } from "../application/part-request.formatters";
 import type {
   PartRequestForReview,

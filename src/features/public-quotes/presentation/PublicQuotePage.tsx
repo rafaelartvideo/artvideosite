@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CheckCircle, MessageCircle } from "lucide-react";
 import { AddressFields } from "@/app/components/AddressFields";
-import { formatPhone } from "@/shared/admin/AdminPrimitives";
+import { formatPhone } from "@/shared/domain/formatters";
 import { emptyAddress } from "@/lib/address";
 import { useBrands, useServiceCategories, useServices } from "@/lib/hooks";
 import { submitPublicQuote } from "../application/submit-public-quote";

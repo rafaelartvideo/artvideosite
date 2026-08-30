@@ -18,32 +18,36 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
+  PageHeader,
+  Section,
+} from "@/shared/ui/admin/AdminLayout";
+import {
   cn,
-  ConfirmDialog,
-  CustomerTypeToggle,
-  EmptyState,
-  emptyCustomerForm,
-  FInput,
   formatCnpj,
   formatCpf,
   formatDateOnly,
   formatFoundationDate,
   formatPhone,
-  INPUT,
   isValidCpf,
+  todayDateOnly,
+} from "@/shared/domain/formatters";
+import {
+  ConfirmDialog,
+  EmptyState,
   LoadingState,
-  PageHeader,
-  PaginationBar,
-  Section,
   StatusBadge,
   Toast,
-  todayDateOnly,
+} from "@/shared/ui/admin/AdminFeedback";
+import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import {
+  emptyCustomerForm,
   customerFormFromCustomer,
   customerPayload,
   customerUpdatePayload,
   validateCustomerForm,
   type CustomerForm,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/features/customers/domain/customer-form";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
   const { hasPermission } = useAuth();

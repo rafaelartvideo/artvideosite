@@ -23,23 +23,25 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
-  cn,
+  InternalBackButton,
+  PageHeader,
+  Section,
+} from "@/shared/ui/admin/AdminLayout";
+import { cn, formatCpf, formatPhone } from "@/shared/domain/formatters";
+import {
   ConfirmDialog,
   EmptyState,
+  LoadingState,
+  StatusBadge,
+  Toast,
+} from "@/shared/ui/admin/AdminFeedback";
+import {
   FInput,
   FSelect,
   FToggle,
-  formatCpf,
-  formatPhone,
   INPUT,
-  InternalBackButton,
-  LoadingState,
-  PageHeader,
-  Section,
-  StatusBadge,
-  Toast,
-  supabaseErrorMessage,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFormControls";
+import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 function PasswordField({ label, value, onChange, required = false, placeholder, resetKey }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; placeholder?: string; resetKey?: string | number }) {
   const [showPassword, setShowPassword] = useState(false);

@@ -1,12 +1,8 @@
 import React from "react";
 import { CheckCircle, PackagePlus, Search, X } from "lucide-react";
-import {
-  BtnPrimary,
-  BtnSecondary,
-  cn,
-  FTextarea,
-  INPUT,
-} from "@/shared/admin/AdminPrimitives";
+import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { cn } from "@/shared/domain/formatters";
+import { FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { normalizeSearchText } from "../application/order-search";
 import { fmtReviewDate } from "../application/part-request.formatters";
 import type {

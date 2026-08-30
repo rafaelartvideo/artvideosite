@@ -1,11 +1,7 @@
 import { ClipboardList, Edit2, Trash2 } from "lucide-react";
-import {
-  EmptyState,
-  formatPhone,
-  LoadingState,
-  PaginationBar,
-  StatusBadge,
-} from "@/shared/admin/AdminPrimitives";
+import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { formatPhone } from "@/shared/domain/formatters";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { PriorityBadge } from "./OrderFormControls";
 
 export function OrdersTable({

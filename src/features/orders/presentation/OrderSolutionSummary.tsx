@@ -1,4 +1,4 @@
-import { Section } from "@/shared/admin/AdminPrimitives";
+import { Section } from "@/shared/ui/admin/AdminLayout";
 import {
   OrderImageThumb,
   type OrderImage,

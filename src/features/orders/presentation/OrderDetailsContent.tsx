@@ -1,12 +1,8 @@
 import { DollarSign } from "lucide-react";
 import type { Address } from "@/lib/address";
-import {
-  formatCnpj,
-  formatCpf,
-  formatPhone,
-  Section,
-  StatusBadge,
-} from "@/shared/admin/AdminPrimitives";
+import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
+import { Section } from "@/shared/ui/admin/AdminLayout";
+import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import {
   getPriorityLabel,
   getResponsibleName,

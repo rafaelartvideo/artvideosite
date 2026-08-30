@@ -1,11 +1,6 @@
 import { Plus } from "lucide-react";
-import {
-  BtnPrimary,
-  FInput,
-  FSelect,
-  FTextarea,
-  Section,
-} from "@/shared/admin/AdminPrimitives";
+import { BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
+import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 
 export function OrderEquipmentSection({
   form,

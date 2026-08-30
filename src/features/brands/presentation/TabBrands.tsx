@@ -9,26 +9,24 @@ import {
 } from "../infrastructure/brands.repository";
 import {
   AdminPage,
-  BrandAdminLogo,
   BtnPrimary,
   BtnSecondary,
-  cn,
+  InternalBackButton,
+  PageHeader,
+  Section,
+} from "@/shared/ui/admin/AdminLayout";
+import { BrandAdminLogo, ImageUpload } from "@/shared/ui/admin/AdminMedia";
+import { cn, slugify } from "@/shared/domain/formatters";
+import {
   ConfirmDialog,
   EmptyState,
-  FInput,
-  FTextarea,
-  FToggle,
-  generateUniqueSlug,
-  ImageUpload,
-  InternalBackButton,
   LoadingState,
-  PageHeader,
-  PaginationBar,
-  Section,
-  slugify,
   StatusBadge,
   Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFeedback";
+import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function TabBrands({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();

@@ -1,14 +1,9 @@
 import React, { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import {
-  BtnPrimary,
-  BtnSecondary,
-  FInput,
-  FTextarea,
-  FToggle,
-  slugify,
-} from "@/shared/admin/AdminPrimitives";
+import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { slugify } from "@/shared/domain/formatters";
 import {
   createEquipmentBrand,
   createEquipmentModel,

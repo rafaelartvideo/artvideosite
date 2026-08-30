@@ -12,16 +12,17 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
-  EmptyState,
-  FInput,
-  FToggle,
   InternalBackButton,
-  LoadingState,
   PageHeader,
   Section,
+} from "@/shared/ui/admin/AdminLayout";
+import {
+  EmptyState,
+  LoadingState,
   StatusBadge,
   Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFeedback";
+import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
 
 export function GeneralServicesPanel({ onBack }: { onBack: () => void }) {
   return <AdminBackContext.Provider value={onBack}><GeneralServicesPanelContent onBack={onBack} /></AdminBackContext.Provider>;

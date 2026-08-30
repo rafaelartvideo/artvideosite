@@ -1,10 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { formatZipCode } from "@/lib/address";
-import {
-  FInput,
-  FSelect,
-  Section,
-} from "@/shared/admin/AdminPrimitives";
+import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { Section } from "@/shared/ui/admin/AdminLayout";
 import { OrderAddressSelect } from "./OrderFormControls";
 
 type OrderType = "internal" | "external";

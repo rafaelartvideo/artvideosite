@@ -1,5 +1,6 @@
 import { LayoutDashboard, List, Plus, RefreshCw } from "lucide-react";
-import { cn, PageHeader } from "@/shared/admin/AdminPrimitives";
+import { cn } from "@/shared/domain/formatters";
+import { PageHeader } from "@/shared/ui/admin/AdminLayout";
 
 export function OrdersHeader({
   total,

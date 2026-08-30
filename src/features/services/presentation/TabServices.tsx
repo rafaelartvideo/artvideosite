@@ -28,23 +28,27 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
-  cn,
+  InternalBackButton,
+  PageHeader,
+  Section,
+} from "@/shared/ui/admin/AdminLayout";
+import { cn } from "@/shared/domain/formatters";
+import {
   ConfirmDialog,
   EmptyState,
+  LoadingState,
+  StatusBadge,
+  Toast,
+} from "@/shared/ui/admin/AdminFeedback";
+import {
   FInput,
   FSelect,
   FTextarea,
   FToggle,
-  ImageUpload,
   INPUT,
-  InternalBackButton,
-  LoadingState,
-  PageHeader,
-  PaginationBar,
-  Section,
-  StatusBadge,
-  Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFormControls";
+import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function TabServices({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();

@@ -2,11 +2,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import {
-  customerUpdatePayload,
-  validateCustomerForm,
-  type CustomerForm,
-} from "@/shared/admin/AdminPrimitives";
+import { customerUpdatePayload, validateCustomerForm, type CustomerForm } from "@/features/customers/domain/customer-form";
 import type { Address } from "@/lib/address";
 import {
   saveOrderCustomerAddress,

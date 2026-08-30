@@ -50,12 +50,9 @@ import { useOrderDetails } from "@/features/orders/presentation/useOrderDetails"
 import { useOrderFormState } from "@/features/orders/presentation/useOrderFormState";
 import { useOrderCustomerPersistence } from "@/features/orders/presentation/useOrderCustomerPersistence";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
-import {
-  Toast,
-  ConfirmDialog,
-  AdminPage,
-  supabaseErrorMessage,
-} from "@/shared/admin/AdminPrimitives";
+import { Toast, ConfirmDialog } from "@/shared/ui/admin/AdminFeedback";
+import { AdminPage } from "@/shared/ui/admin/AdminLayout";
+import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type OrderType = "internal" | "external";
 

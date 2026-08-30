@@ -5,22 +5,20 @@ import { AddressFields } from "@/app/components/AddressFields";
 import { emptyAddress, type Address } from "@/lib/address";
 import {
   applyCnpjData,
-  BtnPrimary,
-  BtnSecondary,
   customerPayload,
-  CustomerTypeToggle,
   emptyCustomerForm,
-  fetchCnpjData,
-  FInput,
+  type CustomerForm,
+  validateCustomerForm,
+} from "@/features/customers/domain/customer-form";
+import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
+import {
   formatCnpj,
   formatCpf,
   formatFoundationDate,
-  INPUT,
-  Section,
   todayDateOnly,
-  type CustomerForm,
-  validateCustomerForm,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/domain/formatters";
 import {
   createQuickCustomer,
   createQuickCustomerAddress,

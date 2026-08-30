@@ -4,9 +4,9 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
-  FTextarea,
   Section,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminLayout";
+import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { InfoRow } from "./OrderDetailsContent";
 import {
   OrderImageThumb,

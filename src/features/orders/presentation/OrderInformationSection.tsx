@@ -1,10 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
-import {
-  FInput,
-  FSelect,
-  FTextarea,
-  Section,
-} from "@/shared/admin/AdminPrimitives";
+import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { Section } from "@/shared/ui/admin/AdminLayout";
 import { EmployeeMultiSelect } from "./OrderFormControls";
 
 export function OrderInformationSection({

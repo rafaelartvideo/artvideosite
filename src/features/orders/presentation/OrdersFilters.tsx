@@ -7,7 +7,8 @@ import {
   Eraser,
   Search,
 } from "lucide-react";
-import { cn, INPUT } from "@/shared/admin/AdminPrimitives";
+import { cn } from "@/shared/domain/formatters";
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import {
   DropdownMenu,
   DropdownMenuContent,

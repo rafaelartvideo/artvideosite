@@ -2,22 +2,18 @@ import type { Dispatch, SetStateAction } from "react";
 import { Edit2, MessageCircle, Plus, Search, Users } from "lucide-react";
 import { AddressFields } from "@/app/components/AddressFields";
 import type { Address } from "@/lib/address";
+import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import {
-  BtnPrimary,
-  BtnSecondary,
   cn,
-  CustomerTypeToggle,
-  FInput,
   formatCnpj,
   formatCpf,
   formatFoundationDate,
   formatPhone,
   getWhatsAppUrl,
-  INPUT,
-  Section,
   todayDateOnly,
-  type CustomerForm,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/domain/formatters";
+import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { type CustomerForm } from "@/features/customers/domain/customer-form";
 import { InfoRow } from "./OrderDetailsContent";
 
 export function OrderCustomerSection({

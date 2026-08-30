@@ -18,20 +18,24 @@ import { initialOrderStatus } from "@/features/orders/domain/order-status";
 import {
   AdminPage,
   BtnSecondary,
+  PageHeader,
+  Section,
+} from "@/shared/ui/admin/AdminLayout";
+import {
   cn,
-  ConfirmDialog,
-  EmptyState,
   formatCnpj,
   formatCpf,
   formatFoundationDate,
   formatPhone,
-  INPUT,
+} from "@/shared/domain/formatters";
+import {
+  ConfirmDialog,
+  EmptyState,
   LoadingState,
-  PageHeader,
-  PaginationBar,
-  Section,
   Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFeedback";
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const { user, hasPermission } = useAuth();

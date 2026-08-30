@@ -16,15 +16,17 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
-  EmptyState,
-  FInput,
   InternalBackButton,
-  LoadingState,
   PageHeader,
   Section,
+} from "@/shared/ui/admin/AdminLayout";
+import {
+  EmptyState,
+  LoadingState,
   StatusBadge,
   Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFeedback";
+import { FInput } from "@/shared/ui/admin/AdminFormControls";
 
 export function EquipmentAdminPanel({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();

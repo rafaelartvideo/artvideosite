@@ -1,9 +1,5 @@
 import { useState } from "react";
-import {
-  customerFormFromCustomer,
-  emptyCustomerForm,
-  type CustomerForm,
-} from "@/shared/admin/AdminPrimitives";
+import { customerFormFromCustomer, emptyCustomerForm, type CustomerForm } from "@/features/customers/domain/customer-form";
 import { emptyAddress, type Address } from "@/lib/address";
 import { searchOrderCustomers } from "../infrastructure/orders-customer.repository";
 

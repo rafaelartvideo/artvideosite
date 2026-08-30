@@ -5,18 +5,18 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
-  cn,
+  InternalBackButton,
+  PageHeader,
+} from "@/shared/ui/admin/AdminLayout";
+import { cn, slugify } from "@/shared/domain/formatters";
+import {
   ConfirmDialog,
   EmptyState,
-  FInput,
-  FToggle,
-  InternalBackButton,
   isHexColor,
   LoadingState,
-  PageHeader,
-  slugify,
   Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFeedback";
+import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import {
   createOrderSituation,
   deleteOrderSituation,

@@ -8,12 +8,9 @@ import {
   RefreshCw,
   Wrench,
 } from "lucide-react";
-import {
-  cn,
-  LoadingState,
-  PageHeader,
-  StatusBadge,
-} from "@/shared/admin/AdminPrimitives";
+import { cn } from "@/shared/domain/formatters";
+import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { loadDashboardOverview } from "../infrastructure/dashboard.repository";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 

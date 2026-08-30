@@ -32,21 +32,23 @@ import type {
 import {
   BtnPrimary,
   BtnSecondary,
+  PageHeader,
+  Section,
+} from "@/shared/ui/admin/AdminLayout";
+import {
   cn,
-  EmptyState,
-  FInput,
-  FSelect,
-  FTextarea,
   formatCnpj,
   formatCpf,
   formatPhone,
+} from "@/shared/domain/formatters";
+import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import {
+  FInput,
+  FSelect,
+  FTextarea,
   INPUT,
-  LoadingState,
-  PageHeader,
-  Section,
-  supabaseErrorMessage,
-  Toast,
-} from "@/shared/admin/AdminPrimitives";
+} from "@/shared/ui/admin/AdminFormControls";
+import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type AppointmentWithRelations = Appointment & {
   customer?: any;
