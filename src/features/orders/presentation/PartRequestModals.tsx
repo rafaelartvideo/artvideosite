@@ -12,9 +12,15 @@ import type {
   SelectedPartRequestItem,
   TestResultRow,
 } from "../domain/part-request.types";
+import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 
-export function CenteredModal({ children, onClose, className }: { children: React.ReactNode; onClose: () => void; className?: string }) {
-  return <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/55 p-4" onClick={onClose}><div className={cn("relative flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl", className || "max-w-2xl")} onClick={event => event.stopPropagation()}>{children}</div></div>;
+export function CenteredModal({ children, onClose, className, title = "Pedido de peças" }: { children: React.ReactNode; onClose: () => void; className?: string; title?: string }) {
+  return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+    <DialogContent showClose={false} className={cn("flex max-h-[calc(100vh-2rem)] w-full flex-col gap-0 overflow-hidden rounded-xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl", className || "max-w-2xl")}>
+      <DialogTitle className="sr-only">{title}</DialogTitle>
+      {children}
+    </DialogContent>
+  </Dialog>;
 }
 
 export function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading, inventoryError, selectedItems, search, notes, purpose, submitting, onPurposeChange, onSearchChange, onNotesChange, onSelect, onQuantityChange, onRemove, onClose, onSubmit }: {
