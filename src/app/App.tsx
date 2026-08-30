@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { useServices, useServiceCategories, useFeaturedProducts, useBrands, useServiceDetailBySlug, useProductDetailBySlug, useSiteSettings, useProducts } from "@/lib/hooks";
+import { useServices, useServiceCategories, useServiceDetailBySlug, useProductDetailBySlug, useSiteSettings, useProducts } from "@/lib/hooks";
 const AdminLogin = lazy(() =>
   import("@/app/Admin").then(({ AdminLogin }) => ({ default: AdminLogin })),
 );
@@ -16,6 +16,9 @@ import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
 import { getBusinessHours, getSettingText } from "@/features/public-shell/application/site-settings";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 import { PublicShell, WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";
+import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
+import { ProductCard, ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
+import { HomePage } from "@/features/home/presentation/HomePage";
 import {
   Tv, Wind, Monitor, Headphones, Cpu, Plug,
   Package, Gamepad2, Wrench, Settings, ArrowRight, Phone, Instagram,
@@ -23,42 +26,12 @@ import {
   MapPin, Mail, Clock, Star, Shield, Users, Layers, AlertCircle,
 } from "lucide-react";
 
-/* ─── Constants (UI-only, not content) ─── */
-const HOME_STEPS = [
-  { n: "01", title: "Solicite", desc: "Conte o que aconteceu com seu equipamento." },
-  { n: "02", title: "Avaliamos", desc: "Nossa equipe analisa o problema." },
-  { n: "03", title: "Orçamento", desc: "Você recebe as informações antes do serviço." },
-  { n: "04", title: "Reparo", desc: "Após aprovação, realizamos o serviço." },
-];
-const ASSIST_CATS = ["TVs", "Computadores", "Eletrodomésticos", "Videogames", "Eletrônicos"];
-
 /* ─── shared components ─── */
 function inlineMediaUrl(media: { bucket_id?: string | null; bucket_name?: string | null; storage_path: string } | null | undefined): string | null {
   const bucketName = media?.bucket_id ?? media?.bucket_name;
   if (!bucketName || !media?.storage_path) return null;
   const { data } = supabase.storage.from(bucketName).getPublicUrl(media.storage_path);
   return data.publicUrl;
-}
-
-function Btn({ children, variant = "primary", className = "", ...props }: {
-  children: React.ReactNode; variant?: "primary" | "outline" | "ghost" | "whatsapp"; className?: string; [k: string]: unknown;
-}) {
-  const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-md px-5 py-2.5 text-sm transition-all duration-200 cursor-pointer";
-  const v = {
-    primary: "bg-[#0057e7] text-white hover:bg-[#0046c0] active:scale-[0.98]",
-    outline: "border-2 border-[#0057e7] text-[#0057e7] hover:bg-[#0057e7] hover:text-white active:scale-[0.98]",
-    ghost: "text-[#0057e7] hover:underline underline-offset-2 px-0",
-    whatsapp: "bg-[#25d366] text-white hover:bg-[#1db954] active:scale-[0.98]",
-  };
-  return <button className={`${base} ${v[variant]} ${className}`} {...props}>{children}</button>;
-}
-
-function SectionLabel({ children, light = false }: { children: React.ReactNode; light?: boolean }) {
-  return <span className={`text-xs font-bold tracking-widest uppercase block mb-3 ${light ? "text-[#00b4ff]" : "text-[#0057e7]"}`}>{children}</span>;
-}
-
-function H2({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <h2 className={`text-3xl sm:text-4xl font-black text-[#0d1b2e] ${className}`} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{children}</h2>;
 }
 
 /* ─── Tracking Section ─── */
@@ -319,256 +292,6 @@ function ServiceTrackingSection() {
         )}
       </div>
     </section>
-  );
-}
-
-/* ─── Home Page ─── */
-function HomePage({ setPage, onSelectService, onSelectProduct }: { setPage: (p: Page) => void; onSelectService: (slug: string) => void; onSelectProduct: (slug: string) => void }) {
-  // Buscar dados reais do Supabase
-  const { products: featuredProducts, loading: productsLoading } = useFeaturedProducts();
-  const { brands, loading: brandsLoading } = useBrands();
-  const { services, loading: servicesLoading } = useServices();
-
-  return (
-    <>
-      {/* Hero */}
-      <section className="bg-[#0d1b2e] py-16 sm:py-20 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-center">
-          <div>
-            <SectionLabel light>Eletrônica Artvideo · Aracaju, SE</SectionLabel>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight mb-5" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-              Tecnologia, produtos e serviços em um só lugar.
-            </h1>
-            <p className="text-white/70 text-lg mb-8 max-w-lg leading-relaxed">Produtos eletrônicos, assistência técnica, instalações e manutenção para sua casa ou negócio.</p>
-            <div className="flex flex-wrap gap-3">
-              <Btn variant="primary" className="text-base px-6 py-3">Comprar na loja</Btn>
-              <Btn variant="outline" className="text-base px-6 py-3 border-white/40 text-white hover:bg-white/15 hover:border-white" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn>
-            </div>
-          </div>
-          <div className="relative">
-            <div className="absolute -inset-4 bg-[#0057e7]/20 rounded-2xl blur-2xl" />
-            <div className="relative rounded-xl overflow-hidden border border-white/10">
-              <img src="https://images.unsplash.com/photo-1761494296583-99b15e9063c5?w=800&h=520&fit=crop&auto=format" alt="Loja de eletrônicos Artvideo" className="w-full h-72 sm:h-80 lg:h-96 object-cover" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3 Caminhos */}
-      <section className="py-16 bg-[#f5f7fa]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <SectionLabel>Atendimento completo</SectionLabel>
-          <H2 className="mb-10">O que você precisa?</H2>
-          <div className="grid sm:grid-cols-3 gap-5">
-            {[
-              { label: "COMPRAR", icon: ShoppingCart, desc: "Encontre produtos eletrônicos, acessórios e equipamentos.", cta: "Ver loja", dark: false, dest: "home" as const },
-              { label: "CONSERTAR", icon: Wrench, desc: "Diagnóstico, manutenção e reparo para seus equipamentos.", cta: "Conhecer assistência", dark: true, dest: "servicos" as const },
-              { label: "ACOMPANHAR SERVIÇO", icon: Search, desc: "Consulte o andamento do seu serviço ou pedido usando o número da OS.", cta: "Acompanhar serviço", dark: false, dest: "tracking" as const },
-            ].map((c) => {
-              const Icon = c.icon;
-              return (
-                <div key={c.label} className={`${c.dark ? "bg-[#0d1b2e]" : "bg-white"} rounded-xl p-8 flex flex-col gap-4 border border-[#0d1b2e]/10 shadow-sm hover:shadow-md transition-shadow`}>
-                  <Icon size={32} className={c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} />
-                  <h3 className={`text-2xl font-black ${c.dark ? "text-white" : "text-[#0d1b2e]"}`} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{c.label}</h3>
-                  <p className={`text-sm leading-relaxed ${c.dark ? "text-white/70" : "text-[#5a6a82]"}`}>{c.desc}</p>
-                  {c.dest === "tracking" ? (
-                    <a href="#acompanhar-servico" className={`flex items-center gap-1 text-sm font-semibold mt-auto ${c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} hover:gap-2 transition-all`}>
-                      {c.cta} <ChevronRight size={16} />
-                    </a>
-                  ) : (
-                    <button onClick={() => setPage(c.dest as Page)} className={`flex items-center gap-1 text-sm font-semibold mt-auto ${c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} hover:gap-2 transition-all`}>
-                      {c.cta} <ChevronRight size={16} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Acompanhe seu Serviço */}
-      <ServiceTrackingSection />
-
-      {/* Loja */}
-      <section className="py-16 bg-[#f5f7fa]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <SectionLabel>Destaques</SectionLabel>
-          <div className="flex items-end justify-between mb-6 gap-4">
-            <H2>Destaques da loja</H2>
-            <Btn variant="ghost" className="flex-shrink-0">Ver todos <ArrowRight size={15} /></Btn>
-          </div>
-          {productsLoading ? (
-            <div className="text-center py-12 text-[#5a6a82]">Carregando produtos...</div>
-          ) : featuredProducts.length === 0 ? (
-            <div className="text-center py-12 text-[#5a6a82]">Nenhum produto em destaque no momento.</div>
-          ) : (
-            <>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {featuredProducts.slice(0, 6).map((p) => (
-                  <ProductCard key={p.id} product={p} onSelectProduct={onSelectProduct} />
-                ))}
-              </div>
-              <div className="mt-8 text-center"><button type="button" onClick={() => setPage("loja")} className="inline-flex items-center justify-center gap-2 font-semibold rounded-md px-8 py-3 text-base bg-[#0057e7] text-white hover:bg-[#0046c0] active:scale-[0.98] transition-all">Ver todos os produtos</button></div>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* Serviços home preview */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <SectionLabel>Para sua casa e seus equipamentos</SectionLabel>
-          <div className="flex items-end justify-between mb-10 gap-4">
-            <H2>Serviços para sua casa e seus equipamentos</H2>
-            <button onClick={() => setPage("servicos")} className="flex items-center gap-1 text-sm font-semibold text-[#0057e7] hover:gap-2 transition-all flex-shrink-0">Ver todos <ArrowRight size={15} /></button>
-          </div>
-          {servicesLoading ? <div className="text-center py-10 text-[#5a6a82]">Carregando serviços...</div> : services.length > 0 && <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">{services.slice(0, 6).map((service) => <ServiceCard key={service.id} service={service} onSelectService={onSelectService} />)}</div>}
-          <div className="mt-8 text-center"><Btn variant="outline" className="px-8 py-3 text-base" onClick={() => setPage("servicos")}>Ver todos os serviços</Btn></div>
-        </div>
-      </section>
-
-      {/* Assistência */}
-      <section className="py-16 bg-[#0d1b2e] overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-12 items-center">
-          <div>
-            <SectionLabel light>Assistência técnica em Aracaju</SectionLabel>
-            <H2 className="!text-white mb-5">Seu equipamento apresentou algum problema?</H2>
-            <p className="text-white/70 text-base leading-relaxed mb-8">Conte com nossa assistência técnica para diagnóstico, manutenção e reparo de equipamentos eletrônicos.</p>
-            <div className="flex flex-wrap gap-2 mb-8">{ASSIST_CATS.map((c) => <span key={c} className="bg-white/10 text-white/90 text-sm font-semibold rounded-md px-3 py-1.5 border border-white/10">{c}</span>)}</div>
-            <Btn variant="primary" className="px-7 py-3 text-base">Conhecer nossa assistência</Btn>
-          </div>
-          <div className="relative">
-            <div className="absolute -inset-4 bg-[#0057e7]/20 rounded-2xl blur-2xl" />
-            <div className="relative rounded-xl overflow-hidden border border-white/10">
-              <img src="https://images.unsplash.com/photo-1550041473-d296a3a8a18a?w=800&h=520&fit=crop&auto=format" alt="Bancada de assistência técnica" className="w-full h-72 sm:h-80 object-cover" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Marcas */}
-      <section className="py-14 bg-white border-y border-[#0d1b2e]/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <p className="text-center text-xs font-bold tracking-widest uppercase text-[#5a6a82] mb-8">Marcas que atendemos</p>
-          {brandsLoading ? (
-            <div className="text-center py-6 text-[#5a6a82]">Carregando marcas...</div>
-          ) : brands.length === 0 ? (
-            <div className="text-center py-6 text-[#5a6a82]">Nenhuma marca cadastrada no momento.</div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-              {brands.map((b) => (
-                <BrandCard key={b.id} brand={b} />
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Como funciona */}
-      <section className="py-16 bg-[#f5f7fa]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <SectionLabel>Processo simples</SectionLabel>
-          <H2 className="mb-12">Precisa de assistência? É fácil.</H2>
-          <div className="relative">
-            <div className="hidden lg:block absolute top-8 left-[calc(12.5%+16px)] right-[calc(12.5%+16px)] h-px bg-[#0057e7]/30 z-0" />
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10">
-              {HOME_STEPS.map((s) => (
-                <div key={s.n} className="flex flex-col gap-3">
-                  <div className="w-14 h-14 bg-[#0057e7] rounded-xl flex items-center justify-center shadow-md shadow-[#0057e7]/30"><span className="text-white font-black text-sm">{s.n}</span></div>
-                  <h3 className="font-bold text-[#0d1b2e] text-lg">{s.title}</h3>
-                  <p className="text-sm text-[#5a6a82] leading-relaxed">{s.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Final */}
-      <section className="py-20 bg-[#0057e7]">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <h2 className="text-3xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Precisa de um produto ou de um reparo?</h2>
-          <p className="text-white/80 text-lg mb-10">Encontre o que procura na nossa loja ou fale com nossa equipe.</p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <button className="bg-white text-[#0057e7] font-bold rounded-md px-7 py-3 text-base hover:bg-[#f0f6ff] transition-colors">Comprar na loja</button>
-            <button className="border-2 border-white text-white font-bold rounded-md px-7 py-3 text-base hover:bg-white/10 transition-colors">Solicitar orçamento</button>
-          </div>
-        </div>
-      </section>
-    </>
-  );
-}
-
-/* ─── Brand Card Component ─── */
-function BrandCard({ brand }: { brand: any }) {
-  const logoUrl = inlineMediaUrl(brand.logo_media);
-
-  return (
-    <div className="bg-[#f5f7fa] border border-[#0d1b2e]/10 rounded-lg h-14 flex items-center justify-center hover:border-[#0057e7]/40 transition-colors group">
-      {logoUrl ? (
-        <img src={logoUrl} alt={brand.name} className="max-h-10 max-w-[90%] object-contain" />
-      ) : (
-        <span className="text-xs font-bold text-[#5a6a82]">{brand.name}</span>
-      )}
-    </div>
-  );
-}
-
-/* ─── Product Card Component ─── */
-function ProductCard({ product, onSelectProduct }: { product: any; onSelectProduct: (slug: string) => void }) {
-  const imageUrl = inlineMediaUrl(product.cover_media);
-
-  return (
-    <div className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md transition-shadow group">
-      <div className="bg-[#f5f7fa] h-44 overflow-hidden">
-        {imageUrl ? (
-          <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={32} /></div>
-        )}
-      </div>
-      <div className="p-4">
-        <span className="text-xs font-bold text-[#0057e7] uppercase tracking-wide">Produto</span>
-        <h3 className="font-semibold text-[#0d1b2e] mt-1 mb-3 text-sm leading-snug">{product.name}</h3>
-        <div className="flex items-center justify-between">
-          <span className="text-lg font-black text-[#0d1b2e]">{product.price != null ? `R$ ${Number(product.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte"}</span>
-          <button type="button" onClick={() => onSelectProduct(product.slug)} className="inline-flex items-center justify-center gap-2 font-semibold rounded-md px-3 py-1.5 text-xs border-2 border-[#0057e7] text-[#0057e7] hover:bg-[#0057e7] hover:text-white active:scale-[0.98] transition-all">Ver produto</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Service Card Component ─── */
-function ServiceCard({ service, onSelectService }: { service: any; onSelectService: (slug: string) => void }) {
-  const imageUrl = inlineMediaUrl(service.cover_media);
-  const cardPrice = service.price_mode === "HIDDEN" ? null : service.price_mode === "STARTING_FROM" && service.base_price ? `A partir de R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : service.price_mode === "FIXED" && service.base_price ? `R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte o valor";
-
-  return (
-    <div className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md hover:border-[#0057e7]/30 transition-all group">
-      <div className="h-40 overflow-hidden bg-[#e8eef8]">
-        {imageUrl ? (
-          <img src={imageUrl} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={32} /></div>
-        )}
-      </div>
-      <div className="p-4 flex flex-col gap-2">
-        <span className="text-xs font-bold text-[#0057e7] uppercase tracking-wide">Serviço</span>
-        <h3 className="font-bold text-[#0d1b2e] text-sm leading-snug">{service.title}</h3>
-        <p className="text-xs text-[#5a6a82] leading-relaxed flex-1">{service.short_description || service.description}</p>
-        <div className="flex items-center justify-between pt-2 border-t border-[#0d1b2e]/8 mt-1">
-          {cardPrice && <span className="text-xs font-semibold text-[#5a6a82]">{cardPrice}</span>}
-          <button
-            onClick={() => onSelectService(service.slug)}
-            className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:gap-2 transition-all"
-          >
-            Ver detalhes <ChevronRight size={13} />
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1823,7 +1546,7 @@ function AppContent({
 
   return (
     <PublicShell page={page} setPage={setPage}>
-        {page === "home" && <HomePage setPage={setPage} onSelectService={onSelectService} onSelectProduct={onSelectProduct} />}
+        {page === "home" && <HomePage setPage={setPage} onSelectService={onSelectService} onSelectProduct={onSelectProduct} trackingSection={<ServiceTrackingSection />} />}
         {page === "loja" && <LojaPage setPage={setPage} onSelectProduct={onSelectProduct} />}
         {page === "produto" && <ProdutoDetalhePage slug={productSlug} setPage={setPage} />}
         {page === "servicos" && <ServicosPage setPage={setPage} onSelectService={onSelectService} />}
