@@ -4,7 +4,6 @@ import { Edit2, Plus, Trash2, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import type {
-  EquipmentCatalog,
   EquipmentDraft,
   EquipmentDraftBrand,
   EquipmentDraftModel,
