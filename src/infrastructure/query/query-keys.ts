@@ -56,6 +56,10 @@ export const queryKeys = {
     brands: () => ["catalog", "brands"] as const,
     categories: () => ["catalog", "categories"] as const,
   },
+  orderStatuses: {
+    all: ["order-statuses"] as const,
+    lists: () => ["order-statuses", "list"] as const,
+  },
   orders: {
     all: ["orders"] as const,
     workspace: () => ["orders", "workspace"] as const,
