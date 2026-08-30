@@ -1,123 +1,178 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { loadOrdersWorkspace } from "../infrastructure/orders.repository";
 
 type ToastMessage = { msg: string; type: "success" | "error" };
+
+type OrdersWorkspace = {
+  orders: any[];
+  statuses: any[];
+  situations: any[];
+  serviceTypeSituations: any[];
+  profiles: any[];
+  services: any[];
+  brands: any[];
+  products: any[];
+  equipmentTypes: any[];
+  equipmentBrands: any[];
+  equipmentModels: any[];
+  employees: any[];
+  serviceTypes: any[];
+  generalServices: any[];
+};
+
+const EMPTY_WORKSPACE: OrdersWorkspace = {
+  orders: [],
+  statuses: [],
+  situations: [],
+  serviceTypeSituations: [],
+  profiles: [],
+  services: [],
+  brands: [],
+  products: [],
+  equipmentTypes: [],
+  equipmentBrands: [],
+  equipmentModels: [],
+  employees: [],
+  serviceTypes: [],
+  generalServices: [],
+};
+
+async function fetchOrdersWorkspace(): Promise<OrdersWorkspace> {
+  const [
+    ordersResult,
+    statusesResult,
+    situationsResult,
+    profilesResult,
+    servicesResult,
+    brandsResult,
+    productsResult,
+    equipmentTypesResult,
+    equipmentBrandsResult,
+    equipmentModelsResult,
+    employeesResult,
+    generalServicesResult,
+    serviceTypesResult,
+    serviceTypeSituationsResult,
+  ] = await loadOrdersWorkspace();
+
+  if (ordersResult.error) throw ordersResult.error;
+
+  [
+    statusesResult,
+    situationsResult,
+    profilesResult,
+    servicesResult,
+    brandsResult,
+    productsResult,
+    equipmentTypesResult,
+    equipmentBrandsResult,
+    equipmentModelsResult,
+    employeesResult,
+    generalServicesResult,
+    serviceTypesResult,
+    serviceTypeSituationsResult,
+  ].forEach((result, index) => {
+    if (result.error) {
+      console.error("[ADMIN] OS related query error:", index, result.error);
+    }
+  });
+
+  return {
+    orders: ordersResult.data ?? [],
+    statuses: statusesResult.data ?? [],
+    situations: situationsResult.data ?? [],
+    profiles: profilesResult.data ?? [],
+    services: servicesResult.data ?? [],
+    brands: brandsResult.data ?? [],
+    products: productsResult.data ?? [],
+    equipmentTypes: equipmentTypesResult.data ?? [],
+    equipmentBrands: equipmentBrandsResult.data ?? [],
+    equipmentModels: equipmentModelsResult.data ?? [],
+    employees: employeesResult.data ?? [],
+    generalServices: generalServicesResult.data ?? [],
+    serviceTypes: serviceTypesResult.data ?? [],
+    serviceTypeSituations: serviceTypeSituationsResult.data ?? [],
+  };
+}
 
 export function useOrdersWorkspace({
   showToast,
 }: {
   showToast: (toast: ToastMessage) => void;
 }) {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [statuses, setStatuses] = useState<any[]>([]);
-  const [situations, setSituations] = useState<any[]>([]);
-  const [serviceTypeSituations, setServiceTypeSituations] = useState<any[]>([]);
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [services, setServices] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [equipmentTypes, setEquipmentTypes] = useState<any[]>([]);
-  const [equipmentBrands, setEquipmentBrands] = useState<any[]>([]);
-  const [equipmentModels, setEquipmentModels] = useState<any[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [serviceTypes, setServiceTypes] = useState<any[]>([]);
-  const [generalServices, setGeneralServices] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const reloadWorkspace = useCallback(async () => {
-    setLoading(true);
-    const [
-      ordersResult,
-      statusesResult,
-      situationsResult,
-      profilesResult,
-      servicesResult,
-      brandsResult,
-      productsResult,
-      equipmentTypesResult,
-      equipmentBrandsResult,
-      equipmentModelsResult,
-      employeesResult,
-      generalServicesResult,
-      serviceTypesResult,
-      serviceTypeSituationsResult,
-    ] = await loadOrdersWorkspace();
-
-    if (ordersResult.error) {
-      console.error("[ADMIN] service_orders load error:", {
-        code: ordersResult.error.code,
-        message: ordersResult.error.message,
-        details: ordersResult.error.details,
-        hint: ordersResult.error.hint,
-      });
-      showToast({
-        msg: `Erro ao carregar OS: ${ordersResult.error.message}`,
-        type: "error",
-      });
-    } else {
-      setOrders(ordersResult.data || []);
-    }
-
-    [
-      statusesResult,
-      situationsResult,
-      profilesResult,
-      servicesResult,
-      brandsResult,
-      productsResult,
-      equipmentTypesResult,
-      equipmentBrandsResult,
-      equipmentModelsResult,
-      employeesResult,
-      generalServicesResult,
-      serviceTypesResult,
-      serviceTypeSituationsResult,
-    ].forEach((result, index) => {
-      if (result.error) {
-        console.error("[ADMIN] OS related query error:", index, result.error);
-      }
-    });
-
-    setStatuses(statusesResult.data || []);
-    setSituations(situationsResult.data || []);
-    setProfiles(profilesResult.data || []);
-    setServices(servicesResult.data || []);
-    setBrands(brandsResult.data || []);
-    setProducts(productsResult.data || []);
-    setEquipmentTypes(equipmentTypesResult.data || []);
-    setEquipmentBrands(equipmentBrandsResult.data || []);
-    setEquipmentModels(equipmentModelsResult.data || []);
-    setEmployees(employeesResult.data || []);
-    setGeneralServices(generalServicesResult.data || []);
-    setServiceTypes(serviceTypesResult.data || []);
-    setServiceTypeSituations(serviceTypeSituationsResult.data || []);
-    setLoading(false);
-  }, [showToast]);
+  const queryClient = useQueryClient();
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.orders.workspace(),
+    queryFn: fetchOrdersWorkspace,
+  });
+  const workspace = workspaceQuery.data ?? EMPTY_WORKSPACE;
 
   useEffect(() => {
-    void reloadWorkspace();
-  }, [reloadWorkspace]);
+    if (!workspaceQuery.error) return;
+    console.error("[ADMIN] service_orders load error:", workspaceQuery.error);
+    showToast({
+      msg: `Erro ao carregar OS: ${
+        workspaceQuery.error instanceof Error
+          ? workspaceQuery.error.message
+          : String(workspaceQuery.error)
+      }`,
+      type: "error",
+    });
+  }, [showToast, workspaceQuery.error]);
+
+  const setCollection = useCallback(
+    (
+      key: "orders" | "equipmentTypes" | "equipmentBrands" | "equipmentModels",
+      next: SetStateAction<any[]>,
+    ) => {
+      queryClient.setQueryData<OrdersWorkspace>(
+        queryKeys.orders.workspace(),
+        (current) => {
+          if (!current) return current;
+          const value = typeof next === "function" ? next(current[key]) : next;
+          return { ...current, [key]: value };
+        },
+      );
+    },
+    [queryClient],
+  );
+
+  const setOrders: Dispatch<SetStateAction<any[]>> = useCallback(
+    (next) => setCollection("orders", next),
+    [setCollection],
+  );
+  const setEquipmentTypes: Dispatch<SetStateAction<any[]>> = useCallback(
+    (next) => setCollection("equipmentTypes", next),
+    [setCollection],
+  );
+  const setEquipmentBrands: Dispatch<SetStateAction<any[]>> = useCallback(
+    (next) => setCollection("equipmentBrands", next),
+    [setCollection],
+  );
+  const setEquipmentModels: Dispatch<SetStateAction<any[]>> = useCallback(
+    (next) => setCollection("equipmentModels", next),
+    [setCollection],
+  );
+
+  const reloadWorkspace = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
+    [queryClient],
+  );
 
   return {
-    orders,
+    ...workspace,
     setOrders,
-    statuses,
-    situations,
-    serviceTypeSituations,
-    profiles,
-    services,
-    brands,
-    products,
-    equipmentTypes,
     setEquipmentTypes,
-    equipmentBrands,
     setEquipmentBrands,
-    equipmentModels,
     setEquipmentModels,
-    employees,
-    serviceTypes,
-    generalServices,
-    loading,
+    loading: workspaceQuery.isPending,
     reloadWorkspace,
   };
 }
