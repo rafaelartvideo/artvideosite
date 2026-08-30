@@ -49,12 +49,12 @@ import { useOrderResolution } from "@/features/orders/presentation/useOrderResol
 import { useOrderDetails } from "@/features/orders/presentation/useOrderDetails";
 import { useOrderFormState } from "@/features/orders/presentation/useOrderFormState";
 import { useOrderCustomerPersistence } from "@/features/orders/presentation/useOrderCustomerPersistence";
+import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import {
   Toast,
   ConfirmDialog,
   AdminPage,
   supabaseErrorMessage,
-  type AdminTab,
 } from "@/app/admin/shared";
 
 type OrderType = "internal" | "external";

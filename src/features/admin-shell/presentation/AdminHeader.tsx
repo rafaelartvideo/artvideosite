@@ -1,5 +1,5 @@
 import { Globe, Menu, Settings } from "lucide-react";
-import type { AdminPageState, AdminTab } from "@/app/admin/shared";
+import type { AdminPageState, AdminTab } from "../domain/admin.types";
 import { mainItems, utilityItems } from "../navigation-config";
 
 type AdminHeaderProps = {

@@ -1,5 +1,5 @@
 import { ArrowLeft, Globe, LogOut, Settings, Users } from "lucide-react";
-import type { AdminTab } from "@/app/admin/shared";
+import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/app/admin/shared";
 import { mainItems, utilityItems } from "../navigation-config";
 import { SidebarItem } from "./AdminNavigation";

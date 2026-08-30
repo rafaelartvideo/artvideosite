@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle, Edit2, Plus, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { AdminBackContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import {
   createGeneralService,
   getGeneralServices,
@@ -8,7 +9,6 @@ import {
   updateGeneralService,
 } from "@/lib/queries";
 import {
-  AdminBackContext,
   AdminPage,
   BtnPrimary,
   BtnSecondary,

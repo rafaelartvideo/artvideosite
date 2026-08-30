@@ -1,10 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import {
-  type AdminPageState,
-  type AdminTab,
-  AdminPageContext,
-} from "./admin/shared";
+import { AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
+import type { AdminPageState, AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { AdminContentRouter, type AdminRouteMap } from "@/features/admin-shell/presentation/AdminContentRouter";
 import { AdminHeader } from "@/features/admin-shell/presentation/AdminHeader";
 import { AdminLayout } from "@/features/admin-shell/presentation/AdminLayout";

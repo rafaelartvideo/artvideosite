@@ -3,28 +3,11 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useMediaUrl } from "@/lib/hooks";
 import type { Address } from "@/lib/address";
+import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import {
   Package, Tag, Clock, CheckCircle, AlertCircle, Plus, X, Upload, AlertTriangle,
   ArrowLeft,
 } from "lucide-react";
-
-export type AdminTab =
-  | "dashboard" | "services" | "categories" | "products" | "brands"
-  | "equipment" | "generalServices" | "serviceTypes" | "inventory" | "situations" | "orderStatuses"
-  | "quotes" | "orders" | "agenda" | "customers" | "site" | "operation" | "employees" | "settings" | "contact";
-
-export type AdminPageState = {
-  breadcrumb: string;
-  title: string;
-  subtitle?: string;
-  onBack: () => void;
-} | null;
-
-export const AdminPageContext = React.createContext<{
-  page: AdminPageState;
-  setPage: React.Dispatch<React.SetStateAction<AdminPageState>>;
-} | null>(null);
-export const AdminBackContext = React.createContext<(() => void) | null>(null);
 
 /* ─────────────────────────── SHARED PRIMITIVES ─────────────────────────── */
 

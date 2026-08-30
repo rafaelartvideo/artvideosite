@@ -14,7 +14,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import type { AdminTab } from "@/app/admin/shared";
+import type { AdminTab } from "./domain/admin.types";
 import type { AdminHubItem, AdminNavigationItem } from "./presentation/AdminNavigation";
 
 type PermissionAwareHubItem = AdminHubItem & {

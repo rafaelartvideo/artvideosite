@@ -13,8 +13,8 @@ import {
   listRequestStatuses,
   updateQuoteStatus,
 } from "../infrastructure/quotes.repository";
+import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import {
-  type AdminTab,
   AdminPage,
   BtnSecondary,
   cn,

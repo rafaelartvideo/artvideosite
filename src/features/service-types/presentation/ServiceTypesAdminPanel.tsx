@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle, Edit2, List, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { AdminBackContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import {
   deleteServiceType,
   getServiceTypeSituationLinks,
@@ -9,7 +10,6 @@ import {
   setServiceTypeActive,
 } from "../infrastructure/service-types.repository";
 import {
-  AdminBackContext,
   AdminPage,
   BtnPrimary,
   BtnSecondary,

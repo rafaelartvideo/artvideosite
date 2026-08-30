@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { AdminTab } from "@/app/admin/shared";
+import type { AdminTab } from "../domain/admin.types";
 
 export type AdminRoute = {
   element: ReactNode;

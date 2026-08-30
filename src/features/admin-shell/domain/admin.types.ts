@@ -1,0 +1,11 @@
+export type AdminTab =
+  | "dashboard" | "services" | "categories" | "products" | "brands"
+  | "equipment" | "generalServices" | "serviceTypes" | "inventory" | "situations" | "orderStatuses"
+  | "quotes" | "orders" | "agenda" | "customers" | "site" | "operation" | "employees" | "settings" | "contact";
+
+export type AdminPageState = {
+  breadcrumb: string;
+  title: string;
+  subtitle?: string;
+  onBack: () => void;
+} | null;
