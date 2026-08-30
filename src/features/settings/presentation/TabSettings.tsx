@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, Clock } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { getSiteSettings, saveSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
+import {
+  useSaveSiteSettingsMutation,
+  useSiteSettingsQuery,
+} from "./useSiteSettingsQuery";
 import {
   BtnPrimary,
   FInput,
@@ -14,35 +17,29 @@ import {
 export function TabSettings() {
   const { user, hasPermission } = useAuth();
   const [settings, setSettings] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const settingsQuery = useSiteSettingsQuery();
+  const saveSettings = useSaveSiteSettingsMutation();
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      setSettings(await getSiteSettings());
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "erro desconhecido";
-      setToast({ msg: `Erro ao carregar configurações: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (settingsQuery.data) setSettings(settingsQuery.data);
+  }, [settingsQuery.data]);
+
+  useEffect(() => {
+    if (!settingsQuery.error) return;
+    const message = settingsQuery.error instanceof Error ? settingsQuery.error.message : "erro desconhecido";
+    setToast({ msg: `Erro ao carregar configurações: ${message}`, type: "error" });
+  }, [settingsQuery.error]);
 
   const updateSetting = (key: string, value: any) => setSettings(prev => ({ ...prev, [key]: value }));
 
   const handleSave = async () => {
-    setSaving(true);
     try {
-      await saveSiteSettings(settings, user?.id ?? null);
+      await saveSettings.mutateAsync({ settings, updatedBy: user?.id ?? null });
       setToast({ msg: "Configurações salvas com sucesso!", type: "success" });
     } catch (error) {
       console.error("[ADMIN] site_settings save error:", error);
       setToast({ msg: `Erro ao salvar configurações: ${error instanceof Error ? error.message : "erro desconhecido"}`, type: "error" });
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -76,14 +73,14 @@ export function TabSettings() {
 
       <PageHeader title="Configurações do Site" subtitle="Controle as configurações globais do site" actions={
         hasPermission("settings.update") && (
-        <BtnPrimary onClick={handleSave} disabled={saving}>
-          {saving ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
-          {saving ? "Salvando..." : "Salvar tudo"}
+        <BtnPrimary onClick={handleSave} disabled={saveSettings.isPending}>
+          {saveSettings.isPending ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
+          {saveSettings.isPending ? "Salvando..." : "Salvar tudo"}
         </BtnPrimary>
         )
       } />
 
-      {loading ? <LoadingState /> : (
+      {settingsQuery.isPending ? <LoadingState /> : (
         <div className="space-y-4 max-w-2xl">
           {groups.map(group => (
             <Section key={group.title} title={group.title}>

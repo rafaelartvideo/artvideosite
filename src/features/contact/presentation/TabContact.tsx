@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle, Clock } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { getSiteSettings, saveSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
+import {
+  useSaveSiteSettingsMutation,
+  useSiteSettingsQuery,
+} from "@/features/settings/presentation/useSiteSettingsQuery";
 import {
   BtnPrimary,
   FInput,
@@ -14,38 +17,33 @@ import {
 export function TabContact() {
   const { user, hasPermission } = useAuth();
   const [settings, setSettings] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const settingsQuery = useSiteSettingsQuery();
+  const saveSettings = useSaveSiteSettingsMutation();
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const values = await getSiteSettings();
+  useEffect(() => {
+    if (settingsQuery.data) {
       setSettings(Object.fromEntries(
-        Object.entries(values).map(([key, value]) => [key, String(value ?? "")]),
+        Object.entries(settingsQuery.data).map(([key, value]) => [key, String(value ?? "")]),
       ));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "erro desconhecido";
-      setToast({ msg: `Erro ao carregar contato: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
     }
-  };
-  useEffect(() => { load(); }, []);
+  }, [settingsQuery.data]);
+
+  useEffect(() => {
+    if (!settingsQuery.error) return;
+    const message = settingsQuery.error instanceof Error ? settingsQuery.error.message : "erro desconhecido";
+    setToast({ msg: `Erro ao carregar contato: ${message}`, type: "error" });
+  }, [settingsQuery.error]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     try {
-      await saveSiteSettings(settings, user?.id ?? null);
+      await saveSettings.mutateAsync({ settings, updatedBy: user?.id ?? null });
       setToast({ msg: "Informações de contato salvas!", type: "success" });
     } catch (error) {
       console.error("[ADMIN] site settings contact save error:", error);
       const message = error instanceof Error ? error.message : typeof error === "object" && error && "message" in error ? String(error.message) : String(error);
       setToast({ msg: `Erro ao salvar: ${message}`, type: "error" });
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -64,14 +62,14 @@ export function TabContact() {
 
       <PageHeader title="Informações de Contato" subtitle="Dados exibidos no site e usados nos botões de ação" />
 
-      {loading ? <LoadingState /> : (
+      {settingsQuery.isPending ? <LoadingState /> : (
         <form onSubmit={handleSave} className="max-w-xl space-y-5">
           {groups.map((group) => <Section key={group.title} title={group.title}><div className="space-y-4">{group.fields.map(([key, label, placeholder]) => <FInput key={key} label={label} value={settings[key] || ""} onChange={(event: any) => updateSetting(key, event.target.value)} placeholder={placeholder} />)}</div></Section>)}
 
           <div className="flex items-center gap-3">
-            {hasPermission("contact.update") && <BtnPrimary type="submit" disabled={saving}>
-              {saving ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
-              {saving ? "Salvando..." : "Salvar contato"}
+            {hasPermission("contact.update") && <BtnPrimary type="submit" disabled={saveSettings.isPending}>
+              {saveSettings.isPending ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
+              {saveSettings.isPending ? "Salvando..." : "Salvar contato"}
             </BtnPrimary>}
             <p className="text-xs text-[#5a6a82]">Essas informações alimentam o site público.</p>
           </div>
