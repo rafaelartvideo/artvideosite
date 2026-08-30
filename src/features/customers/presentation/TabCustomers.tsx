@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Edit2, Plus, Search, Trash2, Users } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Edit2, Plus, RefreshCw, Search, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   createCustomer,
   createCustomerAddress,
@@ -45,8 +47,12 @@ import {
 
 export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
   const { hasPermission } = useAuth();
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const customersQuery = useQuery({
+    queryKey: queryKeys.customers.lists(),
+    queryFn: listCustomers,
+  });
+  const customers = customersQuery.data ?? [];
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -71,19 +77,17 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
   const [cpfError, setCpfError] = useState("");
   const cpfInputRef = useRef<HTMLInputElement>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      setCustomers(await listCustomers());
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar clientes: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!customersQuery.error) return;
+    const message = customersQuery.error instanceof Error
+      ? customersQuery.error.message
+      : String(customersQuery.error);
+    setToast({ msg: `Erro ao carregar clientes: ${message}`, type: "error" });
+  }, [customersQuery.error]);
 
-  useEffect(() => { load(); }, []);
+  const refreshCustomers = () => queryClient.invalidateQueries({
+    queryKey: queryKeys.customers.all,
+  });
 
   const openDetail = async (c: any) => {
     setDetail(c);
@@ -115,8 +119,8 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
       await updateCustomer(detail.id, customerUpdatePayload(editForm));
       setToast({ msg: "Dados do cliente atualizados.", type: "success" });
       setEditingCustomerData(false);
-      await load();
-      await openDetail({ ...detail, ...customerUpdatePayload(editForm) });
+      setDetail({ ...detail, ...customerUpdatePayload(editForm) });
+      await refreshCustomers();
     } catch (error) {
       setToast({ msg: `Erro ao salvar: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
     } finally {
@@ -134,7 +138,7 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
       setDetail({ ...detail, addresses: [savedAddress || editAddress] });
       setToast({ msg: "Endereço atualizado.", type: "success" });
       setEditingCustomerAddress(false);
-      await load();
+      await refreshCustomers();
     } catch (error) {
       setToast({ msg: `Erro ao salvar endereço: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
     } finally {
@@ -169,7 +173,7 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
         const message = error instanceof Error ? error.message : String(error);
         setToast({ msg: `Cliente criado, mas erro no endereço: ${message}`, type: "error" });
         setSaving(false);
-        await load();
+        await refreshCustomers();
         return;
       }
     }
@@ -179,7 +183,7 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
     setCreateAddress({ ...emptyAddress });
     setCpfError("");
     setSaving(false);
-    await load();
+    await refreshCustomers();
   };
 
   const handleDeleteCustomer = async (id: string) => {
@@ -195,7 +199,7 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
     setToast({ msg: "Cliente excluído.", type: "success" });
     setDeleteId(null);
     setDetail(null);
-    await load();
+    await refreshCustomers();
   };
 
   const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
@@ -237,8 +241,8 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
       <PageHeader title="Clientes" subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2">
           {hasPermission("customers.create") && <button onClick={() => { setCpfError(""); setCreateOpen(true); }} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Cadastrar Cliente</button>}
-          <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
-            <RefreshCw size={13} /> Atualizar
+          <button onClick={() => void customersQuery.refetch()} disabled={customersQuery.isFetching} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors disabled:opacity-60">
+            <RefreshCw size={13} className={customersQuery.isFetching ? "animate-spin" : ""} /> Atualizar
           </button>
         </div>
       } />
@@ -249,7 +253,7 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por nome, documento, WhatsApp ou e-mail..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
         </div>
-        {loading ? <LoadingState /> : filtered.length === 0 ? (
+        {customersQuery.isPending ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." onAdd={hasPermission("customers.create") ? () => { setCpfError(""); setCreateOpen(true); } : undefined} addLabel="Cadastrar Cliente" />
         ) : (
           <div className="overflow-x-auto">

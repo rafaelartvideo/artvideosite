@@ -13,6 +13,15 @@ export const queryKeys = {
     all: ["admin"] as const,
     dashboard: () => ["admin", "dashboard"] as const,
   },
+  customers: {
+    all: ["customers"] as const,
+    lists: () => ["customers", "list"] as const,
+    history: (customerId: string) => ["customers", "history", customerId] as const,
+  },
+  inventory: {
+    all: ["inventory"] as const,
+    lists: () => ["inventory", "list"] as const,
+  },
   orders: {
     all: ["orders"] as const,
     lists: () => ["orders", "list"] as const,
