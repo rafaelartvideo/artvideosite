@@ -28,11 +28,12 @@ import {
 
 export function OSSituationsView({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();
-  if (!hasPermission("orders.view")) return null;
+  const canView = hasPermission("orders.view");
   const queryClient = useQueryClient();
   const situationsQuery = useQuery({
     queryKey: queryKeys.orderSituations.lists(),
     queryFn: listOrderSituations,
+    enabled: canView,
   });
   const items = situationsQuery.data ?? [];
   const loading = situationsQuery.isPending;
@@ -48,6 +49,7 @@ export function OSSituationsView({ onBack }: { onBack: () => void }) {
     setToast({ msg: `Erro ao carregar situações: ${message}`, type: "error" });
   }, [situationsQuery.error]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.orderSituations.all });
+  if (!canView) return null;
   const openNew = () => { setEditItem(null); setForm({ name: "", slug: "", color: "", hours: "", is_active: true, sort_order: items.length }); setDrawerOpen(true); };
   const openEdit = (item: any) => { setEditItem(item); setForm({ name: item.name || "", slug: item.slug || "", color: item.color || "", hours: item.hours == null ? "" : String(item.hours), is_active: item.is_active, sort_order: item.sort_order }); setDrawerOpen(true); };
   const save = async () => {
