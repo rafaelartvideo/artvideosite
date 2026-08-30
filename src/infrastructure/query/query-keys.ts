@@ -52,6 +52,7 @@ export const queryKeys = {
   employees: {
     all: ["employees"] as const,
     lists: () => ["employees", "list"] as const,
+    roles: () => ["employees", "roles"] as const,
   },
   catalog: {
     all: ["catalog"] as const,
