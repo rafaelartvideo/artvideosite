@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CheckCircle, MessageCircle } from "lucide-react";
-import { AddressFields } from "@/app/components/AddressFields";
+import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { formatPhone } from "@/shared/domain/formatters";
 import { emptyAddress } from "@/lib/address";
 import { useBrands, useServiceCategories, useServices } from "@/lib/hooks";

@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Edit2, MessageCircle, Plus, Search, Users } from "lucide-react";
-import { AddressFields } from "@/app/components/AddressFields";
+import { AddressFields } from "@/shared/ui/address/AddressFields";
 import type { Address } from "@/lib/address";
 import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import {

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AddressFields } from "@/app/components/AddressFields";
+import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { emptyAddress, type Address } from "@/lib/address";
 import {
   applyCnpjData,

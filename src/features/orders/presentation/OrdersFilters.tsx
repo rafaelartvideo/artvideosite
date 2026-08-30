@@ -14,7 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/app/components/ui/dropdown-menu";
+} from "@/shared/ui/primitives/dropdown-menu";
 import { OrderFilterMultiSelect } from "./OrderFormControls";
 
 type CityOption = { name: string; state: string };

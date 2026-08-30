@@ -8,7 +8,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/app/components/ui/select";
+} from "@/shared/ui/primitives/select";
 import { normalizeSearchText } from "../application/order-search";
 
 export type EmployeeOption = { id: string; full_name: string };

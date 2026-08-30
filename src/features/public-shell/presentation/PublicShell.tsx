@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Instagram, Menu, MessageCircle, Phone, ShoppingCart, X } from "lucide-react";
-import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
+import { ImageWithFallback } from "@/shared/ui/media/ImageWithFallback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { useSiteSettings } from "@/lib/hooks";
 import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
