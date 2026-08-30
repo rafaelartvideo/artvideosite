@@ -16,7 +16,7 @@ import {
   PageHeader,
   slugify,
   Toast,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import {
   createOrderSituation,
   deleteOrderSituation,

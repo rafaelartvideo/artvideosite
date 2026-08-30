@@ -34,7 +34,7 @@ import {
   LoadingState,
   PageHeader,
   Toast,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 export function TabInventory({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();

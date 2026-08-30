@@ -3,7 +3,7 @@ import {
   customerFormFromCustomer,
   emptyCustomerForm,
   type CustomerForm,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import { emptyAddress, type Address } from "@/lib/address";
 import { searchOrderCustomers } from "../infrastructure/orders-customer.repository";
 

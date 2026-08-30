@@ -46,7 +46,7 @@ import {
   Section,
   supabaseErrorMessage,
   Toast,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 type AppointmentWithRelations = Appointment & {
   customer?: any;

@@ -4,7 +4,7 @@ import {
   FInput,
   FSelect,
   Section,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import { OrderAddressSelect } from "./OrderFormControls";
 
 type OrderType = "internal" | "external";

@@ -17,7 +17,7 @@ import {
   Section,
   todayDateOnly,
   type CustomerForm,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import { InfoRow } from "./OrderDetailsContent";
 
 export function OrderCustomerSection({

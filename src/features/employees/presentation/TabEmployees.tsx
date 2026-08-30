@@ -39,7 +39,7 @@ import {
   StatusBadge,
   Toast,
   supabaseErrorMessage,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 function PasswordField({ label, value, onChange, required = false, placeholder, resetKey }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; placeholder?: string; resetKey?: string | number }) {
   const [showPassword, setShowPassword] = useState(false);

@@ -4,7 +4,7 @@ import {
   FSelect,
   FTextarea,
   Section,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import { EmployeeMultiSelect } from "./OrderFormControls";
 
 export function OrderInformationSection({

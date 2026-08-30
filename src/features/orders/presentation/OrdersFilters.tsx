@@ -7,7 +7,7 @@ import {
   Eraser,
   Search,
 } from "lucide-react";
-import { cn, INPUT } from "@/app/admin/shared";
+import { cn, INPUT } from "@/shared/admin/AdminPrimitives";
 import {
   DropdownMenu,
   DropdownMenuContent,

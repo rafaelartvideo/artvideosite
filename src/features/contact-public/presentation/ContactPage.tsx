@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Clock, Instagram, Mail, MapPin, Phone } from "lucide-react";
-import { formatPhone } from "@/app/admin/shared";
+import { formatPhone } from "@/shared/admin/AdminPrimitives";
 import { getBusinessHours, getSettingText } from "@/features/public-shell/application/site-settings";
 import { PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
 import { useSiteSettings } from "@/lib/hooks";
@@ -112,4 +112,3 @@ export function ContactPage() {
     </>
   );
 }
-

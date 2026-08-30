@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertCircle, Clock, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { FInput, INPUT } from "@/app/admin/shared";
+import { FInput, INPUT } from "@/shared/admin/AdminPrimitives";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 
 type AdminLoginProps = {

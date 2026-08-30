@@ -6,7 +6,7 @@ import {
   customerUpdatePayload,
   validateCustomerForm,
   type CustomerForm,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import type { Address } from "@/lib/address";
 import {
   saveOrderCustomerAddress,

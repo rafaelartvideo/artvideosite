@@ -1,5 +1,5 @@
 import { CheckCircle, Clock } from "lucide-react";
-import { BtnPrimary, BtnSecondary } from "@/app/admin/shared";
+import { BtnPrimary, BtnSecondary } from "@/shared/admin/AdminPrimitives";
 
 export function OrderFormActions({
   saving,

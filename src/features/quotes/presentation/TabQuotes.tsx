@@ -31,7 +31,7 @@ import {
   PaginationBar,
   Section,
   Toast,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const { user, hasPermission } = useAuth();

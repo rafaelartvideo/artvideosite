@@ -13,7 +13,7 @@ import {
   LoadingState,
   PageHeader,
   StatusBadge,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import { loadDashboardOverview } from "../infrastructure/dashboard.repository";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 

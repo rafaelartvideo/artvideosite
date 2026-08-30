@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { ArrowLeft } from "lucide-react";
-import { cn } from "@/app/admin/shared";
+import { cn } from "@/shared/admin/AdminPrimitives";
 
 export type AdminNavigationItem = {
   id: string;

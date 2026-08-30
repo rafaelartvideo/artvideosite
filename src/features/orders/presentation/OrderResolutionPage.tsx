@@ -6,7 +6,7 @@ import {
   BtnSecondary,
   FTextarea,
   Section,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import { InfoRow } from "./OrderDetailsContent";
 import {
   OrderImageThumb,

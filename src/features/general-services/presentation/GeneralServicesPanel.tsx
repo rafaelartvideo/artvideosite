@@ -21,7 +21,7 @@ import {
   Section,
   StatusBadge,
   Toast,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 export function GeneralServicesPanel({ onBack }: { onBack: () => void }) {
   return <AdminBackContext.Provider value={onBack}><GeneralServicesPanelContent onBack={onBack} /></AdminBackContext.Provider>;

@@ -8,7 +8,7 @@ import {
   FTextarea,
   FToggle,
   slugify,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import {
   createEquipmentBrand,
   createEquipmentModel,

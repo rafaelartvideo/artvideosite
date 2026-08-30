@@ -43,7 +43,7 @@ import {
   customerUpdatePayload,
   validateCustomerForm,
   type CustomerForm,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
   const { hasPermission } = useAuth();

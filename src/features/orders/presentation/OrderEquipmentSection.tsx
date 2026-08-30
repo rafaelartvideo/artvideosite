@@ -5,7 +5,7 @@ import {
   FSelect,
   FTextarea,
   Section,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 export function OrderEquipmentSection({
   form,

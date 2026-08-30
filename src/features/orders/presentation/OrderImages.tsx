@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Camera, Upload, X } from "lucide-react";
 import { useMediaUrl } from "@/lib/hooks";
-import { createMediaRecord, Section } from "@/app/admin/shared";
+import { createMediaRecord, Section } from "@/shared/admin/AdminPrimitives";
 import {
   removeOrderImageFile,
   uploadOrderImageFile,

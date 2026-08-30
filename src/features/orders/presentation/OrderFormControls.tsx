@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle, ChevronDown, X } from "lucide-react";
-import { cn, INPUT } from "@/app/admin/shared";
+import { cn, INPUT } from "@/shared/admin/AdminPrimitives";
 import {
   Select,
   SelectContent,

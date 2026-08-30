@@ -1,6 +1,6 @@
 import type React from "react";
 import { CheckCircle, Edit2, PackagePlus, Trash2 } from "lucide-react";
-import { BtnPrimary, BtnSecondary } from "@/app/admin/shared";
+import { BtnPrimary, BtnSecondary } from "@/shared/admin/AdminPrimitives";
 
 export function OrderDetailsActions({
   detail,

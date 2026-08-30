@@ -6,7 +6,7 @@ import {
   formatPhone,
   Section,
   StatusBadge,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import {
   getPriorityLabel,
   getResponsibleName,

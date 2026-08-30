@@ -28,7 +28,7 @@ import {
   slugify,
   StatusBadge,
   Toast,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 export function TabBrands({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();

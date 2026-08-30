@@ -30,7 +30,7 @@ import {
   slugify,
   StatusBadge,
   Toast,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 export function TabProducts({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();

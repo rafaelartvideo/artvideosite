@@ -55,7 +55,7 @@ import {
   ConfirmDialog,
   AdminPage,
   supabaseErrorMessage,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 type OrderType = "internal" | "external";
 

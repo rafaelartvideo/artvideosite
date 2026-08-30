@@ -44,7 +44,7 @@ import {
   Section,
   StatusBadge,
   Toast,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 export function TabServices({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();

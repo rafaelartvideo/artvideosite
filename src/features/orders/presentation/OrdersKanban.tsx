@@ -1,6 +1,6 @@
 import type React from "react";
 import { Edit2 } from "lucide-react";
-import { cn } from "@/app/admin/shared";
+import { cn } from "@/shared/admin/AdminPrimitives";
 
 export function OrdersKanban({
   statuses,

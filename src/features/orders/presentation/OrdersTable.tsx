@@ -5,7 +5,7 @@ import {
   LoadingState,
   PaginationBar,
   StatusBadge,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import { PriorityBadge } from "./OrderFormControls";
 
 export function OrdersTable({

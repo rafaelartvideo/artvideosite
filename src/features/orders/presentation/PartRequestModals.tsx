@@ -6,7 +6,7 @@ import {
   cn,
   FTextarea,
   INPUT,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import { normalizeSearchText } from "../application/order-search";
 import { fmtReviewDate } from "../application/part-request.formatters";
 import type {

@@ -20,7 +20,7 @@ import {
   todayDateOnly,
   type CustomerForm,
   validateCustomerForm,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 import {
   createQuickCustomer,
   createQuickCustomerAddress,

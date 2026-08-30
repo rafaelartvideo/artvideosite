@@ -12,7 +12,7 @@ import {
   PageHeader,
   Section,
   Toast,
-} from "@/app/admin/shared";
+} from "@/shared/admin/AdminPrimitives";
 
 export function TabContact() {
   const { user, hasPermission } = useAuth();
