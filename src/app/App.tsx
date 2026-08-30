@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { useServiceDetailBySlug, useProductDetailBySlug, useSiteSettings } from "@/lib/hooks";
+import { useSiteSettings } from "@/lib/hooks";
 const AdminLogin = lazy(() =>
   import("@/app/Admin").then(({ AdminLogin }) => ({ default: AdminLogin })),
 );
@@ -19,7 +19,9 @@ import { PublicShell, WhatsAppAction } from "@/features/public-shell/presentatio
 import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
 import { HomePage } from "@/features/home/presentation/HomePage";
 import { ServicesPage } from "@/features/public-services/presentation/ServicesPage";
+import { ServiceDetailPage } from "@/features/public-services/presentation/ServiceDetailPage";
 import { StorePage } from "@/features/public-store/presentation/StorePage";
+import { ProductDetailPage } from "@/features/public-store/presentation/ProductDetailPage";
 import {
   Tv, Wind, Monitor, Headphones, Cpu, Plug,
   Package, Gamepad2, Wrench, Settings, ArrowRight, Phone, Instagram,
@@ -28,13 +30,6 @@ import {
 } from "lucide-react";
 
 /* ─── shared components ─── */
-function inlineMediaUrl(media: { bucket_id?: string | null; bucket_name?: string | null; storage_path: string } | null | undefined): string | null {
-  const bucketName = media?.bucket_id ?? media?.bucket_name;
-  if (!bucketName || !media?.storage_path) return null;
-  const { data } = supabase.storage.from(bucketName).getPublicUrl(media.storage_path);
-  return data.publicUrl;
-}
-
 /* ─── Tracking Section ─── */
 function ServiceTrackingSection() {
   const [osNumber, setOsNumber] = useState("");
@@ -294,53 +289,6 @@ function ServiceTrackingSection() {
       </div>
     </section>
   );
-}
-
-function ProdutoDetalhePage({ slug, setPage }: { slug: string | null; setPage: (p: Page) => void }) {
-  const { detail, loading, error } = useProductDetailBySlug(slug);
-  const imageUrl = inlineMediaUrl(detail?.media);
-
-  if (loading) return <div className="min-h-[55vh] flex items-center justify-center text-[#5a6a82] text-sm"><Clock size={20} className="animate-spin mr-2 text-[#0057e7]" /> Carregando produto...</div>;
-  if (error) return <section className="py-20 bg-[#f5f7fa]"><div className="max-w-xl mx-auto px-4 text-center"><AlertCircle size={34} className="mx-auto mb-4 text-red-500" /><H2 className="mb-3">Não foi possível carregar este produto</H2><p className="text-sm text-[#5a6a82] mb-6">{error}</p><Btn onClick={() => setPage("loja")}>Voltar para a loja</Btn></div></section>;
-  if (!detail) return <section className="py-20 bg-[#f5f7fa]"><div className="max-w-xl mx-auto px-4 text-center"><Package size={34} className="mx-auto mb-4 text-[#0057e7]" /><H2 className="mb-3">Produto não encontrado</H2><p className="text-sm text-[#5a6a82] mb-6">O produto solicitado não existe ou não está disponível no momento.</p><Btn onClick={() => setPage("loja")}>Ver produtos disponíveis</Btn></div></section>;
-
-  const { product, brand } = detail;
-  const priceLabel = product.price != null ? `R$ ${Number(product.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte o valor";
-
-  return (
-    <>
-      <div className="bg-white border-b border-[#0d1b2e]/10"><div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 text-xs text-[#5a6a82]"><button onClick={() => setPage("home")} className="hover:text-[#0057e7]">Início</button><ChevronRight size={12} /><button onClick={() => setPage("loja")} className="hover:text-[#0057e7]">Loja</button><ChevronRight size={12} /><span className="font-medium text-[#0d1b2e] truncate">{product.name}</span></div></div>
-      <section className="bg-[#f5f7fa] py-12 sm:py-16"><div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-start"><div className="rounded-2xl overflow-hidden border border-[#0d1b2e]/10 bg-white p-3"><div className="bg-[#f5f7fa] rounded-xl overflow-hidden h-[420px]">{imageUrl ? <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={40} /></div>}</div></div><div><SectionLabel>Produto</SectionLabel><h1 className="text-4xl sm:text-5xl font-black text-[#0d1b2e] leading-tight mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{product.name}</h1>{brand?.name && <p className="text-sm text-[#5a6a82] mb-3">Marca: {brand.name}</p>}<p className="text-3xl font-black text-[#0057e7] mb-6">{priceLabel}</p>{product.short_description && <p className="text-[#5a6a82] leading-relaxed mb-6">{product.short_description}</p>}<div className="flex flex-wrap gap-3"><Btn variant="primary" className="px-6 py-3 text-base" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn><WhatsAppAction className="px-6 py-3 text-base" /></div></div></div></section>
-      {(product.description || product.sku) && <section className="py-14 bg-white"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Detalhes</SectionLabel><H2 className="mb-5">Informações do produto</H2>{product.sku && <p className="text-sm text-[#5a6a82] mb-4"><span className="font-bold text-[#0d1b2e]">SKU:</span> {product.sku}</p>}{product.description && <p className="text-sm text-[#5a6a82] leading-relaxed whitespace-pre-line">{product.description}</p>}</div></section>}
-      <section className="py-20 bg-[#0057e7]"><div className="max-w-3xl mx-auto px-4 text-center"><h2 className="text-3xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Quer saber mais sobre este produto?</h2><div className="flex flex-wrap justify-center gap-4"><Btn className="bg-white text-[#0057e7] hover:bg-[#f0f6ff]" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn><WhatsAppAction /></div></div></section>
-    </>
-  );
-}
-
-function ServicoDetalhePage({ slug, setPage }: { slug: string | null; setPage: (p: Page) => void }) {
-  const { detail, loading, error } = useServiceDetailBySlug(slug);
-  const imageUrl = inlineMediaUrl(detail?.media);
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-
-  if (loading) return <div className="min-h-[55vh] flex items-center justify-center text-[#5a6a82] text-sm"><Clock size={20} className="animate-spin mr-2 text-[#0057e7]" /> Carregando serviço...</div>;
-  if (error) return <section className="py-20 bg-[#f5f7fa]"><div className="max-w-xl mx-auto px-4 text-center"><AlertCircle size={34} className="mx-auto mb-4 text-red-500" /><H2 className="mb-3">Não foi possível carregar este serviço</H2><p className="text-sm text-[#5a6a82] mb-6">{error}</p><Btn onClick={() => setPage("servicos")}>Voltar para serviços</Btn></div></section>;
-  if (!detail) return <section className="py-20 bg-[#f5f7fa]"><div className="max-w-xl mx-auto px-4 text-center"><Package size={34} className="mx-auto mb-4 text-[#0057e7]" /><H2 className="mb-3">Serviço não encontrado</H2><p className="text-sm text-[#5a6a82] mb-6">O serviço solicitado não existe ou não está disponível no momento.</p><Btn onClick={() => setPage("servicos")}>Ver serviços disponíveis</Btn></div></section>;
-
-  const { service, category, brand, product, variants, inclusions, exclusions, priceFactors, faqs, sections, filters } = detail;
-  const formattedBasePrice = service.base_price ? `R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null;
-  const priceLabel = service.price_mode === "HIDDEN" ? null : service.price_mode === "STARTING_FROM" && formattedBasePrice ? `A partir de ${formattedBasePrice}` : service.price_mode === "FIXED" && formattedBasePrice ? formattedBasePrice : "Consulte o valor";
-
-  return <>
-    <div className="bg-white border-b border-[#0d1b2e]/10"><div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 text-xs text-[#5a6a82]"><button onClick={() => setPage("home")} className="hover:text-[#0057e7]">Início</button><ChevronRight size={12} /><button onClick={() => setPage("servicos")} className="hover:text-[#0057e7]">Serviços</button><ChevronRight size={12} /><span className="font-medium text-[#0d1b2e] truncate">{service.title}</span></div></div>
-    <section className="bg-[#0d1b2e] py-12 sm:py-16"><div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-center"><div><SectionLabel light>{category?.name || "Serviço"}</SectionLabel><h1 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{service.title}</h1>{service.short_description && <p className="text-white/70 text-base leading-relaxed mb-5">{service.short_description}</p>}{priceLabel && <p className="text-2xl font-black text-white mb-6">{priceLabel}</p>}<div className="flex flex-wrap gap-3"><Btn onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn><WhatsAppAction /></div>{(brand?.name || product?.name) && <p className="text-xs text-white/60 mt-5">{brand?.name && `Marca: ${brand.name}`}{brand?.name && product?.name && " · "}{product?.name && `Produto: ${product.name}`}</p>}</div>{imageUrl && <div className="rounded-xl overflow-hidden border border-white/10"><img src={imageUrl} alt={service.title} className="w-full h-64 sm:h-80 object-cover" /></div>}</div></section>
-    {(service.description || inclusions.length > 0 || exclusions.length > 0) && <section className="py-14 bg-[#f5f7fa]"><div className="max-w-5xl mx-auto px-4 sm:px-6 grid md:grid-cols-2 gap-10"><div>{service.description && <><SectionLabel>Sobre o serviço</SectionLabel><H2 className="mb-4">Sobre este serviço</H2><p className="text-sm text-[#5a6a82] leading-relaxed whitespace-pre-line">{service.description}</p></>}</div><div className="space-y-7">{inclusions.length > 0 && <div><SectionLabel>Incluso</SectionLabel><H2 className="mb-4">O que está incluso</H2><ul className="space-y-3">{inclusions.map((item: any) => <li key={item.id} className="flex gap-2 text-sm text-[#3a4a5e]"><CheckCircle size={16} className="text-[#0057e7] mt-0.5 shrink-0" />{item.description}</li>)}</ul></div>}{exclusions.length > 0 && <div><SectionLabel>Não incluso</SectionLabel><H2 className="mb-4">O que não está incluso</H2><ul className="space-y-3">{exclusions.map((item: any) => <li key={item.id} className="flex gap-2 text-sm text-[#3a4a5e]"><X size={16} className="text-red-500 mt-0.5 shrink-0" />{item.description}</li>)}</ul></div>}</div></div></section>}
-    {variants.length > 0 && <section className="py-14 bg-white"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Variações</SectionLabel><H2 className="mb-8">Opções e valores</H2><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{variants.map((variant: any) => <div key={variant.id} className="border border-[#0d1b2e]/10 rounded-xl p-5"><p className="font-bold text-[#0d1b2e]">{variant.title}</p>{variant.description && <p className="text-xs text-[#5a6a82] mt-2">{variant.description}</p>}<p className="text-lg font-black text-[#0057e7] mt-4">{variant.price ? `R$ ${Number(variant.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte"}</p></div>)}</div></div></section>}
-    {priceFactors.length > 0 && <section className="py-14 bg-[#f5f7fa]"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Transparência</SectionLabel><H2 className="mb-8">O que pode alterar o valor?</H2><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{priceFactors.map((factor: any) => <div key={factor.id} className="bg-white border border-[#0d1b2e]/10 rounded-xl p-4"><p className="font-bold text-[#0d1b2e] text-sm">{factor.name}</p>{factor.description && <p className="text-xs text-[#5a6a82] mt-1">{factor.description}</p>}</div>)}</div></div></section>}
-    {filters.length > 0 && <section className="py-10 bg-white"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Características</SectionLabel><div className="flex flex-wrap gap-2">{filters.map((filter: any) => <span key={filter.id} className="bg-[#e8eef8] text-[#0d1b2e] text-xs font-semibold px-3 py-1.5 rounded-md">{filter.name || filter.value}</span>)}</div></div></section>}
-    {sections.map((section: any) => <section key={section.id} className="py-14 bg-white"><div className="max-w-5xl mx-auto px-4 sm:px-6"><SectionLabel>Informações</SectionLabel><H2 className="mb-4">{section.title}</H2><p className="text-sm text-[#5a6a82] leading-relaxed whitespace-pre-line">{section.content}</p></div></section>)}
-    {faqs.length > 0 && <section className="py-14 bg-white"><div className="max-w-3xl mx-auto px-4 sm:px-6"><SectionLabel>Dúvidas</SectionLabel><H2 className="mb-8">Dúvidas frequentes</H2><div className="space-y-3">{faqs.map((faq: any, index: number) => <div key={faq.id} className="border border-[#0d1b2e]/10 rounded-xl overflow-hidden"><button onClick={() => setOpenFaq(openFaq === index ? null : index)} className="w-full flex justify-between gap-4 px-5 py-4 text-left hover:bg-[#f5f7fa]"><span className="font-semibold text-sm text-[#0d1b2e]">{faq.question}</span><ChevronDown size={16} className={openFaq === index ? "rotate-180 text-[#0057e7]" : "text-[#0057e7]"} /></button>{openFaq === index && <p className="px-5 pb-4 text-sm text-[#5a6a82] leading-relaxed">{faq.answer}</p>}</div>)}</div></div></section>}
-    <section className="py-16 bg-[#0057e7]"><div className="max-w-3xl mx-auto px-4 text-center"><h2 className="text-3xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Precisa deste serviço?</h2><div className="flex flex-wrap justify-center gap-4"><Btn className="bg-white text-[#0057e7] hover:bg-[#f0f6ff]" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn><WhatsAppAction /></div></div></section>
-  </>;
 }
 
 /* ─── Service Detail: Instalação de Ar-condicionado ─── */
@@ -1404,9 +1352,9 @@ function AppContent({
     <PublicShell page={page} setPage={setPage}>
         {page === "home" && <HomePage setPage={setPage} onSelectService={onSelectService} onSelectProduct={onSelectProduct} trackingSection={<ServiceTrackingSection />} />}
         {page === "loja" && <StorePage setPage={setPage} onSelectProduct={onSelectProduct} />}
-        {page === "produto" && <ProdutoDetalhePage slug={productSlug} setPage={setPage} />}
+        {page === "produto" && <ProductDetailPage slug={productSlug} setPage={setPage} />}
         {page === "servicos" && <ServicesPage setPage={setPage} onSelectService={onSelectService} />}
-        {page === "servico" && <ServicoDetalhePage slug={serviceSlug} setPage={setPage} />}
+        {page === "servico" && <ServiceDetailPage slug={serviceSlug} setPage={setPage} />}
         {page === "sobre" && <SobrePage setPage={setPage} />}
         {page === "contato" && <ContatoPage />}
         {page === "orcamento" && <OrcamentoPage />}

@@ -1,19 +1,13 @@
 import { ChevronRight, Package } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-
-function mediaUrl(media: { bucket_id?: string | null; bucket_name?: string | null; storage_path: string } | null | undefined): string | null {
-  const bucketName = media?.bucket_id ?? media?.bucket_name;
-  if (!bucketName || !media?.storage_path) return null;
-  return supabase.storage.from(bucketName).getPublicUrl(media.storage_path).data.publicUrl;
-}
+import { publicMediaUrl } from "../infrastructure/public-media";
 
 export function BrandCard({ brand }: { brand: any }) {
-  const logoUrl = mediaUrl(brand.logo_media);
+  const logoUrl = publicMediaUrl(brand.logo_media);
   return <div className="bg-[#f5f7fa] border border-[#0d1b2e]/10 rounded-lg h-14 flex items-center justify-center hover:border-[#0057e7]/40 transition-colors group">{logoUrl ? <img src={logoUrl} alt={brand.name} className="max-h-10 max-w-[90%] object-contain" /> : <span className="text-xs font-bold text-[#5a6a82]">{brand.name}</span>}</div>;
 }
 
 export function ProductCard({ product, onSelectProduct }: { product: any; onSelectProduct: (slug: string) => void }) {
-  const imageUrl = mediaUrl(product.cover_media);
+  const imageUrl = publicMediaUrl(product.cover_media);
   return (
     <div className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md transition-shadow group">
       <div className="bg-[#f5f7fa] h-44 overflow-hidden">{imageUrl ? <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /> : <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={32} /></div>}</div>
@@ -30,7 +24,7 @@ export function ProductCard({ product, onSelectProduct }: { product: any; onSele
 }
 
 export function ServiceCard({ service, onSelectService }: { service: any; onSelectService: (slug: string) => void }) {
-  const imageUrl = mediaUrl(service.cover_media);
+  const imageUrl = publicMediaUrl(service.cover_media);
   const cardPrice = service.price_mode === "HIDDEN" ? null : service.price_mode === "STARTING_FROM" && service.base_price ? `A partir de R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : service.price_mode === "FIXED" && service.base_price ? `R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte o valor";
   return (
     <div className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md hover:border-[#0057e7]/30 transition-all group">
