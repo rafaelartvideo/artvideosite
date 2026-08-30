@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   CheckCircle,
@@ -9,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   deleteInventoryItem,
   getInventoryItem,
@@ -41,8 +43,13 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
   const canEditInventory = hasPermission("inventory.update");
   const canDeleteInventory = hasPermission("inventory.delete");
   const canManageInventory = canViewInventory || canCreateInventory || canEditInventory || canDeleteInventory;
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const itemsQuery = useQuery({
+    queryKey: queryKeys.inventory.lists(),
+    queryFn: listInventoryItems,
+    enabled: canManageInventory,
+  });
+  const items = itemsQuery.data ?? [];
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -51,20 +58,17 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [movementForm, setMovementForm] = useState({ type: "in", quantity: "", reason: "", service_order_id: "" });
 
-  const loadItems = async () => {
-    setLoading(true);
-    try {
-      setItems(await listInventoryItems());
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar estoque: ${message}`, type: "error" });
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!itemsQuery.error) return;
+    const message = itemsQuery.error instanceof Error
+      ? itemsQuery.error.message
+      : String(itemsQuery.error);
+    setToast({ msg: `Erro ao carregar estoque: ${message}`, type: "error" });
+  }, [itemsQuery.error]);
 
-  useEffect(() => { void loadItems(); }, []);
+  const refreshInventory = () => queryClient.invalidateQueries({
+    queryKey: queryKeys.inventory.all,
+  });
 
   const openNew = () => {
     setSelectedItem(null);
@@ -121,7 +125,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       await saveInventoryItem(payload, selectedItem?.id);
       setToast({ msg: selectedItem ? "Item atualizado." : "Item cadastrado.", type: "success" });
       setRecordOpen(false);
-      await loadItems();
+      await refreshInventory();
     } catch (error) {
       setToast({ msg: `Erro ao salvar item: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
     }
@@ -143,7 +147,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       return;
     }
     setToast({ msg: next ? "Item ativado." : "Item desativado.", type: "success" });
-    await loadItems();
+    await refreshInventory();
   };
 
   const deleteItem = async (item: any) => {
@@ -159,7 +163,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       return;
     }
     setToast({ msg: "Item excluído do estoque.", type: "success" });
-    await loadItems();
+    await refreshInventory();
   };
 
   const openHistory = async (item: any) => {
@@ -234,7 +238,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       setHistoryOpen(false);
       setSelectedItem(null);
       setMovementForm({ type: "in", quantity: "", reason: "", service_order_id: "" });
-      await loadItems();
+      await refreshInventory();
     } catch (error) {
       setToast({ msg: `Erro na movimentação: ${supabaseErrorMessage(error)}`, type: "error" });
     }
@@ -251,7 +255,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
-        {loading ? <LoadingState /> : items.length === 0 ? (
+        {itemsQuery.isPending ? <LoadingState /> : items.length === 0 ? (
           <EmptyState icon={Package} title="Nenhum item em estoque" message="Cadastre um item para começar a controlar o inventário." />
         ) : (
           <div className="overflow-x-auto">

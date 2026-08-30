@@ -21,6 +21,7 @@ export const queryKeys = {
   inventory: {
     all: ["inventory"] as const,
     lists: () => ["inventory", "list"] as const,
+    movements: (itemId: string) => ["inventory", "movements", itemId] as const,
   },
   orders: {
     all: ["orders"] as const,
