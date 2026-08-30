@@ -23,6 +23,10 @@ export const queryKeys = {
     lists: () => ["inventory", "list"] as const,
     movements: (itemId: string) => ["inventory", "movements", itemId] as const,
   },
+  appointments: {
+    all: ["appointments"] as const,
+    lists: () => ["appointments", "list"] as const,
+  },
   orders: {
     all: ["orders"] as const,
     workspace: () => ["orders", "workspace"] as const,

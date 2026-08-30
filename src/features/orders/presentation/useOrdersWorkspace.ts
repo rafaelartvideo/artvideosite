@@ -161,10 +161,15 @@ export function useOrdersWorkspace({
     [setCollection],
   );
 
-  const reloadWorkspace = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
-    [queryClient],
-  );
+  const reloadWorkspace = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard() }),
+    ]);
+  }, [queryClient]);
 
   return {
     ...workspace,
