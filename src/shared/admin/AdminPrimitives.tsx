@@ -2,215 +2,22 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useMediaUrl } from "@/lib/hooks";
-import type { Address } from "@/lib/address";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
+import { cn } from "@/shared/domain/formatters";
 import {
   Package, Tag, Clock, CheckCircle, AlertCircle, Plus, X, Upload, AlertTriangle,
   ArrowLeft,
 } from "lucide-react";
 
-/* ─────────────────────────── SHARED PRIMITIVES ─────────────────────────── */
-
-export function cn(...cls: (string | false | null | undefined)[]) {
-  return cls.filter(Boolean).join(" ");
-}
-
-export function slugify(value: string) {
-  return value
-    .toString()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+export { cn, slugify, getWhatsAppUrl, formatPhone, formatCpf, isValidCpf, formatCnpj, formatFoundationDate, foundationDateToIso, foundationDateFromIso as foundationDateFromCustomer, formatDateOnly, todayDateOnly } from "@/shared/domain/formatters";
+export { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
+export { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
+export { emptyCustomerForm, customerFormFromCustomer, customerPayload, customerUpdatePayload, validateCustomerForm, applyCnpjData } from "@/features/customers/domain/customer-form";
+export type { CustomerType, CustomerForm } from "@/features/customers/domain/customer-form";
 
 export function initialOrderStatus(statuses: any[]) {
   const ordered = [...statuses].sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0));
   return ordered.find(status => /abert|novo|recebid|pendente/i.test(status.name || "")) || ordered[0] || null;
-}
-
-export function getWhatsAppUrl(value?: string | null) {
-  const digits = (value || "").replace(/\D/g, "");
-  return digits ? `https://wa.me/${digits}` : null;
-}
-
-export function formatPhone(value: string | number | null | undefined) {
-  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 2) return digits ? `(${digits}` : "";
-  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 3)} ${digits.slice(3, 7)}-${digits.slice(7)}`;
-}
-
-export type CustomerType = "PF" | "PJ";
-export type CustomerForm = {
-  customerType: CustomerType;
-  full_name: string;
-  email: string;
-  phone: string;
-  whatsapp: string;
-  document: string;
-  trade_name: string;
-  legal_name: string;
-  cnpj: string;
-  state_registration: string;
-  foundation_date: string;
-  birth_date: string;
-};
-
-export const emptyCustomerForm: CustomerForm = { customerType: "PF", full_name: "", email: "", phone: "", whatsapp: "", document: "", trade_name: "", legal_name: "", cnpj: "", state_registration: "", foundation_date: "", birth_date: "" };
-
-export function formatCpf(value: string) {
-  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 11);
-  return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
-}
-
-export function isValidCpf(value: string): boolean {
-  const digits = String(value ?? "").replace(/\D/g, "");
-  if (digits.length !== 11 || /^([0-9])\1{10}$/.test(digits)) return false;
-  const firstCheckDigit = digits.slice(0, 9).split("").reduce((sum, digit, index) => sum + Number(digit) * (10 - index), 0);
-  const firstRemainder = (firstCheckDigit * 10) % 11;
-  const firstExpected = firstRemainder === 10 ? 0 : firstRemainder;
-  if (firstExpected !== Number(digits[9])) return false;
-  const secondCheckDigit = digits.slice(0, 10).split("").reduce((sum, digit, index) => sum + Number(digit) * (11 - index), 0);
-  const secondRemainder = (secondCheckDigit * 10) % 11;
-  const secondExpected = secondRemainder === 10 ? 0 : secondRemainder;
-  return secondExpected === Number(digits[10]);
-}
-
-export function formatCnpj(value: string) {
-  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 14);
-  return digits.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4").replace(/(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
-}
-
-export function formatFoundationDate(value: string) {
-  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 8);
-  return digits.replace(/(\d{2})(\d)/, "$1/$2").replace(/(\d{2})\/(\d{2})(\d)/, "$1/$2/$3");
-}
-
-export function foundationDateToIso(value: string) {
-  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
-}
-
-export function foundationDateFromCustomer(value?: string | null) {
-  if (!value) return "";
-  const match = value.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
-}
-
-export function formatDateOnly(value?: string | null) {
-  if (!value) return "";
-  const [year, month, day] = value.split("-");
-  if (!year || !month || !day) return value;
-  return `${day}/${month}/${year}`;
-}
-
-export function todayDateOnly() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
-
-export function customerFormFromCustomer(customer: any): CustomerForm {
-  const customerType: CustomerType = customer.customer_type === "PJ" ? "PJ" : "PF";
-  return {
-    customerType,
-    full_name: customer.full_name || "",
-    email: customer.email || "",
-    phone: formatPhone(customer.phone),
-    whatsapp: formatPhone(customer.whatsapp),
-    document: formatCpf(customer.document || ""),
-    trade_name: customer.trade_name || "",
-    legal_name: customer.legal_name || "",
-    cnpj: formatCnpj(customer.cnpj || ""),
-    state_registration: customer.state_registration || "",
-    foundation_date: foundationDateFromCustomer(customer.foundation_date),
-    birth_date: customer.birth_date || "",
-  };
-}
-
-export function customerPayload(form: CustomerForm) {
-  return {
-    customer_type: form.customerType,
-    full_name: (form.customerType === "PJ" ? form.trade_name : form.full_name).trim(),
-    email: form.email.trim() || null,
-    phone: form.phone.replace(/\D/g, "") || null,
-    whatsapp: form.whatsapp.replace(/\D/g, "") || null,
-    document: form.customerType === "PF" ? form.document.replace(/\D/g, "") || null : null,
-    trade_name: form.customerType === "PJ" ? form.trade_name.trim() || null : null,
-    legal_name: form.customerType === "PJ" ? form.legal_name.trim() || null : null,
-    cnpj: form.customerType === "PJ" ? form.cnpj.replace(/\D/g, "") || null : null,
-    state_registration: form.customerType === "PJ" ? form.state_registration.trim() || null : null,
-    foundation_date: form.customerType === "PJ" ? foundationDateToIso(form.foundation_date) : null,
-    birth_date: form.customerType === "PF" ? form.birth_date || null : null,
-  };
-}
-
-export function customerUpdatePayload(form: CustomerForm) {
-  const payload = customerPayload(form);
-  const { customer_type: _customerType, document: _document, cnpj: _cnpj, ...editableFields } = payload;
-  return editableFields;
-}
-
-export function validateCustomerForm(form: CustomerForm) {
-  if (!form.whatsapp.trim() && !form.phone.trim()) return "Telefone ou WhatsApp é obrigatório.";
-  if (form.customerType === "PF" && !form.full_name.trim()) return "Nome completo é obrigatório.";
-  if (form.customerType === "PF" && form.document.replace(/\D/g, "").length !== 11) return "CPF é obrigatório e deve estar completo.";
-  if (form.customerType === "PF" && !form.birth_date) return "Data de nascimento é obrigatória.";
-  if (form.customerType === "PF" && form.birth_date > todayDateOnly()) return "A data de nascimento não pode ser futura.";
-  if (form.customerType === "PJ" && !form.trade_name.trim()) return "Nome fantasia é obrigatório.";
-  if (form.customerType === "PJ" && form.cnpj.replace(/\D/g, "").length !== 14) return "CNPJ é obrigatório e deve estar completo.";
-  return null;
-}
-
-export async function fetchCnpjData(cnpj: string) {
-  const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj.replace(/\D/g, "")}`);
-  if (!response.ok) throw new Error("CNPJ não encontrado.");
-  return response.json();
-}
-
-export function applyCnpjData(form: CustomerForm, address: Address, data: any) {
-  return {
-    form: {
-      ...form,
-      full_name: form.full_name || data.nome_fantasia || data.razao_social || "",
-      trade_name: form.trade_name || data.nome_fantasia || "",
-      legal_name: form.legal_name || data.razao_social || "",
-      state_registration: form.state_registration || data.inscricao_estadual || "",
-      foundation_date: form.foundation_date || (data.data_inicio_atividade ? formatFoundationDate(data.data_inicio_atividade.split("-").reverse().join("/")) : ""),
-      email: form.email || data.email || "",
-      phone: formatPhone(form.phone || data.ddd_telefone_1 || ""),
-      whatsapp: formatPhone(form.whatsapp || data.ddd_telefone_1 || ""),
-    },
-    address: {
-      ...address,
-      zip_code: address.zip_code || data.cep || "",
-      street: address.street || data.logradouro || "",
-      number: address.number || data.numero || "",
-      complement: address.complement || data.complemento || "",
-      neighborhood: address.neighborhood || data.bairro || "",
-      city: address.city || data.municipio || "",
-      state: address.state || data.uf || "",
-    },
-  };
-}
-
-export async function generateUniqueSlug(table: "service_categories" | "product_categories" | "products" | "brands", value: string, excludeId?: string) {
-  const baseSlug = slugify(value);
-  const { data, error } = await supabase.from(table).select("id, slug");
-  if (error) {
-    console.error("[ADMIN] Slug lookup error:", error);
-    throw error;
-  }
-
-  const existingSlugs = new Set((data || []).filter((item: any) => item.id !== excludeId).map((item: any) => item.slug));
-  if (!existingSlugs.has(baseSlug)) return baseSlug;
-
-  let suffix = 2;
-  while (existingSlugs.has(`${baseSlug}-${suffix}`)) suffix += 1;
-  return `${baseSlug}-${suffix}`;
 }
 
 export const INPUT = "w-full bg-[#f8fafc] border border-[#0d1b2e]/15 rounded-lg px-3 py-2.5 text-sm text-[#0d1b2e] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/50 focus:border-[#0057e7] focus:bg-white transition-all placeholder-[#5a6a82]/50";
