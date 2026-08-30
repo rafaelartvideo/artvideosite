@@ -1,18 +1,41 @@
 import { supabase } from "@/lib/supabase";
 
-export const listOrderSituations = () =>
-  supabase
+export async function listOrderSituations() {
+  const { data, error } = await supabase
     .from("os_situations")
     .select("id,name,slug,color,hours,sort_order,is_active,created_at,updated_at")
     .order("sort_order");
 
-export const createOrderSituation = (payload: Record<string, unknown>) =>
-  supabase.from("os_situations").insert(payload);
+  if (error) throw error;
+  return data ?? [];
+}
 
-export const updateOrderSituation = (
+export async function createOrderSituation(
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await supabase.from("os_situations").insert(payload);
+  if (error) throw error;
+}
+
+export async function updateOrderSituation(
   situationId: string,
   payload: Record<string, unknown>,
-) => supabase.from("os_situations").update(payload).eq("id", situationId);
+): Promise<void> {
+  const { error } = await supabase
+    .from("os_situations")
+    .update(payload)
+    .eq("id", situationId);
 
-export const deleteOrderSituation = (situationId: string) =>
-  supabase.from("os_situations").delete().eq("id", situationId);
+  if (error) throw error;
+}
+
+export async function deleteOrderSituation(
+  situationId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("os_situations")
+    .delete()
+    .eq("id", situationId);
+
+  if (error) throw error;
+}
