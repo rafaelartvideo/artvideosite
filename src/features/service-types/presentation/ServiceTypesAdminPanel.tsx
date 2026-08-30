@@ -23,6 +23,7 @@ import {
   Toast,
 } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { Checkbox } from "@/shared/ui/primitives/checkbox";
 
 export function ServiceTypesAdminPanel({ onBack }: { onBack: () => void }) {
   return <AdminBackContext.Provider value={onBack}><ServiceTypesAdminPanelContent /></AdminBackContext.Provider>;
@@ -254,7 +255,7 @@ function ServiceTypesAdminPanelContent() {
               const hasDefaultHours = Number.isFinite(defaultHours) && defaultHours > 0;
               return <div key={situation.id} className="mb-3 w-full break-inside-avoid rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
                 <label className="flex items-center gap-2 text-sm font-semibold text-[#0d1b2e]">
-                  <input type="checkbox" checked={Boolean(selected)} onChange={event => setForm(current => ({ ...current, selectedSituations: event.target.checked ? [...current.selectedSituations, { situation_id: situation.id, use_default_hours: hasDefaultHours, sla_hours: "" }] : current.selectedSituations.filter(item => item.situation_id !== situation.id) }))} />
+                  <Checkbox checked={Boolean(selected)} onCheckedChange={checked => setForm(current => ({ ...current, selectedSituations: checked === true ? [...current.selectedSituations, { situation_id: situation.id, use_default_hours: hasDefaultHours, sla_hours: "" }] : current.selectedSituations.filter(item => item.situation_id !== situation.id) }))} />
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} />
                   <span>{situation.name}</span>
                   {hasDefaultHours && <span className="text-xs font-normal text-[#5a6a82]">({defaultHours} horas)</span>}

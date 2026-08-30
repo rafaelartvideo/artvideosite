@@ -1,6 +1,7 @@
 import React from "react";
 import type { CustomerType } from "@/features/customers/domain/customer-form";
 import { cn } from "@/shared/domain/formatters";
+import { Switch } from "@/shared/ui/primitives/switch";
 
 export const INPUT = "w-full bg-[#f8fafc] border border-[#0d1b2e]/15 rounded-lg px-3 py-2.5 text-sm text-[#0d1b2e] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/50 focus:border-[#0057e7] focus:bg-white transition-all placeholder-[#5a6a82]/50";
 
@@ -49,13 +50,11 @@ export function FSelect({ label, options, ...props }: { label?: string; options:
 }
 
 export function FToggle({ label, description, checked, onChange }: { label: string; description?: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return <button type="button" onClick={() => onChange(!checked)} className="flex items-center gap-3 text-left">
-    <div className={cn("relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200", checked ? "bg-[#0057e7]" : "bg-[#0d1b2e]/20")}>
-      <div className={cn("absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200", checked ? "translate-x-6" : "translate-x-1")} />
-    </div>
+  return <label className="flex cursor-pointer items-center gap-3 text-left">
+    <Switch checked={checked} onCheckedChange={onChange} className="h-6 w-11 data-[state=checked]:bg-[#0057e7] data-[state=unchecked]:bg-[#0d1b2e]/20" />
     <div>
       <span className="text-sm font-semibold text-[#0d1b2e]">{label}</span>
       {description && <p className="text-xs text-[#5a6a82]">{description}</p>}
     </div>
-  </button>;
+  </label>;
 }
