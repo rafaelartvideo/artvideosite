@@ -25,6 +25,10 @@ export const queryKeys = {
     all: ["general-services"] as const,
     lists: () => ["general-services", "list"] as const,
   },
+  serviceTypes: {
+    all: ["service-types"] as const,
+    configuration: () => ["service-types", "configuration"] as const,
+  },
   inventory: {
     all: ["inventory"] as const,
     lists: () => ["inventory", "list"] as const,
