@@ -69,11 +69,6 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const { user, hasPermission } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [services, setServices] = useState<any[]>([]);
-  const [generalServices, setGeneralServices] = useState<any[]>([]);
-  const [situations, setSituations] = useState<any[]>([]);
-  const [appointmentSituations, setAppointmentSituations] = useState<AppointmentSituation[]>([]);
   const [view, setView] = useState<"month" | "week" | "day" | "agenda">("month");
   const [cursor, setCursor] = useState(() => new Date());
   const [technicianFilter, setTechnicianFilter] = useState("");
@@ -94,12 +89,10 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const [appointmentCustomerSearchLoading, setAppointmentCustomerSearchLoading] = useState(false);
   const [appointmentOrders, setAppointmentOrders] = useState<any[]>([]);
   const [appointmentForm, setAppointmentForm] = useState({ customer_id: "", service_order_id: "", appointment_date: "", period: "no_time" as AppointmentPeriod, start_time: "", end_time: "", sector_location: "", situation_id: "", description: "", is_return: false, address_source: null as "customer" | "custom" | null, customer_address_id: "", zip_code: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" });
-  const [appointmentTechnicians, setAppointmentTechnicians] = useState<{ id: string; full_name: string }[]>([]);
   const [selectedAppointmentTechnicians, setSelectedAppointmentTechnicians] = useState<string[]>([]);
   const [appointmentTechnicianSearch, setAppointmentTechnicianSearch] = useState("");
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
   const canViewAgenda = hasPermission("agenda.view") || hasPermission("orders.view");
   const canViewOtherAgendas = hasPermission("agenda.view_others") || hasPermission("agenda.view-other-users") || hasPermission("employees.view");
   const queryClient = useQueryClient();
@@ -116,19 +109,19 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   });
   const loading = canViewAgenda && agendaQuery.isPending;
   const appointmentSituationsLoading = loading;
+  const employees = agendaQuery.data?.employees ?? [];
+  const services = agendaQuery.data?.services ?? [];
+  const generalServices = agendaQuery.data?.generalServices ?? [];
+  const situations = agendaQuery.data?.situations ?? [];
+  const appointmentSituations = (agendaQuery.data?.appointmentSituations ?? []) as AppointmentSituation[];
+  const appointmentTechnicians = employees as { id: string; full_name: string }[];
+  const myEmployeeId = agendaQuery.data?.myEmployeeId ?? null;
 
   useEffect(() => {
     const data = agendaQuery.data;
     if (data) {
-      setMyEmployeeId(data.myEmployeeId);
       setOrders(data.orders);
       setAppointments(data.appointments as AppointmentWithRelations[]);
-      setEmployees(data.employees);
-      setServices(data.services);
-      setGeneralServices(data.generalServices);
-      setSituations(data.situations);
-      setAppointmentSituations(data.appointmentSituations as AppointmentSituation[]);
-      setAppointmentTechnicians(data.employees);
     }
   }, [agendaQuery.data]);
 
