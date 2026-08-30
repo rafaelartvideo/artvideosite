@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle, Edit2, List, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminBackContext } from "@/features/admin-shell/application/AdminNavigationContext";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   deleteServiceType,
-  getServiceTypeSituationLinks,
   loadServiceTypesConfiguration,
   saveServiceType,
   setServiceTypeActive,
@@ -32,33 +33,29 @@ export function ServiceTypesAdminPanel({ onBack }: { onBack: () => void }) {
 
 function ServiceTypesAdminPanelContent() {
   const { hasPermission } = useAuth();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const configurationQuery = useQuery({
+    queryKey: queryKeys.serviceTypes.configuration(),
+    queryFn: loadServiceTypesConfiguration,
+  });
+  const items = configurationQuery.data?.serviceTypes ?? [];
+  const situations = configurationQuery.data?.situations ?? [];
+  const situationLinks = configurationQuery.data?.links ?? [];
+  const loading = configurationQuery.isPending;
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true, selectedSituations: [] as Array<{ situation_id: string; use_default_hours: boolean; sla_hours: string }> });
-  const [situations, setSituations] = useState<any[]>([]);
-  const [situationLinks, setSituationLinks] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const configuration = await loadServiceTypesConfiguration();
-      setItems(configuration.serviceTypes);
-      setSituations(configuration.situations);
-      setSituationLinks(configuration.links);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar tipos: ${message}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!configurationQuery.error) return;
+    const message = configurationQuery.error instanceof Error ? configurationQuery.error.message : String(configurationQuery.error);
+    setToast({ msg: `Erro ao carregar tipos: ${message}`, type: "error" });
+  }, [configurationQuery.error]);
 
-  useEffect(() => { load(); }, []);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.serviceTypes.all });
 
   const openNew = () => {
     setEditItem(null);
@@ -66,28 +63,22 @@ function ServiceTypesAdminPanelContent() {
     setFormOpen(true);
   };
 
-  const openEdit = async (item: any) => {
+  const openEdit = (item: any) => {
     setEditItem(item);
-    try {
-      const links = await getServiceTypeSituationLinks(item.id);
-      setForm({
-        title: item.title || "",
-        description: item.description || "",
-        forecast_days: item.forecast_days == null ? "" : String(item.forecast_days),
-        is_active: item.is_active !== false,
-        selectedSituations: links.map((link) => ({
-          situation_id: link.situation_id,
-          use_default_hours: link.use_default_hours !== false,
-          sla_hours: link.sla_hours == null ? "" : String(link.sla_hours),
-        })),
-      });
-      setFormOpen(true);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast({ msg: `Erro ao carregar situações do tipo: ${message}`, type: "error" });
-    }
+    const links = situationLinks.filter(link => link.service_type_id === item.id);
+    setForm({
+      title: item.title || "",
+      description: item.description || "",
+      forecast_days: item.forecast_days == null ? "" : String(item.forecast_days),
+      is_active: item.is_active !== false,
+      selectedSituations: links.map(link => ({
+        situation_id: link.situation_id,
+        use_default_hours: link.use_default_hours !== false,
+        sla_hours: link.sla_hours == null ? "" : String(link.sla_hours),
+      })),
+    });
+    setFormOpen(true);
   };
-
   const save = async () => {
     if (!(editItem ? hasPermission("service_types.edit") : hasPermission("service_types.create"))) return;
     if (!form.title.trim()) {
@@ -133,7 +124,7 @@ function ServiceTypesAdminPanelContent() {
       });
       setFormOpen(false);
       setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" });
-      await load();
+      await refresh();
     } catch (error) {
       setToast({ msg: `Erro ao salvar tipo: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
     } finally {
@@ -145,7 +136,7 @@ function ServiceTypesAdminPanelContent() {
     if (!hasPermission("service_types.edit")) return;
     try {
       await setServiceTypeActive(item.id, !item.is_active);
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Erro ao atualizar tipo: ${message}`, type: "error" });
@@ -156,7 +147,7 @@ function ServiceTypesAdminPanelContent() {
     if (!hasPermission("service_types.delete")) return;
     try {
       await deleteServiceType(id);
-      await load();
+      await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ msg: `Não foi possível excluir: ${message}`, type: "error" });
