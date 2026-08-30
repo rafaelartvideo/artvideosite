@@ -14,6 +14,7 @@ import {
   updateQuoteStatus,
 } from "../infrastructure/quotes.repository";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
+import { initialOrderStatus } from "@/features/orders/domain/order-status";
 import {
   AdminPage,
   BtnSecondary,
@@ -24,7 +25,6 @@ import {
   formatCpf,
   formatFoundationDate,
   formatPhone,
-  initialOrderStatus,
   INPUT,
   LoadingState,
   PageHeader,

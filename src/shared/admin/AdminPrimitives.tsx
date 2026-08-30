@@ -9,8 +9,4 @@ export { isHexColor, StatusBadge, LoadingState, EmptyState, Toast, ConfirmDialog
 export { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 export { AdminPage, Section, PageHeader, BtnPrimary, BtnSecondary, InternalBackButton } from "@/shared/ui/admin/AdminLayout";
 export { ImageUpload, ProductAdminThumb, BrandAdminLogo } from "@/shared/ui/admin/AdminMedia";
-
-export function initialOrderStatus(statuses: any[]) {
-  const ordered = [...statuses].sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0));
-  return ordered.find(status => /abert|novo|recebid|pendente/i.test(status.name || "")) || ordered[0] || null;
-}
+export { initialOrderStatus } from "@/features/orders/domain/order-status";
