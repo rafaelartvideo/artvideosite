@@ -18,7 +18,7 @@ import {
   cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone, formatCpf, formatCnpj, isValidCpf,
   type CustomerType, type CustomerForm, emptyCustomerForm, customerFormFromCustomer, customerPayload, customerUpdatePayload, validateCustomerForm,
   formatFoundationDate, foundationDateToIso, foundationDateFromCustomer, formatDateOnly, todayDateOnly,
-  INPUT, FInput, FTextarea, FSelect, FToggle, CustomerTypeToggle,
+  INPUT, FInput, FCurrencyInput, FHoursInput, FTextarea, FSelect, FToggle, CustomerTypeToggle,
   StatusBadge, LoadingState, EmptyState, BtnPrimary, BtnSecondary, Toast, ConfirmDialog,
   PageHeader, Section, AdminPage, PaginationBar, ImageUpload, ProductAdminThumb, BrandAdminLogo,
   supabaseErrorMessage, createMediaRecord, InternalBackButton,
@@ -578,7 +578,7 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
     <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno">
       <div className="p-5"><Section title="Serviço geral"><div className="grid sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /></div>
-        <FInput label="Valor (R$)" type="number" min="0" step="0.01" value={price} onChange={(e: any) => setPrice(e.target.value)} placeholder="Ex: 150,00" />
+        <FCurrencyInput label="Valor (R$)" value={price} onChange={(e: any) => setPrice(e.target.value)} placeholder="Ex: 150,00" />
         <FInput label="Desconto máximo (%)" type="number" min="0" max="100" step="0.01" value={maxDiscountPercentage} onChange={(e: any) => setMaxDiscountPercentage(e.target.value)} placeholder="Ex: 10" />
       </div><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div>
       <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
@@ -1096,7 +1096,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
           <>
             <Section title="Preço base">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FInput label="Valor (R$)" type="number" min="0" step="0.01" value={basePrice} onChange={(e: any) => setBasePrice(e.target.value)} placeholder="Vazio para consultar" />
+                <FCurrencyInput label="Valor (R$)" value={basePrice} onChange={(e: any) => setBasePrice(e.target.value)} placeholder="Vazio para consultar" />
                 <FSelect label="Modo de preço" value={priceMode} onChange={(e: any) => setPriceMode(e.target.value)} options={[{ value: "FIXED", label: "Preço fixo" }, { value: "STARTING_FROM", label: "Preço a partir de" }, { value: "QUOTE", label: "Consultar orçamento" }, { value: "HIDDEN", label: "Não exibir preço" }]} />
               </div>
             </Section>
@@ -1106,7 +1106,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
                 <div key={i} className="flex gap-3 items-start mb-3 p-3 bg-[#f8fafc] rounded-lg border border-[#0d1b2e]/8">
                   <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <FInput label={i === 0 ? "Título" : undefined} value={v.title} onChange={(e: any) => { const n = [...variants]; n[i].title = e.target.value; setVariants(n); }} placeholder="Ex: 12.000 BTUs" />
-                    <FInput label={i === 0 ? "Preço (R$)" : undefined} value={v.price} onChange={(e: any) => { const n = [...variants]; n[i].price = e.target.value; setVariants(n); }} placeholder="Ex: 250.00 (vazio = consultar)" type="number" min="0" step="0.01" />
+                    <FCurrencyInput label={i === 0 ? "Preço (R$)" : undefined} value={v.price} onChange={(e: any) => { const n = [...variants]; n[i].price = e.target.value; setVariants(n); }} placeholder="R$ 0,00 (vazio = consultar)" />
                     <FInput label={i === 0 ? "Descrição" : undefined} value={v.description} onChange={(e: any) => { const n = [...variants]; n[i].description = e.target.value; setVariants(n); }} placeholder="Descrição da variação" />
                   </div>
                   {hasPermission(editItem ? "services.update" : "services.create") && <button type="button" onClick={() => setVariants(variants.filter((_, idx) => idx !== i))} className="mt-5 p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
@@ -1630,8 +1630,8 @@ function TabProducts({ onBack }: { onBack: () => void }) {
           </Section>
           <Section title="Preço e Imagem">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FInput label="Preço (R$)" type="number" min="0" step="0.01" value={form.price} onChange={(e: any) => setForm({ ...form, price: e.target.value })} placeholder="Deixe em branco para consultar" hint="Vazio = 'Consultar preço'" />
-              <FInput label="Preço de comparação (R$)" type="number" min="0" step="0.01" value={form.compare_at_price} onChange={(e: any) => setForm({ ...form, compare_at_price: e.target.value })} />
+              <FCurrencyInput label="Preço (R$)" value={form.price} onChange={(e: any) => setForm({ ...form, price: e.target.value })} placeholder="Deixe em branco para consultar" hint="Vazio = 'Consultar preço'" />
+              <FCurrencyInput label="Preço de comparação (R$)" value={form.compare_at_price} onChange={(e: any) => setForm({ ...form, compare_at_price: e.target.value })} />
             </div>
             <ImageUpload bucket="product-images" currentMediaId={form.cover_media_id} onUpload={mediaId => setForm({ ...form, cover_media_id: mediaId })} canUpload={editItem ? hasPermission("products.update") : hasPermission("products.create")} label="Imagem do produto" />
           </Section>
@@ -2235,7 +2235,7 @@ function ServiceTypesAdminPanelContent() {
                   <p className="font-bold">Horas:</p>
                   <label className="flex items-center gap-2"><input type="radio" checked={selected.use_default_hours} disabled={!hasDefaultHours} onChange={() => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: true, sla_hours: "" } : item) }))} /> Manter padrão ({situation.hours == null ? "—" : `${situation.hours} horas`})</label>
                   <label className="flex items-center gap-2"><input type="radio" checked={!selected.use_default_hours} onChange={() => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: false } : item) }))} /> Definir novo prazo</label>
-                  {!selected.use_default_hours && <FInput label="Prazo em horas" type="number" min="0.01" step="0.5" placeholder="Ex.: 8" value={selected.sla_hours} onChange={(e: any) => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}
+                  {!selected.use_default_hours && <FHoursInput label="Prazo em horas" placeholder="00:00" value={selected.sla_hours} onChange={(e: any) => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}
                 </div>}
               </div>;
             })}
@@ -3116,8 +3116,8 @@ function TabInventory({ onBack }: { onBack: () => void }) {
             <FInput label="Quantidade" type="number" min="0" value={form.quantity} onChange={(e: any) => setForm({ ...form, quantity: e.target.value })} />
             <FInput label="Quantidade mínima" type="number" min="0" value={form.min_quantity} onChange={(e: any) => setForm({ ...form, min_quantity: e.target.value })} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FInput label="Valor de compra" type="number" min="0" step="0.01" value={form.purchase_price} onChange={(e: any) => setForm({ ...form, purchase_price: e.target.value })} />
-              <FInput label="Valor de venda" type="number" min="0" step="0.01" value={form.sale_price} onChange={(e: any) => setForm({ ...form, sale_price: e.target.value })} />
+              <FCurrencyInput label="Valor de compra" value={form.purchase_price} onChange={(e: any) => setForm({ ...form, purchase_price: e.target.value })} />
+              <FCurrencyInput label="Valor de venda" value={form.sale_price} onChange={(e: any) => setForm({ ...form, sale_price: e.target.value })} />
             </div>
             <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} />
             <FToggle label="Item ativo" checked={form.is_active} onChange={(value) => setForm({ ...form, is_active: value })} />
