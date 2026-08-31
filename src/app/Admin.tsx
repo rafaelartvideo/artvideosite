@@ -492,18 +492,98 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [maxDiscountPercentage, setMaxDiscountPercentage] = useState("");
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-    const load = async () => { setLoading(true); const { data, error } = await getGeneralServices(); if (error) { console.error("[ADMIN] general services load error:", error); setToast({ msg: `Erro ao carregar serviços gerais: ${error.message}`, type: "error" }); } else setItems(data || []); setLoading(false); };
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await getGeneralServices();
+    if (error) {
+      console.error("[ADMIN] general services load error:", error);
+      setToast({ msg: `Erro ao carregar serviços gerais: ${error.message}`, type: "error" });
+    } else setItems(data || []);
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
-  const openNew = () => { setEditItem(null); setName(""); setActive(true); setFormOpen(true); };
-  const openEdit = (item: any) => { setEditItem(item); setName(item.name || ""); setActive(item.is_active !== false); setFormOpen(true); };
+
+  const openNew = () => {
+    setEditItem(null); setName(""); setPrice(""); setMaxDiscountPercentage(""); setActive(true); setFormOpen(true);
+  };
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setName(item.name || "");
+    setPrice(item.price == null ? "" : String(item.price));
+    setMaxDiscountPercentage(item.max_discount_percentage == null ? "" : String(item.max_discount_percentage));
+    setActive(item.is_active !== false);
+    setFormOpen(true);
+  };
   const canCreate = hasPermission("general_services.create");
   const canEdit = hasPermission("general_services.edit");
-  const save = async () => { if (!(editItem ? canEdit : canCreate)) return; if (!name.trim()) { setToast({ msg: "Informe o nome do serviço.", type: "error" }); return; } setSaving(true); const result = editItem ? await updateGeneralService(editItem.id, { name: name.trim(), is_active: active }) : await createGeneralService({ name: name.trim(), is_active: active, sort_order: items.length }); setSaving(false); if (result.error) { console.error("[ADMIN] general service save error:", result.error); setToast({ msg: `Erro ao salvar serviço geral: ${result.error.message}`, type: "error" }); return; } setFormOpen(false); setToast({ msg: editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" }); load(); };
-  const toggle = async (item: any) => { if (!canEdit) return; const result = await setGeneralServiceActive(item.id, !item.is_active); if (result.error) { console.error("[ADMIN] general service toggle error:", result.error); setToast({ msg: `Erro ao atualizar serviço: ${result.error.message}`, type: "error" }); return; } load(); };
-  return <div className="space-y-5"><InternalBackButton onBack={onBack} />{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}<PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary> : null} /><div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={canCreate ? openNew : undefined} addLabel="Novo serviço" /> : <div className="divide-y divide-[#0d1b2e]/5">{items.map(item => <div key={item.id} className="flex items-center justify-between px-5 py-4 hover:bg-[#f8fafc]"><div><p className="font-bold text-[#0d1b2e]">{item.name}</p><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></div><div className="flex gap-1">{canEdit && <><button onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></>}</div></div>)}</div>}</div><AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno"><div className="p-5"><Section title="Serviço geral"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div></AdminPage></div>;
+
+  const save = async () => {
+    if (!(editItem ? canEdit : canCreate)) return;
+    if (!name.trim()) { setToast({ msg: "Informe o nome do serviço.", type: "error" }); return; }
+    const parsedPrice = price === "" ? null : Number(price);
+    const parsedDiscount = maxDiscountPercentage === "" ? null : Number(maxDiscountPercentage);
+    if (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0)) {
+      setToast({ msg: "Informe um valor válido.", type: "error" }); return;
+    }
+    if (parsedDiscount !== null && (!Number.isFinite(parsedDiscount) || parsedDiscount < 0 || parsedDiscount > 100)) {
+      setToast({ msg: "O desconto máximo deve estar entre 0% e 100%.", type: "error" }); return;
+    }
+    setSaving(true);
+    const payload = { name: name.trim(), price: parsedPrice, max_discount_percentage: parsedDiscount, is_active: active };
+    const result = editItem
+      ? await updateGeneralService(editItem.id, payload)
+      : await createGeneralService({ ...payload, sort_order: items.length });
+    setSaving(false);
+    if (result.error) {
+      console.error("[ADMIN] general service save error:", result.error);
+      setToast({ msg: `Erro ao salvar serviço geral: ${result.error.message}`, type: "error" }); return;
+    }
+    setFormOpen(false);
+    setToast({ msg: editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" });
+    load();
+  };
+  const toggle = async (item: any) => {
+    if (!canEdit) return;
+    const result = await setGeneralServiceActive(item.id, !item.is_active);
+    if (result.error) { setToast({ msg: `Erro ao atualizar serviço: ${result.error.message}`, type: "error" }); return; }
+    load();
+  };
+  const formatMoney = (value: unknown) => value == null ? "Não informado" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value));
+
+  return <div className="space-y-5">
+    <InternalBackButton onBack={onBack} />
+    {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    <PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary> : null} />
+    <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+      {loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={canCreate ? openNew : undefined} addLabel="Novo serviço" /> :
+      <div className="overflow-x-auto"><table className="w-full text-sm min-w-[700px]">
+        <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8"><tr>
+          <th className="px-5 py-3 text-left">Serviço</th><th className="px-5 py-3 text-left">Valor</th><th className="px-5 py-3 text-left">Desconto máximo</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Ações</th>
+        </tr></thead>
+        <tbody className="divide-y divide-[#0d1b2e]/5">{items.map(item => <tr key={item.id} className="hover:bg-[#f8fafc]">
+          <td className="px-5 py-4 font-bold text-[#0d1b2e]">{item.name}</td>
+          <td className="px-5 py-4 text-[#0d1b2e]">{formatMoney(item.price)}</td>
+          <td className="px-5 py-4 text-[#5a6a82]">{item.max_discount_percentage == null ? "Não informado" : `${Number(item.max_discount_percentage).toLocaleString("pt-BR")}%`}</td>
+          <td className="px-5 py-4"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>
+          <td className="px-5 py-4"><div className="flex justify-end gap-1">{canEdit && <><button onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></>}</div></td>
+        </tr>)}</tbody>
+      </table></div>}
+    </div>
+    <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno">
+      <div className="p-5"><Section title="Serviço geral"><div className="grid sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /></div>
+        <FInput label="Valor (R$)" type="number" min="0" step="0.01" value={price} onChange={(e: any) => setPrice(e.target.value)} placeholder="Ex: 150,00" />
+        <FInput label="Desconto máximo (%)" type="number" min="0" max="100" step="0.01" value={maxDiscountPercentage} onChange={(e: any) => setMaxDiscountPercentage(e.target.value)} placeholder="Ex: 10" />
+      </div><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div>
+      <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
+    </AdminPage>
+  </div>;
 }
 
 function TabServices({ onBack }: { onBack: () => void }) {
@@ -611,8 +691,6 @@ function TabServices({ onBack }: { onBack: () => void }) {
                 <tr>
                   <th className="px-4 py-3 text-left">Serviço</th>
                   <th className="px-4 py-3 text-left">Categoria</th>
-                  <th className="px-4 py-3 text-left">Valor</th>
-                  <th className="px-4 py-3 text-left">Desconto máximo</th>
                   <th className="px-4 py-3 text-left">Variações</th>
                   <th className="px-4 py-3 text-left">Destaque</th>
                   <th className="px-4 py-3 text-left">Status</th>
@@ -631,8 +709,6 @@ function TabServices({ onBack }: { onBack: () => void }) {
                         </div>
                       </td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{cat?.name || "—"}</td>
-                      <td className="px-4 py-3.5 text-xs font-bold text-[#0d1b2e]">{s.base_price == null ? "Consultar" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(s.base_price))}</td>
-                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{s.max_discount_percentage == null ? "Sem limite definido" : `${Number(s.max_discount_percentage).toLocaleString("pt-BR")}%`}</td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{s.service_variants?.length || 0}</td>
                       <td className="px-4 py-3.5">
                         {s.is_featured ? <Star size={15} className="text-amber-400 fill-amber-400" /> : <span className="text-xs text-[#5a6a82]">—</span>}
@@ -687,7 +763,6 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
   const [shortDesc, setShortDesc] = useState("");
   const [description, setDescription] = useState("");
   const [basePrice, setBasePrice] = useState("");
-  const [maxDiscountPercentage, setMaxDiscountPercentage] = useState("");
   const [priceMode, setPriceMode] = useState<"FIXED" | "STARTING_FROM" | "QUOTE" | "HIDDEN">("QUOTE");
   const [active, setActive] = useState(true);
   const [featured, setFeatured] = useState(false);
@@ -714,7 +789,6 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
         setShortDesc(editItem.short_description || "");
         setDescription(editItem.description || "");
         setBasePrice(editItem.base_price == null ? "" : String(editItem.base_price));
-        setMaxDiscountPercentage(editItem.max_discount_percentage == null ? "" : String(editItem.max_discount_percentage));
         setPriceMode(["FIXED", "STARTING_FROM", "QUOTE", "HIDDEN"].includes(editItem.price_mode) ? editItem.price_mode : "QUOTE");
         setActive(editItem.is_active ?? true);
         setFeatured(editItem.is_featured ?? false);
@@ -726,7 +800,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
         setSections((editItem.service_sections || []).map((section: any) => ({ title: section.title || "", content: section.content || "" })));
         setFaqs((editItem.service_faqs || []).map((f: any) => ({ question: f.question || "", answer: f.answer || "" })));
       } else {
-        setName(""); setSlug(""); setCategoryId(""); setBrandId(""); setProductId(""); setCoverMediaId(""); setShortDesc(""); setDescription(""); setBasePrice(""); setMaxDiscountPercentage(""); setPriceMode("QUOTE");
+        setName(""); setSlug(""); setCategoryId(""); setBrandId(""); setProductId(""); setCoverMediaId(""); setShortDesc(""); setDescription(""); setBasePrice(""); setPriceMode("QUOTE");
         setActive(true); setFeatured(false); setSortOrder(0);
         setVariants([]); setFeatures([]); setExclusions([]); setPriceFactors([]); setSections([]); setFaqs([]);
       }
@@ -775,9 +849,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
     if (!(editItem ? hasPermission("services.update") : hasPermission("services.create"))) return;
     if (!name.trim()) { onToast({ msg: "Nome do serviço é obrigatório.", type: "error" }); return; }
     const parsedBasePrice = basePrice === "" ? null : Number(basePrice);
-    const parsedMaxDiscount = maxDiscountPercentage === "" ? null : Number(maxDiscountPercentage);
     if (parsedBasePrice !== null && (!Number.isFinite(parsedBasePrice) || parsedBasePrice < 0)) { onToast({ msg: "Informe um valor de serviço válido.", type: "error" }); return; }
-    if (parsedMaxDiscount !== null && (!Number.isFinite(parsedMaxDiscount) || parsedMaxDiscount < 0 || parsedMaxDiscount > 100)) { onToast({ msg: "O desconto máximo deve estar entre 0% e 100%.", type: "error" }); return; }
     setSaving(true);
     try {
       console.log("[ADMIN] Saving service:", { title: name, is_active: active, is_featured: featured });
@@ -805,7 +877,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
         }
       }
       
-      const payload = { title: name.trim(), slug: finalSlug, category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, cover_media_id: coverMediaId || null, short_description: shortDesc || null, description: description || null, base_price: parsedBasePrice, max_discount_percentage: parsedMaxDiscount, price_mode: priceMode, is_active: active, is_featured: featured, sort_order: sortOrder, updated_by: userId };
+      const payload = { title: name.trim(), slug: finalSlug, category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, cover_media_id: coverMediaId || null, short_description: shortDesc || null, description: description || null, base_price: parsedBasePrice, price_mode: priceMode, is_active: active, is_featured: featured, sort_order: sortOrder, updated_by: userId };
       let serviceId = editItem?.id;
       
       // Insert or Update main service
@@ -1025,7 +1097,6 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
             <Section title="Preço base">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FInput label="Valor (R$)" type="number" min="0" step="0.01" value={basePrice} onChange={(e: any) => setBasePrice(e.target.value)} placeholder="Vazio para consultar" />
-                <FInput label="Desconto máximo (%)" type="number" min="0" max="100" step="0.01" value={maxDiscountPercentage} onChange={(e: any) => setMaxDiscountPercentage(e.target.value)} placeholder="Ex: 10" hint="Limite permitido para desconto neste serviço." />
                 <FSelect label="Modo de preço" value={priceMode} onChange={(e: any) => setPriceMode(e.target.value)} options={[{ value: "FIXED", label: "Preço fixo" }, { value: "STARTING_FROM", label: "Preço a partir de" }, { value: "QUOTE", label: "Consultar orçamento" }, { value: "HIDDEN", label: "Não exibir preço" }]} />
               </div>
             </Section>
@@ -3676,7 +3747,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     else nextSelected.add(permissionId);
     if (permission?.key === "orders.view") {
       if (!nextSelected.has(permissionId)) {
-        permissions.filter(item => ["orders.view_all", "orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts"].includes(item.key)).forEach(item => nextSelected.delete(item.id));
+        permissions.filter(item => ["orders.view_all", "orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts"].includes(item.key) || item.key.startsWith("orders.section.")).forEach(item => nextSelected.delete(item.id));
       }
     } else if (permission?.key === "orders.view_all" || permission?.key === "orders.request_parts") {
       const viewPermission = permissions.find(item => item.key === "orders.view");
@@ -3685,7 +3756,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
         const managePermission = permissions.find(item => item.key === "orders.manage_part_requests");
         if (managePermission) nextSelected.delete(managePermission.id);
       }
-    } else if (["orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts"].includes(permission?.key)) {
+    } else if (["orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts"].includes(permission?.key) || permission?.key?.startsWith("orders.section.")) {
       const viewPermission = permissions.find(item => item.key === "orders.view");
       const viewAllPermission = permissions.find(item => item.key === "orders.view_all");
       if (viewPermission) nextSelected.add(viewPermission.id);
