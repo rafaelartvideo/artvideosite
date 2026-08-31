@@ -1463,7 +1463,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 space-y-3">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="flex flex-wrap items-start gap-3 [&>*]:min-w-[210px] [&>*]:flex-[1_1_220px]">
         <div className="space-y-1.5">
           <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Número da OS</label>
           <div className="relative">
@@ -1496,8 +1496,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
           <option value="internal">Interna</option>
           <option value="external">Externa</option>
         </select></div>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
           <div>
             <OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={value => setSelectedStates(current => current.includes(value) ? current : [...current, value])} onRemove={value => setSelectedStates(current => current.filter(state => state !== value))} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />
             {selectedStates.length > 0 && <button type="button" onClick={() => setSelectedStates([])} className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:underline"><Eraser size={12} />Limpar Estados</button>}
@@ -1516,10 +1514,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               <option value="">Todos os tipos</option>
               {serviceTypes.map(serviceType => <option key={serviceType.id} value={serviceType.id}>{serviceType.title}</option>)}
             </select></div>
-            <div className="flex items-end justify-start">
+            <div className="space-y-1.5">
+            <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Ordenação</label>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type="button" aria-label={`Ordenação atual: ${orderLabel}`} title={`Ordenação atual: ${orderLabel}`} className={cn("inline-flex h-[42px] w-fit items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-xs font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40", orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]")}>
+                <button type="button" aria-label={`Ordenação atual: ${orderLabel}`} title={`Ordenação atual: ${orderLabel}`} className={cn("inline-flex h-[42px] w-full items-center justify-between gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-xs font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40", orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]")}>
                   <OrderSortIcon size={15} className="text-[#0057e7]" />
                   <span className="hidden sm:inline">{orderLabel}</span>
                   <span className="sm:hidden">Ordenar</span>
