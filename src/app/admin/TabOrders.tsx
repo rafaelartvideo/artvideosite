@@ -104,6 +104,36 @@ function TestResultModal({ request, rows, submitting, getPendingQuantity, onRows
   </CenteredModal>;
 }
 
+type WizardStepState = "done" | "current" | "pending" | "error";
+
+function PartCustodyWizard({ request, orderSolved, getCommittedQuantity }: { request: PartRequestForReview; orderSolved: boolean; getCommittedQuantity: (item: PartRequestItemForReview) => number }) {
+  const status = String(request.status || "").toUpperCase();
+  const purpose = request.purpose || "RESOLUTION";
+  const approved = status === "APPROVED";
+  const rejected = status === "REJECTED" || status === "CANCELLED";
+  const physicalItems = request.items.filter(item => !item.source_test_item_id && Number(item.approved_quantity ?? 0) > 0);
+  const dispatchDone = approved && (physicalItems.length === 0 || physicalItems.every(item => Number(item.delivered_quantity ?? 0) >= Number(item.approved_quantity ?? 0)));
+  const deliveryDone = dispatchDone && (physicalItems.length === 0 || physicalItems.every(item => Number(item.technician_received_quantity ?? 0) >= Number(item.delivered_quantity ?? 0)));
+  const hasReturnPending = request.items.some(item => Number(item.return_pending_quantity ?? 0) > 0);
+  const hasReturned = request.items.some(item => Number(item.returned_quantity ?? 0) > 0);
+  const hasDamaged = request.items.some(item => Number(item.damaged_quantity ?? 0) > 0);
+  const destinationDone = purpose === "TEST" && deliveryDone && request.items.every(item => Number(item.technician_received_quantity ?? 0) <= Number(item.returned_quantity ?? 0) + Number(item.return_pending_quantity ?? 0) + Number(item.damaged_quantity ?? 0) + getCommittedQuantity(item));
+  const step = (label: string, description: string, state: WizardStepState) => ({ label, description, state });
+  const stages = [
+    step("Solicitação", "Pedido criado pelo técnico", "done"),
+    step(rejected ? "Não aprovada" : "Aprovação do gestor", rejected ? (status === "CANCELLED" ? "Solicitação cancelada" : "Pedido rejeitado pelo gestor") : approved ? "Quantidades aprovadas" : "Aguardando análise do gestor", rejected ? "error" : approved ? "done" : "current"),
+    step("Saída do estoque", physicalItems.length === 0 && approved ? "Peça já estava com o técnico" : dispatchDone ? "Saída confirmada pelo estoquista" : approved ? "Aguardando confirmação do estoquista" : "Disponível após aprovação", dispatchDone ? "done" : approved ? "current" : "pending"),
+    step("Entrega ao técnico", deliveryDone ? "Recebimento confirmado pelo gestor" : dispatchDone ? "Aguardando confirmação do gestor" : "Disponível após a saída", deliveryDone ? "done" : dispatchDone ? "current" : "pending"),
+    ...(purpose === "TEST" ? [
+      step("Destino da peça", destinationDone ? (hasDamaged ? "Resultado e danos registrados" : "Resultado do teste registrado") : deliveryDone ? "Aguardando uso, devolução ou dano" : "Disponível após a entrega", destinationDone ? "done" as WizardStepState : deliveryDone ? "current" as WizardStepState : "pending" as WizardStepState),
+      step("Retorno ao estoque", hasReturnPending ? "Aguardando estoquista confirmar recebimento" : hasReturned ? "Recebimento confirmado e saldo reposto" : destinationDone ? "Sem devolução pendente" : "Disponível quando houver devolução", hasReturnPending ? "current" as WizardStepState : hasReturned || destinationDone ? "done" as WizardStepState : "pending" as WizardStepState),
+    ] : [
+      step("Uso na resolução", orderSolved ? "Peça registrada na solução da OS" : deliveryDone ? "Disponível para resolver a OS" : "Disponível após a entrega", orderSolved ? "done" as WizardStepState : deliveryDone ? "current" as WizardStepState : "pending" as WizardStepState),
+    ]),
+  ];
+  return <div className="mt-3 rounded-xl border border-[#0d1b2e]/10 bg-white p-3"><div className="mb-3 flex items-center justify-between gap-2"><div><p className="text-[11px] font-black uppercase tracking-wider text-[#0d1b2e]">Fluxo das peças</p><p className="text-[10px] text-[#5a6a82]">{purpose === "TEST" ? "Pedido para teste" : "Pedido para resolução"}</p></div>{stages.some(stage => stage.state === "current") && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">Aguardando ação</span>}</div><div className={cn("grid gap-2", stages.length === 6 ? "sm:grid-cols-3 xl:grid-cols-6" : "sm:grid-cols-3 xl:grid-cols-5")}>{stages.map((stage, index) => <div key={stage.label} className={cn("relative rounded-lg border p-2.5", stage.state === "done" ? "border-emerald-200 bg-emerald-50" : stage.state === "current" ? "border-amber-300 bg-amber-50 ring-1 ring-amber-200" : stage.state === "error" ? "border-red-200 bg-red-50" : "border-[#0d1b2e]/8 bg-[#f8fafc] opacity-70")}><div className="flex items-start gap-2"><span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black", stage.state === "done" ? "bg-emerald-600 text-white" : stage.state === "current" ? "bg-amber-500 text-white" : stage.state === "error" ? "bg-red-600 text-white" : "bg-[#dfe5ee] text-[#5a6a82]")}>{stage.state === "done" ? <Check size={12} /> : stage.state === "error" ? <X size={12} /> : index + 1}</span><div><p className={cn("text-[11px] font-bold", stage.state === "error" ? "text-red-700" : "text-[#0d1b2e]")}>{stage.label}</p><p className="mt-0.5 text-[10px] leading-snug text-[#5a6a82]">{stage.description}</p></div></div></div>)}</div></div>;
+}
+
 type EmployeeOption = { id: string; full_name: string; function_name?: string | null; is_active?: boolean };
 
 function EmployeeMultiSelect({ label, employees, selectedIds, onChange, disabled, placeholder, clearLabel }: {
@@ -1662,6 +1692,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                         <span className="text-[11px] text-[#5a6a82]">{request.requester?.full_name || "Solicitante não informado"} · {fmtDate(request.created_at, true)}</span>
                       </div>
                       {request.notes && <p className="mt-2 whitespace-pre-line text-xs text-[#0d1b2e]">{request.notes}</p>}
+                      <PartCustodyWizard request={request} orderSolved={Boolean(detail?.is_solved)} getCommittedQuantity={getTestCommittedQuantity} />
                       <div className="mt-2 space-y-2">{request.items.map(item => {
                         const unit = item.inventory_item?.unit || "un";
                         const delivered = Math.max(0, Number(item.delivered_quantity ?? 0));
