@@ -72,6 +72,7 @@ export interface Service {
   description: string | null;
   cover_media_id: string | null;
   base_price: number | null;
+  max_discount_percentage: number | null;
   price_mode: "FIXED" | "STARTING_FROM" | "QUOTE" | "HIDDEN" | null;
   is_active: boolean;
   is_featured: boolean;
