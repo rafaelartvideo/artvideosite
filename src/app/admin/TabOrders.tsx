@@ -1115,9 +1115,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       const r = await supabase.from("service_orders").update(payload).eq("id", editingOS.id);
       error = r.error;
     } else {
-      const r = await supabase.from("service_orders").insert(payload).select("id,os_number,external_os_number").single();
+      const newOrderId = crypto.randomUUID();
+      const r = await supabase.from("service_orders").insert({ ...payload, id: newOrderId });
       error = r.error;
-      savedOrderId = r.data?.id;
+      savedOrderId = error ? undefined : newOrderId;
     }
     if (error) { setSaving(false); setToast({ msg: `Erro ao salvar OS: ${error.message}`, type: "error" }); return; }
     const uniqueTechnicianIds = Array.from(new Set(selectedTechnicianIds));
