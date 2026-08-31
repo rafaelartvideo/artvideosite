@@ -251,6 +251,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     getTestPendingQuantity,
   } = useOrderPartRequests({
     reloadOrders: reloadWorkspace,
+    hasPermission,
     showToast: setToast,
     formatError: supabaseErrorMessage,
   });
