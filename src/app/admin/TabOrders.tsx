@@ -36,10 +36,11 @@ type ServiceOrderProfile = { id: string; full_name: string | null };
 type ServiceOrderWithRelations = { assigned_profile?: ServiceOrderProfile | ServiceOrderProfile[] | null };
 type PartRequestInventoryItem = { id: string; name: string; sku: string | null; unit: string | null; quantity: number; is_active: boolean };
 type SelectedPartRequestItem = { inventory_item_id: string; name: string; sku: string | null; unit: string; available_quantity: number; quantity: string };
-type ReviewPartRequestItem = { id: string; inventory_item_id: string; quantity: number; approved_quantity: number | null; source_test_item_id?: string | null; delivered_quantity?: number; delivered_at?: string | null; delivered_by?: string | null; returned_quantity?: number; damaged_quantity?: number; request_status?: string; inventory_item?: { id: string; name: string; sku: string | null; unit: string | null; quantity: number } | null };
+type ReviewPartRequestItem = { id: string; inventory_item_id: string; quantity: number; approved_quantity: number | null; source_test_item_id?: string | null; delivered_quantity?: number; delivered_at?: string | null; delivered_by?: string | null; technician_received_quantity?: number; technician_received_at?: string | null; technician_received_by?: string | null; return_pending_quantity?: number; return_registered_at?: string | null; return_registered_by?: string | null; returned_quantity?: number; return_received_at?: string | null; return_received_by?: string | null; damaged_quantity?: number; request_status?: string; inventory_item?: { id: string; name: string; sku: string | null; unit: string | null; quantity: number } | null };
 type PartRequestItemForReview = ReviewPartRequestItem;
 type PartRequestForReview = { id: string; service_order_id: string; purpose?: "TEST" | "RESOLUTION" | null; status: string; notes: string | null; reviewed_by?: string | null; reviewed_at?: string | null; review_notes?: string | null; created_at: string; requester?: { full_name: string | null } | null; requested_by_profile?: { full_name: string | null } | null; reviewed_by_profile?: { full_name: string | null } | null; items: PartRequestItemForReview[] };
-type TestResultRow = { id: string; requestItemId: string; action: "RETURN" | "USE_IN_RESOLUTION" | "DAMAGED"; quantity: string; notes: string };
+type TestResultRow = { id: string; requestItemId: string; action: "USE_IN_RESOLUTION" | "DAMAGED"; quantity: string; notes: string };
+type CustodyAction = "DISPATCH" | "CONFIRM_DELIVERY" | "REGISTER_RETURN" | "RECEIVE_RETURN";
 
 function getResponsibleName(order: ServiceOrderWithRelations) {
   const profile = Array.isArray(order.assigned_profile) ? order.assigned_profile[0] : order.assigned_profile;
@@ -60,6 +61,12 @@ function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading, inven
 
 function TestDeliveryModal({ request, orderNumber, submitting, onClose, onSubmit }: { request: PartRequestForReview; orderNumber?: string | null; submitting: boolean; onClose: () => void; onSubmit: () => void }) {
   return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Confirmar entrega</h3><p className="mt-0.5 text-xs text-[#5a6a82]">OS {orderNumber || "—"} · {request.requester?.full_name || "Solicitante não informado"}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5"><div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Ao confirmar, as quantidades aprovadas serão retiradas do estoque e ficarão sob responsabilidade do técnico da OS.</div><div className="space-y-2">{request.items.map(item => <div key={item.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 text-xs"><p className="font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-[#5a6a82]">Solicitado: {Number(item.quantity)} {item.inventory_item?.unit || "un"} · Aprovado: {Number(item.approved_quantity ?? 0)} {item.inventory_item?.unit || "un"} · Disponível: {Number(item.inventory_item?.quantity ?? 0)} {item.inventory_item?.unit || "un"}</p></div>)}</div></div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Entregando..." : "Confirmar entrega"}</BtnPrimary></div></CenteredModal>;
+}
+
+function PartCustodyModal({ request, action, quantities, submitting, onQuantitiesChange, onClose, onSubmit }: { request: PartRequestForReview; action: CustodyAction; quantities: Record<string, string>; submitting: boolean; onQuantitiesChange: (value: Record<string, string>) => void; onClose: () => void; onSubmit: () => void }) {
+  const config = action === "DISPATCH" ? { title: "Confirmar saída do estoque", message: "As peças serão retiradas do saldo e a movimentação de saída será registrada.", button: "Confirmar saída" } : action === "CONFIRM_DELIVERY" ? { title: "Confirmar entrega ao técnico", message: "Confirme que o técnico recebeu fisicamente as peças. Esta etapa não altera o estoque.", button: "Confirmar recebimento" } : action === "REGISTER_RETURN" ? { title: "Registrar devolução", message: "A devolução ficará aguardando o estoquista confirmar o recebimento. O saldo ainda não será alterado.", button: "Registrar devolução" } : { title: "Confirmar retorno ao estoque", message: "As quantidades pendentes serão adicionadas novamente ao saldo e a movimentação de entrada será registrada.", button: "Confirmar recebimento" };
+  const returnable = (item: PartRequestItemForReview) => Math.max(0, Number(item.technician_received_quantity ?? 0) - Number(item.returned_quantity ?? 0) - Number(item.return_pending_quantity ?? 0) - Number(item.damaged_quantity ?? 0));
+  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><h3 className="text-base font-bold text-[#0d1b2e]">{config.title}</h3><button type="button" onClick={onClose} className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-4 overflow-y-auto p-5"><div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">{config.message}</div><div className="space-y-2">{request.items.map(item => { const unit = item.inventory_item?.unit || "un"; const amount = action === "DISPATCH" ? Math.max(0, Number(item.approved_quantity ?? 0) - Number(item.delivered_quantity ?? 0)) : action === "CONFIRM_DELIVERY" ? Math.max(0, Number(item.delivered_quantity ?? 0) - Number(item.technician_received_quantity ?? 0)) : action === "RECEIVE_RETURN" ? Number(item.return_pending_quantity ?? 0) : returnable(item); if (amount <= 0 || action === "DISPATCH" && item.source_test_item_id) return null; return <div key={item.id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center justify-between gap-3"><span className="text-sm font-semibold">{item.inventory_item?.name || "Peça"}</span>{action === "REGISTER_RETURN" ? <input type="number" min="0.01" max={amount} step="0.01" value={quantities[item.id] ?? String(amount)} onChange={event => onQuantitiesChange({ ...quantities, [item.id]: event.target.value })} className={cn(INPUT, "w-28 text-center text-sm")} /> : <span className="text-xs font-bold">{amount} {unit}</span>}</div>{action === "REGISTER_RETURN" && <p className="mt-1 text-[11px] text-[#5a6a82]">Disponível para devolução: {amount} {unit}</p>}</div>; })}</div></div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Processando..." : config.button}</BtnPrimary></div></CenteredModal>;
 }
 
 function TestResultModal({ request, rows, submitting, getPendingQuantity, onRowsChange, onClose, onSubmit }: {
@@ -84,12 +91,12 @@ function TestResultModal({ request, rows, submitting, getPendingQuantity, onRows
         return <div key={item.id} className="space-y-2 rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
           <p className="text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"} <span className="text-xs font-normal text-[#5a6a82]">· Aguardando: {Math.max(0, pending - used)} {item.inventory_item?.unit || "un"}</span></p>
           {rows.filter(row => row.requestItemId === item.id).map(row => <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_6rem_1fr_auto]">
-            <select value={row.action} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, action: event.target.value as TestResultRow["action"] } : current))} className={cn(INPUT, "text-xs")}><option value="RETURN">Devolver ao estoque</option><option value="USE_IN_RESOLUTION">Usar na resolução</option><option value="DAMAGED">Danificada</option></select>
+            <select value={row.action} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, action: event.target.value as TestResultRow["action"] } : current))} className={cn(INPUT, "text-xs")}><option value="USE_IN_RESOLUTION">Usar na resolução</option><option value="DAMAGED">Danificada</option></select>
             <input type="number" min="0.01" max={pending} step="0.01" value={row.quantity} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, quantity: event.target.value } : current))} className={cn(INPUT, "text-xs")} />
             <input value={row.notes} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, notes: event.target.value } : current))} placeholder={row.action === "DAMAGED" ? "Justificativa do dano" : "Observação (opcional)"} className={cn(INPUT, "text-xs")} />
             <button type="button" onClick={() => onRowsChange(rows.filter(current => current.id !== row.id))} className="p-2 text-red-600"><X size={14} /></button>
           </div>)}
-          <button type="button" disabled={used >= pending} onClick={() => onRowsChange([...rows, { id: crypto.randomUUID(), requestItemId: item.id, action: "RETURN", quantity: "", notes: "" }])} className="text-xs font-bold text-[#0057e7] disabled:cursor-not-allowed disabled:opacity-50">Adicionar destino</button>
+          <button type="button" disabled={used >= pending} onClick={() => onRowsChange([...rows, { id: crypto.randomUUID(), requestItemId: item.id, action: "USE_IN_RESOLUTION", quantity: "", notes: "" }])} className="text-xs font-bold text-[#0057e7] disabled:cursor-not-allowed disabled:opacity-50">Adicionar destino</button>
         </div>;
       })}
     </div>
@@ -395,6 +402,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [selectedDeliveryRequest, setSelectedDeliveryRequest] = useState<PartRequestForReview | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [deliverySubmitting, setDeliverySubmitting] = useState(false);
+  const [custodyAction, setCustodyAction] = useState<CustodyAction>("DISPATCH");
+  const [custodyQuantities, setCustodyQuantities] = useState<Record<string, string>>({});
   const [selectedTestRequest, setSelectedTestRequest] = useState<PartRequestForReview | null>(null);
   const [testResultOpen, setTestResultOpen] = useState(false);
   const [testResultRows, setTestResultRows] = useState<TestResultRow[]>([]);
@@ -598,7 +607,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const loadPartRequests = async (orderId: string) => {
-    const { data, error } = await supabase.from("service_order_part_requests").select("id,service_order_id,requested_by,purpose,status,notes,reviewed_by,reviewed_at,review_notes,created_at,requested_by_profile:profiles!requested_by(full_name),reviewed_by_profile:profiles!reviewed_by(full_name),items:service_order_part_request_items(id,inventory_item_id,quantity,approved_quantity,source_test_item_id,delivered_quantity,delivered_at,delivered_by,returned_quantity,damaged_quantity,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", orderId).order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("service_order_part_requests").select("id,service_order_id,requested_by,purpose,status,notes,reviewed_by,reviewed_at,review_notes,created_at,requested_by_profile:profiles!requested_by(full_name),reviewed_by_profile:profiles!reviewed_by(full_name),items:service_order_part_request_items(id,inventory_item_id,quantity,approved_quantity,source_test_item_id,delivered_quantity,delivered_at,delivered_by,technician_received_quantity,technician_received_at,technician_received_by,return_pending_quantity,return_registered_at,return_registered_by,returned_quantity,return_received_at,return_received_by,damaged_quantity,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", orderId).order("created_at", { ascending: false });
     if (error) { console.error("[ADMIN] part requests load error:", error); setDetailPartRequests([]); return; }
     setDetailPartRequests((data || []).map((request: any) => ({ ...request, requester: request.requested_by_profile || null, items: (request.items || []).map((item: any) => ({ ...item, request_status: request.status })) })));
   };
@@ -749,17 +758,27 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     finally { setPartReviewSubmitting(false); }
   };
 
-  const deliverTestRequest = async () => {
+  const submitCustodyAction = async () => {
     if (!selectedDeliveryRequest || deliverySubmitting) return;
     setDeliverySubmitting(true);
     try {
-      const { error } = await supabase.rpc("deliver_service_order_test_request", { p_request_id: selectedDeliveryRequest.id });
-      if (error) throw error;
-      setDeliveryOpen(false); setSelectedDeliveryRequest(null); setToast({ msg: "Peças entregues para teste.", type: "success" });
+      let result;
+      if (custodyAction === "DISPATCH") result = await supabase.rpc("dispatch_service_order_part_request", { p_request_id: selectedDeliveryRequest.id });
+      else if (custodyAction === "CONFIRM_DELIVERY") result = await supabase.rpc("confirm_service_order_part_delivery", { p_request_id: selectedDeliveryRequest.id });
+      else if (custodyAction === "RECEIVE_RETURN") result = await supabase.rpc("receive_service_order_part_return", { p_request_id: selectedDeliveryRequest.id });
+      else {
+        const items = selectedDeliveryRequest.items.map(item => ({ request_item_id: item.id, quantity: Number(custodyQuantities[item.id] || 0) })).filter(item => item.quantity > 0);
+        if (!items.length) throw new Error("Informe pelo menos uma quantidade para devolução.");
+        result = await supabase.rpc("register_service_order_part_return", { p_request_id: selectedDeliveryRequest.id, p_items: items, p_notes: null });
+      }
+      if (result.error) throw result.error;
+      const message = custodyAction === "DISPATCH" ? "Saída das peças confirmada." : custodyAction === "CONFIRM_DELIVERY" ? "Entrega ao técnico confirmada." : custodyAction === "REGISTER_RETURN" ? "Devolução registrada e aguardando recebimento no estoque." : "Retorno ao estoque confirmado.";
+      setDeliveryOpen(false); setSelectedDeliveryRequest(null); setCustodyQuantities({}); setToast({ msg: message, type: "success" });
       await loadPartRequests(detail.id); await load();
-    } catch (error) { console.error("[PART REQUEST] delivery error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
+    } catch (error) { console.error("[PART CUSTODY] action error", error); setToast({ msg: supabaseErrorMessage(error), type: "error" }); }
     finally { setDeliverySubmitting(false); }
   };
+  const openCustodyAction = (request: PartRequestForReview, action: CustodyAction) => { setSelectedDeliveryRequest(request); setCustodyAction(action); setCustodyQuantities(Object.fromEntries(request.items.map(item => [item.id, String(Math.max(0, Number(item.technician_received_quantity ?? 0) - Number(item.returned_quantity ?? 0) - Number(item.return_pending_quantity ?? 0) - Number(item.damaged_quantity ?? 0)))]))); setDeliveryOpen(true); };
 
   const submitTestResults = async () => {
     if (!selectedTestRequest || testResultSubmitting) return;
@@ -792,8 +811,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     }, 0);
 
   const getTestPendingQuantity = (_request: PartRequestForReview, item: PartRequestItemForReview) => {
-    const delivered = Number(item.delivered_quantity ?? 0);
-    const returned = Number(item.returned_quantity ?? 0);
+    const delivered = Number(item.technician_received_quantity ?? item.delivered_quantity ?? 0);
+    const returned = Number(item.returned_quantity ?? 0) + Number(item.return_pending_quantity ?? 0);
     const damaged = Number(item.damaged_quantity ?? 0);
     const committedForResolution = getTestCommittedQuantity(item);
     return Math.max(0, delivered - returned - damaged - committedForResolution);
@@ -1629,6 +1648,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     const status = String(request.status || "").toUpperCase();
                     const normalizedPurpose = request.purpose || "RESOLUTION";
                     const hasDeliveredItems = request.items.some(item => Number(item.delivered_quantity ?? 0) > 0);
+                    const hasPendingDispatch = request.items.some(item => !item.source_test_item_id && Number(item.approved_quantity ?? 0) > Number(item.delivered_quantity ?? 0));
+                    const hasPendingDeliveryConfirmation = request.items.some(item => Number(item.delivered_quantity ?? 0) > Number(item.technician_received_quantity ?? 0));
+                    const hasReturnableItems = request.items.some(item => Number(item.technician_received_quantity ?? 0) - Number(item.returned_quantity ?? 0) - Number(item.return_pending_quantity ?? 0) - Number(item.damaged_quantity ?? 0) > 0);
+                    const hasPendingReturnReceipt = request.items.some(item => Number(item.return_pending_quantity ?? 0) > 0);
                     const hasPendingTestResult = normalizedPurpose === "TEST" && request.items.some(item => getTestPendingQuantity(request, item) > 0);
                     const statusLabel = status === "APPROVED" ? "Aprovada" : status === "REJECTED" ? "Rejeitada" : status === "CANCELLED" ? "Cancelada" : "Em análise";
                     const statusClass = status === "APPROVED" ? "bg-green-100 text-green-700" : status === "REJECTED" ? "bg-red-100 text-red-700" : status === "CANCELLED" ? "bg-[#f5f7fa] text-[#5a6a82]" : "bg-amber-100 text-amber-700";
@@ -1642,6 +1665,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                       <div className="mt-2 space-y-2">{request.items.map(item => {
                         const unit = item.inventory_item?.unit || "un";
                         const delivered = Math.max(0, Number(item.delivered_quantity ?? 0));
+                        const received = Math.max(0, Number(item.technician_received_quantity ?? 0));
+                        const returnPending = Math.max(0, Number(item.return_pending_quantity ?? 0));
                         const returned = Math.max(0, Number(item.returned_quantity ?? 0));
                         const damaged = Math.max(0, Number(item.damaged_quantity ?? 0));
                         const committed = normalizedPurpose === "TEST" ? getTestCommittedQuantity(item) : 0;
@@ -1650,9 +1675,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                           <p className="text-xs font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p>
                           <p className="mt-0.5 text-[11px] text-[#5a6a82]">Solicitado: {Number(item.quantity)} {unit}{item.approved_quantity != null && ` · Aprovado: ${Number(item.approved_quantity)} ${unit}`}</p>
                           {item.source_test_item_id && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">Origem: peça testada</span>}
-                          {normalizedPurpose === "TEST" && delivered > 0 && <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] sm:grid-cols-5">
-                            <span className="rounded bg-blue-50 px-2 py-1 text-blue-700">Entregue: {delivered} {unit}</span>
-                            <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-700">Devolvida: {returned} {unit}</span>
+                          {delivered > 0 && <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] sm:grid-cols-6">
+                            <span className="rounded bg-blue-50 px-2 py-1 text-blue-700">Saída: {delivered} {unit}</span>
+                            <span className="rounded bg-cyan-50 px-2 py-1 text-cyan-700">Recebida pelo técnico: {received} {unit}</span>
+                            <span className="rounded bg-amber-50 px-2 py-1 text-amber-700">Devolução pendente: {returnPending} {unit}</span>
+                            <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-700">Recebida no estoque: {returned} {unit}</span>
                             <span className="rounded bg-red-50 px-2 py-1 text-red-700">Danificada: {damaged} {unit}</span>
                             <span className="rounded bg-violet-50 px-2 py-1 text-violet-700">Para resolução: {committed} {unit}</span>
                             <span className="rounded bg-amber-50 px-2 py-1 text-amber-700">Aguardando: {pending} {unit}</span>
@@ -1665,7 +1692,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                         {hasPermission("orders.manage_part_requests") && status === "PENDING" && <><button type="button" onClick={event => openPartApproval(event, request)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">Aprovar</button><button type="button" onClick={event => openPartRejection(event, request)} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700">Rejeitar</button></>}
                         {hasPermission("orders.manage_part_requests") && status === "REJECTED" && <button type="button" onClick={event => openPartApproval(event, request)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">Aprovar</button>}
                         {hasPermission("orders.manage_part_requests") && status === "APPROVED" && !hasDeliveredItems && <button type="button" onClick={event => openPartRejection(event, request)} className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">Desaprovar</button>}
-                        {hasPermission("orders.manage_part_requests") && status === "APPROVED" && normalizedPurpose === "TEST" && !hasDeliveredItems && <button type="button" onClick={() => { setSelectedDeliveryRequest(request); setDeliveryOpen(true); }} className="rounded-lg bg-[#0057e7] px-3 py-2 text-xs font-bold text-white hover:bg-[#0046c0]">Confirmar entrega</button>}
+                        {hasPermission("orders.dispatch_parts") && status === "APPROVED" && hasPendingDispatch && <button type="button" onClick={() => openCustodyAction(request, "DISPATCH")} className="rounded-lg bg-[#0057e7] px-3 py-2 text-xs font-bold text-white hover:bg-[#0046c0]">Confirmar saída</button>}
+                        {hasPermission("orders.confirm_part_delivery") && status === "APPROVED" && hasPendingDeliveryConfirmation && <button type="button" onClick={() => openCustodyAction(request, "CONFIRM_DELIVERY")} className="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white hover:bg-cyan-700">Confirmar entrega ao técnico</button>}
+                        {hasPermission("orders.register_part_return") && status === "APPROVED" && hasReturnableItems && <button type="button" onClick={() => openCustodyAction(request, "REGISTER_RETURN")} className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">Registrar devolução</button>}
+                        {hasPermission("orders.receive_returned_parts") && status === "APPROVED" && hasPendingReturnReceipt && <button type="button" onClick={() => openCustodyAction(request, "RECEIVE_RETURN")} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">Confirmar retorno ao estoque</button>}
                         {status === "APPROVED" && normalizedPurpose === "TEST" && hasDeliveredItems && hasPendingTestResult && user?.id === detail?.assigned_to && <button type="button" onClick={() => { setSelectedTestRequest(request); setTestResultRows([]); setTestResultOpen(true); }} className="rounded-lg border border-[#0057e7]/30 px-3 py-2 text-xs font-bold text-[#0057e7]">Registrar resultado do teste</button>}
                       </div>
                     </div>;
@@ -2027,7 +2057,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       )}
       {partApprovalOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={false} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={approvePartRequest} />}
       {partRejectionOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={true} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={rejectPartRequest} />}
-      {deliveryOpen && selectedDeliveryRequest && <TestDeliveryModal request={selectedDeliveryRequest} orderNumber={detail?.os_number} submitting={deliverySubmitting} onClose={() => { if (!deliverySubmitting) { setDeliveryOpen(false); setSelectedDeliveryRequest(null); } }} onSubmit={() => void deliverTestRequest()} />}
+      {deliveryOpen && selectedDeliveryRequest && <PartCustodyModal request={selectedDeliveryRequest} action={custodyAction} quantities={custodyQuantities} submitting={deliverySubmitting} onQuantitiesChange={setCustodyQuantities} onClose={() => { if (!deliverySubmitting) { setDeliveryOpen(false); setSelectedDeliveryRequest(null); setCustodyQuantities({}); } }} onSubmit={() => void submitCustodyAction()} />}
       {testResultOpen && selectedTestRequest && <TestResultModal request={selectedTestRequest} rows={testResultRows} submitting={testResultSubmitting} getPendingQuantity={getTestPendingQuantity} onRowsChange={setTestResultRows} onClose={() => { if (!testResultSubmitting) { setTestResultOpen(false); setSelectedTestRequest(null); setTestResultRows([]); } }} onSubmit={() => void submitTestResults()} />}
     </div>
   );
