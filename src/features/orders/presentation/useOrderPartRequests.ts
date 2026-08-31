@@ -21,10 +21,12 @@ type ToastMessage = { msg: string; type: "success" | "error" };
 
 export function useOrderPartRequests({
   reloadOrders,
+  hasPermission,
   showToast,
   formatError,
 }: {
   reloadOrders: () => Promise<void>;
+  hasPermission: (permission: string) => boolean;
   showToast: (toast: ToastMessage) => void;
   formatError: (error: unknown) => string;
 }) {
@@ -113,6 +115,10 @@ export function useOrderPartRequests({
   const openPartRequestModal = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (!hasPermission("orders.request_parts")) {
+      showToast({ msg: "Você não possui permissão para pedir peças.", type: "error" });
+      return;
+    }
     setPartRequestSearch("");
     setPartRequestPurpose("RESOLUTION");
     setSelectedPartRequestItems([]);
@@ -157,6 +163,10 @@ export function useOrderPartRequests({
   };
 
   const submitPartRequest = async (serviceOrderId: string) => {
+    if (!hasPermission("orders.request_parts")) {
+      showToast({ msg: "Você não possui permissão para pedir peças.", type: "error" });
+      return;
+    }
     if (!serviceOrderId || partRequestSubmitting) return;
     if (selectedPartRequestItems.length === 0) {
       showToast({ msg: "Selecione pelo menos uma peça.", type: "error" });
@@ -246,6 +256,10 @@ export function useOrderPartRequests({
   };
 
   const approvePartRequest = async () => {
+    if (!hasPermission("orders.manage_part_requests")) {
+      showToast({ msg: "Você não possui permissão para gerenciar pedidos de peças.", type: "error" });
+      return;
+    }
     if (!selectedPartRequest || partReviewSubmitting) return;
     const quantities = selectedPartRequest.items.map(item => ({
       item,
@@ -297,6 +311,10 @@ export function useOrderPartRequests({
   };
 
   const rejectPartRequest = async () => {
+    if (!hasPermission("orders.manage_part_requests")) {
+      showToast({ msg: "Você não possui permissão para gerenciar pedidos de peças.", type: "error" });
+      return;
+    }
     if (!selectedPartRequest || partReviewSubmitting) return;
     if (!partReviewNotes.trim()) {
       showToast({ msg: "Informe o motivo da rejeição.", type: "error" });
@@ -333,6 +351,10 @@ export function useOrderPartRequests({
   };
 
   const deliverTestRequest = async () => {
+    if (!hasPermission("orders.manage_part_requests")) {
+      showToast({ msg: "Você não possui permissão para gerenciar pedidos de peças.", type: "error" });
+      return;
+    }
     if (!selectedDeliveryRequest || deliverySubmitting) return;
     const serviceOrderId = selectedDeliveryRequest.service_order_id;
     setDeliverySubmitting(true);
@@ -386,6 +408,10 @@ export function useOrderPartRequests({
   };
 
   const submitTestResults = async () => {
+    if (!hasPermission("orders.manage_part_requests")) {
+      showToast({ msg: "Você não possui permissão para gerenciar pedidos de peças.", type: "error" });
+      return;
+    }
     if (!selectedTestRequest || testResultSubmitting) return;
     if (!testResultRows.length) {
       showToast({ msg: "Informe pelo menos um resultado.", type: "error" });
