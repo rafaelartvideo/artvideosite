@@ -289,7 +289,7 @@ function hoursInputValue(value: string) {
 }
 
 export function FHoursInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [k: string]: any }) {
-  return <FInput {...props} type="text" inputMode="numeric" maxLength={5} value={hoursInputDisplay(value)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: hoursInputValue(event.target.value) } })} />;
+  return <FInput {...props} type="text" inputMode="numeric" value={hoursInputDisplay(value)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: hoursInputValue(event.target.value) } })} />;
 }
 
 export function CustomerTypeToggle({ value, onChange, disabled = false }: { value: CustomerType; onChange: (value: CustomerType) => void; disabled?: boolean }) {
