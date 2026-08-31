@@ -22,15 +22,15 @@ export const setEmployeeActive = (id: string, isActive: boolean) =>
   supabase.from("employees").update({ is_active: isActive }).eq("id", id).select("id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at").single();
 
 // ── General services ─────────────────────────────────────────
-const generalServiceColumns = "id,name,is_active,sort_order,created_at,updated_at";
+const generalServiceColumns = "id,name,price,max_discount_percentage,is_active,sort_order,created_at,updated_at";
 
 export const getGeneralServices = () =>
   supabase.from("general_services").select(generalServiceColumns).order("sort_order").order("name");
 
-export const createGeneralService = (service: Pick<GeneralService, "name" | "is_active" | "sort_order">) =>
+export const createGeneralService = (service: Pick<GeneralService, "name" | "price" | "max_discount_percentage" | "is_active" | "sort_order">) =>
   supabase.from("general_services").insert(service).select(generalServiceColumns).single();
 
-export const updateGeneralService = (id: string, service: Partial<Pick<GeneralService, "name" | "is_active" | "sort_order">>) =>
+export const updateGeneralService = (id: string, service: Partial<Pick<GeneralService, "name" | "price" | "max_discount_percentage" | "is_active" | "sort_order">>) =>
   supabase.from("general_services").update(service).eq("id", id).select(generalServiceColumns).single();
 
 export const setGeneralServiceActive = (id: string, isActive: boolean) =>
