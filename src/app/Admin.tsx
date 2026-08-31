@@ -3764,7 +3764,20 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     }
     return { ...current, selected: Array.from(nextSelected) };
   });
-  const toggleGroup = (items: any[]) => { const ids = items.map(item => item.id); const allSelected = ids.every(id => form.selected.includes(id)); setForm(current => ({ ...current, selected: allSelected ? current.selected.filter(id => !ids.includes(id)) : Array.from(new Set([...current.selected, ...ids])) })); };
+  const toggleGroup = (items: any[]) => {
+    const ids = items.map(item => item.id);
+    const allSelectedInGroup = ids.every(id => form.selected.includes(id));
+    setForm(current => {
+      const nextSelected = new Set(allSelectedInGroup ? current.selected.filter(id => !ids.includes(id)) : [...current.selected, ...ids]);
+      if (!allSelectedInGroup && items.some(item => item.key?.startsWith("orders.section."))) {
+        const viewPermission = permissions.find(item => item.key === "orders.view");
+        const viewAllPermission = permissions.find(item => item.key === "orders.view_all");
+        if (viewPermission) nextSelected.add(viewPermission.id);
+        if (viewAllPermission) nextSelected.add(viewAllPermission.id);
+      }
+      return { ...current, selected: Array.from(nextSelected) };
+    });
+  };
   const allSelected = permissions.length > 0 && permissions.every(permission => form.selected.includes(permission.id));
 
   return <div className="space-y-5">
