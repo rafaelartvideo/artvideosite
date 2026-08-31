@@ -3708,7 +3708,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     else nextSelected.add(permissionId);
     if (permission?.key === "orders.view") {
       if (!nextSelected.has(permissionId)) {
-        permissions.filter(item => ["orders.view_all", "orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.complete"].includes(item.key) || item.key.startsWith("orders.section.")).forEach(item => nextSelected.delete(item.id));
+        permissions.filter(item => ["orders.view_all", "orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.complete"].includes(item.key) || (item.key.startsWith("orders.section.") || item.key.startsWith("orders.table."))).forEach(item => nextSelected.delete(item.id));
       }
     } else if (permission?.key === "orders.view_all" || permission?.key === "orders.request_parts") {
       const viewPermission = permissions.find(item => item.key === "orders.view");
@@ -3717,7 +3717,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
         const managePermission = permissions.find(item => item.key === "orders.manage_part_requests");
         if (managePermission) nextSelected.delete(managePermission.id);
       }
-    } else if (["orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.complete"].includes(permission?.key) || permission?.key?.startsWith("orders.section.")) {
+    } else if (["orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.complete"].includes(permission?.key) || (permission?.key?.startsWith("orders.section.") || permission?.key?.startsWith("orders.table."))) {
       const viewPermission = permissions.find(item => item.key === "orders.view");
       const viewAllPermission = permissions.find(item => item.key === "orders.view_all");
       if (viewPermission) nextSelected.add(viewPermission.id);
@@ -3730,7 +3730,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     const allSelectedInGroup = ids.every(id => form.selected.includes(id));
     setForm(current => {
       const nextSelected = new Set(allSelectedInGroup ? current.selected.filter(id => !ids.includes(id)) : [...current.selected, ...ids]);
-      if (!allSelectedInGroup && items.some(item => item.key?.startsWith("orders.section."))) {
+      if (!allSelectedInGroup && items.some(item => item.key?.startsWith("orders.section.") || item.key?.startsWith("orders.table."))) {
         const viewPermission = permissions.find(item => item.key === "orders.view");
         const viewAllPermission = permissions.find(item => item.key === "orders.view_all");
         if (viewPermission) nextSelected.add(viewPermission.id);
