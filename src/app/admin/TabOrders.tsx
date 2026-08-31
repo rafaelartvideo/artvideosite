@@ -1581,7 +1581,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 <StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />
                 {(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}
               </div>
-              <Section title="Cliente">
+              {hasPermission("orders.section.customer") && (<Section title="Cliente">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Nome" value={(detail.customer as any)?.full_name} />
                   {(detail.customer as any)?.customer_type === "PJ" ? <>
@@ -1593,8 +1593,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   <InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)} />
                   <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
                 </div>
-              </Section>
-              <Section title="Dados de endereço">
+              </Section>)}
+              {hasPermission("orders.section.address") && (<Section title="Dados de endereço">
                 <div className="grid sm:grid-cols-2 gap-3">
                   {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map((key) => {
                     const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" };
@@ -1602,8 +1602,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     return address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null;
                   })}
                 </div>
-              </Section>
-              <Section title="Equipamento">
+              </Section>)}
+              {hasPermission("orders.section.equipment") && (<Section title="Equipamento">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || undefined} />
                   <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || undefined} />
@@ -1613,8 +1613,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   <InfoRow label="Lacre" value={detail.accessories || undefined} />
                   <InfoRow label="Garantia" value={detail.equipment_condition || undefined} />
                 </div>
-              </Section>
-              <Section title="Local do atendimento">
+              </Section>)}
+              {hasPermission("orders.section.service_location") && (<Section title="Local do atendimento">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Tipo da OS" value={detail.order_type === "external" ? "Externa" : "Interna"} />
                   {detail.order_type === "external" && <InfoRow label="Origem do endereço" value={detail.service_address_source === "customer" ? "Endereço cadastrado do cliente" : "Endereço informado para esta OS"} />}
@@ -1626,8 +1626,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   {detail.order_type === "external" && <InfoRow label="Número" value={detail.service_number} />}
                   {detail.order_type === "external" && <InfoRow label="Complemento" value={detail.service_complement} />}
                 </div>
-              </Section>
-              <Section title="Informações da OS">
+              </Section>)}
+              {hasPermission("orders.section.information") && (<Section title="Informações da OS">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Nº da OS" value={detail.os_number} />
                   <InfoRow label="OS Externa" value={detail.external_os_number?.trim() || "Não informada"} />
@@ -1652,9 +1652,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   </div>
                   <span className="font-black text-[#0057e7]">{detail.estimated_price == null ? "Valor não informado" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(detail.estimated_price))}</span>
                 </div>
-              </Section>
-              {orderImages.length > 0 && <Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>}
-              <Section title="Histórico">
+              </Section>)}
+              {orderImages.length > 0 && {hasPermission("orders.section.images") && (<Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>)}}
+              {hasPermission("orders.section.history") && (<Section title="Histórico">
                 {detailHistory.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum registro de alteração.</p> : (
                   <div className="space-y-2">
                     {detailHistory.map((h: any) => (
@@ -1669,10 +1669,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     ))}
                   </div>
                 )}
-              </Section>
-              {detail.internal_notes && <Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>}
-              {detail.customer_notes && <Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>}
-              <Section title="Solicitações de peças">
+              </Section>)}
+              {detail.internal_notes && {hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}}
+              {detail.customer_notes && {hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}}
+              {hasPermission("orders.section.parts") && (<Section title="Solicitações de peças">
                 {detailPartRequests.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma solicitação de peças para esta OS.</p> : <div className="space-y-3">
                   {detailPartRequests.map((request: PartRequestForReview) => {
                     const status = String(request.status || "").toUpperCase();
@@ -1732,9 +1732,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     </div>;
                   })}
                 </div>}
-              </Section>
+              </Section>)}
               {(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && (
-                <Section title="Solução da OS">
+                {hasPermission("orders.section.solution") && (<Section title="Solução da OS">
                   <div className="space-y-4">
                     {detail.is_solved && <div className="flex items-center gap-2 flex-wrap"><span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2.5 py-1 text-[10px] font-bold uppercase">✓ OS solucionada</span>{detail.solved_at && <span className="text-xs text-[#5a6a82]">Solucionada em {formatSolvedAt(detail.solved_at)} por: {profile?.full_name || "Nome não informado"}</span>}</div>}
                     {detail.cannot_be_solved && <div className="space-y-1"><span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span><p className="text-sm text-[#0d1b2e] whitespace-pre-line"><strong>Justificativa:</strong> {detail.cannot_be_solved_reason}</p></div>}
@@ -1749,7 +1749,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     })}</div><div className="mt-3 flex items-center justify-between rounded-lg border border-[#0057e7]/20 bg-[#f0f6ff] px-3 py-2 text-sm"><span className="font-bold text-[#0d1b2e]">Valor total dos produtos</span><span className="font-black text-[#0057e7]">{formatCurrency(detailUsedItemsTotal)}</span></div></div>}
                     {detailSolutionImages.length > 0 && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Imagens da solução</p><div className="flex flex-wrap gap-3">{detailSolutionImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></div>}
                   </div>
-                </Section>
+                </Section>)}
               )}
             </div>
             <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
@@ -1771,7 +1771,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         <AdminPage open={true} onClose={closeOrderForm} breadcrumb={editingOS ? `Ordens de Serviço > OS #${editingOS.os_number || editingOS.id.slice(0,8)}` : "Ordens de Serviço"} title={editingOS ? "Editar OS" : "Nova OS"} subtitle={editingOS ? "Atualize os dados do atendimento" : "Cadastre os dados do atendimento"} maxW="max-w-2xl" fullPage={Boolean(editingOS)}>
           <div className="p-5 space-y-5">
             {/* Cliente */}
-            <Section title="Cliente">
+            {hasPermission("orders.section.customer") && (<Section title="Cliente">
               {selectedCustomer ? (
                 <div className="space-y-4">
                   {editingCustomer ? (
@@ -1793,9 +1793,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                           <FInput label="Telefone" value={customerDraft.phone} onChange={(e: any) => setCustomerDraft({ ...customerDraft, phone: formatPhone(e.target.value) })} />
                         <div className="sm:col-span-2"><FInput label="E-mail" type="email" value={customerDraft.email} onChange={(e: any) => setCustomerDraft({ ...customerDraft, email: e.target.value })} /></div>
                       </div>
-                      <Section title="Endereço do cliente">
+                      {hasPermission("orders.section.address") && (<Section title="Endereço do cliente">
                         <AddressFields value={customerAddressDraft} onChange={setCustomerAddressDraft} inputClassName={INPUT} />
-                      </Section>
+                      </Section>)})}
                       {hasPermission("customers.edit") && <BtnPrimary onClick={saveCustomer} disabled={saving}>{saving ? "Salvando..." : "Salvar dados"}</BtnPrimary>}
                     </div>
                   ) : (
@@ -1837,7 +1837,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               )}
             </Section>
 
-            <Section title="Equipamento">
+            {hasPermission("orders.section.equipment") && (<Section title="Equipamento">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2 flex items-end gap-2"><div className="flex-1"><FSelect label="Tipo de equipamento" value={form.equipment_type_id} onChange={(e: any) => { upF("equipment_type_id", e.target.value); upF("equipment_brand_id", ""); upF("equipment_model_id", ""); }} options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]} /></div>{!editingOS && hasPermission("equipment.create") && <BtnPrimary className="h-[42px]" onClick={() => setQuickEquipment(true)}><Plus size={15} /> Criar equipamento</BtnPrimary>}</div>
                 <FSelect label="Marca técnica" value={form.equipment_brand_id} disabled={!form.equipment_type_id} onChange={(e: any) => { upF("equipment_brand_id", e.target.value); upF("equipment_model_id", ""); }} options={[{ value: "", label: form.equipment_type_id ? "Selecionar marca..." : "Selecione o tipo primeiro" }, ...equipmentBrands.filter(brand => brand.equipment_type_id === form.equipment_type_id).map(brand => ({ value: brand.id, label: brand.name }))]} />
@@ -1847,9 +1847,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 <FInput label="Lacre / garantia" value={form.accessories} onChange={(e: any) => upF("accessories", e.target.value)} />
                 <div className="sm:col-span-2"><FTextarea label="Observações do equipamento" value={form.equipment_condition} onChange={(e: any) => upF("equipment_condition", e.target.value)} rows={3} /></div>
               </div>
-            </Section>
+            </Section>)}
 
-            <Section title="Local do atendimento">
+            {hasPermission("orders.section.service_location") && (<Section title="Local do atendimento">
               <div className="space-y-4">
                 <FSelect label="Tipo da OS" required value={form.order_type} onChange={(e: any) => {
                   const orderType = e.target.value as OrderType;
@@ -1896,11 +1896,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   </div>}
                 </>}
               </div>
-            </Section>
+            </Section>)}
 
             <OrderImagesField images={orderImages} onAdd={addOrderImages} onRemove={removeOrderImage} onView={setViewImage} canEdit={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")} />
 
-            <Section title="Informações da OS">
+            {hasPermission("orders.section.information") && (<Section title="Informações da OS">
               <div className="grid sm:grid-cols-2 gap-4">
                 <FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => { const serviceTypeId = e.target.value; upF("service_type_id", serviceTypeId); const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId); if (form.situation_id && links.length > 0 && !links.some(link => link.situation_id === form.situation_id)) upF("situation_id", ""); }} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} />
                 <FSelect label="Serviço" value={form.general_service_id} required onChange={(e: any) => upF("general_service_id", e.target.value)} options={[{ value: "", label: "Selecionar serviço..." }, ...generalServices.map(service => ({ value: service.id, label: service.name }))]} />
@@ -1926,7 +1926,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 <FTextarea label="Descrição do problema" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={4} />
                 <FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />
               </div>
-            </Section>
+            </Section>)}
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
             <BtnSecondary onClick={closeOrderForm}>Cancelar</BtnSecondary>
@@ -1961,7 +1961,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       />}
       {solveOpen && detail && <AdminPage open={true} onClose={() => setSolveOpen(false)} breadcrumb="Ordens de Serviço" title="Resolver OS" subtitle="Diagnóstico, solução e produtos utilizados" maxW="max-w-2xl">
         <div className="p-5 space-y-5">
-          <Section title="Informações da OS">
+          {hasPermission("orders.section.information") && (<Section title="Informações da OS">
             <div className="grid sm:grid-cols-2 gap-3">
               <InfoRow label="Nº da OS" value={detail.os_number} />
               <InfoRow label="Serviço" value={(detail.service as any)?.title || (detail.general_service as any)?.name || "—"} />
@@ -1973,29 +1973,29 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               <InfoRow label="Lacre" value={detail.accessories || "—"} />
               <InfoRow label="Garantia" value={detail.equipment_condition || "—"} />
             </div>
-          </Section>
+          </Section>)}
 
-          <Section title="Descrição do problema">
+          {hasPermission("orders.section.problem") && (<Section title="Descrição do problema">
             <p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes || "Nenhuma descrição do problema registrada."}</p>
-          </Section>
+          </Section>)}
 
-          <Section title="Diagnóstico">
+          {hasPermission("orders.section.solution") && (<Section title="Diagnóstico">
             <FTextarea label="Diagnóstico" value={solveDraft.diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: e.target.value }))} rows={5} />
-          </Section>
+          </Section>)}
 
-          <Section title="Solução">
+          {hasPermission("orders.section.solution") && (<Section title="Solução">
             <FTextarea label="Solução" value={solveDraft.solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: e.target.value }))} rows={5} />
-          </Section>
+          </Section>)}
 
-          <Section title="Resultado do atendimento">
+          {hasPermission("orders.section.solution") && (<Section title="Resultado do atendimento">
             <label className="flex items-start gap-2 text-sm font-bold text-[#0d1b2e]">
               <input type="checkbox" checked={solveDraft.cannotSolve} onChange={event => setSolveDraft(current => ({ ...current, cannotSolve: event.target.checked }))} />
               OS não pode ser solucionada
             </label>
             {solveDraft.cannotSolve && <div className="mt-3"><FTextarea label="Justificativa" value={solveDraft.cannotSolveReason} onChange={(e: any) => setSolveDraft(current => ({ ...current, cannotSolveReason: e.target.value }))} rows={4} hint="Informe por que esta OS não pode ser solucionada." /></div>}
-          </Section>
+          </Section>)}
 
-          <Section title="Produtos utilizados">
+          {hasPermission("orders.section.parts") && (<Section title="Produtos utilizados">
             <div className="space-y-3">
               {solveDraft.usedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aprovada para esta OS.</p> : solveDraft.usedItems.map((item: any) => {
                 const stockItem = inventoryItems.find(entry => entry.id === item.inventory_item_id);
@@ -2019,13 +2019,13 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 );
               })}
             </div>
-          </Section>
+          </Section>)}
 
-          <Section title="Imagens da OS">
+          {hasPermission("orders.section.images") && (<Section title="Imagens da OS">
             {orderImages.length > 0 ? <div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem da OS cadastrada.</p>}
-          </Section>
+          </Section>)}
 
-          <Section title="Imagens da solução">
+          {hasPermission("orders.section.images") && (<Section title="Imagens da solução">
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-xs text-[#5a6a82]">{solutionImages.length}/5 imagens</p>
               <div className="flex items-center gap-2 flex-wrap">
@@ -2056,7 +2056,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               </div>
             </div>
             {solutionImages.length > 0 ? <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onRemove={() => setSolutionImages(current => current.filter(item => item.key !== image.key))} onView={() => setViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem adicionada para a solução.</p>}
-          </Section>
+          </Section>)}
         </div>
         <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
           <BtnSecondary onClick={() => setSolveOpen(false)}>Cancelar</BtnSecondary>
