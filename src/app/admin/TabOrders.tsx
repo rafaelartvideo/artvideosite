@@ -420,6 +420,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [solveOpen, setSolveOpen] = useState(false);
+  const [completionOpen, setCompletionOpen] = useState(false);
+  const [completionDiscount, setCompletionDiscount] = useState("");
   const [partRequestOpen, setPartRequestOpen] = useState(false);
   const [partRequestInventory, setPartRequestInventory] = useState<PartRequestInventoryItem[]>([]);
   const [partRequestInventoryLoading, setPartRequestInventoryLoading] = useState(false);
@@ -440,7 +442,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [testResultSubmitting, setTestResultSubmitting] = useState(false);
   const [solveDraft, setSolveDraft] = useState({ diagnosis: "", solution: "", usedItems: [], cannotSolve: false, cannotSolveReason: "" } as { diagnosis: string; solution: string; usedItems: any[]; cannotSolve: boolean; cannotSolveReason: string });
   const [solutionImages, setSolutionImages] = useState<OrderImage[]>([]);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -474,7 +475,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const dragOriginRef = useRef<any[] | null>(null);
   const suppressCardClickRef = useRef(false);
 
-  const emptyForm = { service_id: "", general_service_id: "", service_type_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", technician_id: "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", completed_at: "", internal_notes: "", customer_notes: "", order_type: "internal" as OrderType, service_state: "", service_city: "", service_street: "", service_zip_code: "", service_neighborhood: "", service_number: "", service_complement: "", service_customer_address_id: "", external_os_number: "" };
+  const emptyForm = { service_id: "", general_service_id: "", service_type_id: "", seller_id: "", estimated_price: "", status_id: "", situation_id: "", customer_id: "", technician_id: "", brand_id: "", product_id: "", model: "", equipment_type_id: "", equipment_brand_id: "", equipment_model_id: "", serial_number: "", accessories: "", equipment_condition: "", priority: "normal", scheduled_at: "", started_at: "", internal_notes: "", customer_notes: "", order_type: "internal" as OrderType, service_state: "", service_city: "", service_street: "", service_zip_code: "", service_neighborhood: "", service_number: "", service_complement: "", service_customer_address_id: "", external_os_number: "" };
   const [form, setForm] = useState(emptyForm);
   const [needsScheduling, setNeedsScheduling] = useState(true);
   const [orderImages, setOrderImages] = useState<OrderImage[]>([]);
@@ -645,7 +646,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const load = async () => {
     setLoading(true);
     const [ordRes, statRes, sitRes, profRes, serviceRes, brandRes, productRes, equipmentTypeRes, equipmentBrandRes, equipmentModelRes, employeeRes, generalServiceRes, serviceTypeRes, serviceTypeSituationRes] = await Promise.all([
-      supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
+      supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title), general_service:general_services(id,name,price,max_discount_percentage), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").order("created_at", { ascending: false }),
       supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order"),
       supabase.from("os_situations").select("id,name,color,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
@@ -867,7 +868,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setSelectedSellerIds(Array.from(new Set((o.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(o.seller_id ? [o.seller_id] : []))));
     setNeedsScheduling(true);
     await loadOrderImages(o.id);
-    setForm({ ...emptyForm, service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", completed_at: o.completed_at ? o.completed_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "", order_type: o.order_type === "external" ? "external" : "internal", service_state: o.order_type === "external" ? o.service_state || "" : "", service_city: o.order_type === "external" ? o.service_city || "" : "", service_street: o.order_type === "external" ? o.service_street || "" : "", service_zip_code: o.order_type === "external" ? o.service_zip_code || "" : "", service_neighborhood: o.order_type === "external" ? o.service_neighborhood || "" : "", service_number: o.order_type === "external" ? o.service_number || "" : "", service_complement: o.order_type === "external" ? o.service_complement || "" : "", service_customer_address_id: o.order_type === "external" ? o.service_customer_address_id || "" : "", external_os_number: o.external_os_number || "" });
+    setForm({ ...emptyForm, service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", estimated_price: o.estimated_price == null ? "" : String(o.estimated_price), status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "", order_type: o.order_type === "external" ? "external" : "internal", service_state: o.order_type === "external" ? o.service_state || "" : "", service_city: o.order_type === "external" ? o.service_city || "" : "", service_street: o.order_type === "external" ? o.service_street || "" : "", service_zip_code: o.order_type === "external" ? o.service_zip_code || "" : "", service_neighborhood: o.order_type === "external" ? o.service_neighborhood || "" : "", service_number: o.order_type === "external" ? o.service_number || "" : "", service_complement: o.order_type === "external" ? o.service_complement || "" : "", service_customer_address_id: o.order_type === "external" ? o.service_customer_address_id || "" : "", external_os_number: o.external_os_number || "" });
     setServiceUseCustomerAddress(o.order_type === "external" && o.service_address_source === "customer"); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]);
     if (o.order_type === "external" && o.service_state) void loadIbgeCities(o.service_state, o.service_city);
     setSelectedCustomer((o.customer as any) || null);
@@ -990,7 +991,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         solutionImageError = error;
       }
 
-      const freshDetail = await supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").eq("id", orderId).maybeSingle();
+      const freshDetail = await supabase.from("service_orders").select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title), general_service:general_services(id,name,price,max_discount_percentage), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)").eq("id", orderId).maybeSingle();
       if (freshDetail.data) setDetail(freshDetail.data);
       const { data: usedData } = await supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", orderId).order("created_at", { ascending: false });
       const { data: mediaLinks } = await supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", orderId).order("sort_order");
@@ -1002,6 +1003,56 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       await load();
     } catch (error) {
       setToast({ msg: `Não foi possível concluir a solução da OS: ${supabaseErrorMessage(error)}. Nenhuma alteração de estoque foi aplicada.`, type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openCompletion = (order: any) => {
+    if (!hasPermission("orders.complete")) {
+      setToast({ msg: "Você não possui permissão para concluir esta OS.", type: "error" });
+      return;
+    }
+    if (!order.is_solved) {
+      setToast({ msg: "Resolva a OS antes de concluir.", type: "error" });
+      return;
+    }
+    if (order.completed_at) {
+      setToast({ msg: "Esta OS já foi concluída.", type: "error" });
+      return;
+    }
+    if (order.general_service?.price == null) {
+      setToast({ msg: "O serviço geral desta OS não possui valor cadastrado.", type: "error" });
+      return;
+    }
+    setCompletionDiscount("");
+    setCompletionOpen(true);
+  };
+
+  const completeOrder = async () => {
+    if (!detail || !hasPermission("orders.complete")) return;
+    const discount = completionDiscount === "" ? 0 : Number(completionDiscount);
+    const maxDiscount = Number(detail.general_service?.max_discount_percentage ?? 0);
+    if (!Number.isFinite(discount) || discount < 0 || discount > maxDiscount) {
+      setToast({ msg: `O desconto deve estar entre 0% e ${maxDiscount.toLocaleString("pt-BR")}%.`, type: "error" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.rpc("complete_service_order", {
+        p_service_order_id: detail.id,
+        p_discount_percentage: discount,
+      });
+      if (error) throw error;
+      const financial = data || {};
+      const nextDetail = { ...detail, ...financial, completed_at: financial.completed_at || new Date().toISOString() };
+      setDetail(nextDetail);
+      setOrders(current => current.map(order => order.id === detail.id ? { ...order, ...financial, completed_at: nextDetail.completed_at } : order));
+      setCompletionOpen(false);
+      setToast({ msg: "OS concluída com sucesso.", type: "success" });
+      await load();
+    } catch (error) {
+      setToast({ msg: `Não foi possível concluir a OS: ${supabaseErrorMessage(error)}`, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -1057,7 +1108,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setSelectedCustomer({ ...selectedCustomer, ...customerUpdatePayload(customerDraft), addresses: [customerAddressDraft] });
       setEditingCustomer(false);
     }
-    const payload = { service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, service_type_id: form.service_type_id || null, seller_id: selectedSellerIds[0] || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, status_id: status.id, situation_id: form.situation_id || null, customer_id: cid, ...(editingOS ? {} : { assigned_to: user?.id }), technician_id: selectedTechnicianIds[0] || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, ...(editingOS ? {} : { serial_number: form.serial_number || null, external_os_number: form.external_os_number.trim() || null }), accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: needsScheduling ? form.scheduled_at || null : null, started_at: form.started_at || null, completed_at: form.completed_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null, order_type: form.order_type, service_zip_code: form.order_type === "external" ? serviceZipCode : null, service_state: form.order_type === "external" ? serviceState : null, service_city: form.order_type === "external" ? serviceCity : null, service_neighborhood: form.order_type === "external" ? serviceNeighborhood : null, service_street: form.order_type === "external" ? serviceStreet : null, service_number: form.order_type === "external" ? serviceNumber : null, service_complement: form.order_type === "external" ? serviceComplement : null, service_address_source: form.order_type === "external" ? (serviceUseCustomerAddress ? "customer" : "custom") : null, service_customer_address_id: form.order_type === "external" && serviceUseCustomerAddress ? selectedAddress?.id || null : null };
+    const payload = { service_id: editingOS ? form.service_id || null : null, general_service_id: form.general_service_id || null, service_type_id: form.service_type_id || null, seller_id: selectedSellerIds[0] || null, estimated_price: form.estimated_price ? Number(form.estimated_price) : null, status_id: status.id, situation_id: form.situation_id || null, customer_id: cid, ...(editingOS ? {} : { assigned_to: user?.id }), technician_id: selectedTechnicianIds[0] || null, equipment_type_id: form.equipment_type_id || null, equipment_brand_id: form.equipment_brand_id || null, equipment_model_id: form.equipment_model_id || null, brand_id: form.brand_id || null, product_id: form.product_id || null, model: form.model || null, ...(editingOS ? {} : { serial_number: form.serial_number || null, external_os_number: form.external_os_number.trim() || null }), accessories: form.accessories || null, equipment_condition: form.equipment_condition || null, priority: form.priority || "normal", scheduled_at: needsScheduling ? form.scheduled_at || null : null, started_at: form.started_at || null, internal_notes: form.internal_notes || null, customer_notes: form.customer_notes || null, order_type: form.order_type, service_zip_code: form.order_type === "external" ? serviceZipCode : null, service_state: form.order_type === "external" ? serviceState : null, service_city: form.order_type === "external" ? serviceCity : null, service_neighborhood: form.order_type === "external" ? serviceNeighborhood : null, service_street: form.order_type === "external" ? serviceStreet : null, service_number: form.order_type === "external" ? serviceNumber : null, service_complement: form.order_type === "external" ? serviceComplement : null, service_address_source: form.order_type === "external" ? (serviceUseCustomerAddress ? "customer" : "custom") : null, service_customer_address_id: form.order_type === "external" && serviceUseCustomerAddress ? selectedAddress?.id || null : null };
     let error;
     let savedOrderId = editingOS?.id as string | undefined;
     if (editingOS) {
@@ -1189,20 +1240,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       cannotSolveReason: currentOrder?.cannot_be_solved_reason || order.cannot_be_solved_reason || "",
     });
     setSolveOpen(true);
-  };
-
-  const handleDeleteOrder = async (id: string) => {
-    if (!hasPermission("orders.delete")) return;
-    const { error } = await supabase.from("service_orders").delete().eq("id", id);
-    if (error) {
-      setToast({ msg: `Não foi possível excluir a OS: ${error.message}`, type: "error" });
-      setDeleteId(null);
-      return;
-    }
-    setToast({ msg: "OS excluída.", type: "success" });
-    setDeleteId(null);
-    setDetail(null);
-    await load();
   };
 
   const updateOrderStatus = async (order: any, statusId: string) => {
@@ -1397,13 +1434,18 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     const itemTotal = Number(item.total_sale_price);
     return Number.isFinite(itemTotal) ? total + itemTotal : total;
   }, 0);
+  const completionServicePrice = Number(detail?.general_service?.price ?? 0);
+  const completionMaxDiscount = Number(detail?.general_service?.max_discount_percentage ?? 0);
+  const completionDiscountPercentage = completionDiscount === "" ? 0 : Number(completionDiscount);
+  const completionSubtotal = completionServicePrice + detailUsedItemsTotal;
+  const completionDiscountAmount = Number.isFinite(completionDiscountPercentage) ? completionSubtotal * completionDiscountPercentage / 100 : 0;
+  const completionFinalTotal = Math.max(0, completionSubtotal - completionDiscountAmount);
 
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      {deleteId && <ConfirmDialog message="Excluir esta OS? Esta ação remove o registro principal da tabela de ordens de serviço." onConfirm={() => { void handleDeleteOrder(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
-      {!detail && !formOpen && !solveOpen && <>
+      {!detail && !formOpen && !solveOpen && !completionOpen && <>
       <PageHeader title="Ordens de Serviço" subtitle={`${filtered.length} OS encontrada${filtered.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2 flex-wrap">
           <div className="flex rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
@@ -1526,7 +1568,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                         </select>}
                         {hasPermission("orders.edit") && <select value={o.situation_id || ""} onClick={event => event.stopPropagation()} onChange={event => void updateOrderSituation(o, event.target.value)} className="max-w-[130px] text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(o.service_type_id, o.situation_id, o.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
                         {hasPermission("orders.edit") && !o.is_solved && <button onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors"><Edit2 size={14} /> Editar</button>}
-                        {hasPermission("orders.delete") && !o.is_solved && <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteId(o.id); }} className="flex items-center gap-1.5 text-xs font-bold text-red-600 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={14} /> Excluir</button>}
                       </div>
                     </td>
                   </tr>
@@ -1642,6 +1683,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   <InfoRow label="Data de início" value={fmtDate(detail.created_at)} />
                   <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
                   <InfoRow label="Data de conclusão" value={fmtDate(detail.completed_at)} />
+                  {detail.completed_at && <InfoRow label="Valor do serviço" value={formatCurrency(Number(detail.service_price || 0))} />}
+                  {detail.completed_at && <InfoRow label="Valor das peças" value={formatCurrency(Number(detail.parts_total || 0))} />}
+                  {detail.completed_at && <InfoRow label="Desconto aplicado" value={`${Number(detail.discount_percentage || 0).toLocaleString("pt-BR")}% (- ${formatCurrency(Number(detail.discount_amount || 0))})`} />}
+                  {detail.completed_at && <InfoRow label="Valor final" value={formatCurrency(Number(detail.final_total || 0))} />}
                   <InfoRow label="Horas da situação" value={(detail.situation as any)?.hours == null ? null : `${(detail.situation as any).hours} hora(s)`} />
                   {(() => { const sla = getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation); return sla ? <InfoRow label="SLA da situação" value={`${sla.hours} hora(s) (${sla.isDefault ? "Padrão" : "Personalizado"})`} /> : null; })()}
                 </div>
@@ -1759,8 +1804,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 {hasPermission("orders.edit") && <select value={detail.situation_id || ""} onChange={event => void updateOrderSituation(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
                 {hasPermission("orders.request_parts") && detail && detail.is_solved !== true && <button type="button" onClick={openPartRequestModal} className="inline-flex items-center gap-2 whitespace-nowrap border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer"><PackagePlus size={14} /> Pedir peças</button>}
                 {hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && <BtnPrimary onClick={() => openSolveOrder(detail)}><CheckCircle size={14} /> Resolver OS</BtnPrimary>}
+                {hasPermission("orders.complete") && detail.is_solved && !detail.completed_at && <BtnPrimary onClick={() => openCompletion(detail)}><DollarSign size={14} /> Concluir OS</BtnPrimary>}
                 {hasPermission("orders.edit") && !detail.is_solved && <BtnPrimary onClick={() => { setDetail(null); void openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>}
-                {hasPermission("orders.delete") && !detail.is_solved && <button type="button" onClick={() => setDeleteId(detail.id)} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"><Trash2 size={14} /> Excluir</button>}
               </div>
             </div>
         </AdminPage>
@@ -2080,6 +2125,29 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
             }
             void saveOrderSolution(detail.id);
           }} disabled={saving}><CheckCircle size={14} /> Concluir solução</BtnPrimary>
+        </div>
+      </AdminPage>}
+      {completionOpen && detail && <AdminPage open={true} onClose={() => setCompletionOpen(false)} breadcrumb="Ordens de Serviço" title="Concluir OS" subtitle="Confirme os valores finais do atendimento" maxW="max-w-lg">
+        <div className="p-5 space-y-5">
+          <Section title="Resumo financeiro">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Serviço: {detail.general_service?.name || "—"}</span><strong className="text-[#0d1b2e]">{formatCurrency(completionServicePrice)}</strong></div>
+              <div className="flex items-center justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Peças utilizadas</span><strong className="text-[#0d1b2e]">{formatCurrency(detailUsedItemsTotal)}</strong></div>
+              <div className="flex items-center justify-between gap-3 border-t border-[#0d1b2e]/10 pt-3"><span className="font-bold text-[#0d1b2e]">Subtotal</span><strong className="text-[#0057e7]">{formatCurrency(completionSubtotal)}</strong></div>
+            </div>
+          </Section>
+          <Section title="Desconto">
+            <FInput label="Desconto (%)" type="number" min="0" max={completionMaxDiscount} step="0.01" value={completionDiscount} onChange={(e: any) => setCompletionDiscount(e.target.value)} placeholder="0" hint={`Desconto máximo permitido: ${completionMaxDiscount.toLocaleString("pt-BR")}%`} />
+            {completionDiscountPercentage > completionMaxDiscount && <p className="mt-2 text-xs font-semibold text-red-600">O desconto informado ultrapassa o máximo permitido.</p>}
+          </Section>
+          <div className="rounded-xl border border-[#0057e7]/20 bg-[#f0f6ff] p-4 space-y-2">
+            <div className="flex justify-between text-sm text-[#5a6a82]"><span>Desconto</span><span>- {formatCurrency(completionDiscountAmount)}</span></div>
+            <div className="flex items-center justify-between gap-3 border-t border-[#0057e7]/15 pt-3"><span className="font-black text-[#0d1b2e]">Valor final</span><span className="text-xl font-black text-[#0057e7]">{formatCurrency(completionFinalTotal)}</span></div>
+          </div>
+        </div>
+        <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+          <BtnSecondary onClick={() => setCompletionOpen(false)}>Cancelar</BtnSecondary>
+          <BtnPrimary onClick={() => void completeOrder()} disabled={saving || completionDiscountPercentage < 0 || completionDiscountPercentage > completionMaxDiscount}>{saving ? "Concluindo..." : "Confirmar conclusão"}</BtnPrimary>
         </div>
       </AdminPage>}
       {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
