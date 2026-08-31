@@ -1795,7 +1795,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                       </div>
                       {hasPermission("orders.section.address") && (<Section title="Endereço do cliente">
                         <AddressFields value={customerAddressDraft} onChange={setCustomerAddressDraft} inputClassName={INPUT} />
-                      </Section>)})}
+                      </Section>)}
                       {hasPermission("customers.edit") && <BtnPrimary onClick={saveCustomer} disabled={saving}>{saving ? "Salvando..." : "Salvar dados"}</BtnPrimary>}
                     </div>
                   ) : (
@@ -1835,7 +1835,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   )}
                 </div>
               )}
-            </Section>
+            </Section>)}
 
             {hasPermission("orders.section.equipment") && (<Section title="Equipamento">
               <div className="grid sm:grid-cols-2 gap-4">
