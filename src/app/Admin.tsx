@@ -1783,7 +1783,6 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
@@ -1810,20 +1809,6 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
     if (detail?.id === id) setDetail({ ...detail, status_id: statusId, statusName: selectedStatus?.name || "Sem status" });
     setToast({ msg: "Status atualizado!", type: "success" });
     load();
-  };
-
-  const handleDeleteQuote = async (id: string) => {
-    if (!hasPermission("quotes.delete")) return;
-    const { error } = await supabase.from("quote_requests").delete().eq("id", id);
-    if (error) {
-      setToast({ msg: `Não foi possível excluir o orçamento: ${error.message}`, type: "error" });
-      setDeleteId(null);
-      return;
-    }
-    setToast({ msg: "Orçamento excluído.", type: "success" });
-    setDeleteId(null);
-    setDetail(null);
-    await load();
   };
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -1853,7 +1838,6 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      {deleteId && <ConfirmDialog message="Excluir este orçamento? Esta ação remove o registro da tabela de cotações." onConfirm={() => { void handleDeleteQuote(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       <PageHeader title="Orçamentos" subtitle={`${quotes.length} solicitaç${quotes.length !== 1 ? "ões" : "ão"} recebida${quotes.length !== 1 ? "s" : ""}`} actions={
         <button onClick={load} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors">
@@ -1914,9 +1898,6 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => setDetail(q)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
-                        {hasPermission("quotes.delete") && (
-                          <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteId(q.id); }} title="Excluir orçamento" aria-label="Excluir orçamento" className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -1982,7 +1963,6 @@ function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void }) {
                 {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <select value={detail.status_id || ""} onChange={e => updateStatus(detail.id, e.target.value)} className={cn(INPUT, "py-2 text-sm w-auto min-w-36")}>
                   {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>}
-                {hasPermission("quotes.delete") && <button type="button" onClick={() => setDeleteId(detail.id)} className="flex items-center gap-2 whitespace-nowrap bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"><Trash2 size={13} /> Excluir</button>}
                 {hasPermission("quotes.convert") && <button onClick={async () => {
                 if (!detail) return;
                 if (!hasPermission("quotes.convert")) { setToast({ msg: "Você não possui permissão para converter orçamentos.", type: "error" }); return; }
@@ -3235,7 +3215,6 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
   const [createForm, setCreateForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [createAddress, setCreateAddress] = useState<Address>({ ...emptyAddress });
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMessage, setCnpjMessage] = useState("");
@@ -3334,20 +3313,6 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
     await load();
   };
 
-  const handleDeleteCustomer = async (id: string) => {
-    if (!hasPermission("customers.delete")) return;
-    const { error } = await supabase.from("customers").delete().eq("id", id);
-    if (error) {
-      setToast({ msg: `Não foi possível excluir o cliente: ${error.message}`, type: "error" });
-      setDeleteId(null);
-      return;
-    }
-    setToast({ msg: "Cliente excluído.", type: "success" });
-    setDeleteId(null);
-    setDetail(null);
-    await load();
-  };
-
   const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
 
   const normalizeDoc = (doc: string) => doc.replace(/\D/g, "");
@@ -3382,7 +3347,6 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      {deleteId && <ConfirmDialog message="Excluir este cliente? Esta ação remove o registro principal e pode falhar se houver dependências existentes no schema." onConfirm={() => { void handleDeleteCustomer(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       <PageHeader title="Clientes" subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2">
@@ -3425,9 +3389,6 @@ function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => void }) {
                     <td className="px-4 py-3.5" onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => openDetail(c)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
-                        {hasPermission("customers.delete") && (
-                          <button type="button" onClick={() => setDeleteId(c.id)} title="Excluir cliente" aria-label="Excluir cliente" className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -3747,7 +3708,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     else nextSelected.add(permissionId);
     if (permission?.key === "orders.view") {
       if (!nextSelected.has(permissionId)) {
-        permissions.filter(item => ["orders.view_all", "orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts"].includes(item.key) || item.key.startsWith("orders.section.")).forEach(item => nextSelected.delete(item.id));
+        permissions.filter(item => ["orders.view_all", "orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.complete"].includes(item.key) || item.key.startsWith("orders.section.")).forEach(item => nextSelected.delete(item.id));
       }
     } else if (permission?.key === "orders.view_all" || permission?.key === "orders.request_parts") {
       const viewPermission = permissions.find(item => item.key === "orders.view");
@@ -3756,7 +3717,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
         const managePermission = permissions.find(item => item.key === "orders.manage_part_requests");
         if (managePermission) nextSelected.delete(managePermission.id);
       }
-    } else if (["orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts"].includes(permission?.key) || permission?.key?.startsWith("orders.section.")) {
+    } else if (["orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.complete"].includes(permission?.key) || permission?.key?.startsWith("orders.section.")) {
       const viewPermission = permissions.find(item => item.key === "orders.view");
       const viewAllPermission = permissions.find(item => item.key === "orders.view_all");
       if (viewPermission) nextSelected.add(viewPermission.id);
