@@ -393,7 +393,9 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [serviceTypes, setServiceTypes] = useState<any[]>([]);
   const [generalServices, setGeneralServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [osNumberSearch, setOsNumberSearch] = useState("");
+  const [externalOsSearch, setExternalOsSearch] = useState("");
+  const [documentSearch, setDocumentSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSituation, setFilterSituation] = useState("");
   const [filterOrderType, setFilterOrderType] = useState<OrderType | "">("");
@@ -1356,16 +1358,16 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
   const invalidPeriod = Boolean(dateFrom && dateTo && dateFrom > dateTo);
   const filtered = orders.filter(o => {
-    const q = normalizeSearchText(search);
-    const qDigits = normalizeSearchDigits(search);
-    const qIdentifier = normalizeSearchIdentifier(search);
-    const orderTypeLabel = o.order_type === "external" ? "externa external" : "interna internal";
-    const searchableState = stateLabel(o.service_state);
+    const normalizedOsNumberSearch = normalizeSearchIdentifier(osNumberSearch);
+    const normalizedExternalOsSearch = normalizeSearchIdentifier(externalOsSearch);
+    const normalizedDocumentSearch = normalizeSearchDigits(documentSearch);
     const customer = (o.customer as any) || {};
-    const searchableText = [o.os_number, `OS ${o.os_number || ""}`, o.external_os_number, orderTypeLabel, (o.service as any)?.title, customer.full_name, customer.trade_name, (o.service_type as any)?.title, equipmentSummary(o), o.model, o.serial_number, o.service_zip_code, o.service_state, searchableState, o.service_city, o.service_neighborhood, o.service_street, o.service_number, o.service_complement].map(normalizeSearchText).join(" ");
     const normalizedOrderNumbers = [o.os_number, `OS ${o.os_number || ""}`].map(normalizeSearchIdentifier);
-    const customerIdentifiers = [customer.document, customer.cnpj];
-    const matchSearch = !q || searchableText.includes(q) || normalizedOrderNumbers.some(value => value.includes(qIdentifier)) || (qDigits.length > 0 && customerIdentifiers.some(value => normalizeSearchDigits(value).includes(qDigits)));
+    const normalizedExternalOsNumber = normalizeSearchIdentifier(o.external_os_number);
+    const customerIdentifiers = [customer.document, customer.cnpj].map(normalizeSearchDigits);
+    const matchOsNumber = !normalizedOsNumberSearch || normalizedOrderNumbers.some(value => value.includes(normalizedOsNumberSearch));
+    const matchExternalOs = !normalizedExternalOsSearch || normalizedExternalOsNumber.includes(normalizedExternalOsSearch);
+    const matchDocument = !normalizedDocumentSearch || customerIdentifiers.some(value => value.includes(normalizedDocumentSearch));
     const matchStatus = !filterStatus || o.status_id === filterStatus;
     const matchSituation = !filterSituation || o.situation_id === filterSituation;
     const matchOrderType = !filterOrderType || o.order_type === filterOrderType;
@@ -1381,7 +1383,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     const toDateExclusive = dateTo ? new Date(`${dateTo}T00:00:00`) : null;
     if (toDateExclusive) toDateExclusive.setDate(toDateExclusive.getDate() + 1);
     const matchPeriod = invalidPeriod || (!!createdAt && (!fromDate || createdAt >= fromDate) && (!toDateExclusive || createdAt < toDateExclusive));
-    return matchSearch && matchStatus && matchSituation && matchOrderType && matchServiceType && matchState && matchCity && matchPeriod;
+    return matchOsNumber && matchExternalOs && matchDocument && matchStatus && matchSituation && matchOrderType && matchServiceType && matchState && matchCity && matchPeriod;
   });
   const sorted = orderSort ? [...filtered].sort((left, right) => {
     const leftNumber = Number(String(left.os_number ?? "").match(/\d+/)?.[0] ?? Number.POSITIVE_INFINITY);
@@ -1399,10 +1401,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
 
   const clearFilters = () => {
-    setSearch(""); setFilterStatus(""); setFilterSituation(""); setFilterOrderType(""); setSelectedServiceTypeId(""); setSelectedStates([]); setSelectedCities([]); setDateFrom(""); setDateTo("");
+    setOsNumberSearch(""); setExternalOsSearch(""); setDocumentSearch(""); setFilterStatus(""); setFilterSituation(""); setFilterOrderType(""); setSelectedServiceTypeId(""); setSelectedStates([]); setSelectedCities([]); setDateFrom(""); setDateTo("");
   };
 
-  useEffect(() => { setPage(1); }, [search, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
+  useEffect(() => { setPage(1); }, [osNumberSearch, externalOsSearch, documentSearch, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
@@ -1463,10 +1465,24 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 space-y-3">
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="space-y-1.5">
-          <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">BUSCA</label>
+          <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Número da OS</label>
           <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Nome, CPF, CNPJ, OS ou OS Externa..." className={cn(INPUT, "h-[42px] pl-9 py-2 text-xs")} />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+            <input value={osNumberSearch} onChange={e => { setOsNumberSearch(e.target.value); setPage(1); }} placeholder="Digite o número da OS" className={cn(INPUT, "h-[42px] pl-9 py-2 text-xs")} />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">OS externa</label>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+            <input value={externalOsSearch} onChange={e => { setExternalOsSearch(e.target.value); setPage(1); }} placeholder="Digite a OS externa" className={cn(INPUT, "h-[42px] pl-9 py-2 text-xs")} />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">CPF ou CNPJ</label>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+            <input inputMode="numeric" value={documentSearch} onChange={e => { setDocumentSearch(e.target.value); setPage(1); }} placeholder="Digite o CPF ou CNPJ" className={cn(INPUT, "h-[42px] pl-9 py-2 text-xs")} />
           </div>
         </div>
         <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">STATUS</label><select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
@@ -1496,8 +1512,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
             <input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />
             {invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}
           </div>
-          <div className="lg:col-span-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-            <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo de Atendimento</label><select value={selectedServiceTypeId} onChange={e => { setSelectedServiceTypeId(e.target.value); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
+          <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo de Atendimento</label><select value={selectedServiceTypeId} onChange={e => { setSelectedServiceTypeId(e.target.value); setPage(1); }} className={cn(INPUT, "h-[42px] py-2 text-xs")}>
               <option value="">Todos os tipos</option>
               {serviceTypes.map(serviceType => <option key={serviceType.id} value={serviceType.id}>{serviceType.title}</option>)}
             </select></div>
@@ -1520,16 +1535,15 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               </DropdownMenuContent>
             </DropdownMenu>
             </div>
-          </div>
         </div>
         <div className="flex justify-end">
-          {(search || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo) && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200"><Eraser size={14} />Limpar filtros</button>}
+          {(osNumberSearch || externalOsSearch || documentSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo) && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200"><Eraser size={14} />Limpar filtros</button>}
         </div>
       </div>
 
       {displayMode === "list" ? <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={search || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
+          <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={osNumberSearch || externalOsSearch || documentSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[1100px]">
