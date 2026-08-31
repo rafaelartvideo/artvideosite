@@ -126,6 +126,7 @@ export interface Service {
   description: string | null;
   cover_media_id: string | null;
   base_price: number | null;
+  max_discount_percentage: number | null;
   price_mode: "FIXED" | "STARTING_FROM" | "QUOTE" | "HIDDEN" | null;
   is_active: boolean;
   is_featured: boolean;
@@ -616,8 +617,28 @@ export interface ServiceOrderPartRequestItem {
   delivered_quantity: number;
   delivered_at: string | null;
   delivered_by: string | null;
+  technician_received_quantity: number;
+  technician_received_at: string | null;
+  technician_received_by: string | null;
+  return_pending_quantity: number;
+  return_registered_at: string | null;
+  return_registered_by: string | null;
   returned_quantity: number;
+  return_received_at: string | null;
+  return_received_by: string | null;
   damaged_quantity: number;
+  created_at: string;
+}
+
+export interface ServiceOrderPartCustodyEvent {
+  id: string;
+  service_order_id: string;
+  request_id: string;
+  request_item_id: string;
+  event_type: "DISPATCHED" | "DELIVERY_CONFIRMED" | "RETURN_REGISTERED" | "RETURN_RECEIVED";
+  quantity: number;
+  notes: string | null;
+  created_by: string | null;
   created_at: string;
 }
 
