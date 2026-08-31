@@ -2127,29 +2127,40 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
           }} disabled={saving}><CheckCircle size={14} /> Concluir solução</BtnPrimary>
         </div>
       </AdminPage>}
-      {completionOpen && detail && <AdminPage open={true} onClose={() => setCompletionOpen(false)} breadcrumb="Ordens de Serviço" title="Concluir OS" subtitle="Confirme os valores finais do atendimento" maxW="max-w-lg">
-        <div className="p-5 space-y-5">
-          <Section title="Resumo financeiro">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Serviço: {detail.general_service?.name || "—"}</span><strong className="text-[#0d1b2e]">{formatCurrency(completionServicePrice)}</strong></div>
-              <div className="flex items-center justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Peças utilizadas</span><strong className="text-[#0d1b2e]">{formatCurrency(detailUsedItemsTotal)}</strong></div>
-              <div className="flex items-center justify-between gap-3 border-t border-[#0d1b2e]/10 pt-3"><span className="font-bold text-[#0d1b2e]">Subtotal</span><strong className="text-[#0057e7]">{formatCurrency(completionSubtotal)}</strong></div>
+      {completionOpen && detail && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-labelledby="completion-modal-title" onMouseDown={event => { if (event.target === event.currentTarget && !saving) setCompletionOpen(false); }}>
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-[#0d1b2e]/8 px-5 py-4">
+              <div>
+                <h2 id="completion-modal-title" className="text-lg font-black text-[#0d1b2e]">Concluir OS</h2>
+                <p className="mt-0.5 text-sm text-[#5a6a82]">Confirme os valores finais do atendimento</p>
+              </div>
+              <button type="button" onClick={() => setCompletionOpen(false)} disabled={saving} aria-label="Fechar" className="rounded-lg p-2 text-[#5a6a82] transition-colors hover:bg-[#f5f7fa] hover:text-[#0d1b2e] disabled:opacity-50"><X size={18} /></button>
             </div>
-          </Section>
-          <Section title="Desconto">
-            <FInput label="Desconto (%)" type="number" min="0" max={completionMaxDiscount} step="0.01" value={completionDiscount} onChange={(e: any) => setCompletionDiscount(e.target.value)} placeholder="0" hint={`Desconto máximo permitido: ${completionMaxDiscount.toLocaleString("pt-BR")}%`} />
-            {completionDiscountPercentage > completionMaxDiscount && <p className="mt-2 text-xs font-semibold text-red-600">O desconto informado ultrapassa o máximo permitido.</p>}
-          </Section>
-          <div className="rounded-xl border border-[#0057e7]/20 bg-[#f0f6ff] p-4 space-y-2">
-            <div className="flex justify-between text-sm text-[#5a6a82]"><span>Desconto</span><span>- {formatCurrency(completionDiscountAmount)}</span></div>
-            <div className="flex items-center justify-between gap-3 border-t border-[#0057e7]/15 pt-3"><span className="font-black text-[#0d1b2e]">Valor final</span><span className="text-xl font-black text-[#0057e7]">{formatCurrency(completionFinalTotal)}</span></div>
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+              <Section title="Resumo financeiro">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Serviço: {detail.general_service?.name || "—"}</span><strong className="text-[#0d1b2e]">{formatCurrency(completionServicePrice)}</strong></div>
+                  <div className="flex items-center justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Peças utilizadas</span><strong className="text-[#0d1b2e]">{formatCurrency(detailUsedItemsTotal)}</strong></div>
+                  <div className="flex items-center justify-between gap-3 border-t border-[#0d1b2e]/10 pt-3"><span className="font-bold text-[#0d1b2e]">Subtotal</span><strong className="text-[#0057e7]">{formatCurrency(completionSubtotal)}</strong></div>
+                </div>
+              </Section>
+              <Section title="Desconto">
+                <FInput label="Desconto (%)" type="number" min="0" max={completionMaxDiscount} step="0.01" value={completionDiscount} onChange={(e: any) => setCompletionDiscount(e.target.value)} placeholder="0" hint={`Desconto máximo permitido: ${completionMaxDiscount.toLocaleString("pt-BR")}%`} />
+                {completionDiscountPercentage > completionMaxDiscount && <p className="mt-2 text-xs font-semibold text-red-600">O desconto informado ultrapassa o máximo permitido.</p>}
+              </Section>
+              <div className="space-y-2 rounded-xl border border-[#0057e7]/20 bg-[#f0f6ff] p-4">
+                <div className="flex justify-between text-sm text-[#5a6a82]"><span>Desconto</span><span>- {formatCurrency(completionDiscountAmount)}</span></div>
+                <div className="flex items-center justify-between gap-3 border-t border-[#0057e7]/15 pt-3"><span className="font-black text-[#0d1b2e]">Valor final</span><span className="text-xl font-black text-[#0057e7]">{formatCurrency(completionFinalTotal)}</span></div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
+              <BtnSecondary onClick={() => setCompletionOpen(false)}>Cancelar</BtnSecondary>
+              <BtnPrimary onClick={() => void completeOrder()} disabled={saving || completionDiscountPercentage < 0 || completionDiscountPercentage > completionMaxDiscount}>{saving ? "Concluindo..." : "Confirmar conclusão"}</BtnPrimary>
+            </div>
           </div>
         </div>
-        <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
-          <BtnSecondary onClick={() => setCompletionOpen(false)}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={() => void completeOrder()} disabled={saving || completionDiscountPercentage < 0 || completionDiscountPercentage > completionMaxDiscount}>{saving ? "Concluindo..." : "Confirmar conclusão"}</BtnPrimary>
-        </div>
-      </AdminPage>}
+      )}
       {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
       {partRequestOpen && detail && (
         <PartRequestModal orderNumber={detail.os_number} inventoryItems={partRequestInventory} inventoryLoading={partRequestInventoryLoading} inventoryError={partRequestInventoryError} selectedItems={selectedPartRequestItems} search={partRequestSearch} notes={partRequestNotes} purpose={partRequestPurpose} submitting={partRequestSubmitting} onPurposeChange={setPartRequestPurpose} onSearchChange={setPartRequestSearch} onNotesChange={setPartRequestNotes} onSelect={selectPartRequestItem} onQuantityChange={updatePartRequestQuantity} onRemove={removePartRequestItem} onClose={closePartRequestModal} onSubmit={() => void submitPartRequest()} />
