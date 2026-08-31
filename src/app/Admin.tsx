@@ -611,6 +611,8 @@ function TabServices({ onBack }: { onBack: () => void }) {
                 <tr>
                   <th className="px-4 py-3 text-left">Serviço</th>
                   <th className="px-4 py-3 text-left">Categoria</th>
+                  <th className="px-4 py-3 text-left">Valor</th>
+                  <th className="px-4 py-3 text-left">Desconto máximo</th>
                   <th className="px-4 py-3 text-left">Variações</th>
                   <th className="px-4 py-3 text-left">Destaque</th>
                   <th className="px-4 py-3 text-left">Status</th>
@@ -629,6 +631,8 @@ function TabServices({ onBack }: { onBack: () => void }) {
                         </div>
                       </td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{cat?.name || "—"}</td>
+                      <td className="px-4 py-3.5 text-xs font-bold text-[#0d1b2e]">{s.base_price == null ? "Consultar" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(s.base_price))}</td>
+                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{s.max_discount_percentage == null ? "Sem limite definido" : `${Number(s.max_discount_percentage).toLocaleString("pt-BR")}%`}</td>
                       <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{s.service_variants?.length || 0}</td>
                       <td className="px-4 py-3.5">
                         {s.is_featured ? <Star size={15} className="text-amber-400 fill-amber-400" /> : <span className="text-xs text-[#5a6a82]">—</span>}
@@ -683,6 +687,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
   const [shortDesc, setShortDesc] = useState("");
   const [description, setDescription] = useState("");
   const [basePrice, setBasePrice] = useState("");
+  const [maxDiscountPercentage, setMaxDiscountPercentage] = useState("");
   const [priceMode, setPriceMode] = useState<"FIXED" | "STARTING_FROM" | "QUOTE" | "HIDDEN">("QUOTE");
   const [active, setActive] = useState(true);
   const [featured, setFeatured] = useState(false);
@@ -709,6 +714,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
         setShortDesc(editItem.short_description || "");
         setDescription(editItem.description || "");
         setBasePrice(editItem.base_price == null ? "" : String(editItem.base_price));
+        setMaxDiscountPercentage(editItem.max_discount_percentage == null ? "" : String(editItem.max_discount_percentage));
         setPriceMode(["FIXED", "STARTING_FROM", "QUOTE", "HIDDEN"].includes(editItem.price_mode) ? editItem.price_mode : "QUOTE");
         setActive(editItem.is_active ?? true);
         setFeatured(editItem.is_featured ?? false);
@@ -720,7 +726,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
         setSections((editItem.service_sections || []).map((section: any) => ({ title: section.title || "", content: section.content || "" })));
         setFaqs((editItem.service_faqs || []).map((f: any) => ({ question: f.question || "", answer: f.answer || "" })));
       } else {
-        setName(""); setSlug(""); setCategoryId(""); setBrandId(""); setProductId(""); setCoverMediaId(""); setShortDesc(""); setDescription(""); setBasePrice(""); setPriceMode("QUOTE");
+        setName(""); setSlug(""); setCategoryId(""); setBrandId(""); setProductId(""); setCoverMediaId(""); setShortDesc(""); setDescription(""); setBasePrice(""); setMaxDiscountPercentage(""); setPriceMode("QUOTE");
         setActive(true); setFeatured(false); setSortOrder(0);
         setVariants([]); setFeatures([]); setExclusions([]); setPriceFactors([]); setSections([]); setFaqs([]);
       }
@@ -768,6 +774,10 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
   const handleSave = async () => {
     if (!(editItem ? hasPermission("services.update") : hasPermission("services.create"))) return;
     if (!name.trim()) { onToast({ msg: "Nome do serviço é obrigatório.", type: "error" }); return; }
+    const parsedBasePrice = basePrice === "" ? null : Number(basePrice);
+    const parsedMaxDiscount = maxDiscountPercentage === "" ? null : Number(maxDiscountPercentage);
+    if (parsedBasePrice !== null && (!Number.isFinite(parsedBasePrice) || parsedBasePrice < 0)) { onToast({ msg: "Informe um valor de serviço válido.", type: "error" }); return; }
+    if (parsedMaxDiscount !== null && (!Number.isFinite(parsedMaxDiscount) || parsedMaxDiscount < 0 || parsedMaxDiscount > 100)) { onToast({ msg: "O desconto máximo deve estar entre 0% e 100%.", type: "error" }); return; }
     setSaving(true);
     try {
       console.log("[ADMIN] Saving service:", { title: name, is_active: active, is_featured: featured });
@@ -795,7 +805,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
         }
       }
       
-      const payload = { title: name.trim(), slug: finalSlug, category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, cover_media_id: coverMediaId || null, short_description: shortDesc || null, description: description || null, base_price: basePrice ? Number(basePrice) : null, price_mode: priceMode, is_active: active, is_featured: featured, sort_order: sortOrder, updated_by: userId };
+      const payload = { title: name.trim(), slug: finalSlug, category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, cover_media_id: coverMediaId || null, short_description: shortDesc || null, description: description || null, base_price: parsedBasePrice, max_discount_percentage: parsedMaxDiscount, price_mode: priceMode, is_active: active, is_featured: featured, sort_order: sortOrder, updated_by: userId };
       let serviceId = editItem?.id;
       
       // Insert or Update main service
@@ -1014,7 +1024,8 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
           <>
             <Section title="Preço base">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FInput label="Preço base (R$)" type="number" min="0" step="0.01" value={basePrice} onChange={(e: any) => setBasePrice(e.target.value)} placeholder="Vazio para consultar" />
+                <FInput label="Valor (R$)" type="number" min="0" step="0.01" value={basePrice} onChange={(e: any) => setBasePrice(e.target.value)} placeholder="Vazio para consultar" />
+                <FInput label="Desconto máximo (%)" type="number" min="0" max="100" step="0.01" value={maxDiscountPercentage} onChange={(e: any) => setMaxDiscountPercentage(e.target.value)} placeholder="Ex: 10" hint="Limite permitido para desconto neste serviço." />
                 <FSelect label="Modo de preço" value={priceMode} onChange={(e: any) => setPriceMode(e.target.value)} options={[{ value: "FIXED", label: "Preço fixo" }, { value: "STARTING_FROM", label: "Preço a partir de" }, { value: "QUOTE", label: "Consultar orçamento" }, { value: "HIDDEN", label: "Não exibir preço" }]} />
               </div>
             </Section>
@@ -3665,7 +3676,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     else nextSelected.add(permissionId);
     if (permission?.key === "orders.view") {
       if (!nextSelected.has(permissionId)) {
-        permissions.filter(item => item.key === "orders.view_all" || item.key === "orders.request_parts" || item.key === "orders.manage_part_requests").forEach(item => nextSelected.delete(item.id));
+        permissions.filter(item => ["orders.view_all", "orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts"].includes(item.key)).forEach(item => nextSelected.delete(item.id));
       }
     } else if (permission?.key === "orders.view_all" || permission?.key === "orders.request_parts") {
       const viewPermission = permissions.find(item => item.key === "orders.view");
@@ -3674,7 +3685,7 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
         const managePermission = permissions.find(item => item.key === "orders.manage_part_requests");
         if (managePermission) nextSelected.delete(managePermission.id);
       }
-    } else if (permission?.key === "orders.manage_part_requests") {
+    } else if (["orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts"].includes(permission?.key)) {
       const viewPermission = permissions.find(item => item.key === "orders.view");
       const viewAllPermission = permissions.find(item => item.key === "orders.view_all");
       if (viewPermission) nextSelected.add(viewPermission.id);
