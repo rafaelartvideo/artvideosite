@@ -391,6 +391,13 @@ export interface ServiceOrder {
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  completed_by: string | null;
+  service_price: number | null;
+  parts_total: number | null;
+  subtotal: number | null;
+  discount_percentage: number | null;
+  discount_amount: number | null;
+  final_total: number | null;
   solved_at: string | null;
   assigned_to: string | null;
   assigned_profile?: { id: string; full_name: string | null } | null;
