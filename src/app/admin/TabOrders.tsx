@@ -1653,7 +1653,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   <span className="font-black text-[#0057e7]">{detail.estimated_price == null ? "Valor não informado" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(detail.estimated_price))}</span>
                 </div>
               </Section>)}
-              {orderImages.length > 0 && {hasPermission("orders.section.images") && (<Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>)}}
+              {orderImages.length > 0 && hasPermission("orders.section.images") && (<Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>)}
               {hasPermission("orders.section.history") && (<Section title="Histórico">
                 {detailHistory.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum registro de alteração.</p> : (
                   <div className="space-y-2">
@@ -1670,8 +1670,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   </div>
                 )}
               </Section>)}
-              {detail.internal_notes && {hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}}
-              {detail.customer_notes && {hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}}
+              {detail.internal_notes && hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}
+              {detail.customer_notes && hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}
               {hasPermission("orders.section.parts") && (<Section title="Solicitações de peças">
                 {detailPartRequests.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma solicitação de peças para esta OS.</p> : <div className="space-y-3">
                   {detailPartRequests.map((request: PartRequestForReview) => {
