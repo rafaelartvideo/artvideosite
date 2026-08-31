@@ -1637,13 +1637,23 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 </div>
               </Section>)}
               {hasPermission("orders.section.address") && (<Section title="Dados de endereço">
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map((key) => {
-                    const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" };
-                    const address = ((detail.customer as any)?.addresses || []).find((item: Address) => item.is_default) || (detail.customer as any)?.addresses?.[0];
-                    return address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null;
-                  })}
-                </div>
+                {(() => {
+                  const customerAddress = ((detail.customer as any)?.addresses || []).find((item: Address) => item.is_default) || (detail.customer as any)?.addresses?.[0];
+                  const address = customerAddress || {
+                    zip_code: detail.service_zip_code,
+                    street: detail.service_street,
+                    number: detail.service_number,
+                    complement: detail.service_complement,
+                    neighborhood: detail.service_neighborhood,
+                    city: detail.service_city,
+                    state: detail.service_state,
+                  };
+                  const fields = (["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).filter(key => address?.[key]);
+                  const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" };
+                  return fields.length > 0
+                    ? <div className="grid sm:grid-cols-2 gap-3">{fields.map(key => <InfoRow key={key} label={labels[key]} value={key === "state" ? stateLabel(address[key]) : address[key]} />)}</div>
+                    : <p className="text-xs text-[#5a6a82]">Nenhum endereço cadastrado para esta OS.</p>;
+                })()}
               </Section>)}
               {hasPermission("orders.section.equipment") && (<Section title="Equipamento">
                 <div className="grid sm:grid-cols-2 gap-3">
