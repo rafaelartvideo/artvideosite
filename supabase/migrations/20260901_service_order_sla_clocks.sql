@@ -3,9 +3,15 @@ begin;
 alter table public.service_orders
   add column if not exists situation_started_at timestamptz;
 
+-- O backfill altera apenas o novo campo técnico. O contexto interno impede que
+-- a proteção de OS solucionada interprete essa inicialização como edição comum.
+select set_config('app.resolve_service_order', 'true', true);
+
 update public.service_orders
 set situation_started_at = coalesce(updated_at, created_at, now())
 where situation_started_at is null;
+
+select set_config('app.resolve_service_order', 'false', true);
 
 alter table public.service_orders
   alter column situation_started_at set default now(),
