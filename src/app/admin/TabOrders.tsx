@@ -8,7 +8,7 @@ import {
   LayoutDashboard, ClipboardList, Edit2, Trash2, RefreshCw, Search, MessageCircle,
   Users, List, X, Plus, Clock, CheckCircle, Upload, AlertTriangle, ArrowLeft,
   ChevronLeft, ChevronRight, Phone, Star, DollarSign, HelpCircle, ChevronDown,
-  AlertCircle, FileText, Camera, Eraser, ArrowUpDown, ArrowUpNarrowWide, ArrowDownWideNarrow, Check, PackagePlus,
+  AlertCircle, FileText, Camera, Eraser, ArrowUpDown, ArrowUpNarrowWide, ArrowDownWideNarrow, Check, PackagePlus, Printer,
 } from "lucide-react";
 import {
   cn, slugify, initialOrderStatus, getWhatsAppUrl, formatPhone,
@@ -488,6 +488,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
+  const [partRequestsPageOpen, setPartRequestsPageOpen] = useState(false);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
   const [detailPartRequests, setDetailPartRequests] = useState<any[]>([]);
@@ -1715,13 +1716,27 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       </>}
 
       {/* OS Detail Drawer */}
-      {detail && !solveOpen && (
-        <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
+      {detail && !solveOpen && !partRequestsPageOpen && (
+        <AdminPage open={true} onClose={() => { setPartRequestsPageOpen(false); setDetail(null); }} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
-              <div className="flex flex-wrap gap-2 items-center">
-                <StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />
-                {(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}
-                {detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />
+                  {(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}
+                  {detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 border-t border-[#0d1b2e]/10 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-60">
+                      <DropdownMenuItem className="flex cursor-pointer items-center justify-between gap-4"><span>Entrada de equipamento</span><span className="text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span></DropdownMenuItem>
+                      <DropdownMenuItem className="flex cursor-pointer items-center justify-between gap-4"><span>Saída de equipamento</span><span className="text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span></DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{detailPartRequests.length > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{detailPartRequests.length}</span>}</button>}
+                </div>
               </div>
               <ServiceOrderSlaCards
                 order={detail}
@@ -1799,12 +1814,17 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
                   <InfoRow label="Concluída em" value={detail.completed_at ? fmtDate(detail.completed_at, true) : null} />
                   {detail.completed_at && <InfoRow label="Concluída por" value={detail.completed_by_profile?.full_name || profiles.find(item => item.id === detail.completed_by)?.full_name || "Nome não informado"} />}
-                  {detail.completed_at && <InfoRow label="Valor do serviço" value={formatCurrency(Number(detail.service_price || 0))} />}
-                  {detail.completed_at && <InfoRow label="Valor das peças" value={formatCurrency(Number(detail.parts_total || 0))} />}
-                  {detail.completed_at && <InfoRow label="Desconto aplicado" value={`${Number(detail.discount_percentage || 0).toLocaleString("pt-BR")}% (- ${formatCurrency(Number(detail.discount_amount || 0))})`} />}
-                  {detail.completed_at && <InfoRow label="Valor final" value={formatCurrency(Number(detail.final_total || 0))} />}
                   <InfoRow label="Horas da situação" value={(detail.situation as any)?.hours == null ? null : `${(detail.situation as any).hours} hora(s)`} />
                   {(() => { const sla = getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation); return sla ? <InfoRow label="SLA da situação" value={`${sla.hours} hora(s) (${sla.isDefault ? "Padrão" : "Personalizado"})`} /> : null; })()}
+                </div>
+              </Section>)}
+              {detail.completed_at && hasPermission("orders.section.information") && (<Section title="Valores da OS">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <InfoRow label="Valor do serviço" value={formatCurrency(Number(detail.service_price || 0))} />
+                  <InfoRow label="Valor das peças" value={formatCurrency(Number(detail.parts_total || 0))} />
+                  <InfoRow label="Subtotal" value={formatCurrency(Number(detail.service_price || 0) + Number(detail.parts_total || 0))} />
+                  <InfoRow label="Desconto aplicado" value={`${Number(detail.discount_percentage || 0).toLocaleString("pt-BR")}% (- ${formatCurrency(Number(detail.discount_amount || 0))})`} />
+                  <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"><p className="text-[10px] font-bold uppercase text-emerald-700">Valor final</p><p className="mt-1 text-xl font-black text-emerald-700">{formatCurrency(Number(detail.final_total || 0))}</p></div>
                 </div>
               </Section>)}
               {orderImages.length > 0 && hasPermission("orders.section.images") && (<Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>)}
@@ -1826,6 +1846,42 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               </Section>)}
               {detail.internal_notes && hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}
               {detail.customer_notes && hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}
+              {(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && hasPermission("orders.section.solution") && (
+                <Section title="Solução da OS">
+                  <div className="space-y-4">
+                    {detail.is_solved && <div className="flex items-center gap-2 flex-wrap"><span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2.5 py-1 text-[10px] font-bold uppercase">✓ OS solucionada</span>{detail.solved_at && <span className="text-xs text-[#5a6a82]">Solucionada em {formatSolvedAt(detail.solved_at)} por: {profile?.full_name || "Nome não informado"}</span>}</div>}
+                    {detail.cannot_be_solved && <div className="space-y-1"><span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span><p className="text-sm text-[#0d1b2e] whitespace-pre-line"><strong>Justificativa:</strong> {detail.cannot_be_solved_reason}</p></div>}
+                    {detail.customer_notes && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Descrição do problema</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></div>}
+                    {detail.diagnosis && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Diagnóstico</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.diagnosis}</p></div>}
+                    {detail.solution && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Solução</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.solution}</p></div>}
+                    {detailUsedItems.length > 0 && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Produtos utilizados</p><div className="space-y-2">{detailUsedItems.map((item: any) => {
+                      const unitSalePrice = item.unit_sale_price == null ? null : Number(item.unit_sale_price);
+                      const totalSalePrice = item.total_sale_price == null ? null : Number(item.total_sale_price);
+                      const hasRegisteredPrices = unitSalePrice !== null && totalSalePrice !== null && Number.isFinite(unitSalePrice) && Number.isFinite(totalSalePrice);
+                      return <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2 text-sm"><span>{item.inventory_item?.name || "Produto"}</span><span className="text-right font-bold text-[#0d1b2e]">{hasRegisteredPrices ? `${Number(item.quantity || 0)} ${item.inventory_item?.unit || "un"} × ${formatCurrency(unitSalePrice)} = ${formatCurrency(totalSalePrice)}` : `${Number(item.quantity || 0)} ${item.inventory_item?.unit || "un"} · Preço não registrado`}</span></div>;
+                    })}</div><div className="mt-3 flex items-center justify-between rounded-lg border border-[#0057e7]/20 bg-[#f0f6ff] px-3 py-2 text-sm"><span className="font-bold text-[#0d1b2e]">Valor total dos produtos</span><span className="font-black text-[#0057e7]">{formatCurrency(detailUsedItemsTotal)}</span></div></div>}
+                    {detailSolutionImages.length > 0 && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Imagens da solução</p><div className="flex flex-wrap gap-3">{detailSolutionImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></div>}
+                  </div>
+                </Section>
+              )}
+            </div>
+            <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
+              <div className="flex gap-2 flex-wrap">
+                <BtnSecondary onClick={() => { setPartRequestsPageOpen(false); setDetail(null); }}>Fechar</BtnSecondary>
+                {hasPermission("orders.status") && <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>}
+                {hasPermission("orders.edit") && <select value={detail.situation_id || ""} onChange={event => void updateOrderSituation(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
+                {hasPermission("orders.request_parts") && detail && detail.is_solved !== true && <button type="button" onClick={openPartRequestModal} className="inline-flex items-center gap-2 whitespace-nowrap border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer"><PackagePlus size={14} /> Pedir peças</button>}
+                {hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && <BtnPrimary onClick={() => openSolveOrder(detail)}><CheckCircle size={14} /> Resolver OS</BtnPrimary>}
+                {hasPermission("orders.complete") && detail.is_solved && !detail.completed_at && <BtnPrimary onClick={() => openCompletion(detail)}><DollarSign size={14} /> Concluir OS</BtnPrimary>}
+                {hasPermission("orders.edit") && !detail.is_solved && <BtnPrimary onClick={() => { setDetail(null); void openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>}
+              </div>
+            </div>
+        </AdminPage>
+      )}
+
+      {detail && partRequestsPageOpen && (
+        <AdminPage open={true} onClose={() => setPartRequestsPageOpen(false)} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Solicitações de peças" subtitle="Acompanhe aprovações, entregas, devoluções e testes" maxW="max-w-2xl">
+          <div className="p-5">
               {hasPermission("orders.section.parts") && (<Section title="Solicitações de peças">
                 {detailPartRequests.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma solicitação de peças para esta OS.</p> : <div className="space-y-3">
                   {detailPartRequests.map((request: PartRequestForReview) => {
@@ -1887,36 +1943,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   })}
                 </div>}
               </Section>)}
-              {(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && hasPermission("orders.section.solution") && (
-                <Section title="Solução da OS">
-                  <div className="space-y-4">
-                    {detail.is_solved && <div className="flex items-center gap-2 flex-wrap"><span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2.5 py-1 text-[10px] font-bold uppercase">✓ OS solucionada</span>{detail.solved_at && <span className="text-xs text-[#5a6a82]">Solucionada em {formatSolvedAt(detail.solved_at)} por: {profile?.full_name || "Nome não informado"}</span>}</div>}
-                    {detail.cannot_be_solved && <div className="space-y-1"><span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span><p className="text-sm text-[#0d1b2e] whitespace-pre-line"><strong>Justificativa:</strong> {detail.cannot_be_solved_reason}</p></div>}
-                    {detail.customer_notes && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Descrição do problema</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></div>}
-                    {detail.diagnosis && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Diagnóstico</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.diagnosis}</p></div>}
-                    {detail.solution && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Solução</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.solution}</p></div>}
-                    {detailUsedItems.length > 0 && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Produtos utilizados</p><div className="space-y-2">{detailUsedItems.map((item: any) => {
-                      const unitSalePrice = item.unit_sale_price == null ? null : Number(item.unit_sale_price);
-                      const totalSalePrice = item.total_sale_price == null ? null : Number(item.total_sale_price);
-                      const hasRegisteredPrices = unitSalePrice !== null && totalSalePrice !== null && Number.isFinite(unitSalePrice) && Number.isFinite(totalSalePrice);
-                      return <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2 text-sm"><span>{item.inventory_item?.name || "Produto"}</span><span className="text-right font-bold text-[#0d1b2e]">{hasRegisteredPrices ? `${Number(item.quantity || 0)} ${item.inventory_item?.unit || "un"} × ${formatCurrency(unitSalePrice)} = ${formatCurrency(totalSalePrice)}` : `${Number(item.quantity || 0)} ${item.inventory_item?.unit || "un"} · Preço não registrado`}</span></div>;
-                    })}</div><div className="mt-3 flex items-center justify-between rounded-lg border border-[#0057e7]/20 bg-[#f0f6ff] px-3 py-2 text-sm"><span className="font-bold text-[#0d1b2e]">Valor total dos produtos</span><span className="font-black text-[#0057e7]">{formatCurrency(detailUsedItemsTotal)}</span></div></div>}
-                    {detailSolutionImages.length > 0 && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Imagens da solução</p><div className="flex flex-wrap gap-3">{detailSolutionImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></div>}
-                  </div>
-                </Section>
-              )}
-            </div>
-            <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
-              <div className="flex gap-2 flex-wrap">
-                <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
-                {hasPermission("orders.status") && <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>}
-                {hasPermission("orders.edit") && <select value={detail.situation_id || ""} onChange={event => void updateOrderSituation(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
-                {hasPermission("orders.request_parts") && detail && detail.is_solved !== true && <button type="button" onClick={openPartRequestModal} className="inline-flex items-center gap-2 whitespace-nowrap border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer"><PackagePlus size={14} /> Pedir peças</button>}
-                {hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && <BtnPrimary onClick={() => openSolveOrder(detail)}><CheckCircle size={14} /> Resolver OS</BtnPrimary>}
-                {hasPermission("orders.complete") && detail.is_solved && !detail.completed_at && <BtnPrimary onClick={() => openCompletion(detail)}><DollarSign size={14} /> Concluir OS</BtnPrimary>}
-                {hasPermission("orders.edit") && !detail.is_solved && <BtnPrimary onClick={() => { setDetail(null); void openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>}
-              </div>
-            </div>
+          </div>
         </AdminPage>
       )}
 
