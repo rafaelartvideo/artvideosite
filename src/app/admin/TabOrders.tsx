@@ -491,6 +491,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [detail, setDetail] = useState<any>(null);
   const [partRequestsPageOpen, setPartRequestsPageOpen] = useState(false);
   const [historyPageOpen, setHistoryPageOpen] = useState(false);
+  const [documentsPageOpen, setDocumentsPageOpen] = useState(false);
+  const [detailDocumentMediaIds, setDetailDocumentMediaIds] = useState<string[]>([]);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailHistoryNotes, setDetailHistoryNotes] = useState<any[]>([]);
   const [historyUserFilter, setHistoryUserFilter] = useState("");
@@ -569,7 +571,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [form, setForm] = useState(emptyForm);
   const [needsScheduling, setNeedsScheduling] = useState(true);
   const [orderImages, setOrderImages] = useState<OrderImage[]>([]);
-  const [initialOrderImageIds, setInitialOrderImageIds] = useState<string[]>([]);
   const [viewImage, setViewImage] = useState<OrderImage | null>(null);
   const upF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
@@ -577,6 +578,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const serviceAddressPreview: Address | null = serviceUseCustomerAddress
     ? (serviceCustomerAddressOverride ? selectedServiceAddress : { id: form.service_customer_address_id || undefined, zip_code: form.service_zip_code, state: form.service_state, city: form.service_city, neighborhood: form.service_neighborhood, street: form.service_street, number: form.service_number, complement: form.service_complement })
     : null;
+  const legacyDocuments = orderImages.filter(image => !detailDocumentMediaIds.includes(image.mediaId));
   const clearServiceAddress = () => {
     upF("service_zip_code", ""); upF("service_state", ""); upF("service_city", ""); upF("service_neighborhood", "");
     upF("service_street", ""); upF("service_number", ""); upF("service_complement", "");
@@ -680,25 +682,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     return () => { zipRequestRef.current += 1; };
   }, [form.order_type, form.service_zip_code, serviceUseCustomerAddress]);
 
-  const loadOrderImages = async (orderId: string) => {
-    const { data, error } = await supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", orderId).order("sort_order");
-    if (error) { console.error("[ADMIN] service order media load error:", error); setOrderImages([]); setInitialOrderImageIds([]); return; }
-    const images = (data || []).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
-    setOrderImages(images); setInitialOrderImageIds(images.map(image => image.mediaId).filter(Boolean));
-  };
-
-  const addOrderImages = (files: FileList | null) => {
-    const available = Math.max(0, 5 - orderImages.length);
-    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type)).slice(0, available);
-    setOrderImages(current => [...current, ...selected.map(file => ({ key: `new-${Date.now()}-${Math.random()}`, file, url: URL.createObjectURL(file), name: file.name }))]);
-  };
-
-  const removeOrderImage = (key: string) => setOrderImages(current => {
-    const removed = current.find(image => image.key === key);
-    if (removed?.url) URL.revokeObjectURL(removed.url);
-    return current.filter(image => image.key !== key);
-  });
-
   const loadPartRequestInventory = async () => {
     setPartRequestInventoryLoading(true);
     try {
@@ -784,14 +767,19 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
 
   const openDetail = async (o: any) => {
-    const [{ data: currentOrder }, { data: hist }, { data: historyNotes }, { data: mediaLinks }, { data: usedItems }] = await Promise.all([
+    setPartRequestsPageOpen(false);
+    setHistoryPageOpen(false);
+    setDocumentsPageOpen(false);
+    const [{ data: currentOrder }, { data: hist }, { data: historyNotes }, { data: mediaLinks }, { data: situationMediaLinks }, { data: usedItems }] = await Promise.all([
       supabase.from("service_orders").select("is_solved,solved_at,cannot_be_solved,cannot_be_solved_reason,assigned_profile:profiles!assigned_to(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active))").eq("id", o.id).maybeSingle(),
       supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
       supabase.from("service_order_history_notes").select("id,service_order_id,author_id,content,created_at").eq("service_order_id", o.id).order("created_at", { ascending: false }),
       supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", o.id).order("sort_order"),
+      supabase.from("service_order_situation_media").select("media_id").eq("service_order_id", o.id),
       supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
     ]);
-    const orderImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
+    const orderedSituationMediaIds = (situationMediaLinks || []).map((item: any) => item.media_id).filter(Boolean);
+    const orderImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000 && !orderedSituationMediaIds.includes(item.media_id)).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
     const solutionImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" }));
     setDetailHistory(hist || []);
     setDetailHistoryNotes(historyNotes || []);
@@ -801,6 +789,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setNewHistoryOpen(false);
     setNewHistoryText("");
     setDetailUsedItems(usedItems || []);
+    setDetailDocumentMediaIds(orderedSituationMediaIds);
     await loadPartRequests(o.id);
     setDetailSolutionImages(solutionImagesList);
     setOrderImages(orderImagesList);
@@ -967,7 +956,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   };
 
   const openNew = () => {
-    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]); setNeedsScheduling(true); setOrderImages([]); setInitialOrderImageIds([]); setViewImage(null); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
+    setSelectedTechnicianIds([]); setSelectedSellerIds([]); setEditingOS(null); setForm(emptyForm); setServiceUseCustomerAddress(false); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]); setNeedsScheduling(true); setOrderImages([]); setViewImage(null); setSelectedCustomer(null); setEditingCustomer(false); setAddressExpanded(false); setCustomerDraft({ ...emptyCustomerForm }); setCustomerAddressDraft({ ...emptyAddress }); setCustomerSearch(""); setCustomerResults([]); setFormOpen(true);
   };
 
   const openEdit = async (o: any) => {
@@ -984,7 +973,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setSelectedTechnicianIds(Array.from(new Set((o.technician_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(o.technician_id ? [o.technician_id] : []))));
     setSelectedSellerIds(Array.from(new Set((o.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(o.seller_id ? [o.seller_id] : []))));
     setNeedsScheduling(true);
-    await loadOrderImages(o.id);
     setForm({ ...emptyForm, service_id: o.service_id || "", general_service_id: o.general_service_id || "", service_type_id: o.service_type_id || "", seller_id: o.seller_id || "", status_id: o.status_id || "", situation_id: o.situation_id || "", customer_id: o.customer_id || "", technician_id: o.technician_id || "", brand_id: o.brand_id || "", product_id: o.product_id || "", model: o.model || "", equipment_type_id: o.equipment_type_id || "", equipment_brand_id: o.equipment_brand_id || "", equipment_model_id: o.equipment_model_id || "", serial_number: o.serial_number || "", accessories: o.accessories || "", equipment_condition: o.equipment_condition || "", priority: o.priority || "normal", scheduled_at: o.scheduled_at ? o.scheduled_at.slice(0, 16) : "", started_at: o.started_at ? o.started_at.slice(0, 16) : "", internal_notes: o.internal_notes || "", customer_notes: o.customer_notes || "", order_type: o.order_type === "external" ? "external" : "internal", service_state: o.order_type === "external" ? o.service_state || "" : "", service_city: o.order_type === "external" ? o.service_city || "" : "", service_street: o.order_type === "external" ? o.service_street || "" : "", service_zip_code: o.order_type === "external" ? o.service_zip_code || "" : "", service_neighborhood: o.order_type === "external" ? o.service_neighborhood || "" : "", service_number: o.order_type === "external" ? o.service_number || "" : "", service_complement: o.order_type === "external" ? o.service_complement || "" : "", service_customer_address_id: o.order_type === "external" ? o.service_customer_address_id || "" : "", external_os_number: o.external_os_number || "" });
     setServiceUseCustomerAddress(o.order_type === "external" && o.service_address_source === "customer"); setServiceCustomerAddressOverride(false); setServiceAddressMessage(""); setIbgeCities([]);
     if (o.order_type === "external" && o.service_state) void loadIbgeCities(o.service_state, o.service_city);
@@ -1112,8 +1100,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       if (freshDetail.data) setDetail(freshDetail.data);
       const { data: usedData } = await supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", orderId).order("created_at", { ascending: false });
       const { data: mediaLinks } = await supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", orderId).order("sort_order");
+      const { data: situationMediaLinks } = await supabase.from("service_order_situation_media").select("media_id").eq("service_order_id", orderId);
+      const orderedSituationMediaIds = (situationMediaLinks || []).map((item: any) => item.media_id).filter(Boolean);
+      setDetailDocumentMediaIds(orderedSituationMediaIds);
       setDetailUsedItems(usedData || []);
-      setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
+      setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000 && !orderedSituationMediaIds.includes(item.media_id)).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
       setDetailSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
       setSolveOpen(false);
       setToast({ msg: solutionImageError ? `OS resolvida, mas não foi possível salvar todas as imagens da solução: ${supabaseErrorMessage(solutionImageError)}` : "OS resolvida com sucesso.", type: solutionImageError ? "error" : "success" });
@@ -1268,35 +1259,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setToast({ msg: `OS salva, mas não foi possível atualizar técnicos/vendedores: ${supabaseErrorMessage(relationError)}`, type: "error" });
       return;
     }
-    try {
-      if (!savedOrderId) throw new Error("A OS foi salva, mas não foi possível obter seu ID.");
-      const { data: existingLinks, error: linksError } = await supabase.from("service_order_media").select("id,media_id").eq("service_order_id", savedOrderId);
-      if (linksError) throw linksError;
-      const retainedMediaIds = new Set(orderImages.filter(image => image.mediaId).map(image => image.mediaId));
-      for (const link of existingLinks || []) {
-        if (!retainedMediaIds.has(link.media_id)) {
-          const { error: removeError } = await supabase.from("service_order_media").delete().eq("id", link.id);
-          if (removeError) throw removeError;
-        }
-      }
-      for (const [sortOrder, image] of orderImages.entries()) {
-        if (image.mediaId) {
-          const link = (existingLinks || []).find((item: any) => item.media_id === image.mediaId);
-          if (link) {
-            const { error: updateError } = await supabase.from("service_order_media").update({ sort_order: sortOrder }).eq("id", link.id);
-            if (updateError) throw updateError;
-          }
-        } else if (image.file) {
-          const mediaId = await uploadOrderImage(image.file);
-          const { error: insertError } = await supabase.from("service_order_media").insert({ service_order_id: savedOrderId, media_id: mediaId, sort_order: sortOrder });
-          if (insertError) throw insertError;
-        }
-      }
-    } catch (imageError) {
-      setSaving(false);
-      setToast({ msg: `OS salva, mas houve erro nas imagens: ${supabaseErrorMessage(imageError)}`, type: "error" });
-      return;
-    }
     setSaving(false);
     setToast({ msg: `OS ${editingOS ? "atualizada" : "criada"} com sucesso!`, type: "success" });
     setFormOpen(false); setDetail(null); upF("external_os_number", ""); load();
@@ -1330,9 +1292,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       setToast({ msg: "Existem peças de teste aguardando devolução, dano ou solicitação para resolução.", type: "error" });
       return;
     }
-    const [{ data: approvedRequests, error: approvedRequestsError }, { data: mediaLinks }] = await Promise.all([
+    const [{ data: approvedRequests, error: approvedRequestsError }, { data: mediaLinks }, { data: situationMediaLinks }] = await Promise.all([
       supabase.from("service_order_part_requests").select("id,purpose,status,items:service_order_part_request_items(id,inventory_item_id,approved_quantity,source_test_item_id,inventory_item:inventory_items(id,name,sku,unit,quantity))").eq("service_order_id", order.id).eq("status", "APPROVED").eq("purpose", "RESOLUTION"),
       supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", order.id).order("sort_order"),
+      supabase.from("service_order_situation_media").select("media_id").eq("service_order_id", order.id),
     ]);
     if (approvedRequestsError) { setToast({ msg: `Não foi possível carregar as peças aprovadas: ${supabaseErrorMessage(approvedRequestsError)}`, type: "error" }); return; }
     const approvedByInventory = new Map<string, any>();
@@ -1347,8 +1310,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       });
     });
     const approvedItems = Array.from(approvedByInventory.values());
+    const orderedSituationMediaIds = (situationMediaLinks || []).map((item: any) => item.media_id).filter(Boolean);
+    setDetailDocumentMediaIds(orderedSituationMediaIds);
     setInventoryItems(approvedItems.map((item: any) => item.inventory_item).filter(Boolean));
-    setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
+    setOrderImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000 && !orderedSituationMediaIds.includes(item.media_id)).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" })));
     setSolutionImages((mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" })));
     setSolveDraft({
       diagnosis: currentOrder?.diagnosis || order.diagnosis || "",
@@ -1752,8 +1717,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       </>}
 
       {/* OS Detail Drawer */}
-      {detail && !solveOpen && !partRequestsPageOpen && !historyPageOpen && (
-        <AdminPage open={true} onClose={() => { setPartRequestsPageOpen(false); setHistoryPageOpen(false); setDetail(null); }} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
+      {detail && !solveOpen && !partRequestsPageOpen && !historyPageOpen && !documentsPageOpen && (
+        <AdminPage open={true} onClose={() => { setPartRequestsPageOpen(false); setHistoryPageOpen(false); setDocumentsPageOpen(false); setDetail(null); }} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1772,6 +1737,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     </DropdownMenuContent>
                   </DropdownMenu>}
                   {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{detailPartRequests.filter(request => String(request.status || "").toUpperCase() === "PENDING").length > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{detailPartRequests.filter(request => String(request.status || "").toUpperCase() === "PENDING").length}</span>}{detailPartRequests.filter(request => String(request.status || "").toUpperCase() !== "PENDING").length > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{detailPartRequests.filter(request => String(request.status || "").toUpperCase() !== "PENDING").length}</span>}</button>}
+                  {hasPermission("orders.section.images") && <button type="button" onClick={() => setDocumentsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos</button>}
                   {hasPermission("orders.section.history") && <button type="button" onClick={() => setHistoryPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico<span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{detailHistory.length + detailHistoryNotes.length}</span></button>}
                 </div>
               </div>
@@ -1864,7 +1830,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"><p className="text-[10px] font-bold uppercase text-emerald-700">Valor final</p><p className="mt-1 text-xl font-black text-emerald-700">{formatCurrency(Number(detail.final_total || 0))}</p></div>
                 </div>
               </Section>)}
-              {orderImages.length > 0 && hasPermission("orders.section.images") && (<Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>)}
               {detail.internal_notes && hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}
               {detail.customer_notes && hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}
               {(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && hasPermission("orders.section.solution") && (
@@ -1888,7 +1853,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
             </div>
             <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
               <div className="flex gap-2 flex-wrap">
-                <BtnSecondary onClick={() => { setPartRequestsPageOpen(false); setHistoryPageOpen(false); setDetail(null); }}>Fechar</BtnSecondary>
+                <BtnSecondary onClick={() => { setPartRequestsPageOpen(false); setHistoryPageOpen(false); setDocumentsPageOpen(false); setDetail(null); }}>Fechar</BtnSecondary>
                 {hasPermission("orders.status") && <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>}
                 {hasPermission("orders.edit") && <select value={detail.situation_id || ""} onChange={event => void updateOrderSituation(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
                 {hasPermission("orders.request_parts") && detail && detail.is_solved !== true && <button type="button" onClick={openPartRequestModal} className="inline-flex items-center gap-2 whitespace-nowrap border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer"><PackagePlus size={14} /> Pedir peças</button>}
@@ -2048,6 +2013,37 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         </AdminPage>
       )}
 
+      {detail && documentsPageOpen && hasPermission("orders.section.images") && (
+        <AdminPage open={true} onClose={() => setDocumentsPageOpen(false)} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Documentos da OS" subtitle="Imagens por situação e anexos anteriores da ordem" maxW="max-w-2xl">
+          <div className="p-5 space-y-5">
+            <OrderSituationImages
+              orderId={detail.id}
+              serviceTypeId={detail.service_type_id}
+              currentSituationId={detail.situation_id}
+              situations={situations}
+              serviceTypeSituations={serviceTypeSituations}
+              onView={(image) =>
+                setViewImage({
+                  key: image.key,
+                  mediaId: image.mediaId,
+                  name: image.name,
+                })
+              }
+            />
+            {legacyDocuments.length > 0 && (
+              <Section title="Imagens anteriores da OS">
+                <div className="flex flex-wrap gap-3">
+                  {legacyDocuments.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}
+                </div>
+              </Section>
+            )}
+          </div>
+          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4">
+            <BtnSecondary onClick={() => setDocumentsPageOpen(false)}>Voltar para a OS</BtnSecondary>
+          </div>
+        </AdminPage>
+      )}
+
       {/* OS Create/Edit Page */}
       {formOpen && (
         <AdminPage open={true} onClose={closeOrderForm} breadcrumb={editingOS ? `Ordens de Serviço > OS #${editingOS.os_number || editingOS.id.slice(0,8)}` : "Ordens de Serviço"} title={editingOS ? "Editar OS" : "Nova OS"} subtitle={editingOS ? "Atualize os dados do atendimento" : "Cadastre os dados do atendimento"} maxW="max-w-2xl" fullPage={Boolean(editingOS)}>
@@ -2180,8 +2176,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               </div>
             </Section>)}
 
-            <OrderImagesField images={orderImages} onAdd={addOrderImages} onRemove={removeOrderImage} onView={setViewImage} canEdit={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")} />
-
             {hasPermission("orders.section.information") && (<Section title="Informações da OS">
               <div className="grid sm:grid-cols-2 gap-4">
                 <FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => { const serviceTypeId = e.target.value; upF("service_type_id", serviceTypeId); const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId); if (form.situation_id && links.length > 0 && !links.some(link => link.situation_id === form.situation_id)) upF("situation_id", ""); }} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} />
@@ -2302,43 +2296,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
             </div>
           </Section>)}
 
-          {hasPermission("orders.section.images") && (
-            <Section title="Imagens da OS">
-              <div className="space-y-4">
-                <OrderSituationImages
-                  orderId={detail.id}
-                  serviceTypeId={detail.service_type_id}
-                  currentSituationId={detail.situation_id}
-                  situations={situations}
-                  serviceTypeSituations={serviceTypeSituations}
-                  onView={image =>
-                    setViewImage({
-                      key: image.key,
-                      mediaId: image.mediaId,
-                      name: image.name,
-                    })
-                  }
-                />
-              
-                {orderImages.length > 0 && (
-                  <div className="border-t border-[#0d1b2e]/10 pt-4">
-                    <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-[#5a6a82]">
-                      Imagens anteriores da OS
-                    </p>
-              
-                    <div className="flex flex-wrap gap-3">
-                      {orderImages.map(image => (
-                        <OrderImageThumb
-                          key={image.key}
-                          image={image}
-                          onView={() => setViewImage(image)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-          </Section>)}
           {hasPermission("orders.section.images") && (<Section title="Imagens da solução">
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-xs text-[#5a6a82]">{solutionImages.length}/5 imagens</p>
@@ -2666,28 +2623,6 @@ function OrderImageThumb({ image, onRemove, onView }: { image: OrderImage; onRem
       )}
       {onRemove && <button type="button" onClick={onRemove} aria-label={`Remover ${image.name}`} className="absolute top-1 right-1 p-1 rounded-full bg-[#0d1b2e]/75 text-white opacity-0 group-hover:opacity-100 transition-opacity"><X size={12} /></button>}
     </div>
-  );
-}
-
-function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = true }: { images: OrderImage[]; onAdd: (files: FileList | null) => void; onRemove: (key: string) => void; onView?: (image: OrderImage) => void; canEdit?: boolean }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-
-  return (
-    <Section title="Imagens da OS">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="text-xs text-[#5a6a82]">{images.length}/5 imagens</p>
-        {canEdit && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <button type="button" disabled={images.length >= 5} onClick={() => inputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Upload size={13} /> Adicionar imagens</button>
-            <button type="button" disabled={images.length >= 5} onClick={() => cameraInputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Camera size={13} /> Abrir câmera</button>
-          </div>
-        )}
-      </div>
-      <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple className="hidden" onChange={event => { onAdd(event.target.files); event.currentTarget.value = ""; }} />
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { onAdd(event.target.files); event.currentTarget.value = ""; }} />
-      {images.length > 0 && <div className="flex flex-wrap gap-3">{images.map(image => <OrderImageThumb key={image.key} image={image} onRemove={canEdit ? () => onRemove(image.key) : undefined} onView={() => onView?.(image)} />)}</div>}
-    </Section>
   );
 }
 
