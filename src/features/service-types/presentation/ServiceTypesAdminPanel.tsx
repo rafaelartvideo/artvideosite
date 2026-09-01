@@ -23,7 +23,7 @@ import {
   StatusBadge,
   Toast,
 } from "@/shared/ui/admin/AdminFeedback";
-import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FTextarea, FToggle, FHoursInput } from "@/shared/ui/admin/AdminFormControls";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
 
@@ -259,7 +259,7 @@ function ServiceTypesAdminPanelContent() {
                     <label className="flex cursor-pointer items-center gap-2"><RadioGroupItem value="default" disabled={!hasDefaultHours} /> Manter padrão ({situation.hours == null ? "—" : `${situation.hours} horas`})</label>
                     <label className="flex cursor-pointer items-center gap-2"><RadioGroupItem value="custom" /> Definir novo prazo</label>
                   </RadioGroup>
-                  {!selected.use_default_hours && <FInput label="Prazo em horas" type="number" min="0.01" step="0.5" placeholder="Ex.: 8" value={selected.sla_hours} onChange={(e: any) => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}
+                  {!selected.use_default_hours && <FHoursInput label="Prazo em horas" placeholder="00:00" value={selected.sla_hours} onChange={(e: any) => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}
                 </div>}
               </div>;
             })}

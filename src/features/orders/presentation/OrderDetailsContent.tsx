@@ -1,7 +1,6 @@
 import type { Address } from "@/lib/address";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { Section } from "@/shared/ui/admin/AdminLayout";
-import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import {
   getPriorityLabel,
   getResponsibleName,
@@ -45,10 +44,6 @@ export function OrderDetailsContent({
   const getSlaForOrder = getSla;
   return (
     <>
-<div className="flex flex-wrap gap-2 items-center">
-                <StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />
-                {(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}
-              </div>
               {hasPermission("orders.section.customer") && (<Section title="Cliente">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Nome" value={(detail.customer as any)?.full_name} />

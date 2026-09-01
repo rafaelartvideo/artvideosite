@@ -40,6 +40,47 @@ export function FInput({ label, required, hint, disabled = false, ...props }: { 
   );
 }
 
+
+function currencyInputDisplay(value: unknown) {
+  if (value == null || value === "") return "";
+  const raw = String(value);
+  const numericValue = /^\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : Number(raw.replace(/[^\d]/g, "")) / 100;
+  if (!Number.isFinite(numericValue)) return "";
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(numericValue);
+}
+
+function currencyInputValue(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  return (Number(digits) / 100).toFixed(2);
+}
+
+export function FCurrencyInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) {
+  return <FInput {...props} type="text" inputMode="numeric" value={currencyInputDisplay(value)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: currencyInputValue(event.target.value) } })} />;
+}
+
+function hoursInputDisplay(value: unknown) {
+  if (value == null || value === "") return "";
+  const totalMinutes = Math.max(0, Math.round(Number(value) * 60));
+  if (!Number.isFinite(totalMinutes)) return "";
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function hoursInputValue(value: string) {
+  const rawDigits = value.replace(/\D/g, "");
+  if (!rawDigits) return "";
+  const digits = rawDigits.slice(-4).padStart(4, "0");
+  const hours = Number(digits.slice(0, 2));
+  const minutes = Math.min(59, Number(digits.slice(2)));
+  return String(hours + minutes / 60);
+}
+
+export function FHoursInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) {
+  return <FInput {...props} type="text" inputMode="numeric" value={hoursInputDisplay(value)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: hoursInputValue(event.target.value) } })} />;
+}
+
 export function CustomerTypeToggle({ value, onChange, disabled = false }: { value: CustomerType; onChange: (value: CustomerType) => void; disabled?: boolean }) {
   return (
     <div className="sm:col-span-2">

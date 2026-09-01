@@ -25,7 +25,7 @@ import {
   StatusBadge,
   Toast,
 } from "@/shared/ui/admin/AdminFeedback";
-import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FToggle, FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
 
 const formatMoney = (value: number | null) => value == null
   ? "Não informado"
@@ -147,7 +147,7 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
     <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno">
       <div className="p-5"><Section title="Serviço geral"><div className="grid sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /></div>
-        <FInput label="Valor (R$)" type="number" min="0" step="0.01" value={price} onChange={(e: any) => setPrice(e.target.value)} placeholder="Ex: 150,00" />
+        <FCurrencyInput label="Valor (R$)" value={price} onChange={(e: any) => setPrice(e.target.value)} placeholder="Ex: 150,00" />
         <FInput label="Desconto máximo (%)" type="number" min="0" max="100" step="0.01" value={maxDiscountPercentage} onChange={(e: any) => setMaxDiscountPercentage(e.target.value)} placeholder="Ex: 10" />
       </div><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div>
       <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>

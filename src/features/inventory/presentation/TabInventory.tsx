@@ -35,7 +35,7 @@ import {
   FTextarea,
   FToggle,
   INPUT,
-} from "@/shared/ui/admin/AdminFormControls";
+  FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
 
 export function TabInventory({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();
@@ -324,8 +324,8 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
             <FInput label="Quantidade" type="number" min="0" value={form.quantity} onChange={(e: any) => setForm({ ...form, quantity: e.target.value })} />
             <FInput label="Quantidade mínima" type="number" min="0" value={form.min_quantity} onChange={(e: any) => setForm({ ...form, min_quantity: e.target.value })} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FInput label="Valor de compra" type="number" min="0" step="0.01" value={form.purchase_price} onChange={(e: any) => setForm({ ...form, purchase_price: e.target.value })} />
-              <FInput label="Valor de venda" type="number" min="0" step="0.01" value={form.sale_price} onChange={(e: any) => setForm({ ...form, sale_price: e.target.value })} />
+              <FCurrencyInput label="Valor de compra" value={form.purchase_price} onChange={(e: any) => setForm({ ...form, purchase_price: e.target.value })} />
+              <FCurrencyInput label="Valor de venda" value={form.sale_price} onChange={(e: any) => setForm({ ...form, sale_price: e.target.value })} />
             </div>
             <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} />
             <FToggle label="Item ativo" checked={form.is_active} onChange={(value) => setForm({ ...form, is_active: value })} />

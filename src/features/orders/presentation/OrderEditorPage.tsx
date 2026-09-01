@@ -208,6 +208,16 @@ export function OrderEditorPage({
           getSituations={getSituations}
           getSla={getSla}
         />
+
+        {hasPermission("orders.section.images") && (
+          <OrderImagesField
+            images={orderImages}
+            onAdd={addOrderImages}
+            onRemove={removeOrderImage}
+            onView={setViewImage}
+            canEdit={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
+          />
+        )}
       </div>
 
       <OrderFormActions

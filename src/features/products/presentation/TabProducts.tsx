@@ -31,7 +31,7 @@ import {
   FTextarea,
   FToggle,
   INPUT,
-} from "@/shared/ui/admin/AdminFormControls";
+  FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import { ImageUpload, ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -220,8 +220,8 @@ export function TabProducts({ onBack }: { onBack: () => void }) {
           </Section>
           <Section title="Preço e Imagem">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FInput label="Preço (R$)" type="number" min="0" step="0.01" value={form.price} onChange={(e: any) => setForm({ ...form, price: e.target.value })} placeholder="Deixe em branco para consultar" hint="Vazio = 'Consultar preço'" />
-              <FInput label="Preço de comparação (R$)" type="number" min="0" step="0.01" value={form.compare_at_price} onChange={(e: any) => setForm({ ...form, compare_at_price: e.target.value })} />
+              <FCurrencyInput label="Preço (R$)" value={form.price} onChange={(e: any) => setForm({ ...form, price: e.target.value })} placeholder="Deixe em branco para consultar" hint="Vazio = 'Consultar preço'" />
+              <FCurrencyInput label="Preço de comparação (R$)" value={form.compare_at_price} onChange={(e: any) => setForm({ ...form, compare_at_price: e.target.value })} />
             </div>
             <ImageUpload bucket="product-images" currentMediaId={form.cover_media_id} onUpload={mediaId => setForm({ ...form, cover_media_id: mediaId })} canUpload={editItem ? hasPermission("products.update") : hasPermission("products.create")} label="Imagem do produto" />
           </Section>
