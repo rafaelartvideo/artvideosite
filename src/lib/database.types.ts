@@ -388,6 +388,7 @@ export interface ServiceOrder {
   service_type_id: string | null;
   status_id: string | null;
   situation_id: string | null;
+  situation_started_at: string;
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;

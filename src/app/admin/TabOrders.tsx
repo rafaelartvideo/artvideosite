@@ -47,6 +47,81 @@ function getResponsibleName(order: ServiceOrderWithRelations) {
   return profile?.full_name?.trim() || "Responsável não informado";
 }
 
+
+function formatElapsedHours(hours: number) {
+  return `${Math.max(0, hours).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h`;
+}
+
+function elapsedHours(start?: string | null, end?: string | null, now = Date.now()) {
+  if (!start) return 0;
+  const startTime = new Date(start).getTime();
+  const endTime = end ? new Date(end).getTime() : now;
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return 0;
+  return Math.max(0, (endTime - startTime) / 3_600_000);
+}
+
+function ServiceOrderSlaCards({ order, slaHours }: { order: any; slaHours: number | null }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    if (order.completed_at) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, [order.id, order.situation_id, order.situation_started_at, order.completed_at]);
+
+  const endAt = order.completed_at || null;
+  const situationElapsed = elapsedHours(order.situation_started_at || order.updated_at || order.created_at, endAt, now);
+  const orderElapsed = elapsedHours(order.created_at, endAt, now);
+  const validSla = slaHours != null && Number.isFinite(slaHours) && slaHours > 0;
+  const exceededBy = validSla ? Math.max(0, situationElapsed - slaHours) : 0;
+  const usage = validSla ? situationElapsed / slaHours : 0;
+  const state = !validSla ? "neutral" : usage > 1 ? "danger" : usage >= 0.8 ? "warning" : "success";
+  const styles = {
+    neutral: { card: "border-slate-200 bg-slate-50", icon: "bg-slate-200 text-slate-700", title: "text-slate-700", bar: "bg-slate-400" },
+    success: { card: "border-emerald-200 bg-emerald-50", icon: "bg-emerald-100 text-emerald-700", title: "text-emerald-700", bar: "bg-emerald-500" },
+    warning: { card: "border-amber-300 bg-amber-50", icon: "bg-amber-100 text-amber-700", title: "text-amber-700", bar: "bg-amber-500" },
+    danger: { card: "border-red-300 bg-red-50", icon: "bg-red-100 text-red-700", title: "text-red-700", bar: "bg-red-500" },
+  }[state];
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cn("rounded-xl border p-4 shadow-sm", styles.card)}>
+        <div className="flex items-start gap-3">
+          <div className={cn("rounded-lg p-2", styles.icon)}>{state === "danger" ? <AlertTriangle size={18} /> : <Clock size={18} />}</div>
+          <div className="min-w-0 flex-1">
+            <p className={cn("truncate text-[10px] font-black uppercase tracking-wider", styles.title)}>Situação: {(order.situation as any)?.name || "Não definida"}</p>
+            <p className="mt-1 text-2xl font-black text-[#0d1b2e]">{formatElapsedHours(situationElapsed)}</p>
+            <p className="text-[11px] text-[#5a6a82]">Tempo corrido na situação</p>
+          </div>
+        </div>
+        {validSla ? <>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/80"><div className={cn("h-full rounded-full transition-all", styles.bar)} style={{ width: `${Math.min(100, Math.max(0, usage * 100))}%` }} /></div>
+          <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+            <span className="font-semibold text-[#5a6a82]">Prazo: {formatElapsedHours(slaHours)}</span>
+            {exceededBy > 0 ? <span className="font-black text-red-700">Estourou: +{formatElapsedHours(exceededBy)}</span> : <span className={cn("font-bold", styles.title)}>{Math.max(0, 100 - usage * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}% restante</span>}
+          </div>
+        </> : <p className="mt-3 rounded-lg bg-white/70 px-2.5 py-2 text-[11px] font-semibold text-slate-600">Prazo de SLA não configurado.</p>}
+      </div>
+
+      <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-blue-100 p-2 text-[#0057e7]"><Clock size={18} /></div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-wider text-[#0057e7]">Tempo total da ordem de serviço</p>
+            <p className="mt-1 text-2xl font-black text-[#0d1b2e]">{formatElapsedHours(orderElapsed)}</p>
+            <p className="text-[11px] text-[#5a6a82]">{order.completed_at ? "Tempo encerrado na conclusão" : "Correndo desde a abertura da OS"}</p>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between rounded-lg border border-blue-100 bg-white/70 px-3 py-2 text-[11px]">
+          <span className="font-semibold text-[#5a6a82]">Início</span>
+          <span className="font-bold text-[#0d1b2e]">{new Date(order.created_at).toLocaleString("pt-BR")}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CenteredModal({ children, onClose, className }: { children: React.ReactNode; onClose: () => void; className?: string }) {
   return <div className="fixed inset-0 z-[180] flex items-center justify-center bg-[#0d1b2e]/55 p-4" onClick={onClose}><div className={cn("relative flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl", className || "max-w-2xl")} onClick={event => event.stopPropagation()}>{children}</div></div>;
 }
@@ -1258,11 +1333,13 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
   const updateOrderSituation = async (order: any, situationId: string) => {
     if (!hasPermission("orders.edit")) { setToast({ msg: "Você não possui permissão para alterar a situação.", type: "error" }); return; }
-    const { data, error } = await supabase.from("service_orders").update({ situation_id: situationId || null }).eq("id", order.id).select("situation_id").maybeSingle();
+    const { data, error } = await supabase.from("service_orders").update({ situation_id: situationId || null }).eq("id", order.id).select("situation_id,situation_started_at").maybeSingle();
     if (error) { setToast({ msg: `Erro ao alterar situação: ${supabaseErrorMessage(error)}`, type: "error" }); return; }
-    const situation = situations.find(item => item.id === (data?.situation_id || situationId));
-    setOrders(current => current.map(item => item.id === order.id ? { ...item, situation_id: data?.situation_id || situationId, situation: situation || null } : item));
-    if (detail?.id === order.id) setDetail({ ...detail, situation_id: data?.situation_id || situationId, situation: situation || null });
+    const nextSituationId = data?.situation_id || situationId;
+    const situation = situations.find(item => item.id === nextSituationId);
+    const situationStartedAt = data?.situation_started_at || new Date().toISOString();
+    setOrders(current => current.map(item => item.id === order.id ? { ...item, situation_id: nextSituationId, situation: situation || null, situation_started_at: situationStartedAt } : item));
+    if (detail?.id === order.id) setDetail({ ...detail, situation_id: nextSituationId, situation: situation || null, situation_started_at: situationStartedAt });
   };
 
   const setViewMode = (mode: "list" | "kanban") => {
@@ -1636,6 +1713,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 {(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}
                 {detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
               </div>
+              <ServiceOrderSlaCards
+                order={detail}
+                slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null}
+              />
               {hasPermission("orders.section.customer") && (<Section title="Cliente">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Nome" value={(detail.customer as any)?.full_name} />
