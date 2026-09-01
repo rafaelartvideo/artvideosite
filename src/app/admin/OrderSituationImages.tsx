@@ -18,13 +18,9 @@ type Props = {
   onView?: (image: { key: string; mediaId: string; name: string }) => void;
 };
 
-function permissionKey(situationId: string) {
-  return `orders.images.situation.${situationId}.upload`;
-}
-
-function mediaRecord(row: SituationMedia) {
-  return Array.isArray(row.media) ? row.media[0] : row.media;
-}
+const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const permissionKey = (situationId: string) => `orders.images.situation.${situationId}.upload`;
+const mediaRecord = (row: SituationMedia) => Array.isArray(row.media) ? row.media[0] : row.media;
 
 function SituationImageThumb({ row, onView }: { row: SituationMedia; onView?: Props["onView"] }) {
   const { url, loading, error } = useMediaUrl(row.media_id);
@@ -42,7 +38,8 @@ export function OrderSituationImages({ orderId, serviceTypeId, currentSituationI
   const [loading, setLoading] = useState(true);
   const [uploadingSituationId, setUploadingSituationId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
-  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const cameraRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const flowSituations = useMemo(() => {
     if (!serviceTypeId) return situations.slice().sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
@@ -69,7 +66,7 @@ export function OrderSituationImages({ orderId, serviceTypeId, currentSituationI
   useEffect(() => { void load(); }, [orderId]);
 
   const upload = async (situation: Situation, files: FileList | null) => {
-    const selected = Array.from(files || []).filter(file => ["image/jpeg", "image/png", "image/webp"].includes(file.type));
+    const selected = Array.from(files || []).filter(file => acceptedTypes.has(file.type));
     if (selected.length === 0 || uploadingSituationId) return;
     if (!hasPermission(permissionKey(situation.id))) {
       setMessage({ text: `Você não possui permissão para anexar imagens em ${situation.name}.`, type: "error" });
@@ -80,20 +77,27 @@ export function OrderSituationImages({ orderId, serviceTypeId, currentSituationI
     try {
       for (const file of selected) {
         const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
-        const path = `orders/${orderId}/situations/${situation.id}/${Date.now()}-${crypto.randomUUID()}-${safeName}.${extension}`;
-        const mediaId = await createMediaRecord({ bucket: "service-images", path, file });
-        const { error } = await supabase.rpc("attach_service_order_situation_media", { p_service_order_id: orderId, p_situation_id: situation.id, p_media_id: mediaId });
-        if (error) throw error;
+        const path = `orders/${orderId}/situations/${situation.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+        const { error: storageError } = await supabase.storage.from("service-images").upload(path, file, { upsert: false });
+        if (storageError) throw storageError;
+        let mediaId: string;
+        try {
+          mediaId = await createMediaRecord({ bucket: "service-images", path, file });
+        } catch (mediaError) {
+          await supabase.storage.from("service-images").remove([path]);
+          throw mediaError;
+        }
+        const { error: linkError } = await supabase.rpc("attach_service_order_situation_media", { p_service_order_id: orderId, p_situation_id: situation.id, p_media_id: mediaId });
+        if (linkError) throw linkError;
       }
       await load();
-      setMessage({ text: `Anexo${selected.length > 1 ? "s" : ""} salvo${selected.length > 1 ? "s" : ""} em ${situation.name}.`, type: "success" });
+      setMessage({ text: `${selected.length} ${selected.length === 1 ? "imagem anexada" : "imagens anexadas"} em ${situation.name}.`, type: "success" });
     } catch (error) {
       setMessage({ text: `Não foi possível anexar: ${supabaseErrorMessage(error)}`, type: "error" });
     } finally {
       setUploadingSituationId(null);
-      const input = inputRefs.current[situation.id];
-      if (input) input.value = "";
+      if (fileRefs.current[situation.id]) fileRefs.current[situation.id]!.value = "";
+      if (cameraRefs.current[situation.id]) cameraRefs.current[situation.id]!.value = "";
     }
   };
 
@@ -108,9 +112,14 @@ export function OrderSituationImages({ orderId, serviceTypeId, currentSituationI
       return <div key={situation.id} className={cn("rounded-xl border p-3", isCurrent ? "border-[#0057e7]/30 bg-[#f7faff]" : "border-[#0d1b2e]/10 bg-white")}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div><p className="text-xs font-bold text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{situationItems.length} anexo{situationItems.length !== 1 ? "s" : ""}{isCurrent ? " · situação atual" : ""}</p></div></div>
-          {canUpload && <><input ref={element => { inputRefs.current[situation.id] = element; }} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={event => void upload(situation, event.target.files)} /><button type="button" disabled={Boolean(uploadingSituationId)} onClick={() => inputRefs.current[situation.id]?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-2.5 py-1.5 text-[11px] font-bold text-[#0057e7] disabled:opacity-50"><Upload size={13} />{uploadingSituationId === situation.id ? "Enviando..." : "Anexar"}</button></>}
+          {canUpload && <div className="flex flex-wrap gap-2">
+            <input ref={element => { fileRefs.current[situation.id] = element; }} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple className="hidden" onChange={event => void upload(situation, event.target.files)} />
+            <input ref={element => { cameraRefs.current[situation.id] = element; }} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void upload(situation, event.target.files)} />
+            <button type="button" disabled={Boolean(uploadingSituationId)} onClick={() => fileRefs.current[situation.id]?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-2.5 py-1.5 text-[11px] font-bold text-[#0057e7] disabled:opacity-50"><Upload size={13} />{uploadingSituationId === situation.id ? "Enviando..." : "Anexar"}</button>
+            <button type="button" disabled={Boolean(uploadingSituationId)} onClick={() => cameraRefs.current[situation.id]?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#0057e7] disabled:opacity-50"><Camera size={13} /> Câmera</button>
+          </div>}
         </div>
-        {situationItems.length > 0 ? <div className="flex flex-wrap gap-2">{situationItems.map(row => <SituationImageThumb key={row.id} row={row} onView={onView} />)}</div> : <div className="rounded-lg border border-dashed border-[#0d1b2e]/10 px-3 py-4 text-center text-[11px] text-[#5a6a82]">Nenhuma imagem registrada nesta situação.{canUpload ? " Use Anexar para adicionar fotos." : " Você não possui permissão para anexar aqui."}</div>}
+        {situationItems.length > 0 ? <div className="flex flex-wrap gap-2">{situationItems.map(row => <SituationImageThumb key={row.id} row={row} onView={onView} />)}</div> : <div className="rounded-lg border border-dashed border-[#0d1b2e]/10 px-3 py-4 text-center text-[11px] text-[#5a6a82]">Nenhuma imagem registrada nesta situação.{canUpload ? " Use Anexar ou Câmera para adicionar fotos." : " Você não possui permissão para anexar aqui."}</div>}
       </div>;
     })}
   </div>;
