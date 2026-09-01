@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Instagram, Menu, MessageCircle, Phone, ShoppingCart, X } from "lucide-react";
 import { ImageWithFallback } from "@/shared/ui/media/ImageWithFallback";
 import { formatPhone } from "@/shared/domain/formatters";
-import { useSiteSettings } from "@/lib/hooks";
+import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import logoIcon from "@/imports/ChatGPT_Image_12_de_ago._de_2026__08_15_02.png";
 import { getBusinessHours, getSettingText, getWhatsAppNumber } from "../application/site-settings";
 import { PUBLIC_NAV_LINKS, PUBLIC_NAV_MAP, type PublicPage } from "../domain/navigation";

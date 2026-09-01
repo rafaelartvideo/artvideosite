@@ -3,7 +3,7 @@ import { CheckCircle, MessageCircle } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { formatPhone } from "@/shared/domain/formatters";
 import { emptyAddress } from "@/lib/address";
-import { useBrands, useServiceCategories, useServices } from "@/lib/hooks";
+import { useBrands, useServiceCategories, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { submitPublicQuote } from "../application/submit-public-quote";
 import { EMPTY_PUBLIC_QUOTE_FORM, formatCnpj, formatCpf, formatPublicDate } from "../domain/public-quote";
 import { PublicButton as Btn, PublicSelect, SectionLabel } from "@/features/public-shell/presentation/PublicUi";

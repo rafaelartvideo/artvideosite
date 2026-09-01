@@ -3,7 +3,7 @@ import { Clock, Instagram, Mail, MapPin, Phone } from "lucide-react";
 import { formatPhone } from "@/shared/domain/formatters";
 import { getBusinessHours, getSettingText } from "@/features/public-shell/application/site-settings";
 import { PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
-import { useSiteSettings } from "@/lib/hooks";
+import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 
 export function ContactPage() {
   const { settings, loading: settingsLoading } = useSiteSettings();

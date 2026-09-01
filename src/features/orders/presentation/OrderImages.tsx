@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { Camera, Upload, X } from "lucide-react";
-import { useMediaUrl } from "@/lib/hooks";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { createMediaRecord } from "@/shared/infrastructure/media.repository";
 import { Section } from "@/shared/ui/admin/AdminLayout";
 import {

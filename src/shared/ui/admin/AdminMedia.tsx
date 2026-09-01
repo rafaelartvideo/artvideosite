@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Package, Tag, Upload } from "lucide-react";
-import { useMediaUrl } from "@/lib/hooks";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { supabaseErrorMessage, uploadMediaFile, type MediaBucket } from "@/shared/infrastructure/media.repository";
 
 export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true }: {

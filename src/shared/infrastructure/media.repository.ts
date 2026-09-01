@@ -40,3 +40,14 @@ export function supabaseErrorMessage(error: unknown) {
   }
   return error instanceof Error ? error.message : String(error);
 }
+
+export async function getMediaById(mediaId: string) {
+  const { data, error } = await supabase.from("media").select("*").eq("id", mediaId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export function getPublicStorageUrl(bucket: string, path: string) {
+  if (!bucket || !path) return "";
+  return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+}

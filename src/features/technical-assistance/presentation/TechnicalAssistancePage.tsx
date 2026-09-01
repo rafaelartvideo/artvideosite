@@ -1,5 +1,5 @@
 import { ChevronRight, Cpu, Monitor, Package, Tv, Zap } from "lucide-react";
-import { useBrands } from "@/lib/hooks";
+import { useBrands } from "@/features/public-catalog/application/usePublicCatalog";
 import { BrandCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";

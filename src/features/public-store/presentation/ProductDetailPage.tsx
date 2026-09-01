@@ -1,5 +1,5 @@
 import { AlertCircle, ChevronRight, Clock, Package } from "lucide-react";
-import { useProductDetailBySlug } from "@/lib/hooks";
+import { useProductDetailBySlug } from "@/features/public-catalog/application/usePublicCatalog";
 import { publicMediaUrl } from "@/features/public-catalog/infrastructure/public-media";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";

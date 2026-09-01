@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AlertCircle, CheckCircle, ChevronRight, Clock, Package, X } from "lucide-react";
-import { useServiceDetailBySlug } from "@/lib/hooks";
+import { useServiceDetailBySlug } from "@/features/public-catalog/application/usePublicCatalog";
 import { publicMediaUrl } from "@/features/public-catalog/infrastructure/public-media";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ArrowRight, ChevronRight, Search, ShoppingCart, Wrench } from "lucide-react";
-import { useBrands, useFeaturedProducts, useServices } from "@/lib/hooks";
+import { useBrands, useFeaturedProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { BrandCard, ProductCard, ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { PublicButton, PublicHeading, SectionLabel } from "@/features/public-shell/presentation/PublicUi";

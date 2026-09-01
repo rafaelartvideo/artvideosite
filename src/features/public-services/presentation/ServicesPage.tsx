@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
-import { useServiceCategories, useServices } from "@/lib/hooks";
+import { useServiceCategories, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { SectionLabel } from "@/features/public-shell/presentation/PublicUi";

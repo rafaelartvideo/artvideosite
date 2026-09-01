@@ -1,4 +1,4 @@
-import { useProducts } from "@/lib/hooks";
+import { useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { SectionLabel } from "@/features/public-shell/presentation/PublicUi";
