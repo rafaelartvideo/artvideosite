@@ -26,9 +26,11 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
   }, [open, breadcrumb, title, subtitle, onClose, setPage]);
 
   if (!open) return null;
+  const legacyCompactWidths = new Set(["max-w-xl", "max-w-2xl", "max-w-3xl"]);
+  const resolvedMaxW = legacyCompactWidths.has(maxW) ? "max-w-6xl" : maxW;
   return <div className="absolute inset-0 z-[35] bg-[#f8fafc] animate-in fade-in slide-in-from-right-2 duration-200" role="main" aria-label={title}>
     {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 z-10 p-2 text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg shadow-sm hover:text-[#0057e7] hover:bg-[#f5f7fa]"><X size={16} /></button>}
-    <div className={cn("mx-auto w-full p-4 sm:p-6 lg:p-8", maxW)}>{children}</div>
+    <div className={cn("mx-auto w-full p-4 sm:p-6 lg:p-8", resolvedMaxW)}>{children}</div>
   </div>;
 }
 
