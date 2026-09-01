@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { Check, ChevronDown, ChevronRight, FileText, LayoutTemplate, Plus, Printer, Search, Settings2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, FileText, LayoutTemplate, Plus, Search, Settings2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { PRINT_FIELD_REGISTRY } from "../domain/print-field-registry";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { BtnPrimary } from "@/shared/ui/admin/AdminLayout";
+import { BtnPrimary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { PRINT_TEMPLATE_TYPE_LABELS } from "../domain/print-template";
 import { useDocuments } from "../application/useDocuments";
@@ -36,22 +36,18 @@ export function TabDocuments({ onBack }: { onBack?: () => void }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#0057e7]">
-            <Printer size={15} /> Configuração de impressão
-          </div>
-          <h1 className="mt-1 text-2xl font-black text-[#0d1b2e]">Documentos</h1>
-          <p className="mt-1 max-w-2xl text-sm text-[#5a6a82]">Crie modelos reutilizáveis e escolha exatamente quais informações da OS serão impressas e como serão organizadas na folha.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {onBack && <button type="button" onClick={onBack} className="rounded-lg border border-[#d8e0eb] bg-white px-3.5 py-2 text-sm font-bold text-[#42526a] hover:bg-[#f5f7fa]">Voltar</button>}
+      <PageHeader
+        eyebrow="Operação"
+        title="Documentos"
+        subtitle="Crie modelos reutilizáveis e escolha quais informações da OS serão impressas e como serão organizadas."
+        actions={<div className="flex flex-wrap items-center gap-2">
+          {onBack && <InternalBackButton onBack={onBack} />}
           <button type="button" onClick={() => setCatalogOpen(current => !current)} className="inline-flex items-center gap-2 rounded-lg border border-[#d8e0eb] bg-white px-3.5 py-2 text-sm font-bold text-[#0d1b2e] hover:border-[#0057e7]/30 hover:text-[#0057e7]">
             <LayoutTemplate size={16} /> Catálogo de campos
           </button>
           {hasPermission("documents.create") && <BtnPrimary onClick={openNewDocument}><Plus size={16} /> Novo documento</BtnPrimary>}
-        </div>
-      </div>
+        </div>}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Modelos" value={templates.length} icon={FileText} />

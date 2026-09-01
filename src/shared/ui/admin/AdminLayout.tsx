@@ -26,7 +26,7 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
   }, [open, breadcrumb, title, subtitle, onClose, setPage]);
 
   if (!open) return null;
-  return <div className="absolute inset-0 z-[35] bg-[#f8fafc]">
+  return <div className="absolute inset-0 z-[35] bg-[#f8fafc] animate-in fade-in slide-in-from-right-2 duration-200" role="main" aria-label={title}>
     {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 z-10 p-2 text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg shadow-sm hover:text-[#0057e7] hover:bg-[#f5f7fa]"><X size={16} /></button>}
     <div className="max-w-6xl mx-auto w-full p-4 sm:p-8">{children}</div>
   </div>;
@@ -41,14 +41,18 @@ export function Section({ title, children }: { title: string; children: React.Re
   </div>;
 }
 
-export function PageHeader({ actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
+export function PageHeader({ title, subtitle, eyebrow, actions }: { title: string; subtitle?: string; eyebrow?: string; actions?: React.ReactNode }) {
   const onBack = React.useContext(AdminBackContext);
-  return <div className="flex items-start justify-between gap-4 mb-5">
-    <div className="min-w-0" />
+  return <header className="flex flex-col gap-4 border-b border-[#0d1b2e]/8 pb-5 sm:flex-row sm:items-start sm:justify-between">
+    <div className="min-w-0">
+      {eyebrow && <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#0057e7]">{eyebrow}</p>}
+      <h1 className="text-2xl font-black leading-tight text-[#0d1b2e]">{title}</h1>
+      {subtitle && <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[#5a6a82]">{subtitle}</p>}
+    </div>
     {(actions || onBack) && <div className="flex items-center gap-2 flex-shrink-0">
       {onBack && <InternalBackButton onBack={onBack} inHeader />}{actions}
     </div>}
-  </div>;
+  </header>;
 }
 
 export function BtnPrimary({ children, onClick, disabled, type = "button", className = "" }: {

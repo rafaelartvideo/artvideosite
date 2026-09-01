@@ -28,7 +28,6 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "customers", label: "Clientes", icon: Users },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "inventory", label: "Estoque", icon: Package },
-  { id: "documents", label: "Documentos", icon: FileText },
 ];
 
 export const siteItems: PermissionAwareHubItem[] = [
@@ -39,6 +38,7 @@ export const siteItems: PermissionAwareHubItem[] = [
 ];
 
 export const operationItems: PermissionAwareHubItem[] = [
+  { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos e campos para impressão das ordens de serviço.", permissionKey: "documents.view" },
   { id: "equipment", label: "Equipamentos", icon: Wrench, description: "Cadastre equipamentos, marcas e modelos técnicos.", permissionKey: "equipment.view" },
   { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica.", permissionKey: "general_services.view" },
   { id: "serviceTypes", label: "Tipos de Atendimento", icon: List, description: "Configure tipos e previsão de atendimento das OS.", permissionKey: "service_types.view" },

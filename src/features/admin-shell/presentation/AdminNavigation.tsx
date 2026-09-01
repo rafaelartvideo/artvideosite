@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
+import { PageHeader } from "@/shared/ui/admin/AdminLayout";
 
 export type AdminNavigationItem = {
   id: string;
@@ -46,14 +47,14 @@ type AdminHubPageProps = {
 };
 
 export function AdminHubPage({
-  title: _title,
-  description: _description,
+  title,
+  description,
   items,
   onSelect,
 }: AdminHubPageProps) {
   return (
     <div className="space-y-5">
-      <div />
+      <PageHeader title={title} subtitle={description} />
       <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {items.map((item) => {
           const Icon = item.icon;

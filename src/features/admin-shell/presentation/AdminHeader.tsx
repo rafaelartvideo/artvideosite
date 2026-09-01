@@ -24,6 +24,7 @@ const tabDescriptions: Record<AdminTab, string> = {
   generalServices: "Serviços técnicos internos utilizados na operação",
   serviceTypes: "Configuração dos tipos de atendimento",
   inventory: "Controle de itens, movimentações e histórico do estoque atual",
+  documents: "Modelos e configurações de impressão das ordens de serviço",
   situations: "Etapas de progresso das ordens de serviço",
   orderStatuses: "Status principais das ordens de serviço",
   customers: "Consulte clientes e seus dados de atendimento",

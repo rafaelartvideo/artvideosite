@@ -162,7 +162,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     generalServices: { element: <GeneralServicesPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
     serviceTypes: { element: <ServiceTypesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
     inventory: { element: <TabInventory /> },
-    documents: { element: <TabDocuments /> },
+    documents: { element: <TabDocuments onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
     situations: { element: <OSSituationsView onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
     orderStatuses: { element: <OrderStatusesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
     quotes: { element: <TabQuotes onNavigate={setActiveTab} /> },
