@@ -49,7 +49,10 @@ function getResponsibleName(order: ServiceOrderWithRelations) {
 
 
 function formatElapsedHours(hours: number) {
-  return `${Math.max(0, hours).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h`;
+  const totalMinutes = Math.max(0, Math.floor(Number(hours) * 60 + 0.000001));
+  const displayHours = Math.floor(totalMinutes / 60);
+  const displayMinutes = totalMinutes % 60;
+  return `${String(displayHours).padStart(2, "0")}:${String(displayMinutes).padStart(2, "0")}`;
 }
 
 function elapsedHours(start?: string | null, end?: string | null, now = Date.now()) {
@@ -92,7 +95,7 @@ function ServiceOrderSlaCards({ order, slaHours }: { order: any; slaHours: numbe
           <div className="min-w-0 flex-1">
             <p className={cn("truncate text-[10px] font-black uppercase tracking-wider", styles.title)}>Situação: {(order.situation as any)?.name || "Não definida"}</p>
             <p className="mt-1 text-2xl font-black text-[#0d1b2e]">{formatElapsedHours(situationElapsed)}</p>
-            <p className="text-[11px] text-[#5a6a82]">Tempo corrido na situação</p>
+            <p className="text-[11px] text-[#5a6a82]">Tempo corrido na situação · HH:MM</p>
           </div>
         </div>
         {validSla ? <>
@@ -1498,9 +1501,16 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const getSlaForOrder = (serviceTypeId?: string, situationId?: string, relatedSituation?: any) => {
     const link = serviceTypeSituations.find(item => item.service_type_id === serviceTypeId && item.situation_id === situationId);
     const situation = situations.find(item => item.id === situationId) || relatedSituation;
-    if (!link || !situation) return null;
-    const hours = Number(link.use_default_hours ? situation.hours : link.sla_hours);
-    return Number.isFinite(hours) && hours > 0 ? { hours, isDefault: link.use_default_hours !== false } : null;
+    if (!situation) return null;
+
+    const customHours = Number(link?.sla_hours);
+    const defaultHours = Number(situation.hours);
+    const usesCustomHours = link?.use_default_hours === false && Number.isFinite(customHours) && customHours > 0;
+    const hours = usesCustomHours ? customHours : defaultHours;
+
+    return Number.isFinite(hours) && hours > 0
+      ? { hours, isDefault: !usesCustomHours }
+      : null;
   };
 
   if (subView === "situations") return <OSSituationsView onBack={() => setSubView("list")} />;
