@@ -1,5 +1,5 @@
 import type React from "react";
-import { CheckCircle, Edit2, PackagePlus, Trash2 } from "lucide-react";
+import { CheckCircle, Edit2, PackagePlus } from "lucide-react";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 
@@ -13,8 +13,8 @@ export function OrderDetailsActions({
   onSituationChange,
   onRequestParts,
   onResolve,
+  onComplete,
   onEdit,
-  onDelete,
 }: {
   detail: any;
   statuses: any[];
@@ -25,8 +25,8 @@ export function OrderDetailsActions({
   onSituationChange: (situationId: string) => void;
   onRequestParts: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onResolve: () => void;
+  onComplete: () => void;
   onEdit: () => void;
-  onDelete: () => void;
 }) {
   return (
     <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
@@ -36,8 +36,8 @@ export function OrderDetailsActions({
         {hasPermission("orders.edit") && <div className="min-w-32"><AdminSelect value={detail.situation_id || ""} onValueChange={onSituationChange} options={[{ value: "", label: "Situação" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-10 py-1.5 text-xs font-bold" ariaLabel="Alterar situação da OS" /></div>}
         {hasPermission("orders.request_parts") && detail.is_solved !== true && <button type="button" onClick={onRequestParts} className="inline-flex items-center gap-2 whitespace-nowrap border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer"><PackagePlus size={14} /> Pedir peças</button>}
         {hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && <BtnPrimary onClick={onResolve}><CheckCircle size={14} /> Resolver OS</BtnPrimary>}
+        {hasPermission("orders.complete") && detail.is_solved && !detail.completed_at && <BtnPrimary onClick={onComplete}><CheckCircle size={14} /> Concluir OS</BtnPrimary>}
         {hasPermission("orders.edit") && !detail.is_solved && <BtnPrimary onClick={onEdit}><Edit2 size={14} /> Editar</BtnPrimary>}
-        {hasPermission("orders.delete") && !detail.is_solved && <button type="button" onClick={onDelete} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"><Trash2 size={14} /> Excluir</button>}
       </div>
     </div>
   );

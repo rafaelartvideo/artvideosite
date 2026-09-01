@@ -9,6 +9,9 @@ import { AdminHubPage } from "@/features/admin-shell/presentation/AdminNavigatio
 import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 
+const TabDocuments = lazy(() =>
+  import("@/features/documents/presentation/TabDocuments").then(({ TabDocuments }) => ({ default: TabDocuments })),
+);
 const TabOrders = lazy(() =>
   import("@/features/orders/presentation/TabOrders").then(({ TabOrders }) => ({ default: TabOrders })),
 );
@@ -158,7 +161,8 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     equipment: { element: <EquipmentAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
     generalServices: { element: <GeneralServicesPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
     serviceTypes: { element: <ServiceTypesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
-    inventory: { element: <TabInventory onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
+    inventory: { element: <TabInventory /> },
+    documents: { element: <TabDocuments /> },
     situations: { element: <OSSituationsView onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
     orderStatuses: { element: <OrderStatusesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} /> },
     quotes: { element: <TabQuotes onNavigate={setActiveTab} /> },

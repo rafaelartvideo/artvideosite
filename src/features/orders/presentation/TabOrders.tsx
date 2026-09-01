@@ -3,7 +3,6 @@ import { useAuth } from "@/lib/auth";
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPage";
 import { useOrderEditorWorkflow } from "@/features/orders/application/useOrderEditorWorkflow";
-import { removeServiceOrder } from "@/features/orders/application/order-management";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
 import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage";
 import { OSSituationsView } from "@/features/order-situations/presentation/OSSituationsView";
@@ -15,8 +14,10 @@ import { useOrderListMutations } from "@/features/orders/application/useOrderLis
 import { useOrderCustomerSelection } from "@/features/orders/application/useOrderCustomerSelection";
 import { useOrderServiceAddress } from "@/features/orders/application/useOrderServiceAddress";
 import { useOrderResolution } from "@/features/orders/application/useOrderResolution";
+import { useOrderCompletion } from "@/features/orders/application/useOrderCompletion";
 import { useOrderDetails } from "@/features/orders/application/useOrderDetails";
 import { useOrderHistory } from "@/features/orders/application/useOrderHistory";
+import { useOrderSituationDocuments } from "@/features/orders/application/useOrderSituationDocuments";
 import { useOrderFormState } from "@/features/orders/application/useOrderFormState";
 import { useOrderCustomerPersistence } from "@/features/orders/application/useOrderCustomerPersistence";
 import {
@@ -30,7 +31,7 @@ import {
   usedItemsTotal,
 } from "@/features/orders/application/order-display-rules";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
-import { Toast, ConfirmDialog } from "@/shared/ui/admin/AdminFeedback";
+import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type OrderType = "internal" | "external";
@@ -66,7 +67,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     loading,
     reloadWorkspace,
   } = workspace;
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const formState = useOrderFormState();
@@ -248,6 +248,14 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     profiles,
     showToast: setToast,
   });
+  const [documentsPageOpen, setDocumentsPageOpen] = useState(false);
+  const orderDocuments = useOrderSituationDocuments({
+    orderId: detail?.id,
+    serviceTypeId: detail?.service_type_id,
+    situations,
+    serviceTypeSituations,
+    hasPermission,
+  });
 
   const resolutionController = useOrderResolution({
     detail,
@@ -275,6 +283,18 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     openSolveOrder,
     saveOrderSolution,
   } = resolutionController;
+  const completionController = useOrderCompletion({
+    detail,
+    usedItems: detailUsedItems,
+    setDetail,
+    setOrders,
+    reloadOrders: reloadWorkspace,
+    hasPermission,
+    showToast: setToast,
+    formatError: supabaseErrorMessage,
+    setSaving,
+  });
+
 
   const orderEditor = useOrderEditorWorkflow({
     userId: user?.id,
@@ -325,20 +345,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     onFocused?.();
   }, [initialOrderId, loading, orders]);
 
-
-  const handleDeleteOrder = async (id: string) => {
-    if (!hasPermission("orders.delete")) return;
-    const { error } = await removeServiceOrder(id);
-    if (error) {
-      setToast({ msg: `Não foi possível excluir a OS: ${error.message}`, type: "error" });
-      setDeleteId(null);
-      return;
-    }
-    setToast({ msg: "OS excluída.", type: "success" });
-    setDeleteId(null);
-    closeDetail();
-    await reloadWorkspace();
-  };
 
   const setViewMode = (mode: "list" | "kanban") => {
     setDisplayMode(mode);
@@ -411,7 +417,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      {deleteId && <ConfirmDialog message="Excluir esta OS? Esta ação remove o registro principal da tabela de ordens de serviço." onConfirm={() => { void handleDeleteOrder(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       <OrdersListWorkspace
         visible={!detail && !formOpen && !solveOpen}
@@ -426,7 +431,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         onCreate={openNew}
         onOpenDetail={openDetail}
         onOpenEdit={(order) => { void openEdit(order); }}
-        onDelete={setDeleteId}
         getSituations={getSituationsForType}
         formatDate={fmtDate}
         equipmentSummary={equipmentSummary}
@@ -439,9 +443,13 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         workspace={workspace}
         details={detailsController}
         history={orderHistory}
+        documents={orderDocuments}
+        documentsPageOpen={documentsPageOpen}
+        onDocumentsPageOpenChange={setDocumentsPageOpen}
         images={imagesController}
         partRequests={partRequests}
         resolution={resolutionController}
+        completion={completionController}
         mutations={listMutations}
         hasPermission={hasPermission}
         usedItemsTotal={detailUsedItemsTotal}
@@ -452,7 +460,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         getSituations={getSituationsForType}
         getSla={getSlaForOrder}
         onEdit={(order) => { void openEdit(order); }}
-        onDelete={setDeleteId}
       />
 
       <OrderEditorPage
@@ -477,9 +484,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         formState={formState}
         images={imagesController}
         resolution={resolutionController}
+        completion={completionController}
         partRequests={partRequests}
         onSelectCustomer={selectCustomer}
         setToast={setToast}
+        formatCurrency={formatCurrency}
       />
     </div>
   );

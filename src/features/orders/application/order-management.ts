@@ -1,5 +1,4 @@
 import {
-  deleteServiceOrder,
   getServiceOrderResolutionState,
   listOrderStatusOptions,
 } from "../infrastructure/orders.repository";
@@ -31,5 +30,3 @@ export async function getOrderSubmissionStatus({
   return { status, error };
 }
 
-export const removeServiceOrder = (orderId: string) =>
-  deleteServiceOrder(orderId);

@@ -1,7 +1,7 @@
 export type AdminTab =
   | "dashboard" | "services" | "categories" | "products" | "brands"
   | "equipment" | "generalServices" | "serviceTypes" | "inventory" | "situations" | "orderStatuses"
-  | "quotes" | "orders" | "agenda" | "customers" | "site" | "operation" | "employees" | "settings" | "contact";
+  | "quotes" | "orders" | "agenda" | "customers" | "inventory" | "documents" | "site" | "operation" | "employees" | "settings" | "contact";
 
 export type AdminPageState = {
   breadcrumb: string;

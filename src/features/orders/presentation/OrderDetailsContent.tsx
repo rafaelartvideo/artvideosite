@@ -1,4 +1,3 @@
-import { DollarSign } from "lucide-react";
 import type { Address } from "@/lib/address";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { Section } from "@/shared/ui/admin/AdminLayout";
@@ -31,15 +30,14 @@ export function InfoRow({
 export function OrderDetailsContent({
   detail,
   images,
-  history,
   formatDate,
   formatState,
   getSla,
   onViewImage,
+  hasPermission,
 }: {
   detail: any;
   images: OrderImage[];
-  history: any[];
   formatDate: (value?: string | null, time?: boolean) => string;
   formatState: (state: unknown) => string;
   getSla: (
@@ -48,9 +46,9 @@ export function OrderDetailsContent({
     relatedSituation?: any,
   ) => { hours: number; isDefault: boolean } | null;
   onViewImage: (image: OrderImage) => void;
+  hasPermission: (permission: string) => boolean;
 }) {
   const orderImages = images;
-  const detailHistory = history;
   const fmtDate = formatDate;
   const stateLabel = formatState;
   const getSlaForOrder = getSla;
@@ -61,7 +59,7 @@ export function OrderDetailsContent({
                 <StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />
                 {(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}
               </div>
-              <Section title="Cliente">
+              {hasPermission("orders.section.customer") && (<Section title="Cliente">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Nome" value={(detail.customer as any)?.full_name} />
                   {(detail.customer as any)?.customer_type === "PJ" ? <>
@@ -73,8 +71,8 @@ export function OrderDetailsContent({
                   <InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)} />
                   <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
                 </div>
-              </Section>
-              <Section title="Dados de endereço">
+              </Section>)}
+              {hasPermission("orders.section.address") && (<Section title="Dados de endereço">
                 <div className="grid sm:grid-cols-2 gap-3">
                   {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map((key) => {
                     const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" };
@@ -82,8 +80,8 @@ export function OrderDetailsContent({
                     return address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null;
                   })}
                 </div>
-              </Section>
-              <Section title="Equipamento">
+              </Section>)}
+              {hasPermission("orders.section.equipment") && (<Section title="Equipamento">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || undefined} />
                   <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || undefined} />
@@ -93,8 +91,8 @@ export function OrderDetailsContent({
                   <InfoRow label="Lacre" value={detail.accessories || undefined} />
                   <InfoRow label="Garantia" value={detail.equipment_condition || undefined} />
                 </div>
-              </Section>
-              <Section title="Local do atendimento">
+              </Section>)}
+              {hasPermission("orders.section.service_location") && (<Section title="Local do atendimento">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Tipo da OS" value={detail.order_type === "external" ? "Externa" : "Interna"} />
                   {detail.order_type === "external" && <InfoRow label="Origem do endereço" value={detail.service_address_source === "customer" ? "Endereço cadastrado do cliente" : "Endereço informado para esta OS"} />}
@@ -106,8 +104,8 @@ export function OrderDetailsContent({
                   {detail.order_type === "external" && <InfoRow label="Número" value={detail.service_number} />}
                   {detail.order_type === "external" && <InfoRow label="Complemento" value={detail.service_complement} />}
                 </div>
-              </Section>
-              <Section title="Informações da OS">
+              </Section>)}
+              {hasPermission("orders.section.information") && (<Section title="Informações da OS">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Nº da OS" value={detail.os_number} />
                   <InfoRow label="OS Externa" value={detail.external_os_number?.trim() || "Não informada"} />
@@ -121,37 +119,15 @@ export function OrderDetailsContent({
                   <InfoRow label="Prioridade" value={getPriorityLabel(detail.priority) || undefined} />
                   <InfoRow label="Data de início" value={fmtDate(detail.created_at)} />
                   <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
-                  <InfoRow label="Data de conclusão" value={fmtDate(detail.completed_at)} />
+                  <InfoRow label="Concluída em" value={detail.completed_at ? fmtDate(detail.completed_at, true) : null} />
+                  {detail.completed_at && <InfoRow label="Concluída por" value={detail.completed_by_profile?.full_name || "Nome não informado"} />}
                   <InfoRow label="Horas da situação" value={(detail.situation as any)?.hours == null ? null : `${(detail.situation as any).hours} hora(s)`} />
                   {(() => { const sla = getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation); return sla ? <InfoRow label="SLA da situação" value={`${sla.hours} hora(s) (${sla.isDefault ? "Padrão" : "Personalizado"})`} /> : null; })()}
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-[#0057e7]/20 bg-[#f0f6ff] px-3 py-2 text-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0057e7]/10 text-[#0057e7]"><DollarSign size={16} /></div>
-                    <span className="font-bold text-[#0d1b2e]">Valor da OS</span>
-                  </div>
-                  <span className="font-black text-[#0057e7]">{detail.estimated_price == null ? "Valor não informado" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(detail.estimated_price))}</span>
-                </div>
-              </Section>
+              </Section>)}
               {orderImages.length > 0 && <Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>}
-              <Section title="Histórico">
-                {detailHistory.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum registro de alteração.</p> : (
-                  <div className="space-y-2">
-                    {detailHistory.map((h: any) => (
-                      <div key={h.id} className="flex gap-3 text-xs">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#0057e7] mt-1.5 flex-shrink-0" />
-                        <div>
-                          <span className="font-bold text-[#0d1b2e]">{(h.order_status as any)?.name || "Status alterado"}</span>
-                          {h.notes && <span className="text-[#5a6a82] ml-1">— {h.notes}</span>}
-                          <p className="text-[#5a6a82] text-[10px]">{fmtDate(h.created_at, true)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Section>
-              {detail.internal_notes && <Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>}
-              {detail.customer_notes && <Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>}
+              {detail.internal_notes && {hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}}
+              {detail.customer_notes && {hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}}
     </>
   );
 }

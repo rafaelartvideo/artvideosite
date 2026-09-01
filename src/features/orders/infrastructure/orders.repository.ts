@@ -96,8 +96,6 @@ export const markServiceOrderUnsolvable = (
 export const listOrderStatusOptions = () =>
   supabase.from("order_statuses").select("id,name,sort_order").order("sort_order");
 
-export const deleteServiceOrder = (serviceOrderId: string) =>
-  supabase.from("service_orders").delete().eq("id", serviceOrderId);
 
 export const updateServiceOrderStatus = (
   serviceOrderId: string,
@@ -241,3 +239,11 @@ export const listApprovedResolutionPartRequests = (serviceOrderId: string) =>
     .eq("service_order_id", serviceOrderId)
     .eq("status", "APPROVED")
     .eq("purpose", "RESOLUTION");
+
+export const completeServiceOrder = (
+  serviceOrderId: string,
+  discountPercentage: number,
+) => supabase.rpc("complete_service_order", {
+  p_service_order_id: serviceOrderId,
+  p_discount_percentage: discountPercentage,
+});

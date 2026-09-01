@@ -4,9 +4,11 @@ import type { useOrderFormState } from "../application/useOrderFormState";
 import type { useOrderImages } from "../application/useOrderImages";
 import type { useOrderPartRequests } from "../application/useOrderPartRequests";
 import type { useOrderResolution } from "../application/useOrderResolution";
+import type { useOrderCompletion } from "../application/useOrderCompletion";
 import type { useOrdersWorkspace } from "../application/useOrdersWorkspace";
 import { OrderImageLightbox } from "./OrderImages";
 import { OrderResolutionPage } from "./OrderResolutionPage";
+import { OrderCompletionModal } from "./OrderCompletionModal";
 import { QuickEquipmentModal } from "./OrderQuickCreateModals";
 import { QuickCustomerModal } from "./QuickCustomerModal";
 import {
@@ -25,14 +27,16 @@ type Props = {
   formState: ReturnType<typeof useOrderFormState>;
   images: ReturnType<typeof useOrderImages>;
   resolution: ReturnType<typeof useOrderResolution>;
+  completion: ReturnType<typeof useOrderCompletion>;
   partRequests: ReturnType<typeof useOrderPartRequests>;
   onSelectCustomer: (customer: any) => void;
   setToast: Dispatch<SetStateAction<Toast | null>>;
+  formatCurrency: (value: number) => string;
 };
 
 export function OrderWorkflowModals({
-  detail, saving, workspace, formState, images, resolution,
-  partRequests, onSelectCustomer: selectCustomer, setToast,
+  detail, saving, workspace, formState, images, resolution, completion,
+  partRequests, onSelectCustomer: selectCustomer, setToast, formatCurrency,
 }: Props) {
   const {
     setEquipmentTypes, setEquipmentBrands, setEquipmentModels,
@@ -102,6 +106,7 @@ export function OrderWorkflowModals({
           void saveOrderSolution(detail.id);
         }}
       />
+      <OrderCompletionModal detail={detail} usedItems={completion.usedItems} completion={completion} saving={saving} formatCurrency={formatCurrency} />
       {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
       {partRequestOpen && detail && (
         <PartRequestModal orderNumber={detail.os_number} inventoryItems={partRequestInventory} inventoryLoading={partRequestInventoryLoading} inventoryError={partRequestInventoryError} selectedItems={selectedPartRequestItems} search={partRequestSearch} notes={partRequestNotes} purpose={partRequestPurpose} submitting={partRequestSubmitting} onPurposeChange={setPartRequestPurpose} onSearchChange={setPartRequestSearch} onNotesChange={setPartRequestNotes} onSelect={selectPartRequestItem} onQuantityChange={updatePartRequestQuantity} onRemove={removePartRequestItem} onClose={closePartRequestModal} onSubmit={() => void submitPartRequest(detail.id)} />
