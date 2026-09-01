@@ -22,14 +22,17 @@ const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const permissionKey = (situationId: string) => `orders.images.situation.${situationId}.upload`;
 const mediaRecord = (row: SituationMedia) => Array.isArray(row.media) ? row.media[0] : row.media;
 
-function SituationImageThumb({ row, onView }: { row: SituationMedia; onView?: Props["onView"] }) {
+function SituationImageThumb({ row, onView, canRemove, removing, onRemove }: { row: SituationMedia; onView?: Props["onView"]; canRemove: boolean; removing: boolean; onRemove: (row: SituationMedia) => void }) {
   const { url, loading, error } = useMediaUrl(row.media_id);
   const media = mediaRecord(row);
   const name = media?.file_name || "Anexo da situação";
-  return <button type="button" onClick={() => onView?.({ key: row.id, mediaId: row.media_id, name })} className="group relative h-24 w-28 overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-[#f5f7fa] text-left shadow-sm">
-    {loading ? <span className="flex h-full items-center justify-center text-[10px] text-[#5a6a82]">Carregando...</span> : error || !url ? <span className="flex h-full items-center justify-center px-2 text-center text-[10px] text-red-600">Imagem indisponível</span> : <img src={url} alt={name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />}
-    <span className="absolute inset-x-0 bottom-0 truncate bg-[#0d1b2e]/70 px-2 py-1 text-[9px] font-semibold text-white">{name}</span>
-  </button>;
+  return <div className="group relative h-24 w-28 overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-[#f5f7fa] shadow-sm">
+    <button type="button" onClick={() => onView?.({ key: row.id, mediaId: row.media_id, name })} className="h-full w-full text-left">
+      {loading ? <span className="flex h-full items-center justify-center text-[10px] text-[#5a6a82]">Carregando...</span> : error || !url ? <span className="flex h-full items-center justify-center px-2 text-center text-[10px] text-red-600">Imagem indisponível</span> : <img src={url} alt={name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />}
+      <span className="absolute inset-x-0 bottom-0 truncate bg-[#0d1b2e]/70 px-2 py-1 text-[9px] font-semibold text-white">{name}</span>
+    </button>
+    {canRemove && <button type="button" disabled={removing} title="Remover documento" aria-label={`Remover ${name}`} onClick={event => { event.stopPropagation(); onRemove(row); }} className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white text-red-600 shadow-md transition hover:bg-red-50 disabled:opacity-50"><X size={13} /></button>}
+  </div>;
 }
 
 export function OrderSituationImages({ orderId, serviceTypeId, currentSituationId, situations, serviceTypeSituations, onView }: Props) {
@@ -37,6 +40,7 @@ export function OrderSituationImages({ orderId, serviceTypeId, currentSituationI
   const [items, setItems] = useState<SituationMedia[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingSituationId, setUploadingSituationId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const cameraRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -101,6 +105,27 @@ export function OrderSituationImages({ orderId, serviceTypeId, currentSituationI
     }
   };
 
+  const removeDocument = async (row: SituationMedia) => {
+    if (removingId) return;
+    if (!hasPermission("orders.documents.remove")) {
+      setMessage({ text: "Você não possui permissão para remover documentos.", type: "error" });
+      return;
+    }
+    if (!window.confirm("Remover este documento da OS?")) return;
+    setRemovingId(row.id);
+    setMessage(null);
+    try {
+      const { error } = await supabase.rpc("remove_service_order_situation_media", { p_link_id: row.id });
+      if (error) throw error;
+      await load();
+      setMessage({ text: "Documento removido.", type: "success" });
+    } catch (error) {
+      setMessage({ text: `Não foi possível remover: ${supabaseErrorMessage(error)}`, type: "error" });
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
   if (!hasPermission("orders.section.images")) return null;
 
   return <div className="space-y-3">
@@ -119,7 +144,7 @@ export function OrderSituationImages({ orderId, serviceTypeId, currentSituationI
             <button type="button" disabled={Boolean(uploadingSituationId)} onClick={() => cameraRefs.current[situation.id]?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#0057e7] disabled:opacity-50"><Camera size={13} /> Câmera</button>
           </div>}
         </div>
-        {situationItems.length > 0 ? <div className="flex flex-wrap gap-2">{situationItems.map(row => <SituationImageThumb key={row.id} row={row} onView={onView} />)}</div> : <div className="rounded-lg border border-dashed border-[#0d1b2e]/10 px-3 py-4 text-center text-[11px] text-[#5a6a82]">Nenhuma imagem registrada nesta situação.{canUpload ? " Use Anexar ou Câmera para adicionar fotos." : " Você não possui permissão para anexar aqui."}</div>}
+        {situationItems.length > 0 ? <div className="flex flex-wrap gap-2">{situationItems.map(row => <SituationImageThumb key={row.id} row={row} onView={onView} canRemove={hasPermission("orders.documents.remove")} removing={removingId === row.id} onRemove={removeDocument} />)}</div> : <div className="rounded-lg border border-dashed border-[#0d1b2e]/10 px-3 py-4 text-center text-[11px] text-[#5a6a82]">Nenhuma imagem registrada nesta situação.{canUpload ? " Use Anexar ou Câmera para adicionar fotos." : " Você não possui permissão para anexar aqui."}</div>}
       </div>;
     })}
   </div>;
