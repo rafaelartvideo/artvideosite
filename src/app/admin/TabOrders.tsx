@@ -2158,7 +2158,24 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               <Section title="Resumo financeiro">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Serviço: {detail.general_service?.name || "—"}</span><strong className="text-[#0d1b2e]">{formatCurrency(completionServicePrice)}</strong></div>
-                  <div className="flex items-center justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Peças utilizadas</span><strong className="text-[#0d1b2e]">{formatCurrency(detailUsedItemsTotal)}</strong></div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Peças utilizadas</span><strong className="text-[#0d1b2e]">{formatCurrency(detailUsedItemsTotal)}</strong></div>
+                    {detailUsedItems.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-[#0d1b2e]/10 bg-[#f8fafc] px-3 py-2 text-xs text-[#5a6a82]">Nenhuma peça utilizada.</p>
+                    ) : (
+                      <div className="divide-y divide-[#0d1b2e]/8 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc]">
+                        {detailUsedItems.map((item: any) => (
+                          <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça sem nome"}</p>
+                              {item.inventory_item?.sku && <p className="mt-0.5 text-[10px] text-[#5a6a82]">SKU: {item.inventory_item.sku}</p>}
+                            </div>
+                            <strong className="shrink-0 text-[#0d1b2e]">{Number(item.quantity || 0).toLocaleString("pt-BR")} {item.inventory_item?.unit || "un"}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center justify-between gap-3 border-t border-[#0d1b2e]/10 pt-3"><span className="font-bold text-[#0d1b2e]">Subtotal</span><strong className="text-[#0057e7]">{formatCurrency(completionSubtotal)}</strong></div>
                 </div>
               </Section>
