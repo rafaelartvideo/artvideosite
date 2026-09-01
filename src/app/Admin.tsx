@@ -215,7 +215,12 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
       element: <TabAgenda onOpenOrder={(id) => navigateAdmin("orders", id)} />,
     },
     customers: {
-      element: <TabCustomers onOpenOrder={(id) => navigateAdmin("orders", id)} />,
+      element: <TabCustomers
+        onOpenOrder={(id) => navigateAdmin("orders", id)}
+        routeResourceId={route.resourceId}
+        routeSubpage={route.subpage}
+        onRouteChange={(resourceId, subpage) => navigateAdmin("customers", resourceId, subpage)}
+      />,
     },
     employees: { element: <TabEmployees onBack={() => backToParent("employees")} /> },
     settings: { element: <TabSettings /> },
