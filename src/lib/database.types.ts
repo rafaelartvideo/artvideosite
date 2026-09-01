@@ -35,8 +35,6 @@ export interface Employee {
 export interface GeneralService {
   id: string;
   name: string;
-  price: number | null;
-  max_discount_percentage: number | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -180,4 +178,456 @@ export interface ServicePriceFactor {
   sort_order: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface ServiceFaq {
+  id: string;
+  service_id: string;
+  section_id: string | null;
+  question: string;
+  answer: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceSection {
+  id: string;
+  service_id: string;
+  title: string;
+  content: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Products & Categories ───────────────────────────────────
+export interface ProductCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Product {
+  id: string;
+  category_id: string | null;
+  brand_id: string | null;
+  name: string;
+  slug: string;
+  sku: string | null;
+  short_description: string | null;
+  description: string | null;
+  price: number | null;
+  compare_at_price: number | null;
+  cover_media_id: string | null;
+  is_active: boolean;
+  is_featured: boolean;
+  external_platform: string | null;
+  external_product_id: string | null;
+  external_url: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Customers ────────────────────────────────────────────────────
+export interface Customer {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  document: string | null;
+  customer_type: "PF" | "PJ";
+  trade_name: string | null;
+  legal_name: string | null;
+  cnpj: string | null;
+  state_registration: string | null;
+  foundation_date: string | null;
+  birth_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerAddress {
+  id: string;
+  customer_id: string;
+  zip_code: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  reference: string | null;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Quote Requests & Status ──────────────────────────────────
+export interface RequestStatus {
+  id: string;
+  name: string;
+  color: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuoteRequest {
+  id: string;
+  protocol: string | null;
+  customer_id: string | null;
+  service_id: string | null;
+  product_id: string | null;
+  brand_id: string | null;
+  status_id: string | null;
+  estimated_price: number | null;
+  final_price: number | null;
+  customer_message: string | null;
+  assigned_to: string | null;
+  requested_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuoteRequestItem {
+  id: string;
+  quote_request_id: string;
+  service_variant_id: string | null;
+  title_snapshot: string;
+  description_snapshot: string | null;
+  price_snapshot: number | null;
+  quantity: number;
+  subtotal: number | null;
+  created_at: string;
+}
+export interface QuoteStatusHistory {
+  id: string;
+  quote_request_id: string;
+  status_id: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+// ── Service Orders & Status ──────────────────────────────────
+export interface OrderStatus {
+  id: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OsSituation {
+  id: string;
+  name: string;
+  slug: string | null;
+  color: string | null;
+  hours: number | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceType {
+  id: string;
+  title: string;
+  description: string | null;
+  forecast_days: number | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceTypeSituation {
+  service_type_id: string;
+  situation_id: string;
+  use_default_hours: boolean;
+  sla_hours: number | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceOrder {
+  id: string;
+  os_number: string | null;
+  external_os_number: string | null;
+  order_type: "internal" | "external";
+  service_state: string | null;
+  service_city: string | null;
+  service_street: string | null;
+  service_zip_code: string | null;
+  service_neighborhood: string | null;
+  service_number: string | null;
+  service_complement: string | null;
+  service_address_source: "customer" | "custom" | null;
+  service_customer_address_id: string | null;
+  tracking_token: string | null;
+  quote_request_id: string | null;
+  customer_id: string | null;
+  service_id: string | null;
+  service_type_id: string | null;
+  status_id: string | null;
+  situation_id: string | null;
+  scheduled_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  solved_at: string | null;
+  assigned_to: string | null;
+  assigned_profile?: { id: string; full_name: string | null } | null;
+  technician_id: string | null;
+  internal_notes: string | null;
+  customer_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceOrderItem {
+  id: string;
+  service_order_id: string;
+  service_id: string;
+  quantity: number;
+  unit_price: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceOrderNote {
+  id: string;
+  service_order_id: string;
+  note: string;
+  is_internal: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface ServiceOrderStatusHistory {
+  id: string;
+  service_order_id: string;
+  status_id: string;
+  is_visible_to_customer: boolean;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+// ── Contact & Settings ───────────────────────────────────────
+export interface ContactField {
+  id: string;
+  field_key: string;
+  label: string;
+  field_type: string;
+  placeholder: string | null;
+  is_active: boolean;
+  is_required: boolean;
+  validation_rules: Json | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SiteSettings {
+  id: string;
+  setting_key: string;
+  setting_value: string | null;
+  description: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Filters & Navigation ─────────────────────────────────────
+export interface Filter {
+  id: string;
+  name: string;
+  slug: string;
+  filter_type: "select" | "checkbox" | "radio" | "range" | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FilterOption {
+  id: string;
+  filter_id: string;
+  name: string;
+  value: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceFilterOption {
+  id: string;
+  service_id: string;
+  filter_option_id: string;
+  created_at: string;
+}
+
+export interface NavigationItem {
+  id: string;
+  label: string;
+  url: string;
+  parent_id: string | null;
+  position: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Site Pages & Content ─────────────────────────────────────
+export interface SitePage {
+  id: string;
+  title: string;
+  slug: string;
+  content: string | null;
+  is_published: boolean;
+  meta_description: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SitePageSection {
+  id: string;
+  page_id: string;
+  title: string;
+  content: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Storage bucket names already configured in Supabase ───────
+export type StorageBucket =
+  | "public-assets"
+  | "service-images"
+  | "product-images"
+  | "brand-images"
+  | "avatars";
+
+export interface SitePageSection {
+  id: string;
+  page_id: string;
+  title: string;
+  content: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppointmentSituation {
+  id: string;
+  name: string;
+  color: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AppointmentPeriod = "no_time" | "morning" | "afternoon" | "evening" | "custom";
+
+export interface Appointment {
+  id: string;
+  customer_id: string;
+  service_order_id: string | null;
+  appointment_date: string;
+  period: AppointmentPeriod;
+  start_time: string | null;
+  end_time: string | null;
+  sector_location: string | null;
+  situation_id: string | null;
+  description: string | null;
+  is_return: boolean;
+  address_source: "customer" | "custom" | null;
+  customer_address_id: string | null;
+  zip_code: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppointmentTechnician {
+  appointment_id: string;
+  employee_id: string;
+  created_at: string;
+}
+
+export interface ServiceOrderTechnician {
+  service_order_id: string;
+  employee_id: string;
+  created_at: string;
+}
+
+export interface ServiceOrderSeller {
+  service_order_id: string;
+  employee_id: string;
+  created_at: string;
+}
+
+export interface ServiceOrderPartRequest {
+  id: string;
+  service_order_id: string;
+  requested_by: string;
+  purpose: "TEST" | "RESOLUTION";
+  status: string;
+  notes: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceOrderPartRequestItem {
+  id: string;
+  request_id: string;
+  inventory_item_id: string;
+  quantity: number;
+  approved_quantity: number | null;
+  source_test_item_id: string | null;
+  delivered_quantity: number;
+  delivered_at: string | null;
+  delivered_by: string | null;
+  returned_quantity: number;
+  damaged_quantity: number;
+  created_at: string;
+}
+
+export interface ServiceOrderPartTestEvent {
+  id: string;
+  service_order_id: string;
+  request_item_id: string;
+  event_type: "DELIVERED" | "RETURNED" | "RESOLUTION_REQUESTED" | "DAMAGED";
+  quantity: number;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
 }
