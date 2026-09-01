@@ -16,6 +16,7 @@ import { useOrderCustomerSelection } from "@/features/orders/application/useOrde
 import { useOrderServiceAddress } from "@/features/orders/application/useOrderServiceAddress";
 import { useOrderResolution } from "@/features/orders/application/useOrderResolution";
 import { useOrderDetails } from "@/features/orders/application/useOrderDetails";
+import { useOrderHistory } from "@/features/orders/application/useOrderHistory";
 import { useOrderFormState } from "@/features/orders/application/useOrderFormState";
 import { useOrderCustomerPersistence } from "@/features/orders/application/useOrderCustomerPersistence";
 import {
@@ -240,6 +241,14 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     closeDetail,
   } = detailsController;
 
+  const orderHistory = useOrderHistory({
+    orderId: detail?.id,
+    userId: user?.id,
+    statusHistory: detailHistory,
+    profiles,
+    showToast: setToast,
+  });
+
   const resolutionController = useOrderResolution({
     detail,
     setDetail,
@@ -429,6 +438,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         profileName={profile?.full_name}
         workspace={workspace}
         details={detailsController}
+        history={orderHistory}
         images={imagesController}
         partRequests={partRequests}
         resolution={resolutionController}

@@ -1,10 +1,13 @@
+import { FileText } from "lucide-react";
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { OrderDetailsActions } from "./OrderDetailsActions";
 import { OrderDetailsContent } from "./OrderDetailsContent";
+import { OrderHistoryPage } from "./OrderHistoryPage";
 import { OrderPartRequestsSection } from "./OrderPartRequestsSection";
 import { OrderSolutionSummary } from "./OrderSolutionSummary";
 import type { useOrderDetails } from "../application/useOrderDetails";
 import type { useOrderImages } from "../application/useOrderImages";
+import type { useOrderHistory } from "../application/useOrderHistory";
 import type { useOrderListMutations } from "../application/useOrderListMutations";
 import type { useOrderPartRequests } from "../application/useOrderPartRequests";
 import type { useOrderResolution } from "../application/useOrderResolution";
@@ -18,6 +21,7 @@ type Props = {
   profileName?: string | null;
   workspace: ReturnType<typeof useOrdersWorkspace>;
   details: ReturnType<typeof useOrderDetails>;
+  history: ReturnType<typeof useOrderHistory>;
   images: ReturnType<typeof useOrderImages>;
   partRequests: ReturnType<typeof useOrderPartRequests>;
   resolution: ReturnType<typeof useOrderResolution>;
@@ -36,7 +40,7 @@ type Props = {
 
 export function OrderDetailsPage(props: Props) {
   const {
-    visible, userId, profileName, workspace, details, images, partRequests,
+    visible, userId, profileName, workspace, details, history, images, partRequests,
     resolution, mutations, hasPermission, usedItemsTotal: detailUsedItemsTotal,
     formatDate: fmtDate, formatState: stateLabel, formatSolvedAt,
     formatCurrency, getSituations: getSituationsForType, getSla: getSlaForOrder,
@@ -56,9 +60,16 @@ export function OrderDetailsPage(props: Props) {
   const { updateOrderStatus, updateOrderSituation } = mutations;
 
   return <>
-{visible && (
+      <OrderHistoryPage
+        order={detail}
+        history={history}
+        canCreate={hasPermission("orders.history.create")}
+        formatDate={fmtDate}
+      />
+{visible && !history.pageOpen && (
         <AdminPage open={true} onClose={() => closeDetail()} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
+              {hasPermission("orders.section.history") && <div className="flex justify-end"><button type="button" onClick={() => history.setPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button></div>}
               <OrderDetailsContent
                 detail={detail}
                 images={orderImages}
