@@ -1,13 +1,20 @@
 import { supabase } from "@/lib/supabase";
-import {
-  getEmployees as queryEmployees,
-  setEmployeeActive as querySetEmployeeActive,
-} from "@/lib/queries";
 
-export const getEmployees = () => queryEmployees();
+const employeeColumns = "id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at,role:roles(id,name)";
+
+export const getEmployees = () =>
+  supabase
+    .from("employees")
+    .select(employeeColumns)
+    .order("full_name", { ascending: true });
 
 export const setEmployeeActive = (employeeId: string, isActive: boolean) =>
-  querySetEmployeeActive(employeeId, isActive);
+  supabase
+    .from("employees")
+    .update({ is_active: isActive })
+    .eq("id", employeeId)
+    .select(employeeColumns)
+    .single();
 
 export const listRoles = () =>
   supabase
