@@ -84,3 +84,15 @@ export async function deleteCustomer(customerId: string): Promise<void> {
 
   if (error) throw error;
 }
+
+export async function fetchCnpjData(cnpj: string) {
+  const digits = cnpj.replace(/\D/g, "");
+  const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+  if (!response.ok) {
+    const message = response.status === 404
+      ? "CNPJ não encontrado."
+      : "Não foi possível consultar o CNPJ.";
+    throw new Error(message);
+  }
+  return response.json();
+}

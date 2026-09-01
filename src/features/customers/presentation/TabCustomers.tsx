@@ -6,6 +6,7 @@ import {
   createCustomer,
   createCustomerAddress,
   deleteCustomer,
+  fetchCnpjData,
   getCustomerHistory,
   listCustomers,
   saveCustomerAddress,
@@ -16,6 +17,7 @@ import { isValidCpf } from "@/shared/domain/formatters";
 import { ConfirmDialog, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
   emptyCustomerForm,
+  applyCnpjData,
   customerFormFromCustomer,
   customerPayload,
   customerUpdatePayload,
