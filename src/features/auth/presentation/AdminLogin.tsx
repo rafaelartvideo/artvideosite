@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AlertCircle, Clock, Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { authenticateAdmin } from "@/features/auth/infrastructure/auth.repository";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 
@@ -20,31 +20,12 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
     setLoading(true);
     setError("");
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    const result = await authenticateAdmin(email, password);
 
-    if (authError) {
+    if (result === "invalid_credentials") {
       setError("Credenciais inválidas. Verifique seu e-mail e senha.");
-      setLoading(false);
-      return;
-    }
-
-    if (data.user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_active")
-        .eq("id", data.user.id)
-        .single();
-
-      if (profile?.is_active === false) {
-        await supabase.auth.signOut();
-        setError("Usuário inativo. Entre em contato com o gestor.");
-        setLoading(false);
-        return;
-      }
+    } else if (result === "inactive_user") {
+      setError("Usuário inativo. Entre em contato com o gestor.");
     }
 
     setLoading(false);
