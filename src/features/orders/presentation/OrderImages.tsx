@@ -1,85 +1,9 @@
 import { useRef } from "react";
 import { Camera, Upload, X } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
-import { createMediaRecord } from "@/shared/infrastructure/media.repository";
 import { Section } from "@/shared/ui/admin/AdminLayout";
-import {
-  removeOrderImageFile,
-  uploadOrderImageFile,
-} from "../infrastructure/order-images.repository";
-
 import type { OrderImage } from "../domain/order-image";
 export type { OrderImage } from "../domain/order-image";
-
-export async function uploadOrderImage(file: File) {
-  const extension =
-    file.name
-      .split(".")
-      .pop()
-      ?.toLowerCase() || "jpg";
-
-  const path =
-    `orders/${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}.${extension}`;
-
-  /* =====================================================
-     1. Upload físico para Storage
-     ===================================================== */
-
-  const { error: uploadError } = await uploadOrderImageFile(path, file);
-
-  if (uploadError) {
-    console.error(
-      "[MEDIA] Storage upload error:",
-      uploadError
-    );
-
-    throw uploadError;
-  }
-
-  /* =====================================================
-     2. Registrar mídia através da Edge Function
-     ===================================================== */
-
-  try {
-    const mediaId =
-      await createMediaRecord({
-        bucket:
-          "service-images",
-
-        path,
-
-        file,
-      });
-
-    return mediaId;
-  } catch (error) {
-    /*
-     * O arquivo foi enviado para Storage, mas o registro
-     * em public.media falhou.
-     *
-     * Tenta limpar o arquivo órfão para não deixar lixo
-     * no bucket.
-     */
-
-    console.error(
-      "[MEDIA] Media record error:",
-      error
-    );
-
-    const { error: removeError } = await removeOrderImageFile(path);
-
-    if (removeError) {
-      console.warn(
-        "[MEDIA] Could not remove orphan storage file:",
-        removeError
-      );
-    }
-
-    throw error;
-  }
-}
 
 export function OrderImageThumb({ image, onRemove, onView }: { image: OrderImage; onRemove?: () => void; onView?: () => void }) {
   const { url: mediaUrl, loading, error } = useMediaUrl(image.mediaId);

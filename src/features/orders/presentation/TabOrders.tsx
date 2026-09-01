@@ -17,21 +17,9 @@ import {
   TestResultModal,
 } from "@/features/orders/presentation/PartRequestModals";
 import { validateOrderResolution } from "@/features/orders/application/order-resolution";
-import {
-  buildOrderPayload,
-  prepareOrderForm,
-} from "@/features/orders/application/order-form";
-import { persistServiceOrder } from "@/features/orders/application/order-submission";
-import {
-  getOrderEditState,
-  getOrderSubmissionStatus,
-  removeServiceOrder,
-} from "@/features/orders/application/order-management";
-import {
-  OrderImageLightbox,
-  OrderImagesField,
-  uploadOrderImage,
-} from "@/features/orders/presentation/OrderImages";
+import { useOrderEditorWorkflow } from "@/features/orders/application/useOrderEditorWorkflow";
+import { removeServiceOrder } from "@/features/orders/application/order-management";
+import { OrderImageLightbox, OrderImagesField } from "@/features/orders/presentation/OrderImages";
 import { useOrderImages } from "@/features/orders/application/useOrderImages";
 import { useOrderPartRequests } from "@/features/orders/application/useOrderPartRequests";
 import { useOrdersWorkspace } from "@/features/orders/application/useOrdersWorkspace";
@@ -84,6 +72,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const formState = useOrderFormState();
   const {
     formOpen,
     editingOS,
@@ -103,7 +92,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     openNewForm,
     hydrateOrderForm,
     closeOrderForm,
-  } = useOrderFormState();
+  } = formState;
 
   const imagesController = useOrderImages();
   const {
@@ -121,6 +110,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     removeSolutionImage,
   } = imagesController;
 
+  const customerSelection = useOrderCustomerSelection();
   const {
     customerSearch,
     customerResults,
@@ -138,7 +128,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     selectCustomer: selectCustomerState,
     hydrateCustomer,
     clearCustomer,
-  } = useOrderCustomerSelection();
+  } = customerSelection;
 
   const serviceAddress = useOrderServiceAddress({
     form,
@@ -165,10 +155,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     hydrateServiceAddress,
   } = serviceAddress;
 
-  const {
-    saveCustomer,
-    saveCustomerBeforeOrder,
-  } = useOrderCustomerPersistence({
+  const customerPersistence = useOrderCustomerPersistence({
     selectedCustomer,
     setSelectedCustomer,
     setEditingCustomer,
@@ -178,24 +165,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setSaving,
     hasPermission,
     showToast: setToast,
-  });
-
-  const selectCustomer = (customer: any) => {
-    const address = selectCustomerState(customer);
-    upF("customer_id", customer.id);
-    if (form.order_type !== "external" || !serviceUseCustomerAddress) return;
-    if (address) {
-      setServiceAddressMessage("");
-      setServiceCustomerAddressOverride(true);
-      copyCustomerAddressToForm(address);
-    } else {
-      setServiceUseCustomerAddress(false);
-      setServiceAddressMessage(
-        "Este cliente não possui endereço cadastrado. Preencha o local do atendimento.",
-      );
-      clearServiceAddress();
-    }
-  };
+  })
+  const {
+    saveCustomer,
+    saveCustomerBeforeOrder,
+  } = customerPersistence;
 
   const partRequests = useOrderPartRequests({
     reloadOrders: reloadWorkspace,
@@ -297,6 +271,22 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     saveOrderSolution,
   } = resolutionController;
 
+  const orderEditor = useOrderEditorWorkflow({
+    userId: user?.id,
+    workspace,
+    formState,
+    images: imagesController,
+    customers: customerSelection,
+    address: serviceAddress,
+    customerPersistence,
+    details: detailsController,
+    hasPermission,
+    showToast: setToast,
+    setSaving,
+    formatError: supabaseErrorMessage,
+  });
+  const { selectCustomer, openNew, openEdit, save: saveOS } = orderEditor;
+
   const listMutations = useOrderListMutations({
     orders,
     setOrders,
@@ -330,97 +320,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     onFocused?.();
   }, [initialOrderId, loading, orders]);
 
-
-  const openNew = () => {
-    openNewForm();
-    resetServiceAddressState();
-    clearOrderImages();
-    setViewImage(null);
-    clearCustomer();
-  };
-
-  const openEdit = async (o: any) => {
-    const { data: currentOrder, error: currentOrderError } = await getOrderEditState(o.id);
-    if (currentOrderError) {
-      setToast({ msg: `Não foi possível verificar o estado da OS: ${supabaseErrorMessage(currentOrderError)}`, type: "error" });
-      return;
-    }
-    if (currentOrder?.is_solved || o.is_solved) {
-      setToast({ msg: "Esta OS está solucionada e é somente leitura.", type: "error" });
-      return;
-    }
-    await loadOrderImages(o.id);
-    hydrateOrderForm(o);
-    hydrateServiceAddress({
-      useCustomerAddress: o.order_type === "external" && o.service_address_source === "customer",
-      state: o.order_type === "external" ? o.service_state : undefined,
-      city: o.order_type === "external" ? o.service_city : undefined,
-    });
-    hydrateCustomer((o.customer as any) || null);
-  };
-
-  const saveOS = async () => {
-    if (editingOS ? !hasPermission("orders.edit") : !hasPermission("orders.create")) { setToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" }); return; }
-    const preparation = prepareOrderForm({
-      form,
-      editingOrder: editingOS,
-      userId: user?.id,
-      selectedCustomerId: selectedCustomer?.id,
-      serviceUseCustomerAddress,
-      serviceCustomerAddressOverride,
-      selectedServiceAddress,
-      needsScheduling,
-      equipmentBrands,
-      equipmentModels,
-    });
-    if ("error" in preparation) {
-      setToast({ msg: preparation.error, type: "error" });
-      return;
-    }
-    const { status, error: statusError } = await getOrderSubmissionStatus({
-      editingOrder: editingOS,
-      statusId: form.status_id,
-    });
-    if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status válido para a OS.", type: "error" }); return; }
-    setSaving(true);
-    if (
-      editingCustomer &&
-      selectedCustomer?.id &&
-      !(await saveCustomerBeforeOrder())
-    ) return;
-    const payload = buildOrderPayload({
-      form,
-      editingOrder: editingOS,
-      userId: user?.id,
-      statusId: status.id,
-      prepared: preparation.prepared,
-      selectedTechnicianIds,
-      selectedSellerIds,
-      needsScheduling,
-      serviceUseCustomerAddress,
-    });
-    const submission = await persistServiceOrder({
-      editingOrder: editingOS,
-      payload,
-      selectedTechnicianIds,
-      selectedSellerIds,
-      orderImages,
-      uploadImage: uploadOrderImage,
-    });
-    if (!submission.success) {
-      setSaving(false);
-      const message = submission.stage === "record"
-        ? `Erro ao salvar OS: ${supabaseErrorMessage(submission.error)}`
-        : submission.stage === "relations"
-          ? `OS salva, mas não foi possível atualizar técnicos/vendedores: ${supabaseErrorMessage(submission.error)}`
-          : `OS salva, mas houve erro nas imagens: ${supabaseErrorMessage(submission.error)}`;
-      setToast({ msg: message, type: "error" });
-      return;
-    }
-    setSaving(false);
-    setToast({ msg: `OS ${editingOS ? "atualizada" : "criada"} com sucesso!`, type: "success" });
-    closeOrderForm(); closeDetail(); reloadWorkspace();
-  };
 
   const handleDeleteOrder = async (id: string) => {
     if (!hasPermission("orders.delete")) return;
