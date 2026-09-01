@@ -6,10 +6,9 @@ import { deleteCustomer, listCustomers } from "../infrastructure/customers.repos
 type Options = {
   canDelete: boolean;
   onToast: (message: string, type: "success" | "error") => void;
-  onRemoved: () => void;
 };
 
-export function useCustomersList({ canDelete, onToast, onRemoved }: Options) {
+export function useCustomersList({ canDelete, onToast }: Options) {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: queryKeys.customers.lists(), queryFn: listCustomers });
   const customers = query.data ?? [];
@@ -49,17 +48,18 @@ export function useCustomersList({ canDelete, onToast, onRemoved }: Options) {
   }, [page, totalPages]);
 
   const remove = async (id: string) => {
-    if (!canDelete) return;
+    if (!canDelete) return false;
     try {
       await deleteCustomer(id);
       onToast("Cliente excluído.", "success");
-      onRemoved();
       await refresh();
+      return true;
     } catch (error) {
       onToast(
         `Não foi possível excluir o cliente: ${error instanceof Error ? error.message : String(error)}`,
         "error",
       );
+      return false;
     } finally {
       setDeleteId(null);
     }

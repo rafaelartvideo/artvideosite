@@ -13,18 +13,12 @@ export function useCustomersController({ canCreate, canEdit, canDelete }: Option
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const notify = (msg: string, type: "success" | "error") => setToast({ msg, type });
 
-  let closeDetails = () => {};
-  const list = useCustomersList({
-    canDelete,
-    onToast: notify,
-    onRemoved: () => closeDetails(),
-  });
+  const list = useCustomersList({ canDelete, onToast: notify });
   const details = useCustomerDetails({
     canEdit,
     onRefresh: list.refresh,
     onToast: notify,
   });
-  closeDetails = details.close;
   const creation = useCreateCustomer({
     canCreate,
     onRefresh: list.refresh,

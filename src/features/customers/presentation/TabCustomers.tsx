@@ -20,7 +20,7 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {list.deleteId && <ConfirmDialog
       message="Excluir este cliente? Esta ação remove o registro principal e pode falhar se houver dependências existentes no schema."
-      onConfirm={() => { void list.remove(list.deleteId as string); }}
+      onConfirm={() => { void list.remove(list.deleteId as string).then((removed) => { if (removed) details.close(); }); }}
       onCancel={() => list.setDeleteId(null)}
     />}
 
