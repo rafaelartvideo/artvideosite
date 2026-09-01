@@ -27,6 +27,8 @@ type Props = {
   savingAddress: boolean;
   canEdit: boolean;
   onSaveCustomer: () => void;
+  onEdit?: () => void;
+  onCancelEdit?: () => void;
   onSaveAddress: () => void;
   onOpenOrder?: (id: string) => void;
   onClose: () => void;
@@ -42,11 +44,11 @@ export function CustomerDetailsPage(props: Props) {
     editAddress, setEditAddress, editingCustomerData, setEditingCustomerData,
     editingCustomerAddress, setEditingCustomerAddress, savingCustomer,
     savingAddress, canEdit, onSaveCustomer: handleSaveCustomerData,
-    onSaveAddress: handleSaveCustomerAddress, onOpenOrder, onClose,
+    onSaveAddress: handleSaveCustomerAddress, onOpenOrder, onClose, onEdit, onCancelEdit,
   } = props;
   return <>
 {detail && (
-        <AdminPage open={true} onClose={() => onClose()} breadcrumb="Clientes" title={detail.full_name} subtitle={detail.customer_type === "PJ" ? (detail.cnpj ? formatCnpj(detail.cnpj) : "Pessoa Jurídica") : (detail.document ? formatCpf(detail.document) : "Pessoa Física")} maxW="max-w-2xl">
+        <AdminPage open={true} onClose={() => onClose()} breadcrumb="Clientes" title={detail.full_name} subtitle={detail.customer_type === "PJ" ? (detail.cnpj ? formatCnpj(detail.cnpj) : "Pessoa Jurídica") : (detail.document ? formatCpf(detail.document) : "Pessoa Física")} maxW="max-w-5xl">
           <div className="p-5 space-y-5">
             {/* Customer info */}
             <Section title="Informações do cliente">
@@ -71,7 +73,7 @@ export function CustomerDetailsPage(props: Props) {
                   </div>
                   <div className="flex gap-2 pt-1">
                     {canEdit && <BtnPrimary onClick={() => void handleSaveCustomerData()} disabled={savingCustomer}>{savingCustomer ? "Salvando..." : "Salvar alterações"}</BtnPrimary>}
-                    <BtnSecondary onClick={() => { setEditForm(customerFormFromCustomer(detail)); setEditingCustomerData(false); }}>Cancelar</BtnSecondary>
+                    <BtnSecondary onClick={() => { setEditForm(customerFormFromCustomer(detail)); setEditingCustomerData(false); onCancelEdit?.(); }}>Cancelar</BtnSecondary>
                   </div>
                 </div>
               ) : (
@@ -92,7 +94,7 @@ export function CustomerDetailsPage(props: Props) {
                     <div className="sm:col-span-2"><p className="text-[10px] text-[#5a6a82] font-bold uppercase">E-mail</p><p className="font-medium text-[#0d1b2e]">{detail.email || "—"}</p></div>
                     <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Cadastrado em</p><p className="font-medium text-[#0d1b2e]">{fmtDate(detail.created_at)}</p></div>
                   </div>
-                  {canEdit && <button onClick={() => setEditingCustomerData(true)} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
+                  {canEdit && <button onClick={() => { setEditingCustomerData(true); onEdit?.(); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
                     <Edit2 size={12} /> Editar dados
                   </button>}
                 </div>
