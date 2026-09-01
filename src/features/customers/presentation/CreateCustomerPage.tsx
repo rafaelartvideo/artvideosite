@@ -34,7 +34,7 @@ export function CreateCustomerPage(props: Props) {
   } = props;
   return <>
 {createOpen && (
-        <AdminPage open={true} onClose={() => onClose} breadcrumb="Clientes" title="Novo cliente" subtitle="Preencha os dados do cliente" maxW="max-w-2xl">
+        <AdminPage open={true} onClose={onClose} breadcrumb="Clientes" title="Novo cliente" subtitle="Preencha os dados do cliente" maxW="max-w-5xl">
           <div className="p-5 space-y-5">
             <Section title="Dados do cliente">
               <div className="grid sm:grid-cols-2 gap-4">
@@ -64,7 +64,7 @@ export function CreateCustomerPage(props: Props) {
             </Section>
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
-            <BtnSecondary onClick={() => onClose}>Cancelar</BtnSecondary>
+            <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
             {canCreate && <BtnPrimary onClick={onCreate} disabled={saving}>{saving ? "Salvando..." : "Cadastrar Cliente"}</BtnPrimary>}
           </div>
         </AdminPage>
