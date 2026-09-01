@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
-import { QuickEquipmentModal } from "@/features/orders/presentation/OrderQuickCreateModals";
-import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPage";
 import { OrderCustomerSection } from "@/features/orders/presentation/OrderCustomerSection";
@@ -9,17 +7,10 @@ import { OrderEquipmentSection } from "@/features/orders/presentation/OrderEquip
 import { OrderInformationSection } from "@/features/orders/presentation/OrderInformationSection";
 import { OrderServiceLocationSection } from "@/features/orders/presentation/OrderServiceLocationSection";
 import { OrderFormActions } from "@/features/orders/presentation/OrderFormActions";
-import { OrderResolutionPage } from "@/features/orders/presentation/OrderResolutionPage";
-import {
-  PartRequestModal,
-  ReviewPartRequestModal,
-  TestDeliveryModal,
-  TestResultModal,
-} from "@/features/orders/presentation/PartRequestModals";
-import { validateOrderResolution } from "@/features/orders/application/order-resolution";
 import { useOrderEditorWorkflow } from "@/features/orders/application/useOrderEditorWorkflow";
 import { removeServiceOrder } from "@/features/orders/application/order-management";
-import { OrderImageLightbox, OrderImagesField } from "@/features/orders/presentation/OrderImages";
+import { OrderImagesField } from "@/features/orders/presentation/OrderImages";
+import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
 import { useOrderImages } from "@/features/orders/application/useOrderImages";
 import { useOrderPartRequests } from "@/features/orders/application/useOrderPartRequests";
 import { useOrdersWorkspace } from "@/features/orders/application/useOrdersWorkspace";
@@ -31,6 +22,15 @@ import { useOrderResolution } from "@/features/orders/application/useOrderResolu
 import { useOrderDetails } from "@/features/orders/application/useOrderDetails";
 import { useOrderFormState } from "@/features/orders/application/useOrderFormState";
 import { useOrderCustomerPersistence } from "@/features/orders/application/useOrderCustomerPersistence";
+import {
+  equipmentSummary,
+  formatOrderCurrency,
+  formatOrderDate,
+  slaForOrder,
+  stateLabel,
+  situationsForType,
+  usedItemsTotal,
+} from "@/features/orders/application/order-display-rules";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { Toast, ConfirmDialog } from "@/shared/ui/admin/AdminFeedback";
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";
@@ -340,31 +340,20 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     window.localStorage.setItem("os_view_mode", mode);
   };
 
-  const fmtDate = (d?: string | null, time = false) => {
-    if (!d) return "—";
-    return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", ...(time ? { hour: "2-digit", minute: "2-digit" } : {}) });
-  };
+  const fmtDate = formatOrderDate;
 
-  const equipmentSummary = (o: any) => {
-    const type = (o.equipment_type as any)?.name;
-    const brand = (o.equipment_brand as any)?.name;
-    const model = (o.equipment_model as any)?.name || o.model;
-    const pieces = [type, [brand, model].filter(Boolean).join(" ")].filter(Boolean);
-    return pieces.join(" • ") || "—";
-  };
 
-  const stateLabel = (state: unknown) => {
-    const sigla = String(state ?? "").trim().toUpperCase();
-    if (!sigla) return "";
-    const ibgeState = ibgeStates.find(item => item.sigla.trim().toUpperCase() === sigla);
-    return ibgeState ? `${sigla} — ${ibgeState.nome}` : sigla;
-  };
+  const getEquipmentSummary = equipmentSummary;
+
+
+  const getStateLabel = (value: unknown) => stateLabel(value, ibgeStates);
+
 
   const filters = useOrderFilters({
     orders,
     stateOptions: ibgeStates,
-    getStateLabel: stateLabel,
-    getEquipmentSummary: equipmentSummary,
+    getStateLabel,
+    getEquipmentSummary,
   });
   const {
     search,
@@ -401,32 +390,18 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     orderLabel,
     clearFilters,
   } = filters;
-  const getSituationsForType = (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) => {
-    const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId).sort((left, right) => Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0));
-    if (links.length === 0) return situations;
-    const linkedSituationIds = new Set(links.map(link => link.situation_id));
-    const allowed = links.map(link => situations.find(situation => situation.id === link.situation_id)).filter(Boolean);
-    const historical = currentSituationId && !linkedSituationIds.has(currentSituationId) ? [currentSituation || situations.find(situation => situation.id === currentSituationId)].filter(Boolean) : [];
-    return [...historical, ...allowed];
-  };
+  const getSituationsForType = (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) =>
+    situationsForType(serviceTypeId, serviceTypeSituations, situations, currentSituationId, currentSituation);
 
-  const getSlaForOrder = (serviceTypeId?: string, situationId?: string, relatedSituation?: any) => {
-    const link = serviceTypeSituations.find(item => item.service_type_id === serviceTypeId && item.situation_id === situationId);
-    const situation = situations.find(item => item.id === situationId) || relatedSituation;
-    if (!link || !situation) return null;
-    const hours = Number(link.use_default_hours ? situation.hours : link.sla_hours);
-    return Number.isFinite(hours) && hours > 0 ? { hours, isDefault: link.use_default_hours !== false } : null;
-  };
+
+  const getSlaForOrder = (serviceTypeId?: string, situationId?: string, relatedSituation?: any) =>
+    slaForOrder(serviceTypeId, situationId, relatedSituation, serviceTypeSituations, situations);
+
 
   if (subView === "situations") return <OSSituationsView onBack={() => setSubView("list")} />;
 
-  const formatSolvedAt = (value: string) => Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value)).replace(", ", " às ");
-  const formatCurrency = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-  const detailUsedItemsTotal = detailUsedItems.reduce((total, item) => {
-    if (item.total_sale_price == null) return total;
-    const itemTotal = Number(item.total_sale_price);
-    return Number.isFinite(itemTotal) ? total + itemTotal : total;
-  }, 0);
+  const formatCurrency = formatOrderCurrency;
+  const detailUsedItemsTotal = usedItemsTotal(detailUsedItems);
 
   return (
     <div className="space-y-5">
@@ -560,49 +535,17 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
           />
         </AdminPage>
       )}
-      {quickEquipment && <QuickEquipmentModal
-        onClose={() => setQuickEquipment(false)}
-        onSaved={({ type, brand, model }) => {
-          setEquipmentTypes(current => [...current, type]);
-          setEquipmentBrands(current => [...current, brand]);
-          setEquipmentModels(current => [...current, model]);
-          setForm(current => ({ ...current, equipment_type_id: type.id, equipment_brand_id: brand.id, equipment_model_id: model.id }));
-        }}
-      />}
-      {quickCustomer && <QuickCustomerModal
-        onClose={() => setQuickCustomer(false)}
-        onSaved={selectCustomer}
-      />}
-      <OrderResolutionPage
-        open={solveOpen}
+      <OrderWorkflowModals
         detail={detail}
-        solveDraft={solveDraft}
-        setSolveDraft={setSolveDraft}
-        inventoryItems={inventoryItems}
-        orderImages={orderImages}
-        solutionImages={solutionImages}
-        onAddSolutionImages={addSolutionImages}
-        onRemoveSolutionImage={removeSolutionImage}
         saving={saving}
-        onClose={() => setSolveOpen(false)}
-        onViewImage={setViewImage}
-        onSubmit={() => {
-          const validationError = validateOrderResolution(solveDraft, inventoryItems);
-          if (validationError) {
-            setToast({ msg: validationError, type: "error" });
-            return;
-          }
-          void saveOrderSolution(detail.id);
-        }}
+        workspace={workspace}
+        formState={formState}
+        images={imagesController}
+        resolution={resolutionController}
+        partRequests={partRequests}
+        onSelectCustomer={selectCustomer}
+        setToast={setToast}
       />
-      {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
-      {partRequestOpen && detail && (
-        <PartRequestModal orderNumber={detail.os_number} inventoryItems={partRequestInventory} inventoryLoading={partRequestInventoryLoading} inventoryError={partRequestInventoryError} selectedItems={selectedPartRequestItems} search={partRequestSearch} notes={partRequestNotes} purpose={partRequestPurpose} submitting={partRequestSubmitting} onPurposeChange={setPartRequestPurpose} onSearchChange={setPartRequestSearch} onNotesChange={setPartRequestNotes} onSelect={selectPartRequestItem} onQuantityChange={updatePartRequestQuantity} onRemove={removePartRequestItem} onClose={closePartRequestModal} onSubmit={() => void submitPartRequest(detail.id)} />
-      )}
-      {partApprovalOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={false} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={approvePartRequest} />}
-      {partRejectionOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={true} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={rejectPartRequest} />}
-      {deliveryOpen && selectedDeliveryRequest && <TestDeliveryModal request={selectedDeliveryRequest} orderNumber={detail?.os_number} submitting={deliverySubmitting} onClose={closeDeliveryRequest} onSubmit={() => void deliverTestRequest()} />}
-      {testResultOpen && selectedTestRequest && <TestResultModal request={selectedTestRequest} rows={testResultRows} submitting={testResultSubmitting} getPendingQuantity={getTestPendingQuantity} onRowsChange={setTestResultRows} onClose={closeTestResult} onSubmit={() => void submitTestResults()} />}
     </div>
   );
 }
