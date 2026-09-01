@@ -2,15 +2,11 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPage";
-import { OrderCustomerSection } from "@/features/orders/presentation/OrderCustomerSection";
-import { OrderEquipmentSection } from "@/features/orders/presentation/OrderEquipmentSection";
-import { OrderInformationSection } from "@/features/orders/presentation/OrderInformationSection";
-import { OrderServiceLocationSection } from "@/features/orders/presentation/OrderServiceLocationSection";
-import { OrderFormActions } from "@/features/orders/presentation/OrderFormActions";
 import { useOrderEditorWorkflow } from "@/features/orders/application/useOrderEditorWorkflow";
 import { removeServiceOrder } from "@/features/orders/application/order-management";
-import { OrderImagesField } from "@/features/orders/presentation/OrderImages";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
+import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage";
+import { OSSituationsView } from "@/features/order-situations/presentation/OSSituationsView";
 import { useOrderImages } from "@/features/orders/application/useOrderImages";
 import { useOrderPartRequests } from "@/features/orders/application/useOrderPartRequests";
 import { useOrdersWorkspace } from "@/features/orders/application/useOrdersWorkspace";
@@ -34,7 +30,6 @@ import {
 } from "@/features/orders/application/order-display-rules";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { Toast, ConfirmDialog } from "@/shared/ui/admin/AdminFeedback";
-import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type OrderType = "internal" | "external";
@@ -450,92 +445,21 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         onDelete={setDeleteId}
       />
 
-      {/* OS Create/Edit Page */}
-      {formOpen && (
-        <AdminPage open={true} onClose={closeOrderForm} breadcrumb={editingOS ? `Ordens de Serviço > OS #${editingOS.os_number || editingOS.id.slice(0,8)}` : "Ordens de Serviço"} title={editingOS ? "Editar OS" : "Nova OS"} subtitle={editingOS ? "Atualize os dados do atendimento" : "Cadastre os dados do atendimento"} maxW="max-w-2xl" fullPage={Boolean(editingOS)}>
-          <div className="p-5 space-y-5">
-            {/* Cliente */}
-            <OrderCustomerSection
-              selectedCustomer={selectedCustomer}
-              editingCustomer={editingCustomer}
-              customerDraft={customerDraft}
-              customerAddressDraft={customerAddressDraft}
-              saving={saving}
-              editingOrder={Boolean(editingOS)}
-              addressExpanded={addressExpanded}
-              customerSearch={customerSearch}
-              customerResults={customerResults}
-              hasPermission={hasPermission}
-              setCustomerDraft={setCustomerDraft}
-              setCustomerAddressDraft={setCustomerAddressDraft}
-              setEditingCustomer={setEditingCustomer}
-              setAddressExpanded={setAddressExpanded}
-              saveCustomer={() => { void saveCustomer(); }}
-              searchCustomers={(query) => { void searchCustomers(query); }}
-              selectCustomer={selectCustomer}
-              onClearCustomer={() => { clearCustomer(); upF("customer_id", ""); }}
-              onCreateCustomer={() => setQuickCustomer(true)}
-            />
-
-            <OrderEquipmentSection
-              form={form}
-              equipmentTypes={equipmentTypes}
-              equipmentBrands={equipmentBrands}
-              equipmentModels={equipmentModels}
-              editing={Boolean(editingOS)}
-              canCreate={hasPermission("equipment.create")}
-              onFieldChange={upF}
-              onCreateEquipment={() => setQuickEquipment(true)}
-            />
-
-            <OrderServiceLocationSection
-              form={form}
-              setForm={setForm}
-              serviceUseCustomerAddress={serviceUseCustomerAddress}
-              setServiceUseCustomerAddress={setServiceUseCustomerAddress}
-              setServiceCustomerAddressOverride={setServiceCustomerAddressOverride}
-              selectedServiceAddress={selectedServiceAddress}
-              serviceAddressPreview={serviceAddressPreview}
-              serviceAddressMessage={serviceAddressMessage}
-              setServiceAddressMessage={setServiceAddressMessage}
-              ibgeStates={ibgeStates}
-              ibgeCities={ibgeCities}
-              ibgeStatesLoading={ibgeStatesLoading}
-              ibgeCitiesLoading={ibgeCitiesLoading}
-              onFieldChange={upF}
-              clearServiceAddress={clearServiceAddress}
-              copyCustomerAddressToForm={copyCustomerAddressToForm}
-              loadIbgeCities={loadIbgeCities}
-            />
-
-            <OrderImagesField images={orderImages} onAdd={addOrderImages} onRemove={removeOrderImage} onView={setViewImage} canEdit={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")} />
-
-            <OrderInformationSection
-              form={form}
-              editingOrder={editingOS}
-              serviceTypes={serviceTypes}
-              serviceTypeSituations={serviceTypeSituations}
-              generalServices={generalServices}
-              employees={employees}
-              selectedTechnicianIds={selectedTechnicianIds}
-              selectedSellerIds={selectedSellerIds}
-              canAssign={hasPermission("orders.assign")}
-              situations={situations}
-              onFieldChange={upF}
-              onTechniciansChange={setSelectedTechnicianIds}
-              onSellersChange={setSelectedSellerIds}
-              getSituations={getSituationsForType}
-              getSla={getSlaForOrder}
-            />
-          </div>
-          <OrderFormActions
-            saving={saving}
-            canSave={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
-            onCancel={closeOrderForm}
-            onSave={() => { void saveOS(); }}
-          />
-        </AdminPage>
-      )}
+      <OrderEditorPage
+        visible={formOpen}
+        saving={saving}
+        workspace={workspace}
+        formState={formState}
+        images={imagesController}
+        customers={customerSelection}
+        address={serviceAddress}
+        customerPersistence={customerPersistence}
+        hasPermission={hasPermission}
+        getSituations={getSituationsForType}
+        getSla={getSlaForOrder}
+        onSelectCustomer={selectCustomer}
+        onSave={saveOS}
+      />
       <OrderWorkflowModals
         detail={detail}
         saving={saving}
