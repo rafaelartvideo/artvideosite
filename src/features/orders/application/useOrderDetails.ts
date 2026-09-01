@@ -7,7 +7,7 @@ import {
   listServiceOrderStatusHistory,
   listServiceOrderUsedItems,
 } from "../infrastructure/orders.repository";
-import type { OrderImage } from "./OrderImages";
+import type { OrderImage } from "../domain/order-image";
 
 export function useOrderDetails({
   loadPartRequests,

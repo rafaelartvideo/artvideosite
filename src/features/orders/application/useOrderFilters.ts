@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   filterServiceOrders,
   sortServiceOrders,
-} from "../application/order-list";
-import { normalizeSearchText } from "../application/order-search";
+} from "./order-list";
+import { normalizeSearchText } from "./order-search";
 
 export type CityFilterOption = { name: string; state: string };
 

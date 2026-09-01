@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listServiceOrderMedia } from "../infrastructure/orders.repository";
-import type { OrderImage } from "./OrderImages";
+import type { OrderImage } from "../domain/order-image";
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGES = 5;

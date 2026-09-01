@@ -38,17 +38,17 @@ import {
   OrderImagesField,
   uploadOrderImage,
 } from "@/features/orders/presentation/OrderImages";
-import { useOrderImages } from "@/features/orders/presentation/useOrderImages";
-import { useOrderPartRequests } from "@/features/orders/presentation/useOrderPartRequests";
-import { useOrdersWorkspace } from "@/features/orders/presentation/useOrdersWorkspace";
-import { useOrderFilters } from "@/features/orders/presentation/useOrderFilters";
-import { useOrderListMutations } from "@/features/orders/presentation/useOrderListMutations";
-import { useOrderCustomerSelection } from "@/features/orders/presentation/useOrderCustomerSelection";
-import { useOrderServiceAddress } from "@/features/orders/presentation/useOrderServiceAddress";
-import { useOrderResolution } from "@/features/orders/presentation/useOrderResolution";
-import { useOrderDetails } from "@/features/orders/presentation/useOrderDetails";
-import { useOrderFormState } from "@/features/orders/presentation/useOrderFormState";
-import { useOrderCustomerPersistence } from "@/features/orders/presentation/useOrderCustomerPersistence";
+import { useOrderImages } from "@/features/orders/application/useOrderImages";
+import { useOrderPartRequests } from "@/features/orders/application/useOrderPartRequests";
+import { useOrdersWorkspace } from "@/features/orders/application/useOrdersWorkspace";
+import { useOrderFilters } from "@/features/orders/application/useOrderFilters";
+import { useOrderListMutations } from "@/features/orders/application/useOrderListMutations";
+import { useOrderCustomerSelection } from "@/features/orders/application/useOrderCustomerSelection";
+import { useOrderServiceAddress } from "@/features/orders/application/useOrderServiceAddress";
+import { useOrderResolution } from "@/features/orders/application/useOrderResolution";
+import { useOrderDetails } from "@/features/orders/application/useOrderDetails";
+import { useOrderFormState } from "@/features/orders/application/useOrderFormState";
+import { useOrderCustomerPersistence } from "@/features/orders/application/useOrderCustomerPersistence";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { Toast, ConfirmDialog } from "@/shared/ui/admin/AdminFeedback";
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";

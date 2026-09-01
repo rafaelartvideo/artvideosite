@@ -18,7 +18,7 @@ import {
 import {
   uploadOrderImage,
   type OrderImage,
-} from "./OrderImages";
+} from "../domain/order-image";
 
 type ToastMessage = { msg: string; type: "success" | "error" };
 type SolveDraft = {

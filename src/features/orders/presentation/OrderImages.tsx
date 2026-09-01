@@ -8,7 +8,8 @@ import {
   uploadOrderImageFile,
 } from "../infrastructure/order-images.repository";
 
-export type OrderImage = { key: string; mediaId?: string; url?: string; file?: File; name: string };
+import type { OrderImage } from "../domain/order-image";
+export type { OrderImage } from "../domain/order-image";
 
 export async function uploadOrderImage(file: File) {
   const extension =
