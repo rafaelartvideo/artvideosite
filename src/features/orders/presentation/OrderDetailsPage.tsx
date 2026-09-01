@@ -71,7 +71,7 @@ export function OrderDetailsPage(props: Props) {
               <OrderPartRequestsSection
                 requests={detailPartRequests}
                 assignedTo={detail.assigned_to}
-                currentUserId={user?.id}
+                currentUserId={userId}
                 hasPermission={hasPermission}
                 formatDate={fmtDate}
                 getCommittedQuantity={getTestCommittedQuantity}
@@ -83,7 +83,7 @@ export function OrderDetailsPage(props: Props) {
               />
               <OrderSolutionSummary
                 detail={detail}
-                profileName={profile?.full_name}
+                profileName={profileName}
                 usedItems={detailUsedItems}
                 solutionImages={detailSolutionImages}
                 usedItemsTotal={detailUsedItemsTotal}
