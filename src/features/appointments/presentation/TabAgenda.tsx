@@ -61,6 +61,8 @@ import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { AgendaEventCard } from "./AgendaEventCard";
 import { AppointmentDetailsDialog } from "./AppointmentDetailsDialog";
 import { createAppointmentForm } from "../application/appointment-form";
+import { AppointmentAddressDialog } from "./AppointmentAddressDialog";
+import { AppointmentTechniciansDialog } from "./AppointmentTechniciansDialog";
 
 export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const { user, hasPermission } = useAuth();
@@ -87,7 +89,6 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const [appointmentOrders, setAppointmentOrders] = useState<any[]>([]);
   const [appointmentForm, setAppointmentForm] = useState(createAppointmentForm);
   const [selectedAppointmentTechnicians, setSelectedAppointmentTechnicians] = useState<string[]>([]);
-  const [appointmentTechnicianSearch, setAppointmentTechnicianSearch] = useState("");
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const canViewAgenda = hasPermission("agenda.view") || hasPermission("orders.view");
@@ -305,8 +306,19 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
           <FTextarea label="Descrição" placeholder="O que será feito neste atendimento..." value={appointmentForm.description} onChange={event => setAppointmentForm(current => ({ ...current, description: event.target.value }))} rows={4} /><label className="flex items-center gap-2 text-sm font-semibold text-[#0d1b2e]"><Checkbox checked={appointmentForm.is_return} onCheckedChange={checked => setAppointmentForm(current => ({ ...current, is_return: checked === true }))} /> É retorno</label>
         </div>
         <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-5 py-4"><BtnSecondary onClick={() => setAppointmentModalOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void saveAppointment()} disabled={appointmentSaving || appointmentSituationsLoading}>{appointmentSaving ? "Agendando..." : <><Check size={15} /> Agendar</>}</BtnPrimary></div>
-        {appointmentSubmodal === "address" && <Dialog open onOpenChange={(open) => { if (!open) setAppointmentSubmodal(null); }}><DialogContent showClose={false} className="max-w-lg gap-0 rounded-xl bg-white p-5 shadow-2xl"><DialogTitle className="sr-only">Endereço do atendimento</DialogTitle><div className="mb-4 flex items-center justify-between"><h3 className="font-black text-[#0d1b2e]">Endereço do atendimento</h3><button type="button" aria-label="Fechar endereço" onClick={() => setAppointmentSubmodal(null)} className="rounded-full p-2 hover:bg-[#f5f7fa]"><X size={17} /></button></div><label className="mb-4 flex items-center gap-2 text-sm font-semibold"><Checkbox checked={appointmentForm.address_source === "customer"} onCheckedChange={checked => { if (checked === true && appointmentCustomer) { const address = (appointmentCustomer.addresses || []).find((item: Address) => item.is_default) || appointmentCustomer.addresses?.[0]; setAppointmentForm(current => ({ ...current, address_source: "customer", customer_address_id: address?.id || "", zip_code: address?.zip_code || "", street: address?.street || "", number: address?.number || "", complement: address?.complement || "", neighborhood: address?.neighborhood || "", city: address?.city || "", state: address?.state || "" })); } else setAppointmentForm(current => ({ ...current, address_source: "custom", customer_address_id: "" })); }} /> Usar endereço cadastrado do cliente</label><div className="grid gap-3 sm:grid-cols-2"><FInput label="CEP" value={appointmentForm.zip_code} onChange={event => setAppointmentForm(current => ({ ...current, zip_code: event.target.value }))} /><FInput label="Rua" value={appointmentForm.street} onChange={event => setAppointmentForm(current => ({ ...current, street: event.target.value }))} /><FInput label="Número" value={appointmentForm.number} onChange={event => setAppointmentForm(current => ({ ...current, number: event.target.value }))} /><FInput label="Complemento" value={appointmentForm.complement} onChange={event => setAppointmentForm(current => ({ ...current, complement: event.target.value }))} /><FInput label="Bairro" value={appointmentForm.neighborhood} onChange={event => setAppointmentForm(current => ({ ...current, neighborhood: event.target.value }))} /><FInput label="Cidade" value={appointmentForm.city} onChange={event => setAppointmentForm(current => ({ ...current, city: event.target.value }))} /><FInput label="Estado" value={appointmentForm.state} onChange={event => setAppointmentForm(current => ({ ...current, state: event.target.value }))} /></div><div className="mt-4 flex justify-end gap-2"><BtnSecondary onClick={() => setAppointmentSubmodal(null)}>Cancelar</BtnSecondary><BtnPrimary onClick={() => setAppointmentSubmodal(null)}>Confirmar</BtnPrimary></div></DialogContent></Dialog>}
-        {appointmentSubmodal === "technicians" && <Dialog open onOpenChange={(open) => { if (!open) setAppointmentSubmodal(null); }}><DialogContent showClose={false} className="max-w-lg gap-0 rounded-xl bg-white p-5 shadow-2xl"><DialogTitle className="sr-only">Selecionar técnicos</DialogTitle><div className="mb-4 flex items-center justify-between"><h3 className="font-black text-[#0d1b2e]">Selecionar Técnicos</h3><button type="button" aria-label="Fechar técnicos" onClick={() => setAppointmentSubmodal(null)} className="rounded-full p-2 hover:bg-[#f5f7fa]"><X size={17} /></button></div><FInput label="Buscar" value={appointmentTechnicianSearch} onChange={event => setAppointmentTechnicianSearch(event.target.value)} placeholder="Nome do técnico" /><div className="mt-3 max-h-56 space-y-2 overflow-y-auto">{appointmentTechnicians.filter(employee => employee.full_name.toLowerCase().includes(appointmentTechnicianSearch.toLowerCase())).map(employee => <label key={employee.id} className="flex items-center gap-2 rounded-lg p-2 text-sm hover:bg-[#f8fafc]"><Checkbox checked={selectedAppointmentTechnicians.includes(employee.id)} onCheckedChange={() => setSelectedAppointmentTechnicians(current => current.includes(employee.id) ? current.filter(id => id !== employee.id) : [...current, employee.id])} />{employee.full_name}</label>)}</div><div className="mt-4 flex justify-end"><BtnPrimary onClick={() => setAppointmentSubmodal(null)}>Confirmar</BtnPrimary></div></DialogContent></Dialog>}
+        {appointmentSubmodal === "address" && <AppointmentAddressDialog
+          form={appointmentForm}
+          customer={appointmentCustomer}
+          setForm={setAppointmentForm}
+          onClose={() => setAppointmentSubmodal(null)}
+          onZipBlur={() => void lookupAppointmentZip()}
+        />}
+        {appointmentSubmodal === "technicians" && <AppointmentTechniciansDialog
+          technicians={appointmentTechnicians}
+          selectedIds={selectedAppointmentTechnicians}
+          onSelectedIdsChange={setSelectedAppointmentTechnicians}
+          onClose={() => setAppointmentSubmodal(null)}
+        />}
       </DialogContent>
     </Dialog>
   </div>;
