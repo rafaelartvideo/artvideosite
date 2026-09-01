@@ -59,17 +59,17 @@ export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
   const create = async () => {
     if (!canCreate) {
       onToast("Você não possui permissão para cadastrar clientes.", "error");
-      return;
+      return false;
     }
     if (form.customerType === "PF" && !isValidCpf(form.document)) {
       setCpfError("CPF inválido. Verifique os números informados.");
       cpfInputRef.current?.focus();
-      return;
+      return false;
     }
     const validationError = validateCustomerForm(form);
     if (validationError) {
       onToast(validationError, "error");
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -79,7 +79,7 @@ export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
     } catch (error) {
       onToast(`Erro ao cadastrar: ${error instanceof Error ? error.message : "Cliente não criado."}`, "error");
       setSaving(false);
-      return;
+      return false;
     }
 
     if (Object.values(address).some(Boolean)) {
@@ -102,7 +102,7 @@ export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
         );
         setSaving(false);
         await onRefresh();
-        return;
+        return false;
       }
     }
 
@@ -113,6 +113,7 @@ export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
     setCpfError("");
     setSaving(false);
     await onRefresh();
+    return true;
   };
 
   return {
