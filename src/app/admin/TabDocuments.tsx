@@ -4,6 +4,10 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { PRINT_FIELD_REGISTRY } from "./printFieldRegistry";
 import { cn, INPUT, LoadingState, EmptyState, BtnPrimary } from "./shared";
+import {
+  PrintTemplateEditor,
+  emptyPrintTemplateEditorValue,
+} from "./PrintTemplateEditor";
 
 type PrintTemplate = {
   id: string;
