@@ -24,6 +24,7 @@ import {
 import { getGeneralServices } from "@/lib/queries";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/app/components/ui/dropdown-menu";
+import { OrderSituationImages } from "./OrderSituationImages";
 
 type OrderType = "internal" | "external";
 type ServiceAddressSource = "customer" | "custom";
@@ -2301,10 +2302,43 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
             </div>
           </Section>)}
 
-          {hasPermission("orders.section.images") && (<Section title="Imagens da OS">
-            {orderImages.length > 0 ? <div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem da OS cadastrada.</p>}
+          {hasPermission("orders.section.images") && (
+            <Section title="Imagens da OS">
+              <div className="space-y-4">
+                <OrderSituationImages
+                  orderId={detail.id}
+                  serviceTypeId={detail.service_type_id}
+                  currentSituationId={detail.situation_id}
+                  situations={situations}
+                  serviceTypeSituations={serviceTypeSituations}
+                  onView={image =>
+                    setViewImage({
+                      key: image.key,
+                      mediaId: image.mediaId,
+                      name: image.name,
+                    })
+                  }
+                />
+              
+                {orderImages.length > 0 && (
+                  <div className="border-t border-[#0d1b2e]/10 pt-4">
+                    <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-[#5a6a82]">
+                      Imagens anteriores da OS
+                    </p>
+              
+                    <div className="flex flex-wrap gap-3">
+                      {orderImages.map(image => (
+                        <OrderImageThumb
+                          key={image.key}
+                          image={image}
+                          onView={() => setViewImage(image)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
           </Section>)}
-
           {hasPermission("orders.section.images") && (<Section title="Imagens da solução">
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-xs text-[#5a6a82]">{solutionImages.length}/5 imagens</p>
