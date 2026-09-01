@@ -12,7 +12,7 @@ export type CalendarEvent =
   | { kind: "service_order"; id: string; date: string; order: any }
   | { kind: "appointment"; id: string; date: string; appointment: AppointmentWithRelations };
 
-type AgendaView = "month" | "week" | "day" | "agenda";
+export type AgendaView = "month" | "week" | "day" | "agenda";
 type AgendaFilters = {
   orders: any[];
   appointments: AppointmentWithRelations[];

@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Eraser, ListFilter, Plus, Search } from "lucide-react";
 import type { AppointmentSituation } from "@/lib/database.types";
-import { buildAgendaDays } from "../application/agenda-calendar";
+import { buildAgendaDays, type AgendaView } from "../application/agenda-calendar";
 import { cn } from "@/shared/domain/formatters";
 import { FSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 
-export type AgendaView = "month" | "week" | "day" | "agenda";
 
 type NamedItem = { id: string; name: string };
 type Employee = { id: string; full_name: string };
