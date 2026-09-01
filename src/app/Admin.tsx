@@ -3625,7 +3625,9 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
       ? "Visualização da tabela"
       : permission.key?.startsWith("orders.section.")
         ? "Visualização dos detalhes da OS"
-        : "Funções e ações";
+        : permission.key?.startsWith("orders.toolbar.")
+          ? "Barra de ferramentas"
+          : "Funções e ações";
     (sections[sectionName] ||= []).push(permission);
     return sections;
   }, {});
