@@ -10,81 +10,81 @@ export function TabCustomers({ onOpenOrder }: { onOpenOrder?: (id: string) => vo
   const canCreate = hasPermission("customers.create");
   const canEdit = hasPermission("customers.edit");
   const canDelete = hasPermission("customers.delete");
-  const controller = useCustomersController({ canCreate, canEdit, canDelete });
+  const { list, details, creation, toast, setToast } = useCustomersController({
+    canCreate,
+    canEdit,
+    canDelete,
+  });
 
   return <div className="space-y-5">
-    {controller.toast && <Toast
-      message={controller.toast.msg}
-      type={controller.toast.type}
-      onClose={() => controller.setToast(null)}
-    />}
-    {controller.deleteId && <ConfirmDialog
+    {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    {list.deleteId && <ConfirmDialog
       message="Excluir este cliente? Esta ação remove o registro principal e pode falhar se houver dependências existentes no schema."
-      onConfirm={() => { void controller.remove(controller.deleteId as string); }}
-      onCancel={() => controller.setDeleteId(null)}
+      onConfirm={() => { void list.remove(list.deleteId as string); }}
+      onCancel={() => list.setDeleteId(null)}
     />}
 
     <CustomersList
-      customers={controller.customers}
-      filtered={controller.filtered}
-      pagedCustomers={controller.pagedCustomers}
-      loading={controller.loading}
-      isFetching={controller.isFetching}
-      search={controller.search}
-      page={controller.page}
-      safePage={controller.safePage}
-      pageSize={controller.pageSize}
-      totalPages={controller.totalPages}
+      customers={list.customers}
+      filtered={list.filtered}
+      pagedCustomers={list.pagedCustomers}
+      loading={list.loading}
+      isFetching={list.isFetching}
+      search={list.search}
+      page={list.page}
+      safePage={list.safePage}
+      pageSize={list.pageSize}
+      totalPages={list.totalPages}
       canCreate={canCreate}
       canDelete={canDelete}
-      onSearchChange={controller.setSearch}
-      onPageChange={controller.setPage}
-      onPageSizeChange={controller.setPageSize}
-      onCreate={controller.openCreate}
-      onRefresh={() => { void controller.refetch(); }}
-      onOpenDetail={(customer) => { void controller.openDetail(customer); }}
-      onDelete={controller.setDeleteId}
+      onSearchChange={list.setSearch}
+      onPageChange={list.setPage}
+      onPageSizeChange={list.setPageSize}
+      onCreate={creation.openPage}
+      onRefresh={() => { void list.refetch(); }}
+      onOpenDetail={(customer) => { void details.open(customer); }}
+      onDelete={list.setDeleteId}
     />
 
     <CustomerDetailsPage
-      detail={controller.detail}
-      detailQuotes={controller.detailQuotes}
-      detailOrders={controller.detailOrders}
-      detailLoading={controller.detailLoading}
-      editForm={controller.editForm}
-      setEditForm={controller.setEditForm}
-      editAddress={controller.editAddress}
-      setEditAddress={controller.setEditAddress}
-      editingCustomerData={controller.editingCustomerData}
-      setEditingCustomerData={controller.setEditingCustomerData}
-      editingCustomerAddress={controller.editingCustomerAddress}
-      setEditingCustomerAddress={controller.setEditingCustomerAddress}
-      savingCustomer={controller.savingCustomer}
-      savingAddress={controller.savingAddress}
+      detail={details.detail}
+      detailQuotes={details.quotes}
+      detailOrders={details.orders}
+      detailLoading={details.loading}
+      editForm={details.form}
+      setEditForm={details.setForm}
+      editAddress={details.address}
+      setEditAddress={details.setAddress}
+      editingCustomerData={details.editingData}
+      setEditingCustomerData={details.setEditingData}
+      editingCustomerAddress={details.editingAddress}
+      setEditingCustomerAddress={details.setEditingAddress}
+      savingCustomer={details.savingCustomer}
+      savingAddress={details.savingAddress}
       canEdit={canEdit}
-      onSaveCustomer={() => { void controller.saveCustomer(); }}
-      onSaveAddress={() => { void controller.saveAddress(); }}
+      onSaveCustomer={() => { void details.saveCustomer(); }}
+      onSaveAddress={() => { void details.saveAddress(); }}
       onOpenOrder={onOpenOrder}
-      onClose={() => controller.setDetail(null)}
+      onClose={details.close}
     />
 
     <CreateCustomerPage
-      open={controller.createOpen}
-      form={controller.createForm}
-      setForm={controller.setCreateForm}
-      address={controller.createAddress}
-      setAddress={controller.setCreateAddress}
-      saving={controller.saving}
+      open={creation.open}
+      form={creation.form}
+      setForm={creation.setForm}
+      address={creation.address}
+      setAddress={creation.setAddress}
+      saving={creation.saving}
       canCreate={canCreate}
-      cpfError={controller.cpfError}
-      setCpfError={controller.setCpfError}
-      cpfInputRef={controller.cpfInputRef}
-      cnpjLoading={controller.cnpjLoading}
-      cnpjMessage={controller.cnpjMessage}
-      setCnpjMessage={controller.setCnpjMessage}
-      onLookupCnpj={controller.lookupCnpj}
-      onCreate={() => { void controller.create(); }}
-      onClose={controller.closeCreate}
+      cpfError={creation.cpfError}
+      setCpfError={creation.setCpfError}
+      cpfInputRef={creation.cpfInputRef}
+      cnpjLoading={creation.cnpjLoading}
+      cnpjMessage={creation.cnpjMessage}
+      setCnpjMessage={creation.setCnpjMessage}
+      onLookupCnpj={creation.lookupCnpj}
+      onCreate={() => { void creation.create(); }}
+      onClose={creation.closePage}
     />
   </div>;
 }
