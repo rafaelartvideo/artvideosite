@@ -22,7 +22,9 @@ type StateOption = { sigla: string; nome: string };
 type OrderSort = "" | "asc" | "desc";
 
 export function OrdersFilters({
-  search,
+  osNumberSearch,
+  externalOsSearch,
+  documentSearch,
   statusId,
   situationId,
   orderType,
@@ -40,7 +42,9 @@ export function OrdersFilters({
   statesLoading,
   citiesLoading,
   invalidPeriod,
-  onSearchChange,
+  onOsNumberSearchChange,
+  onExternalOsSearchChange,
+  onDocumentSearchChange,
   onStatusChange,
   onSituationChange,
   onOrderTypeChange,
@@ -55,7 +59,9 @@ export function OrdersFilters({
   onOrderSortChange,
   onClear,
 }: {
-  search: string;
+  osNumberSearch: string;
+  externalOsSearch: string;
+  documentSearch: string;
   statusId: string;
   situationId: string;
   orderType: string;
@@ -73,7 +79,9 @@ export function OrdersFilters({
   statesLoading: boolean;
   citiesLoading: boolean;
   invalidPeriod: boolean;
-  onSearchChange: (value: string) => void;
+  onOsNumberSearchChange: (value: string) => void;
+  onExternalOsSearchChange: (value: string) => void;
+  onDocumentSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onSituationChange: (value: string) => void;
   onOrderTypeChange: (value: string) => void;
@@ -101,17 +109,13 @@ export function OrdersFilters({
   const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
   return (
 <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 space-y-3">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="space-y-1.5">
-          <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">BUSCA</label>
-          <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-          <input value={search} onChange={e => onSearchChange(e.target.value)} placeholder="Nome, CPF, CNPJ, OS ou OS Externa..." className={cn(INPUT, "h-[42px] pl-9 py-2 text-xs")} />
-          </div>
-        </div>
-        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">STATUS</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} className="text-xs" ariaLabel="Filtrar por status" /></div>
-        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">SITUAÇÕES</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(s => ({ value: s.id, label: s.name }))]} className="text-xs" ariaLabel="Filtrar por situação" /></div>
-        <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">TIPO</label><AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="text-xs" ariaLabel="Filtrar por tipo da OS" /></div>
+        <div className="flex flex-wrap items-end gap-3">
+          <SearchField label="Número da OS" value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS" />
+          <SearchField label="OS externa" value={externalOsSearch} onChange={onExternalOsSearchChange} placeholder="Digite a OS externa" />
+          <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
+          <div className="min-w-48 flex-1 space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Status</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} className="text-xs" ariaLabel="Filtrar por status" /></div>
+          <div className="min-w-48 flex-1 space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Situação</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(s => ({ value: s.id, label: s.name }))]} className="text-xs" ariaLabel="Filtrar por situação" /></div>
+          <div className="min-w-48 flex-1 space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo</label><AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="text-xs" ariaLabel="Filtrar por tipo da OS" /></div>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
           <div>
@@ -152,8 +156,12 @@ export function OrdersFilters({
           </div>
         </div>
         <div className="flex justify-end">
-          {(search || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo) && <button type="button" onClick={onClear} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200"><Eraser size={14} />Limpar filtros</button>}
+          {(osNumberSearch || externalOsSearch || documentSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo) && <button type="button" onClick={onClear} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200"><Eraser size={14} />Limpar filtros</button>}
         </div>
       </div>
   );
+}
+
+function SearchField({ label, value, onChange, placeholder, inputMode }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; inputMode?: "numeric" }) {
+  return <div className="min-w-52 flex-1 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label><div className="relative overflow-hidden rounded-lg"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pl-9 py-2 text-xs")} /></div></div>;
 }

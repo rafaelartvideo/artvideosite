@@ -39,7 +39,8 @@ export function OrdersListWorkspace(props: Props) {
     statuses, situations, serviceTypes, loading, reloadWorkspace,
   } = workspace;
   const {
-    search, setSearch, filterStatus, setFilterStatus, filterSituation,
+    osNumberSearch, setOsNumberSearch, externalOsSearch, setExternalOsSearch,
+    documentSearch, setDocumentSearch, filterStatus, setFilterStatus, filterSituation,
     setFilterSituation, filterOrderType, setFilterOrderType,
     selectedServiceTypeId, setSelectedServiceTypeId, orderSort, setOrderSort,
     selectedStates, setSelectedStates, selectedCities, setSelectedCities,
@@ -67,7 +68,9 @@ export function OrdersListWorkspace(props: Props) {
       />
 
       <OrdersFilters
-        search={search}
+        osNumberSearch={osNumberSearch}
+        externalOsSearch={externalOsSearch}
+        documentSearch={documentSearch}
         statusId={filterStatus}
         situationId={filterSituation}
         orderType={filterOrderType}
@@ -85,7 +88,9 @@ export function OrdersListWorkspace(props: Props) {
         statesLoading={ibgeStatesLoading}
         citiesLoading={cityFiltersLoading}
         invalidPeriod={invalidPeriod}
-        onSearchChange={(value) => { setSearch(value); setPage(1); }}
+        onOsNumberSearchChange={(value) => { setOsNumberSearch(value); setPage(1); }}
+        onExternalOsSearchChange={(value) => { setExternalOsSearch(value); setPage(1); }}
+        onDocumentSearchChange={(value) => { setDocumentSearch(value); setPage(1); }}
         onStatusChange={(value) => { setFilterStatus(value); setPage(1); }}
         onSituationChange={(value) => { setFilterSituation(value); setPage(1); }}
         onOrderTypeChange={(value) => { setFilterOrderType(value as OrderType | ""); setPage(1); }}
@@ -111,7 +116,7 @@ export function OrdersListWorkspace(props: Props) {
         filteredOrders={filtered}
         pagedOrders={pagedOrders}
         statuses={statuses}
-        hasActiveFilters={Boolean(search || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo)}
+        hasActiveFilters={Boolean(osNumberSearch || externalOsSearch || documentSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo)}
         hasPermission={hasPermission}
         onOpen={openDetail}
         onStatusChange={updateOrderStatus}

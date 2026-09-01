@@ -22,7 +22,9 @@ export function useOrderFilters({
   getStateLabel: (value: string) => string;
   getEquipmentSummary: (order: any) => string;
 }) {
-  const [search, setSearch] = useState("");
+  const [osNumberSearch, setOsNumberSearch] = useState("");
+  const [externalOsSearch, setExternalOsSearch] = useState("");
+  const [documentSearch, setDocumentSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSituation, setFilterSituation] = useState("");
   const [filterOrderType, setFilterOrderType] = useState<OrderType | "">("");
@@ -94,7 +96,9 @@ export function useOrderFilters({
   const invalidPeriod = Boolean(dateFrom && dateTo && dateFrom > dateTo);
   const filteredOrders = filterServiceOrders({
     orders,
-    search,
+    osNumberSearch,
+    externalOsSearch,
+    documentSearch,
     statusId: filterStatus,
     situationId: filterSituation,
     orderType: filterOrderType,
@@ -120,7 +124,9 @@ export function useOrderFilters({
     : orderSort === "desc" ? "OS decrescente" : "Ordenar";
 
   const clearFilters = () => {
-    setSearch("");
+    setOsNumberSearch("");
+    setExternalOsSearch("");
+    setDocumentSearch("");
     setFilterStatus("");
     setFilterSituation("");
     setFilterOrderType("");
@@ -134,7 +140,9 @@ export function useOrderFilters({
   useEffect(() => {
     setPage(1);
   }, [
-    search,
+    osNumberSearch,
+    externalOsSearch,
+    documentSearch,
     filterStatus,
     filterSituation,
     filterOrderType,
@@ -151,8 +159,12 @@ export function useOrderFilters({
   }, [page, totalPages]);
 
   return {
-    search,
-    setSearch,
+    osNumberSearch,
+    setOsNumberSearch,
+    externalOsSearch,
+    setExternalOsSearch,
+    documentSearch,
+    setDocumentSearch,
     filterStatus,
     setFilterStatus,
     filterSituation,

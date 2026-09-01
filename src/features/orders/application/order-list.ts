@@ -9,7 +9,9 @@ type OrderSort = "asc" | "desc" | "";
 
 export const filterServiceOrders = ({
   orders,
-  search,
+  osNumberSearch,
+  externalOsSearch,
+  documentSearch,
   statusId,
   situationId,
   orderType,
@@ -24,7 +26,9 @@ export const filterServiceOrders = ({
   getEquipmentSummary,
 }: {
   orders: any[];
-  search: string;
+  osNumberSearch: string;
+  externalOsSearch: string;
+  documentSearch: string;
   statusId: string;
   situationId: string;
   orderType: string;
@@ -39,50 +43,22 @@ export const filterServiceOrders = ({
   getEquipmentSummary: (order: any) => string;
 }) =>
   orders.filter((order) => {
-    const query = normalizeSearchText(search);
-    const queryDigits = normalizeDigits(search);
-    const queryIdentifier = normalizeIdentifier(search);
+    const normalizedOsSearch = normalizeIdentifier(osNumberSearch);
+    const normalizedExternalSearch = normalizeIdentifier(externalOsSearch);
+    const normalizedDocumentSearch = normalizeDigits(documentSearch);
     const customer = order.customer || {};
     const normalizedState = normalizeSearchText(order.service_state);
-    const orderTypeLabel =
-      order.order_type === "external" ? "externa external" : "interna internal";
-    const searchableText = [
-      order.os_number,
-      `OS ${order.os_number || ""}`,
-      order.external_os_number,
-      orderTypeLabel,
-      order.service?.title,
-      customer.full_name,
-      customer.trade_name,
-      order.service_type?.title,
-      getEquipmentSummary(order),
-      order.model,
-      order.serial_number,
-      order.service_zip_code,
-      order.service_state,
-      getStateLabel(order.service_state),
-      order.service_city,
-      order.service_neighborhood,
-      order.service_street,
-      order.service_number,
-      order.service_complement,
-    ]
-      .map(normalizeSearchText)
-      .join(" ");
+    const normalizedOrderNumber = normalizeIdentifier(order.os_number);
+    const normalizedExternalNumber = normalizeIdentifier(order.external_os_number);
+    const customerIdentifiers = [customer.document, customer.cnpj].map(normalizeDigits);
 
-    const normalizedOrderNumbers = [
-      order.os_number,
-      `OS ${order.os_number || ""}`,
-    ].map(normalizeIdentifier);
-    const customerIdentifiers = [customer.document, customer.cnpj];
-    const matchesSearch =
-      !query ||
-      searchableText.includes(query) ||
-      normalizedOrderNumbers.some((value) => value.includes(queryIdentifier)) ||
-      (queryDigits.length > 0 &&
-        customerIdentifiers.some((value) =>
-          normalizeDigits(value).includes(queryDigits),
-        ));
+    const matchesOsNumber =
+      !normalizedOsSearch || normalizedOrderNumber.includes(normalizedOsSearch);
+    const matchesExternalOs =
+      !normalizedExternalSearch || normalizedExternalNumber.includes(normalizedExternalSearch);
+    const matchesDocument =
+      !normalizedDocumentSearch ||
+      customerIdentifiers.some(value => value.includes(normalizedDocumentSearch));
 
     const matchesState =
       states.length === 0 ||
@@ -116,7 +92,9 @@ export const filterServiceOrders = ({
         (!toExclusive || createdAt < toExclusive));
 
     return (
-      matchesSearch &&
+      matchesOsNumber &&
+      matchesExternalOs &&
+      matchesDocument &&
       (!statusId || order.status_id === statusId) &&
       (!situationId || order.situation_id === situationId) &&
       (!orderType || order.order_type === orderType) &&

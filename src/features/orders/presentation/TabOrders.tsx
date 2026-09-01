@@ -367,8 +367,12 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     getEquipmentSummary,
   });
   const {
-    search,
-    setSearch,
+    osNumberSearch,
+    setOsNumberSearch,
+    externalOsSearch,
+    setExternalOsSearch,
+    documentSearch,
+    setDocumentSearch,
     filterStatus,
     setFilterStatus,
     filterSituation,

@@ -98,6 +98,7 @@ export function OrderDetailsPage(props: Props) {
                 formatDate={fmtDate}
                 formatState={stateLabel}
                 getSla={getSlaForOrder}
+                hasPermission={hasPermission}
               />
               <OrderPartRequestsSection
                 requests={detailPartRequests}
