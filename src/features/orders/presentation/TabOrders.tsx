@@ -2,11 +2,8 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { QuickEquipmentModal } from "@/features/orders/presentation/OrderQuickCreateModals";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
-import { OrdersTable } from "@/features/orders/presentation/OrdersTable";
-import { OrdersKanban } from "@/features/orders/presentation/OrdersKanban";
-import { OrdersHeader } from "@/features/orders/presentation/OrdersHeader";
-import { OrdersFilters } from "@/features/orders/presentation/OrdersFilters";
 import { OrderSolutionSummary } from "@/features/orders/presentation/OrderSolutionSummary";
+import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderPartRequestsSection } from "@/features/orders/presentation/OrderPartRequestsSection";
 import { OrderDetailsContent } from "@/features/orders/presentation/OrderDetailsContent";
 import { OrderDetailsActions } from "@/features/orders/presentation/OrderDetailsActions";
@@ -57,6 +54,31 @@ import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 type OrderType = "internal" | "external";
 
 export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onFocused?: () => void }) {
+  const workspace = useOrdersWorkspace({ showToast: setToast });
+  const serviceAddress = useOrderServiceAddress({
+    form,
+    setForm,
+    selectedCustomer,
+  });
+  const listMutations = useOrderListMutations({
+    orders,
+    setOrders,
+    statuses,
+    situations,
+    detail,
+    setDetail,
+    userId: user?.id,
+    hasPermission,
+    showToast: setToast,
+    formatError: supabaseErrorMessage,
+    syncRelatedCaches: reloadWorkspace,
+  });
+  const filters = useOrderFilters({
+    orders,
+    stateOptions: ibgeStates,
+    getStateLabel: stateLabel,
+    getEquipmentSummary: equipmentSummary,
+  });
   const { user, profile, hasPermission } = useAuth();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [subView, setSubView] = useState<"list" | "situations">("list");
@@ -85,7 +107,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     generalServices,
     loading,
     reloadWorkspace,
-  } = useOrdersWorkspace({ showToast: setToast });
+  } = workspace;
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -162,11 +184,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     loadIbgeCities,
     resetServiceAddressState,
     hydrateServiceAddress,
-  } = useOrderServiceAddress({
-    form,
-    setForm,
-    selectedCustomer,
-  });
+  } = serviceAddress;
 
   const {
     saveCustomer,
@@ -308,19 +326,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     handleCardDragEnd,
     shouldSuppressCardOpen,
     handleDragLeave,
-  } = useOrderListMutations({
-    orders,
-    setOrders,
-    statuses,
-    situations,
-    detail,
-    setDetail,
-    userId: user?.id,
-    hasPermission,
-    showToast: setToast,
-    formatError: supabaseErrorMessage,
-    syncRelatedCaches: reloadWorkspace,
-  });
+  } = listMutations;
 
   useEffect(() => {
     if (!initialOrderId || loading) return;
@@ -494,12 +500,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     safePage,
     orderLabel,
     clearFilters,
-  } = useOrderFilters({
-    orders,
-    stateOptions: ibgeStates,
-    getStateLabel: stateLabel,
-    getEquipmentSummary: equipmentSummary,
-  });
+  } = filters;
   const getSituationsForType = (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) => {
     const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId).sort((left, right) => Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0));
     if (links.length === 0) return situations;
@@ -532,96 +533,24 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {deleteId && <ConfirmDialog message="Excluir esta OS? Esta ação remove o registro principal da tabela de ordens de serviço." onConfirm={() => { void handleDeleteOrder(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
-      {!detail && !formOpen && !solveOpen && <>
-      <OrdersHeader
-        total={filtered.length}
+      <OrdersListWorkspace
+        visible={!detail && !formOpen && !solveOpen}
         displayMode={displayMode}
+        workspace={workspace}
+        filters={filters}
+        mutations={listMutations}
+        serviceAddress={serviceAddress}
         canCreate={hasPermission("orders.create")}
+        hasPermission={hasPermission}
         onDisplayModeChange={setViewMode}
         onCreate={openNew}
-        onRefresh={() => { void reloadWorkspace(); }}
-      />
-
-      <OrdersFilters
-        search={search}
-        statusId={filterStatus}
-        situationId={filterSituation}
-        orderType={filterOrderType}
-        serviceTypeId={selectedServiceTypeId}
-        selectedStates={selectedStates}
-        selectedCities={selectedCities}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        orderSort={orderSort}
-        statuses={statuses}
-        situations={situations}
-        serviceTypes={serviceTypes}
-        stateOptions={ibgeStates}
-        cityOptions={cityFilterOptions}
-        statesLoading={ibgeStatesLoading}
-        citiesLoading={cityFiltersLoading}
-        invalidPeriod={invalidPeriod}
-        onSearchChange={(value) => { setSearch(value); setPage(1); }}
-        onStatusChange={(value) => { setFilterStatus(value); setPage(1); }}
-        onSituationChange={(value) => { setFilterSituation(value); setPage(1); }}
-        onOrderTypeChange={(value) => { setFilterOrderType(value as OrderType | ""); setPage(1); }}
-        onServiceTypeChange={(value) => { setSelectedServiceTypeId(value); setPage(1); }}
-        onStateSelect={(value) => setSelectedStates(current => current.includes(value) ? current : [...current, value])}
-        onStateRemove={(value) => setSelectedStates(current => current.filter(state => state !== value))}
-        onStatesClear={() => setSelectedStates([])}
-        onCitySelect={(value) => {
-          const option = cityFilterOptions.find(city => `${city.state}:${city.name}` === value);
-          if (option && !selectedCities.some(city => city.name === option.name && city.state === option.state)) {
-            setSelectedCities(current => [...current, option]);
-          }
-        }}
-        onCityRemove={(value) => setSelectedCities(current => current.filter(city => `${city.state}:${city.name}` !== value))}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
-        onOrderSortChange={(value) => { setOrderSort(value); setPage(1); }}
-        onClear={clearFilters}
-      />
-
-      {displayMode === "list" ? <OrdersTable
-        loading={loading}
-        filteredOrders={filtered}
-        pagedOrders={pagedOrders}
-        statuses={statuses}
-        hasActiveFilters={Boolean(search || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo)}
-        hasPermission={hasPermission}
-        onOpen={openDetail}
-        onStatusChange={updateOrderStatus}
-        onSituationChange={updateOrderSituation}
-        getSituations={getSituationsForType}
-        onEdit={(order) => { void openEdit(order); }}
+        onOpenDetail={openDetail}
+        onOpenEdit={(order) => { void openEdit(order); }}
         onDelete={setDeleteId}
+        getSituations={getSituationsForType}
         formatDate={fmtDate}
         equipmentSummary={equipmentSummary}
-        page={safePage}
-        pageSize={pageSize}
-        totalPages={totalPages}
-        onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
-        onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
-      /> : <OrdersKanban
-        statuses={statuses}
-        filteredOrders={filtered}
-        situations={situations}
-        draggingId={draggingId}
-        dragOverStatusId={dragOverStatusId}
-        hasPermission={hasPermission}
-        onDragOver={setDragOverStatusId}
-        onDragLeave={handleDragLeave}
-        onDrop={(statusId) => { void handleKanbanDrop(statusId); }}
-        onCardDragStart={handleCardDragStart}
-        onCardDragEnd={handleCardDragEnd}
-        onOpen={(order) => {
-          if (!shouldSuppressCardOpen()) openDetail(order);
-        }}
-        onSituationChange={(order, situationId) => { void updateOrderSituation(order, situationId); }}
-        onEdit={(order) => { void openEdit(order); }}
-        formatDate={fmtDate}
-      />}
-      </>}
+      />
 
       {/* OS Detail Drawer */}
       {detail && !solveOpen && (
