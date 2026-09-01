@@ -25,10 +25,19 @@ import {
 } from "../infrastructure/appointments.repository";
 import { fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
 import type {
-  Appointment,
   AppointmentPeriod,
   AppointmentSituation,
 } from "@/lib/database.types";
+import {
+  buildAgendaDays,
+  dayKey,
+  eventDay,
+  eventLabel,
+  filterAgendaData,
+  parseDay,
+  type AppointmentWithRelations,
+  type CalendarEvent,
+} from "@/features/appointments/application/agenda-calendar";
 import {
   BtnPrimary,
   BtnSecondary,
@@ -52,18 +61,6 @@ import {
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-
-type AppointmentWithRelations = Appointment & {
-  customer?: any;
-  service_order?: any;
-  situation?: AppointmentSituation | null;
-  appointment_technicians?: { employee_id: string; employee?: { id: string; full_name: string } | null }[];
-  created_by_profile?: { id: string; full_name: string } | null;
-};
-
-type CalendarEvent =
-  | { kind: "service_order"; id: string; date: string; order: any }
-  | { kind: "appointment"; id: string; date: string; appointment: AppointmentWithRelations };
 
 export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const { user, hasPermission } = useAuth();
@@ -153,33 +150,16 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
     setAppointmentForm(current => ({ ...current, situation_id: defaultSituation?.id ?? "" }));
   }, [appointmentModalOpen, appointmentSituations, appointmentForm.situation_id]);
 
-  const dayKey = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-  const parseDay = (key: string) => new Date(`${key}T00:00:00`);
-  const eventDay = (order: any) => dayKey(new Date(order.scheduled_at));
-  const eventLabel = (order: any) => (order.general_service as any)?.name || (order.service as any)?.title || "Serviço";
   const effectiveTechnicianFilter = !canViewOtherAgendas ? myEmployeeId || "" : technicianFilter;
-  const filteredOrders = orders.filter(order => {
-    const serviceId = (order.service as any)?.id || (order.general_service as any)?.id || "";
-    const searchText = `${(order.customer as any)?.full_name || ""} ${order.os_number || ""}`.toLowerCase();
-    const technicianIds = [(order.technician as any)?.id, ...((order.technician_links || []).map((link: any) => link.employee_id))].filter(Boolean);
-    return (!search || searchText.includes(search.toLowerCase())) && (!effectiveTechnicianFilter || technicianIds.includes(effectiveTechnicianFilter)) && (!statusFilter || (order.order_status as any)?.id === statusFilter) && (!situationFilter || (order.situation as any)?.id === situationFilter) && (!serviceFilter || serviceId === serviceFilter);
+  const { filteredOrders, calendarEvents } = filterAgendaData({
+    orders,
+    appointments,
+    search,
+    technicianFilter: effectiveTechnicianFilter,
+    statusFilter,
+    situationFilter,
+    serviceFilter,
   });
-  const referencedOrderIds = new Set(appointments.map(appointment => appointment.service_order_id).filter((id): id is string => Boolean(id)));
-  const serviceOrderEvents = filteredOrders.filter(order => !referencedOrderIds.has(order.id)).map(order => ({ kind: "service_order" as const, id: order.id, date: eventDay(order), order }));
-  const calendarEvents: CalendarEvent[] = [
-    ...serviceOrderEvents,
-    ...appointments.filter(appointment => {
-      const technicianIds = (appointment.appointment_technicians || []).map(item => item.employee_id);
-      const searchText = [appointment.customer?.full_name, appointment.description, appointment.sector_location, appointment.service_order?.os_number, ...((appointment.appointment_technicians || []).map(item => item.employee?.full_name || ""))].filter(Boolean).join(" ").toLowerCase();
-      const appointmentServiceId = appointment.service_order?.service?.id || appointment.service_order?.general_service?.id;
-      return (!search || searchText.includes(search.toLowerCase())) && (!effectiveTechnicianFilter || technicianIds.includes(effectiveTechnicianFilter)) && (!situationFilter || appointment.situation_id === situationFilter) && !statusFilter && (!serviceFilter || appointmentServiceId === serviceFilter);
-    }).map(appointment => ({ kind: "appointment" as const, id: appointment.id, date: appointment.appointment_date, appointment })),
-  ];
   const activeFilterCount = [technicianFilter, statusFilter, situationFilter, serviceFilter].filter(Boolean).length;
   const statuses = Array.from(
     new Map(
@@ -197,12 +177,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
     setCursor(next);
   };
   const today = () => setCursor(new Date());
-  const rangeStart = () => {
-    if (view === "month") return new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-    if (view === "week") { const start = new Date(cursor); start.setDate(start.getDate() - start.getDay()); return start; }
-    return new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
-  };
-  const days = (count: number) => Array.from({ length: count }, (_, index) => { const date = rangeStart(); date.setDate(date.getDate() + index); return date; });
+  const days = (count: number) => buildAgendaDays(view, cursor, count);
   const eventsFor = (date: Date) => calendarEvents.filter(event => event.date === dayKey(date));
   const updateEventDate = async (event: CalendarEvent | any, targetDay: string) => {
     if (!event.kind) {
