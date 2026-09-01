@@ -99,6 +99,14 @@ export function TabDocuments({ onBack }: { onBack?: () => void }) {
         }
       }
 
+      const sectionLayouts: Record<string, { columns: 1 | 2 | 3; sortOrder: number }> = {};
+      for (const section of orderedSections) {
+        sectionLayouts[section.section_key] = {
+          columns: Number(section.columns ?? 2) as 1 | 2 | 3,
+          sortOrder: Number(section.sort_order ?? 0),
+        };
+      }
+
       const nextValue = {
         ...emptyPrintTemplateEditorValue(),
         id: template.id,
@@ -119,6 +127,7 @@ export function TabDocuments({ onBack }: { onBack?: () => void }) {
         header_text: template.header_text || "",
         footer_text: template.footer_text || "",
         selectedFields,
+        sectionLayouts,
       };
 
       setEditorValue(nextValue);
