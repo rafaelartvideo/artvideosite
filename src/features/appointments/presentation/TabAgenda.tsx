@@ -12,14 +12,10 @@ import {
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
-  createAppointment,
-  listCustomerServiceOrders,
   loadAgendaData,
-  searchAppointmentCustomers as searchCustomers,
   updateAppointmentDate,
   updateServiceOrderSchedule,
 } from "../infrastructure/appointments.repository";
-import { fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
 import type {
   AppointmentSituation,
 } from "@/lib/database.types";
@@ -43,11 +39,10 @@ import {
   AdminSelect,
   INPUT,
 } from "@/shared/ui/admin/AdminFormControls";
-import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 import { AgendaEventCard } from "./AgendaEventCard";
 import { AppointmentDetailsDialog } from "./AppointmentDetailsDialog";
-import { createAppointmentForm } from "../application/appointment-form";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
+import { useNewAppointment } from "../application/useNewAppointment";
 
 export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const { user, hasPermission } = useAuth();
@@ -61,19 +56,8 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const [serviceFilter, setServiceFilter] = useState("");
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
-  const [appointmentSubmodal, setAppointmentSubmodal] = useState<"address" | "technicians" | null>(null);
-  const [appointmentSaving, setAppointmentSaving] = useState(false);
-  const [appointmentCustomerSearch, setAppointmentCustomerSearch] = useState("");
-  const [appointmentCustomers, setAppointmentCustomers] = useState<any[]>([]);
-  const [appointmentCustomer, setAppointmentCustomer] = useState<any>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithRelations | null>(null);
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
-  const [changingAppointmentCustomer, setChangingAppointmentCustomer] = useState(false);
-  const [appointmentCustomerSearchLoading, setAppointmentCustomerSearchLoading] = useState(false);
-  const [appointmentOrders, setAppointmentOrders] = useState<any[]>([]);
-  const [appointmentForm, setAppointmentForm] = useState(createAppointmentForm);
-  const [selectedAppointmentTechnicians, setSelectedAppointmentTechnicians] = useState<string[]>([]);
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const canViewAgenda = hasPermission("agenda.view") || hasPermission("orders.view");
@@ -99,6 +83,23 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const appointmentSituations = (agendaQuery.data?.appointmentSituations ?? []) as AppointmentSituation[];
   const appointmentTechnicians = employees as { id: string; full_name: string }[];
   const myEmployeeId = agendaQuery.data?.myEmployeeId ?? null;
+
+  const newAppointment = useNewAppointment({
+    userId: user?.id ?? null,
+    cursor,
+    situations: appointmentSituations,
+    situationsLoading: appointmentSituationsLoading,
+    technicians: appointmentTechnicians,
+    onCreated: appointment => setAppointments(current => [...current, appointment]),
+    onToast: (msg, type) => setToast({ msg, type }),
+  });
+  const {
+    open: appointmentModalOpen,
+    setOpen: setAppointmentModalOpen,
+    submodal: appointmentSubmodal,
+    setSubmodal: setAppointmentSubmodal,
+    openDialog: openAppointmentModal,
+  } = newAppointment;
 
   useEffect(() => {
     const data = agendaQuery.data;
@@ -130,11 +131,6 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [appointmentSubmodal, appointmentModalOpen, selectedAppointment]);
-  useEffect(() => {
-    if (!appointmentModalOpen || appointmentForm.situation_id || appointmentSituations.length === 0) return;
-    const defaultSituation = appointmentSituations.find(item => String(item.name).trim().toLowerCase() === "agendado") ?? appointmentSituations[0];
-    setAppointmentForm(current => ({ ...current, situation_id: defaultSituation?.id ?? "" }));
-  }, [appointmentModalOpen, appointmentSituations, appointmentForm.situation_id]);
 
   const effectiveTechnicianFilter = !canViewOtherAgendas ? myEmployeeId || "" : technicianFilter;
   const { filteredOrders, calendarEvents } = filterAgendaData({
@@ -210,60 +206,6 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   };
   const title = view === "month" ? cursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : view === "day" ? cursor.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) : view === "week" ? `Semana de ${rangeStart().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}` : "Todos os agendamentos";
   const isToday = (date: Date) => dayKey(date) === dayKey(new Date());
-  const openAppointmentModal = () => {
-    const defaultSituation = appointmentSituations.find(item => String(item.name).trim().toLowerCase() === "agendado") ?? appointmentSituations[0];
-    setAppointmentForm(createAppointmentForm(dayKey(cursor), defaultSituation?.id ?? ""));
-    setAppointmentCustomer(null); setAppointmentOrders([]); setSelectedAppointmentTechnicians([]); setAppointmentCustomers([]); setAppointmentCustomerSearch(""); setChangingAppointmentCustomer(false); setAppointmentModalOpen(true);
-  };
-  const searchAppointmentCustomers = async (value: string) => {
-    setAppointmentCustomerSearch(value);
-    if (value.trim().length < 2) { setAppointmentCustomers([]); return; }
-    const term = value.trim();
-    setAppointmentCustomerSearchLoading(true);
-    try {
-      setAppointmentCustomers(await searchCustomers(term));
-    } catch (error) {
-      console.error("[ADMIN] appointment customer search error:", error);
-      setAppointmentCustomers([]);
-      setToast({ msg: `Erro ao buscar clientes: ${supabaseErrorMessage(error)}`, type: "error" });
-    } finally { setAppointmentCustomerSearchLoading(false); }
-  };
-  const selectAppointmentCustomer = async (customer: any) => {
-    const address = (customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0];
-    setAppointmentCustomer(customer); setChangingAppointmentCustomer(false); setAppointmentCustomers([]); setAppointmentCustomerSearch("");
-    try {
-      setAppointmentOrders(await listCustomerServiceOrders(customer.id));
-    } catch (error) {
-      setAppointmentOrders([]);
-      setToast({ msg: `Erro ao carregar OS do cliente: ${supabaseErrorMessage(error)}`, type: "error" });
-    }
-    setAppointmentForm(current => ({ ...current, customer_id: customer.id, service_order_id: "", address_source: address ? "customer" : "custom", customer_address_id: address?.id || "", zip_code: address?.zip_code || "", street: address?.street || "", number: address?.number || "", complement: address?.complement || "", neighborhood: address?.neighborhood || "", city: address?.city || "", state: address?.state || "" }));
-  };
-  const saveAppointment = async () => {
-    if (!appointmentForm.customer_id || !appointmentCustomer) { setToast({ msg: "Selecione um cliente para o agendamento.", type: "error" }); return; }
-    if (!appointmentForm.appointment_date) { setToast({ msg: "Informe a data do agendamento.", type: "error" }); return; }
-    if (appointmentForm.period === "custom" && (!appointmentForm.start_time || !appointmentForm.end_time || appointmentForm.end_time <= appointmentForm.start_time)) { setToast({ msg: "Informe um horário personalizado válido.", type: "error" }); return; }
-    const selectedSituation = appointmentSituations.find(item => item.id === appointmentForm.situation_id);
-    if (!selectedSituation) { setToast({ msg: "Selecione uma situação válida para o agendamento.", type: "error" }); return; }
-    setAppointmentSaving(true);
-    try {
-      const payload = { customer_id: appointmentForm.customer_id, service_order_id: appointmentForm.service_order_id || null, appointment_date: appointmentForm.appointment_date, period: appointmentForm.period, start_time: appointmentForm.period === "custom" ? appointmentForm.start_time : null, end_time: appointmentForm.period === "custom" ? appointmentForm.end_time : null, sector_location: appointmentForm.sector_location.trim() || null, situation_id: selectedSituation.id, description: appointmentForm.description.trim() || null, is_return: appointmentForm.is_return, address_source: appointmentForm.address_source, customer_address_id: appointmentForm.address_source === "customer" ? appointmentForm.customer_address_id || null : null, zip_code: appointmentForm.zip_code || null, street: appointmentForm.street || null, number: appointmentForm.number || null, complement: appointmentForm.complement || null, neighborhood: appointmentForm.neighborhood || null, city: appointmentForm.city || null, state: appointmentForm.state || null, created_by: user?.id || null };
-      const data = await createAppointment(payload, selectedAppointmentTechnicians);
-      setAppointments(current => [...current, { ...data, appointment_technicians: selectedAppointmentTechnicians.map(employee_id => ({ employee_id, employee: appointmentTechnicians.find(item => item.id === employee_id) || null })) } as AppointmentWithRelations]);
-      setAppointmentModalOpen(false); setToast({ msg: "Agendamento criado.", type: "success" });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
-    } catch (error) {
-      console.error("[ADMIN] appointment save error:", error);
-      setToast({ msg: `Erro ao criar agendamento: ${supabaseErrorMessage(error)}`, type: "error" });
-    } finally { setAppointmentSaving(false); }
-  };
-  const lookupAppointmentZip = async () => {
-    const zipCode = formatZipCode(appointmentForm.zip_code);
-    if (zipCode.replace(/\D/g, "").length !== 8) return;
-    const address = await fetchAddressByZipCode(zipCode);
-    if (!address) return;
-    setAppointmentForm(current => ({ ...current, zip_code: zipCode, street: address.street || current.street, neighborhood: address.neighborhood || current.neighborhood, city: address.city || current.city, state: address.state || current.state }));
-  };
   const agendaToolbar = <div className="relative flex w-full flex-wrap items-center gap-2">
     <div className="flex shrink-0 items-center gap-1">
       <button type="button" onClick={() => moveCursor(-1)} aria-label="Período anterior" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] hover:bg-[#eef5ff] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><ChevronLeft size={16} /></button>
@@ -279,35 +221,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
     </div>
     
   </div>;
-  const appointmentDialog = <NewAppointmentDialog
-    open={appointmentModalOpen}
-    onClose={() => setAppointmentModalOpen(false)}
-    saving={appointmentSaving}
-    form={appointmentForm}
-    setForm={setAppointmentForm}
-    customer={appointmentCustomer}
-    setCustomer={setAppointmentCustomer}
-    changingCustomer={changingAppointmentCustomer}
-    setChangingCustomer={setChangingAppointmentCustomer}
-    customerSearch={appointmentCustomerSearch}
-    setCustomerSearch={setAppointmentCustomerSearch}
-    customerSearchLoading={appointmentCustomerSearchLoading}
-    customers={appointmentCustomers}
-    setCustomers={setAppointmentCustomers}
-    searchCustomers={searchAppointmentCustomers}
-    selectCustomer={selectAppointmentCustomer}
-    orders={appointmentOrders}
-    setOrders={setAppointmentOrders}
-    situations={appointmentSituations}
-    situationsLoading={appointmentSituationsLoading}
-    technicians={appointmentTechnicians}
-    selectedTechnicianIds={selectedAppointmentTechnicians}
-    setSelectedTechnicianIds={setSelectedAppointmentTechnicians}
-    submodal={appointmentSubmodal}
-    setSubmodal={setAppointmentSubmodal}
-    onZipLookup={() => void lookupAppointmentZip()}
-    onSave={saveAppointment}
-  />;
+  const appointmentDialog = <NewAppointmentDialog controller={newAppointment} />;
   const agendaEvent = (event: CalendarEvent) => <AgendaEventCard key={`${event.kind}-${event.id}`} event={event} draggedEventId={draggedEventId} onDraggedEventChange={setDraggedEventId} onOpenOrder={onOpenOrder} onOpenAppointment={setSelectedAppointment} />;
   const renderDayCell = (date: Date, adjacent = false) => <div key={dayKey(date)} className={cn("flex h-[150px] min-h-0 flex-col border-r border-b border-[#0d1b2e]/8 p-1", adjacent && "bg-[#f8fafc]", dayKey(date) === dayKey(cursor) && "bg-[#eef5ff] ring-1 ring-inset ring-[#0057e7]")} onDragOver={event => event.preventDefault()} onDrop={event => { if (!adjacent) dropCalendarEvent(event.dataTransfer, dayKey(date)); }}><div className="shrink-0"><p className={cn("mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold", isToday(date) ? "bg-[#0057e7] text-white" : adjacent ? "text-[#94a3b8]" : "text-[#5a6a82]")}>{date.getDate()}</p></div><div className="min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain pr-0.5">{adjacent ? null : eventsFor(date).map(agendaEvent)}</div></div>;
   const firstDay = new Date(cursor.getFullYear(), cursor.getMonth(), 1).getDay();

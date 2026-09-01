@@ -1,7 +1,6 @@
-import type { Dispatch, SetStateAction } from "react";
 import { Check, UserPlus, X } from "lucide-react";
-import type { AppointmentPeriod, AppointmentSituation } from "@/lib/database.types";
-import type { AppointmentFormState } from "../application/appointment-form";
+import type { AppointmentPeriod } from "@/lib/database.types";
+import type { NewAppointmentController } from "../application/useNewAppointment";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -10,68 +9,40 @@ import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialo
 import { AppointmentAddressDialog } from "./AppointmentAddressDialog";
 import { AppointmentTechniciansDialog } from "./AppointmentTechniciansDialog";
 
-type Technician = { id: string; full_name: string };
-type AppointmentSubmodal = "address" | "technicians" | null;
+type Props = { controller: NewAppointmentController };
 
-type Props = {
-  open: boolean;
-  onClose: () => void;
-  saving: boolean;
-  form: AppointmentFormState;
-  setForm: Dispatch<SetStateAction<AppointmentFormState>>;
-  customer: any;
-  setCustomer: Dispatch<SetStateAction<any>>;
-  changingCustomer: boolean;
-  setChangingCustomer: Dispatch<SetStateAction<boolean>>;
-  customerSearch: string;
-  setCustomerSearch: Dispatch<SetStateAction<string>>;
-  customerSearchLoading: boolean;
-  customers: any[];
-  setCustomers: Dispatch<SetStateAction<any[]>>;
-  searchCustomers: (value: string) => Promise<void>;
-  selectCustomer: (customer: any) => Promise<void>;
-  orders: any[];
-  setOrders: Dispatch<SetStateAction<any[]>>;
-  situations: AppointmentSituation[];
-  situationsLoading: boolean;
-  technicians: Technician[];
-  selectedTechnicianIds: string[];
-  setSelectedTechnicianIds: Dispatch<SetStateAction<string[]>>;
-  submodal: AppointmentSubmodal;
-  setSubmodal: Dispatch<SetStateAction<AppointmentSubmodal>>;
-  onZipLookup: () => void;
-  onSave: () => Promise<void>;
-};
+export function NewAppointmentDialog({ controller }: Props) {
+  const {
+    open,
+    setOpen,
+    saving: appointmentSaving,
+    form: appointmentForm,
+    setForm: setAppointmentForm,
+    customer: appointmentCustomer,
+    setCustomer: setAppointmentCustomer,
+    changingCustomer: changingAppointmentCustomer,
+    setChangingCustomer: setChangingAppointmentCustomer,
+    customerSearch: appointmentCustomerSearch,
+    setCustomerSearch: setAppointmentCustomerSearch,
+    customerSearchLoading: appointmentCustomerSearchLoading,
+    customers: appointmentCustomers,
+    setCustomers: setAppointmentCustomers,
+    searchCustomers: searchAppointmentCustomers,
+    selectCustomer: selectAppointmentCustomer,
+    orders: appointmentOrders,
+    setOrders: setAppointmentOrders,
+    situations: appointmentSituations,
+    situationsLoading: appointmentSituationsLoading,
+    technicians: appointmentTechnicians,
+    selectedTechnicianIds: selectedAppointmentTechnicians,
+    setSelectedTechnicianIds: setSelectedAppointmentTechnicians,
+    submodal: appointmentSubmodal,
+    setSubmodal: setAppointmentSubmodal,
+    lookupZip: lookupAppointmentZip,
+    save: saveAppointment,
+  } = controller;
+  const onClose = () => setOpen(false);
 
-export function NewAppointmentDialog({
-  open,
-  onClose,
-  saving: appointmentSaving,
-  form: appointmentForm,
-  setForm: setAppointmentForm,
-  customer: appointmentCustomer,
-  setCustomer: setAppointmentCustomer,
-  changingCustomer: changingAppointmentCustomer,
-  setChangingCustomer: setChangingAppointmentCustomer,
-  customerSearch: appointmentCustomerSearch,
-  setCustomerSearch: setAppointmentCustomerSearch,
-  customerSearchLoading: appointmentCustomerSearchLoading,
-  customers: appointmentCustomers,
-  setCustomers: setAppointmentCustomers,
-  searchCustomers: searchAppointmentCustomers,
-  selectCustomer: selectAppointmentCustomer,
-  orders: appointmentOrders,
-  setOrders: setAppointmentOrders,
-  situations: appointmentSituations,
-  situationsLoading: appointmentSituationsLoading,
-  technicians: appointmentTechnicians,
-  selectedTechnicianIds: selectedAppointmentTechnicians,
-  setSelectedTechnicianIds: setSelectedAppointmentTechnicians,
-  submodal: appointmentSubmodal,
-  setSubmodal: setAppointmentSubmodal,
-  onZipLookup: lookupAppointmentZip,
-  onSave: saveAppointment,
-}: Props) {
   return <Dialog open={open} onOpenChange={(open) => { if (!open && !appointmentSubmodal) onClose(); }}>
       <DialogContent showClose={false} className="flex max-h-[calc(100vh-2rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl">
         <DialogTitle className="sr-only">Novo agendamento</DialogTitle>
