@@ -489,7 +489,15 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
   const [partRequestsPageOpen, setPartRequestsPageOpen] = useState(false);
+  const [historyPageOpen, setHistoryPageOpen] = useState(false);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
+  const [detailHistoryNotes, setDetailHistoryNotes] = useState<any[]>([]);
+  const [historyUserFilter, setHistoryUserFilter] = useState("");
+  const [historyDateFilter, setHistoryDateFilter] = useState("");
+  const [historySort, setHistorySort] = useState<"desc" | "asc">("desc");
+  const [newHistoryOpen, setNewHistoryOpen] = useState(false);
+  const [newHistoryText, setNewHistoryText] = useState("");
+  const [historySaving, setHistorySaving] = useState(false);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
   const [detailPartRequests, setDetailPartRequests] = useState<any[]>([]);
   const [selectedPartRequest, setSelectedPartRequest] = useState<PartRequestForReview | null>(null);
@@ -775,20 +783,47 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
 
 
   const openDetail = async (o: any) => {
-    const [{ data: currentOrder }, { data: hist }, { data: mediaLinks }, { data: usedItems }] = await Promise.all([
+    const [{ data: currentOrder }, { data: hist }, { data: historyNotes }, { data: mediaLinks }, { data: usedItems }] = await Promise.all([
       supabase.from("service_orders").select("is_solved,solved_at,cannot_be_solved,cannot_be_solved_reason,assigned_profile:profiles!assigned_to(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active))").eq("id", o.id).maybeSingle(),
       supabase.from("service_order_status_history").select("*, order_status:order_statuses(name)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
+      supabase.from("service_order_history_notes").select("id,service_order_id,author_id,content,created_at").eq("service_order_id", o.id).order("created_at", { ascending: false }),
       supabase.from("service_order_media").select("id,media_id,sort_order,media:media(id,file_name,bucket_id,storage_path)").eq("service_order_id", o.id).order("sort_order"),
       supabase.from("service_order_used_items").select("*, inventory_item:inventory_items(id,name,sku,unit)").eq("service_order_id", o.id).order("created_at", { ascending: false }),
     ]);
     const orderImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) < 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da OS" }));
     const solutionImagesList = (mediaLinks || []).filter((item: any) => Number(item.sort_order ?? 0) >= 1000).map((item: any) => ({ key: item.id, mediaId: item.media_id, name: item.media?.file_name || "Imagem da solução" }));
     setDetailHistory(hist || []);
+    setDetailHistoryNotes(historyNotes || []);
+    setHistoryUserFilter("");
+    setHistoryDateFilter("");
+    setHistorySort("desc");
+    setNewHistoryOpen(false);
+    setNewHistoryText("");
     setDetailUsedItems(usedItems || []);
     await loadPartRequests(o.id);
     setDetailSolutionImages(solutionImagesList);
     setOrderImages(orderImagesList);
     setDetail({ ...o, ...(currentOrder || {}) });
+  };
+
+  const submitHistoryNote = async () => {
+    const content = newHistoryText.trim();
+    if (!detail?.id || !user?.id || !content || historySaving) return;
+    setHistorySaving(true);
+    const { data, error } = await supabase.from("service_order_history_notes").insert({
+      service_order_id: detail.id,
+      author_id: user.id,
+      content,
+    }).select("id,service_order_id,author_id,content,created_at").single();
+    setHistorySaving(false);
+    if (error) {
+      setToast({ msg: `Não foi possível registrar no histórico: ${error.message}`, type: "error" });
+      return;
+    }
+    setDetailHistoryNotes(current => [data, ...current]);
+    setNewHistoryText("");
+    setNewHistoryOpen(false);
+    setToast({ msg: "Registro adicionado ao histórico.", type: "success" });
   };
 
   const openPartRequestModal = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -1716,8 +1751,8 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
       </>}
 
       {/* OS Detail Drawer */}
-      {detail && !solveOpen && !partRequestsPageOpen && (
-        <AdminPage open={true} onClose={() => { setPartRequestsPageOpen(false); setDetail(null); }} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
+      {detail && !solveOpen && !partRequestsPageOpen && !historyPageOpen && (
+        <AdminPage open={true} onClose={() => { setPartRequestsPageOpen(false); setHistoryPageOpen(false); setDetail(null); }} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1736,12 +1771,13 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                     </DropdownMenuContent>
                   </DropdownMenu>}
                   {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{detailPartRequests.length > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{detailPartRequests.length}</span>}</button>}
+                  {hasPermission("orders.section.history") && <button type="button" onClick={() => setHistoryPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico<span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{detailHistory.length + detailHistoryNotes.length}</span></button>}
                 </div>
               </div>
-              <ServiceOrderSlaCards
+              {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards
                 order={detail}
                 slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null}
-              />
+              />}
               {hasPermission("orders.section.customer") && (<Section title="Cliente">
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Nome" value={(detail.customer as any)?.full_name} />
@@ -1828,22 +1864,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 </div>
               </Section>)}
               {orderImages.length > 0 && hasPermission("orders.section.images") && (<Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>)}
-              {hasPermission("orders.section.history") && (<Section title="Histórico">
-                {detailHistory.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum registro de alteração.</p> : (
-                  <div className="space-y-2">
-                    {detailHistory.map((h: any) => (
-                      <div key={h.id} className="flex gap-3 text-xs">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#0057e7] mt-1.5 flex-shrink-0" />
-                        <div>
-                          <span className="font-bold text-[#0d1b2e]">{(h.order_status as any)?.name || "Status alterado"}</span>
-                          {h.notes && <span className="text-[#5a6a82] ml-1">— {h.notes}</span>}
-                          <p className="text-[#5a6a82] text-[10px]">{fmtDate(h.created_at, true)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Section>)}
               {detail.internal_notes && hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}
               {detail.customer_notes && hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}
               {(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && hasPermission("orders.section.solution") && (
@@ -1867,7 +1887,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
             </div>
             <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-between gap-3">
               <div className="flex gap-2 flex-wrap">
-                <BtnSecondary onClick={() => { setPartRequestsPageOpen(false); setDetail(null); }}>Fechar</BtnSecondary>
+                <BtnSecondary onClick={() => { setPartRequestsPageOpen(false); setHistoryPageOpen(false); setDetail(null); }}>Fechar</BtnSecondary>
                 {hasPermission("orders.status") && <select value={detail.status_id || ""} onChange={event => updateOrderStatus(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Status</option>{statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}</select>}
                 {hasPermission("orders.edit") && <select value={detail.situation_id || ""} onChange={event => void updateOrderSituation(detail, event.target.value)} className="text-xs border border-[#0d1b2e]/15 rounded-lg px-2 py-1.5 font-bold bg-white cursor-pointer"><option value="">Situação</option>{getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation).map(situation => <option key={situation.id} value={situation.id}>{situation.name}</option>)}</select>}
                 {hasPermission("orders.request_parts") && detail && detail.is_solved !== true && <button type="button" onClick={openPartRequestModal} className="inline-flex items-center gap-2 whitespace-nowrap border border-[#0d1b2e]/15 text-[#0d1b2e] px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#f5f7fa] transition-colors cursor-pointer"><PackagePlus size={14} /> Pedir peças</button>}
@@ -1876,6 +1896,71 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                 {hasPermission("orders.edit") && !detail.is_solved && <BtnPrimary onClick={() => { setDetail(null); void openEdit(detail); }}><Edit2 size={14} /> Editar</BtnPrimary>}
               </div>
             </div>
+        </AdminPage>
+      )}
+
+      {detail && historyPageOpen && (
+        <AdminPage open={true} onClose={() => { setHistoryPageOpen(false); setNewHistoryOpen(false); }} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Histórico da OS" subtitle="Linha do tempo de alterações e registros da equipe" maxW="max-w-2xl">
+          <div className="p-5 space-y-4">
+            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
+              <label className="min-w-44 flex-1 text-[10px] font-bold uppercase text-[#5a6a82]">Usuário
+                <select value={historyUserFilter} onChange={event => setHistoryUserFilter(event.target.value)} className={cn(INPUT, "mt-1 text-xs font-medium normal-case")}>
+                  <option value="">Todos os usuários</option>
+                  {[...new Set(detailHistoryNotes.map(item => item.author_id).filter(Boolean))].map(authorId => <option key={authorId} value={authorId}>{profiles.find(item => item.id === authorId)?.full_name || "Usuário não informado"}</option>)}
+                  {detailHistory.some(item => !item.changed_by) && <option value="system">Sistema</option>}
+                </select>
+              </label>
+              <label className="min-w-40 flex-1 text-[10px] font-bold uppercase text-[#5a6a82]">Data
+                <input type="date" value={historyDateFilter} onChange={event => setHistoryDateFilter(event.target.value)} className={cn(INPUT, "mt-1 text-xs font-medium normal-case")} />
+              </label>
+              <label className="min-w-44 flex-1 text-[10px] font-bold uppercase text-[#5a6a82]">Ordenação
+                <select value={historySort} onChange={event => setHistorySort(event.target.value as "desc" | "asc")} className={cn(INPUT, "mt-1 text-xs font-medium normal-case")}>
+                  <option value="desc">Mais recentes primeiro</option>
+                  <option value="asc">Mais antigos primeiro</option>
+                </select>
+              </label>
+              {(historyUserFilter || historyDateFilter) && <button type="button" onClick={() => { setHistoryUserFilter(""); setHistoryDateFilter(""); }} className="h-10 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50">Limpar</button>}
+            </div>
+
+            {hasPermission("orders.history.create") && <div className="flex justify-end">
+              <button type="button" onClick={() => setNewHistoryOpen(value => !value)} className="inline-flex items-center gap-2 rounded-lg bg-[#0057e7] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0046c0]"><Plus size={15} /> Novo registro</button>
+            </div>}
+
+            {newHistoryOpen && hasPermission("orders.history.create") && <div className="rounded-xl border border-[#0057e7]/20 bg-[#f0f6ff] p-4">
+              <p className="text-xs font-black text-[#0d1b2e]">Novo registro no histórico</p>
+              <textarea value={newHistoryText} onChange={event => setNewHistoryText(event.target.value)} maxLength={2000} rows={4} placeholder="Escreva o que precisa ficar registrado nesta OS..." className={cn(INPUT, "mt-3 h-auto resize-y")} />
+              <div className="mt-3 flex items-center justify-between gap-3"><span className="text-[10px] text-[#5a6a82]">{newHistoryText.length}/2000</span><div className="flex gap-2"><BtnSecondary onClick={() => { setNewHistoryOpen(false); setNewHistoryText(""); }}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void submitHistoryNote()} disabled={!newHistoryText.trim() || historySaving}>{historySaving ? "Registrando..." : "Registrar"}</BtnPrimary></div></div>
+            </div>}
+
+            {(() => {
+              const automaticEntries = detailHistory.map(item => ({
+                id: `status-${item.id}`,
+                type: "system",
+                authorId: item.changed_by || null,
+                author: item.changed_by ? profiles.find(profileItem => profileItem.id === item.changed_by)?.full_name || "Usuário não informado" : "Sistema",
+                title: (item.order_status as any)?.name || "Status alterado",
+                content: item.notes || "Alteração registrada automaticamente.",
+                createdAt: item.created_at,
+              }));
+              const writtenEntries = detailHistoryNotes.map(item => ({
+                id: `note-${item.id}`,
+                type: "note",
+                authorId: item.author_id,
+                author: profiles.find(profileItem => profileItem.id === item.author_id)?.full_name || "Usuário não informado",
+                title: "Registro da equipe",
+                content: item.content,
+                createdAt: item.created_at,
+              }));
+              const entries = [...automaticEntries, ...writtenEntries]
+                .filter(item => !historyUserFilter || (historyUserFilter === "system" ? !item.authorId : item.authorId === historyUserFilter))
+                .filter(item => !historyDateFilter || new Date(item.createdAt).toISOString().slice(0, 10) === historyDateFilter)
+                .sort((left, right) => (new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()) * (historySort === "asc" ? 1 : -1));
+              return entries.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/15 p-8 text-center text-sm text-[#5a6a82]">Nenhum registro encontrado para os filtros selecionados.</div> : <div className="space-y-3">{entries.map(item => <div key={item.id} className={cn("rounded-xl border p-4", item.type === "note" ? "border-[#0057e7]/15 bg-white" : "border-[#0d1b2e]/8 bg-[#f8fafc]")}>
+                <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-black text-[#0d1b2e]">{item.author}</p><p className="mt-0.5 text-[10px] font-bold uppercase text-[#5a6a82]">{item.title}</p></div><span className="text-[10px] text-[#5a6a82]">{fmtDate(item.createdAt, true)}</span></div>
+                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-[#0d1b2e]">{item.content}</p>
+              </div>)}</div>;
+            })()}
+          </div>
         </AdminPage>
       )}
 
