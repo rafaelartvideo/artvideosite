@@ -292,7 +292,9 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
       {hasPermission("agenda.view") && <button type="button" onClick={openAppointmentModal} className="flex h-9 items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 text-xs font-bold text-white shadow-sm hover:bg-[#0046c0] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><Plus size={15} /> Novo</button>}
       {[{ value: "day" as const, label: "Dia" }, { value: "week" as const, label: "Semana" }, { value: "month" as const, label: "Mês" }, { value: "agenda" as const, label: "Lista" }].map(mode => <button key={mode.value} type="button" aria-pressed={view === mode.value} onClick={() => setView(mode.value)} className={cn("h-9 rounded-lg px-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40", view === mode.value ? "bg-[#0057e7] text-white" : "bg-white text-[#0d1b2e] hover:bg-[#eef5ff]")}>{mode.label}</button>)}
     </div>
-    <Dialog open={appointmentModalOpen} onOpenChange={(open) => { if (!open && !appointmentSubmodal) setAppointmentModalOpen(false); }}>
+    
+  </div>;
+  const appointmentDialog = <Dialog open={appointmentModalOpen} onOpenChange={(open) => { if (!open && !appointmentSubmodal) setAppointmentModalOpen(false); }}>
       <DialogContent showClose={false} className="flex max-h-[calc(100vh-2rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl">
         <DialogTitle className="sr-only">Novo agendamento</DialogTitle>
         <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><h2 className="font-black text-[#0d1b2e]">Novo agendamento</h2><button type="button" aria-label="Fechar" onClick={() => setAppointmentModalOpen(false)} className="rounded-full p-2 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={18} /></button></div>
@@ -320,8 +322,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
           onClose={() => setAppointmentSubmodal(null)}
         />}
       </DialogContent>
-    </Dialog>
-  </div>;
+    </Dialog>;
   const agendaEvent = (event: CalendarEvent) => <AgendaEventCard key={`${event.kind}-${event.id}`} event={event} draggedEventId={draggedEventId} onDraggedEventChange={setDraggedEventId} onOpenOrder={onOpenOrder} onOpenAppointment={setSelectedAppointment} />;
   const renderDayCell = (date: Date, adjacent = false) => <div key={dayKey(date)} className={cn("flex h-[150px] min-h-0 flex-col border-r border-b border-[#0d1b2e]/8 p-1", adjacent && "bg-[#f8fafc]", dayKey(date) === dayKey(cursor) && "bg-[#eef5ff] ring-1 ring-inset ring-[#0057e7]")} onDragOver={event => event.preventDefault()} onDrop={event => { if (!adjacent) dropCalendarEvent(event.dataTransfer, dayKey(date)); }}><div className="shrink-0"><p className={cn("mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold", isToday(date) ? "bg-[#0057e7] text-white" : adjacent ? "text-[#94a3b8]" : "text-[#5a6a82]")}>{date.getDate()}</p></div><div className="min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain pr-0.5">{adjacent ? null : eventsFor(date).map(agendaEvent)}</div></div>;
   const firstDay = new Date(cursor.getFullYear(), cursor.getMonth(), 1).getDay();
@@ -333,6 +334,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   </div>;
   return <>
     {newAgendaView}
+    {appointmentDialog}
     <AppointmentDetailsDialog appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} onOpenOrder={onOpenOrder} />
   </>;
 }
