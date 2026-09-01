@@ -156,10 +156,10 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
   const routes: AdminRouteMap = {
     dashboard: { element: <TabDashboard /> },
-    services: { element: <TabServices onBack={() => backToParent("services")} /> },
-    categories: { element: <TabCategories onBack={() => backToParent("categories")} /> },
-    products: { element: <TabProducts onBack={() => backToParent("products")} /> },
-    brands: { element: <TabBrands onBack={() => backToParent("brands")} /> },
+    services: { element: <TabServices onBack={() => backToParent("services")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("services", resourceId, subpage)} /> },
+    categories: { element: <TabCategories onBack={() => backToParent("categories")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("categories", resourceId, subpage)} /> },
+    products: { element: <TabProducts onBack={() => backToParent("products")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("products", resourceId, subpage)} /> },
+    brands: { element: <TabBrands onBack={() => backToParent("brands")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("brands", resourceId, subpage)} /> },
     site: {
       requiresPermission: false,
       element: (

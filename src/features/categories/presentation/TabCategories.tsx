@@ -28,7 +28,7 @@ import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import { slugify } from "@/shared/domain/formatters";
 
-export function TabCategories({ onBack }: { onBack: () => void }) {
+export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteChange }: { onBack: () => void; routeResourceId?: string | null; routeSubpage?: string | null; onRouteChange?: (resourceId: string | null, subpage?: string | null) => void }) {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const categoriesQuery = useQuery({
@@ -60,6 +60,24 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
 
   const openNew = () => { setForm({ name: "", slug: "", is_active: true, sort_order: 0 }); setEditItem(null); setDrawerOpen(true); };
   const openEdit = (c: any) => { setForm({ name: c.name || "", slug: c.slug || "", is_active: c.is_active ?? true, sort_order: c.sort_order ?? 0 }); setEditItem(c); setDrawerOpen(true); };
+  const closeEditor = () => { setDrawerOpen(false); onRouteChange?.(null, null); };
+  const openNewPage = () => onRouteChange ? onRouteChange("new", null) : openNew();
+  const openEditPage = (item: any) => onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item);
+
+  useEffect(() => {
+    if (!routeResourceId) {
+      if (drawerOpen) setDrawerOpen(false);
+      return;
+    }
+    if (routeResourceId === "new") {
+      if (!drawerOpen || editItem) openNew();
+      return;
+    }
+    if (routeSubpage !== "edit" || editItem?.id === routeResourceId) return;
+    const item = cats.find((entry: any) => entry.id === routeResourceId);
+    if (item) openEdit(item);
+  }, [routeResourceId, routeSubpage, cats, drawerOpen, editItem?.id]);
+
 
   const handleSave = async () => {
     if (!(editItem ? hasPermission("categories.update") : hasPermission("categories.create"))) return;
@@ -70,7 +88,7 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
       const finalSlug = !editItem || nameChanged || !editItem.slug ? await generateUniqueSlug("service_categories", form.name, editItem?.id) : editItem.slug;
       const payload = { ...form, name: form.name.trim(), slug: finalSlug };
       await saveCategory(payload, editItem?.id);
-      setDrawerOpen(false);
+      closeEditor();
       setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" });
       await refresh();
     } catch (error) {
@@ -111,12 +129,12 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
       {delId && <ConfirmDialog message="Excluir esta categoria? Serviços vinculados perderão a referência." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Categorias" subtitle={`${cats.length} categoria${cats.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("categories.create") && <BtnPrimary onClick={openNew}><Plus size={16} /> Nova categoria</BtnPrimary>}</div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("categories.create") && <BtnPrimary onClick={openNewPage}><Plus size={16} /> Nova categoria</BtnPrimary>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
         {loading ? <LoadingState /> : cats.length === 0 ? (
-          <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={hasPermission("categories.create") ? openNew : undefined} addLabel="Nova categoria" />
+          <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={openNewPage} addLabel="Nova categoria" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[500px]">
@@ -138,7 +156,7 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
                     <td className="px-4 py-3.5"><StatusBadge status={c.is_active ? "Ativo" : "Inativo"} /></td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
-                        {hasPermission("categories.update") && <><button onClick={() => openEdit(c)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button><button onClick={() => toggleActive(c)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={c.is_active ? "Desativar" : "Ativar"}>{c.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></>}
+                        {hasPermission("categories.update") && <><button onClick={() => openEditPage(c)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button><button onClick={() => toggleActive(c)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={c.is_active ? "Desativar" : "Ativar"}>{c.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></>}
                         {hasPermission("categories.delete") && <button onClick={() => setDelId(c.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>}
                       </div>
                     </td>
@@ -150,7 +168,7 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
         )}
       </div>
 
-      <AdminPage open={drawerOpen} onClose={() => setDrawerOpen(false)} breadcrumb="Categorias" title={editItem ? "Editar categoria" : "Nova categoria"} maxW="max-w-lg">
+      <AdminPage open={drawerOpen} onClose={closeEditor} breadcrumb="Categorias" title={editItem ? "Editar categoria" : "Nova categoria"} maxW="max-w-lg">
         <div className="p-5 space-y-4">
           <Section title="Informações">
             <div className="space-y-4">
@@ -166,7 +184,7 @@ export function TabCategories({ onBack }: { onBack: () => void }) {
           </Section>
         </div>
         <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
-          <BtnSecondary onClick={() => setDrawerOpen(false)}>Cancelar</BtnSecondary>
+          <BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary>
           {(editItem ? hasPermission("categories.update") : hasPermission("categories.create")) && <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar categoria"}</BtnPrimary>}
         </div>
       </AdminPage>

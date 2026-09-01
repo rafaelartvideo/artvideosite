@@ -52,7 +52,7 @@ import {
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
-export function TabServices({ onBack }: { onBack: () => void }) {
+export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChange }: { onBack: () => void; routeResourceId?: string | null; routeSubpage?: string | null; onRouteChange?: (resourceId: string | null, subpage?: string | null) => void }) {
   const { user, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const catalogQuery = useQuery({
@@ -86,6 +86,24 @@ export function TabServices({ onBack }: { onBack: () => void }) {
 
   const openNew = () => { setEditItem(null); setDrawerOpen(true); };
   const openEdit = (s: any) => { setEditItem(s); setDrawerOpen(true); };
+  const closeEditor = () => { setDrawerOpen(false); onRouteChange?.(null, null); };
+  const openNewPage = () => onRouteChange ? onRouteChange("new", null) : openNew();
+  const openEditPage = (item: any) => onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item);
+
+  useEffect(() => {
+    if (!routeResourceId) {
+      if (drawerOpen) setDrawerOpen(false);
+      return;
+    }
+    if (routeResourceId === "new") {
+      if (!drawerOpen || editItem) openNew();
+      return;
+    }
+    if (routeSubpage !== "edit" || editItem?.id === routeResourceId) return;
+    const item = services.find((entry: any) => entry.id === routeResourceId);
+    if (item) openEdit(item);
+  }, [routeResourceId, routeSubpage, services, drawerOpen, editItem?.id]);
+
 
   const handleDelete = async (id: string) => {
     if (!hasPermission("services.delete")) return;
@@ -133,7 +151,7 @@ export function TabServices({ onBack }: { onBack: () => void }) {
       {delId && <ConfirmDialog message="Excluir este serviço e todos os dados associados?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Serviços do Site" subtitle={`${services.length} serviço${services.length !== 1 ? "s" : ""} cadastrado${services.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("services.create") && <BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary>}</div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("services.create") && <BtnPrimary onClick={openNewPage}><Plus size={16} /> Novo serviço</BtnPrimary>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -145,7 +163,7 @@ export function TabServices({ onBack }: { onBack: () => void }) {
         </div>
 
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={Wrench} title={search ? "Nenhum resultado" : "Nenhum serviço cadastrado"} message={search ? `Nenhum serviço com "${search}"` : "Clique em Novo serviço para começar."} onAdd={!search && hasPermission("services.create") ? openNew : undefined} addLabel="Novo serviço" />
+          <EmptyState icon={Wrench} title={search ? "Nenhum resultado" : "Nenhum serviço cadastrado"} message={search ? `Nenhum serviço com "${search}"` : "Clique em Novo serviço para começar."} onAdd={!search && hasPermission("services.create") ? openNewPage : undefined} addLabel="Novo serviço" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
@@ -180,7 +198,7 @@ export function TabServices({ onBack }: { onBack: () => void }) {
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-1">
-                          {hasPermission("services.update") && <button onClick={() => openEdit(s)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors" title="Editar"><Edit2 size={15} /></button>}
+                          {hasPermission("services.update") && <button onClick={() => openEditPage(s)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors" title="Editar"><Edit2 size={15} /></button>}
                           {hasPermission("services.update") && <button onClick={() => toggleActive(s)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={s.is_active ? "Desativar" : "Ativar"}>
                             {s.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
                           </button>}
@@ -203,7 +221,7 @@ export function TabServices({ onBack }: { onBack: () => void }) {
         />
       </div>
 
-      <ServiceDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); void refresh(); }} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
+      <ServiceDrawer open={drawerOpen} onClose={() => { closeEditor(); void refresh(); }} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
     </div>
   );
 }
