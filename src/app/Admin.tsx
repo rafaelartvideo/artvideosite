@@ -3621,12 +3621,12 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
     return groups;
   }, {});
   const orderPermissionSections = (items: any[]) => items.reduce<Record<string, any[]>>((sections, permission) => {
-    const sectionName = permission.key?.startsWith("orders.table.")
-      ? "Visualização da tabela"
-      : permission.key?.startsWith("orders.section.")
-        ? "Visualização dos detalhes da OS"
-        : permission.key?.startsWith("orders.toolbar.")
-          ? "Barra de ferramentas"
+    const sectionName = permission.key === "orders.section.parts" || permission.key === "orders.section.history" || permission.key?.startsWith("orders.history.") || permission.key?.startsWith("orders.toolbar.")
+      ? "Barra de ferramentas"
+      : permission.key?.startsWith("orders.table.")
+        ? "Visualização da tabela"
+        : permission.key?.startsWith("orders.section.")
+          ? "Visualização dos detalhes da OS"
           : "Funções e ações";
     (sections[sectionName] ||= []).push(permission);
     return sections;
