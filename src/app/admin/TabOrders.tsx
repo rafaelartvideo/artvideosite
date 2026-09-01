@@ -1726,15 +1726,15 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   {detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 border-t border-[#0d1b2e]/10 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
-                  <DropdownMenu>
+                  {(hasPermission("orders.toolbar.print_entry") || hasPermission("orders.toolbar.print_exit")) && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-60">
-                      <DropdownMenuItem className="flex cursor-pointer items-center justify-between gap-4"><span>Entrada de equipamento</span><span className="text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span></DropdownMenuItem>
-                      <DropdownMenuItem className="flex cursor-pointer items-center justify-between gap-4"><span>Saída de equipamento</span><span className="text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span></DropdownMenuItem>
+                      {hasPermission("orders.toolbar.print_entry") && <DropdownMenuItem className="flex cursor-pointer items-center justify-between gap-4"><span>Entrada de equipamento</span><span className="text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span></DropdownMenuItem>}
+                      {hasPermission("orders.toolbar.print_exit") && <DropdownMenuItem className="flex cursor-pointer items-center justify-between gap-4"><span>Saída de equipamento</span><span className="text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span></DropdownMenuItem>}
                     </DropdownMenuContent>
-                  </DropdownMenu>
+                  </DropdownMenu>}
                   {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{detailPartRequests.length > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{detailPartRequests.length}</span>}</button>}
                 </div>
               </div>
@@ -1818,7 +1818,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                   {(() => { const sla = getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation); return sla ? <InfoRow label="SLA da situação" value={`${sla.hours} hora(s) (${sla.isDefault ? "Padrão" : "Personalizado"})`} /> : null; })()}
                 </div>
               </Section>)}
-              {detail.completed_at && hasPermission("orders.section.information") && (<Section title="Valores da OS">
+              {detail.completed_at && hasPermission("orders.section.financial") && (<Section title="Valores da OS">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <InfoRow label="Valor do serviço" value={formatCurrency(Number(detail.service_price || 0))} />
                   <InfoRow label="Valor das peças" value={formatCurrency(Number(detail.parts_total || 0))} />
