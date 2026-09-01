@@ -164,6 +164,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     { id: "orders", label: "Ordens de Serviço", icon: ClipboardList },
     { id: "customers", label: "Clientes", icon: Users },
     { id: "agenda", label: "Agenda", icon: CalendarDays },
+    { id: "inventory", label: "Estoque", icon: Package },
   ];
   const siteItems = [
     { id: "products", label: "Produtos", icon: Package, description: "Cadastre e gerencie os produtos exibidos na loja online.", permissionKey: "products.view" },
@@ -175,7 +176,6 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     { id: "equipment", label: "Equipamentos", icon: Wrench, description: "Cadastre equipamentos, marcas e modelos técnicos.", permissionKey: "equipment.view" },
     { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica.", permissionKey: "general_services.view" },
     { id: "serviceTypes", label: "Tipos de Atendimento", icon: List, description: "Configure tipos e previsão de atendimento das OS.", permissionKey: "service_types.view" },
-    { id: "inventory", label: "Estoque", icon: Package, description: "Controle de itens, movimentações e histórico do estoque atual.", permissionKey: "orders.view" },
     { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "orders.view" },
     { id: "orderStatuses", label: "Status da OS", icon: CheckCircle, description: "Gerencie os status do fluxo das ordens de serviço.", permissionKey: "orders.view" },
     { id: "employees", label: "Equipes / Funcionários", icon: Users, description: "Cadastre funcionários, técnicos e gestores da equipe.", permissionKey: "employees.view" },
@@ -187,7 +187,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const permissionForTab: Record<string, string> = {
     dashboard: "dashboard.view", quotes: "quotes.view", orders: "orders.view", customers: "customers.view", agenda: "agenda.view",
     products: "products.view", categories: "categories.view", brands: "brands.view", services: "services.view", equipment: "equipment.view",
-    generalServices: "general_services.view", serviceTypes: "service_types.view", inventory: "orders.view", situations: "orders.view", orderStatuses: "orders.view",
+    generalServices: "general_services.view", serviceTypes: "service_types.view", inventory: "inventory.view", situations: "orders.view", orderStatuses: "orders.view",
     employees: "employees.view", settings: "settings.view", contact: "contact.view",
   };
   const canAccessTab = (tab: string) => hasPermission(permissionForTab[tab] || `${tab}.view`);
@@ -295,6 +295,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
                     quotes: "Acompanhe e responda às solicitações recebidas",
                     orders: "Abertura, acompanhamento e conclusão dos atendimentos",
                     agenda: "Visualize e organize os atendimentos agendados",
+                    inventory: "Controle itens, quantidades e movimentações do estoque",
                     site: "Conteúdo e configurações do site público",
                     operation: "Configurações internas da assistência técnica",
                     equipment: "Cadastro técnico usado nas ordens de serviço",
@@ -328,7 +329,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
           {activeTab === "equipment" && canAccessTab("equipment") && <EquipmentAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "generalServices" && canAccessTab("generalServices") && <GeneralServicesPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "serviceTypes" && canAccessTab("serviceTypes") && <ServiceTypesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
-          {activeTab === "inventory" && canAccessTab("inventory") && <TabInventory onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "inventory" && canAccessTab("inventory") && <TabInventory />}
           {activeTab === "situations" && canAccessTab("situations") && <OSSituationsView onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "orderStatuses" && canAccessTab("orderStatuses") && <OrderStatusesAdminPanel onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "quotes" && canAccessTab("quotes") && <TabQuotes onNavigate={setActiveTab} />}
@@ -2827,7 +2828,7 @@ function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   </div>;
 }
 
-function TabInventory({ onBack }: { onBack: () => void }) {
+function TabInventory() {
   const { user, hasPermission } = useAuth();
   const canViewInventory = hasPermission("inventory.view");
   const canCreateInventory = hasPermission("inventory.create");
@@ -3042,7 +3043,6 @@ function TabInventory({ onBack }: { onBack: () => void }) {
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <PageHeader title="Estoque" subtitle="Controle de itens, quantidade mínima e movimentações do almoxarifado" actions={
         <div className="flex items-center gap-2">
-          <InternalBackButton onBack={onBack} />
           {canCreateInventory && <BtnPrimary onClick={openNew}><Plus size={14} /> Novo item</BtnPrimary>}
         </div>
       } />
