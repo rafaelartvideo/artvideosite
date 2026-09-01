@@ -1,0 +1,48 @@
+name: Apply order situation images integration
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'chore: aplica integração final de imagens por situação'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch TabOrders safely
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/app/admin/TabOrders.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          import_anchor = 'import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/app/components/ui/dropdown-menu";\n'
+          import_line = 'import { OrderSituationImages } from "./OrderSituationImages";\n'
+          if import_line not in text:
+              if import_anchor not in text:
+                  raise SystemExit('Import anchor not found')
+              text = text.replace(import_anchor, import_anchor + import_line, 1)
+
+          old = '''          {hasPermission("orders.section.images") && (<Section title="Imagens da OS">\n            {orderImages.length > 0 ? <div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem da OS cadastrada.</p>}'''
+          new = '''          {hasPermission("orders.section.images") && (<Section title="Imagens da OS">\n            <OrderSituationImages\n              orderId={detail.id}\n              serviceTypeId={detail.service_type_id}\n              currentSituationId={detail.situation_id}\n              situations={situations}\n              serviceTypeSituations={serviceTypeSituations}\n              onView={image => setViewImage({ key: image.key, mediaId: image.mediaId, name: image.name })}\n            />\n            {orderImages.length > 0 && <div className="mt-4 border-t border-[#0d1b2e]/10 pt-4"><p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Imagens anteriores da OS</p><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></div>}'''
+          if old not in text:
+              raise SystemExit('Main images section anchor not found')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+      - name: Commit integration and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-order-situation-images.yml
+          git add src/app/admin/TabOrders.tsx
+          git diff --cached --check
+          git commit -m "feat(orders): integra imagens por situação na OS"
+          git push
