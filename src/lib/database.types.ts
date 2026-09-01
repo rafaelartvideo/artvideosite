@@ -35,6 +35,8 @@ export interface Employee {
 export interface GeneralService {
   id: string;
   name: string;
+  price: number | null;
+  max_discount_percentage: number | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -389,7 +391,14 @@ export interface ServiceOrder {
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  completed_by: string | null;
   solved_at: string | null;
+  situation_started_at: string | null;
+  service_price: number | null;
+  parts_total: number | null;
+  discount_percentage: number | null;
+  discount_amount: number | null;
+  final_total: number | null;
   assigned_to: string | null;
   assigned_profile?: { id: string; full_name: string | null } | null;
   technician_id: string | null;
@@ -416,6 +425,14 @@ export interface ServiceOrderNote {
   note: string;
   is_internal: boolean;
   created_by: string | null;
+  created_at: string;
+}
+
+export interface ServiceOrderHistoryNote {
+  id: string;
+  service_order_id: string;
+  author_id: string;
+  content: string;
   created_at: string;
 }
 
