@@ -25,6 +25,7 @@ import {
   generateUniqueSlug, isHexColor,
 } from "./admin/shared";
 import { TabOrders, OSSituationsView } from "./admin/TabOrders";
+import { TabDocuments } from "./admin/TabDocuments";
 import type { Appointment, AppointmentPeriod, AppointmentSituation } from "@/lib/database.types";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 
@@ -179,6 +180,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "orders.view" },
     { id: "orderStatuses", label: "Status da OS", icon: CheckCircle, description: "Gerencie os status do fluxo das ordens de serviço.", permissionKey: "orders.view" },
     { id: "employees", label: "Equipes / Funcionários", icon: Users, description: "Cadastre funcionários, técnicos e gestores da equipe.", permissionKey: "employees.view" },
+    { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos de impressão e documentos das OS.", permissionKey: "documents.view" },
   ];
   const utilityItems = [
     { id: "settings", label: "Configurações", icon: Settings },
@@ -188,7 +190,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     dashboard: "dashboard.view", quotes: "quotes.view", orders: "orders.view", customers: "customers.view", agenda: "agenda.view",
     products: "products.view", categories: "categories.view", brands: "brands.view", services: "services.view", equipment: "equipment.view",
     generalServices: "general_services.view", serviceTypes: "service_types.view", inventory: "inventory.view", situations: "orders.view", orderStatuses: "orders.view",
-    employees: "employees.view", settings: "settings.view", contact: "contact.view",
+    employees: "employees.view", documents: "documents.view", settings: "settings.view", contact: "contact.view",
   };
   const canAccessTab = (tab: string) => hasPermission(permissionForTab[tab] || `${tab}.view`);
 
@@ -235,7 +237,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
             );
           })}
           {hasPermission("site.view") && <SidebarItem item={{ id: "site", label: "Site", icon: Globe }} active={activeTab === "site"} onClick={() => { setActiveTab("site"); setPage(null); setSidebarOpen(false); }} />}
-          {["orders.view", "customers.view", "employees.view", "equipment.view", "service_types.view", "services.view", "general_services.view"].some(hasPermission) && <SidebarItem item={{ id: "operation", label: "Operação", icon: Settings }} active={activeTab === "operation"} onClick={() => { setActiveTab("operation"); setPage(null); setSidebarOpen(false); }} />}
+          {["orders.view", "customers.view", "employees.view", "equipment.view", "service_types.view", "services.view", "general_services.view", "documents.view"].some(hasPermission) && <SidebarItem item={{ id: "operation", label: "Operação", icon: Settings }} active={activeTab === "operation"} onClick={() => { setActiveTab("operation"); setPage(null); setSidebarOpen(false); }} />}
           <div className="pt-3 space-y-0.5">{utilityItems.filter(item => canAccessTab(item.id)).map(item => <SidebarItem key={item.id} item={item} active={activeTab === item.id} onClick={() => { setActiveTab(item.id as AdminTab); setPage(null); setSidebarOpen(false); }} />)}</div>
         </div>
         {/* Back to site */}
@@ -337,6 +339,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
           {activeTab === "agenda" && canAccessTab("agenda") && <TabAgenda onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />}
           {activeTab === "customers" && canAccessTab("customers") && <TabCustomers onOpenOrder={(id) => { setFocusedOrderId(id); setActiveTab("orders"); }} />}
           {activeTab === "employees" && canAccessTab("employees") && <TabEmployees onBack={() => { setActiveTab("operation"); setPage(null); }} />}
+          {activeTab === "documents" && canAccessTab("documents") && <TabDocuments onBack={() => { setActiveTab("operation"); setPage(null); }} />}
           {activeTab === "settings" && canAccessTab("settings") && <TabSettings />}
           {activeTab === "contact" && canAccessTab("contact") && <TabContact />}
         </div>

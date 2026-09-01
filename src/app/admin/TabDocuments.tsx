@@ -44,6 +44,10 @@ export function TabDocuments({ onBack }: { onBack?: () => void }) {
   const [error, setError] = useState("");
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorValue, setEditorValue] = useState(() => emptyPrintTemplateEditorValue());
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(false);
 
   const loadTemplates = async () => {
     setLoading(true);
@@ -58,6 +62,75 @@ export function TabDocuments({ onBack }: { onBack?: () => void }) {
   };
 
   useEffect(() => { void loadTemplates(); }, []);
+
+  const openNewDocument = () => {
+    setEditingTemplateId(null);
+    setEditorValue(emptyPrintTemplateEditorValue());
+    setEditorOpen(true);
+  };
+
+  const openTemplateEditor = async (template: PrintTemplate) => {
+    setTemplateLoading(true);
+    setError("");
+    try {
+      const { data: sections, error: sectionsError } = await (supabase as any)
+        .from("print_template_sections")
+        .select("*")
+        .eq("template_id", template.id)
+        .order("sort_order", { ascending: true });
+      if (sectionsError) throw sectionsError;
+
+      const sectionIds = (sections || []).map((section: any) => section.id).filter(Boolean);
+      const { data: fields, error: fieldsError } = sectionIds.length
+        ? await (supabase as any).from("print_template_fields").select("*").in("template_section_id", sectionIds).order("sort_order", { ascending: true })
+        : { data: [], error: null };
+      if (fieldsError) throw fieldsError;
+
+      const selectedFields = new Set<string>();
+      const orderedSections = (sections || []) as any[];
+      for (const section of orderedSections) {
+        const sectionFields = (fields || []).filter((field: any) => field.template_section_id === section.id);
+        for (const field of sectionFields) {
+          if (field.field_key) selectedFields.add(field.field_key);
+        }
+      }
+
+      const nextValue = {
+        ...emptyPrintTemplateEditorValue(),
+        id: template.id,
+        name: template.name,
+        description: template.description || "",
+        document_type: template.document_type,
+        is_active: template.is_active,
+        paper_size: template.paper_size,
+        orientation: template.orientation,
+        margin_top: Number(template.margin_top || 0),
+        margin_right: Number(template.margin_right || 0),
+        margin_bottom: Number(template.margin_bottom || 0),
+        margin_left: Number(template.margin_left || 0),
+        show_logo: template.show_logo,
+        show_company_info: template.show_company_info,
+        show_page_number: template.show_page_number,
+        show_printed_at: template.show_printed_at,
+        header_text: template.header_text || "",
+        footer_text: template.footer_text || "",
+        selectedFields,
+      };
+
+      setEditorValue(nextValue);
+      setEditingTemplateId(template.id);
+      setEditorOpen(true);
+    } catch (loadError: any) {
+      setError(loadError?.message || "Não foi possível carregar o template para edição.");
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
+  const handleEditorSaved = async () => {
+    setEditorOpen(false);
+    await loadTemplates();
+  };
 
   const filteredTemplates = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
@@ -92,7 +165,7 @@ export function TabDocuments({ onBack }: { onBack?: () => void }) {
           <button type="button" onClick={() => setCatalogOpen(current => !current)} className="inline-flex items-center gap-2 rounded-lg border border-[#d8e0eb] bg-white px-3.5 py-2 text-sm font-bold text-[#0d1b2e] hover:border-[#0057e7]/30 hover:text-[#0057e7]">
             <LayoutTemplate size={16} /> Catálogo de campos
           </button>
-          {hasPermission("documents.create") && <BtnPrimary onClick={() => setError("O editor do novo modelo será conectado na próxima etapa.")}><Plus size={16} /> Novo documento</BtnPrimary>}
+          {hasPermission("documents.create") && <BtnPrimary onClick={openNewDocument}><Plus size={16} /> Novo documento</BtnPrimary>}
         </div>
       </div>
 
@@ -141,10 +214,26 @@ export function TabDocuments({ onBack }: { onBack?: () => void }) {
         {loading ? <div className="p-8"><LoadingState /></div> : filteredTemplates.length === 0 ? <div className="p-8"><EmptyState icon={FileText} title={templates.length ? "Nenhum modelo encontrado" : "Nenhum documento configurado"} description={templates.length ? "Tente alterar a busca." : "Crie o primeiro modelo para começar a configurar suas impressões."} /></div> : <div className="divide-y divide-[#0d1b2e]/7">
           {filteredTemplates.map(template => <div key={template.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-black text-[#0d1b2e]">{template.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", template.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500")}>{template.is_active ? "Ativo" : "Inativo"}</span><span className="rounded-full bg-[#edf3ff] px-2 py-0.5 text-[10px] font-bold text-[#0057e7]">{TYPE_LABELS[template.document_type] || template.document_type}</span></div><p className="mt-1 truncate text-xs text-[#5a6a82]">{template.description || "Sem descrição"}</p><p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-[#8b98aa]">{template.paper_size} · {template.orientation === "landscape" ? "Paisagem" : "Retrato"}</p></div>
-            {hasPermission("documents.edit") && <button type="button" onClick={() => setError(`O editor de “${template.name}” será conectado na próxima etapa.`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d8e0eb] bg-white px-3 py-2 text-xs font-bold text-[#42526a] hover:border-[#0057e7]/30 hover:text-[#0057e7]"><Settings2 size={14} /> Configurar</button>}
+            {hasPermission("documents.edit") && <button type="button" disabled={templateLoading} onClick={() => { void openTemplateEditor(template); }} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d8e0eb] bg-white px-3 py-2 text-xs font-bold text-[#42526a] hover:border-[#0057e7]/30 hover:text-[#0057e7] disabled:opacity-50"><Settings2 size={14} /> {templateLoading && editingTemplateId === template.id ? "Carregando..." : "Configurar"}</button>}
           </div>)}
         </div>}
       </section>
+
+      {editorOpen && (
+        <div className="fixed inset-0 z-[80] overflow-y-auto bg-[#0d1b2e]/45 p-4">
+          <div className="mx-auto max-w-6xl">
+            <PrintTemplateEditor
+              initialValue={editorValue}
+              onCancel={() => {
+                setEditorOpen(false);
+                setEditingTemplateId(null);
+                setEditorValue(emptyPrintTemplateEditorValue());
+              }}
+              onSaved={handleEditorSaved}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
