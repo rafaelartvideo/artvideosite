@@ -36,7 +36,7 @@ import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type OrderType = "internal" | "external";
 
-export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onFocused?: () => void }) {
+export function TabOrders({ onNavigate, initialOrderId, onOrderRouteChange }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onOrderRouteChange?: (id: string | null) => void }) {
   const { user, profile, hasPermission } = useAuth();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [subView, setSubView] = useState<"list" | "situations">("list");
@@ -339,11 +339,25 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
   } = listMutations;
 
   useEffect(() => {
-    if (!initialOrderId || loading) return;
+    if (loading) return;
+    if (!initialOrderId) {
+      if (detail) closeDetail();
+      return;
+    }
+    if (detail?.id === initialOrderId) return;
     const order = orders.find(item => item.id === initialOrderId);
     if (order) openDetail(order);
-    onFocused?.();
-  }, [initialOrderId, loading, orders]);
+  }, [initialOrderId, loading, orders, detail?.id]);
+
+  const openRoutedDetail = (order: any) => {
+    openDetail(order);
+    onOrderRouteChange?.(order.id);
+  };
+
+  const closeRoutedDetail = () => {
+    closeDetail();
+    onOrderRouteChange?.(null);
+  };
 
 
   const setViewMode = (mode: "list" | "kanban") => {
@@ -433,7 +447,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         hasPermission={hasPermission}
         onDisplayModeChange={setViewMode}
         onCreate={openNew}
-        onOpenDetail={openDetail}
+        onOpenDetail={openRoutedDetail}
         onOpenEdit={(order) => { void openEdit(order); }}
         getSituations={getSituationsForType}
         formatDate={fmtDate}
@@ -464,6 +478,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         getSituations={getSituationsForType}
         getSla={getSlaForOrder}
         onEdit={(order) => { void openEdit(order); }}
+        onClose={closeRoutedDetail}
       />
 
       <OrderEditorPage

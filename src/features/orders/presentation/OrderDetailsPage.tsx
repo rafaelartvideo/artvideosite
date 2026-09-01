@@ -47,6 +47,7 @@ type Props = {
   getSituations: (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) => any[];
   getSla: (serviceTypeId?: string, situationId?: string, relatedSituation?: any) => any;
   onEdit: (order: any) => void;
+  onClose?: () => void;
 };
 
 export function OrderDetailsPage(props: Props) {
@@ -55,7 +56,7 @@ export function OrderDetailsPage(props: Props) {
     resolution, completion, mutations, hasPermission, usedItemsTotal: detailUsedItemsTotal,
     formatDate: fmtDate, formatState: stateLabel, formatSolvedAt,
     formatCurrency, getSituations: getSituationsForType, getSla: getSlaForOrder,
-    onEdit: openEdit,
+    onEdit: openEdit, onClose,
   } = props;
   const [partRequestsPageOpen, setPartRequestsPageOpen] = useState(false);
   const { statuses, situations } = workspace;
@@ -73,6 +74,7 @@ export function OrderDetailsPage(props: Props) {
   const pendingPartRequests = detailPartRequests.filter(request => String(request.status || "").toUpperCase() === "PENDING").length;
   const completedPartRequests = detailPartRequests.length - pendingPartRequests;
   const { updateOrderStatus, updateOrderSituation } = mutations;
+  const closePage = () => { closeDetail(); onClose?.(); };
 
   return <>
       <OrderDocumentsPage
@@ -112,7 +114,7 @@ export function OrderDetailsPage(props: Props) {
         </AdminPage>
       )}
 {visible && !history.pageOpen && !documentsPageOpen && !partRequestsPageOpen && (
-        <AdminPage open={true} onClose={() => closeDetail()} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
+        <AdminPage open={true} onClose={closePage} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
@@ -158,13 +160,13 @@ export function OrderDetailsPage(props: Props) {
               statuses={statuses}
               situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)}
               hasPermission={hasPermission}
-              onClose={() => closeDetail()}
+              onClose={closePage}
               onStatusChange={(statusId) => updateOrderStatus(detail, statusId)}
               onSituationChange={(situationId) => { void updateOrderSituation(detail, situationId); }}
               onRequestParts={openPartRequestModal}
               onResolve={() => openSolveOrder(detail)}
               onComplete={openCompletion}
-              onEdit={() => { closeDetail(); void openEdit(detail); }}
+              onEdit={() => { closePage(); void openEdit(detail); }}
             />
         </AdminPage>
       )}

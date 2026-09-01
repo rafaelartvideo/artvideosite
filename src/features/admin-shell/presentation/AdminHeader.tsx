@@ -1,6 +1,6 @@
 import { Globe, Menu, Settings } from "lucide-react";
 import type { AdminPageState, AdminTab } from "../domain/admin.types";
-import { mainItems, utilityItems } from "../navigation-config";
+import { mainItems, operationItems, siteItems, utilityItems } from "../navigation-config";
 
 type AdminHeaderProps = {
   activeTab: AdminTab;
@@ -37,6 +37,8 @@ const shellItems = [
   ...mainItems,
   { id: "site", label: "Site", icon: Globe },
   { id: "operation", label: "Operação", icon: Settings },
+  ...siteItems,
+  ...operationItems,
   ...utilityItems,
 ];
 
