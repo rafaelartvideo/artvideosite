@@ -15,10 +15,8 @@ import {
   markServiceOrderUnsolvable,
   resolveServiceOrder,
 } from "../infrastructure/orders.repository";
-import {
-  uploadOrderImage,
-  type OrderImage,
-} from "../domain/order-image";
+import type { OrderImage } from "../domain/order-image";
+import { uploadMediaFile } from "@/shared/infrastructure/media.repository";
 
 type ToastMessage = { msg: string; type: "success" | "error" };
 type SolveDraft = {
@@ -331,7 +329,7 @@ export function useOrderResolution({
       try {
         for (const [sortOrder, image] of solutionImages.entries()) {
           if (!image.file) continue;
-          const mediaId = await uploadOrderImage(image.file);
+          const mediaId = await uploadMediaFile("service-images", image.file);
           const { error: insertError } = await insertServiceOrderMedia(
             orderId,
             mediaId,
