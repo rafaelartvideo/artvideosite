@@ -223,4 +223,36 @@ using (private.has_permission('documents.edit'));
 -- Templates não são apagados pelo painel: devem ser desativados para preservar configurações.
 -- Não existe policy DELETE em print_templates intencionalmente.
 
+
+-- Quem possui apenas documents.toggle_active pode alterar somente o estado ativo.
+create or replace function private.guard_print_template_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+begin
+  if private.has_permission('documents.edit') then
+    return new;
+  end if;
+
+  if not private.has_permission('documents.toggle_active') then
+    raise exception 'Você não possui permissão para alterar este documento.' using errcode = '42501';
+  end if;
+
+  if (to_jsonb(new) - 'is_active' - 'updated_at')
+     is distinct from
+     (to_jsonb(old) - 'is_active' - 'updated_at') then
+    raise exception 'Esta permissão permite somente ativar ou desativar o documento.' using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$;
+
+drop trigger if exists trg_guard_print_template_update on public.print_templates;
+create trigger trg_guard_print_template_update
+before update on public.print_templates
+for each row execute function private.guard_print_template_update();
+
 commit;

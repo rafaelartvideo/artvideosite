@@ -388,18 +388,17 @@ export interface ServiceOrder {
   service_type_id: string | null;
   status_id: string | null;
   situation_id: string | null;
-  situation_started_at: string;
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
   completed_by: string | null;
+  solved_at: string | null;
+  situation_started_at: string | null;
   service_price: number | null;
   parts_total: number | null;
-  subtotal: number | null;
   discount_percentage: number | null;
   discount_amount: number | null;
   final_total: number | null;
-  solved_at: string | null;
   assigned_to: string | null;
   assigned_profile?: { id: string; full_name: string | null } | null;
   technician_id: string | null;
@@ -426,6 +425,14 @@ export interface ServiceOrderNote {
   note: string;
   is_internal: boolean;
   created_by: string | null;
+  created_at: string;
+}
+
+export interface ServiceOrderHistoryNote {
+  id: string;
+  service_order_id: string;
+  author_id: string;
+  content: string;
   created_at: string;
 }
 
@@ -626,28 +633,8 @@ export interface ServiceOrderPartRequestItem {
   delivered_quantity: number;
   delivered_at: string | null;
   delivered_by: string | null;
-  technician_received_quantity: number;
-  technician_received_at: string | null;
-  technician_received_by: string | null;
-  return_pending_quantity: number;
-  return_registered_at: string | null;
-  return_registered_by: string | null;
   returned_quantity: number;
-  return_received_at: string | null;
-  return_received_by: string | null;
   damaged_quantity: number;
-  created_at: string;
-}
-
-export interface ServiceOrderPartCustodyEvent {
-  id: string;
-  service_order_id: string;
-  request_id: string;
-  request_item_id: string;
-  event_type: "DISPATCHED" | "DELIVERY_CONFIRMED" | "RETURN_REGISTERED" | "RETURN_RECEIVED";
-  quantity: number;
-  notes: string | null;
-  created_by: string | null;
   created_at: string;
 }
 
