@@ -1770,7 +1770,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
                       {hasPermission("orders.toolbar.print_exit") && <DropdownMenuItem className="flex cursor-pointer items-center justify-between gap-4"><span>Saída de equipamento</span><span className="text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span></DropdownMenuItem>}
                     </DropdownMenuContent>
                   </DropdownMenu>}
-                  {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{detailPartRequests.length > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{detailPartRequests.length}</span>}</button>}
+                  {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{detailPartRequests.filter(request => String(request.status || "").toUpperCase() === "PENDING").length > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{detailPartRequests.filter(request => String(request.status || "").toUpperCase() === "PENDING").length}</span>}{detailPartRequests.filter(request => String(request.status || "").toUpperCase() !== "PENDING").length > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{detailPartRequests.filter(request => String(request.status || "").toUpperCase() !== "PENDING").length}</span>}</button>}
                   {hasPermission("orders.section.history") && <button type="button" onClick={() => setHistoryPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico<span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{detailHistory.length + detailHistoryNotes.length}</span></button>}
                 </div>
               </div>
@@ -1922,16 +1922,6 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               {(historyUserFilter || historyDateFilter) && <button type="button" onClick={() => { setHistoryUserFilter(""); setHistoryDateFilter(""); }} className="h-10 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50">Limpar</button>}
             </div>
 
-            {hasPermission("orders.history.create") && <div className="flex justify-end">
-              <button type="button" onClick={() => setNewHistoryOpen(value => !value)} className="inline-flex items-center gap-2 rounded-lg bg-[#0057e7] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0046c0]"><Plus size={15} /> Novo registro</button>
-            </div>}
-
-            {newHistoryOpen && hasPermission("orders.history.create") && <div className="rounded-xl border border-[#0057e7]/20 bg-[#f0f6ff] p-4">
-              <p className="text-xs font-black text-[#0d1b2e]">Novo registro no histórico</p>
-              <textarea value={newHistoryText} onChange={event => setNewHistoryText(event.target.value)} maxLength={2000} rows={4} placeholder="Escreva o que precisa ficar registrado nesta OS..." className={cn(INPUT, "mt-3 h-auto resize-y")} />
-              <div className="mt-3 flex items-center justify-between gap-3"><span className="text-[10px] text-[#5a6a82]">{newHistoryText.length}/2000</span><div className="flex gap-2"><BtnSecondary onClick={() => { setNewHistoryOpen(false); setNewHistoryText(""); }}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void submitHistoryNote()} disabled={!newHistoryText.trim() || historySaving}>{historySaving ? "Registrando..." : "Registrar"}</BtnPrimary></div></div>
-            </div>}
-
             {(() => {
               const automaticEntries = detailHistory.map(item => ({
                 id: `status-${item.id}`,
@@ -1961,7 +1951,32 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
               </div>)}</div>;
             })()}
           </div>
+          <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
+            <BtnSecondary onClick={() => setHistoryPageOpen(false)}>Voltar para a OS</BtnSecondary>
+            {hasPermission("orders.history.create") && <BtnPrimary onClick={() => { setNewHistoryText(""); setNewHistoryOpen(true); }}><Plus size={14} /> Novo registro</BtnPrimary>}
+          </div>
         </AdminPage>
+      )}
+
+      {newHistoryOpen && detail && hasPermission("orders.history.create") && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-labelledby="history-note-modal-title" onMouseDown={event => { if (event.target === event.currentTarget && !historySaving) { setNewHistoryOpen(false); setNewHistoryText(""); } }}>
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-[#0d1b2e]/8 px-5 py-4">
+              <div><h2 id="history-note-modal-title" className="text-lg font-black text-[#0d1b2e]">Novo registro</h2><p className="mt-0.5 text-sm text-[#5a6a82]">Adicione uma observação permanente ao histórico da OS</p></div>
+              <button type="button" onClick={() => { setNewHistoryOpen(false); setNewHistoryText(""); }} disabled={historySaving} aria-label="Fechar" className="rounded-lg p-2 text-[#5a6a82] transition-colors hover:bg-[#f5f7fa] hover:text-[#0d1b2e] disabled:opacity-50"><X size={18} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Registro
+                <textarea autoFocus value={newHistoryText} onChange={event => setNewHistoryText(event.target.value)} maxLength={2000} rows={6} placeholder="Escreva o que precisa ficar registrado nesta OS..." className={cn(INPUT, "mt-2 h-auto resize-y text-sm font-medium normal-case")} />
+              </label>
+              <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[10px] text-[#5a6a82]">O registro não poderá ser editado ou excluído.</span><span className="text-[10px] font-bold text-[#5a6a82]">{newHistoryText.length}/2000</span></div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
+              <BtnSecondary onClick={() => { setNewHistoryOpen(false); setNewHistoryText(""); }}>Cancelar</BtnSecondary>
+              <BtnPrimary onClick={() => void submitHistoryNote()} disabled={!newHistoryText.trim() || historySaving}>{historySaving ? "Registrando..." : "Registrar no histórico"}</BtnPrimary>
+            </div>
+          </div>
+        </div>
       )}
 
       {detail && partRequestsPageOpen && (
