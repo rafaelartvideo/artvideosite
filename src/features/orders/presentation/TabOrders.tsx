@@ -2,11 +2,8 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { QuickEquipmentModal } from "@/features/orders/presentation/OrderQuickCreateModals";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
-import { OrderSolutionSummary } from "@/features/orders/presentation/OrderSolutionSummary";
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
-import { OrderPartRequestsSection } from "@/features/orders/presentation/OrderPartRequestsSection";
-import { OrderDetailsContent } from "@/features/orders/presentation/OrderDetailsContent";
-import { OrderDetailsActions } from "@/features/orders/presentation/OrderDetailsActions";
+import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPage";
 import { OrderCustomerSection } from "@/features/orders/presentation/OrderCustomerSection";
 import { OrderEquipmentSection } from "@/features/orders/presentation/OrderEquipmentSection";
 import { OrderInformationSection } from "@/features/orders/presentation/OrderInformationSection";
@@ -79,6 +76,34 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     getStateLabel: stateLabel,
     getEquipmentSummary: equipmentSummary,
   });
+  const imagesController = useOrderImages();
+  const partRequests = useOrderPartRequests({
+    reloadOrders: reloadWorkspace,
+    hasPermission,
+    showToast: setToast,
+    formatError: supabaseErrorMessage,
+  });
+  const detailsController = useOrderDetails({
+    loadPartRequests,
+    replaceOrderImages,
+  });
+  const resolutionController = useOrderResolution({
+    detail,
+    setDetail,
+    setOrders,
+    detailPartRequests,
+    getTestPendingQuantity,
+    solutionImages,
+    replaceOrderImages,
+    replaceSolutionImages,
+    setDetailUsedItems,
+    setDetailSolutionImages,
+    reloadOrders: reloadWorkspace,
+    hasPermission,
+    showToast: setToast,
+    formatError: supabaseErrorMessage,
+    setSaving,
+  });
   const { user, profile, hasPermission } = useAuth();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [subView, setSubView] = useState<"list" | "situations">("list");
@@ -145,7 +170,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     replaceSolutionImages,
     addSolutionImages,
     removeSolutionImage,
-  } = useOrderImages();
+  } = imagesController;
 
   const {
     customerSearch,
@@ -267,12 +292,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     submitTestResults,
     getTestCommittedQuantity,
     getTestPendingQuantity,
-  } = useOrderPartRequests({
-    reloadOrders: reloadWorkspace,
-    hasPermission,
-    showToast: setToast,
-    formatError: supabaseErrorMessage,
-  });
+  } = partRequests;
 
   const {
     detail,
@@ -284,10 +304,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setDetailSolutionImages,
     openDetail,
     closeDetail,
-  } = useOrderDetails({
-    loadPartRequests,
-    replaceOrderImages,
-  });
+  } = detailsController;
 
   const {
     inventoryItems,
@@ -297,23 +314,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     setSolveDraft,
     openSolveOrder,
     saveOrderSolution,
-  } = useOrderResolution({
-    detail,
-    setDetail,
-    setOrders,
-    detailPartRequests,
-    getTestPendingQuantity,
-    solutionImages,
-    replaceOrderImages,
-    replaceSolutionImages,
-    setDetailUsedItems,
-    setDetailSolutionImages,
-    reloadOrders: reloadWorkspace,
-    hasPermission,
-    showToast: setToast,
-    formatError: supabaseErrorMessage,
-    setSaving,
-  });
+  } = resolutionController;
 
   const {
     draggingId,
@@ -552,58 +553,27 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         equipmentSummary={equipmentSummary}
       />
 
-      {/* OS Detail Drawer */}
-      {detail && !solveOpen && (
-        <AdminPage open={true} onClose={() => closeDetail()} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
-            <div className="p-5 space-y-5">
-              <OrderDetailsContent
-                detail={detail}
-                images={orderImages}
-                history={detailHistory}
-                formatDate={fmtDate}
-                formatState={stateLabel}
-                getSla={getSlaForOrder}
-                onViewImage={setViewImage}
-              />
-              <OrderPartRequestsSection
-                requests={detailPartRequests}
-                assignedTo={detail.assigned_to}
-                currentUserId={user?.id}
-                hasPermission={hasPermission}
-                formatDate={fmtDate}
-                getCommittedQuantity={getTestCommittedQuantity}
-                getPendingQuantity={getTestPendingQuantity}
-                onApprove={openPartApproval}
-                onReject={openPartRejection}
-                onDelivery={openDeliveryRequest}
-                onTestResult={openTestResult}
-              />
-              <OrderSolutionSummary
-                detail={detail}
-                profileName={profile?.full_name}
-                usedItems={detailUsedItems}
-                solutionImages={detailSolutionImages}
-                usedItemsTotal={detailUsedItemsTotal}
-                formatSolvedAt={formatSolvedAt}
-                formatCurrency={formatCurrency}
-                onViewImage={setViewImage}
-              />
-            </div>
-            <OrderDetailsActions
-              detail={detail}
-              statuses={statuses}
-              situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)}
-              hasPermission={hasPermission}
-              onClose={() => closeDetail()}
-              onStatusChange={(statusId) => updateOrderStatus(detail, statusId)}
-              onSituationChange={(situationId) => { void updateOrderSituation(detail, situationId); }}
-              onRequestParts={openPartRequestModal}
-              onResolve={() => openSolveOrder(detail)}
-              onEdit={() => { closeDetail(); void openEdit(detail); }}
-              onDelete={() => setDeleteId(detail.id)}
-            />
-        </AdminPage>
-      )}
+      <OrderDetailsPage
+        visible={Boolean(detail && !solveOpen)}
+        userId={user?.id}
+        profileName={profile?.full_name}
+        workspace={workspace}
+        details={detailsController}
+        images={imagesController}
+        partRequests={partRequests}
+        resolution={resolutionController}
+        mutations={listMutations}
+        hasPermission={hasPermission}
+        usedItemsTotal={detailUsedItemsTotal}
+        formatDate={fmtDate}
+        formatState={stateLabel}
+        formatSolvedAt={formatSolvedAt}
+        formatCurrency={formatCurrency}
+        getSituations={getSituationsForType}
+        getSla={getSlaForOrder}
+        onEdit={(order) => { void openEdit(order); }}
+        onDelete={setDeleteId}
+      />
 
       {/* OS Create/Edit Page */}
       {formOpen && (
