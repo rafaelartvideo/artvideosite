@@ -166,7 +166,7 @@ export function OrderDetailsPage(props: Props) {
               onRequestParts={openPartRequestModal}
               onResolve={() => openSolveOrder(detail)}
               onComplete={openCompletion}
-              onEdit={() => { closePage(); void openEdit(detail); }}
+              onEdit={() => { closeDetail(); void openEdit(detail); }}
             />
         </AdminPage>
       )}

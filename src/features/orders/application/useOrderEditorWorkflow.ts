@@ -80,7 +80,7 @@ export function useOrderEditorWorkflow({
     const editingOrder = formState.editingOS;
     if (editingOrder ? !hasPermission("orders.edit") : !hasPermission("orders.create")) {
       showToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" });
-      return;
+      return false;
     }
     const preparation = prepareOrderForm({
       form: formState.form,
@@ -96,7 +96,7 @@ export function useOrderEditorWorkflow({
     });
     if ("error" in preparation) {
       showToast({ msg: preparation.error, type: "error" });
-      return;
+      return false;
     }
     const { status, error: statusError } = await getOrderSubmissionStatus({
       editingOrder,
@@ -104,11 +104,11 @@ export function useOrderEditorWorkflow({
     });
     if (statusError || !status?.id) {
       showToast({ msg: "Não foi possível identificar um status válido para a OS.", type: "error" });
-      return;
+      return false;
     }
 
     setSaving(true);
-    if (customers.editingCustomer && customers.selectedCustomer?.id && !(await customerPersistence.saveCustomerBeforeOrder())) return;
+    if (customers.editingCustomer && customers.selectedCustomer?.id && !(await customerPersistence.saveCustomerBeforeOrder())) return false;
 
     const payload = buildOrderPayload({
       form: formState.form,
@@ -137,13 +137,14 @@ export function useOrderEditorWorkflow({
           ? `OS salva, mas não foi possível atualizar técnicos/vendedores: ${formatError(submission.error)}`
           : `OS salva, mas houve erro nas imagens: ${formatError(submission.error)}`;
       showToast({ msg: message, type: "error" });
-      return;
+      return false;
     }
     setSaving(false);
     showToast({ msg: `OS ${editingOrder ? "atualizada" : "criada"} com sucesso!`, type: "success" });
     formState.closeOrderForm();
     details.closeDetail();
     await workspace.reloadWorkspace();
+    return true;
   };
 
   return { selectCustomer, openNew, openEdit, save };

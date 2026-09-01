@@ -206,7 +206,8 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         <TabOrders
           onNavigate={(tab) => navigateAdmin(tab)}
           initialOrderId={route.resourceId}
-          onOrderRouteChange={(orderId) => navigateAdmin("orders", orderId)}
+          routeSubpage={route.subpage}
+          onOrderRouteChange={(orderId, subpage) => navigateAdmin("orders", orderId, subpage)}
         />
       ),
     },

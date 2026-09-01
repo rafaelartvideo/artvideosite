@@ -36,7 +36,7 @@ import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type OrderType = "internal" | "external";
 
-export function TabOrders({ onNavigate, initialOrderId, onOrderRouteChange }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onOrderRouteChange?: (id: string | null) => void }) {
+export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRouteChange }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; routeSubpage?: string | null; onOrderRouteChange?: (id: string | null, subpage?: string | null) => void }) {
   const { user, profile, hasPermission } = useAuth();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [subView, setSubView] = useState<"list" | "situations">("list");
@@ -342,23 +342,50 @@ export function TabOrders({ onNavigate, initialOrderId, onOrderRouteChange }: { 
     if (loading) return;
     if (!initialOrderId) {
       if (detail) closeDetail();
+      if (formOpen) closeOrderForm();
       return;
     }
-    if (detail?.id === initialOrderId) return;
+    if (initialOrderId === "new") {
+      if (detail) closeDetail();
+      if (!formOpen || editingOS) openNew();
+      return;
+    }
     const order = orders.find(item => item.id === initialOrderId);
-    if (order) openDetail(order);
-  }, [initialOrderId, loading, orders, detail?.id]);
+    if (!order) return;
+    if (routeSubpage === "edit") {
+      if (detail) closeDetail();
+      if (!formOpen || editingOS?.id !== order.id) void openEdit(order);
+      return;
+    }
+    if (formOpen) closeOrderForm();
+    if (detail?.id !== order.id) openDetail(order);
+  }, [initialOrderId, routeSubpage, loading, orders, detail?.id, formOpen, editingOS?.id]);
 
   const openRoutedDetail = (order: any) => {
     openDetail(order);
-    onOrderRouteChange?.(order.id);
+    onOrderRouteChange?.(order.id, null);
   };
 
-  const closeRoutedDetail = () => {
+  const openRoutedNew = () => {
+    openNew();
+    onOrderRouteChange?.("new", null);
+  };
+
+  const openRoutedEdit = (order: any) => {
+    void openEdit(order);
+    onOrderRouteChange?.(order.id, "edit");
+  };
+
+  const closeRoutedPage = () => {
     closeDetail();
-    onOrderRouteChange?.(null);
+    closeOrderForm();
+    onOrderRouteChange?.(null, null);
   };
 
+  const saveRoutedOrder = async () => {
+    const saved = await saveOS();
+    if (saved) onOrderRouteChange?.(null, null);
+  };
 
   const setViewMode = (mode: "list" | "kanban") => {
     setDisplayMode(mode);
@@ -446,9 +473,9 @@ export function TabOrders({ onNavigate, initialOrderId, onOrderRouteChange }: { 
         canCreate={hasPermission("orders.create")}
         hasPermission={hasPermission}
         onDisplayModeChange={setViewMode}
-        onCreate={openNew}
+        onCreate={openRoutedNew}
         onOpenDetail={openRoutedDetail}
-        onOpenEdit={(order) => { void openEdit(order); }}
+        onOpenEdit={openRoutedEdit}
         getSituations={getSituationsForType}
         formatDate={fmtDate}
         equipmentSummary={equipmentSummary}
@@ -477,8 +504,8 @@ export function TabOrders({ onNavigate, initialOrderId, onOrderRouteChange }: { 
         formatCurrency={formatCurrency}
         getSituations={getSituationsForType}
         getSla={getSlaForOrder}
-        onEdit={(order) => { void openEdit(order); }}
-        onClose={closeRoutedDetail}
+        onEdit={openRoutedEdit}
+        onClose={closeRoutedPage}
       />
 
       <OrderEditorPage
@@ -494,7 +521,8 @@ export function TabOrders({ onNavigate, initialOrderId, onOrderRouteChange }: { 
         getSituations={getSituationsForType}
         getSla={getSlaForOrder}
         onSelectCustomer={selectCustomer}
-        onSave={saveOS}
+        onSave={saveRoutedOrder}
+        onClose={closeRoutedPage}
       />
       <OrderWorkflowModals
         detail={detail}

@@ -36,7 +36,8 @@ interface OrderEditorPageProps {
     relatedSituation?: any,
   ) => { hours: number; isDefault: boolean } | null;
   onSelectCustomer: ReturnType<typeof useOrderEditorWorkflow>["selectCustomer"];
-  onSave: ReturnType<typeof useOrderEditorWorkflow>["save"];
+  onSave: () => Promise<unknown>;
+  onClose?: () => void;
 }
 
 export function OrderEditorPage({
@@ -53,6 +54,7 @@ export function OrderEditorPage({
   getSla,
   onSelectCustomer,
   onSave,
+  onClose,
 }: OrderEditorPageProps) {
   if (!visible) return null;
 
@@ -82,6 +84,7 @@ export function OrderEditorPage({
     closeOrderForm,
   } = formState;
   const { orderImages, addOrderImages, removeOrderImage, setViewImage } = images;
+  const closePage = onClose || closeOrderForm;
   const {
     customerSearch,
     customerResults,
@@ -117,7 +120,7 @@ export function OrderEditorPage({
   return (
     <AdminPage
       open
-      onClose={closeOrderForm}
+      onClose={closePage}
       breadcrumb={editingOS ? `Ordens de Serviço > OS #${editingOS.os_number || editingOS.id.slice(0, 8)}` : "Ordens de Serviço"}
       title={editingOS ? "Editar OS" : "Nova OS"}
       subtitle={editingOS ? "Atualize os dados do atendimento" : "Cadastre os dados do atendimento"}
@@ -223,7 +226,7 @@ export function OrderEditorPage({
       <OrderFormActions
         saving={saving}
         canSave={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
-        onCancel={closeOrderForm}
+        onCancel={closePage}
         onSave={() => { void onSave(); }}
       />
     </AdminPage>
