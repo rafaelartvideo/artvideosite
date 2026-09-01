@@ -26,6 +26,7 @@ import {
   equipmentSummary,
   formatOrderCurrency,
   formatOrderDate,
+  formatSolvedAt,
   slaForOrder,
   stateLabel,
   situationsForType,
@@ -440,7 +441,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
         hasPermission={hasPermission}
         usedItemsTotal={detailUsedItemsTotal}
         formatDate={fmtDate}
-        formatState={stateLabel}
+        formatState={getStateLabel}
         formatSolvedAt={formatSolvedAt}
         formatCurrency={formatCurrency}
         getSituations={getSituationsForType}
