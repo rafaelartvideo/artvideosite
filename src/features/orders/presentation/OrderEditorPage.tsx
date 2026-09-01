@@ -28,13 +28,13 @@ interface OrderEditorPageProps {
   getSituations: (
     serviceTypeId: string,
     currentSituationId?: string,
-    currentSituation?: unknown,
-  ) => unknown[];
+    currentSituation?: any,
+  ) => any[];
   getSla: (
     serviceTypeId?: string,
     situationId?: string,
-    relatedSituation?: unknown,
-  ) => unknown;
+    relatedSituation?: any,
+  ) => { hours: number; isDefault: boolean } | null;
   onSelectCustomer: ReturnType<typeof useOrderEditorWorkflow>["selectCustomer"];
   onSave: ReturnType<typeof useOrderEditorWorkflow>["save"];
 }
@@ -76,6 +76,8 @@ export function OrderEditorPage({
     setQuickCustomer,
     form,
     setForm,
+    needsScheduling,
+    setNeedsScheduling,
     updateField,
     closeOrderForm,
   } = formState;
@@ -198,6 +200,8 @@ export function OrderEditorPage({
           selectedSellerIds={selectedSellerIds}
           canAssign={hasPermission("orders.assign")}
           situations={situations}
+          needsScheduling={needsScheduling}
+          setNeedsScheduling={setNeedsScheduling}
           onFieldChange={updateField}
           onTechniciansChange={setSelectedTechnicianIds}
           onSellersChange={setSelectedSellerIds}

@@ -15,6 +15,8 @@ export function OrderInformationSection({
   selectedSellerIds,
   canAssign,
   situations,
+  needsScheduling,
+  setNeedsScheduling,
   onFieldChange,
   onTechniciansChange,
   onSellersChange,
@@ -31,6 +33,8 @@ export function OrderInformationSection({
   selectedSellerIds: string[];
   canAssign: boolean;
   situations: any[];
+  needsScheduling: boolean;
+  setNeedsScheduling: Dispatch<SetStateAction<boolean>>;
   onFieldChange: (field: string, value: any) => void;
   onTechniciansChange: Dispatch<SetStateAction<string[]>>;
   onSellersChange: Dispatch<SetStateAction<string[]>>;
