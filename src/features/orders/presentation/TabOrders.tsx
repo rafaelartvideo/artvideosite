@@ -51,59 +51,6 @@ import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 type OrderType = "internal" | "external";
 
 export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; onFocused?: () => void }) {
-  const workspace = useOrdersWorkspace({ showToast: setToast });
-  const serviceAddress = useOrderServiceAddress({
-    form,
-    setForm,
-    selectedCustomer,
-  });
-  const listMutations = useOrderListMutations({
-    orders,
-    setOrders,
-    statuses,
-    situations,
-    detail,
-    setDetail,
-    userId: user?.id,
-    hasPermission,
-    showToast: setToast,
-    formatError: supabaseErrorMessage,
-    syncRelatedCaches: reloadWorkspace,
-  });
-  const filters = useOrderFilters({
-    orders,
-    stateOptions: ibgeStates,
-    getStateLabel: stateLabel,
-    getEquipmentSummary: equipmentSummary,
-  });
-  const imagesController = useOrderImages();
-  const partRequests = useOrderPartRequests({
-    reloadOrders: reloadWorkspace,
-    hasPermission,
-    showToast: setToast,
-    formatError: supabaseErrorMessage,
-  });
-  const detailsController = useOrderDetails({
-    loadPartRequests,
-    replaceOrderImages,
-  });
-  const resolutionController = useOrderResolution({
-    detail,
-    setDetail,
-    setOrders,
-    detailPartRequests,
-    getTestPendingQuantity,
-    solutionImages,
-    replaceOrderImages,
-    replaceSolutionImages,
-    setDetailUsedItems,
-    setDetailSolutionImages,
-    reloadOrders: reloadWorkspace,
-    hasPermission,
-    showToast: setToast,
-    formatError: supabaseErrorMessage,
-    setSaving,
-  });
   const { user, profile, hasPermission } = useAuth();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [subView, setSubView] = useState<"list" | "situations">("list");
@@ -111,6 +58,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     if (typeof window === "undefined") return "list";
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
+  const workspace = useOrdersWorkspace({ showToast: setToast });
   const {
     orders,
     setOrders,
@@ -157,6 +105,7 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     closeOrderForm,
   } = useOrderFormState();
 
+  const imagesController = useOrderImages();
   const {
     orderImages,
     solutionImages,
@@ -191,6 +140,11 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     clearCustomer,
   } = useOrderCustomerSelection();
 
+  const serviceAddress = useOrderServiceAddress({
+    form,
+    setForm,
+    selectedCustomer,
+  });
   const {
     serviceUseCustomerAddress,
     setServiceUseCustomerAddress,
@@ -243,6 +197,12 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     }
   };
 
+  const partRequests = useOrderPartRequests({
+    reloadOrders: reloadWorkspace,
+    hasPermission,
+    showToast: setToast,
+    formatError: supabaseErrorMessage,
+  });
   const {
     detailPartRequests,
     selectedPartRequest,
@@ -294,6 +254,10 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     getTestPendingQuantity,
   } = partRequests;
 
+  const detailsController = useOrderDetails({
+    loadPartRequests,
+    replaceOrderImages,
+  });
   const {
     detail,
     setDetail,
@@ -306,6 +270,23 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     closeDetail,
   } = detailsController;
 
+  const resolutionController = useOrderResolution({
+    detail,
+    setDetail,
+    setOrders,
+    detailPartRequests,
+    getTestPendingQuantity,
+    solutionImages,
+    replaceOrderImages,
+    replaceSolutionImages,
+    setDetailUsedItems,
+    setDetailSolutionImages,
+    reloadOrders: reloadWorkspace,
+    hasPermission,
+    showToast: setToast,
+    formatError: supabaseErrorMessage,
+    setSaving,
+  });
   const {
     inventoryItems,
     solveOpen,
@@ -316,6 +297,19 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     saveOrderSolution,
   } = resolutionController;
 
+  const listMutations = useOrderListMutations({
+    orders,
+    setOrders,
+    statuses,
+    situations,
+    detail,
+    setDetail,
+    userId: user?.id,
+    hasPermission,
+    showToast: setToast,
+    formatError: supabaseErrorMessage,
+    syncRelatedCaches: reloadWorkspace,
+  });
   const {
     draggingId,
     dragOverStatusId,
@@ -467,6 +461,12 @@ export function TabOrders({ onNavigate, initialOrderId, onFocused }: { onNavigat
     return ibgeState ? `${sigla} — ${ibgeState.nome}` : sigla;
   };
 
+  const filters = useOrderFilters({
+    orders,
+    stateOptions: ibgeStates,
+    getStateLabel: stateLabel,
+    getEquipmentSummary: equipmentSummary,
+  });
   const {
     search,
     setSearch,
