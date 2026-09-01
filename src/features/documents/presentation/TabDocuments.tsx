@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Check, ChevronDown, ChevronRight, FileText, LayoutTemplate, Plus, Search, Settings2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { PRINT_FIELD_REGISTRY } from "../domain/print-field-registry";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { BtnPrimary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminPage, BtnPrimary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { PRINT_TEMPLATE_TYPE_LABELS } from "../domain/print-template";
 import { useDocuments } from "../application/useDocuments";
@@ -12,7 +12,7 @@ import {
   PrintTemplateEditor,
 } from "./PrintTemplateEditor";
 
-export function TabDocuments({ onBack }: { onBack?: () => void }) {
+export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteChange }: { onBack?: () => void; routeResourceId?: string | null; routeSubpage?: string | null; onRouteChange?: (resourceId: string | null, subpage?: string | null) => void }) {
   const { hasPermission } = useAuth();
   const documents = useDocuments();
   const {
@@ -23,8 +23,31 @@ export function TabDocuments({ onBack }: { onBack?: () => void }) {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : "";
-  const openNewDocument = openNew;
-  const openTemplateEditor = openEditor;
+  useEffect(() => {
+    if (!routeResourceId) {
+      if (editorOpen) closeEditor();
+      return;
+    }
+    if (routeResourceId === "new") {
+      if (!editorOpen) openNew();
+      return;
+    }
+    if (routeSubpage !== "edit" || editorOpen || openingEditor || editingTemplateId === routeResourceId) return;
+    const template = templates.find(item => item.id === routeResourceId);
+    if (template) openEditor(template);
+    else if (!loading) onRouteChange?.(null, null);
+  }, [routeResourceId, routeSubpage, templates, editorOpen, openingEditor, editingTemplateId]);
+
+  const openNewDocument = () => onRouteChange ? onRouteChange("new", null) : openNew();
+  const openTemplateEditor = (template: (typeof templates)[number]) => onRouteChange ? onRouteChange(template.id, "edit") : openEditor(template);
+  const closeDocumentEditor = () => {
+    closeEditor();
+    onRouteChange?.(null, null);
+  };
+  const saveDocument = async (value: Parameters<typeof save>[0]) => {
+    await save(value);
+    onRouteChange?.(null, null);
+  };
 
   const toggleSection = (key: string) => {
     setExpandedSections(current => {
@@ -103,19 +126,25 @@ export function TabDocuments({ onBack }: { onBack?: () => void }) {
       </section>
 
       {editorOpen && (
-        <div className="fixed inset-0 z-[80] overflow-y-auto bg-[#0d1b2e]/45 p-4">
-          <div className="mx-auto max-w-6xl">
-            <PrintTemplateEditor
-              initialValue={editorValue}
-              onCancel={closeEditor}
-              onSave={save}
-              saving={saving}
-              saveError={errorMessage}
-            />
-          </div>
-        </div>
-      )}
-    </div>
+        <AdminPage
+          open
+          onClose={closeDocumentEditor}
+          breadcrumb="Documentos"
+          title={editorValue.id ? "Configurar documento" : "Novo documento"}
+          subtitle="Editor de modelos de impressão"
+          maxW="max-w-[1600px]"
+          fullPage
+        >
+          <PrintTemplateEditor
+            key={editorValue.id || "new-document"}
+            initialValue={editorValue}
+            onCancel={closeDocumentEditor}
+            onSave={saveDocument}
+            saving={saving}
+            saveError={errorMessage}
+          />
+        </AdminPage>
+      )}    </div>
   );
 }
 

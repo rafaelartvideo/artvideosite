@@ -1,14 +1,21 @@
-import React, { useMemo, useState } from "react";
-import { Check, ChevronDown, ChevronRight, FileText, Save, X } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Check, ChevronDown, ChevronRight, Eye, Save } from "lucide-react";
 import { PRINT_FIELD_REGISTRY } from "../domain/print-field-registry";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { PrintTemplatePreview } from "./PrintTemplatePreview";
 import type { PrintTemplateEditorValue } from "../domain/print-template";
 
 export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, saveError }: { initialValue: PrintTemplateEditorValue; onCancel: () => void; onSave: (value: PrintTemplateEditorValue) => Promise<unknown>; saving: boolean; saveError?: string }) {
   const [value, setValue] = useState<PrintTemplateEditorValue>(() => ({ ...initialValue, selectedFields: new Set(initialValue.selectedFields) }));
   const [expanded, setExpanded] = useState<Set<string>>(new Set(PRINT_FIELD_REGISTRY.slice(0, 3).map(section => section.key)));
   const [validationError, setValidationError] = useState("");
+  useEffect(() => {
+    setValue({ ...initialValue, selectedFields: new Set(initialValue.selectedFields) });
+    setValidationError("");
+  }, [initialValue]);
+
   const selectedCount = value.selectedFields.size;
 
   const selectedSections = useMemo(() => PRINT_FIELD_REGISTRY.filter(section => section.fields.some(field => value.selectedFields.has(field.key))), [value.selectedFields]);
@@ -44,9 +51,14 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
   };
 
   return <div className="space-y-5">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="text-xs font-bold uppercase tracking-wider text-[#0057e7]">Editor de documento</div><h2 className="mt-1 text-xl font-black text-[#0d1b2e]">{value.id ? "Configurar modelo" : "Novo modelo"}</h2></div><button type="button" onClick={onCancel} className="inline-flex items-center gap-2 self-start rounded-lg border border-[#d8e0eb] bg-white px-3 py-2 text-sm font-bold text-[#42526a]"><X size={15}/> Fechar</button></div>
+    <PageHeader
+      eyebrow="Documentos"
+      title={value.id ? "Configurar documento" : "Novo documento"}
+      subtitle="Defina o conteúdo, a apresentação e visualize o resultado da impressão em tempo real."
+      actions={<div className="flex flex-wrap items-center gap-2"><BtnSecondary onClick={onCancel}>Cancelar</BtnSecondary><BtnPrimary onClick={() => { void save(); }} disabled={saving}><Save size={16}/>{saving ? "Salvando..." : "Salvar documento"}</BtnPrimary></div>}
+    />
     {(validationError || saveError) && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{validationError || saveError}</div>}
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
       <div className="space-y-5">
         <section className="rounded-xl border border-[#0d1b2e]/10 bg-white p-5 shadow-sm"><h3 className="font-black text-[#0d1b2e]">Configuração</h3><div className="mt-4 grid gap-4 md:grid-cols-2">
           <Field label="Nome"><input className={INPUT} value={value.name} onChange={e => setValue(v => ({...v,name:e.target.value}))} placeholder="Ex.: Ordem de Serviço" /></Field>
@@ -59,7 +71,34 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
         <div className="mt-4 grid gap-4 md:grid-cols-2"><Field label="Texto do cabeçalho"><input className={INPUT} value={value.header_text} onChange={e=>setValue(v=>({...v,header_text:e.target.value}))}/></Field><Field label="Texto do rodapé"><input className={INPUT} value={value.footer_text} onChange={e=>setValue(v=>({...v,footer_text:e.target.value}))}/></Field></div></section>
         <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-sm"><div className="border-b border-[#0d1b2e]/8 p-5"><div className="flex items-center justify-between"><div><h3 className="font-black text-[#0d1b2e]">Campos</h3><p className="mt-1 text-xs text-[#5a6a82]">Marque os dados que farão parte deste documento.</p></div><span className="rounded-full bg-[#edf3ff] px-2.5 py-1 text-xs font-bold text-[#0057e7]">{selectedCount} selecionados</span></div></div><div className="divide-y divide-[#0d1b2e]/7">{PRINT_FIELD_REGISTRY.map(section=>{const open=expanded.has(section.key);const count=section.fields.filter(f=>value.selectedFields.has(f.key)).length;return <div key={section.key}><div className="flex items-center gap-2 px-4 py-3"><button type="button" onClick={()=>setExpanded(s=>{const n=new Set(s);n.has(section.key)?n.delete(section.key):n.add(section.key);return n;})} className="p-1 text-[#5a6a82]">{open?<ChevronDown size={16}/>:<ChevronRight size={16}/>}</button><button type="button" onClick={()=>toggleSection(section.key)} className={cn("flex h-5 w-5 items-center justify-center rounded border",count===section.fields.length?"border-[#0057e7] bg-[#0057e7] text-white":"border-[#b8c3d1] bg-white")}>{count===section.fields.length&&<Check size={13}/>}</button><button type="button" onClick={()=>setExpanded(s=>new Set(s).add(section.key))} className="flex-1 text-left"><span className="font-bold text-[#0d1b2e]">{section.label}</span><span className="ml-2 text-xs text-[#7a889c]">{count}/{section.fields.length}</span></button></div>{open&&<div className="grid gap-2 bg-[#f8fafc] px-5 py-4 md:grid-cols-2">{section.fields.map(field=><CheckOption key={field.key} checked={value.selectedFields.has(field.key)} label={field.label} detail={field.key} onChange={()=>toggleField(field.key)}/>)}</div>}</div>})}</div></section>
       </div>
-      <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start"><div className="rounded-xl border border-[#0d1b2e]/10 bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><FileText size={18} className="text-[#0057e7]"/><h3 className="font-black text-[#0d1b2e]">Resumo do layout</h3></div><div className="mt-4 space-y-2 text-sm text-[#5a6a82]"><p><b className="text-[#0d1b2e]">{selectedSections.length}</b> seções</p><p><b className="text-[#0d1b2e]">{selectedCount}</b> campos</p><p>{value.paper_size} · {value.orientation==='portrait'?'Retrato':'Paisagem'}</p></div><div className="mt-4 space-y-1.5">{selectedSections.map(section=><div key={section.key} className="rounded-lg bg-[#f5f7fa] px-3 py-2 text-xs font-bold text-[#42526a]">{section.label} · {section.fields.filter(f=>value.selectedFields.has(f.key)).length}</div>)}</div></div><button type="button" disabled={saving} onClick={save} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 py-3 text-sm font-bold text-white hover:bg-[#0046c0] disabled:opacity-50"><Save size={17}/>{saving?'Salvando...':'Salvar modelo'}</button></aside>
+      <aside className="space-y-4 2xl:sticky 2xl:top-4 2xl:self-start">
+        <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#0d1b2e]/8 px-5 py-4">
+            <div className="flex items-center gap-2"><Eye size={18} className="text-[#0057e7]"/><div><h3 className="font-black text-[#0d1b2e]">Pré-visualização</h3><p className="text-xs text-[#5a6a82]">Atualizada enquanto você configura.</p></div></div>
+            <span className="rounded-full bg-[#edf3ff] px-2.5 py-1 text-xs font-bold text-[#0057e7]">{selectedCount} campos</span>
+          </div>
+          <div className="max-h-[calc(100vh-15rem)] overflow-auto bg-slate-100 p-4">
+            <PrintTemplatePreview
+              documentName={value.name}
+              documentType={value.document_type}
+              orientation={value.orientation}
+              margins={{ top: value.margin_top, right: value.margin_right, bottom: value.margin_bottom, left: value.margin_left }}
+              show_logo={value.show_logo}
+              show_company_info={value.show_company_info}
+              show_page_number={value.show_page_number}
+              show_printed_at={value.show_printed_at}
+              header_text={value.header_text}
+              footer_text={value.footer_text}
+              sections={selectedSections}
+              selectedFields={value.selectedFields}
+              compact
+            />
+          </div>
+        </section>
+        <div className="rounded-xl border border-[#0d1b2e]/10 bg-white p-4 text-sm text-[#5a6a82] shadow-sm">
+          <div className="flex flex-wrap gap-x-5 gap-y-1"><span><b className="text-[#0d1b2e]">{selectedSections.length}</b> seções</span><span><b className="text-[#0d1b2e]">{selectedCount}</b> campos</span><span>{value.paper_size} · {value.orientation === "portrait" ? "Retrato" : "Paisagem"}</span></div>
+        </div>
+      </aside>
     </div>
   </div>;
 }

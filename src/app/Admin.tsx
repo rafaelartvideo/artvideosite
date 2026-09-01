@@ -192,7 +192,12 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     generalServices: { element: <GeneralServicesPanel onBack={() => backToParent("generalServices")} /> },
     serviceTypes: { element: <ServiceTypesAdminPanel onBack={() => backToParent("serviceTypes")} /> },
     inventory: { element: <TabInventory /> },
-    documents: { element: <TabDocuments onBack={() => backToParent("documents")} /> },
+    documents: { element: <TabDocuments
+      onBack={() => backToParent("documents")}
+      routeResourceId={route.resourceId}
+      routeSubpage={route.subpage}
+      onRouteChange={(resourceId, subpage) => navigateAdmin("documents", resourceId, subpage)}
+    /> },
     situations: { element: <OSSituationsView onBack={() => backToParent("situations")} /> },
     orderStatuses: { element: <OrderStatusesAdminPanel onBack={() => backToParent("orderStatuses")} /> },
     quotes: { element: <TabQuotes onNavigate={(tab) => navigateAdmin(tab)} /> },
