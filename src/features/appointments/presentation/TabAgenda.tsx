@@ -60,6 +60,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialo
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { AgendaEventCard } from "./AgendaEventCard";
 import { AppointmentDetailsDialog } from "./AppointmentDetailsDialog";
+import { createAppointmentForm } from "../application/appointment-form";
 
 export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const { user, hasPermission } = useAuth();
@@ -84,7 +85,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const [changingAppointmentCustomer, setChangingAppointmentCustomer] = useState(false);
   const [appointmentCustomerSearchLoading, setAppointmentCustomerSearchLoading] = useState(false);
   const [appointmentOrders, setAppointmentOrders] = useState<any[]>([]);
-  const [appointmentForm, setAppointmentForm] = useState({ customer_id: "", service_order_id: "", appointment_date: "", period: "no_time" as AppointmentPeriod, start_time: "", end_time: "", sector_location: "", situation_id: "", description: "", is_return: false, address_source: null as "customer" | "custom" | null, customer_address_id: "", zip_code: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" });
+  const [appointmentForm, setAppointmentForm] = useState(createAppointmentForm);
   const [selectedAppointmentTechnicians, setSelectedAppointmentTechnicians] = useState<string[]>([]);
   const [appointmentTechnicianSearch, setAppointmentTechnicianSearch] = useState("");
   const filterPanelRef = useRef<HTMLDivElement>(null);
@@ -225,7 +226,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const isToday = (date: Date) => dayKey(date) === dayKey(new Date());
   const openAppointmentModal = () => {
     const defaultSituation = appointmentSituations.find(item => String(item.name).trim().toLowerCase() === "agendado") ?? appointmentSituations[0];
-    setAppointmentForm({ customer_id: "", service_order_id: "", appointment_date: dayKey(cursor), period: "no_time", start_time: "", end_time: "", sector_location: "", situation_id: defaultSituation?.id ?? "", description: "", is_return: false, address_source: null, customer_address_id: "", zip_code: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" });
+    setAppointmentForm(createAppointmentForm(dayKey(cursor), defaultSituation?.id ?? ""));
     setAppointmentCustomer(null); setAppointmentOrders([]); setSelectedAppointmentTechnicians([]); setAppointmentCustomers([]); setAppointmentCustomerSearch(""); setChangingAppointmentCustomer(false); setAppointmentModalOpen(true);
   };
   const searchAppointmentCustomers = async (value: string) => {
