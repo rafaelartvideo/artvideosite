@@ -44,7 +44,7 @@ type Props = {
 };
 
 export function NewAppointmentDialog({
-  open: appointmentModalOpen,
+  open,
   onClose,
   saving: appointmentSaving,
   form: appointmentForm,

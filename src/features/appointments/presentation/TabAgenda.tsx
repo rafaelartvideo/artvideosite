@@ -8,7 +8,6 @@ import {
   ListFilter,
   Plus,
   Search,
-  X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
@@ -22,7 +21,6 @@ import {
 } from "../infrastructure/appointments.repository";
 import { fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
 import type {
-  AppointmentPeriod,
   AppointmentSituation,
 } from "@/lib/database.types";
 import {
@@ -35,8 +33,6 @@ import {
   type CalendarEvent,
 } from "@/features/appointments/application/agenda-calendar";
 import {
-  BtnPrimary,
-  BtnSecondary,
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
 import {
