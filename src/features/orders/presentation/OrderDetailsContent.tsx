@@ -7,10 +7,6 @@ import {
   getResponsibleName,
   type ServiceOrderWithRelations,
 } from "./OrderFormControls";
-import {
-  OrderImageThumb,
-  type OrderImage,
-} from "./OrderImages";
 
 export function InfoRow({
   label,
@@ -29,15 +25,12 @@ export function InfoRow({
 
 export function OrderDetailsContent({
   detail,
-  images,
   formatDate,
   formatState,
   getSla,
-  onViewImage,
   hasPermission,
 }: {
   detail: any;
-  images: OrderImage[];
   formatDate: (value?: string | null, time?: boolean) => string;
   formatState: (state: unknown) => string;
   getSla: (
@@ -45,14 +38,11 @@ export function OrderDetailsContent({
     situationId?: string,
     relatedSituation?: any,
   ) => { hours: number; isDefault: boolean } | null;
-  onViewImage: (image: OrderImage) => void;
   hasPermission: (permission: string) => boolean;
 }) {
-  const orderImages = images;
   const fmtDate = formatDate;
   const stateLabel = formatState;
   const getSlaForOrder = getSla;
-  const setViewImage = onViewImage;
   return (
     <>
 <div className="flex flex-wrap gap-2 items-center">
@@ -125,9 +115,8 @@ export function OrderDetailsContent({
                   {(() => { const sla = getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation); return sla ? <InfoRow label="SLA da situação" value={`${sla.hours} hora(s) (${sla.isDefault ? "Padrão" : "Personalizado"})`} /> : null; })()}
                 </div>
               </Section>)}
-              {orderImages.length > 0 && <Section title="Imagens da OS"><div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => setViewImage(image)} />)}</div></Section>}
-              {detail.internal_notes && {hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}}
-              {detail.customer_notes && {hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}}
+              {detail.internal_notes && hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}
+              {detail.customer_notes && hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}
     </>
   );
 }

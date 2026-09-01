@@ -58,7 +58,7 @@ export function OrderDetailsPage(props: Props) {
   const {
     detail, detailUsedItems, detailSolutionImages, closeDetail,
   } = details;
-  const { orderImages, setViewImage } = images;
+  const { setViewImage } = images;
   const {
     detailPartRequests, getTestCommittedQuantity, getTestPendingQuantity,
     openPartApproval, openPartRejection, openDeliveryRequest, openTestResult,
@@ -95,11 +95,9 @@ export function OrderDetailsPage(props: Props) {
               {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} />}
               <OrderDetailsContent
                 detail={detail}
-                images={orderImages}
                 formatDate={fmtDate}
                 formatState={stateLabel}
                 getSla={getSlaForOrder}
-                onViewImage={setViewImage}
               />
               <OrderPartRequestsSection
                 requests={detailPartRequests}
