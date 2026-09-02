@@ -43,7 +43,7 @@ export function CustomersList(props: Props) {
   return <>
 <PageHeader title="Clientes" subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2">
-          {canCreate && <button onClick={() => onCreate} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Cadastrar Cliente</button>}
+          {canCreate && <button onClick={onCreate} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Cadastrar Cliente</button>}
           <button onClick={onRefresh} disabled={isFetching} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors disabled:opacity-60">
             <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} /> Atualizar
           </button>
@@ -57,7 +57,7 @@ export function CustomersList(props: Props) {
           </div>
         </div>
         {loading ? <LoadingState /> : filtered.length === 0 ? (
-          <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." onAdd={canCreate ? () => onCreate : undefined} addLabel="Cadastrar Cliente" />
+          <EmptyState icon={Users} title="Nenhum cliente cadastrado" message="Os clientes aparecem aqui ao enviar um orçamento." onAdd={canCreate ? onCreate : undefined} addLabel="Cadastrar Cliente" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">

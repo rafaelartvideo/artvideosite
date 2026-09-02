@@ -121,6 +121,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const { user, profile, role, loading, signOut, hasPermission } = useAuth();
   const [route, setRoute] = useState<AdminRouteState>(() => parseAdminPath(window.location.pathname));
   const activeTab = route.tab;
+  const [activeMenuTab, setActiveMenuTab] = useState<AdminTab>(activeTab);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState<AdminPageState>(null);
 
@@ -128,19 +129,23 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
   const canAccessTab = (tab: AdminTab) => hasPermission(permissionForTab[tab]);
 
-  const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, replace = false) => {
+  const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, replace = false, menuTab = tab, origin?: AdminRouteState) => {
     const nextRoute: AdminRouteState = { tab, resourceId: resourceId || null, subpage: subpage || null };
     const nextPath = adminPath(tab, resourceId, subpage);
-    if (replace) window.history.replaceState({}, "", nextPath);
-    else if (window.location.pathname !== nextPath) window.history.pushState({}, "", nextPath);
+    const historyState = { menuTab, origin };
+    if (replace) window.history.replaceState(historyState, "", nextPath);
+    else if (window.location.pathname !== nextPath) window.history.pushState(historyState, "", nextPath);
     setRoute(nextRoute);
+    setActiveMenuTab(menuTab);
     setPage(null);
     setSidebarOpen(false);
   };
 
   useEffect(() => {
     const handlePopState = () => {
-      setRoute(parseAdminPath(window.location.pathname));
+      const nextRoute = parseAdminPath(window.location.pathname);
+      setRoute(nextRoute);
+      setActiveMenuTab(window.history.state?.menuTab || nextRoute.tab);
       setPage(null);
       setSidebarOpen(false);
     };
@@ -221,7 +226,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     },
     customers: {
       element: <TabCustomers
-        onOpenOrder={(id) => navigateAdmin("orders", id)}
+        onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, false, "customers", { tab: "customers", resourceId: customerId || null, subpage: null })}
         routeResourceId={route.resourceId}
         routeSubpage={route.subpage}
         onRouteChange={(resourceId, subpage) => navigateAdmin("customers", resourceId, subpage)}
@@ -239,7 +244,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
   const sidebar = (
     <AdminSidebar
-      activeTab={activeTab}
+      activeTab={activeMenuTab}
       userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
       roleName={roleName}
       hasPermission={hasPermission}

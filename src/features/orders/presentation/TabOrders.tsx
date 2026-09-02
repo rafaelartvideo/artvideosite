@@ -377,7 +377,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
   };
 
   const closeRoutedPage = () => {
-    if (routeSubpage === "edit") {
+    if (initialOrderId) {
       window.history.back();
       return;
     }
@@ -468,7 +468,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <OrdersListWorkspace
-        visible={!detail && !formOpen && !solveOpen}
+        visible={!initialOrderId && !detail && !formOpen && !solveOpen}
         displayMode={displayMode}
         workspace={workspace}
         filters={filters}

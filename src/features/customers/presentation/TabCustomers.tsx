@@ -7,7 +7,7 @@ import { CustomerDetailsPage } from "./CustomerDetailsPage";
 import { CustomersList } from "./CustomersList";
 
 type TabCustomersProps = {
-  onOpenOrder?: (id: string) => void;
+  onOpenOrder?: (id: string, customerId?: string) => void;
   routeResourceId?: string | null;
   routeSubpage?: string | null;
   onRouteChange?: (resourceId?: string | null, subpage?: string | null) => void;
@@ -55,7 +55,7 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
       onCancel={() => list.setDeleteId(null)}
     />}
 
-    <CustomersList
+    {!routeResourceId && <CustomersList
       customers={list.customers}
       filtered={list.filtered}
       pagedCustomers={list.pagedCustomers}
@@ -75,7 +75,7 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
       onRefresh={() => { void list.refetch(); }}
       onOpenDetail={(customer) => { if (onRouteChange) onRouteChange(customer.id, null); else void details.open(customer); }}
       onDelete={list.setDeleteId}
-    />
+    />}
 
     <CustomerDetailsPage
       detail={details.detail}
@@ -97,7 +97,7 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
       canEdit={canEdit}
       onSaveCustomer={() => { void details.saveCustomer(); }}
       onSaveAddress={() => { void details.saveAddress(); }}
-      onOpenOrder={onOpenOrder}
+      onOpenOrder={(orderId, customerId) => onOpenOrder?.(orderId, customerId || details.detail?.id)}
       onClose={() => { details.close(); closeRoute(); }}
     />
 

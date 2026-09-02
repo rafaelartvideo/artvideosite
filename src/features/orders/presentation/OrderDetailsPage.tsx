@@ -147,7 +147,7 @@ export function OrderDetailsPage(props: Props) {
       setPrintingTemplateId(null);
     }
   };
-  const closePage = () => { closeDetail(); onClose?.(); };
+  const closePage = () => { if (onClose) onClose(); else closeDetail(); };
 
   return <>
       <OrderDocumentsPage

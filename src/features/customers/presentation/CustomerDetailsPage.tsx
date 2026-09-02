@@ -30,7 +30,7 @@ type Props = {
   onEdit?: () => void;
   onCancelEdit?: () => void;
   onSaveAddress: () => void;
-  onOpenOrder?: (id: string) => void;
+  onOpenOrder?: (id: string, customerId?: string) => void;
   onClose: () => void;
 };
 
@@ -162,7 +162,7 @@ export function CustomerDetailsPage(props: Props) {
                   ) : (
                     <div className="space-y-2">
                       {detailOrders.map(o => (
-                        <button key={o.id} type="button" onClick={() => onOpenOrder?.(o.id)} className="w-full text-left bg-[#f8fafc] border border-[#0d1b2e]/8 rounded-lg p-3 hover:bg-[#eef5ff] transition-colors">
+                        <button key={o.id} type="button" onClick={() => onOpenOrder?.(o.id, detail.id)} className="w-full text-left bg-[#f8fafc] border border-[#0d1b2e]/8 rounded-lg p-3 hover:bg-[#eef5ff] transition-colors">
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-black text-xs text-[#0057e7]">#{o.os_number || o.id.slice(0, 8)}</span>
                             <StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} />
