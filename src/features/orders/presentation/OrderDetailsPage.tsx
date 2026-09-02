@@ -11,7 +11,9 @@ import { OrderPartRequestsSection } from "./OrderPartRequestsSection";
 import { OrderSolutionSummary } from "./OrderSolutionSummary";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
-import { PRINT_TEMPLATE_TYPE_LABELS } from "@/features/documents/domain/print-template";
+import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
+import { openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
+import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import { useOrderPrintTemplates } from "../application/useOrderPrintTemplates";
 import type { useOrderDetails } from "../application/useOrderDetails";
 import type { useOrderImages } from "../application/useOrderImages";
@@ -61,6 +63,8 @@ export function OrderDetailsPage(props: Props) {
     onEdit: openEdit, onClose,
   } = props;
   const [partRequestsPageOpen, setPartRequestsPageOpen] = useState(false);
+  const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
+  const [printError, setPrintError] = useState("");
   const { statuses, situations } = workspace;
   const {
     detail, detailUsedItems, detailSolutionImages, closeDetail,
@@ -78,6 +82,30 @@ export function OrderDetailsPage(props: Props) {
   const { updateOrderStatus, updateOrderSituation } = mutations;
   const canPrintDocuments = hasPermission("documents.print");
   const printTemplates = useOrderPrintTemplates(canPrintDocuments);
+  const printTemplate = async (template: PrintTemplate) => {
+    setPrintError("");
+    const popup = openPrintWindow();
+    if (!popup) {
+      setPrintError("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
+      return;
+    }
+    setPrintingTemplateId(template.id);
+    try {
+      const configuredTemplate = await loadPrintTemplateEditorValue(template);
+      renderOrderPrintDocument(popup, configuredTemplate, {
+        order: detail,
+        usedItems: detailUsedItems,
+        partRequests: detailPartRequests,
+        history: details.detailHistory,
+        printedBy: profileName,
+      });
+    } catch (error) {
+      popup.close();
+      setPrintError(error instanceof Error ? error.message : "Não foi possível preparar o documento.");
+    } finally {
+      setPrintingTemplateId(null);
+    }
+  };
   const closePage = () => { closeDetail(); onClose?.(); };
 
   return <>
@@ -133,14 +161,23 @@ export function OrderDetailsPage(props: Props) {
                       {printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}
                       {Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}
                       {!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => (
-                        <DropdownMenuItem key={template.id} className="flex cursor-pointer items-center justify-between gap-4">
+                        <DropdownMenuItem
+                          key={template.id}
+                          disabled={Boolean(printingTemplateId)}
+                          onSelect={(event) => {
+                            event.preventDefault();
+                            void printTemplate(template);
+                          }}
+                          className="flex cursor-pointer items-center justify-between gap-4"
+                        >
                           <span className="min-w-0">
                             <span className="block truncate font-semibold">{template.name}</span>
                             <span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span>
                           </span>
-                          <span className="shrink-0 text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span>
+                          {printingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Preparando...</span>}
                         </DropdownMenuItem>
                       ))}
+                      {printError && <DropdownMenuItem disabled className="max-w-72 whitespace-normal text-red-600">{printError}</DropdownMenuItem>}
                       {!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && (
                         <DropdownMenuItem disabled>Nenhum modelo ativo.</DropdownMenuItem>
                       )}
