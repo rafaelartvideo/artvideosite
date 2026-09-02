@@ -1,3 +1,33 @@
+export type PrintLayoutSettings = {
+  font_family: "Arial" | "Inter" | "Times New Roman" | "Courier New";
+  body_font_size: number;
+  label_font_size: number;
+  section_title_font_size: number;
+  line_height: number;
+  section_spacing: number;
+  field_spacing: number;
+  section_style: "boxed" | "lines" | "table";
+  show_section_borders: boolean;
+  show_field_borders: boolean;
+};
+
+export const DEFAULT_PRINT_LAYOUT_SETTINGS: PrintLayoutSettings = {
+  font_family: "Arial",
+  body_font_size: 11,
+  label_font_size: 8,
+  section_title_font_size: 11,
+  line_height: 1.4,
+  section_spacing: 14,
+  field_spacing: 8,
+  section_style: "lines",
+  show_section_borders: true,
+  show_field_borders: false,
+};
+
+export function normalizePrintLayoutSettings(value?: Partial<PrintLayoutSettings> | null): PrintLayoutSettings {
+  return { ...DEFAULT_PRINT_LAYOUT_SETTINGS, ...(value || {}) };
+}
+
 export type PrintTemplate = {
   id: string;
   name: string;
@@ -16,6 +46,7 @@ export type PrintTemplate = {
   show_printed_at: boolean;
   header_text: string | null;
   footer_text: string | null;
+  settings: Partial<PrintLayoutSettings> | null;
   created_at: string;
   updated_at: string;
 };
@@ -38,6 +69,7 @@ export type PrintTemplateEditorValue = {
   show_printed_at: boolean;
   header_text: string;
   footer_text: string;
+  layout: PrintLayoutSettings;
   selectedFields: Set<string>;
 };
 
@@ -58,6 +90,7 @@ export const emptyPrintTemplateEditorValue = (): PrintTemplateEditorValue => ({
   show_printed_at: true,
   header_text: "",
   footer_text: "",
+  layout: { ...DEFAULT_PRINT_LAYOUT_SETTINGS },
   selectedFields: new Set(),
 });
 
