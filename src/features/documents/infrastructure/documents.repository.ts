@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { PRINT_FIELD_REGISTRY } from "../domain/print-field-registry";
-import type { PrintTemplate, PrintTemplateEditorValue } from "../domain/print-template";
+import { normalizePrintLayoutSettings, type PrintTemplate, type PrintTemplateEditorValue } from "../domain/print-template";
 
 export async function listPrintTemplates() {
   return (supabase as any)
@@ -45,6 +45,7 @@ export async function loadPrintTemplateEditorValue(template: PrintTemplate) {
     show_printed_at: template.show_printed_at,
     header_text: template.header_text || "",
     footer_text: template.footer_text || "",
+    layout: normalizePrintLayoutSettings(template.settings),
     selectedFields: new Set<string>((fields || []).map((field: any) => field.field_key).filter(Boolean)),
   } satisfies PrintTemplateEditorValue;
 }
@@ -67,6 +68,7 @@ export async function savePrintTemplate(value: PrintTemplateEditorValue) {
     show_printed_at: value.show_printed_at,
     header_text: value.header_text.trim() || null,
     footer_text: value.footer_text.trim() || null,
+    settings: value.layout,
   };
 
   let templateId = value.id;
