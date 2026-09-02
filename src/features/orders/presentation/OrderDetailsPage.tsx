@@ -260,7 +260,7 @@ export function OrderDetailsPage(props: Props) {
               onRequestParts={openPartRequestModal}
               onResolve={() => openSolveOrder(detail)}
               onComplete={openCompletion}
-              onEdit={() => { closeDetail(); void openEdit(detail); }}
+              onEdit={() => { void openEdit(detail); }}
             />
         </AdminPage>
       )}

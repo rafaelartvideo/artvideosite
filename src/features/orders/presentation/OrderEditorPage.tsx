@@ -184,14 +184,6 @@ export function OrderEditorPage({
           loadIbgeCities={loadIbgeCities}
         />
 
-        <OrderImagesField
-          images={orderImages}
-          onAdd={addOrderImages}
-          onRemove={removeOrderImage}
-          onView={setViewImage}
-          canEdit={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
-        />
-
         <OrderInformationSection
           form={form}
           editingOrder={editingOS}

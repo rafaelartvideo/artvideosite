@@ -353,8 +353,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
     const order = orders.find(item => item.id === initialOrderId);
     if (!order) return;
     if (routeSubpage === "edit") {
-      if (detail) closeDetail();
-      if (!formOpen || editingOS?.id !== order.id) void openEdit(order);
+      if (!formOpen || editingOS?.id !== order.id) void openEdit(order).then(() => closeDetail());
       return;
     }
     if (formOpen) closeOrderForm();
@@ -371,12 +370,17 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
     onOrderRouteChange?.("new", null);
   };
 
-  const openRoutedEdit = (order: any) => {
-    void openEdit(order);
+  const openRoutedEdit = async (order: any) => {
+    await openEdit(order);
+    closeDetail();
     onOrderRouteChange?.(order.id, "edit");
   };
 
   const closeRoutedPage = () => {
+    if (routeSubpage === "edit") {
+      window.history.back();
+      return;
+    }
     closeDetail();
     closeOrderForm();
     onOrderRouteChange?.(null, null);
