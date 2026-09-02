@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, CheckCircle, Clock, Search } from "lucide-react";
+import { ArrowLeft, Building2, CheckCircle, Clock, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useSaveSiteSettingsMutation, useSiteSettingsQuery } from "./useSiteSettingsQuery";
 import { lookupCompanyByCnpj } from "../infrastructure/company-registry.gateway";
@@ -103,18 +103,23 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
       subtitle="Gerencie as informações institucionais e configurações do site."
       actions={<InternalBackButton onBack={onBack} />}
     />
-    <button
-      type="button"
-      onClick={() => onRouteChange?.("company")}
-      className="group flex w-full max-w-xl items-center gap-4 rounded-xl border border-[#0d1b2e]/10 bg-white p-5 text-left shadow-sm transition hover:border-[#0057e7]/30 hover:shadow-md"
-    >
-      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#edf3ff] text-[#0057e7]"><Building2 size={22} /></span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-black text-[#0d1b2e]">Dados da empresa</span>
-        <span className="mt-1 block text-sm text-[#5a6a82]">Nome, CNPJ, contatos, endereço e logo usados no site e nos documentos.</span>
-      </span>
-      <span className="text-xl text-[#a1adbd] transition group-hover:translate-x-1 group-hover:text-[#0057e7]">›</span>
-    </button>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <button
+        type="button"
+        onClick={() => onRouteChange?.("company")}
+        className="group rounded-xl border border-[#0d1b2e]/8 bg-white p-5 text-left shadow-sm transition-all hover:border-[#0057e7]/40 hover:shadow-md"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e8eef8] text-[#0057e7] transition-colors group-hover:bg-[#0057e7] group-hover:text-white">
+            <Building2 size={20} />
+          </div>
+          <ArrowLeft size={16} className="rotate-180 text-[#5a6a82] transition-colors group-hover:text-[#0057e7]" />
+        </div>
+        <h3 className="mt-5 text-base font-black text-[#0d1b2e]">Dados da empresa</h3>
+        <p className="mt-1.5 text-sm leading-5 text-[#5a6a82]">Nome, CNPJ, contatos, endereço e logo usados no site e nos documentos.</p>
+        <span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span>
+      </button>
+    </div>
 
     <AdminPage open={companyOpen} onClose={() => onRouteChange?.(null)} breadcrumb="Configurações" title="Dados da empresa" subtitle="Informações oficiais utilizadas no site e nos documentos impressos." maxW="max-w-6xl">
       <div className="space-y-5 p-5">
