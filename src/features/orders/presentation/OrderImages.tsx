@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Camera, Upload, X } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
-import { Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import type { OrderImage } from "../domain/order-image";
 export type { OrderImage } from "../domain/order-image";
 
@@ -33,8 +33,8 @@ export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = tr
         <p className="text-xs text-[#5a6a82]">{images.length}/5 imagens</p>
         {canEdit && (
           <div className="flex items-center gap-2 flex-wrap">
-            <button type="button" disabled={images.length >= 5} onClick={() => inputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Upload size={13} /> Adicionar imagens</button>
-            <button type="button" disabled={images.length >= 5} onClick={() => cameraInputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Camera size={13} /> Abrir câmera</button>
+            <AdminButton variant="secondary" size="sm" disabled={images.length >= 5} onClick={() => inputRef.current?.click()} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Upload size={13} /> Adicionar imagens</AdminButton>
+            <AdminButton variant="secondary" size="sm" disabled={images.length >= 5} onClick={() => cameraInputRef.current?.click()} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Camera size={13} /> Abrir câmera</AdminButton>
           </div>
         )}
       </div>
@@ -48,6 +48,6 @@ export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = tr
 export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: () => void }) {
   const { url: mediaUrl } = useMediaUrl(image.mediaId);
   const url = image.url || mediaUrl;
-  return url ? <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0d1b2e]/80 p-5" onClick={onClose}><button type="button" aria-label="Fechar imagem" onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/15 text-white"><X size={20} /></button><img src={url} alt={image.name} className="max-w-full max-h-full object-contain" onClick={event => event.stopPropagation()} /></div> : null;
+  return url ? <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0d1b2e]/80 p-5" onClick={onClose}><AdminIconButton ariaLabel="Fechar imagem" onClick={onClose} variant="ghost" className="absolute right-4 top-4 h-10 w-10 rounded-full bg-white/15 text-white hover:bg-white/25 hover:text-white"><X size={20} /></AdminIconButton><img src={url} alt={image.name} className="max-w-full max-h-full object-contain" onClick={event => event.stopPropagation()} /></div> : null;
 
 }

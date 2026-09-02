@@ -36,7 +36,7 @@ import {
   PageHeader,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { cn } from "@/shared/domain/formatters";
+import { cn, slugify } from "@/shared/domain/formatters";
 import {
   ConfirmDialog,
   EmptyState,

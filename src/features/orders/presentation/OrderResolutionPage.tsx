@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Camera, CheckCircle, Upload } from "lucide-react";
 import {
+  AdminButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -115,7 +116,7 @@ export function OrderResolutionPage({
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-xs text-[#5a6a82]">{solutionImages.length}/5 imagens</p>
               <div className="flex items-center gap-2 flex-wrap">
-                <button type="button" disabled={solutionImages.length >= 5} onClick={() => {
+                <AdminButton variant="secondary" size="sm" disabled={solutionImages.length >= 5} onClick={() => {
                   const input = document.createElement("input");
                   input.type = "file";
                   input.accept = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
@@ -124,8 +125,8 @@ export function OrderResolutionPage({
                     onAddSolutionImages(event.target.files as FileList | null, "solution");
                   };
                   input.click();
-                }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Upload size={13} /> Adicionar imagens</button>
-                <button type="button" disabled={solutionImages.length >= 5} onClick={() => {
+                }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Upload size={13} /> Adicionar imagens</AdminButton>
+                <AdminButton variant="secondary" size="sm" disabled={solutionImages.length >= 5} onClick={() => {
                   const input = document.createElement("input");
                   input.type = "file";
                   input.accept = "image/*";
@@ -134,7 +135,7 @@ export function OrderResolutionPage({
                     onAddSolutionImages(event.target.files as FileList | null, "solution-cam");
                   };
                   input.click();
-                }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/35 px-3 py-2 rounded-lg disabled:opacity-50"><Camera size={13} /> Abrir câmera</button>
+                }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Camera size={13} /> Abrir câmera</AdminButton>
               </div>
             </div>
             {solutionImages.length > 0 ? <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onRemove={() => onRemoveSolutionImage(image.key)} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem adicionada para a solução.</p>}

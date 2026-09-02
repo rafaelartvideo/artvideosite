@@ -11,6 +11,8 @@ import {
   setServiceTypeActive,
 } from "../infrastructure/service-types.repository";
 import {
+  AdminButton,
+  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,

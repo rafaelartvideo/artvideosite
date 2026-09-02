@@ -104,11 +104,8 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
       actions={<InternalBackButton onBack={onBack} />}
     />
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <AdminButton
-        type="button"
-        onClick={() => onRouteChange?.("company")}
-        className="group h-auto w-full flex-col items-stretch rounded-xl border border-[#0d1b2e]/8 bg-white p-5 text-left shadow-sm transition-all hover:border-[#0057e7]/40 hover:shadow-md"
-      >
+      <AdminCard className="group transition-all hover:border-[#0057e7]/40 hover:shadow-md">
+        <AdminButton variant="ghost" type="button" onClick={() => onRouteChange?.("company")} className="h-auto w-full flex-col items-stretch whitespace-normal rounded-none p-5 text-left hover:bg-transparent">
         <div className="flex items-start justify-between gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e8eef8] text-[#0057e7] transition-colors group-hover:bg-[#0057e7] group-hover:text-white">
             <Building2 size={20} />
@@ -118,7 +115,8 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
         <h3 className="mt-5 text-base font-black text-[#0d1b2e]">Dados da empresa</h3>
         <p className="mt-1.5 text-sm leading-5 text-[#5a6a82]">Nome, CNPJ, contatos, endereço e logo usados no site e nos documentos.</p>
         <span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span>
-      </AdminButton>
+        </AdminButton>
+      </AdminCard>
     </div>
 
     <AdminPage open={companyOpen} onClose={() => onRouteChange?.(null)} breadcrumb="Configurações" title="Dados da empresa" subtitle="Informações oficiais utilizadas no site e nos documentos impressos." maxW="max-w-6xl">

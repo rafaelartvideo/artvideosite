@@ -1,8 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminSegmentedControl, Section } from "@/shared/ui/admin/AdminLayout";
 import { EmployeeMultiSelect } from "./OrderFormControls";
-import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
 
 export function OrderInformationSection({
   form,
@@ -68,10 +67,12 @@ export function OrderInformationSection({
                 {editingOS ? <div><FInput label="OS Externa" value={editingOS.external_os_number?.trim() || "Não informada"} disabled readOnly /><p className="mt-1 text-[10px] text-[#5a6a82]">A OS Externa não pode ser alterada após o cadastro.</p></div> : <FInput label="OS Externa" type="text" value={form.external_os_number} onChange={(e: any) => upF("external_os_number", e.target.value)} placeholder="Digite o número da OS externa" />}
                 <div className="sm:col-span-2">
                   <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Necessita agendamento</label>
-                  <RadioGroup value={needsScheduling ? "yes" : "no"} onValueChange={value => { const scheduling = value === "yes"; setNeedsScheduling(scheduling); if (!scheduling) upF("scheduled_at", ""); }} className="flex gap-4 text-sm text-[#0d1b2e]">
-                    <label className="flex cursor-pointer items-center gap-2"><RadioGroupItem value="yes" /> Sim</label>
-                    <label className="flex cursor-pointer items-center gap-2"><RadioGroupItem value="no" /> Não</label>
-                  </RadioGroup>
+                  <AdminSegmentedControl
+                    value={needsScheduling ? "yes" : "no"}
+                    onChange={value => { const scheduling = value === "yes"; setNeedsScheduling(scheduling); if (!scheduling) upF("scheduled_at", ""); }}
+                    options={[{ value: "yes", label: "Sim" }, { value: "no", label: "Não" }]}
+                    className="w-fit grid-cols-2"
+                  />
                 </div>
                 {needsScheduling && <>
                   <FInput label="Data agendada" type="date" required value={form.scheduled_at.slice(0, 10)} onChange={(e: any) => upF("scheduled_at", `${e.target.value}${form.scheduled_at.slice(10) || "T"}`)} />

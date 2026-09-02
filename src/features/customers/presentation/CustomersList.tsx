@@ -43,8 +43,8 @@ export function CustomersList(props: Props) {
   return <>
 <PageHeader title="Clientes" subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2">
-          {canCreate && <AdminButton onClick={onCreate} size="sm"><Plus size={13} /> Cadastrar Cliente</AdminButton>}
-          <AdminButton variant="secondary" size="sm" onClick={onRefresh} disabled={isFetching} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5">
+          {canCreate && <AdminButton onClick={onCreate}><Plus size={13} /> Cadastrar Cliente</AdminButton>}
+          <AdminButton variant="secondary" onClick={onRefresh} disabled={isFetching} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5">
             <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} /> Atualizar
           </AdminButton>
         </div>

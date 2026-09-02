@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Package, Tag, Upload } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { supabaseErrorMessage, uploadMediaFile, type MediaBucket } from "@/shared/infrastructure/media.repository";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 
 export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true }: {
   bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; label?: string; canUpload?: boolean;
@@ -38,7 +39,7 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-2">{label}</label>
     {displayUrl && <div className="mb-3 w-36 h-28 rounded-xl overflow-hidden border border-[#0d1b2e]/15 bg-[#f5f7fa]"><img src={displayUrl} alt="" className="w-full h-full object-cover" /></div>}
     <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
-    {canUpload && <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading} className="flex items-center gap-2 text-xs font-bold text-[#0057e7] border border-[#0057e7]/40 hover:border-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"><Upload size={13} /> {uploading ? "Enviando..." : displayUrl ? "Trocar imagem" : "Selecionar imagem"}</button>}
+    {canUpload && <AdminButton variant="secondary" size="sm" onClick={() => inputRef.current?.click()} disabled={uploading} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Upload size={13} /> {uploading ? "Enviando..." : displayUrl ? "Trocar imagem" : "Selecionar imagem"}</AdminButton>}
   </div>;
 }
 

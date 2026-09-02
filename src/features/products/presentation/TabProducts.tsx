@@ -10,6 +10,8 @@ import {
   updateProductFlags,
 } from "../infrastructure/products.repository";
 import {
+  AdminButton,
+  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
