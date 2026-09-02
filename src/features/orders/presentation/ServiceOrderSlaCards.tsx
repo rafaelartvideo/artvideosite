@@ -3,8 +3,27 @@ import { AlertTriangle, Clock } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 
 export function formatElapsedHours(hours: number) {
-  const totalMinutes = Math.max(0, Math.floor(Number(hours) * 60 + 0.000001));
-  return `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+  let totalMinutes = Math.max(0, Math.floor(Number(hours) * 60 + 0.000001));
+  if (totalMinutes < 24 * 60) {
+    return `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+  }
+
+  const units = [
+    { singular: "ano", plural: "anos", minutes: 365 * 24 * 60 },
+    { singular: "mês", plural: "meses", minutes: 30 * 24 * 60 },
+    { singular: "semana", plural: "semanas", minutes: 7 * 24 * 60 },
+    { singular: "dia", plural: "dias", minutes: 24 * 60 },
+  ];
+  const parts: string[] = [];
+  for (const unit of units) {
+    const amount = Math.floor(totalMinutes / unit.minutes);
+    if (!amount) continue;
+    parts.push(`${amount} ${amount === 1 ? unit.singular : unit.plural}`);
+    totalMinutes %= unit.minutes;
+  }
+  parts.push(`${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}h`);
+  parts.push(`${String(totalMinutes % 60).padStart(2, "0")}min`);
+  return parts.join(", ");
 }
 
 function elapsedHours(start?: string | null, end?: string | null, now = Date.now()) {
