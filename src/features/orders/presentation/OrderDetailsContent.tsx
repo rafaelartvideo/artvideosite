@@ -1,6 +1,8 @@
+import { MessageCircle, Phone } from "lucide-react";
 import type { Address } from "@/lib/address";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { Section } from "@/shared/ui/admin/AdminLayout";
+import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import {
   getPriorityLabel,
   getResponsibleName,
@@ -42,9 +44,49 @@ export function OrderDetailsContent({
   const fmtDate = formatDate;
   const stateLabel = formatState;
   const getSlaForOrder = getSla;
+  const customer = detail.customer as any;
+  const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
+  const whatsappContact = phoneContactLinks(customer?.whatsapp || customer?.phone);
+  const contactActionClass = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold normal-case tracking-normal transition-colors";
   return (
     <>
-              {hasPermission("orders.section.customer") && (<Section title="Cliente">
+              {hasPermission("orders.section.customer") && (<Section
+                title="Cliente"
+                actions={<>
+                  {callContact.tel ? (
+                    <a
+                      href={callContact.tel}
+                      data-phone-number={`+${callContact.phone}`}
+                      data-service-order-id={detail.id}
+                      onClick={() => notifyPhoneCallIntegration(callContact.phone, detail.id)}
+                      className={`${contactActionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}
+                      title="Abrir no telefone ou aplicativo de telefonia"
+                    >
+                      <Phone size={13} /> Ligar
+                    </a>
+                  ) : (
+                    <button type="button" disabled className={`${contactActionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
+                      <Phone size={13} /> Ligar
+                    </button>
+                  )}
+                  {whatsappContact.whatsapp ? (
+                    <a
+                      href={whatsappContact.whatsapp}
+                      target="_blank"
+                      rel="noreferrer"
+                      data-phone-number={`+${whatsappContact.phone}`}
+                      className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
+                      title="Abrir conversa no WhatsApp"
+                    >
+                      <MessageCircle size={13} /> WhatsApp
+                    </a>
+                  ) : (
+                    <button type="button" disabled className={`${contactActionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
+                      <MessageCircle size={13} /> WhatsApp
+                    </button>
+                  )}
+                </>}
+              >
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Nome" value={(detail.customer as any)?.full_name} />
                   {(detail.customer as any)?.customer_type === "PJ" ? <>
