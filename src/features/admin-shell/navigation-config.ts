@@ -35,6 +35,7 @@ export const siteItems: PermissionAwareHubItem[] = [
   { id: "categories", label: "Categorias", icon: FolderTree, description: "Organize as categorias utilizadas pelos produtos do site.", permissionKey: "categories.view" },
   { id: "brands", label: "Marcas", icon: Tag, description: "Gerencie as marcas utilizadas no catálogo da loja.", permissionKey: "brands.view" },
   { id: "services", label: "Serviços do Site", icon: Wrench, description: "Cadastre e gerencie os serviços apresentados no site público.", permissionKey: "services.view" },
+  { id: "settings", label: "Configurações", icon: Settings, description: "Gerencie dados da empresa e configurações do site público.", permissionKey: "settings.view" },
 ];
 
 export const operationItems: PermissionAwareHubItem[] = [
@@ -48,7 +49,6 @@ export const operationItems: PermissionAwareHubItem[] = [
 ];
 
 export const utilityItems: AdminNavigationItem[] = [
-  { id: "settings", label: "Configurações", icon: Settings },
   { id: "contact", label: "Contato", icon: Phone },
 ];
 

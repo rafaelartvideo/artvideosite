@@ -1,100 +1,158 @@
 import { useEffect, useState } from "react";
-import { CheckCircle, Clock } from "lucide-react";
+import { Building2, CheckCircle, Clock, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import {
-  useSaveSiteSettingsMutation,
-  useSiteSettingsQuery,
-} from "./useSiteSettingsQuery";
-import { BtnPrimary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { useSaveSiteSettingsMutation, useSiteSettingsQuery } from "./useSiteSettingsQuery";
+import { lookupCompanyByCnpj } from "../infrastructure/company-registry.gateway";
+import { AdminPage, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 
-export function TabSettings() {
+type CompanyForm = {
+  company_name: string;
+  company_legal_name: string;
+  company_cnpj: string;
+  company_phone: string;
+  company_email: string;
+  company_zip_code: string;
+  company_street: string;
+  company_number: string;
+  company_complement: string;
+  company_neighborhood: string;
+  company_city: string;
+  company_state: string;
+  company_logo_media_id: string;
+};
+
+const EMPTY_COMPANY: CompanyForm = {
+  company_name: "", company_legal_name: "", company_cnpj: "", company_phone: "", company_email: "",
+  company_zip_code: "", company_street: "", company_number: "", company_complement: "",
+  company_neighborhood: "", company_city: "", company_state: "", company_logo_media_id: "",
+};
+const COMPANY_KEYS = Object.keys(EMPTY_COMPANY) as Array<keyof CompanyForm>;
+const settingText = (value: unknown) => typeof value === "string" || typeof value === "number" ? String(value) : "";
+const maskCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
+const maskZipCode = (value: string) => value.replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d)/, "$1-$2");
+
+export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
+  onBack: () => void;
+  routeResourceId?: string | null;
+  onRouteChange?: (resourceId: string | null) => void;
+}) {
   const { user, hasPermission } = useAuth();
-  const [settings, setSettings] = useState<Record<string, any>>({});
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const settingsQuery = useSiteSettingsQuery();
+  const query = useSiteSettingsQuery();
   const saveSettings = useSaveSiteSettingsMutation();
+  const [form, setForm] = useState<CompanyForm>(EMPTY_COMPANY);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const companyOpen = routeResourceId === "company";
 
   useEffect(() => {
-    if (settingsQuery.data) setSettings(settingsQuery.data);
-  }, [settingsQuery.data]);
+    if (!query.data) return;
+    setForm(Object.fromEntries(COMPANY_KEYS.map((key) => [key, settingText(query.data?.[key])])) as CompanyForm);
+  }, [query.data]);
 
-  useEffect(() => {
-    if (!settingsQuery.error) return;
-    const message = settingsQuery.error instanceof Error ? settingsQuery.error.message : "erro desconhecido";
-    setToast({ msg: `Erro ao carregar configurações: ${message}`, type: "error" });
-  }, [settingsQuery.error]);
+  const update = (key: keyof CompanyForm, value: string) => setForm((current) => ({ ...current, [key]: value }));
 
-  const updateSetting = (key: string, value: any) => setSettings(prev => ({ ...prev, [key]: value }));
-
-  const handleSave = async () => {
+  const lookupCnpj = async () => {
+    setLookingUp(true);
     try {
-      await saveSettings.mutateAsync({ settings, updatedBy: user?.id ?? null });
-      setToast({ msg: "Configurações salvas com sucesso!", type: "success" });
+      const company = await lookupCompanyByCnpj(form.company_cnpj);
+      setForm((current) => ({
+        ...current,
+        company_cnpj: maskCnpj(company.cnpj),
+        company_legal_name: company.legalName,
+        company_name: company.tradeName || company.legalName,
+        company_phone: company.phone,
+        company_email: company.email,
+        company_zip_code: maskZipCode(company.zipCode),
+        company_street: company.street,
+        company_number: company.number,
+        company_complement: company.complement,
+        company_neighborhood: company.neighborhood,
+        company_city: company.city,
+        company_state: company.state,
+      }));
+      setToast({ msg: "Dados do CNPJ preenchidos. Confira antes de salvar.", type: "success" });
     } catch (error) {
-      console.error("[ADMIN] site_settings save error:", error);
-      setToast({ msg: `Erro ao salvar configurações: ${error instanceof Error ? error.message : "erro desconhecido"}`, type: "error" });
+      setToast({ msg: error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.", type: "error" });
+    } finally {
+      setLookingUp(false);
     }
   };
 
-  const groups = [
-    {
-      title: "Identidade Visual", keys: [
-        { key: "primary_color", label: "Cor primária", type: "text", placeholder: "#0057e7" },
-        { key: "secondary_color", label: "Cor secundária", type: "text", placeholder: "#0d1b2e" },
-        { key: "logo_url", label: "URL do logo", type: "text", placeholder: "https://..." },
-      ]
-    },
-    {
-      title: "Home — Textos", keys: [
-        { key: "hero_title", label: "Título do Hero", type: "text", placeholder: "Tecnologia, produtos e serviços em um só lugar." },
-        { key: "hero_subtitle", label: "Subtítulo do Hero", type: "text", placeholder: "Descrição curta da empresa." },
-        { key: "hero_image_url", label: "Imagem do Hero (URL)", type: "text", placeholder: "https://..." },
-      ]
-    },
-    {
-      title: "Site — Informações Gerais", keys: [
-        { key: "site_name", label: "Nome do site", type: "text", placeholder: "Eletrônica Artvideo" },
-        { key: "site_description", label: "Descrição do site", type: "text", placeholder: "Meta description..." },
-        { key: "whatsapp_number", label: "Número WhatsApp (com DDI)", type: "text", placeholder: "5579999999999" },
-      ]
-    },
-  ];
+  const save = async () => {
+    if (!form.company_name.trim()) {
+      setToast({ msg: "Informe o nome da empresa.", type: "error" });
+      return;
+    }
+    try {
+      await saveSettings.mutateAsync({ settings: form, updatedBy: user?.id ?? null });
+      setToast({ msg: "Dados da empresa salvos com sucesso.", type: "success" });
+    } catch (error) {
+      setToast({ msg: error instanceof Error ? error.message : "Não foi possível salvar os dados.", type: "error" });
+    }
+  };
 
-  return (
-    <div className="space-y-5">
-      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+  if (query.isPending) return <LoadingState />;
 
-      <PageHeader title="Configurações do Site" subtitle="Controle as configurações globais do site" actions={
-        hasPermission("settings.update") && (
-        <BtnPrimary onClick={handleSave} disabled={saveSettings.isPending}>
-          {saveSettings.isPending ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
-          {saveSettings.isPending ? "Salvando..." : "Salvar tudo"}
-        </BtnPrimary>
-        )
-      } />
+  return <div className="space-y-5">
+    {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    <PageHeader
+      title="Configurações"
+      subtitle="Gerencie as informações institucionais e configurações do site."
+      actions={<InternalBackButton onBack={onBack} />}
+    />
+    <button
+      type="button"
+      onClick={() => onRouteChange?.("company")}
+      className="group flex w-full max-w-xl items-center gap-4 rounded-xl border border-[#0d1b2e]/10 bg-white p-5 text-left shadow-sm transition hover:border-[#0057e7]/30 hover:shadow-md"
+    >
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#edf3ff] text-[#0057e7]"><Building2 size={22} /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-black text-[#0d1b2e]">Dados da empresa</span>
+        <span className="mt-1 block text-sm text-[#5a6a82]">Nome, CNPJ, contatos, endereço e logo usados no site e nos documentos.</span>
+      </span>
+      <span className="text-xl text-[#a1adbd] transition group-hover:translate-x-1 group-hover:text-[#0057e7]">›</span>
+    </button>
 
-      {settingsQuery.isPending ? <LoadingState /> : (
-        <div className="space-y-4 max-w-2xl">
-          {groups.map(group => (
-            <Section key={group.title} title={group.title}>
-              <div className="space-y-4">
-                {group.keys.map(field => (
-                  <FInput key={field.key} label={field.label} type={field.type} value={settings[field.key] || ""} onChange={(e: any) => updateSetting(field.key, e.target.value)} placeholder={field.placeholder} />
-                ))}
+    <AdminPage open={companyOpen} onClose={() => onRouteChange?.(null)} breadcrumb="Configurações" title="Dados da empresa" subtitle="Informações oficiais utilizadas no site e nos documentos impressos." maxW="max-w-6xl">
+      <div className="space-y-5 p-5">
+        <Section title="Identificação">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ</label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input className="h-10 flex-1 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-sm outline-none focus:border-[#0057e7]" value={form.company_cnpj} onChange={(event) => update("company_cnpj", maskCnpj(event.target.value))} placeholder="00.000.000/0000-00" />
+                <BtnSecondary onClick={() => void lookupCnpj()} disabled={lookingUp}><Search size={15} />{lookingUp ? "Consultando..." : "Consultar CNPJ"}</BtnSecondary>
               </div>
-            </Section>
-          ))}
-
-          {Object.keys(settings).length === 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-              <p className="font-bold mb-1">Tabela site_settings vazia ou sem dados.</p>
-              <p>As configurações serão criadas ao salvar pela primeira vez.</p>
+              <p className="mt-1.5 text-xs text-[#718096]">A consulta preenche automaticamente os dados públicos disponíveis. Revise antes de salvar.</p>
             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+            <FInput label="Nome da empresa / Nome fantasia" value={form.company_name} required onChange={(event: any) => update("company_name", event.target.value)} />
+            <FInput label="Razão social" value={form.company_legal_name} onChange={(event: any) => update("company_legal_name", event.target.value)} />
+            <FInput label="Telefone" value={form.company_phone} onChange={(event: any) => update("company_phone", event.target.value)} />
+            <FInput label="E-mail" type="email" value={form.company_email} onChange={(event: any) => update("company_email", event.target.value)} />
+          </div>
+        </Section>
+        <Section title="Endereço">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <FInput label="CEP" value={form.company_zip_code} onChange={(event: any) => update("company_zip_code", maskZipCode(event.target.value))} />
+            <div className="lg:col-span-2"><FInput label="Rua / Logradouro" value={form.company_street} onChange={(event: any) => update("company_street", event.target.value)} /></div>
+            <FInput label="Número" value={form.company_number} onChange={(event: any) => update("company_number", event.target.value)} />
+            <div className="lg:col-span-2"><FInput label="Complemento" value={form.company_complement} onChange={(event: any) => update("company_complement", event.target.value)} /></div>
+            <div className="lg:col-span-2"><FInput label="Bairro" value={form.company_neighborhood} onChange={(event: any) => update("company_neighborhood", event.target.value)} /></div>
+            <div className="lg:col-span-2"><FInput label="Cidade" value={form.company_city} onChange={(event: any) => update("company_city", event.target.value)} /></div>
+            <FInput label="Estado / UF" maxLength={2} value={form.company_state} onChange={(event: any) => update("company_state", event.target.value.toUpperCase())} />
+          </div>
+        </Section>
+        <Section title="Logo da empresa">
+          <ImageUpload bucket="public-assets" currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={hasPermission("settings.update")} label="Logo utilizada nos documentos" />
+        </Section>
+      </div>
+      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
+        <BtnSecondary onClick={() => onRouteChange?.(null)}>Voltar</BtnSecondary>
+        {hasPermission("settings.update") && <BtnPrimary onClick={() => void save()} disabled={saveSettings.isPending}>{saveSettings.isPending ? <Clock size={15} /> : <CheckCircle size={15} />}{saveSettings.isPending ? "Salvando..." : "Salvar dados"}</BtnPrimary>}
+      </div>
+    </AdminPage>
+  </div>;
 }

@@ -15,6 +15,7 @@ import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/docum
 import { openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import { getSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
+import { getMediaById, getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
 import { useOrderPrintTemplates } from "../application/useOrderPrintTemplates";
 import type { useOrderDetails } from "../application/useOrderDetails";
 import type { useOrderImages } from "../application/useOrderImages";
@@ -104,6 +105,25 @@ export function OrderDetailsPage(props: Props) {
         }
         return "";
       };
+      let companyLogoUrl = settingText("company_logo_url", "logo_url");
+      const companyLogoMediaId = settingText("company_logo_media_id");
+      if (companyLogoMediaId) {
+        try {
+          const media = await getMediaById(companyLogoMediaId);
+          if (media?.bucket_id && media?.storage_path) {
+            companyLogoUrl = getPublicStorageUrl(media.bucket_id, media.storage_path);
+          }
+        } catch (logoError) {
+          console.warn("[DOCUMENTS] company logo could not be loaded:", logoError);
+        }
+      }
+      const companyAddress = [
+        [settingText("company_street"), settingText("company_number")].filter(Boolean).join(", "),
+        settingText("company_complement"),
+        settingText("company_neighborhood"),
+        [settingText("company_city"), settingText("company_state")].filter(Boolean).join(" - "),
+        settingText("company_zip_code") ? "CEP " + settingText("company_zip_code") : "",
+      ].filter(Boolean).join(" · ");
       renderOrderPrintDocument(popup, configuredTemplate, {
         order: detail,
         usedItems: detailUsedItems,
@@ -111,13 +131,13 @@ export function OrderDetailsPage(props: Props) {
         history: details.detailHistory,
         printedBy: profileName,
         company: {
-          name: settingText("company_name", "site_name") || "Eletrônica Artvideo",
-          subtitle: settingText("company_subtitle") || "Assistência Técnica",
-          logoUrl: settingText("logo_url"),
-          document: settingText("company_document", "cnpj"),
-          phone: settingText("company_phone", "phone", "whatsapp_number"),
-          email: settingText("company_email", "email"),
-          address: settingText("company_address", "address"),
+          name: settingText("company_name") || "Eletrônica Artvideo",
+          subtitle: settingText("company_legal_name") || "Assistência Técnica",
+          logoUrl: companyLogoUrl,
+          document: settingText("company_cnpj"),
+          phone: settingText("company_phone"),
+          email: settingText("company_email"),
+          address: companyAddress,
         },
       });
     } catch (error) {

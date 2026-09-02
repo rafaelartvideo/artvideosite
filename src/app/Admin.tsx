@@ -223,7 +223,11 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
       />,
     },
     employees: { element: <TabEmployees onBack={() => backToParent("employees")} /> },
-    settings: { element: <TabSettings /> },
+    settings: { element: <TabSettings
+      onBack={() => backToParent("settings")}
+      routeResourceId={route.resourceId}
+      onRouteChange={(resourceId) => navigateAdmin("settings", resourceId, null)}
+    /> },
     contact: { element: <TabContact /> },
   };
 
