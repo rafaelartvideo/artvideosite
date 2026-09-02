@@ -1,4 +1,5 @@
 import React from "react";
+import type { PrintLayoutSettings } from "../domain/print-template";
 
 export type PrintTemplatePreviewMargins = {
   top: number;
@@ -28,6 +29,7 @@ export type PrintTemplatePreviewProps = {
   sections: PrintTemplatePreviewSection[];
   selectedFields: Set<string>;
   compact?: boolean;
+  layout: PrintLayoutSettings;
 };
 
 const COMPANY_MOCK = {
@@ -137,6 +139,7 @@ export function PrintTemplatePreview({
   sections,
   selectedFields,
   compact = false,
+  layout,
 }: PrintTemplatePreviewProps) {
   const widthMm = orientation === "portrait" ? 210 : 297;
   const heightMm = orientation === "portrait" ? 297 : 210;
@@ -183,6 +186,9 @@ export function PrintTemplatePreview({
           background: #fff;
           color: #0f172a;
           box-sizing: border-box;
+          font-family: ${layout.font_family}, sans-serif;
+          font-size: ${layout.body_font_size}px;
+          line-height: ${layout.line_height};
         }
         .print-header {
           border-bottom: 1px solid rgba(148, 163, 184, 0.55);
@@ -255,19 +261,19 @@ export function PrintTemplatePreview({
         .print-section-list {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: ${layout.section_spacing}px;
         }
         .print-section {
-          border: 1px solid rgba(148, 163, 184, 0.24);
-          background: rgba(248, 250, 252, 0.7);
-          border-radius: 8px;
-          padding: 8px 10px 10px;
+          border: ${layout.show_section_borders ? "1px solid rgba(148, 163, 184, 0.35)" : "0"};
+          border-radius: ${layout.section_style === "boxed" ? "8px" : "0"};
+          background: ${layout.section_style === "boxed" ? "rgba(248, 250, 252, 0.7)" : "#fff"};
+          padding: ${layout.section_style === "boxed" ? "8px 10px 10px" : "8px 0"};
           break-inside: avoid;
           page-break-inside: avoid;
         }
         .print-section-title {
           margin: 0 0 8px;
-          font-size: 12px;
+          font-size: ${layout.section_title_font_size}px;
           font-weight: 800;
           letter-spacing: 0.04em;
           text-transform: uppercase;
@@ -275,18 +281,19 @@ export function PrintTemplatePreview({
         }
         .print-field-grid {
           display: grid;
-          gap: 8px;
+          gap: ${layout.field_spacing}px;
         }
         .print-field {
-          padding: 6px 8px;
-          border-radius: 6px;
-          background: rgba(255, 255, 255, 0.7);
-          border: 1px solid rgba(148, 163, 184, 0.18);
+          padding: ${layout.section_style === "table" ? "6px 4px" : "6px 8px"};
+          border-radius: ${layout.section_style === "boxed" ? "6px" : "0"};
+          background: ${layout.section_style === "boxed" ? "rgba(255, 255, 255, 0.7)" : "#fff"};
+          border: ${layout.show_field_borders ? "1px solid rgba(148, 163, 184, 0.3)" : layout.section_style === "table" ? "0 0 1px 0 solid rgba(148, 163, 184, 0.3)" : "0"};
+          border-bottom: ${layout.section_style === "table" && !layout.show_field_borders ? "1px solid rgba(148, 163, 184, 0.3)" : undefined};
           min-width: 0;
         }
         .print-field-label {
           display: block;
-          font-size: 9px;
+          font-size: ${layout.label_font_size}px;
           font-weight: 700;
           letter-spacing: 0.04em;
           text-transform: uppercase;
@@ -295,7 +302,7 @@ export function PrintTemplatePreview({
         }
         .print-field-value {
           display: block;
-          font-size: 11px;
+          font-size: ${layout.body_font_size}px;
           color: #0f172a;
           line-height: 1.4;
           word-break: break-word;
