@@ -14,6 +14,7 @@ import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
 import { openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
+import { getSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
 import { useOrderPrintTemplates } from "../application/useOrderPrintTemplates";
 import type { useOrderDetails } from "../application/useOrderDetails";
 import type { useOrderImages } from "../application/useOrderImages";
@@ -91,13 +92,33 @@ export function OrderDetailsPage(props: Props) {
     }
     setPrintingTemplateId(template.id);
     try {
-      const configuredTemplate = await loadPrintTemplateEditorValue(template);
+      const [configuredTemplate, siteSettings] = await Promise.all([
+        loadPrintTemplateEditorValue(template),
+        getSiteSettings(),
+      ]);
+      const settingText = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = siteSettings[key];
+          if (typeof value === "string" && value.trim()) return value.trim();
+          if (typeof value === "number") return String(value);
+        }
+        return "";
+      };
       renderOrderPrintDocument(popup, configuredTemplate, {
         order: detail,
         usedItems: detailUsedItems,
         partRequests: detailPartRequests,
         history: details.detailHistory,
         printedBy: profileName,
+        company: {
+          name: settingText("company_name", "site_name") || "Eletrônica Artvideo",
+          subtitle: settingText("company_subtitle") || "Assistência Técnica",
+          logoUrl: settingText("logo_url"),
+          document: settingText("company_document", "cnpj"),
+          phone: settingText("company_phone", "phone", "whatsapp_number"),
+          email: settingText("company_email", "email"),
+          address: settingText("company_address", "address"),
+        },
       });
     } catch (error) {
       popup.close();

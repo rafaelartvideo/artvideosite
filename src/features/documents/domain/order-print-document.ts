@@ -7,6 +7,15 @@ export type PrintOrderContext = {
   partRequests?: any[];
   history?: any[];
   printedBy?: string | null;
+  company?: {
+    name?: string | null;
+    subtitle?: string | null;
+    logoUrl?: string | null;
+    document?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+  };
 };
 
 const text = (value: unknown) => value == null || value === "" ? "—" : String(value);
@@ -152,27 +161,50 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     fields: section.fields.filter((field) => template.selectedFields.has(field.key)),
   })).filter((section) => section.fields.length > 0);
 
+  const fullWidthFields = new Set([
+    "address.full",
+    "order.internal_notes",
+    "order.customer_notes",
+    "equipment.accessories",
+    "equipment.condition",
+    "resolution.diagnosis",
+    "resolution.solution",
+    "used_parts.items",
+    "part_requests.notes",
+    "history.status_changes",
+    "signatures.customer",
+    "signatures.technician",
+  ]);
   const sectionHtml = sections.map((section) => {
+    const columnCount = section.fields.length >= 3 ? 3 : Math.max(1, section.defaultColumns);
     const fields = section.fields.map((field) => {
       const value = escapeHtml(resolveField(field.key, context)).replaceAll("\\n", "<br>");
-      return "<div class='field'><span>" + escapeHtml(field.label) + "</span><strong>" + value + "</strong></div>";
+      const widthClass = fullWidthFields.has(field.key) ? " field-wide" : "";
+      return "<div class='field" + widthClass + "'><span>" + escapeHtml(field.label) + "</span><strong>" + value + "</strong></div>";
     }).join("");
-    return "<section><h2>" + escapeHtml(section.label) + "</h2><div class='grid columns-" + section.defaultColumns + "'>" + fields + "</div></section>";
+    return "<section><h2>" + escapeHtml(section.label) + "</h2><div class='grid columns-" + columnCount + "'>" + fields + "</div></section>";
   }).join("");
 
   const orientation = template.orientation === "landscape" ? "landscape" : "portrait";
   const layout = template.layout;
+  const company = context.company || {};
+  const companyName = company.name || "Eletrônica Artvideo";
+  const companySubtitle = company.subtitle || "Assistência Técnica";
+  const companyDetails = [company.document, company.phone, company.email, company.address].filter(Boolean);
+  const companyLogo = company.logoUrl
+    ? "<img class='company-logo' src='" + escapeHtml(company.logoUrl) + "' alt='" + escapeHtml(companyName) + "'>"
+    : "<div class='brand-mark'>AV</div>";
   const pagePadding = template.margin_top + "mm " + template.margin_right + "mm " + template.margin_bottom + "mm " + template.margin_left + "mm";
   const printScript = autoPrint
     ? "<script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print()},250)});window.addEventListener('afterprint',function(){window.close()})</script>"
     : "";
   const html = "<!doctype html><html><head><meta charset='utf-8'><title>" + escapeHtml(template.name) + "</title><style>" +
     "@page{size:A4 " + orientation + ";margin:" + template.margin_top + "mm " + template.margin_right + "mm " + template.margin_bottom + "mm " + template.margin_left + "mm}" +
-    "*{box-sizing:border-box}body{margin:0;padding:" + pagePadding + ";color:#0f172a;font-family:" + layout.font_family + ",sans-serif;font-size:" + layout.body_font_size + "pt;line-height:" + layout.line_height + "}.header{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #0d1b2e;padding-bottom:12px;margin-bottom:16px}.brand{font-size:20px;font-weight:900}.muted{color:#64748b}.document{text-align:right}.document h1{margin:0;font-size:19px}.document p{margin:4px 0 0}section{margin:0 0 " + layout.section_spacing + "px;break-inside:avoid;border:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "8px" : "0") + ";padding:" + (layout.section_style === "boxed" ? "9px" : "8px 0") + "}h2{margin:0 0 7px;padding-bottom:5px;border-bottom:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";font-size:" + layout.section_title_font_size + "pt;text-transform:uppercase;letter-spacing:.08em}.grid{display:grid;gap:" + layout.field_spacing + "px 14px}.columns-1{grid-template-columns:1fr}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:" + (layout.section_style === "table" ? "6px 4px" : "5px 7px") + ";border:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";border-bottom:" + (layout.section_style === "table" && !layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "5px" : "0") + "}.field span{display:block;color:#64748b;font-size:" + layout.label_font_size + "pt;font-weight:700;text-transform:uppercase;margin-bottom:2px}.field strong{display:block;white-space:normal;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt}.footer{display:flex;justify-content:space-between;border-top:1px solid #cbd5e1;padding-top:8px;margin-top:16px;color:#64748b;font-size:9px}@media print{body{padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}}" +
-    "</style></head><body><header class='header'><div>" +
-    (template.show_logo ? "<div class='brand'>ArtVideo</div>" : "") +
-    (template.show_company_info ? "<div class='muted'>Assistência Técnica</div>" : "") +
-    "</div><div class='document'><h1>" + escapeHtml(template.name) + "</h1><p>" + escapeHtml(template.header_text || "") + "</p><p>OS " + escapeHtml(context.order?.os_number) + "</p></div></header>" +
+    "*{box-sizing:border-box}body{margin:0;padding:" + pagePadding + ";color:#0f172a;font-family:" + layout.font_family + ",sans-serif;font-size:" + layout.body_font_size + "pt;line-height:" + layout.line_height + "}.header{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,1.25fr) minmax(0,1fr);align-items:center;gap:18px;border-bottom:2px solid #0d1b2e;padding-bottom:13px;margin-bottom:14px}.company{display:flex;align-items:center;gap:10px;min-width:0}.company-logo{display:block;max-width:58px;max-height:58px;object-fit:contain}.brand-mark{display:grid;place-items:center;width:48px;height:48px;border-radius:12px;background:#0057e7;color:#fff;font-size:15px;font-weight:900;letter-spacing:.04em}.company-copy{min-width:0}.brand{font-size:14px;font-weight:900;line-height:1.15}.company-subtitle{margin-top:2px;color:#64748b;font-size:8px}.company-details{margin-top:4px;color:#64748b;font-size:7px;line-height:1.35}.document{text-align:center;min-width:0}.document h1{margin:0;font-size:17px;line-height:1.15}.document p{margin:4px 0 0;color:#64748b;font-size:8px}.order-number{justify-self:end;text-align:right}.order-number span{display:block;color:#64748b;font-size:7px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.order-number strong{display:block;margin-top:2px;font-size:22px;line-height:1}.order-number small{display:block;margin-top:5px;color:#64748b;font-size:8px}section{margin:0 0 " + layout.section_spacing + "px;break-inside:avoid;border:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "8px" : "0") + ";padding:" + (layout.section_style === "boxed" ? "9px" : "8px 0") + "}h2{margin:0 0 7px;padding-bottom:5px;border-bottom:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";font-size:" + layout.section_title_font_size + "pt;text-transform:uppercase;letter-spacing:.08em}.grid{display:grid;gap:" + layout.field_spacing + "px 14px}.columns-1{grid-template-columns:1fr}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:" + (layout.section_style === "table" ? "6px 4px" : "5px 7px") + ";border:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";border-bottom:" + (layout.section_style === "table" && !layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "5px" : "0") + "}.field span{display:block;color:#64748b;font-size:" + layout.label_font_size + "pt;font-weight:700;text-transform:uppercase;margin-bottom:2px}.field strong{display:block;white-space:normal;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt}.footer{display:flex;justify-content:space-between;border-top:1px solid #cbd5e1;padding-top:8px;margin-top:16px;color:#64748b;font-size:9px}@media print{body{padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}}" +
+    "</style></head><body><header class='header'><div class='company'>" +
+    (template.show_logo ? companyLogo : "") +
+    (template.show_company_info ? "<div class='company-copy'><div class='brand'>" + escapeHtml(companyName) + "</div><div class='company-subtitle'>" + escapeHtml(companySubtitle) + "</div>" + (companyDetails.length ? "<div class='company-details'>" + companyDetails.map(escapeHtml).join("<br>") + "</div>" : "") + "</div>" : "") +
+    "</div><div class='document'><h1>" + escapeHtml(template.name) + "</h1><p>" + escapeHtml(template.header_text || "") + "</p></div><div class='order-number'><span>Número da OS</span><strong>" + escapeHtml(context.order?.os_number) + "</strong>" + (context.order?.external_os_number ? "<small>OS externa " + escapeHtml(context.order.external_os_number) + "</small>" : "") + "</div></header>" +
     sectionHtml +
     "<footer class='footer'><span>" + escapeHtml(template.footer_text || "") + "</span><span>" + (template.show_printed_at ? "Impresso em " + escapeHtml(date(new Date().toISOString())) : "") + "</span></footer>" +
     printScript + "</body></html>";
