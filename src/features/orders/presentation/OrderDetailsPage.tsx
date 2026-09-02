@@ -11,6 +11,8 @@ import { OrderPartRequestsSection } from "./OrderPartRequestsSection";
 import { OrderSolutionSummary } from "./OrderSolutionSummary";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
+import { PRINT_TEMPLATE_TYPE_LABELS } from "@/features/documents/domain/print-template";
+import { useOrderPrintTemplates } from "../application/useOrderPrintTemplates";
 import type { useOrderDetails } from "../application/useOrderDetails";
 import type { useOrderImages } from "../application/useOrderImages";
 import type { useOrderHistory } from "../application/useOrderHistory";
@@ -74,6 +76,8 @@ export function OrderDetailsPage(props: Props) {
   const pendingPartRequests = detailPartRequests.filter(request => String(request.status || "").toUpperCase() === "PENDING").length;
   const completedPartRequests = detailPartRequests.length - pendingPartRequests;
   const { updateOrderStatus, updateOrderSituation } = mutations;
+  const canPrintDocuments = hasPermission("documents.print");
+  const printTemplates = useOrderPrintTemplates(canPrintDocuments);
   const closePage = () => { closeDetail(); onClose?.(); };
 
   return <>
@@ -123,11 +127,23 @@ export function OrderDetailsPage(props: Props) {
                   {detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 border-t border-[#0d1b2e]/10 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
-                  {(hasPermission("orders.toolbar.print_entry") || hasPermission("orders.toolbar.print_exit")) && <DropdownMenu>
+                  {canPrintDocuments && <DropdownMenu>
                     <DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-60">
-                      {hasPermission("orders.toolbar.print_entry") && <DropdownMenuItem className="flex cursor-pointer items-center justify-between gap-4"><span>Entrada de equipamento</span><span className="text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span></DropdownMenuItem>}
-                      {hasPermission("orders.toolbar.print_exit") && <DropdownMenuItem className="flex cursor-pointer items-center justify-between gap-4"><span>Saída de equipamento</span><span className="text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span></DropdownMenuItem>}
+                    <DropdownMenuContent align="end" className="min-w-72">
+                      {printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}
+                      {Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}
+                      {!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => (
+                        <DropdownMenuItem key={template.id} className="flex cursor-pointer items-center justify-between gap-4">
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold">{template.name}</span>
+                            <span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span>
+                          </span>
+                          <span className="shrink-0 text-[10px] font-bold uppercase text-[#5a6a82]">Em breve</span>
+                        </DropdownMenuItem>
+                      ))}
+                      {!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && (
+                        <DropdownMenuItem disabled>Nenhum modelo ativo.</DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>}
                   {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button>}
