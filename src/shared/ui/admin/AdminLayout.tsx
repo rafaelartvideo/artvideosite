@@ -34,10 +34,11 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
   </div>;
 }
 
-export function Section({ title, children }: { title: string; children: React.ReactNode }) {
+export function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return <div className="bg-white rounded-xl border border-[#0d1b2e]/8 overflow-hidden">
-    <div className="px-5 py-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc]">
-      <h3 className="text-[10px] font-black text-[#0d1b2e] uppercase tracking-widest">{title}</h3>
+    <div className="flex min-h-12 items-center justify-between gap-3 px-5 py-2.5 border-b border-[#0d1b2e]/8 bg-[#f8fafc]">
+      <h3 className="min-w-0 text-[10px] font-black text-[#0d1b2e] uppercase tracking-widest">{title}</h3>
+      {actions && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{actions}</div>}
     </div>
     <div className="p-5">{children}</div>
   </div>;
