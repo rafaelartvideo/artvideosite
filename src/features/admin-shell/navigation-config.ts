@@ -39,13 +39,13 @@ export const siteItems: PermissionAwareHubItem[] = [
 ];
 
 export const operationItems: PermissionAwareHubItem[] = [
-  { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos e campos para impressão das ordens de serviço.", permissionKey: "documents.view" },
   { id: "equipment", label: "Equipamentos", icon: Wrench, description: "Cadastre equipamentos, marcas e modelos técnicos.", permissionKey: "equipment.view" },
   { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica.", permissionKey: "general_services.view" },
   { id: "serviceTypes", label: "Tipos de Atendimento", icon: List, description: "Configure tipos e previsão de atendimento das OS.", permissionKey: "service_types.view" },
   { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "orders.view" },
   { id: "orderStatuses", label: "Status da OS", icon: CheckCircle, description: "Gerencie os status do fluxo das ordens de serviço.", permissionKey: "orders.view" },
   { id: "employees", label: "Equipes / Funcionários", icon: Users, description: "Cadastre funcionários, técnicos e gestores da equipe.", permissionKey: "employees.view" },
+  { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos e campos para impressão das ordens de serviço.", permissionKey: "documents.view" },
 ];
 
 export const utilityItems: AdminNavigationItem[] = [
