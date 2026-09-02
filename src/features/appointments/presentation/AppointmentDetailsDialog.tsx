@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import type { AppointmentWithRelations } from "../application/agenda-calendar";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
-import { BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 
 type Props = {
@@ -30,7 +30,7 @@ export function AppointmentDetailsDialog({ appointment, onClose, onOpenOrder }: 
       {appointment && <>
         <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4">
           <div><h2 className="font-black text-[#0d1b2e]">Detalhes do agendamento</h2><span className="mt-1 inline-block rounded-full px-2 py-1 text-[10px] font-bold text-white" style={{ backgroundColor: appointment.situation?.color || "#0057e7" }}>{appointment.situation?.name || "Agendamento"}</span></div>
-          <button type="button" aria-label="Fechar detalhes" onClick={onClose} className="rounded-full p-2 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={18} /></button>
+          <AdminIconButton ariaLabel="Fechar detalhes" onClick={onClose} variant="ghost"><X size={18} /></AdminIconButton>
         </div>
         <div className="space-y-4 p-5">
           <Section title="Cliente">
@@ -55,7 +55,7 @@ export function AppointmentDetailsDialog({ appointment, onClose, onOpenOrder }: 
           </Section>
           {appointment.service_order_id && <Section title="OS relacionada">
             <p className="text-sm font-bold text-[#0057e7]">{appointment.service_order?.os_number ? `OS ${appointment.service_order.os_number}` : "OS relacionada"}</p>
-            <button type="button" onClick={() => { onClose(); onOpenOrder(appointment.service_order_id as string); }} className="mt-2 rounded-lg border border-[#0057e7]/30 px-3 py-2 text-xs font-bold text-[#0057e7]">Abrir OS</button>
+            <AdminButton variant="secondary" size="sm" onClick={() => { onClose(); onOpenOrder(appointment.service_order_id as string); }} className="mt-2 border-[#0057e7]/30 text-[#0057e7]">Abrir OS</AdminButton>
           </Section>}
         </div>
         <div className="flex justify-end border-t border-[#0d1b2e]/10 px-5 py-4"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { loadDashboardOverview } from "../infrastructure/dashboard.repository";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 
@@ -53,9 +53,9 @@ export function TabDashboard() {
   return (
     <div className="space-y-6">
       <PageHeader title="Dashboard" subtitle="Visão geral do sistema em tempo real" actions={
-        <button onClick={() => void dashboardQuery.refetch()} disabled={dashboardQuery.isFetching} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors disabled:opacity-60">
+        <AdminButton variant="secondary" onClick={() => void dashboardQuery.refetch()} disabled={dashboardQuery.isFetching} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5 text-xs">
           <RefreshCw size={13} className={dashboardQuery.isFetching ? "animate-spin" : ""} /> Atualizar
-        </button>
+        </AdminButton>
       } />
 
       {dashboardQuery.isPending ? <LoadingState /> : (

@@ -10,7 +10,7 @@ import {
   type CustomerForm,
   validateCustomerForm,
 } from "@/features/customers/domain/customer-form";
-import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
 import {
@@ -99,7 +99,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
       <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="sticky top-0 z-10 flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 bg-white px-4 py-3 select-none">
           <div><h3 className="text-sm font-bold text-[#0d1b2e]">Criar cliente</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre o cliente sem sair da Nova OS</p></div>
-          <button type="button" onClick={onClose} className="p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa] rounded-lg" aria-label="Fechar"><X size={16} /></button>
+          <AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost"><X size={16} /></AdminIconButton>
         </div>
         <div className="p-4 space-y-4">
           <div className="grid sm:grid-cols-2 gap-3">

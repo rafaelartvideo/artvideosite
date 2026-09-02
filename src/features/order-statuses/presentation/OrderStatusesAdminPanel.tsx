@@ -10,6 +10,8 @@ import {
   saveOrderStatus,
 } from "../infrastructure/order-statuses.repository";
 import {
+  AdminButton,
+  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -127,7 +129,11 @@ function OrderStatusesAdminPanelContent() {
       <PageHeader
         title="Status da OS"
         subtitle="Status principais utilizados pelas ordens de serviço"
-        actions={hasPermission("orders.update") ? <BtnPrimary onClick={openNew}><Plus size={15} /> Novo status</BtnPrimary> : null}
+        actions={hasPermission("orders.update") ? (
+          <AdminButton onClick={openNew} className="text-xs">
+            <Plus size={15} /> Novo status
+          </AdminButton>
+        ) : null}
       />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -153,8 +159,16 @@ function OrderStatusesAdminPanelContent() {
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  {hasPermission("orders.update") && <button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button>}
-                  {hasPermission("orders.delete") && <button type="button" onClick={() => setDelId(item.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button>}
+                  {hasPermission("orders.update") && (
+                    <AdminIconButton ariaLabel="Editar status" title="Editar" onClick={() => openEdit(item)}>
+                      <Edit2 size={14} />
+                    </AdminIconButton>
+                  )}
+                  {hasPermission("orders.delete") && (
+                    <AdminIconButton ariaLabel="Excluir status" title="Excluir" variant="danger" onClick={() => setDelId(item.id)}>
+                      <Trash2 size={14} />
+                    </AdminIconButton>
+                  )}
                 </div>
               </div>
             ))}

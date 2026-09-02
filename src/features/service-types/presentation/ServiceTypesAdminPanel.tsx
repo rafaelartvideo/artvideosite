@@ -171,7 +171,7 @@ function ServiceTypesAdminPanelContent() {
       <PageHeader
         title="Tipos de Atendimento"
         subtitle="Configuração dos tipos utilizados nas ordens de serviço"
-        actions={hasPermission("service_types.create") ? <BtnPrimary onClick={openNew}><Plus size={15} /> Novo tipo</BtnPrimary> : null}
+        actions={hasPermission("service_types.create") ? <AdminButton onClick={openNew} className="text-xs"><Plus size={15} /> Novo tipo</AdminButton> : null}
       />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -209,12 +209,12 @@ function ServiceTypesAdminPanelContent() {
                   <StatusBadge status={item.is_active ? "Ativo" : "Inativo"} />
                   {hasPermission("service_types.edit") && (
                     <>
-                      <button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button>
-                      <button type="button" onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button>
+                      <AdminIconButton ariaLabel="Editar tipo" title="Editar" onClick={() => openEdit(item)}><Edit2 size={14} /></AdminIconButton>
+                      <AdminIconButton ariaLabel={item.is_active ? "Desativar tipo" : "Ativar tipo"} title={item.is_active ? "Desativar" : "Ativar"} onClick={() => toggle(item)}>{item.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</AdminIconButton>
                     </>
                   )}
                   {hasPermission("service_types.delete") && (
-                    <button type="button" onClick={() => setDelId(item.id)} className="p-1.5 text-[#5a6a82] hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button>
+                    <AdminIconButton ariaLabel="Excluir tipo" title="Excluir" variant="danger" onClick={() => setDelId(item.id)}><Trash2 size={14} /></AdminIconButton>
                   )}
                 </div>
               </div>

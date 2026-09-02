@@ -10,6 +10,8 @@ import {
   setBrandActive,
 } from "../infrastructure/brands.repository";
 import {
+  AdminButton,
+  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -139,7 +141,7 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
       {delId && <ConfirmDialog message="Excluir esta marca?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Marcas" subtitle={`${brands.length} marca${brands.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("brands.create") && <BtnPrimary onClick={openNewPage}><Plus size={16} /> Nova marca</BtnPrimary>}</div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("brands.create") && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Nova marca</AdminButton>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -156,8 +158,11 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
                     <StatusBadge status={b.is_active ? "Ativo" : "Inativo"} />
                   </div>
                   <div className="flex gap-1">
-                    {hasPermission("brands.update") && <><button onClick={() => openEditPage(b)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={14} /></button><button onClick={() => toggleActive(b)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">{b.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button></>}
-                    {hasPermission("brands.delete") && <button onClick={() => setDelId(b.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>}
+                    {hasPermission("brands.update") && <>
+                      <AdminIconButton ariaLabel="Editar marca" title="Editar" onClick={() => openEditPage(b)}><Edit2 size={14} /></AdminIconButton>
+                      <AdminIconButton ariaLabel={b.is_active ? "Desativar marca" : "Ativar marca"} title={b.is_active ? "Desativar" : "Ativar"} onClick={() => toggleActive(b)}>{b.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</AdminIconButton>
+                    </>}
+                    {hasPermission("brands.delete") && <AdminIconButton ariaLabel="Excluir marca" title="Excluir" variant="danger" onClick={() => setDelId(b.id)}><Trash2 size={14} /></AdminIconButton>}
                   </div>
                 </div>
               ))}

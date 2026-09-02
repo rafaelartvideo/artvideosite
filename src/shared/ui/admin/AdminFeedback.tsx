@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle, Clock, Package, Plus, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,9 +59,9 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
       <p className="font-bold text-[#0d1b2e] mb-1">{title}</p>
       {message && <p className="text-sm text-[#5a6a82]">{message}</p>}
     </div>
-    {onAdd && <button onClick={onAdd} className="flex items-center gap-2 bg-[#0057e7] text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#0046c0] transition-colors">
+    {onAdd && <AdminButton onClick={onAdd}>
       <Plus size={16} /> {addLabel}
-    </button>}
+    </AdminButton>}
   </div>;
 }
 

@@ -16,6 +16,8 @@ import {
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { initialOrderStatus } from "@/features/orders/domain/order-status";
 import {
+  AdminButton,
+  AdminIconButton,
   AdminPage,
   BtnSecondary,
   PageHeader,
@@ -140,9 +142,9 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
       {deleteId && <ConfirmDialog message="Excluir este orçamento? Esta ação remove o registro da tabela de cotações." onConfirm={() => { void handleDeleteQuote(deleteId); }} onCancel={() => setDeleteId(null)} />}
 
       <PageHeader title="Orçamentos" subtitle={`${quotes.length} solicitaç${quotes.length !== 1 ? "ões" : "ão"} recebida${quotes.length !== 1 ? "s" : ""}`} actions={
-        <button onClick={() => void quotesQuery.refetch()} disabled={quotesQuery.isFetching} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors disabled:opacity-60">
+        <AdminButton variant="secondary" onClick={() => void quotesQuery.refetch()} disabled={quotesQuery.isFetching} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5 text-xs">
           <RefreshCw size={13} className={quotesQuery.isFetching ? "animate-spin" : ""} /> Atualizar
-        </button>
+        </AdminButton>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -194,7 +196,9 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => setDetail(q)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
                         {hasPermission("quotes.delete") && (
-                          <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteId(q.id); }} title="Excluir orçamento" aria-label="Excluir orçamento" className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                          <AdminIconButton ariaLabel="Excluir orçamento" title="Excluir orçamento" variant="danger" onClick={(event: any) => { event.stopPropagation(); setDeleteId(q.id); }} className="h-7 w-7">
+                            <Trash2 size={14} />
+                          </AdminIconButton>
                         )}
                       </div>
                     </td>
@@ -259,7 +263,7 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
             <div className="sticky bottom-0 -mx-5 mt-5 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <div className="min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}
-                {hasPermission("quotes.delete") && <button type="button" onClick={() => setDeleteId(detail.id)} className="flex items-center gap-2 whitespace-nowrap bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"><Trash2 size={13} /> Excluir</button>}
+                {hasPermission("quotes.delete") && <AdminButton variant="danger" onClick={() => setDeleteId(detail.id)}><Trash2 size={13} /> Excluir</AdminButton>}
                 {hasPermission("quotes.convert") && <button onClick={async () => {
                 if (!detail) return;
                 if (!hasPermission("quotes.convert")) { setToast({ msg: "Você não possui permissão para converter orçamentos.", type: "error" }); return; }

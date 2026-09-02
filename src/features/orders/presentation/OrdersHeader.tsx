@@ -1,6 +1,6 @@
 import { LayoutDashboard, List, Plus, RefreshCw } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminSegmentedControl, PageHeader } from "@/shared/ui/admin/AdminLayout";
 
 export function OrdersHeader({
   total,
@@ -23,12 +23,23 @@ export function OrdersHeader({
       subtitle={`${total} OS encontrada${total !== 1 ? "s" : ""}`}
       actions={
         <div className="flex gap-2 flex-wrap">
-          <div className="flex rounded-lg border border-[#0d1b2e]/15 overflow-hidden">
-            <button type="button" onClick={() => onDisplayModeChange("list")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "list" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><List size={13} /> Lista</button>
-            <button type="button" onClick={() => onDisplayModeChange("kanban")} className={cn("flex items-center gap-1.5 px-3 py-2 text-xs font-bold", displayMode === "kanban" ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]")}><LayoutDashboard size={13} /> Kanban</button>
-          </div>
-          {canCreate && <button onClick={onCreate} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0]"><Plus size={13} /> Nova OS</button>}
-          <button onClick={onRefresh} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5"><RefreshCw size={13} /> Atualizar</button>
+          <AdminSegmentedControl
+            value={displayMode}
+            onChange={(mode) => onDisplayModeChange(mode)}
+            options={[
+              { value: "list", label: "Lista" },
+              { value: "kanban", label: "Kanban" },
+            ]}
+            className="grid-cols-2"
+          />
+          {canCreate && (
+            <AdminButton onClick={onCreate} className="text-xs">
+              <Plus size={13} /> Nova OS
+            </AdminButton>
+          )}
+          <AdminButton variant="secondary" onClick={onRefresh} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5 text-xs">
+            <RefreshCw size={13} /> Atualizar
+          </AdminButton>
         </div>
       }
     />

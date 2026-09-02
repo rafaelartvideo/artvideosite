@@ -10,6 +10,8 @@ import {
   setCategoryActive,
 } from "../infrastructure/categories.repository";
 import {
+  AdminButton,
+  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -129,7 +131,7 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
       {delId && <ConfirmDialog message="Excluir esta categoria? Serviços vinculados perderão a referência." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Categorias" subtitle={`${cats.length} categoria${cats.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("categories.create") && <BtnPrimary onClick={openNewPage}><Plus size={16} /> Nova categoria</BtnPrimary>}</div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("categories.create") && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Nova categoria</AdminButton>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -156,8 +158,11 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
                     <td className="px-4 py-3.5"><StatusBadge status={c.is_active ? "Ativo" : "Inativo"} /></td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
-                        {hasPermission("categories.update") && <><button onClick={() => openEditPage(c)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button><button onClick={() => toggleActive(c)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={c.is_active ? "Desativar" : "Ativar"}>{c.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></>}
-                        {hasPermission("categories.delete") && <button onClick={() => setDelId(c.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>}
+                        {hasPermission("categories.update") && <>
+                          <AdminIconButton ariaLabel="Editar categoria" title="Editar" onClick={() => openEditPage(c)}><Edit2 size={15} /></AdminIconButton>
+                          <AdminIconButton ariaLabel={c.is_active ? "Desativar categoria" : "Ativar categoria"} title={c.is_active ? "Desativar" : "Ativar"} onClick={() => toggleActive(c)}>{c.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>
+                        </>}
+                        {hasPermission("categories.delete") && <AdminIconButton ariaLabel="Excluir categoria" title="Excluir" variant="danger" onClick={() => setDelId(c.id)}><Trash2 size={15} /></AdminIconButton>}
                       </div>
                     </td>
                   </tr>

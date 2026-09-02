@@ -12,6 +12,8 @@ import {
   updateGeneralService,
 } from "../infrastructure/general-services.repository";
 import {
+  AdminButton,
+  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -128,7 +130,7 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
   return <div className="space-y-5">
     <InternalBackButton onBack={onBack} />
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo serviço</BtnPrimary> : null} />
+    <PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={canCreate ? <AdminButton onClick={openNew} className="text-xs"><Plus size={16} /> Novo serviço</AdminButton> : null} />
     <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
       {loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={canCreate ? openNew : undefined} addLabel="Novo serviço" /> :
         <div className="overflow-x-auto"><table className="w-full text-sm min-w-[700px]">
@@ -140,7 +142,10 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
             <td className="px-5 py-4 text-[#0d1b2e]">{formatMoney(item.price)}</td>
             <td className="px-5 py-4 text-[#5a6a82]">{item.max_discount_percentage == null ? "Não informado" : `${Number(item.max_discount_percentage).toLocaleString("pt-BR")}%`}</td>
             <td className="px-5 py-4"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>
-            <td className="px-5 py-4"><div className="flex justify-end gap-1">{canEdit && <><button onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={15} /></button><button onClick={() => toggle(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active ? "Desativar" : "Ativar"}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</button></>}</div></td>
+            <td className="px-5 py-4"><div className="flex justify-end gap-1">{canEdit && <>
+              <AdminIconButton ariaLabel="Editar serviço geral" title="Editar" onClick={() => openEdit(item)}><Edit2 size={15} /></AdminIconButton>
+              <AdminIconButton ariaLabel={item.is_active ? "Desativar serviço geral" : "Ativar serviço geral"} title={item.is_active ? "Desativar" : "Ativar"} onClick={() => toggle(item)}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>
+            </>}</div></td>
           </tr>)}</tbody>
         </table></div>}
     </div>

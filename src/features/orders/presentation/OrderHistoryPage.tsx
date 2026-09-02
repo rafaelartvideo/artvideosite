@@ -1,6 +1,6 @@
 import { Plus, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import type { useOrderHistory } from "../application/useOrderHistory";
 
@@ -48,12 +48,9 @@ export function OrderHistoryPage({
         {canCreate && <BtnPrimary onClick={() => { history.setText(""); history.setModalOpen(true); }}><Plus size={14} /> Novo registro</BtnPrimary>}
       </div>
     </AdminPage>
-    {history.modalOpen && canCreate && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget && !history.saving) history.setModalOpen(false); }}>
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-[#0d1b2e]/8 px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Novo registro</h2><p className="mt-0.5 text-sm text-[#5a6a82]">Adicione uma observação permanente ao histórico</p></div><button type="button" onClick={() => history.setModalOpen(false)} disabled={history.saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={18} /></button></div>
-        <div className="p-5"><textarea autoFocus value={history.text} onChange={(event) => history.setText(event.target.value)} maxLength={2000} rows={6} placeholder="Escreva o que precisa ficar registrado nesta OS..." className={cn(INPUT, "h-auto resize-y text-sm")} /><div className="mt-2 flex justify-between gap-3 text-[10px] text-[#5a6a82]"><span>O registro não poderá ser editado ou excluído.</span><span>{history.text.length}/2000</span></div></div>
-        <div className="flex justify-end gap-3 border-t border-[#0d1b2e]/8 px-5 py-4"><BtnSecondary onClick={() => history.setModalOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={history.submit} disabled={!history.text.trim() || history.saving}>{history.saving ? "Registrando..." : "Registrar no histórico"}</BtnPrimary></div>
-      </div>
-    </div>}
+    {history.modalOpen && canCreate && <AdminDialog open={history.modalOpen} onClose={() => { if (!history.saving) history.setModalOpen(false); }} title="Novo registro" description="Adicione uma observação permanente ao histórico" className="max-w-lg" footer={<div className="flex justify-end gap-3"><BtnSecondary onClick={() => history.setModalOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={history.submit} disabled={!history.text.trim() || history.saving}>{history.saving ? "Registrando..." : "Registrar no histórico"}</BtnPrimary></div>}>
+      <textarea autoFocus value={history.text} onChange={(event) => history.setText(event.target.value)} maxLength={2000} rows={6} placeholder="Escreva o que precisa ficar registrado nesta OS..." className={cn(INPUT, "h-auto resize-y text-sm")} />
+      <div className="mt-2 flex justify-between gap-3 text-[10px] text-[#5a6a82]"><span>O registro não poderá ser editado ou excluído.</span><span>{history.text.length}/2000</span></div>
+    </AdminDialog>}
   </>;
 }

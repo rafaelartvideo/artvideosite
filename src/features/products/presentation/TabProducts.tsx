@@ -165,7 +165,7 @@ export function TabProducts({ onBack, routeResourceId, routeSubpage, onRouteChan
       {delId && <ConfirmDialog message="Excluir este produto permanentemente?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Produtos" subtitle={`${products.length} produto${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("products.create") && <BtnPrimary onClick={openNewPage}><Plus size={16} /> Novo produto</BtnPrimary>}</div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("products.create") && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo produto</AdminButton>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -205,8 +205,11 @@ export function TabProducts({ onBack, routeResourceId, routeSubpage, onRouteChan
                     <td className="px-4 py-3.5"><StatusBadge status={p.is_active ? "Ativo" : "Inativo"} /></td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
-                        {hasPermission("products.update") && <><button onClick={() => openEditPage(p)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors"><Edit2 size={15} /></button><button onClick={() => toggleActive(p)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><CheckCircle size={15} /></button></>}
-                        {hasPermission("products.delete") && <button onClick={() => setDelId(p.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>}
+                        {hasPermission("products.update") && <>
+                          <AdminIconButton ariaLabel="Editar produto" title="Editar" onClick={() => openEditPage(p)}><Edit2 size={15} /></AdminIconButton>
+                          <AdminIconButton ariaLabel={p.is_active ? "Desativar produto" : "Ativar produto"} title={p.is_active ? "Desativar" : "Ativar"} onClick={() => toggleActive(p)}><CheckCircle size={15} /></AdminIconButton>
+                        </>}
+                        {hasPermission("products.delete") && <AdminIconButton ariaLabel="Excluir produto" title="Excluir" variant="danger" onClick={() => setDelId(p.id)}><Trash2 size={15} /></AdminIconButton>}
                       </div>
                     </td>
                   </tr>

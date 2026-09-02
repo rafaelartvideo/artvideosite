@@ -1,6 +1,6 @@
 import React from "react";
 import { CheckCircle, PackagePlus, Search, X } from "lucide-react";
-import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { normalizeSearchText } from "../application/order-search";
@@ -48,7 +48,7 @@ export function TestResultModal({ request, rows, submitting, getPendingQuantity,
   return <CenteredModal onClose={onClose}>
     <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4">
       <div><h3 className="text-base font-bold text-[#0d1b2e]">Registrar resultado do teste</h3><p className="mt-0.5 text-xs text-[#5a6a82]">Defina o destino das peças entregues</p></div>
-      <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button>
+      <AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost"><X size={17} /></AdminIconButton>
     </div>
     <div className="min-h-0 space-y-4 overflow-y-auto p-5">
       {pendingItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aguardando resultado.</p> : pendingItems.map(item => {

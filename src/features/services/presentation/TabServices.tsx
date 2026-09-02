@@ -27,6 +27,8 @@ import {
   setServiceActive,
 } from "../infrastructure/services.repository";
 import {
+  AdminButton,
+  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -151,7 +153,7 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
       {delId && <ConfirmDialog message="Excluir este serviço e todos os dados associados?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
       <PageHeader title="Serviços do Site" subtitle={`${services.length} serviço${services.length !== 1 ? "s" : ""} cadastrado${services.length !== 1 ? "s" : ""}`} actions={
-        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("services.create") && <BtnPrimary onClick={openNewPage}><Plus size={16} /> Novo serviço</BtnPrimary>}</div>
+        <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("services.create") && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo serviço</AdminButton>}</div>
       } />
 
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -198,11 +200,11 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-1">
-                          {hasPermission("services.update") && <button onClick={() => openEditPage(s)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] hover:bg-[#0057e7]/8 rounded-lg transition-colors" title="Editar"><Edit2 size={15} /></button>}
-                          {hasPermission("services.update") && <button onClick={() => toggleActive(s)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title={s.is_active ? "Desativar" : "Ativar"}>
-                            {s.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
-                          </button>}
-                          {hasPermission("services.delete") && <button onClick={() => setDelId(s.id)} className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir"><Trash2 size={15} /></button>}
+                          {hasPermission("services.update") && <>
+                            <AdminIconButton ariaLabel="Editar serviço" title="Editar" onClick={() => openEditPage(s)}><Edit2 size={15} /></AdminIconButton>
+                            <AdminIconButton ariaLabel={s.is_active ? "Desativar serviço" : "Ativar serviço"} title={s.is_active ? "Desativar" : "Ativar"} onClick={() => toggleActive(s)}>{s.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>
+                          </>}
+                          {hasPermission("services.delete") && <AdminIconButton ariaLabel="Excluir serviço" title="Excluir" variant="danger" onClick={() => setDelId(s.id)}><Trash2 size={15} /></AdminIconButton>}
                         </div>
                       </td>
                     </tr>

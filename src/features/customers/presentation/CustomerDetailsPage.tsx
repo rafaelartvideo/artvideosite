@@ -5,7 +5,7 @@ import { emptyAddress } from "@/lib/address";
 import type { CustomerForm } from "../domain/customer-form";
 import { customerFormFromCustomer } from "../domain/customer-form";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
-import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatDateOnly, formatFoundationDate, formatPhone, todayDateOnly } from "@/shared/domain/formatters";
@@ -94,9 +94,9 @@ export function CustomerDetailsPage(props: Props) {
                     <div className="sm:col-span-2"><p className="text-[10px] text-[#5a6a82] font-bold uppercase">E-mail</p><p className="font-medium text-[#0d1b2e]">{detail.email || "—"}</p></div>
                     <div><p className="text-[10px] text-[#5a6a82] font-bold uppercase">Cadastrado em</p><p className="font-medium text-[#0d1b2e]">{fmtDate(detail.created_at)}</p></div>
                   </div>
-                  {canEdit && <button onClick={() => { setEditingCustomerData(true); onEdit?.(); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
+                  {canEdit && <AdminButton variant="secondary" size="sm" onClick={() => { setEditingCustomerData(true); onEdit?.(); }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5">
                     <Edit2 size={12} /> Editar dados
-                  </button>}
+                  </AdminButton>}
                 </div>
               )}
             </Section>
@@ -121,9 +121,9 @@ export function CustomerDetailsPage(props: Props) {
                       })}
                     </div>
                   ) : <p className="text-sm text-[#5a6a82]">Nenhum endereço cadastrado.</p>}
-                  {canEdit && <button onClick={() => setEditingCustomerAddress(true)} className="mt-3 flex items-center gap-1.5 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 px-3 py-1.5 rounded-lg border border-[#0057e7]/30 transition-colors">
+                  {canEdit && <AdminButton variant="secondary" size="sm" onClick={() => setEditingCustomerAddress(true)} className="mt-3 border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5">
                     <Edit2 size={12} /> Editar endereço
-                  </button>}
+                  </AdminButton>}
                 </>
               )}
             </Section>

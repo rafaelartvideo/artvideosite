@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { BtnPrimary } from "@/shared/ui/admin/AdminLayout";
+import { AdminIconButton, BtnPrimary } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
@@ -28,7 +28,7 @@ export function AppointmentTechniciansDialog({ technicians, selectedIds, onSelec
       <DialogTitle className="sr-only">Selecionar técnicos</DialogTitle>
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-black text-[#0d1b2e]">Selecionar Técnicos</h3>
-        <button type="button" aria-label="Fechar técnicos" onClick={onClose} className="rounded-full p-2 hover:bg-[#f5f7fa]"><X size={17} /></button>
+        <AdminIconButton ariaLabel="Fechar técnicos" onClick={onClose} variant="ghost"><X size={17} /></AdminIconButton>
       </div>
       <FInput label="Buscar" value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome do técnico" />
       <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">

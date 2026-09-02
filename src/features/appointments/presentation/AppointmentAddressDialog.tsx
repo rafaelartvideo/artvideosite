@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { X } from "lucide-react";
 import type { Address } from "@/lib/address";
 import type { AppointmentFormState } from "../application/appointment-form";
-import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
@@ -41,7 +41,7 @@ export function AppointmentAddressDialog({ form, customer, setForm, onClose, onZ
       <DialogTitle className="sr-only">Endereço do atendimento</DialogTitle>
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-black text-[#0d1b2e]">Endereço do atendimento</h3>
-        <button type="button" aria-label="Fechar endereço" onClick={onClose} className="rounded-full p-2 hover:bg-[#f5f7fa]"><X size={17} /></button>
+        <AdminIconButton ariaLabel="Fechar endereço" onClick={onClose} variant="ghost"><X size={17} /></AdminIconButton>
       </div>
       <label className="mb-4 flex items-center gap-2 text-sm font-semibold">
         <Checkbox checked={form.address_source === "customer"} onCheckedChange={checked => useCustomerAddress(checked === true)} />

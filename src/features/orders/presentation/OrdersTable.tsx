@@ -2,6 +2,7 @@ import { ClipboardList, Edit2 } from "lucide-react";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { PriorityBadge } from "./OrderFormControls";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 
@@ -92,7 +93,7 @@ export function OrdersTable({
                       <div className="flex items-center gap-2 justify-end">
                         {hasPermission("orders.status") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.status_id || ""} onValueChange={value => updateOrderStatus(o, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Status da OS ${o.os_number || ""}`} /></div>}
                         {hasPermission("orders.edit") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.situation_id || ""} onValueChange={value => void updateOrderSituation(o, value)} options={[{ value: "", label: "Situação" }, ...getSituationsForType(o.service_type_id, o.situation_id, o.situation).map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div>}
-                        {hasPermission("orders.edit") && !o.is_solved && <button onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="flex items-center gap-1.5 text-xs font-bold text-[#0057e7] border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors"><Edit2 size={14} /> Editar</button>}
+                        {hasPermission("orders.edit") && !o.is_solved && <AdminButton variant="secondary" size="sm" onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={14} /> Editar</AdminButton>}
                       </div>
                     </td>)}
                   </tr>

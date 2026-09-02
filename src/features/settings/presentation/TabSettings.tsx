@@ -3,7 +3,7 @@ import { ArrowLeft, Building2, CheckCircle, Clock, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useSaveSiteSettingsMutation, useSiteSettingsQuery } from "./useSiteSettingsQuery";
 import { lookupCompanyByCnpj } from "../infrastructure/company-registry.gateway";
-import { AdminPage, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminPage, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
@@ -104,10 +104,10 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
       actions={<InternalBackButton onBack={onBack} />}
     />
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <button
+      <AdminButton
         type="button"
         onClick={() => onRouteChange?.("company")}
-        className="group rounded-xl border border-[#0d1b2e]/8 bg-white p-5 text-left shadow-sm transition-all hover:border-[#0057e7]/40 hover:shadow-md"
+        className="group h-auto w-full flex-col items-stretch rounded-xl border border-[#0d1b2e]/8 bg-white p-5 text-left shadow-sm transition-all hover:border-[#0057e7]/40 hover:shadow-md"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e8eef8] text-[#0057e7] transition-colors group-hover:bg-[#0057e7] group-hover:text-white">
@@ -118,7 +118,7 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
         <h3 className="mt-5 text-base font-black text-[#0d1b2e]">Dados da empresa</h3>
         <p className="mt-1.5 text-sm leading-5 text-[#5a6a82]">Nome, CNPJ, contatos, endereço e logo usados no site e nos documentos.</p>
         <span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span>
-      </button>
+      </AdminButton>
     </div>
 
     <AdminPage open={companyOpen} onClose={() => onRouteChange?.(null)} breadcrumb="Configurações" title="Dados da empresa" subtitle="Informações oficiais utilizadas no site e nos documentos impressos." maxW="max-w-6xl">
@@ -128,7 +128,7 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
             <div className="md:col-span-2">
               <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ</label>
               <div className="flex flex-col gap-2 sm:flex-row">
-                <input className="h-10 flex-1 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-sm outline-none focus:border-[#0057e7]" value={form.company_cnpj} onChange={(event) => update("company_cnpj", maskCnpj(event.target.value))} placeholder="00.000.000/0000-00" />
+                <FInput label="" value={form.company_cnpj} onChange={(event: any) => update("company_cnpj", maskCnpj(event.target.value))} placeholder="00.000.000/0000-00" className="flex-1" />
                 <BtnSecondary onClick={() => void lookupCnpj()} disabled={lookingUp}><Search size={15} />{lookingUp ? "Consultando..." : "Consultar CNPJ"}</BtnSecondary>
               </div>
               <p className="mt-1.5 text-xs text-[#718096]">A consulta preenche automaticamente os dados públicos disponíveis. Revise antes de salvar.</p>

@@ -1,6 +1,6 @@
 import { Plus, RefreshCw, Search, Trash2, Users } from "lucide-react";
 import { cn, formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -43,10 +43,10 @@ export function CustomersList(props: Props) {
   return <>
 <PageHeader title="Clientes" subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`} actions={
         <div className="flex gap-2">
-          {canCreate && <button onClick={onCreate} className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#0057e7] px-3 py-2 rounded-lg hover:bg-[#0046c0] transition-colors"><Plus size={13} /> Cadastrar Cliente</button>}
-          <button onClick={onRefresh} disabled={isFetching} className="flex items-center gap-1.5 text-xs text-[#0057e7] font-bold border border-[#0057e7]/30 px-3 py-2 rounded-lg hover:bg-[#0057e7]/5 transition-colors disabled:opacity-60">
+          {canCreate && <AdminButton onClick={onCreate} size="sm"><Plus size={13} /> Cadastrar Cliente</AdminButton>}
+          <AdminButton variant="secondary" size="sm" onClick={onRefresh} disabled={isFetching} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5">
             <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} /> Atualizar
-          </button>
+          </AdminButton>
         </div>
       } />
       <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
@@ -81,9 +81,11 @@ export function CustomersList(props: Props) {
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(c.created_at)}</td>
                     <td className="px-4 py-3.5" onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => onOpenDetail(c)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
+                        <AdminButton variant="ghost" size="sm" onClick={() => onOpenDetail(c)} className="ml-auto px-0 py-1 hover:bg-transparent hover:underline">Ver detalhes</AdminButton>
                         {canDelete && (
-                          <button type="button" onClick={() => onDelete(c.id)} title="Excluir cliente" aria-label="Excluir cliente" className="p-1.5 text-[#5a6a82] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                          <AdminIconButton ariaLabel="Excluir cliente" title="Excluir cliente" variant="danger" onClick={() => onDelete(c.id)} className="h-7 w-7">
+                            <Trash2 size={14} />
+                          </AdminIconButton>
                         )}
                       </div>
                     </td>

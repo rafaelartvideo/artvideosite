@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,7 +119,7 @@ export function OrdersFilters({
           <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo</label><AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="text-xs" ariaLabel="Filtrar por tipo da OS" /></div>
           <div>
             <OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />
-            {selectedStates.length > 0 && <button type="button" onClick={onStatesClear} className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:underline"><Eraser size={12} />Limpar Estados</button>}
+            {selectedStates.length > 0 && <AdminButton variant="ghost" size="sm" onClick={onStatesClear} className="mt-1 px-0 py-1 text-[11px] font-semibold text-red-600 hover:bg-transparent hover:text-red-700 hover:underline"><Eraser size={12} />Limpar Estados</AdminButton>}
           </div>
           <OrderFilterMultiSelect label="Cidades" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione ao menos um Estado" : "Selecionar Cidades"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />
           <div>
@@ -153,7 +154,7 @@ export function OrdersFilters({
           </div>
         </div>
         <div className="flex justify-end">
-          {(osNumberSearch || externalOsSearch || documentSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo) && <button type="button" onClick={onClear} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200"><Eraser size={14} />Limpar filtros</button>}
+          {(osNumberSearch || externalOsSearch || documentSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo) && <AdminButton variant="danger" size="sm" onClick={onClear} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} />Limpar filtros</AdminButton>}
         </div>
       </div>
   );

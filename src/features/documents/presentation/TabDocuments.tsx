@@ -3,7 +3,7 @@ import { Check, FileText, Plus, Search, Settings2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { AdminPage, BtnPrimary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminPage, BtnPrimary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { PRINT_TEMPLATE_TYPE_LABELS } from "../domain/print-template";
 import { useDocuments } from "../application/useDocuments";
@@ -73,8 +73,8 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
           {filteredTemplates.map(template => <div key={template.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-black text-[#0d1b2e]">{template.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", template.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500")}>{template.is_active ? "Ativo" : "Inativo"}</span><span className="rounded-full bg-[#edf3ff] px-2 py-0.5 text-[10px] font-bold text-[#0057e7]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></div><p className="mt-1 truncate text-xs text-[#5a6a82]">{template.description || "Sem descrição"}</p><p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-[#8b98aa]">{template.paper_size} · {template.orientation === "landscape" ? "Paisagem" : "Retrato"}</p></div>
             <div className="flex flex-wrap items-center gap-2">
-              {hasPermission("documents.toggle_active") && <button type="button" onClick={() => toggleActive(template)} className="inline-flex items-center justify-center rounded-lg border border-[#d8e0eb] bg-white px-3 py-2 text-xs font-bold text-[#42526a] hover:border-[#0057e7]/30 hover:text-[#0057e7]">{template.is_active ? "Desativar" : "Ativar"}</button>}
-              {hasPermission("documents.edit") && <button type="button" disabled={openingEditor} onClick={() => openTemplateEditor(template)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d8e0eb] bg-white px-3 py-2 text-xs font-bold text-[#42526a] hover:border-[#0057e7]/30 hover:text-[#0057e7] disabled:opacity-50"><Settings2 size={14} /> {openingEditor && editingTemplateId === template.id ? "Carregando..." : "Configurar"}</button>}
+              {hasPermission("documents.toggle_active") && <AdminButton variant="secondary" size="sm" onClick={() => toggleActive(template)}>{template.is_active ? "Desativar" : "Ativar"}</AdminButton>}
+              {hasPermission("documents.edit") && <AdminButton variant="secondary" size="sm" disabled={openingEditor} onClick={() => openTemplateEditor(template)}><Settings2 size={14} /> {openingEditor && editingTemplateId === template.id ? "Carregando..." : "Configurar"}</AdminButton>}
             </div>
           </div>)}
         </div>}

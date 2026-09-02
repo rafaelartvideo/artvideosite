@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { Section, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminIconButton, Section, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
 
@@ -19,7 +19,7 @@ export function OrderCompletionModal({
   if (!completion.open || !detail) return null;
   return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" onMouseDown={event => { if (event.target === event.currentTarget && !saving) completion.setOpen(false); }}>
     <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-      <div className="flex items-start justify-between gap-4 border-b border-[#0d1b2e]/8 px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Concluir OS</h2><p className="mt-0.5 text-sm text-[#5a6a82]">Confirme os valores finais do atendimento</p></div><button type="button" onClick={() => completion.setOpen(false)} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={18} /></button></div>
+      <div className="flex items-start justify-between gap-4 border-b border-[#0d1b2e]/8 px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Concluir OS</h2><p className="mt-0.5 text-sm text-[#5a6a82]">Confirme os valores finais do atendimento</p></div><AdminIconButton ariaLabel="Fechar" onClick={() => completion.setOpen(false)} disabled={saving} variant="ghost"><X size={18} /></AdminIconButton></div>
       <div className="flex-1 space-y-5 overflow-y-auto p-5">
         <Section title="Resumo financeiro"><div className="space-y-3">
           <div className="flex justify-between gap-3 text-sm"><span className="text-[#5a6a82]">Serviço: {detail.general_service?.name || "—"}</span><strong>{formatCurrency(completion.servicePrice)}</strong></div>

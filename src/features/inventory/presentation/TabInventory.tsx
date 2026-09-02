@@ -21,6 +21,8 @@ import {
   setInventoryItemActive,
 } from "../infrastructure/inventory.repository";
 import {
+  AdminButton,
+  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -251,7 +253,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       <PageHeader title="Estoque" subtitle="Controle de itens, quantidade mínima e movimentações do almoxarifado" actions={
         <div className="flex items-center gap-2">
           <InternalBackButton onBack={onBack} />
-          {canCreateInventory && <BtnPrimary onClick={openNew}><Plus size={14} /> Novo item</BtnPrimary>}
+          {canCreateInventory && <AdminButton onClick={openNew} className="text-xs"><Plus size={14} /> Novo item</AdminButton>}
         </div>
       } />
 
@@ -299,11 +301,11 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
                       <td className="px-4 py-3.5"><span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", item.is_active !== false ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active !== false ? "Ativo" : "Inativo"}</span></td>
                       <td className="px-4 py-3.5">
                         <div className="flex justify-end gap-2">
-                          {canEditInventory && <button type="button" onClick={() => openEdit(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Editar"><Edit2 size={14} /></button>}
-                          {canEditInventory && <button type="button" onClick={() => toggleActive(item)} className="p-1.5 text-[#5a6a82] hover:text-amber-600 rounded-lg" title={item.is_active !== false ? "Desativar" : "Ativar"}>{item.is_active !== false ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</button>}
-                          {canDeleteInventory && <button type="button" onClick={() => void deleteItem(item)} className="p-1.5 text-[#5a6a82] hover:text-red-600 rounded-lg" title="Excluir"><Trash2 size={14} /></button>}
-                          <button type="button" onClick={() => openHistory(item)} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Movimentações"><List size={14} /></button>
-                          {canEditInventory && <button type="button" onClick={() => { setSelectedItem(item); setMovementForm({ type: "in", quantity: "", reason: "", service_order_id: "" }); setHistoryOpen(false); setRecordOpen(false); }} className="p-1.5 text-[#5a6a82] hover:text-[#0057e7] rounded-lg" title="Movimentar item">+</button>}
+                          {canEditInventory && <AdminIconButton ariaLabel="Editar item" title="Editar" onClick={() => openEdit(item)}><Edit2 size={14} /></AdminIconButton>}
+                          {canEditInventory && <AdminIconButton ariaLabel={item.is_active !== false ? "Desativar item" : "Ativar item"} title={item.is_active !== false ? "Desativar" : "Ativar"} onClick={() => toggleActive(item)}>{item.is_active !== false ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</AdminIconButton>}
+                          {canDeleteInventory && <AdminIconButton ariaLabel="Excluir item" title="Excluir" variant="danger" onClick={() => void deleteItem(item)}><Trash2 size={14} /></AdminIconButton>}
+                          <AdminIconButton ariaLabel="Movimentações" title="Movimentações" onClick={() => openHistory(item)}><List size={14} /></AdminIconButton>
+                          {canEditInventory && <AdminIconButton ariaLabel="Movimentar item" title="Movimentar item" onClick={() => { setSelectedItem(item); setMovementForm({ type: "in", quantity: "", reason: "", service_order_id: "" }); setHistoryOpen(false); setRecordOpen(false); }}>+</AdminIconButton>}
                         </div>
                       </td>
                     </tr>
