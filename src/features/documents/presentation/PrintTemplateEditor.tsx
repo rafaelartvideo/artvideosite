@@ -8,11 +8,11 @@ import { PrintTemplatePreview } from "./PrintTemplatePreview";
 import type { PrintTemplateEditorValue } from "../domain/print-template";
 
 export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, saveError }: { initialValue: PrintTemplateEditorValue; onCancel: () => void; onSave: (value: PrintTemplateEditorValue) => Promise<unknown>; saving: boolean; saveError?: string }) {
-  const [value, setValue] = useState<PrintTemplateEditorValue>(() => ({ ...initialValue, selectedFields: new Set(initialValue.selectedFields) }));
+  const [value, setValue] = useState<PrintTemplateEditorValue>(() => ({ ...initialValue, layout: { ...initialValue.layout }, selectedFields: new Set(initialValue.selectedFields) }));
   const [expanded, setExpanded] = useState<Set<string>>(new Set(PRINT_FIELD_REGISTRY.slice(0, 3).map(section => section.key)));
   const [validationError, setValidationError] = useState("");
   useEffect(() => {
-    setValue({ ...initialValue, selectedFields: new Set(initialValue.selectedFields) });
+    setValue({ ...initialValue, layout: { ...initialValue.layout }, selectedFields: new Set(initialValue.selectedFields) });
     setValidationError("");
   }, [initialValue]);
 
@@ -69,6 +69,37 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
         </div><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{(["margin_top","margin_right","margin_bottom","margin_left"] as const).map((key,index)=><Field key={key} label={["Margem superior","Direita","Inferior","Esquerda"][index]}><input type="number" min="0" className={INPUT} value={value[key]} onChange={e=>setValue(v=>({...v,[key]:Number(e.target.value)}))}/></Field>)}</div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">{([['show_logo','Exibir logo'],['show_company_info','Dados da empresa'],['show_page_number','Número da página'],['show_printed_at','Data da impressão'],['is_active','Modelo ativo']] as const).map(([key,label])=><CheckOption key={key} checked={value[key]} label={label} onChange={()=>setValue(v=>({...v,[key]:!v[key]}))}/>)}</div>
         <div className="mt-4 grid gap-4 md:grid-cols-2"><Field label="Texto do cabeçalho"><input className={INPUT} value={value.header_text} onChange={e=>setValue(v=>({...v,header_text:e.target.value}))}/></Field><Field label="Texto do rodapé"><input className={INPUT} value={value.footer_text} onChange={e=>setValue(v=>({...v,footer_text:e.target.value}))}/></Field></div></section>
+        <section className="rounded-xl border border-[#0d1b2e]/10 bg-white p-5 shadow-sm">
+          <h3 className="font-black text-[#0d1b2e]">Aparência da impressão</h3>
+          <p className="mt-1 text-xs text-[#5a6a82]">Estas configurações são aplicadas igualmente na pré-visualização e no documento impresso.</p>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Field label="Fonte">
+              <select className={INPUT} value={value.layout.font_family} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, font_family: e.target.value as typeof v.layout.font_family } }))}>
+                <option value="Arial">Arial</option>
+                <option value="Inter">Inter</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+              </select>
+            </Field>
+            <Field label="Estilo das informações">
+              <select className={INPUT} value={value.layout.section_style} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, section_style: e.target.value as typeof v.layout.section_style } }))}>
+                <option value="lines">Linhas</option>
+                <option value="boxed">Blocos</option>
+                <option value="table">Tabela</option>
+              </select>
+            </Field>
+            <Field label="Texto (pt)"><input type="number" min="7" max="18" step="1" className={INPUT} value={value.layout.body_font_size} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, body_font_size: Number(e.target.value) } }))} /></Field>
+            <Field label="Rótulos (pt)"><input type="number" min="6" max="14" step="1" className={INPUT} value={value.layout.label_font_size} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, label_font_size: Number(e.target.value) } }))} /></Field>
+            <Field label="Título das seções (pt)"><input type="number" min="8" max="18" step="1" className={INPUT} value={value.layout.section_title_font_size} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, section_title_font_size: Number(e.target.value) } }))} /></Field>
+            <Field label="Altura da linha"><input type="number" min="1" max="2" step="0.1" className={INPUT} value={value.layout.line_height} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, line_height: Number(e.target.value) } }))} /></Field>
+            <Field label="Espaço entre seções (px)"><input type="number" min="0" max="40" className={INPUT} value={value.layout.section_spacing} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, section_spacing: Number(e.target.value) } }))} /></Field>
+            <Field label="Espaço entre campos (px)"><input type="number" min="0" max="30" className={INPUT} value={value.layout.field_spacing} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, field_spacing: Number(e.target.value) } }))} /></Field>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <CheckOption checked={value.layout.show_section_borders} label="Exibir linhas das seções" onChange={() => setValue(v => ({ ...v, layout: { ...v.layout, show_section_borders: !v.layout.show_section_borders } }))} />
+            <CheckOption checked={value.layout.show_field_borders} label="Exibir bordas nos campos" onChange={() => setValue(v => ({ ...v, layout: { ...v.layout, show_field_borders: !v.layout.show_field_borders } }))} />
+          </div>
+        </section>
         <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-sm"><div className="border-b border-[#0d1b2e]/8 p-5"><div className="flex items-center justify-between"><div><h3 className="font-black text-[#0d1b2e]">Campos</h3><p className="mt-1 text-xs text-[#5a6a82]">Marque os dados que farão parte deste documento.</p></div><span className="rounded-full bg-[#edf3ff] px-2.5 py-1 text-xs font-bold text-[#0057e7]">{selectedCount} selecionados</span></div></div><div className="divide-y divide-[#0d1b2e]/7">{PRINT_FIELD_REGISTRY.map(section=>{const open=expanded.has(section.key);const count=section.fields.filter(f=>value.selectedFields.has(f.key)).length;return <div key={section.key}><div className="flex items-center gap-2 px-4 py-3"><button type="button" onClick={()=>setExpanded(s=>{const n=new Set(s);n.has(section.key)?n.delete(section.key):n.add(section.key);return n;})} className="p-1 text-[#5a6a82]">{open?<ChevronDown size={16}/>:<ChevronRight size={16}/>}</button><button type="button" onClick={()=>toggleSection(section.key)} className={cn("flex h-5 w-5 items-center justify-center rounded border",count===section.fields.length?"border-[#0057e7] bg-[#0057e7] text-white":"border-[#b8c3d1] bg-white")}>{count===section.fields.length&&<Check size={13}/>}</button><button type="button" onClick={()=>setExpanded(s=>new Set(s).add(section.key))} className="flex-1 text-left"><span className="font-bold text-[#0d1b2e]">{section.label}</span><span className="ml-2 text-xs text-[#7a889c]">{count}/{section.fields.length}</span></button></div>{open&&<div className="grid gap-2 bg-[#f8fafc] px-5 py-4 md:grid-cols-2">{section.fields.map(field=><CheckOption key={field.key} checked={value.selectedFields.has(field.key)} label={field.label} detail={field.key} onChange={()=>toggleField(field.key)}/>)}</div>}</div>})}</div></section>
       </div>
       <aside className="space-y-4 2xl:sticky 2xl:top-4 2xl:self-start">
@@ -92,6 +123,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
               sections={selectedSections}
               selectedFields={value.selectedFields}
               compact
+              layout={value.layout}
             />
           </div>
         </section>
