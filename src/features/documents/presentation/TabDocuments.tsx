@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { Check, ChevronDown, ChevronRight, FileText, LayoutTemplate, Plus, Search, Settings2 } from "lucide-react";
+import React, { useEffect } from "react";
+import { Check, FileText, Plus, Search, Settings2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { PRINT_FIELD_REGISTRY } from "../domain/print-field-registry";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminPage, BtnPrimary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -20,8 +19,6 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     editorOpen, editorValue, editingTemplateId, openingEditor,
     saving, openNew, openEditor, closeEditor, save, toggleActive,
   } = documents;
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const errorMessage = error instanceof Error ? error.message : error ? String(error) : "";
   useEffect(() => {
     if (!routeResourceId) {
@@ -49,14 +46,6 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     onRouteChange?.(null, null);
   };
 
-  const toggleSection = (key: string) => {
-    setExpandedSections(current => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -65,52 +54,18 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
         subtitle="Crie modelos reutilizáveis e escolha quais informações da OS serão impressas e como serão organizadas."
         actions={<div className="flex flex-wrap items-center gap-2">
           {onBack && <InternalBackButton onBack={onBack} />}
-          <button type="button" onClick={() => setCatalogOpen(current => !current)} className="inline-flex items-center gap-2 rounded-lg border border-[#d8e0eb] bg-white px-3.5 py-2 text-sm font-bold text-[#0d1b2e] hover:border-[#0057e7]/30 hover:text-[#0057e7]">
-            <LayoutTemplate size={16} /> Catálogo de campos
-          </button>
           {hasPermission("documents.create") && <BtnPrimary onClick={openNewDocument}><Plus size={16} /> Novo documento</BtnPrimary>}
         </div>}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Metric label="Modelos" value={templates.length} icon={FileText} />
         <Metric label="Ativos" value={templates.filter(item => item.is_active).length} icon={Check} />
-        <Metric label="Categorias de dados" value={PRINT_FIELD_REGISTRY.length} icon={LayoutTemplate} />
-        <Metric label="Campos disponíveis" value={PRINT_FIELD_REGISTRY.reduce((total, section) => total + section.fields.length, 0)} icon={Settings2} />
       </div>
-
-      {catalogOpen && (
-        <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-sm">
-          <div className="border-b border-[#0d1b2e]/8 px-5 py-4">
-            <h2 className="font-black text-[#0d1b2e]">Catálogo de informações imprimíveis</h2>
-            <p className="mt-1 text-xs text-[#5a6a82]">Este catálogo será usado pelo editor. As chaves são controladas pelo sistema e não executam SQL configurável.</p>
-          </div>
-          <div className="divide-y divide-[#0d1b2e]/7">
-            {PRINT_FIELD_REGISTRY.map(section => {
-              const expanded = expandedSections.has(section.key);
-              return <div key={section.key}>
-                <button type="button" onClick={() => toggleSection(section.key)} className="flex w-full items-center gap-3 px-5 py-3.5 text-left hover:bg-[#f8fafc]">
-                  {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2"><span className="font-bold text-[#0d1b2e]">{section.label}</span><span className="rounded-full bg-[#edf3ff] px-2 py-0.5 text-[10px] font-bold text-[#0057e7]">{section.fields.length} campos</span></div>
-                    <p className="mt-0.5 text-xs text-[#5a6a82]">{section.description}</p>
-                  </div>
-                </button>
-                {expanded && <div className="grid gap-2 bg-[#f8fafc] px-5 py-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {section.fields.map(field => <div key={field.key} className="rounded-lg border border-[#0d1b2e]/8 bg-white p-3">
-                    <div className="text-sm font-bold text-[#0d1b2e]">{field.label}</div>
-                    <code className="mt-1 block break-all text-[10px] text-[#6b7a90]">{field.key}</code>
-                  </div>)}
-                </div>}
-              </div>;
-            })}
-          </div>
-        </section>
-      )}
 
       <section className="rounded-xl border border-[#0d1b2e]/10 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#0d1b2e]/8 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div><h2 className="font-black text-[#0d1b2e]">Modelos de impressão</h2><p className="text-xs text-[#5a6a82]">Modelos ativos aparecerão posteriormente no menu Imprimir da OS.</p></div>
+          <div><h2 className="font-black text-[#0d1b2e]">Modelos de impressão</h2><p className="text-xs text-[#5a6a82]">Modelos ativos aparecem no menu Imprimir dos detalhes da OS.</p></div>
           <div className="relative w-full sm:w-72"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b98aa]" /><input className={cn(INPUT, "pl-9")} value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar modelo..." /></div>
         </div>
         {errorMessage && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div>}
