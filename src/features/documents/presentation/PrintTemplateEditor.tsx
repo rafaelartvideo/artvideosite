@@ -109,22 +109,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
             <span className="rounded-full bg-[#edf3ff] px-2.5 py-1 text-xs font-bold text-[#0057e7]">{selectedCount} campos</span>
           </div>
           <div className="max-h-[calc(100vh-15rem)] overflow-auto bg-slate-100 p-4">
-            <PrintTemplatePreview
-              documentName={value.name}
-              documentType={value.document_type}
-              orientation={value.orientation}
-              margins={{ top: value.margin_top, right: value.margin_right, bottom: value.margin_bottom, left: value.margin_left }}
-              show_logo={value.show_logo}
-              show_company_info={value.show_company_info}
-              show_page_number={value.show_page_number}
-              show_printed_at={value.show_printed_at}
-              header_text={value.header_text}
-              footer_text={value.footer_text}
-              sections={selectedSections}
-              selectedFields={value.selectedFields}
-              compact
-              layout={value.layout}
-            />
+            <PrintTemplatePreview template={value} compact />
           </div>
         </section>
         <div className="rounded-xl border border-[#0d1b2e]/10 bg-white p-4 text-sm text-[#5a6a82] shadow-sm">
