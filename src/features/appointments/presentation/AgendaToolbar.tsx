@@ -76,7 +76,7 @@ export function AgendaToolbar(props: Props) {
     <span className="whitespace-nowrap text-sm font-bold capitalize text-[#0d1b2e]">{title}</span>
     <div className="relative min-w-[190px] flex-1 sm:max-w-[260px]"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={props.search} onChange={event => props.onSearchChange(event.target.value)} placeholder="Buscar cliente, nº OS" className={cn(INPUT, "h-9 bg-white pl-9 py-2 text-xs")} /></div>
     <div ref={filterPanelRef} className="relative">
-      <AdminButton variant="secondary" onClick={() => setFiltersOpen(value => !value)} ariaLabel="Filtrar agendamentos" className="h-9 rounded-lg px-3 text-xs" type="button">
+      <AdminButton variant="secondary" onClick={() => setFiltersOpen(value => !value)} ariaLabel="Filtrar agendamentos" aria-expanded={filtersOpen} aria-controls="agenda-filters" className="h-9 rounded-lg px-3 text-xs" type="button">
         <ListFilter size={15} /> Filtrar{activeFilterCount > 0 && <span className="rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{activeFilterCount}</span>}
       </AdminButton>
       {filtersOpen && <div id="agenda-filters" className="absolute right-0 top-11 z-30 w-[min(18rem,calc(100vw-2rem))] space-y-3 rounded-xl border border-[#0d1b2e]/10 bg-white p-4 shadow-xl">

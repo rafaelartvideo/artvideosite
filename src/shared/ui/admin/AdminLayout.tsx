@@ -2,29 +2,32 @@ import React, { useEffect } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/shared/ui/primitives/dialog";
 
 export type AdminButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "icon";
 export type AdminButtonSize = "sm" | "md" | "lg";
+
+type AdminButtonProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
+  variant?: AdminButtonVariant;
+  size?: AdminButtonSize;
+  type?: React.ButtonHTMLAttributes<HTMLButtonElement>["type"];
+  ariaLabel?: string;
+};
 
 export function AdminButton({
   children,
   variant = "primary",
   size = "md",
   type = "button",
-  onClick,
-  disabled,
   className = "",
   ariaLabel,
-}: {
-  children: React.ReactNode;
-  variant?: AdminButtonVariant;
-  size?: AdminButtonSize;
-  type?: "button" | "submit";
-  onClick?: React.MouseEventHandler<HTMLButtonElement>;
-  disabled?: boolean;
-  className?: string;
-  ariaLabel?: string;
-}) {
+  ...buttonProps
+}: AdminButtonProps) {
   const variants: Record<AdminButtonVariant, string> = {
     primary: "border border-transparent bg-[#0057e7] text-white hover:bg-[#0046c0]",
     secondary: "border border-[#0d1b2e]/15 bg-white text-[#0d1b2e] hover:bg-[#f5f7fa]",
@@ -40,12 +43,11 @@ export function AdminButton({
   };
 
   return <button
+    {...buttonProps}
     type={type}
-    onClick={onClick}
-    disabled={disabled}
-    aria-label={ariaLabel}
+    aria-label={buttonProps["aria-label"] ?? ariaLabel}
     className={cn(
-      "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-lg font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+      "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
       variants[variant],
       sizes[size],
       className,
@@ -55,23 +57,21 @@ export function AdminButton({
   </button>;
 }
 
+type AdminIconButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
+  variant?: "secondary" | "danger" | "ghost";
+  ariaLabel?: string;
+};
+
 export function AdminIconButton({
   children,
-  onClick,
-  disabled,
   variant = "secondary",
+  type = "button",
   ariaLabel,
   title,
   className = "",
-}: {
-  children: React.ReactNode;
-  onClick?: React.MouseEventHandler<HTMLButtonElement>;
-  disabled?: boolean;
-  variant?: "secondary" | "danger" | "ghost";
-  ariaLabel: string;
-  title?: string;
-  className?: string;
-}) {
+  ...buttonProps
+}: AdminIconButtonProps) {
   const variants = {
     secondary: "border border-[#0d1b2e]/15 bg-white text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-[#0057e7]",
     danger: "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100",
@@ -79,13 +79,12 @@ export function AdminIconButton({
   };
 
   return <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    aria-label={ariaLabel}
-    title={title ?? ariaLabel}
+    {...buttonProps}
+    type={type}
+    aria-label={buttonProps["aria-label"] ?? ariaLabel}
+    title={title ?? buttonProps["aria-label"] ?? ariaLabel}
     className={cn(
-      "inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+      "inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40",
       variants[variant],
       className,
     )}
@@ -128,7 +127,7 @@ export function AdminSegmentedControl<T extends string>({
         aria-pressed={value === option.value}
         onClick={() => onChange(option.value)}
         className={cn(
-          "px-3 py-2.5 text-xs font-black tracking-wide transition-colors",
+          "px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-inset",
           value === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]",
           disabled && "cursor-not-allowed opacity-70",
         )}
@@ -156,21 +155,19 @@ export function AdminDialog({
   footer?: React.ReactNode;
   className?: string;
 }) {
-  if (!open) return null;
-
-  return <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-    <div className={cn("max-h-[90vh] w-full max-w-lg overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white shadow-2xl", className)}>
+  return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+    <DialogContent showClose={false} className={cn("z-[150] max-h-[90vh] max-w-lg gap-0 overflow-hidden rounded-2xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl", className)}>
       {(title || description || onClose) && <div className="flex items-start justify-between gap-3 border-b border-[#0d1b2e]/8 px-5 py-4">
         <div className="min-w-0">
-          {title && <h3 className="text-base font-bold text-[#0d1b2e]">{title}</h3>}
-          {description && <p className="mt-1 text-sm leading-relaxed text-[#5a6a82]">{description}</p>}
+          {title ? <DialogTitle className="text-base font-bold text-[#0d1b2e]">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
+          {description && <DialogDescription className="mt-1 text-sm leading-relaxed text-[#5a6a82]">{description}</DialogDescription>}
         </div>
         <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>
       </div>}
       <div className="max-h-[calc(90vh-140px)] overflow-y-auto p-5">{children}</div>
       {footer && <div className="border-t border-[#0d1b2e]/8 bg-[#f8fafc] px-5 py-4">{footer}</div>}
-    </div>
-  </div>;
+    </DialogContent>
+  </Dialog>;
 }
 
 export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children, maxW = "max-w-6xl", fullPage = false }: {
@@ -199,7 +196,7 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
   const legacyCompactWidths = new Set(["max-w-xl", "max-w-2xl", "max-w-3xl"]);
   const resolvedMaxW = legacyCompactWidths.has(maxW) ? "max-w-6xl" : maxW;
   return <div className="absolute inset-0 z-[35] bg-[#f8fafc] animate-in fade-in slide-in-from-right-2 duration-200" role="main" aria-label={title}>
-    {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 z-10 p-2 text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg shadow-sm hover:text-[#0057e7] hover:bg-[#f5f7fa]"><X size={16} /></button>}
+    {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 z-10 p-2 text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg shadow-sm hover:text-[#0057e7] hover:bg-[#f5f7fa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"><X size={16} /></button>}
     <div className={cn("mx-auto w-full p-4 sm:p-6 lg:p-8", resolvedMaxW)}>{children}</div>
   </div>;
 }
@@ -245,5 +242,5 @@ export function BtnSecondary({ children, onClick, className = "" }: { children: 
 export function InternalBackButton({ onBack, inHeader = false }: { onBack: () => void; inHeader?: boolean }) {
   const contextualBack = React.useContext(AdminBackContext);
   if (!inHeader && contextualBack === onBack) return null;
-  return <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5a6a82] hover:text-[#0057e7] transition-colors"><ArrowLeft size={14} /> Voltar</button>;
+  return <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5a6a82] hover:text-[#0057e7] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"><ArrowLeft size={14} /> Voltar</button>;
 }
