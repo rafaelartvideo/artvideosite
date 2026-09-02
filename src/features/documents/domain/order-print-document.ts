@@ -18,11 +18,11 @@ const escapeHtml = (value: unknown) => text(value)
   .replaceAll("'", "&#039;");
 const date = (value: unknown) => value ? new Date(String(value)).toLocaleString("pt-BR") : "—";
 const money = (value: unknown) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const digits = (value: unknown) => String(value || "").replace(/\\D/g, "");
+const digits = (value: unknown) => String(value || "").replace(/\D/g, "");
 const formatDocument = (value: unknown) => {
   const number = digits(value);
-  if (number.length === 11) return number.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, "$1.$2.$3-$4");
-  if (number.length === 14) return number.replace(/(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})/, "$1.$2.$3/$4-$5");
+  if (number.length === 11) return number.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  if (number.length === 14) return number.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
   return text(value);
 };
 const nameOf = (value: any) => value?.full_name || value?.name || value?.title || "—";
@@ -116,12 +116,12 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "part_requests.status": requests.map((item: any) => text(item.status)).join("\\n"),
     "part_requests.purpose": requests.map((item: any) => text(item.purpose)).join("\\n"),
     "part_requests.notes": requests.map((item: any) => text(item.notes)).join("\\n"),
-    "financial.service_price": money(order.completion_service_price),
-    "financial.parts_total": money(order.completion_parts_total),
-    "financial.subtotal": money(order.completion_subtotal),
-    "financial.discount_percentage": text(order.completion_discount_percentage) + "%",
-    "financial.discount_amount": money(order.completion_discount_amount),
-    "financial.final_total": money(order.completion_final_total),
+    "financial.service_price": money(order.service_price),
+    "financial.parts_total": money(order.parts_total),
+    "financial.subtotal": money(order.subtotal),
+    "financial.discount_percentage": text(order.discount_percentage) + "%",
+    "financial.discount_amount": money(order.discount_amount),
+    "financial.final_total": money(order.final_total),
     "financial.estimated_price": money(order.estimated_price),
     "financial.final_price": money(order.final_price),
     "history.status_changes": history.map((item: any) => [date(item.created_at), item.old_status?.name, item.new_status?.name].filter(Boolean).join(" — ")).join("\\n"),
@@ -170,7 +170,7 @@ export function renderOrderPrintDocument(popup: Window, template: PrintTemplateE
     "</div><div class='document'><h1>" + escapeHtml(template.name) + "</h1><p>" + escapeHtml(template.header_text || "") + "</p><p>OS " + escapeHtml(context.order?.os_number) + "</p></div></header>" +
     sectionHtml +
     "<footer class='footer'><span>" + escapeHtml(template.footer_text || "") + "</span><span>" + (template.show_printed_at ? "Impresso em " + escapeHtml(date(new Date().toISOString())) : "") + "</span></footer>" +
-    "<script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print()},250)})<\\/script></body></html>";
+    "<script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print()},250)})</script></body></html>";
 
   popup.document.open();
   popup.document.write(html);
