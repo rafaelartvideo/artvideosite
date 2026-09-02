@@ -26,7 +26,8 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   situations: "/admin/operation/order-situations",
   orderStatuses: "/admin/operation/order-statuses",
   employees: "/admin/operation/employees",
-  settings: "/admin/site/settings",
+  siteSettings: "/admin/site/settings",
+  settings: "/admin/settings",
   contact: "/admin/contact",
 };
 
@@ -55,7 +56,7 @@ export function adminPath(tab: AdminTab, resourceId?: string | null, subpage?: s
 }
 
 export function parentAdminTab(tab: AdminTab): AdminTab | null {
-  if (["services", "categories", "products", "brands", "settings"].includes(tab)) return "site";
+  if (["services", "categories", "products", "brands", "siteSettings"].includes(tab)) return "site";
   if (["documents", "equipment", "generalServices", "serviceTypes", "situations", "orderStatuses", "employees"].includes(tab)) return "operation";
   return null;
 }

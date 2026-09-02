@@ -92,7 +92,12 @@ const TabSettings = lazy(() =>
   import("@/features/settings/presentation/TabSettings").then(
     ({ TabSettings }) => ({ default: TabSettings }),
   ),
-)
+);
+const TabSiteSettings = lazy(() =>
+  import("@/features/settings/presentation/TabSiteSettings").then(
+    ({ TabSiteSettings }) => ({ default: TabSiteSettings }),
+  ),
+);
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
 
@@ -223,6 +228,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
       />,
     },
     employees: { element: <TabEmployees onBack={() => backToParent("employees")} /> },
+    siteSettings: { element: <TabSiteSettings onBack={() => backToParent("siteSettings")} /> },
     settings: { element: <TabSettings
       onBack={() => backToParent("settings")}
       routeResourceId={route.resourceId}

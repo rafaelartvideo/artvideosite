@@ -29,7 +29,8 @@ const tabDescriptions: Record<AdminTab, string> = {
   orderStatuses: "Status principais das ordens de serviço",
   customers: "Consulte clientes e seus dados de atendimento",
   employees: "Cadastro e gestão dos funcionários da empresa",
-  settings: "Controle as configurações globais do site",
+  settings: "Configurações administrativas e dados da empresa",
+  siteSettings: "Identidade visual e conteúdo do site público",
   contact: "Dados exibidos no site e usados nos contatos",
 };
 
