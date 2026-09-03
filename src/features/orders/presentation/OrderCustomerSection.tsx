@@ -66,12 +66,16 @@ export function OrderCustomerSection({
   const setQuickCustomer = (open: boolean) => {
     if (open) onCreateCustomer();
   };
+  const compactActionClass = "h-8 w-8 shrink-0 justify-center p-0 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5";
+  const compactHeaderLinkClass = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white p-0 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
+  const mobileHiddenLabel = "hidden sm:inline";
+
   return (
 <Section
               title="Cliente"
               actions={selectedCustomer && !editingCustomer ? <>
-                {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5"><MapPin size={13} /> Abrir mapa</a>}
-                {hasPermission("customers.edit") && <BtnSecondary onClick={() => setSharedAddressOpen(value => !value)}><Link2 size={13} /> {selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"}</BtnSecondary>}
+                {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" aria-label="Abrir mapa" title="Abrir mapa" className={compactHeaderLinkClass}><MapPin size={14} /><span className={mobileHiddenLabel}>Abrir mapa</span></a>}
+                {hasPermission("customers.edit") && <BtnSecondary onClick={() => setSharedAddressOpen(value => !value)} aria-label={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} title={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} className={compactActionClass}><Link2 size={14} /><span className={mobileHiddenLabel}>{selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"}</span></BtnSecondary>}
               </> : undefined}
             >
               {selectedCustomer ? (
@@ -112,7 +116,7 @@ export function OrderCustomerSection({
                             onChange={(e: any) => setCustomerAddressDraft({ ...customerAddressDraft, shared_map_url: e.target.value })}
                             hint="Ao salvar, este link substituirá o vínculo anterior."
                           />
-                          <div className="mt-3 flex gap-2">
+                          <div className="mt-3 flex flex-wrap gap-2">
                             <BtnPrimary onClick={() => { saveCustomer(); setSharedAddressOpen(false); }} disabled={saving}>{saving ? "Salvando..." : "Salvar vínculo"}</BtnPrimary>
                             <BtnSecondary onClick={() => setSharedAddressOpen(false)}>Cancelar</BtnSecondary>
                           </div>
@@ -127,19 +131,19 @@ export function OrderCustomerSection({
                       </div>
                       <button type="button" onClick={() => setAddressExpanded(value => !value)} className="text-xs font-bold text-[#0057e7] hover:underline">{addressExpanded ? "Ocultar endereço ▲" : "Mostrar endereço ▼"}</button>
                       {addressExpanded && <div className="border-t border-[#0d1b2e]/8 pt-4"><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Endereço</p><div className="grid sm:grid-cols-3 gap-3">{(() => { const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0]; const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" }; return (["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null); })()}</div></div>}
-                      <div className="flex flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={onClearCustomer}><Users size={13} /> Trocar cliente</BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)}><Edit2 size={13} /> Editar dados</BtnSecondary>}</div>
+                      <div className="flex min-w-0 flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={onClearCustomer} aria-label="Trocar cliente" title="Trocar cliente" className={compactActionClass}><Users size={14} /><span className={mobileHiddenLabel}>Trocar cliente</span></BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)} aria-label="Editar dados" title="Editar dados" className={compactActionClass}><Edit2 size={14} /><span className={mobileHiddenLabel}>Editar dados</span></BtnSecondary>}</div>
                     </>
                   )}
                   {editingCustomer && <button onClick={() => setEditingCustomer(false)} className="text-xs text-[#5a6a82] hover:underline">Cancelar edição</button>}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex items-end gap-2">
-                    <div className="relative flex-1">
+                  <div className="flex min-w-0 items-end gap-2">
+                    <div className="relative min-w-0 flex-1">
                       <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-                      <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
+                      <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "min-w-0 pl-9 py-2 text-xs")} />
                     </div>
-                    {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)}><Plus size={13} /> Criar cliente</BtnPrimary>}
+                    {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={14} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
                   </div>
                   {customerResults.length > 0 && (
                     <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
