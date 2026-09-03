@@ -21,7 +21,7 @@ export type AttachmentType = {
 export type OrderSituationDocument = {
   id: string;
   service_order_id: string;
-  situation_id: string;
+  situation_id?: string | null;
   media_id: string;
   attachment_type_id?: string | null;
   created_at: string;
