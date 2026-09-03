@@ -1,10 +1,15 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  createAttachmentType,
+  deleteAttachmentType,
+  listAttachmentTypes,
   listPrintTemplates,
   loadPrintTemplateEditorValue,
   savePrintTemplate,
+  setAttachmentTypeActive,
   setPrintTemplateActive,
+  updateAttachmentType,
 } from "../infrastructure/documents.repository";
 import {
   emptyPrintTemplateEditorValue,
@@ -26,6 +31,15 @@ export function useDocuments() {
     queryKey: ["documents", "print-templates"],
     queryFn: async () => {
       const { data, error } = await listPrintTemplates();
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const attachmentTypesQuery = useQuery({
+    queryKey: ["documents", "attachment-types"],
+    queryFn: async () => {
+      const { data, error } = await listAttachmentTypes();
       if (error) throw error;
       return data || [];
     },
@@ -56,7 +70,25 @@ export function useDocuments() {
       queryClient.invalidateQueries({ queryKey: ["documents", "print-templates"] }),
   });
 
+  const attachmentMutation = useMutation({
+    mutationFn: ({ id, name }: { id?: string; name: string }) =>
+      id ? updateAttachmentType(id, name) : createAttachmentType(name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents", "attachment-types"] }),
+  });
+
+  const attachmentActiveMutation = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+      setAttachmentTypeActive(id, active),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents", "attachment-types"] }),
+  });
+
+  const attachmentDeleteMutation = useMutation({
+    mutationFn: deleteAttachmentType,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents", "attachment-types"] }),
+  });
+
   const templates = templatesQuery.data || [];
+  const attachmentTypes = attachmentTypesQuery.data || [];
   const filteredTemplates = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     if (!term) return templates;
@@ -82,22 +114,31 @@ export function useDocuments() {
 
   return {
     templates,
+    attachmentTypes,
     filteredTemplates,
     search,
     setSearch,
     loading: templatesQuery.isLoading,
+    attachmentTypesLoading: attachmentTypesQuery.isLoading,
     error: templatesQuery.error || openEditorMutation.error || saveMutation.error || activeMutation.error,
+    attachmentError: attachmentTypesQuery.error || attachmentMutation.error || attachmentActiveMutation.error || attachmentDeleteMutation.error,
     editorOpen,
     editorValue,
     editingTemplateId,
     openingEditor: openEditorMutation.isPending,
     saving: saveMutation.isPending,
     toggling: activeMutation.isPending,
+    savingAttachmentType: attachmentMutation.isPending,
     openNew,
     openEditor: (template: PrintTemplate) => openEditorMutation.mutate(template),
     closeEditor,
     save: (value: PrintTemplateEditorValue) => saveMutation.mutateAsync(value),
     toggleActive: (template: PrintTemplate) =>
       activeMutation.mutate({ id: template.id, active: !template.is_active }),
+    saveAttachmentType: (name: string, id?: string) =>
+      attachmentMutation.mutateAsync({ id, name }),
+    toggleAttachmentType: (id: string, active: boolean) =>
+      attachmentActiveMutation.mutateAsync({ id, active }),
+    removeAttachmentType: (id: string) => attachmentDeleteMutation.mutateAsync(id),
   };
 }
