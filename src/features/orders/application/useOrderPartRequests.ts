@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../../infrastructure/query/query-keys";
 import type {
+  CustodyAction,
   PartRequestForReview,
   PartRequestInventoryItem,
   PartRequestItemForReview,
@@ -9,10 +10,13 @@ import type {
   TestResultRow,
 } from "../domain/part-request.types";
 import {
-  deliverServiceOrderTestRequest,
+  confirmServiceOrderPartDelivery,
+  dispatchServiceOrderPartRequest,
   listActivePartInventory,
   listServiceOrderPartRequests,
+  receiveServiceOrderPartReturn,
   recordServiceOrderTestResults,
+  registerServiceOrderPartReturn,
   requestServiceOrderParts,
   reviewServiceOrderPartRequest,
 } from "../infrastructure/orders-part-requests.repository";
@@ -47,6 +51,8 @@ export function useOrderPartRequests({
   const [selectedDeliveryRequest, setSelectedDeliveryRequest] = useState<PartRequestForReview | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [deliverySubmitting, setDeliverySubmitting] = useState(false);
+  const [custodyAction, setCustodyAction] = useState<CustodyAction>("DISPATCH");
+  const [custodyQuantities, setCustodyQuantities] = useState<Record<string, string>>({});
   const [selectedTestRequest, setSelectedTestRequest] = useState<PartRequestForReview | null>(null);
   const [testResultOpen, setTestResultOpen] = useState(false);
   const [testResultRows, setTestResultRows] = useState<TestResultRow[]>([]);
@@ -184,10 +190,7 @@ export function useOrderPartRequests({
     try {
       const { error } = await requestServiceOrderParts({
         serviceOrderId,
-        items: selectedPartRequestItems.map(item => ({
-          inventory_item_id: item.inventory_item_id,
-          quantity: Number(item.quantity),
-        })),
+        items: selectedPartRequestItems.map(item => ({ inventory_item_id: item.inventory_item_id, quantity: Number(item.quantity) })),
         notes: partRequestNotes.trim() || null,
         purpose: partRequestPurpose,
       });
@@ -278,9 +281,7 @@ export function useOrderPartRequests({
       showToast({ msg: "A quantidade aprovada não pode ser maior que a quantidade solicitada.", type: "error" });
       return;
     }
-    if (quantities.some(({ item, availableQuantity, approved }) =>
-      !item.source_test_item_id && approved > availableQuantity
-    )) {
+    if (quantities.some(({ item, availableQuantity, approved }) => !item.source_test_item_id && approved > availableQuantity)) {
       showToast({ msg: "A quantidade aprovada não pode ser maior que o estoque disponível.", type: "error" });
       return;
     }
@@ -294,10 +295,7 @@ export function useOrderPartRequests({
       const { error } = await reviewServiceOrderPartRequest({
         requestId: selectedPartRequest.id,
         decision: "APPROVED",
-        items: selectedPartRequest.items.map(item => ({
-          request_item_id: item.id,
-          approved_quantity: Number(approvalQuantities[item.id] || 0),
-        })),
+        items: selectedPartRequest.items.map(item => ({ request_item_id: item.id, approved_quantity: Number(approvalQuantities[item.id] || 0) })),
         reviewNotes: partReviewNotes.trim() || null,
       });
       if (error) throw error;
@@ -339,8 +337,42 @@ export function useOrderPartRequests({
     }
   };
 
-  const openDeliveryRequest = (request: PartRequestForReview) => {
+  const getTestCommittedQuantity = (item: PartRequestItemForReview) => detailPartRequests
+    .filter(candidate => (candidate.purpose || "RESOLUTION") === "RESOLUTION")
+    .flatMap(candidate => candidate.items || [])
+    .filter(candidate => candidate.source_test_item_id === item.id)
+    .reduce((sum, candidate) => {
+      const status = String(candidate.request_status || "").toUpperCase();
+      const amount = status === "APPROVED"
+        ? Number(candidate.approved_quantity ?? 0)
+        : status === "PENDING" ? Number(candidate.quantity ?? 0) : 0;
+      return Number.isFinite(amount) ? sum + amount : sum;
+    }, 0);
+
+  const getReturnableQuantity = (item: PartRequestItemForReview) => {
+    const received = Number(item.technician_received_quantity ?? 0);
+    const returned = Number(item.returned_quantity ?? 0);
+    const returnPending = Number(item.return_pending_quantity ?? 0);
+    const damaged = Number(item.damaged_quantity ?? 0);
+    const committed = getTestCommittedQuantity(item);
+    return Math.max(0, received - returned - returnPending - damaged - committed);
+  };
+
+  const openCustodyAction = (request: PartRequestForReview, action: CustodyAction) => {
+    const permission = action === "DISPATCH"
+      ? "orders.dispatch_parts"
+      : action === "CONFIRM_DELIVERY"
+        ? "orders.confirm_part_delivery"
+        : action === "REGISTER_RETURN"
+          ? "orders.register_part_return"
+          : "orders.receive_returned_parts";
+    if (!hasPermission(permission)) {
+      showToast({ msg: "Você não possui permissão para executar esta etapa do fluxo de peças.", type: "error" });
+      return;
+    }
     setSelectedDeliveryRequest(request);
+    setCustodyAction(action);
+    setCustodyQuantities(Object.fromEntries(request.items.map(item => [item.id, String(getReturnableQuantity(item))])));
     setDeliveryOpen(true);
   };
 
@@ -348,26 +380,50 @@ export function useOrderPartRequests({
     if (deliverySubmitting) return;
     setDeliveryOpen(false);
     setSelectedDeliveryRequest(null);
+    setCustodyQuantities({});
   };
 
-  const deliverTestRequest = async () => {
-    if (!hasPermission("orders.manage_part_requests")) {
-      showToast({ msg: "Você não possui permissão para gerenciar pedidos de peças.", type: "error" });
-      return;
-    }
+  const submitCustodyAction = async () => {
     if (!selectedDeliveryRequest || deliverySubmitting) return;
     const serviceOrderId = selectedDeliveryRequest.service_order_id;
     setDeliverySubmitting(true);
     try {
-      const { error } = await deliverServiceOrderTestRequest(selectedDeliveryRequest.id);
-      if (error) throw error;
+      let result;
+      if (custodyAction === "DISPATCH") {
+        result = await dispatchServiceOrderPartRequest(selectedDeliveryRequest.id);
+      } else if (custodyAction === "CONFIRM_DELIVERY") {
+        result = await confirmServiceOrderPartDelivery(selectedDeliveryRequest.id);
+      } else if (custodyAction === "RECEIVE_RETURN") {
+        result = await receiveServiceOrderPartReturn(selectedDeliveryRequest.id);
+      } else {
+        const items = selectedDeliveryRequest.items
+          .map(item => ({ request_item_id: item.id, quantity: Number(custodyQuantities[item.id] || 0) }))
+          .filter(item => Number.isFinite(item.quantity) && item.quantity > 0);
+        if (!items.length) throw new Error("Informe pelo menos uma quantidade para devolução.");
+        for (const item of items) {
+          const source = selectedDeliveryRequest.items.find(candidate => candidate.id === item.request_item_id);
+          if (!source || item.quantity > getReturnableQuantity(source)) {
+            throw new Error("A quantidade devolvida excede a quantidade disponível com o técnico.");
+          }
+        }
+        result = await registerServiceOrderPartReturn({ requestId: selectedDeliveryRequest.id, items, notes: null });
+      }
+      if (result.error) throw result.error;
+      const message = custodyAction === "DISPATCH"
+        ? "Saída das peças confirmada."
+        : custodyAction === "CONFIRM_DELIVERY"
+          ? "Entrega ao técnico confirmada."
+          : custodyAction === "REGISTER_RETURN"
+            ? "Devolução registrada e aguardando recebimento no estoque."
+            : "Retorno ao estoque confirmado.";
       setDeliveryOpen(false);
       setSelectedDeliveryRequest(null);
-      showToast({ msg: "Peças entregues para teste.", type: "success" });
+      setCustodyQuantities({});
+      showToast({ msg: message, type: "success" });
       await loadPartRequests(serviceOrderId);
       await reloadOrders();
     } catch (error) {
-      console.error("[PART REQUEST] delivery error", error);
+      console.error("[PART CUSTODY] action error", error);
       showToast({ msg: formatError(error), type: "error" });
     } finally {
       setDeliverySubmitting(false);
@@ -387,31 +443,15 @@ export function useOrderPartRequests({
     setTestResultRows([]);
   };
 
-  const getTestCommittedQuantity = (item: PartRequestItemForReview) => detailPartRequests
-    .filter(candidate => (candidate.purpose || "RESOLUTION") === "RESOLUTION")
-    .flatMap(candidate => candidate.items || [])
-    .filter(candidate => candidate.source_test_item_id === item.id)
-    .reduce((sum, candidate) => {
-      const status = String(candidate.request_status || "").toUpperCase();
-      const amount = status === "APPROVED"
-        ? Number(candidate.approved_quantity ?? 0)
-        : status === "PENDING" ? Number(candidate.quantity ?? 0) : 0;
-      return Number.isFinite(amount) ? sum + amount : sum;
-    }, 0);
-
   const getTestPendingQuantity = (_request: PartRequestForReview, item: PartRequestItemForReview) => {
-    const delivered = Number(item.delivered_quantity ?? 0);
-    const returned = Number(item.returned_quantity ?? 0);
+    const received = Number(item.technician_received_quantity ?? item.delivered_quantity ?? 0);
+    const returned = Number(item.returned_quantity ?? 0) + Number(item.return_pending_quantity ?? 0);
     const damaged = Number(item.damaged_quantity ?? 0);
     const committedForResolution = getTestCommittedQuantity(item);
-    return Math.max(0, delivered - returned - damaged - committedForResolution);
+    return Math.max(0, received - returned - damaged - committedForResolution);
   };
 
   const submitTestResults = async () => {
-    if (!hasPermission("orders.manage_part_requests")) {
-      showToast({ msg: "Você não possui permissão para gerenciar pedidos de peças.", type: "error" });
-      return;
-    }
     if (!selectedTestRequest || testResultSubmitting) return;
     if (!testResultRows.length) {
       showToast({ msg: "Informe pelo menos um resultado.", type: "error" });
@@ -424,9 +464,7 @@ export function useOrderPartRequests({
       const item = selectedTestRequest.items.find(current => current.id === row.requestItemId);
       if (!item || !Number.isFinite(quantity) || quantity <= 0 || row.action === "DAMAGED" && !row.notes.trim()) {
         showToast({
-          msg: row.action === "DAMAGED"
-            ? "Informe a justificativa do dano."
-            : "Informe quantidades válidas para o resultado.",
+          msg: row.action === "DAMAGED" ? "Informe a justificativa do dano." : "Informe quantidades válidas para o resultado.",
           type: "error",
         });
         return;
@@ -496,6 +534,9 @@ export function useOrderPartRequests({
     selectedDeliveryRequest,
     deliveryOpen,
     deliverySubmitting,
+    custodyAction,
+    custodyQuantities,
+    setCustodyQuantities,
     selectedTestRequest,
     testResultOpen,
     testResultRows,
@@ -513,13 +554,14 @@ export function useOrderPartRequests({
     updateApprovalQuantity,
     approvePartRequest,
     rejectPartRequest,
-    openDeliveryRequest,
+    openCustodyAction,
     closeDeliveryRequest,
-    deliverTestRequest,
+    submitCustodyAction,
     openTestResult,
     closeTestResult,
     submitTestResults,
     getTestCommittedQuantity,
     getTestPendingQuantity,
+    getReturnableQuantity,
   };
 }
