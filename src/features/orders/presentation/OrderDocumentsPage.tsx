@@ -83,7 +83,7 @@ function NewAttachmentModal({
   const [attachmentTypeId, setAttachmentTypeId] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
-  const uploading = controller.uploadingSituationId === null && files.length > 0;
+  const uploading = controller.uploading;
 
   const chooseFiles = (list: FileList | null) => {
     setFiles(Array.from(list || []));
@@ -246,7 +246,7 @@ export function OrderDocumentsPage({
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div><h2 className="text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados a uma situação.</p></div>
-                  {controller.flowSituations.some(situation => controller.canUpload(situation.id)) && <button type="button" onClick={() => setNewAttachmentOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 py-2 text-[11px] font-black text-white hover:bg-[#0046bd]"><Plus size={14} /> Novo anexo</button>}
+                  {controller.canUploadAttachment && <button type="button" onClick={() => setNewAttachmentOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 py-2 text-[11px] font-black text-white hover:bg-[#0046bd]"><Plus size={14} /> Novo anexo</button>}
                 </div>
                 {controller.documents.filter(item => Boolean(item.attachment_type_id)).length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
                   : <div className="grid gap-3 sm:grid-cols-2">{controller.documents.filter(item => Boolean(item.attachment_type_id)).map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>}
