@@ -9,6 +9,7 @@ export type Address = {
   city: string;
   state: string;
   reference?: string;
+  shared_map_url?: string;
   is_default?: boolean;
 };
 
@@ -20,6 +21,7 @@ export const emptyAddress: Address = {
   neighborhood: "",
   city: "",
   state: "",
+  shared_map_url: "",
 };
 
 export function formatZipCode(value: string) {
@@ -43,4 +45,28 @@ export async function fetchAddressByZipCode(value: string): Promise<Partial<Addr
     city: data.localidade || "",
     state: data.uf || "",
   };
+}
+
+export function normalizeSharedMapUrl(value?: string | null) {
+  const url = value?.trim() || "";
+  if (!url) return "";
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+export function getAddressMapUrl(address?: Partial<Address> | null) {
+  const sharedUrl = normalizeSharedMapUrl(address?.shared_map_url);
+  if (sharedUrl) return sharedUrl;
+
+  const query = [
+    address?.street,
+    address?.number,
+    address?.neighborhood,
+    address?.city,
+    address?.state,
+    address?.zip_code,
+  ].filter(Boolean).join(", ");
+
+  return query
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+    : "";
 }
