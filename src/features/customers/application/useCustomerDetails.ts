@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { emptyAddress, type Address } from "@/lib/address";
+import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
 import {
   customerFormFromCustomer,
   customerUpdatePayload,
@@ -100,7 +100,7 @@ export function useCustomerDetails({ canEdit, onRefresh, onToast }: Options) {
         neighborhood: address.neighborhood || null,
         city: address.city || null,
         state: address.state || null,
-        shared_map_url: address.shared_map_url?.trim() || null,
+        shared_map_url: normalizeSharedMapUrl(address.shared_map_url) || null,
         is_default: true,
       };
       const existing = (detail.addresses || []).find((item: Address) => item.is_default) || detail.addresses?.[0];
