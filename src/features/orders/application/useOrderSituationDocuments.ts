@@ -56,11 +56,10 @@ export function useOrderSituationDocuments({
       files,
     }: {
       situation: OrderSituation;
-      attachmentTypeId: string;
+      attachmentTypeId?: string | null;
       files: File[];
     }) => {
       if (!orderId) throw new Error("OS não informada.");
-      if (!attachmentTypeId) throw new Error("Selecione o tipo de anexo.");
       if (!hasPermission(orderSituationUploadPermission(situation.id))) {
         throw new Error(`Você não possui permissão para anexar arquivos em ${situation.name}.`);
       }
@@ -69,7 +68,7 @@ export function useOrderSituationDocuments({
         await attachOrderSituationDocument({
           serviceOrderId: orderId,
           situationId: situation.id,
-          attachmentTypeId,
+          attachmentTypeId: attachmentTypeId || null,
           file,
         });
       }
@@ -114,6 +113,8 @@ export function useOrderSituationDocuments({
     removingId: removeMutation.variables?.id || null,
     upload: (situation: OrderSituation, attachmentTypeId: string, files: File[]) =>
       uploadMutation.mutateAsync({ situation, attachmentTypeId, files }),
+    uploadQuick: (situation: OrderSituation, files: File[]) =>
+      uploadMutation.mutateAsync({ situation, attachmentTypeId: null, files }),
     remove: (document: OrderSituationDocument) => removeMutation.mutateAsync(document),
     canUpload: (situationId: string) =>
       hasPermission(orderSituationUploadPermission(situationId)),
