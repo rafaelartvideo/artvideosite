@@ -1,7 +1,7 @@
-import type { Dispatch, SetStateAction } from "react";
-import { Edit2, MessageCircle, Plus, Search, Users } from "lucide-react";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import { Edit2, Link2, MapPin, MessageCircle, Plus, Search, Users } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
-import type { Address } from "@/lib/address";
+import { getAddressMapUrl, type Address } from "@/lib/address";
 import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import {
   cn,
@@ -58,11 +58,22 @@ export function OrderCustomerSection({
   onCreateCustomer: () => void;
 }) {
   const editingOS = editingOrder;
+  const [sharedAddressOpen, setSharedAddressOpen] = useState(false);
+  const selectedAddress = (selectedCustomer?.addresses || []).find((item: Address) => item.is_default)
+    || selectedCustomer?.addresses?.[0]
+    || customerAddressDraft;
+  const mapUrl = getAddressMapUrl(selectedAddress);
   const setQuickCustomer = (open: boolean) => {
     if (open) onCreateCustomer();
   };
   return (
-<Section title="Cliente">
+<Section
+              title="Cliente"
+              actions={selectedCustomer && !editingCustomer ? <>
+                {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5"><MapPin size={13} /> Abrir mapa</a>}
+                {hasPermission("customers.edit") && <BtnSecondary onClick={() => setSharedAddressOpen(value => !value)}><Link2 size={13} /> {selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"}</BtnSecondary>}
+              </> : undefined}
+            >
               {selectedCustomer ? (
                 <div className="space-y-4">
                   {editingCustomer ? (
@@ -91,6 +102,22 @@ export function OrderCustomerSection({
                     </div>
                   ) : (
                     <>
+                      {sharedAddressOpen && (
+                        <div className="rounded-xl border border-[#0057e7]/15 bg-[#f8fbff] p-4">
+                          <FInput
+                            label="Link compartilhado do endereço"
+                            type="url"
+                            placeholder="Cole o link enviado pelo cliente"
+                            value={customerAddressDraft.shared_map_url || ""}
+                            onChange={(e: any) => setCustomerAddressDraft({ ...customerAddressDraft, shared_map_url: e.target.value })}
+                            hint="Ao salvar, este link substituirá o vínculo anterior."
+                          />
+                          <div className="mt-3 flex gap-2">
+                            <BtnPrimary onClick={() => { saveCustomer(); setSharedAddressOpen(false); }} disabled={saving}>{saving ? "Salvando..." : "Salvar vínculo"}</BtnPrimary>
+                            <BtnSecondary onClick={() => setSharedAddressOpen(false)}>Cancelar</BtnSecondary>
+                          </div>
+                        </div>
+                      )}
                       <div className="grid sm:grid-cols-3 gap-3">
                         <InfoRow label="Nome" value={selectedCustomer.full_name} />
                         <InfoRow label="Telefone" value={formatPhone(selectedCustomer.phone)} />
