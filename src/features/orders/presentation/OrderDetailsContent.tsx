@@ -19,7 +19,7 @@ export function InfoRow({
   return value ? (
     <div>
       <p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-0.5">{label}</p>
-      <p className="text-sm font-medium text-[#0d1b2e]">{value}</p>
+      <p className="text-sm font-medium text-[#0d1b2e] break-words">{value}</p>
     </div>
   ) : null;
 }
@@ -44,13 +44,15 @@ export function OrderDetailsContent({
   const fmtDate = formatDate;
   const stateLabel = formatState;
   const getSlaForOrder = getSla;
+  void getSlaForOrder;
   const customer = detail.customer as any;
   const technicalValues = Array.isArray(detail.technical_values) ? detail.technical_values : [];
   const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
   const whatsappContact = phoneContactLinks(customer?.whatsapp || customer?.phone);
   const customerAddress = (customer?.addresses || []).find((item: Address) => item.is_default) || customer?.addresses?.[0];
   const customerMapUrl = getAddressMapUrl(customerAddress);
-  const contactActionClass = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold normal-case tracking-normal transition-colors";
+  const contactActionClass = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[11px] font-bold normal-case tracking-normal transition-colors sm:h-auto sm:w-auto sm:gap-1.5 sm:px-2.5 sm:py-1.5";
+  const actionLabelClass = "hidden sm:inline";
   return (
     <>
               {hasPermission("orders.section.customer") && (<Section
@@ -61,10 +63,11 @@ export function OrderDetailsContent({
                       href={customerMapUrl}
                       target="_blank"
                       rel="noreferrer"
+                      aria-label="Abrir endereço no mapa"
                       className={`${contactActionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}
                       title={customerAddress?.shared_map_url ? "Abrir localização enviada pelo cliente" : "Abrir endereço no mapa"}
                     >
-                      <MapPin size={13} /> Mapa
+                      <MapPin size={14} /><span className={actionLabelClass}>Mapa</span>
                     </a>
                   )}
                   {callContact.tel ? (
@@ -73,14 +76,15 @@ export function OrderDetailsContent({
                       data-phone-number={`+${callContact.phone}`}
                       data-service-order-id={detail.id}
                       onClick={() => notifyPhoneCallIntegration(callContact.phone, detail.id)}
+                      aria-label="Ligar para o cliente"
                       className={`${contactActionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}
                       title="Abrir no telefone ou aplicativo de telefonia"
                     >
-                      <Phone size={13} /> Ligar
+                      <Phone size={14} /><span className={actionLabelClass}>Ligar</span>
                     </a>
                   ) : (
-                    <button type="button" disabled className={`${contactActionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
-                      <Phone size={13} /> Ligar
+                    <button type="button" disabled aria-label="Telefone não disponível" title="Telefone não disponível" className={`${contactActionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
+                      <Phone size={14} /><span className={actionLabelClass}>Ligar</span>
                     </button>
                   )}
                   {whatsappContact.whatsapp ? (
@@ -89,14 +93,15 @@ export function OrderDetailsContent({
                       target="_blank"
                       rel="noreferrer"
                       data-phone-number={`+${whatsappContact.phone}`}
+                      aria-label="Abrir WhatsApp do cliente"
                       className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
                       title="Abrir conversa no WhatsApp"
                     >
-                      <MessageCircle size={13} /> WhatsApp
+                      <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
                     </a>
                   ) : (
-                    <button type="button" disabled className={`${contactActionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
-                      <MessageCircle size={13} /> WhatsApp
+                    <button type="button" disabled aria-label="WhatsApp não disponível" title="WhatsApp não disponível" className={`${contactActionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
+                      <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
                     </button>
                   )}
                 </>}
@@ -161,8 +166,8 @@ export function OrderDetailsContent({
                   {detail.completed_at && <InfoRow label="Concluída por" value={detail.completed_by_profile?.full_name || "Nome não informado"} />}
                 </div>
               </Section>)}
-              {detail.internal_notes && hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}
-              {detail.customer_notes && hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></Section>)}
+              {detail.internal_notes && hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line break-words">{detail.internal_notes}</p></Section>)}
+              {detail.customer_notes && hasPermission("orders.section.problem") && (<Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line break-words">{detail.customer_notes}</p></Section>)}
     </>
   );
 }
