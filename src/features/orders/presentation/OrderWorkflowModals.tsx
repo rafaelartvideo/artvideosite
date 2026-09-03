@@ -73,11 +73,14 @@ export function OrderWorkflowModals({
   return <>
 {quickEquipment && <QuickEquipmentModal
         onClose={() => setQuickEquipment(false)}
+        technicalFields={workspace.technicalFields}
+        technicalFieldLinks={workspace.technicalFieldLinks}
         onSaved={({ type, brand, model }) => {
           setEquipmentTypes(current => [...current, type]);
           setEquipmentBrands(current => [...current, brand]);
           setEquipmentModels(current => [...current, model]);
-          setForm(current => ({ ...current, equipment_type_id: type.id, equipment_brand_id: brand.id, equipment_model_id: model.id }));
+          setForm(current => ({ ...current, equipment_type_id: type.id, equipment_brand_id: brand.id, equipment_model_id: model.id, technicalValues: {} }));
+          void workspace.reloadWorkspace();
         }}
       />}
       {quickCustomer && <QuickCustomerModal
