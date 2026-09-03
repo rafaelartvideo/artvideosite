@@ -263,12 +263,14 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         mobileSidebarOpen={sidebarOpen}
         onCloseMobileSidebar={() => setSidebarOpen(false)}
         header={
-          <AdminHeader
-            activeTab={activeTab}
-            page={page}
-            sidebarOpen={sidebarOpen}
-            onToggleSidebar={() => setSidebarOpen((current) => !current)}
-          />
+          page ? (
+            <AdminHeader
+              activeTab={activeTab}
+              page={page}
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((current) => !current)}
+            />
+          ) : null
         }
       >
         <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
