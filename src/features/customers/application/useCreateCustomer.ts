@@ -93,6 +93,7 @@ export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
           neighborhood: address.neighborhood || null,
           city: address.city || null,
           state: address.state || null,
+          shared_map_url: address.shared_map_url?.trim() || null,
           is_default: true,
         });
       } catch (error) {
