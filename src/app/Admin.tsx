@@ -137,8 +137,8 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
           title="Site"
           description="Conteúdo e cadastros exibidos no site público."
           items={siteItems.filter((item) => hasPermission(item.permissionKey))}
-          onSelect={(id) => {
-            setPage(null);
+          onSelect={(id, label) => {
+            setPage({ breadcrumb: "Site", title: label, onBack: () => { setActiveTab("site"); setPage(null); } });
             setActiveTab(id as AdminTab);
           }}
         />
@@ -151,8 +151,8 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
           title="Operação"
           description="Cadastros e configurações internas da assistência técnica."
           items={operationItems.filter((item) => hasPermission(item.permissionKey))}
-          onSelect={(id) => {
-            setPage(null);
+          onSelect={(id, label) => {
+            setPage({ breadcrumb: "Operação", title: label, onBack: () => { setActiveTab("operation"); setPage(null); } });
             setActiveTab(id as AdminTab);
           }}
         />
@@ -209,14 +209,12 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         mobileSidebarOpen={sidebarOpen}
         onCloseMobileSidebar={() => setSidebarOpen(false)}
         header={
-          page ? (
-            <AdminHeader
-              activeTab={activeTab}
-              page={page}
-              sidebarOpen={sidebarOpen}
-              onToggleSidebar={() => setSidebarOpen((current) => !current)}
-            />
-          ) : null
+          <AdminHeader
+            activeTab={activeTab}
+            page={page}
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={() => setSidebarOpen((current) => !current)}
+          />
         }
       >
         <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
