@@ -12,13 +12,29 @@ export type ServiceTypeSituationLink = {
   situation?: OrderSituation | OrderSituation[] | null;
 };
 
+export type AttachmentType = {
+  id: string;
+  name: string;
+  is_active: boolean;
+};
+
 export type OrderSituationDocument = {
   id: string;
   service_order_id: string;
   situation_id: string;
   media_id: string;
+  attachment_type_id?: string | null;
   created_at: string;
-  media?: { id: string; file_name?: string | null } | { id: string; file_name?: string | null }[] | null;
+  media?: {
+    id: string;
+    file_name?: string | null;
+    mime_type?: string | null;
+  } | {
+    id: string;
+    file_name?: string | null;
+    mime_type?: string | null;
+  }[] | null;
+  attachment_type?: AttachmentType | AttachmentType[] | null;
 };
 
 export const orderSituationUploadPermission = (situationId: string) =>
@@ -26,4 +42,10 @@ export const orderSituationUploadPermission = (situationId: string) =>
 
 export function situationDocumentMedia(document: OrderSituationDocument) {
   return Array.isArray(document.media) ? document.media[0] : document.media;
+}
+
+export function situationDocumentType(document: OrderSituationDocument) {
+  return Array.isArray(document.attachment_type)
+    ? document.attachment_type[0]
+    : document.attachment_type;
 }
