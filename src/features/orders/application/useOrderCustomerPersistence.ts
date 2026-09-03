@@ -74,6 +74,7 @@ export function useOrderCustomerPersistence({
       neighborhood: customerAddressDraft.neighborhood || null,
       city: customerAddressDraft.city || null,
       state: customerAddressDraft.state || null,
+      shared_map_url: customerAddressDraft.shared_map_url?.trim() || null,
       is_default: true,
     };
     const addressResult = await saveOrderCustomerAddress(
