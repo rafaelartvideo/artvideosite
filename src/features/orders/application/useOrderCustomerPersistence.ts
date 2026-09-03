@@ -3,7 +3,7 @@ import {
   type SetStateAction,
 } from "react";
 import { customerUpdatePayload, validateCustomerForm, type CustomerForm } from "@/features/customers/domain/customer-form";
-import type { Address } from "@/lib/address";
+import { normalizeSharedMapUrl, type Address } from "@/lib/address";
 import {
   saveOrderCustomerAddress,
   updateOrderCustomer,
@@ -74,7 +74,7 @@ export function useOrderCustomerPersistence({
       neighborhood: customerAddressDraft.neighborhood || null,
       city: customerAddressDraft.city || null,
       state: customerAddressDraft.state || null,
-      shared_map_url: customerAddressDraft.shared_map_url?.trim() || null,
+      shared_map_url: normalizeSharedMapUrl(customerAddressDraft.shared_map_url) || null,
       is_default: true,
     };
     const addressResult = await saveOrderCustomerAddress(
