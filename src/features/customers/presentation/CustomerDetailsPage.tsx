@@ -1,7 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Edit2 } from "lucide-react";
-import type { Address } from "@/lib/address";
-import { emptyAddress } from "@/lib/address";
+import { Edit2, Link2, MapPin } from "lucide-react";
+import { emptyAddress, getAddressMapUrl, type Address } from "@/lib/address";
 import type { CustomerForm } from "../domain/customer-form";
 import { customerFormFromCustomer } from "../domain/customer-form";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
@@ -46,6 +45,8 @@ export function CustomerDetailsPage(props: Props) {
     savingAddress, canEdit, onSaveCustomer: handleSaveCustomerData,
     onSaveAddress: handleSaveCustomerAddress, onOpenOrder, onClose, onEdit, onCancelEdit,
   } = props;
+  const primaryAddress = (detail?.addresses || []).find((item: Address) => item.is_default) || detail?.addresses?.[0];
+  const mapUrl = getAddressMapUrl(primaryAddress);
   return <>
 {detail && (
         <AdminPage open={true} onClose={() => onClose()} breadcrumb="Clientes" title={detail.full_name} subtitle={detail.customer_type === "PJ" ? (detail.cnpj ? formatCnpj(detail.cnpj) : "Pessoa Jurídica") : (detail.document ? formatCpf(detail.document) : "Pessoa Física")} maxW="max-w-5xl">
@@ -101,9 +102,22 @@ export function CustomerDetailsPage(props: Props) {
               )}
             </Section>
 
-            <Section title="Endereço">
+            <Section
+              title="Endereço"
+              actions={!editingCustomerAddress ? <>
+                {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5"><MapPin size={13} /> Abrir mapa</a>}
+                {canEdit && <AdminButton variant="secondary" size="sm" onClick={() => setEditingCustomerAddress(true)}><Link2 size={13} /> {primaryAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"}</AdminButton>}
+              </> : undefined}
+            >
               {editingCustomerAddress ? (
                 <div className="space-y-3">
+                  <FInput
+                    label="Link compartilhado do endereço"
+                    type="url"
+                    placeholder="Cole o link do Google Maps, Waze, Apple Maps..."
+                    value={editAddress.shared_map_url || ""}
+                    onChange={(e: any) => setEditAddress({ ...editAddress, shared_map_url: e.target.value })}
+                  />
                   <AddressFields value={editAddress} onChange={setEditAddress} inputClassName={INPUT} />
                   <div className="flex gap-2 pt-1">
                     {canEdit && <BtnPrimary onClick={() => void handleSaveCustomerAddress()} disabled={savingAddress}>{savingAddress ? "Salvando..." : "Salvar endereço"}</BtnPrimary>}
