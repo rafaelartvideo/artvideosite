@@ -134,3 +134,56 @@ export async function setPrintTemplateActive(templateId: string, isActive: boole
     .eq("id", templateId);
   if (error) throw error;
 }
+
+
+export type AttachmentTypeRecord = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export async function listAttachmentTypes() {
+  return (supabase as any)
+    .from("attachment_types")
+    .select("id,name,is_active,created_at,updated_at")
+    .order("name", { ascending: true }) as Promise<{ data: AttachmentTypeRecord[] | null; error: any }>;
+}
+
+export async function createAttachmentType(name: string) {
+  const { data, error } = await (supabase as any)
+    .from("attachment_types")
+    .insert({ name: name.trim(), is_active: true })
+    .select("id,name,is_active,created_at,updated_at")
+    .single();
+  if (error) throw error;
+  return data as AttachmentTypeRecord;
+}
+
+export async function updateAttachmentType(id: string, name: string) {
+  const { data, error } = await (supabase as any)
+    .from("attachment_types")
+    .update({ name: name.trim(), updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("id,name,is_active,created_at,updated_at")
+    .single();
+  if (error) throw error;
+  return data as AttachmentTypeRecord;
+}
+
+export async function setAttachmentTypeActive(id: string, isActive: boolean) {
+  const { error } = await (supabase as any)
+    .from("attachment_types")
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteAttachmentType(id: string) {
+  const { error } = await (supabase as any)
+    .from("attachment_types")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
