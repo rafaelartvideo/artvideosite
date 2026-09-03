@@ -2,6 +2,7 @@ import { Plus } from "lucide-react";
 import { BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import type { EquipmentTypeTechnicalField, ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
+import { OrderImagesField, type OrderImage } from "./OrderImages";
 
 export function OrderEquipmentSection({
   form,
@@ -16,6 +17,11 @@ export function OrderEquipmentSection({
   technicalValues,
   technicalHistory,
   onTechnicalValueChange,
+  images,
+  onAddImages,
+  onRemoveImage,
+  onViewImage,
+  canEditImages,
 }: {
   form: any;
   equipmentTypes: any[];
@@ -29,6 +35,11 @@ export function OrderEquipmentSection({
   technicalValues: Record<string, string>;
   technicalHistory: ServiceOrderTechnicalValue[];
   onTechnicalValueChange: (fieldId: string, value: string) => void;
+  images: OrderImage[];
+  onAddImages: (files: FileList | null) => void;
+  onRemoveImage: (key: string) => void;
+  onViewImage?: (image: OrderImage) => void;
+  canEditImages: boolean;
 }) {
   const editingOS = editing;
   const hasPermission = (permission: string) =>
@@ -52,6 +63,17 @@ export function OrderEquipmentSection({
                 <FInput label="Nº de série" value={form.serial_number} disabled={Boolean(editingOS)} onChange={(e: any) => upF("serial_number", e.target.value)} />
                 <FInput label="Lacre / garantia" value={form.accessories} onChange={(e: any) => upF("accessories", e.target.value)} />
                 <div className="sm:col-span-2"><FTextarea label="Observações do equipamento" value={form.equipment_condition} onChange={(e: any) => upF("equipment_condition", e.target.value)} rows={3} /></div>
+                <div className="sm:col-span-2 border-t border-[#0d1b2e]/8 pt-4">
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Fotos do equipamento</p>
+                  <OrderImagesField
+                    embedded
+                    images={images}
+                    onAdd={onAddImages}
+                    onRemove={onRemoveImage}
+                    onView={onViewImage}
+                    canEdit={canEditImages}
+                  />
+                </div>
               </div>
             </Section>
   );
