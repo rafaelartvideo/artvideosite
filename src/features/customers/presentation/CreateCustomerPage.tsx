@@ -1,8 +1,9 @@
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { Link2 } from "lucide-react";
 import type { Address } from "@/lib/address";
 import type { CustomerForm } from "../domain/customer-form";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
-import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCnpj, formatCpf, formatFoundationDate, formatPhone, isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
 
@@ -26,6 +27,7 @@ type Props = {
 };
 
 export function CreateCustomerPage(props: Props) {
+  const [sharedAddressOpen, setSharedAddressOpen] = useState(false);
   const {
     open: createOpen, form: createForm, setForm: setCreateForm,
     address: createAddress, setAddress: setCreateAddress, saving, canCreate,
@@ -59,8 +61,32 @@ export function CreateCustomerPage(props: Props) {
                 <FInput label="WhatsApp" value={createForm.whatsapp} onChange={(e: any) => setCreateForm({ ...createForm, whatsapp: formatPhone(e.target.value) })} />
               </div>
             </Section>
-            <Section title="Dados de endereço">
-              <AddressFields value={createAddress} onChange={setCreateAddress} inputClassName={INPUT} />
+            <Section
+              title="Dados de endereço"
+              actions={
+                <AdminButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSharedAddressOpen(value => !value)}
+                  className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"
+                >
+                  <Link2 size={13} /> Endereço enviado pelo cliente
+                </AdminButton>
+              }
+            >
+              <div className="space-y-4">
+                {(sharedAddressOpen || createAddress.shared_map_url) && (
+                  <FInput
+                    label="Link compartilhado do endereço"
+                    type="url"
+                    placeholder="Cole o link do Google Maps, Waze, Apple Maps..."
+                    value={createAddress.shared_map_url || ""}
+                    onChange={(e: any) => setCreateAddress({ ...createAddress, shared_map_url: e.target.value })}
+                    hint="O link ficará vinculado ao endereço principal do cliente."
+                  />
+                )}
+                <AddressFields value={createAddress} onChange={setCreateAddress} inputClassName={INPUT} />
+              </div>
             </Section>
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
