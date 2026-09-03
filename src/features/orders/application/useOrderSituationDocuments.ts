@@ -55,24 +55,28 @@ export function useOrderSituationDocuments({
       attachmentTypeId,
       files,
     }: {
-      situation: OrderSituation;
+      situation?: OrderSituation | null;
       attachmentTypeId?: string | null;
       files: File[];
     }) => {
       if (!orderId) throw new Error("OS não informada.");
-      if (!hasPermission(orderSituationUploadPermission(situation.id))) {
+      if (situation && !hasPermission(orderSituationUploadPermission(situation.id))) {
         throw new Error(`Você não possui permissão para anexar arquivos em ${situation.name}.`);
       }
+      if (!situation && !hasPermission("orders.section.images")) {
+        throw new Error("Você não possui permissão para anexar arquivos nesta OS.");
+      }
+      if (!situation && !attachmentTypeId) throw new Error("Selecione o tipo de anexo.");
       if (!files.length) throw new Error("Selecione um arquivo ou utilize a câmera.");
       for (const file of files) {
         await attachOrderSituationDocument({
           serviceOrderId: orderId,
-          situationId: situation.id,
+          situationId: situation?.id || null,
           attachmentTypeId: attachmentTypeId || null,
           file,
         });
       }
-      return { count: files.length, situation: situation.name };
+      return { count: files.length, situation: situation?.name || "Anexos" };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
@@ -115,6 +119,8 @@ export function useOrderSituationDocuments({
       uploadMutation.mutateAsync({ situation, attachmentTypeId, files }),
     uploadQuick: (situation: OrderSituation, files: File[]) =>
       uploadMutation.mutateAsync({ situation, attachmentTypeId: null, files }),
+    uploadAttachment: (attachmentTypeId: string, files: File[]) =>
+      uploadMutation.mutateAsync({ situation: null, attachmentTypeId, files }),
     remove: (document: OrderSituationDocument) => removeMutation.mutateAsync(document),
     canUpload: (situationId: string) =>
       hasPermission(orderSituationUploadPermission(situationId)),
