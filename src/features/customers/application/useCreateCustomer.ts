@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { emptyAddress, type Address } from "@/lib/address";
+import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
 import { isValidCpf } from "@/shared/domain/formatters";
 import {
   applyCnpjData,
@@ -93,7 +93,7 @@ export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
           neighborhood: address.neighborhood || null,
           city: address.city || null,
           state: address.state || null,
-          shared_map_url: address.shared_map_url?.trim() || null,
+          shared_map_url: normalizeSharedMapUrl(address.shared_map_url) || null,
           is_default: true,
         });
       } catch (error) {
