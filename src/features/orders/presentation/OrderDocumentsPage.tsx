@@ -148,6 +148,46 @@ function NewAttachmentModal({
   );
 }
 
+
+function SituationQuickUploads({
+  situation,
+  controller,
+  onSuccess,
+  onError,
+}: {
+  situation: OrderSituation;
+  controller: Controller;
+  onSuccess: (message: string) => void;
+  onError: (message: string) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const cameraRef = useRef<HTMLInputElement | null>(null);
+  const uploading = controller.uploadingSituationId === situation.id;
+
+  const upload = async (list: FileList | null) => {
+    const files = Array.from(list || []);
+    if (!files.length) return;
+    try {
+      const result = await controller.uploadQuick(situation, files);
+      onSuccess(`${result.count} ${result.count === 1 ? "imagem adicionada" : "imagens adicionadas"} em ${result.situation}.`);
+    } catch (uploadError) {
+      onError(uploadError instanceof Error ? uploadError.message : "Não foi possível adicionar a imagem.");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+      if (cameraRef.current) cameraRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={event => void upload(event.target.files)} />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void upload(event.target.files)} />
+      <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Upload size={14} /> Adicionar</button>
+      <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Camera size={14} /> Tirar foto</button>
+    </div>
+  );
+}
+
 export function OrderDocumentsPage({
   open,
   order,
@@ -179,7 +219,7 @@ export function OrderDocumentsPage({
 
   return (
     <>
-      <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Situação > Anexos" subtitle="Arquivos e imagens organizados por situação da ordem de serviço" maxW="max-w-4xl">
+      <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="SITUAÇÃO > ANEXOS" maxW="max-w-4xl">
         <div className="space-y-4 p-5">
           {message && <div className={cn("flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex items-center gap-2">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}{message.text}</span><button type="button" onClick={() => setMessage(null)}><X size={13} /></button></div>}
           {controller.loading ? <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando anexos...</p>
@@ -190,10 +230,14 @@ export function OrderDocumentsPage({
               const current = situation.id === currentSituationId;
               return <section key={situation.id} className={cn("overflow-hidden rounded-xl border", current ? "border-[#0057e7]/30 bg-[#f7faff]" : "border-[#0d1b2e]/10 bg-white")}>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#0d1b2e]/8 px-4 py-3">
-                  <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div><p className="text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{attachments.length} anexo{attachments.length !== 1 ? "s" : ""}{current ? " · situação atual" : ""}</p></div></div>
-                  {canUpload && <button type="button" onClick={() => setNewForSituation(situation)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 py-2 text-[11px] font-black text-white hover:bg-[#0046bd]"><Plus size={14} /> Anexar novo</button>}
+                  <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div><p className="text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"}</p></div></div>
+                  {canUpload && <SituationQuickUploads situation={situation} controller={controller} onSuccess={text => setMessage({ text, type: "success" })} onError={text => setMessage({ text, type: "error" })} />}
                 </div>
                 <div className="p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div><p className="text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Anexos</p><p className="mt-0.5 text-[10px] text-[#5a6a82]">{attachments.length} anexo{attachments.length !== 1 ? "s" : ""} registrado{attachments.length !== 1 ? "s" : ""}</p></div>
+                    {canUpload && <button type="button" onClick={() => setNewForSituation(situation)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 py-2 text-[11px] font-black text-white hover:bg-[#0046bd]"><Plus size={14} /> Novo anexo</button>}
+                  </div>
                   {attachments.length ? <div className="grid gap-3 sm:grid-cols-2">{attachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
                     : <div className="rounded-lg border border-dashed border-[#0d1b2e]/10 px-3 py-6 text-center text-[11px] text-[#5a6a82]">Nenhum anexo registrado nesta situação.</div>}
                 </div>
