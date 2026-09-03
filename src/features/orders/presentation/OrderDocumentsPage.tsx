@@ -70,22 +70,26 @@ function AttachmentCard({
 }
 
 function NewAttachmentModal({
-  situation,
+  situations,
+  defaultSituationId,
   controller,
   onClose,
   onSuccess,
 }: {
-  situation: OrderSituation;
+  situations: OrderSituation[];
+  defaultSituationId?: string | null;
   controller: Controller;
   onClose: () => void;
   onSuccess: (message: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
+  const [situationId, setSituationId] = useState(defaultSituationId || situations[0]?.id || "");
   const [attachmentTypeId, setAttachmentTypeId] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
-  const uploading = controller.uploadingSituationId === situation.id;
+  const situation = situations.find(item => item.id === situationId) || null;
+  const uploading = Boolean(situation && controller.uploadingSituationId === situation.id);
 
   const chooseFiles = (list: FileList | null) => {
     setFiles(Array.from(list || []));
@@ -94,6 +98,10 @@ function NewAttachmentModal({
 
   const submit = async () => {
     setError("");
+    if (!situation) {
+      setError("Selecione a situação.");
+      return;
+    }
     if (!attachmentTypeId) {
       setError("Selecione o tipo de anexo.");
       return;
@@ -115,10 +123,17 @@ function NewAttachmentModal({
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label="Novo anexo">
       <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-[#0d1b2e]/10 px-5 py-4">
-          <div><p className="text-[10px] font-black uppercase tracking-widest text-[#0057e7]">Situação · {situation.name}</p><h2 className="mt-1 text-lg font-black text-[#0d1b2e]">Novo anexo</h2></div>
+          <div><p className="text-[10px] font-black uppercase tracking-widest text-[#0057e7]">Documentos da OS</p><h2 className="mt-1 text-lg font-black text-[#0d1b2e]">Novo anexo</h2></div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="space-y-4 p-5">
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Situação</span>
+            <select value={situationId} onChange={event => setSituationId(event.target.value)} className="w-full rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2.5 text-sm text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15">
+              <option value="">Selecione a situação</option>
+              {situations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label>
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Tipo de anexo</span>
             <select value={attachmentTypeId} onChange={event => setAttachmentTypeId(event.target.value)} className="w-full rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2.5 text-sm text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15">
@@ -141,7 +156,7 @@ function NewAttachmentModal({
         </div>
         <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-[#f8fafc] px-5 py-4">
           <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary>
+          <BtnPrimary onClick={() => void submit()} disabled={uploading || !situation || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary>
         </div>
       </div>
     </div>
@@ -203,7 +218,8 @@ export function OrderDocumentsPage({
   onClose: () => void;
   onView: (image: OrderImage) => void;
 }) {
-  const [newForSituation, setNewForSituation] = useState<OrderSituation | null>(null);
+  const [activeTab, setActiveTab] = useState<"situations" | "attachments">("situations");
+  const [newAttachmentOpen, setNewAttachmentOpen] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   if (!open) return null;
 
@@ -219,34 +235,51 @@ export function OrderDocumentsPage({
 
   return (
     <>
-      <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="SITUAÇÃO > ANEXOS" maxW="max-w-4xl">
+      <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos e imagens da ordem de serviço" maxW="max-w-4xl">
+        <div className="border-b border-[#0d1b2e]/10 px-5 pt-2">
+          <nav className="flex items-center gap-6" aria-label="Seções de documentos">
+            <button type="button" onClick={() => setActiveTab("situations")} className={cn("border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>SITUAÇÕES</button>
+            <button type="button" onClick={() => setActiveTab("attachments")} className={cn("border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>ANEXOS</button>
+          </nav>
+        </div>
         <div className="space-y-4 p-5">
           {message && <div className={cn("flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex items-center gap-2">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}{message.text}</span><button type="button" onClick={() => setMessage(null)}><X size={13} /></button></div>}
-          {controller.loading ? <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando anexos...</p>
-            : controller.flowSituations.length === 0 ? <p className="py-8 text-center text-sm text-[#5a6a82]">Este tipo de atendimento não possui situações configuradas.</p>
-            : controller.flowSituations.map(situation => {
-              const attachments = controller.documents.filter(item => item.situation_id === situation.id);
-              const canUpload = controller.canUpload(situation.id);
-              const current = situation.id === currentSituationId;
-              return <section key={situation.id} className={cn("overflow-hidden rounded-xl border", current ? "border-[#0057e7]/30 bg-[#f7faff]" : "border-[#0d1b2e]/10 bg-white")}>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#0d1b2e]/8 px-4 py-3">
-                  <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div><p className="text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"}</p></div></div>
-                  {canUpload && <SituationQuickUploads situation={situation} controller={controller} onSuccess={text => setMessage({ text, type: "success" })} onError={text => setMessage({ text, type: "error" })} />}
-                </div>
-                <div className="p-4">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <div><p className="text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Anexos</p><p className="mt-0.5 text-[10px] text-[#5a6a82]">{attachments.length} anexo{attachments.length !== 1 ? "s" : ""} registrado{attachments.length !== 1 ? "s" : ""}</p></div>
-                    {canUpload && <button type="button" onClick={() => setNewForSituation(situation)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 py-2 text-[11px] font-black text-white hover:bg-[#0046bd]"><Plus size={14} /> Novo anexo</button>}
+          {controller.loading ? <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando documentos...</p>
+            : activeTab === "situations" ? (
+              controller.flowSituations.length === 0 ? <p className="py-8 text-center text-sm text-[#5a6a82]">Este tipo de atendimento não possui situações configuradas.</p>
+              : controller.flowSituations.map(situation => {
+                const images = controller.documents.filter(item => item.situation_id === situation.id && !item.attachment_type_id);
+                const canUpload = controller.canUpload(situation.id);
+                const current = situation.id === currentSituationId;
+                return <section key={situation.id} className={cn("overflow-hidden rounded-xl border", current ? "border-[#0057e7]/30 bg-[#f7faff]" : "border-[#0d1b2e]/10 bg-white")}>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#0d1b2e]/8 px-4 py-3">
+                    <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div><p className="text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"} · {images.length} {images.length === 1 ? "imagem" : "imagens"}</p></div></div>
+                    {canUpload && <SituationQuickUploads situation={situation} controller={controller} onSuccess={text => setMessage({ text, type: "success" })} onError={text => setMessage({ text, type: "error" })} />}
                   </div>
-                  {attachments.length ? <div className="grid gap-3 sm:grid-cols-2">{attachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
-                    : <div className="rounded-lg border border-dashed border-[#0d1b2e]/10 px-3 py-6 text-center text-[11px] text-[#5a6a82]">Nenhum anexo registrado nesta situação.</div>}
+                  {images.length > 0 && <div className="grid gap-3 p-4 sm:grid-cols-2">{images.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>}
+                </section>;
+              })
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><h2 className="text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados a uma situação.</p></div>
+                  {controller.flowSituations.some(situation => controller.canUpload(situation.id)) && <button type="button" onClick={() => setNewAttachmentOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 py-2 text-[11px] font-black text-white hover:bg-[#0046bd]"><Plus size={14} /> Novo anexo</button>}
                 </div>
-              </section>;
-            })}
+                {controller.documents.filter(item => Boolean(item.attachment_type_id)).length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
+                  : controller.flowSituations.map(situation => {
+                    const attachments = controller.documents.filter(item => item.situation_id === situation.id && Boolean(item.attachment_type_id));
+                    if (!attachments.length) return null;
+                    return <section key={situation.id} className="rounded-xl border border-[#0d1b2e]/10 bg-white p-4">
+                      <div className="mb-3 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div><p className="text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{attachments.length} {attachments.length === 1 ? "anexo" : "anexos"}</p></div></div>
+                      <div className="grid gap-3 sm:grid-cols-2">{attachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
+                    </section>;
+                  })}
+              </div>
+            )}
         </div>
         <div className="sticky bottom-0 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary></div>
       </AdminPage>
-      {newForSituation && <NewAttachmentModal situation={newForSituation} controller={controller} onClose={() => setNewForSituation(null)} onSuccess={text => setMessage({ text, type: "success" })} />}
+      {newAttachmentOpen && <NewAttachmentModal situations={controller.flowSituations.filter(situation => controller.canUpload(situation.id))} defaultSituationId={currentSituationId} controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
     </>
   );
 }
