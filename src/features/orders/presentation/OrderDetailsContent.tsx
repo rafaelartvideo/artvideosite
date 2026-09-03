@@ -1,5 +1,5 @@
-import { MessageCircle, Phone } from "lucide-react";
-import type { Address } from "@/lib/address";
+import { MapPin, MessageCircle, Phone } from "lucide-react";
+import { getAddressMapUrl, type Address } from "@/lib/address";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { Section } from "@/shared/ui/admin/AdminLayout";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
@@ -48,12 +48,25 @@ export function OrderDetailsContent({
   const technicalValues = Array.isArray(detail.technical_values) ? detail.technical_values : [];
   const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
   const whatsappContact = phoneContactLinks(customer?.whatsapp || customer?.phone);
+  const customerAddress = (customer?.addresses || []).find((item: Address) => item.is_default) || customer?.addresses?.[0];
+  const customerMapUrl = getAddressMapUrl(customerAddress);
   const contactActionClass = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold normal-case tracking-normal transition-colors";
   return (
     <>
               {hasPermission("orders.section.customer") && (<Section
                 title="Cliente"
                 actions={<>
+                  {customerMapUrl && (
+                    <a
+                      href={customerMapUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`${contactActionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}
+                      title={customerAddress?.shared_map_url ? "Abrir localização enviada pelo cliente" : "Abrir endereço no mapa"}
+                    >
+                      <MapPin size={13} /> Mapa
+                    </a>
+                  )}
                   {callContact.tel ? (
                     <a
                       href={callContact.tel}
