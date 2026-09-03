@@ -12,9 +12,9 @@ import { OrderCompletionModal } from "./OrderCompletionModal";
 import { QuickEquipmentModal } from "./OrderQuickCreateModals";
 import { QuickCustomerModal } from "./QuickCustomerModal";
 import {
+  PartCustodyModal,
   PartRequestModal,
   ReviewPartRequestModal,
-  TestDeliveryModal,
   TestResultModal,
 } from "./PartRequestModals";
 
@@ -64,14 +64,15 @@ export function OrderWorkflowModals({
     updatePartRequestQuantity, removePartRequestItem, closePartRequestModal,
     submitPartRequest, updateApprovalQuantity, closePartReview,
     approvePartRequest, rejectPartRequest, deliveryOpen,
-    selectedDeliveryRequest, deliverySubmitting, closeDeliveryRequest,
-    deliverTestRequest, testResultOpen, selectedTestRequest, testResultRows,
+    selectedDeliveryRequest, deliverySubmitting, custodyAction,
+    custodyQuantities, setCustodyQuantities, closeDeliveryRequest,
+    submitCustodyAction, testResultOpen, selectedTestRequest, testResultRows,
     setTestResultRows, testResultSubmitting, getTestPendingQuantity,
     closeTestResult, submitTestResults,
   } = partRequests;
 
   return <>
-{quickEquipment && <QuickEquipmentModal
+      {quickEquipment && <QuickEquipmentModal
         onClose={() => setQuickEquipment(false)}
         technicalFields={workspace.technicalFields}
         technicalFieldLinks={workspace.technicalFieldLinks}
@@ -116,7 +117,7 @@ export function OrderWorkflowModals({
       )}
       {partApprovalOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={false} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={approvePartRequest} />}
       {partRejectionOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={true} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={rejectPartRequest} />}
-      {deliveryOpen && selectedDeliveryRequest && <TestDeliveryModal request={selectedDeliveryRequest} orderNumber={detail?.os_number} submitting={deliverySubmitting} onClose={closeDeliveryRequest} onSubmit={() => void deliverTestRequest()} />}
+      {deliveryOpen && selectedDeliveryRequest && <PartCustodyModal request={selectedDeliveryRequest} action={custodyAction} quantities={custodyQuantities} submitting={deliverySubmitting} onQuantitiesChange={setCustodyQuantities} onClose={closeDeliveryRequest} onSubmit={() => void submitCustodyAction()} />}
       {testResultOpen && selectedTestRequest && <TestResultModal request={selectedTestRequest} rows={testResultRows} submitting={testResultSubmitting} getPendingQuantity={getTestPendingQuantity} onRowsChange={setTestResultRows} onClose={closeTestResult} onSubmit={() => void submitTestResults()} />}
   </>;
 }
