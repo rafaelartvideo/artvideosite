@@ -83,7 +83,7 @@ function NewAttachmentModal({
   const [attachmentTypeId, setAttachmentTypeId] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
-  const uploading = controller.uploading;
+  const uploading = controller.uploadingAttachment;
 
   const chooseFiles = (list: FileList | null) => {
     setFiles(Array.from(list || []));
@@ -113,7 +113,7 @@ function NewAttachmentModal({
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label="Novo anexo">
       <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-[#0d1b2e]/10 px-5 py-4">
-          <div><p className="text-[10px] font-black uppercase tracking-widest text-[#0057e7]">Documentos da OS</p><h2 className="mt-1 text-lg font-black text-[#0d1b2e]">Novo anexo</h2></div>
+          <div><h2 className="text-lg font-black text-[#0d1b2e]">Novo anexo</h2></div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="space-y-4 p-5">
@@ -178,7 +178,7 @@ function SituationQuickUploads({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={event => void upload(event.target.files)} />
+      <input ref={fileRef} type="file" multiple className="hidden" onChange={event => void upload(event.target.files)} />
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void upload(event.target.files)} />
       <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Upload size={14} /> Adicionar</button>
       <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Camera size={14} /> Tirar foto</button>
