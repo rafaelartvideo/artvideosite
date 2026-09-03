@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, FileText, PackagePlus, Printer } from "lucide-react";
+import { ChevronDown, FileText, Mail, PackagePlus, Printer } from "lucide-react";
 import { AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -12,8 +12,9 @@ import { OrderSolutionSummary } from "./OrderSolutionSummary";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
-import { openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
+import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
+import { sendOrderDocumentEmail } from "@/features/documents/infrastructure/order-document-email.repository";
 import { getSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
 import { getMediaById, getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
 import { useOrderPrintTemplates } from "../application/useOrderPrintTemplates";
@@ -67,6 +68,8 @@ export function OrderDetailsPage(props: Props) {
   const [partRequestsPageOpen, setPartRequestsPageOpen] = useState(false);
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
   const [printError, setPrintError] = useState("");
+  const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
+  const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const { statuses, situations } = workspace;
   const {
     detail, detailUsedItems, detailSolutionImages, closeDetail,
@@ -147,6 +150,73 @@ export function OrderDetailsPage(props: Props) {
       setPrintingTemplateId(null);
     }
   };
+  const emailTemplate = async (template: PrintTemplate) => {
+    const customerEmail = String((detail.customer as any)?.email || "").trim();
+    if (!customerEmail) {
+      setEmailMessage({ text: "O cliente não possui e-mail cadastrado.", type: "error" });
+      return;
+    }
+    setEmailMessage(null);
+    setEmailingTemplateId(template.id);
+    try {
+      const [configuredTemplate, siteSettings] = await Promise.all([
+        loadPrintTemplateEditorValue(template),
+        getSiteSettings(),
+      ]);
+      const settingText = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = siteSettings[key];
+          if (typeof value === "string" && value.trim()) return value.trim();
+          if (typeof value === "number") return String(value);
+        }
+        return "";
+      };
+      let companyLogoUrl = settingText("company_logo_url", "logo_url");
+      const companyLogoMediaId = settingText("company_logo_media_id");
+      if (companyLogoMediaId) {
+        try {
+          const media = await getMediaById(companyLogoMediaId);
+          if (media?.bucket_id && media?.storage_path) companyLogoUrl = getPublicStorageUrl(media.bucket_id, media.storage_path);
+        } catch (logoError) {
+          console.warn("[DOCUMENTS] company logo could not be loaded:", logoError);
+        }
+      }
+      const companyAddress = [
+        [settingText("company_street"), settingText("company_number")].filter(Boolean).join(", "),
+        settingText("company_complement"),
+        settingText("company_neighborhood"),
+        [settingText("company_city"), settingText("company_state")].filter(Boolean).join(" - "),
+        settingText("company_zip_code") ? "CEP " + settingText("company_zip_code") : "",
+      ].filter(Boolean).join(" · ");
+      const html = buildOrderPrintDocumentHtml(configuredTemplate, {
+        order: detail,
+        usedItems: detailUsedItems,
+        partRequests: detailPartRequests,
+        history: details.detailHistory,
+        printedBy: profileName,
+        company: {
+          name: settingText("company_name") || "Eletrônica Artvideo",
+          subtitle: settingText("company_legal_name") || "Assistência Técnica",
+          logoUrl: companyLogoUrl,
+          document: settingText("company_cnpj"),
+          phone: settingText("company_phone"),
+          email: settingText("company_email"),
+          address: companyAddress,
+        },
+      });
+      const result = await sendOrderDocumentEmail({
+        orderId: detail.id,
+        documentName: template.name,
+        documentHtml: html,
+      });
+      setEmailMessage({ text: `Documento enviado para ${result.recipient}.`, type: "success" });
+    } catch (error) {
+      setEmailMessage({ text: error instanceof Error ? error.message : "Não foi possível enviar o documento.", type: "error" });
+    } finally {
+      setEmailingTemplateId(null);
+    }
+  };
+
   const closePage = () => { if (onClose) onClose(); else closeDetail(); };
 
   return <>
@@ -224,11 +294,26 @@ export function OrderDetailsPage(props: Props) {
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>}
+                  {canPrintDocuments && <DropdownMenu>
+                    <DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Mail size={14} /> Enviar e-mail <ChevronDown size={13} /></button></DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-72">
+                      {printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}
+                      {Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}
+                      {!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => (
+                        <DropdownMenuItem key={template.id} disabled={Boolean(emailingTemplateId)} onSelect={(event) => { event.preventDefault(); void emailTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4">
+                          <span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>
+                          {emailingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Enviando...</span>}
+                        </DropdownMenuItem>
+                      ))}
+                      {!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum modelo ativo.</DropdownMenuItem>}
+                    </DropdownMenuContent>
+                  </DropdownMenu>}
                   {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button>}
                   {hasPermission("orders.section.images") && <button type="button" onClick={() => onDocumentsPageOpenChange(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos{documents.documents.length > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{documents.documents.length}</span>}</button>}
                   {hasPermission("orders.section.history") && <button type="button" onClick={() => history.setPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button>}
                 </div>
               </div>
+              {emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
               {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} />}
               <OrderDetailsContent
                 detail={detail}
