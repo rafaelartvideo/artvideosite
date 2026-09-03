@@ -23,12 +23,12 @@ export function OrderImageThumb({ image, onRemove, onView }: { image: OrderImage
   );
 }
 
-export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = true }: { images: OrderImage[]; onAdd: (files: FileList | null) => void; onRemove: (key: string) => void; onView?: (image: OrderImage) => void; canEdit?: boolean }) {
+export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = true, embedded = false }: { images: OrderImage[]; onAdd: (files: FileList | null) => void; onRemove: (key: string) => void; onView?: (image: OrderImage) => void; canEdit?: boolean; embedded?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  return (
-    <Section title="Imagens da OS">
+  const content = (
+    <>
       <div className="flex items-center justify-between gap-3 mb-3">
         <p className="text-xs text-[#5a6a82]">{images.length}/5 imagens</p>
         {canEdit && (
@@ -41,8 +41,11 @@ export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = tr
       <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple className="hidden" onChange={event => { onAdd(event.target.files); event.currentTarget.value = ""; }} />
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { onAdd(event.target.files); event.currentTarget.value = ""; }} />
       {images.length > 0 && <div className="flex flex-wrap gap-3">{images.map(image => <OrderImageThumb key={image.key} image={image} onRemove={canEdit ? () => onRemove(image.key) : undefined} onView={() => onView?.(image)} />)}</div>}
-    </Section>
+    </>
   );
+
+  return embedded ? content : <Section title="Imagens da OS">{content}</Section>;
+
 }
 
 export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: () => void }) {
