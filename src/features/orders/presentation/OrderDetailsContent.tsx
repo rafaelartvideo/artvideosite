@@ -159,8 +159,6 @@ export function OrderDetailsContent({
                   <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
                   <InfoRow label="Concluída em" value={detail.completed_at ? fmtDate(detail.completed_at, true) : null} />
                   {detail.completed_at && <InfoRow label="Concluída por" value={detail.completed_by_profile?.full_name || "Nome não informado"} />}
-                  <InfoRow label="Horas da situação" value={(detail.situation as any)?.hours == null ? null : `${(detail.situation as any).hours} hora(s)`} />
-                  {(() => { const sla = getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation); return sla ? <InfoRow label="SLA da situação" value={`${sla.hours} hora(s) (${sla.isDefault ? "Padrão" : "Personalizado"})`} /> : null; })()}
                 </div>
               </Section>)}
               {detail.internal_notes && hasPermission("orders.section.internal_notes") && (<Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.internal_notes}</p></Section>)}
