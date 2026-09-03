@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   attachOrderSituationDocument,
+  listAttachmentTypes,
   listOrderSituationDocuments,
   removeOrderSituationDocument,
 } from "../infrastructure/order-documents.repository";
@@ -11,8 +12,6 @@ import {
   type OrderSituationDocument,
   type ServiceTypeSituationLink,
 } from "../domain/order-situation-document";
-
-const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export function useOrderSituationDocuments({
   orderId,
@@ -40,22 +39,41 @@ export function useOrderSituationDocuments({
     },
   });
 
+  const attachmentTypesQuery = useQuery({
+    queryKey: ["documents", "attachment-types", "active"],
+    enabled: Boolean(orderId && hasPermission("orders.section.images")),
+    queryFn: async () => {
+      const { data, error } = await listAttachmentTypes(true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const uploadMutation = useMutation({
-    mutationFn: async ({ situation, files }: { situation: OrderSituation; files: File[] }) => {
+    mutationFn: async ({
+      situation,
+      attachmentTypeId,
+      files,
+    }: {
+      situation: OrderSituation;
+      attachmentTypeId: string;
+      files: File[];
+    }) => {
       if (!orderId) throw new Error("OS não informada.");
+      if (!attachmentTypeId) throw new Error("Selecione o tipo de anexo.");
       if (!hasPermission(orderSituationUploadPermission(situation.id))) {
-        throw new Error(`Você não possui permissão para anexar imagens em ${situation.name}.`);
+        throw new Error(`Você não possui permissão para anexar arquivos em ${situation.name}.`);
       }
-      const accepted = files.filter(file => acceptedTypes.has(file.type));
-      if (!accepted.length) throw new Error("Selecione imagens JPG, PNG ou WebP.");
-      for (const file of accepted) {
+      if (!files.length) throw new Error("Selecione um arquivo ou utilize a câmera.");
+      for (const file of files) {
         await attachOrderSituationDocument({
           serviceOrderId: orderId,
           situationId: situation.id,
+          attachmentTypeId,
           file,
         });
       }
-      return { count: accepted.length, situation: situation.name };
+      return { count: files.length, situation: situation.name };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
@@ -88,13 +106,14 @@ export function useOrderSituationDocuments({
 
   return {
     documents: documentsQuery.data || [],
+    attachmentTypes: attachmentTypesQuery.data || [],
     flowSituations,
-    loading: documentsQuery.isLoading,
-    error: documentsQuery.error || uploadMutation.error || removeMutation.error,
+    loading: documentsQuery.isLoading || attachmentTypesQuery.isLoading,
+    error: documentsQuery.error || attachmentTypesQuery.error || uploadMutation.error || removeMutation.error,
     uploadingSituationId: uploadMutation.variables?.situation.id || null,
     removingId: removeMutation.variables?.id || null,
-    upload: (situation: OrderSituation, files: FileList | null) =>
-      uploadMutation.mutateAsync({ situation, files: Array.from(files || []) }),
+    upload: (situation: OrderSituation, attachmentTypeId: string, files: File[]) =>
+      uploadMutation.mutateAsync({ situation, attachmentTypeId, files }),
     remove: (document: OrderSituationDocument) => removeMutation.mutateAsync(document),
     canUpload: (situationId: string) =>
       hasPermission(orderSituationUploadPermission(situationId)),
