@@ -22,6 +22,7 @@ export function OrderEquipmentSection({
   onRemoveImage,
   onViewImage,
   canEditImages,
+  showImages,
 }: {
   form: any;
   equipmentTypes: any[];
@@ -40,6 +41,7 @@ export function OrderEquipmentSection({
   onRemoveImage: (key: string) => void;
   onViewImage?: (image: OrderImage) => void;
   canEditImages: boolean;
+  showImages: boolean;
 }) {
   const editingOS = editing;
   const hasPermission = (permission: string) =>
@@ -63,7 +65,7 @@ export function OrderEquipmentSection({
                 <FInput label="Nº de série" value={form.serial_number} disabled={Boolean(editingOS)} onChange={(e: any) => upF("serial_number", e.target.value)} />
                 <FInput label="Lacre / garantia" value={form.accessories} onChange={(e: any) => upF("accessories", e.target.value)} />
                 <div className="sm:col-span-2"><FTextarea label="Observações do equipamento" value={form.equipment_condition} onChange={(e: any) => upF("equipment_condition", e.target.value)} rows={3} /></div>
-                <div className="sm:col-span-2 border-t border-[#0d1b2e]/8 pt-4">
+                {showImages && <div className="sm:col-span-2 border-t border-[#0d1b2e]/8 pt-4">
                   <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Fotos do equipamento</p>
                   <OrderImagesField
                     embedded
@@ -73,7 +75,7 @@ export function OrderEquipmentSection({
                     onView={onViewImage}
                     canEdit={canEditImages}
                   />
-                </div>
+                </div>}
               </div>
             </Section>
   );
