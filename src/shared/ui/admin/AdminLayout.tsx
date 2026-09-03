@@ -231,7 +231,21 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
     aria-label={title}
     style={{ "--admin-browser-bottom-inset": `${browserBottomInset}px` } as React.CSSProperties}
   >
-    <style>{`@media (max-width: 767px) { .admin-page-mobile-safe .sticky.bottom-0 { bottom: var(--admin-browser-bottom-inset, 0px) !important; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); } }`}</style>
+    <style>{`@media (max-width: 767px) {
+      .admin-page-mobile-safe .sticky.bottom-0 {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: var(--admin-browser-bottom-inset, 0px) !important;
+        z-index: 70 !important;
+        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+        box-shadow: 0 -10px 30px rgba(13, 27, 46, 0.10);
+        backdrop-filter: blur(10px);
+      }
+      .admin-page-mobile-safe:has(.sticky.bottom-0) > div {
+        padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important;
+      }
+    }`}</style>
     {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 z-10 p-2 text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg shadow-sm hover:text-[#0057e7] hover:bg-[#f5f7fa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"><X size={16} /></button>}
     <div className={cn("mx-auto w-full p-4 sm:p-6 lg:p-8", resolvedMaxW)}>{children}</div>
   </div>;
