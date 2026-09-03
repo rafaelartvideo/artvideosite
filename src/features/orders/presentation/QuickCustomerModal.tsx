@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Link2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { emptyAddress, type Address } from "@/lib/address";
@@ -10,7 +10,7 @@ import {
   type CustomerForm,
   validateCustomerForm,
 } from "@/features/customers/domain/customer-form";
-import { AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
 import {
@@ -33,6 +33,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [address, setAddress] = useState<Address>({ ...emptyAddress });
   const [saving, setSaving] = useState(false);
+  const [sharedAddressOpen, setSharedAddressOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMessage, setCnpjMessage] = useState("");
@@ -67,6 +68,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
           city: address.city || null,
           state: address.state || null,
           reference: address.reference || null,
+          shared_map_url: address.shared_map_url?.trim() || null,
           is_default: true,
         });
         if (addressResult.error) throw addressResult.error;
@@ -119,7 +121,15 @@ export function QuickCustomerModal({ onClose, onSaved }: {
             <FInput label="Telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />
             <FInput label="WhatsApp" required value={form.whatsapp} onChange={(e: any) => setForm({ ...form, whatsapp: e.target.value })} />
           </div>
-          <Section title="Endereço do cliente"><AddressFields value={address} onChange={setAddress} inputClassName={INPUT} /></Section>
+          <Section
+            title="Endereço do cliente"
+            actions={<AdminButton variant="secondary" size="sm" onClick={() => setSharedAddressOpen(value => !value)}><Link2 size={13} /> Endereço enviado pelo cliente</AdminButton>}
+          >
+            <div className="space-y-3">
+              {(sharedAddressOpen || address.shared_map_url) && <FInput label="Link compartilhado do endereço" type="url" placeholder="Cole o link enviado pelo cliente" value={address.shared_map_url || ""} onChange={(e: any) => setAddress({ ...address, shared_map_url: e.target.value })} />}
+              <AddressFields value={address} onChange={setAddress} inputClassName={INPUT} />
+            </div>
+          </Section>
           {errorMessage && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{errorMessage}</p>}
         </div>
         <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-white px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("customers.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Criar cliente"}</BtnPrimary>}</div>
