@@ -249,16 +249,21 @@ export function Section({ title, actions, children }: { title: string; actions?:
 
 export function PageHeader({ title, subtitle, eyebrow, actions }: { title: string; subtitle?: string; eyebrow?: string; actions?: React.ReactNode }) {
   const onBack = React.useContext(AdminBackContext);
-  return <header className="flex flex-col gap-4 border-b border-[#0d1b2e]/8 pb-5 sm:flex-row sm:items-start sm:justify-between">
-    <div className="min-w-0">
-      {eyebrow && <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#0057e7]">{eyebrow}</p>}
-      <h1 className="text-2xl font-black leading-tight text-[#0d1b2e]">{title}</h1>
-      {subtitle && <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[#5a6a82]">{subtitle}</p>}
-    </div>
-    {(actions || onBack) && <div className="flex items-center gap-2 flex-shrink-0">
-      {onBack && <InternalBackButton onBack={onBack} inHeader />}{actions}
-    </div>
-  </header>;
+  return (
+    <header className="flex flex-col gap-4 border-b border-[#0d1b2e]/8 pb-5 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        {eyebrow && <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#0057e7]">{eyebrow}</p>}
+        <h1 className="text-2xl font-black leading-tight text-[#0d1b2e]">{title}</h1>
+        {subtitle && <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[#5a6a82]">{subtitle}</p>}
+      </div>
+      {(actions || onBack) && (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {onBack && <InternalBackButton onBack={onBack} inHeader />}
+          {actions}
+        </div>
+      )}
+    </header>
+  );
 }
 
 export function BtnPrimary({ children, onClick, disabled, type = "button", className = "" }: {
