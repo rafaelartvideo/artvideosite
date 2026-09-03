@@ -113,7 +113,8 @@ export function useOrderSituationDocuments({
     flowSituations,
     loading: documentsQuery.isLoading || attachmentTypesQuery.isLoading,
     error: documentsQuery.error || attachmentTypesQuery.error || uploadMutation.error || removeMutation.error,
-    uploadingSituationId: uploadMutation.variables?.situation.id || null,
+    uploading: uploadMutation.isPending,
+    uploadingSituationId: uploadMutation.variables?.situation?.id || null,
     removingId: removeMutation.variables?.id || null,
     upload: (situation: OrderSituation, attachmentTypeId: string, files: File[]) =>
       uploadMutation.mutateAsync({ situation, attachmentTypeId, files }),
@@ -124,6 +125,7 @@ export function useOrderSituationDocuments({
     remove: (document: OrderSituationDocument) => removeMutation.mutateAsync(document),
     canUpload: (situationId: string) =>
       hasPermission(orderSituationUploadPermission(situationId)),
+    canUploadAttachment: hasPermission("orders.section.images"),
     canRemove: hasPermission("orders.documents.remove"),
   };
 }
