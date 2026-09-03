@@ -33,7 +33,7 @@ export async function attachOrderSituationDocument({
 }: {
   serviceOrderId: string;
   situationId: string;
-  attachmentTypeId: string;
+  attachmentTypeId?: string | null;
   file: File;
 }) {
   const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
@@ -49,7 +49,7 @@ export async function attachOrderSituationDocument({
       p_service_order_id: serviceOrderId,
       p_situation_id: situationId,
       p_media_id: mediaId,
-      p_attachment_type_id: attachmentTypeId,
+      p_attachment_type_id: attachmentTypeId || null,
     });
     if (error) throw error;
     return mediaId;
