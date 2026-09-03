@@ -181,16 +181,20 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
   fullPage?: boolean;
 }) {
   const setPage = React.useContext(AdminPageContext)?.setPage;
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
+  const stableOnClose = React.useCallback(() => onCloseRef.current(), []);
+
   useEffect(() => {
     if (!open) return;
-    setPage?.({ breadcrumb, title, subtitle, onBack: onClose });
-    const handleKeyDown = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    setPage?.({ breadcrumb, title, subtitle, onBack: stableOnClose });
+    const handleKeyDown = (event: KeyboardEvent) => event.key === "Escape" && stableOnClose();
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       setPage?.(null);
     };
-  }, [open, breadcrumb, title, subtitle, onClose, setPage]);
+  }, [open, breadcrumb, title, subtitle, stableOnClose, setPage]);
 
   if (!open) return null;
   const legacyCompactWidths = new Set(["max-w-xl", "max-w-2xl", "max-w-3xl"]);
