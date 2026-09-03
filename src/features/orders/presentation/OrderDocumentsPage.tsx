@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Camera,
   CheckCircle,
@@ -50,20 +50,20 @@ function AttachmentCard({
   };
 
   return (
-    <article className="group relative flex min-h-28 flex-col justify-between rounded-xl border border-[#0d1b2e]/10 bg-white p-3 shadow-sm transition-shadow hover:shadow-md">
-      <button type="button" onClick={openAttachment} disabled={loading || !url} className="flex min-w-0 items-start gap-3 text-left disabled:cursor-not-allowed">
+    <article className="group relative flex min-h-28 min-w-0 max-w-full flex-col justify-between overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white p-3 shadow-sm transition-shadow hover:shadow-md">
+      <button type="button" onClick={openAttachment} disabled={loading || !url} className="flex w-full min-w-0 max-w-full items-start gap-3 overflow-hidden text-left disabled:cursor-not-allowed">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#edf3ff] text-[#0057e7]">
           {isImage ? <FileText size={19} /> : <File size={19} />}
         </span>
-        <span className="min-w-0">
-          <span className="block truncate text-xs font-black text-[#0d1b2e]">{name}</span>
-          <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-wide text-[#0057e7]">{type?.name || "Sem tipo"}</span>
-          <span className="mt-1 block text-[10px] text-[#7c899c]">{loading ? "Carregando..." : error ? "Arquivo indisponível" : "Clique para abrir"}</span>
+        <span className="min-w-0 flex-1 overflow-hidden">
+          <span className="block max-w-full truncate text-xs font-black text-[#0d1b2e]" title={name}>{name}</span>
+          <span className="mt-1 block max-w-full truncate text-[10px] font-bold uppercase tracking-wide text-[#0057e7]">{type?.name || "Sem tipo"}</span>
+          <span className="mt-1 block max-w-full truncate text-[10px] text-[#7c899c]">{loading ? "Carregando..." : error ? "Arquivo indisponível" : "Clique para abrir"}</span>
         </span>
       </button>
-      <div className="mt-3 flex items-center justify-between border-t border-[#0d1b2e]/7 pt-2">
-        {url ? <a href={url} target="_blank" rel="noreferrer" download={name} className="inline-flex items-center gap-1 text-[10px] font-bold text-[#0057e7]"><Download size={12} /> Baixar</a> : <span />}
-        {canRemove && <button type="button" disabled={removing} onClick={() => onRemove(document)} className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 disabled:opacity-50"><X size={12} /> Remover</button>}
+      <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-[#0d1b2e]/7 pt-2">
+        {url ? <a href={url} target="_blank" rel="noreferrer" download={name} className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7]"><Download size={12} className="shrink-0" /> <span>Baixar</span></a> : <span />}
+        {canRemove && <button type="button" disabled={removing} onClick={() => onRemove(document)} className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-red-600 disabled:opacity-50"><X size={12} className="shrink-0" /> <span>Remover</span></button>}
       </div>
     </article>
   );
@@ -132,7 +132,7 @@ function NewAttachmentModal({
               <button type="button" onClick={() => fileRef.current?.click()} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#0057e7]/35 bg-[#f7faff] px-4 py-4 text-xs font-black text-[#0057e7] hover:bg-[#edf3ff]"><Upload size={17} /> Adicionar arquivo</button>
               <button type="button" onClick={() => cameraRef.current?.click()} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#0057e7]/35 bg-white px-4 py-4 text-xs font-black text-[#0057e7] hover:bg-[#f7faff]"><Camera size={17} /> Abrir câmera</button>
             </div>
-            {files.length > 0 && <div className="mt-3 rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] px-3 py-2 text-xs text-[#0d1b2e]"><Paperclip size={13} className="mr-1.5 inline" />{files.length === 1 ? files[0].name : `${files.length} arquivos selecionados`}</div>}
+            {files.length > 0 && <div className="mt-3 max-w-full overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] px-3 py-2 text-xs text-[#0d1b2e]"><Paperclip size={13} className="mr-1.5 inline" /><span className="break-words">{files.length === 1 ? files[0].name : `${files.length} arquivos selecionados`}</span></div>}
           </div>
           {controller.attachmentTypes.length === 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Cadastre pelo menos um tipo em Operação → Documentos → Anexos.</p>}
           {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
@@ -145,7 +145,6 @@ function NewAttachmentModal({
     </div>
   );
 }
-
 
 function SituationQuickUploads({
   situation,
@@ -177,7 +176,7 @@ function SituationQuickUploads({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
       <input ref={fileRef} type="file" multiple className="hidden" onChange={event => void upload(event.target.files)} />
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void upload(event.target.files)} />
       <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Upload size={14} /> Adicionar</button>
@@ -204,6 +203,34 @@ export function OrderDocumentsPage({
   const [activeTab, setActiveTab] = useState<"situations" | "attachments">("situations");
   const [newAttachmentOpen, setNewAttachmentOpen] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [browserBottomInset, setBrowserBottomInset] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setBrowserBottomInset(0);
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const updateBottomInset = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setBrowserBottomInset(Math.min(110, Math.round(inset)));
+    };
+
+    updateBottomInset();
+    viewport.addEventListener("resize", updateBottomInset);
+    viewport.addEventListener("scroll", updateBottomInset);
+    window.addEventListener("resize", updateBottomInset);
+
+    return () => {
+      viewport.removeEventListener("resize", updateBottomInset);
+      viewport.removeEventListener("scroll", updateBottomInset);
+      window.removeEventListener("resize", updateBottomInset);
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const remove = async (document: OrderSituationDocument) => {
@@ -216,6 +243,8 @@ export function OrderDocumentsPage({
     }
   };
 
+  const typedAttachments = controller.documents.filter(item => Boolean(item.attachment_type_id));
+
   return (
     <>
       <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos e imagens da ordem de serviço" maxW="max-w-4xl">
@@ -225,8 +254,8 @@ export function OrderDocumentsPage({
             <button type="button" onClick={() => setActiveTab("attachments")} className={cn("border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>ANEXOS</button>
           </nav>
         </div>
-        <div className="space-y-4 p-5">
-          {message && <div className={cn("flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex items-center gap-2">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}{message.text}</span><button type="button" onClick={() => setMessage(null)}><X size={13} /></button></div>}
+        <div className="min-w-0 max-w-full space-y-4 overflow-hidden p-5">
+          {message && <div className={cn("flex min-w-0 items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}</span><span className="min-w-0 break-words">{message.text}</span></span><button type="button" onClick={() => setMessage(null)} className="shrink-0"><X size={13} /></button></div>}
           {controller.loading ? <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando documentos...</p>
             : activeTab === "situations" ? (
               controller.flowSituations.length === 0 ? <p className="py-8 text-center text-sm text-[#5a6a82]">Este tipo de atendimento não possui situações configuradas.</p>
@@ -234,26 +263,38 @@ export function OrderDocumentsPage({
                 const images = controller.documents.filter(item => item.situation_id === situation.id && !item.attachment_type_id);
                 const canUpload = controller.canUpload(situation.id);
                 const current = situation.id === currentSituationId;
-                return <section key={situation.id} className={cn("overflow-hidden rounded-xl border", current ? "border-[#0057e7]/30 bg-[#f7faff]" : "border-[#0d1b2e]/10 bg-white")}>
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#0d1b2e]/8 px-4 py-3">
-                    <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div><p className="text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"} · {images.length} {images.length === 1 ? "imagem" : "imagens"}</p></div></div>
+                return <section key={situation.id} className={cn("min-w-0 max-w-full overflow-hidden rounded-xl border", current ? "border-[#0057e7]/30 bg-[#f7faff]" : "border-[#0d1b2e]/10 bg-white")}>
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-[#0d1b2e]/8 px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div className="min-w-0"><p className="truncate text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"} · {images.length} {images.length === 1 ? "imagem" : "imagens"}</p></div></div>
                     {canUpload && <SituationQuickUploads situation={situation} controller={controller} onSuccess={text => setMessage({ text, type: "success" })} onError={text => setMessage({ text, type: "error" })} />}
                   </div>
-                  {images.length > 0 && <div className="grid gap-3 p-4 sm:grid-cols-2">{images.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>}
+                  {images.length > 0 && <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 p-4 sm:grid-cols-2">{images.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>}
                 </section>;
               })
             ) : (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div><h2 className="text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados a uma situação.</p></div>
-                  {controller.canUploadAttachment && <button type="button" onClick={() => setNewAttachmentOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 py-2 text-[11px] font-black text-white hover:bg-[#0046bd]"><Plus size={14} /> Novo anexo</button>}
+              <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>
+                  {controller.canUploadAttachment && <button type="button" onClick={() => setNewAttachmentOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 py-2 text-[11px] font-black text-white hover:bg-[#0046bd]"><Plus size={14} /> Novo anexo</button>}
                 </div>
-                {controller.documents.filter(item => Boolean(item.attachment_type_id)).length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
-                  : <div className="grid gap-3 sm:grid-cols-2">{controller.documents.filter(item => Boolean(item.attachment_type_id)).map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>}
+                {typedAttachments.length === 0 ? <div className="max-w-full rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
+                  : <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">{typedAttachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>}
               </div>
             )}
         </div>
-        <div className="sticky bottom-0 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary></div>
+
+        <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
+        <div
+          className="fixed inset-x-0 z-[70] border-t border-[#0d1b2e]/10 bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none"
+          style={{
+            bottom: browserBottomInset ? `${browserBottomInset}px` : 0,
+            paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
+          }}
+        >
+          <div className="mx-auto w-full max-w-6xl">
+            <BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary>
+          </div>
+        </div>
       </AdminPage>
       {newAttachmentOpen && <NewAttachmentModal controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
     </>
