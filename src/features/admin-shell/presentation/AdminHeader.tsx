@@ -1,4 +1,5 @@
-import { Globe, Menu, Settings } from "lucide-react";
+import { Globe, Settings } from "lucide-react";
+import logoSolo from "@/imports/LogoSoloSemFundo.png";
 import type { AdminPageState, AdminTab } from "../domain/admin.types";
 import { mainItems, operationItems, siteItems, utilityItems } from "../navigation-config";
 
@@ -52,20 +53,22 @@ export function AdminHeader({
   const activeItem = shellItems.find((item) => item.id === activeTab);
 
   return (
-    <header className="bg-white border-b border-[#0d1b2e]/8 px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-30">
-      <div className="flex items-center gap-3">
+    <>
+      <header className="md:hidden relative h-16 shrink-0 border-b border-[#0d1b2e]/8 bg-white">
         <button
           type="button"
           onClick={onToggleSidebar}
           aria-expanded={sidebarOpen}
           aria-label={sidebarOpen ? "Fechar menu" : "Abrir menu"}
-          className="md:hidden text-[#0d1b2e] p-1.5 hover:bg-[#f5f7fa] rounded-lg"
+          className="absolute inset-0 flex items-center justify-center"
         >
-          <Menu size={20} />
+          <img src={logoSolo} alt="ArtVideo" className="h-9 w-9 object-contain" />
         </button>
+      </header>
 
-        <div>
-          {page && (
+      {page && (
+        <header className="hidden md:flex bg-white border-b border-[#0d1b2e]/8 px-6 py-3.5 items-center justify-between sticky top-0 z-30">
+          <div>
             <div className="flex items-center gap-1.5 text-[10px] text-[#5a6a82] mb-0.5">
               <button
                 type="button"
@@ -77,21 +80,18 @@ export function AdminHeader({
               <span aria-hidden="true">&gt;</span>
               <span className="truncate max-w-[180px]">{page.title}</span>
             </div>
-          )}
 
-          <h2 className="font-black text-[#0d1b2e] text-[15px]">
-            {page?.title || activeItem?.label}
-          </h2>
-          <p className="hidden sm:block text-[#5a6a82] mt-0.5 text-[14px]">
-            {page?.subtitle || tabDescriptions[activeTab]}
-          </p>
-        </div>
-      </div>
+            <h2 className="font-black text-[#0d1b2e] text-[15px]">{page.title}</h2>
+            <p className="text-[#5a6a82] mt-0.5 text-[14px]">
+              {page.subtitle || tabDescriptions[activeTab]}
+            </p>
+          </div>
 
-      <div className="flex items-center gap-2 text-xs text-[#5a6a82]">
-        <span className="w-2 h-2 bg-emerald-500 rounded-full inline-block" />
-        <span className="hidden sm:inline font-medium">Supabase conectado</span>
-      </div>
-    </header>
-  );
-}
+          <div className="flex items-center gap-2 text-xs text-[#5a6a82]">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full inline-block" />
+            <span className="font-medium">Supabase conectado</span>
+          </div>
+        </header>
+      )}
+    </>
+  );}
