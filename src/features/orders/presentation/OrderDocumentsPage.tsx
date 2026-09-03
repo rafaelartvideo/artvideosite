@@ -70,26 +70,20 @@ function AttachmentCard({
 }
 
 function NewAttachmentModal({
-  situations,
-  defaultSituationId,
   controller,
   onClose,
   onSuccess,
 }: {
-  situations: OrderSituation[];
-  defaultSituationId?: string | null;
   controller: Controller;
   onClose: () => void;
   onSuccess: (message: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
-  const [situationId, setSituationId] = useState(defaultSituationId || situations[0]?.id || "");
   const [attachmentTypeId, setAttachmentTypeId] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
-  const situation = situations.find(item => item.id === situationId) || null;
-  const uploading = Boolean(situation && controller.uploadingSituationId === situation.id);
+  const uploading = controller.uploadingSituationId === null && files.length > 0;
 
   const chooseFiles = (list: FileList | null) => {
     setFiles(Array.from(list || []));
@@ -98,10 +92,6 @@ function NewAttachmentModal({
 
   const submit = async () => {
     setError("");
-    if (!situation) {
-      setError("Selecione a situação.");
-      return;
-    }
     if (!attachmentTypeId) {
       setError("Selecione o tipo de anexo.");
       return;
@@ -111,8 +101,8 @@ function NewAttachmentModal({
       return;
     }
     try {
-      const result = await controller.upload(situation, attachmentTypeId, files);
-      onSuccess(`${result.count} ${result.count === 1 ? "arquivo anexado" : "arquivos anexados"} em ${result.situation}.`);
+      const result = await controller.uploadAttachment(attachmentTypeId, files);
+      onSuccess(`${result.count} ${result.count === 1 ? "arquivo anexado" : "arquivos anexados"} à OS.`);
       onClose();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Não foi possível anexar.");
@@ -127,13 +117,6 @@ function NewAttachmentModal({
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]" aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="space-y-4 p-5">
-          <label className="block">
-            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Situação</span>
-            <select value={situationId} onChange={event => setSituationId(event.target.value)} className="w-full rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2.5 text-sm text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15">
-              <option value="">Selecione a situação</option>
-              {situations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </label>
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Tipo de anexo</span>
             <select value={attachmentTypeId} onChange={event => setAttachmentTypeId(event.target.value)} className="w-full rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2.5 text-sm text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15">
@@ -156,7 +139,7 @@ function NewAttachmentModal({
         </div>
         <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-[#f8fafc] px-5 py-4">
           <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={() => void submit()} disabled={uploading || !situation || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary>
+          <BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary>
         </div>
       </div>
     </div>
@@ -266,20 +249,13 @@ export function OrderDocumentsPage({
                   {controller.flowSituations.some(situation => controller.canUpload(situation.id)) && <button type="button" onClick={() => setNewAttachmentOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0057e7] px-3 py-2 text-[11px] font-black text-white hover:bg-[#0046bd]"><Plus size={14} /> Novo anexo</button>}
                 </div>
                 {controller.documents.filter(item => Boolean(item.attachment_type_id)).length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
-                  : controller.flowSituations.map(situation => {
-                    const attachments = controller.documents.filter(item => item.situation_id === situation.id && Boolean(item.attachment_type_id));
-                    if (!attachments.length) return null;
-                    return <section key={situation.id} className="rounded-xl border border-[#0d1b2e]/10 bg-white p-4">
-                      <div className="mb-3 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div><p className="text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{attachments.length} {attachments.length === 1 ? "anexo" : "anexos"}</p></div></div>
-                      <div className="grid gap-3 sm:grid-cols-2">{attachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
-                    </section>;
-                  })}
+                  : <div className="grid gap-3 sm:grid-cols-2">{controller.documents.filter(item => Boolean(item.attachment_type_id)).map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>}
               </div>
             )}
         </div>
         <div className="sticky bottom-0 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary></div>
       </AdminPage>
-      {newAttachmentOpen && <NewAttachmentModal situations={controller.flowSituations.filter(situation => controller.canUpload(situation.id))} defaultSituationId={currentSituationId} controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
+      {newAttachmentOpen && <NewAttachmentModal controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
     </>
   );
 }
