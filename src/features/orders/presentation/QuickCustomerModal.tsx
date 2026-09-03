@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { Link2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
-import { emptyAddress, type Address } from "@/lib/address";
+import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
 import {
   applyCnpjData,
   customerPayload,
@@ -68,7 +68,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
           city: address.city || null,
           state: address.state || null,
           reference: address.reference || null,
-          shared_map_url: address.shared_map_url?.trim() || null,
+          shared_map_url: normalizeSharedMapUrl(address.shared_map_url) || null,
           is_default: true,
         });
         if (addressResult.error) throw addressResult.error;
