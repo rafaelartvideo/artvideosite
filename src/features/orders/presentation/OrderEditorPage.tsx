@@ -2,7 +2,6 @@ import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { OrderCustomerSection } from "@/features/orders/presentation/OrderCustomerSection";
 import { OrderEquipmentSection } from "@/features/orders/presentation/OrderEquipmentSection";
 import { OrderFormActions } from "@/features/orders/presentation/OrderFormActions";
-import { OrderImagesField } from "@/features/orders/presentation/OrderImages";
 import { OrderInformationSection } from "@/features/orders/presentation/OrderInformationSection";
 import { OrderServiceLocationSection } from "@/features/orders/presentation/OrderServiceLocationSection";
 import type { useOrderCustomerPersistence } from "@/features/orders/application/useOrderCustomerPersistence";
@@ -170,6 +169,12 @@ export function OrderEditorPage({
           canCreate={hasPermission("equipment.create")}
           onFieldChange={updateField}
           onCreateEquipment={() => setQuickEquipment(true)}
+          images={orderImages}
+          onAddImages={addOrderImages}
+          onRemoveImage={removeOrderImage}
+          onViewImage={setViewImage}
+          showImages={hasPermission("orders.section.images")}
+          canEditImages={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
         />
 
         <OrderServiceLocationSection
@@ -212,15 +217,6 @@ export function OrderEditorPage({
           getSla={getSla}
         />
 
-        {hasPermission("orders.section.images") && (
-          <OrderImagesField
-            images={orderImages}
-            onAdd={addOrderImages}
-            onRemove={removeOrderImage}
-            onView={setViewImage}
-            canEdit={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
-          />
-        )}
       </div>
 
       <OrderFormActions
