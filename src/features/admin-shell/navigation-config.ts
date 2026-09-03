@@ -45,7 +45,7 @@ export const operationItems: PermissionAwareHubItem[] = [
   { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "orders.view" },
   { id: "orderStatuses", label: "Status da OS", icon: CheckCircle, description: "Gerencie os status do fluxo das ordens de serviço.", permissionKey: "orders.view" },
   { id: "employees", label: "Equipes / Funcionários", icon: Users, description: "Cadastre funcionários, técnicos e gestores da equipe.", permissionKey: "employees.view" },
-  { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos e campos para impressão das ordens de serviço.", permissionKey: "documents.view" },
+  { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos de impressão e tipos de anexos das ordens de serviço.", permissionKey: "documents.view" },
 ];
 
 export const utilityItems: AdminNavigationItem[] = [
