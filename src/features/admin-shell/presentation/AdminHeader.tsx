@@ -1,7 +1,5 @@
-import { Globe, Settings } from "lucide-react";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 import type { AdminPageState, AdminTab } from "../domain/admin.types";
-import { mainItems, operationItems, siteItems, utilityItems } from "../navigation-config";
 
 type AdminHeaderProps = {
   activeTab: AdminTab;
@@ -35,23 +33,12 @@ const tabDescriptions: Record<AdminTab, string> = {
   contact: "Dados exibidos no site e usados nos contatos",
 };
 
-const shellItems = [
-  ...mainItems,
-  { id: "site", label: "Site", icon: Globe },
-  { id: "operation", label: "Operação", icon: Settings },
-  ...siteItems,
-  ...operationItems,
-  ...utilityItems,
-];
-
 export function AdminHeader({
   activeTab,
   page,
   sidebarOpen,
   onToggleSidebar,
 }: AdminHeaderProps) {
-  const activeItem = shellItems.find((item) => item.id === activeTab);
-
   return (
     <>
       <header className="md:hidden relative h-16 shrink-0 border-b border-[#0d1b2e]/8 bg-white">
@@ -94,4 +81,5 @@ export function AdminHeader({
         </header>
       )}
     </>
-  );}
+  );
+}
