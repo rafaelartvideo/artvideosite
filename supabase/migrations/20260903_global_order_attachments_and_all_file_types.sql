@@ -4,6 +4,11 @@ begin;
 alter table public.service_order_situation_media
   alter column situation_id drop not null;
 
+-- Remove o vínculo legado dos anexos classificados; fotos rápidas permanecem na situação.
+update public.service_order_situation_media
+set situation_id = null
+where attachment_type_id is not null;
+
 alter table public.service_order_situation_media
   drop constraint if exists service_order_situation_media_scope_check;
 
