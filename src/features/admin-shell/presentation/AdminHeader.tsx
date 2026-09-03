@@ -41,16 +41,20 @@ export function AdminHeader({
 }: AdminHeaderProps) {
   return (
     <>
-      <header className="md:hidden relative h-16 shrink-0 border-b border-[#0d1b2e]/8 bg-white">
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          aria-expanded={sidebarOpen}
-          aria-label={sidebarOpen ? "Fechar menu" : "Abrir menu"}
-          className="absolute inset-0 flex items-center justify-center"
-        >
-          <img src={logoSolo} alt="ArtVideo" className="h-9 w-9 object-contain" />
-        </button>
+      <header className="md:hidden relative z-40 shrink-0 border-b border-[#0046c0] bg-[#0057e7] pt-[env(safe-area-inset-top)] shadow-sm">
+        <div className="relative h-16">
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            aria-expanded={sidebarOpen}
+            aria-label={sidebarOpen ? "Fechar menu" : "Abrir menu"}
+            className="absolute inset-0 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white shadow-sm">
+              <img src={logoSolo} alt="ArtVideo" className="h-8 w-8 object-contain" />
+            </span>
+          </button>
+        </div>
       </header>
 
       {page && (
