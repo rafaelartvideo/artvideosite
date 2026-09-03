@@ -114,6 +114,7 @@ export function useOrderSituationDocuments({
     loading: documentsQuery.isLoading || attachmentTypesQuery.isLoading,
     error: documentsQuery.error || attachmentTypesQuery.error || uploadMutation.error || removeMutation.error,
     uploading: uploadMutation.isPending,
+    uploadingAttachment: uploadMutation.isPending && !uploadMutation.variables?.situation,
     uploadingSituationId: uploadMutation.variables?.situation?.id || null,
     removingId: removeMutation.variables?.id || null,
     upload: (situation: OrderSituation, attachmentTypeId: string, files: File[]) =>
