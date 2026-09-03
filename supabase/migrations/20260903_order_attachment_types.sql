@@ -68,7 +68,7 @@ using (private.has_permission('documents.attachment_types.delete'));
 
 grant select, insert, update, delete on public.attachment_types to authenticated;
 
-create or replace function public.attach_service_order_situation_media(
+drop function if exists public.attach_service_order_situation_media(uuid, uuid, uuid);\n\ncreate or replace function public.attach_service_order_situation_media(
   p_service_order_id uuid,
   p_situation_id uuid,
   p_media_id uuid,
