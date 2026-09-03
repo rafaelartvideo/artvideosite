@@ -1,4 +1,5 @@
 import type { Address } from "@/lib/address";
+import type { EquipmentTypeTechnicalField } from "@/features/equipment/domain/equipment";
 
 type OrderForm = Record<string, any>;
 
@@ -27,6 +28,8 @@ export function prepareOrderForm({
   needsScheduling,
   equipmentBrands,
   equipmentModels,
+  technicalFields,
+  technicalValues,
 }: {
   form: OrderForm;
   editingOrder: any;
@@ -38,6 +41,8 @@ export function prepareOrderForm({
   needsScheduling: boolean;
   equipmentBrands: any[];
   equipmentModels: any[];
+  technicalFields: EquipmentTypeTechnicalField[];
+  technicalValues: Record<string, string>;
 }): { error: string } | { prepared: PreparedOrderForm } {
   if (!editingOrder && !userId) {
     return { error: "Não foi possível identificar o responsável pela OS." };
@@ -128,6 +133,13 @@ export function prepareOrderForm({
     return { error: "O modelo selecionado não pertence à marca." };
   }
 
+  for (const relation of technicalFields) {
+    const value = String(technicalValues[relation.technical_field_id] ?? "").trim();
+    if (relation.required && !value) {
+      return { error: `Informe ${relation.technical_field?.label || "o campo técnico"}.` };
+    }
+  }
+
   return {
     prepared: {
       customerId,
@@ -210,4 +222,31 @@ export function buildOrderPayload({
         ? prepared.selectedAddress?.id || null
         : null,
   };
+}
+
+export function buildTechnicalValuesPayload({
+  serviceOrderId,
+  technicalFields,
+  technicalValues,
+}: {
+  serviceOrderId: string;
+  technicalFields: EquipmentTypeTechnicalField[];
+  technicalValues: Record<string, string>;
+}) {
+  return technicalFields
+    .map(relation => {
+      const field = relation.technical_field;
+      const value = String(technicalValues[relation.technical_field_id] ?? "").trim();
+      if (!field || (!value && !relation.required)) return null;
+      return {
+        service_order_id: serviceOrderId,
+        technical_field_id: field.id,
+        field_key_snapshot: field.field_key,
+        label_snapshot: field.label,
+        field_type_snapshot: field.field_type,
+        value_text: field.field_type === "text" ? value || null : null,
+        value_number: field.field_type === "number" ? (value ? Number(value) : null) : null,
+      };
+    })
+    .filter(Boolean) as Array<Record<string, unknown>>;
 }

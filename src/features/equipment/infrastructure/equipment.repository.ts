@@ -6,20 +6,111 @@ import {
 } from "../domain/equipment";
 
 export async function loadEquipmentCatalog(): Promise<EquipmentCatalog> {
-  const [typesResult, brandsResult, modelsResult] = await Promise.all([
+  const [typesResult, brandsResult, modelsResult, fieldsResult, linksResult] = await Promise.all([
     supabase.from("equipment_types").select("*").order("sort_order").order("name"),
     supabase.from("equipment_brands").select("*").order("sort_order").order("name"),
     supabase.from("equipment_models").select("*").order("sort_order").order("name"),
+    supabase.from("technical_fields").select("*").order("sort_order").order("label"),
+    supabase.from("equipment_type_technical_fields").select("*").order("sort_order"),
   ]);
 
-  const error = typesResult.error || brandsResult.error || modelsResult.error;
+  const error = typesResult.error || brandsResult.error || modelsResult.error || fieldsResult.error || linksResult.error;
   if (error) throw error;
 
   return {
     types: typesResult.data ?? [],
     brands: brandsResult.data ?? [],
     models: modelsResult.data ?? [],
+    technicalFields: fieldsResult.data ?? [],
+    technicalFieldLinks: linksResult.data ?? [],
   };
+}
+
+export async function listServiceOrderTechnicalValues(serviceOrderId: string) {
+  const result = await supabase
+    .from("service_order_technical_values")
+    .select("*")
+    .eq("service_order_id", serviceOrderId)
+    .order("created_at");
+  if (result.error) throw result.error;
+  return result.data ?? [];
+}
+
+export async function saveTechnicalField(field: {
+  id?: string;
+  label: string;
+  field_key?: string;
+  field_type: "text" | "number";
+  is_active: boolean;
+  sort_order: number;
+}) {
+  const payload = {
+    ...(field.id ? {} : { field_key: field.field_key }),
+    label: field.label.trim(),
+    field_type: field.field_type,
+    is_active: field.is_active,
+    sort_order: field.sort_order,
+  };
+  const query = field.id
+    ? supabase.from("technical_fields").update(payload).eq("id", field.id)
+    : supabase.from("technical_fields").insert(payload);
+  const result = await query.select("*").single();
+  if (result.error) throw result.error;
+  return result.data;
+}
+
+export async function saveEquipmentTypeTechnicalFields(
+  equipmentTypeId: string,
+  links: Array<{ technical_field_id: string; required: boolean; sort_order: number }>,
+) {
+  const current = await supabase
+    .from("equipment_type_technical_fields")
+    .select("technical_field_id")
+    .eq("equipment_type_id", equipmentTypeId);
+  if (current.error) throw current.error;
+
+  const nextIds = new Set(links.map(link => link.technical_field_id));
+  const removedIds = (current.data ?? [])
+    .map(link => link.technical_field_id)
+    .filter(fieldId => !nextIds.has(fieldId));
+  if (removedIds.length) {
+    const removed = await supabase
+      .from("equipment_type_technical_fields")
+      .delete()
+      .eq("equipment_type_id", equipmentTypeId)
+      .in("technical_field_id", removedIds);
+    if (removed.error) throw removed.error;
+  }
+
+  if (!links.length) return;
+  const result = await supabase
+    .from("equipment_type_technical_fields")
+    .upsert(
+      links.map(link => ({ equipment_type_id: equipmentTypeId, ...link })),
+      { onConflict: "equipment_type_id,technical_field_id" },
+    );
+  if (result.error) throw result.error;
+}
+
+export async function saveServiceOrderTechnicalValues(
+  serviceOrderId: string,
+  values: Array<{
+    technical_field_id: string;
+    field_key_snapshot: string;
+    label_snapshot: string;
+    field_type_snapshot: "text" | "number";
+    value_text?: string | null;
+    value_number?: number | null;
+  }>,
+) {
+  if (!values.length) return;
+  const result = await supabase
+    .from("service_order_technical_values")
+    .upsert(
+      values.map(value => ({ service_order_id: serviceOrderId, ...value })),
+      { onConflict: "service_order_id,technical_field_id" },
+    );
+  if (result.error) throw result.error;
 }
 
 async function saveAndGetId(
@@ -60,6 +151,8 @@ export async function saveEquipmentHierarchy(
       type.id,
       "Tipo de equipamento não foi salvo.",
     );
+
+    await saveEquipmentTypeTechnicalFields(typeId, type.technicalFields);
 
     for (const brand of type.brands) {
       const originalBrand = brand.id

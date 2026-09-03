@@ -1,8 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
-import { buildOrderPayload, prepareOrderForm } from "./order-form";
+import { buildOrderPayload, buildTechnicalValuesPayload, prepareOrderForm } from "./order-form";
 import { getOrderEditState, getOrderSubmissionStatus } from "./order-management";
 import { persistServiceOrder } from "./order-submission";
 import { uploadOrderImage } from "../infrastructure/order-images.repository";
+import { listServiceOrderTechnicalValues, saveServiceOrderTechnicalValues } from "../infrastructure/orders.repository";
 import type { useOrderCustomerPersistence } from "./useOrderCustomerPersistence";
 import type { useOrderCustomerSelection } from "./useOrderCustomerSelection";
 import type { useOrderDetails } from "./useOrderDetails";
@@ -67,7 +68,12 @@ export function useOrderEditorWorkflow({
       return;
     }
     await images.loadOrderImages(order.id);
-    formState.hydrateOrderForm(order);
+    const { data: technicalValues, error: technicalValuesError } = await listServiceOrderTechnicalValues(order.id);
+    if (technicalValuesError) {
+      showToast({ msg: `Não foi possível carregar os campos técnicos: ${formatError(technicalValuesError)}`, type: "error" });
+      return;
+    }
+    formState.hydrateOrderForm(order, technicalValues || []);
     address.hydrateServiceAddress({
       useCustomerAddress: order.order_type === "external" && order.service_address_source === "customer",
       state: order.order_type === "external" ? order.service_state : undefined,
@@ -93,6 +99,8 @@ export function useOrderEditorWorkflow({
       needsScheduling: formState.needsScheduling,
       equipmentBrands: workspace.equipmentBrands,
       equipmentModels: workspace.equipmentModels,
+      technicalFields: workspace.technicalFieldLinks.filter((link: any) => link.equipment_type_id === formState.form.equipment_type_id).map((link: any) => ({ ...link, technical_field: link.technical_field || workspace.technicalFields.find((field: any) => field.id === link.technical_field_id) })),
+      technicalValues: formState.form.technicalValues,
     });
     if ("error" in preparation) {
       showToast({ msg: preparation.error, type: "error" });
@@ -128,6 +136,7 @@ export function useOrderEditorWorkflow({
       selectedSellerIds: formState.selectedSellerIds,
       orderImages: images.orderImages,
       uploadImage: uploadOrderImage,
+      saveTechnicalValues: async orderId => saveServiceOrderTechnicalValues(orderId, buildTechnicalValuesPayload({ serviceOrderId: orderId, technicalFields: workspace.technicalFieldLinks.filter((link: any) => link.equipment_type_id === formState.form.equipment_type_id).map((link: any) => ({ ...link, technical_field: link.technical_field || workspace.technicalFields.find((field: any) => field.id === link.technical_field_id) })), technicalValues: formState.form.technicalValues })),
     });
     if (!submission.success) {
       setSaving(false);

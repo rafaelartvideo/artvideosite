@@ -24,6 +24,7 @@ export const queryKeys = {
   equipment: {
     all: ["equipment"] as const,
     catalog: () => ["equipment", "catalog"] as const,
+    technicalFields: (equipmentTypeId: string) => ["equipment", "technical-fields", equipmentTypeId] as const,
   },
   generalServices: {
     all: ["general-services"] as const,

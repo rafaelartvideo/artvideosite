@@ -22,6 +22,8 @@ type OrdersWorkspace = {
   equipmentTypes: any[];
   equipmentBrands: any[];
   equipmentModels: any[];
+  technicalFields: any[];
+  technicalFieldLinks: any[];
   employees: any[];
   serviceTypes: any[];
   generalServices: any[];
@@ -39,6 +41,8 @@ const EMPTY_WORKSPACE: OrdersWorkspace = {
   equipmentTypes: [],
   equipmentBrands: [],
   equipmentModels: [],
+  technicalFields: [],
+  technicalFieldLinks: [],
   employees: [],
   serviceTypes: [],
   generalServices: [],
@@ -56,6 +60,8 @@ async function fetchOrdersWorkspace(): Promise<OrdersWorkspace> {
     equipmentTypesResult,
     equipmentBrandsResult,
     equipmentModelsResult,
+    technicalFieldsResult,
+    technicalFieldLinksResult,
     employeesResult,
     generalServicesResult,
     serviceTypesResult,
@@ -74,6 +80,8 @@ async function fetchOrdersWorkspace(): Promise<OrdersWorkspace> {
     equipmentTypesResult,
     equipmentBrandsResult,
     equipmentModelsResult,
+    technicalFieldsResult,
+    technicalFieldLinksResult,
     employeesResult,
     generalServicesResult,
     serviceTypesResult,
@@ -95,6 +103,8 @@ async function fetchOrdersWorkspace(): Promise<OrdersWorkspace> {
     equipmentTypes: equipmentTypesResult.data ?? [],
     equipmentBrands: equipmentBrandsResult.data ?? [],
     equipmentModels: equipmentModelsResult.data ?? [],
+    technicalFields: technicalFieldsResult.data ?? [],
+    technicalFieldLinks: technicalFieldLinksResult.data ?? [],
     employees: employeesResult.data ?? [],
     generalServices: generalServicesResult.data ?? [],
     serviceTypes: serviceTypesResult.data ?? [],

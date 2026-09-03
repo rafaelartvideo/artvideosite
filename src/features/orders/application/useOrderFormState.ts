@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
 
 type OrderType = "internal" | "external";
 
@@ -37,6 +38,8 @@ const createEmptyOrderForm = () => ({
   service_complement: "",
   service_customer_address_id: "",
   external_os_number: "",
+  technicalValues: {} as Record<string, string>,
+  technicalHistory: [] as ServiceOrderTechnicalValue[],
 });
 
 export function useOrderFormState() {
@@ -62,7 +65,7 @@ export function useOrderFormState() {
     setFormOpen(true);
   };
 
-  const hydrateOrderForm = (order: any) => {
+  const hydrateOrderForm = (order: any, technicalValues: ServiceOrderTechnicalValue[] = []) => {
     setEditingOS(order);
     setSelectedTechnicianIds(Array.from(new Set(
       (order.technician_links || [])
@@ -126,6 +129,8 @@ export function useOrderFormState() {
           ? order.service_customer_address_id || ""
           : "",
       external_os_number: order.external_os_number || "",
+      technicalValues: Object.fromEntries(technicalValues.map(value => [value.technical_field_id, value.field_type_snapshot === "number" ? String(value.value_number ?? "") : value.value_text || ""])),
+      technicalHistory: technicalValues,
     });
     setFormOpen(true);
   };

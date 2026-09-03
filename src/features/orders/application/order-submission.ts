@@ -34,6 +34,7 @@ export async function persistServiceOrder({
   selectedSellerIds,
   orderImages,
   uploadImage,
+  saveTechnicalValues,
 }: {
   editingOrder: any;
   payload: Record<string, any>;
@@ -41,6 +42,7 @@ export async function persistServiceOrder({
   selectedSellerIds: string[];
   orderImages: SubmissionImage[];
   uploadImage: (file: File) => Promise<string>;
+  saveTechnicalValues: (orderId: string) => Promise<{ error: any } | void>;
 }): Promise<SubmissionFailure | SubmissionSuccess> {
   let savedOrderId = editingOrder?.id as string | undefined;
 
@@ -60,6 +62,9 @@ export async function persistServiceOrder({
       error: new Error("A OS foi salva, mas não foi possível obter seu ID."),
     };
   }
+
+  const technicalValuesResult = await saveTechnicalValues(savedOrderId);
+  if (technicalValuesResult?.error) return { success: false, stage: "record", error: technicalValuesResult.error };
 
   const uniqueTechnicianIds = Array.from(new Set(selectedTechnicianIds));
   const uniqueSellerIds = Array.from(new Set(selectedSellerIds));

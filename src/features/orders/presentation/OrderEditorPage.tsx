@@ -85,6 +85,10 @@ export function OrderEditorPage({
   } = formState;
   const { orderImages, addOrderImages, removeOrderImage, setViewImage } = images;
   const closePage = onClose || closeOrderForm;
+  const technicalFields = workspace.technicalFieldLinks
+    .filter((link: any) => link.equipment_type_id === form.equipment_type_id)
+    .map((link: any) => ({ ...link, technical_field: link.technical_field || workspace.technicalFields.find((field: any) => field.id === link.technical_field_id) }))
+    .filter((link: any) => Boolean(editingOS) || link.technical_field?.is_active !== false);
   const {
     customerSearch,
     customerResults,
@@ -158,6 +162,10 @@ export function OrderEditorPage({
           equipmentTypes={equipmentTypes}
           equipmentBrands={equipmentBrands}
           equipmentModels={equipmentModels}
+          technicalFields={technicalFields}
+          technicalValues={form.technicalValues}
+          technicalHistory={form.technicalHistory}
+          onTechnicalValueChange={(fieldId, value) => setForm(current => ({ ...current, technicalValues: { ...current.technicalValues, [fieldId]: value } }))}
           editing={Boolean(editingOS)}
           canCreate={hasPermission("equipment.create")}
           onFieldChange={updateField}

@@ -45,6 +45,7 @@ export function OrderDetailsContent({
   const stateLabel = formatState;
   const getSlaForOrder = getSla;
   const customer = detail.customer as any;
+  const technicalValues = Array.isArray(detail.technical_values) ? detail.technical_values : [];
   const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
   const whatsappContact = phoneContactLinks(customer?.whatsapp || customer?.phone);
   const contactActionClass = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold normal-case tracking-normal transition-colors";
@@ -112,9 +113,8 @@ export function OrderDetailsContent({
                 <div className="grid sm:grid-cols-2 gap-3">
                   <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || undefined} />
                   <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || undefined} />
-                  <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || detail.model || undefined} />
-                  <InfoRow label="Versão" value={detail.model || undefined} />
-                  <InfoRow label="Número de série" value={detail.serial_number || undefined} />
+                  <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || undefined} />
+                  {technicalValues.length > 0 ? technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.field_type_snapshot === "number" ? (value.value_number == null ? undefined : String(value.value_number)) : value.value_text} />) : <><InfoRow label="Versão" value={detail.model || undefined} /><InfoRow label="Número de série" value={detail.serial_number || undefined} /></>}
                   <InfoRow label="Lacre" value={detail.accessories || undefined} />
                   <InfoRow label="Garantia" value={detail.equipment_condition || undefined} />
                 </div>

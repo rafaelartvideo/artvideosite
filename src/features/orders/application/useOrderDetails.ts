@@ -6,6 +6,7 @@ import {
   listServiceOrderMedia,
   listServiceOrderStatusHistory,
   listServiceOrderUsedItems,
+  listServiceOrderTechnicalValues,
 } from "../infrastructure/orders.repository";
 import type { OrderImage } from "../domain/order-image";
 
@@ -32,11 +33,13 @@ export function useOrderDetails({
         { data: history },
         { data: mediaLinks },
         { data: usedItems },
+        { data: technicalValues },
       ] = await Promise.all([
         getServiceOrderDetail(selectedOrder.id),
         listServiceOrderStatusHistory(selectedOrder.id),
         listServiceOrderMedia(selectedOrder.id),
         listServiceOrderUsedItems(selectedOrder.id),
+        listServiceOrderTechnicalValues(selectedOrder.id),
       ]);
 
       const orderImages = (mediaLinks || [])
@@ -54,18 +57,18 @@ export function useOrderDetails({
           name: item.media?.file_name || "Imagem da solução",
         }));
 
-      return { currentOrder, history, usedItems, orderImages, solutionImages };
+      return { currentOrder, history, usedItems, technicalValues: technicalValues || [], orderImages, solutionImages };
     },
   });
 
   useEffect(() => {
     if (!detailQuery.data || !selectedOrder) return;
-    const { currentOrder, history, usedItems, orderImages, solutionImages } = detailQuery.data;
+    const { currentOrder, history, usedItems, technicalValues, orderImages, solutionImages } = detailQuery.data;
     setDetailHistory(history || []);
     setDetailUsedItems(usedItems || []);
     setDetailSolutionImages(solutionImages);
     replaceOrderImages(orderImages);
-    setDetail({ ...selectedOrder, ...(currentOrder || {}) });
+    setDetail({ ...selectedOrder, ...(currentOrder || {}), technical_values: technicalValues });
     void loadPartRequests(selectedOrder.id);
   }, [detailQuery.data]);
 

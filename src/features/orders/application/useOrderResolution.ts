@@ -10,6 +10,7 @@ import {
   insertServiceOrderMedia,
   listApprovedResolutionPartRequests,
   listServiceOrderMedia,
+  listServiceOrderTechnicalValues,
   listServiceOrderUsedItems,
   markServiceOrderSolvable,
   markServiceOrderUnsolvable,
@@ -341,8 +342,11 @@ export function useOrderResolution({
         solutionImageError = error;
       }
 
-      const freshDetail = await getFullServiceOrder(orderId);
-      if (freshDetail.data) setDetail(freshDetail.data);
+      const [freshDetail, technicalValuesResult] = await Promise.all([
+        getFullServiceOrder(orderId),
+        listServiceOrderTechnicalValues(orderId),
+      ]);
+      if (freshDetail.data) setDetail({ ...freshDetail.data, technical_values: technicalValuesResult.data || [] });
       const { data: usedData } = await listServiceOrderUsedItems(orderId);
       const { data: mediaLinks } = await listServiceOrderMedia(orderId);
       setDetailUsedItems(usedData || []);

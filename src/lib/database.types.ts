@@ -402,6 +402,15 @@ export interface ServiceOrder {
   assigned_to: string | null;
   assigned_profile?: { id: string; full_name: string | null } | null;
   technician_id: string | null;
+  equipment_type_id: string | null;
+  equipment_brand_id: string | null;
+  equipment_model_id: string | null;
+  brand_id: string | null;
+  product_id: string | null;
+  model: string | null;
+  serial_number: string | null;
+  accessories: string | null;
+  equipment_condition: string | null;
   internal_notes: string | null;
   customer_notes: string | null;
   created_at: string;
@@ -647,4 +656,37 @@ export interface ServiceOrderPartTestEvent {
   notes: string | null;
   created_by: string;
   created_at: string;
+}
+
+export interface TechnicalField {
+  id: string;
+  field_key: string;
+  label: string;
+  field_type: "text" | "number";
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EquipmentTypeTechnicalField {
+  equipment_type_id: string;
+  technical_field_id: string;
+  required: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceOrderTechnicalValue {
+  id: string;
+  service_order_id: string;
+  technical_field_id: string;
+  field_key_snapshot: string;
+  label_snapshot: string;
+  field_type_snapshot: "text" | "number";
+  value_text: string | null;
+  value_number: number | null;
+  created_at: string;
+  updated_at: string;
 }

@@ -65,6 +65,8 @@ export const loadOrdersWorkspace = () =>
     supabase.from("equipment_types").select("id,name").eq("is_active", true).order("sort_order").order("name"),
     supabase.from("equipment_brands").select("id,name,equipment_type_id").eq("is_active", true).order("sort_order").order("name"),
     supabase.from("equipment_models").select("id,name,equipment_brand_id").eq("is_active", true).order("sort_order").order("name"),
+    supabase.from("technical_fields").select("id,field_key,label,field_type,is_active,sort_order").order("sort_order").order("label"),
+    supabase.from("equipment_type_technical_fields").select("equipment_type_id,technical_field_id,required,sort_order,technical_field:technical_fields(id,field_key,label,field_type,is_active,sort_order)").order("sort_order"),
     supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
     supabase.from("general_services").select("id,name,price,max_discount_percentage,is_active,sort_order").eq("is_active", true).order("sort_order").order("name"),
     supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order").eq("is_active", true).order("sort_order").order("title"),
@@ -133,6 +135,30 @@ export const createServiceOrder = (payload: Record<string, unknown>) =>
     .insert(payload)
     .select("id,os_number,external_os_number")
     .single();
+
+export const listEquipmentTypeTechnicalFields = (equipmentTypeId: string) =>
+  supabase
+    .from("equipment_type_technical_fields")
+    .select("equipment_type_id,technical_field_id,required,sort_order,technical_field:technical_fields(id,field_key,label,field_type,is_active,sort_order)")
+    .eq("equipment_type_id", equipmentTypeId)
+    .order("sort_order");
+
+export const listServiceOrderTechnicalValues = (serviceOrderId: string) =>
+  supabase
+    .from("service_order_technical_values")
+    .select("*")
+    .eq("service_order_id", serviceOrderId)
+    .order("created_at");
+
+export const saveServiceOrderTechnicalValues = (
+  serviceOrderId: string,
+  values: Array<Record<string, unknown>>,
+) => values.length
+  ? supabase.from("service_order_technical_values").upsert(
+      values.map(value => ({ service_order_id: serviceOrderId, ...value })),
+      { onConflict: "service_order_id,technical_field_id" },
+    )
+  : Promise.resolve({ data: null, error: null });
 
 export const updateServiceOrder = (
   serviceOrderId: string,
