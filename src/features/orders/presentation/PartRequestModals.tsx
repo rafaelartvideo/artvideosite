@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialo
 
 export function CenteredModal({ children, onClose, className, title = "Pedido de peças" }: { children: React.ReactNode; onClose: () => void; className?: string; title?: string }) {
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent showClose={false} className={cn("flex max-h-[calc(100vh-2rem)] w-full flex-col gap-0 overflow-hidden rounded-xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl", className || "max-w-2xl")}>
+    <DialogContent showClose={false} className={cn("flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl sm:w-full", className || "max-w-2xl")}>
       <DialogTitle className="sr-only">{title}</DialogTitle>
       {children}
     </DialogContent>
@@ -28,8 +28,117 @@ export function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading
   orderNumber?: string | null; inventoryItems: PartRequestInventoryItem[]; inventoryLoading: boolean; inventoryError: string; selectedItems: SelectedPartRequestItem[]; search: string; notes: string; purpose: "RESOLUTION" | "TEST"; submitting: boolean;
   onPurposeChange: (purpose: "RESOLUTION" | "TEST") => void; onSearchChange: (value: string) => void; onNotesChange: (value: string) => void; onSelect: (item: PartRequestInventoryItem) => void; onQuantityChange: (id: string, value: string) => void; onRemove: (id: string) => void; onClose: () => void; onSubmit: () => void;
 }) {
-  const visibleItems = inventoryItems.filter(item => { const query = normalizeSearchText(search); return !query || normalizeSearchText(item.name).includes(query) || normalizeSearchText(item.sku).includes(query); });
-  return <CenteredModal onClose={onClose}><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Pedir peças</h3><p className="mt-0.5 text-xs text-[#5a6a82]">OS {orderNumber || "—"}</p></div><button type="button" onClick={onClose} aria-label="Fechar" className="rounded-lg p-1.5 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={17} /></button></div><div className="min-h-0 space-y-5 overflow-y-auto p-5"><div><p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Finalidade do pedido</p><div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => onPurposeChange("RESOLUTION")} className={cn("rounded-xl border p-3 text-left transition-colors", purpose === "RESOLUTION" ? "border-[#0057e7] bg-blue-50 text-[#0057e7]" : "border-[#0d1b2e]/10 bg-white text-[#0d1b2e] hover:border-[#0057e7]/35")}><span className="flex items-center gap-2 text-sm font-bold"><CheckCircle size={16} /> Para resolução</span><span className="mt-1 block text-[11px] font-normal text-[#5a6a82]">Peças que serão utilizadas diretamente para solucionar a OS.</span></button><button type="button" onClick={() => onPurposeChange("TEST")} className={cn("rounded-xl border p-3 text-left transition-colors", purpose === "TEST" ? "border-[#0057e7] bg-blue-50 text-[#0057e7]" : "border-[#0d1b2e]/10 bg-white text-[#0d1b2e] hover:border-[#0057e7]/35")}><span className="flex items-center gap-2 text-sm font-bold"><PackagePlus size={16} /> Para teste</span><span className="mt-1 block text-[11px] font-normal text-[#5a6a82]">Peças retiradas temporariamente para diagnóstico e teste.</span></button></div></div><div><label className="mb-1.5 block text-[11px] font-bold text-[#5a6a82]">Pesquisar peça</label><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input autoFocus value={search} onChange={event => onSearchChange(event.target.value)} placeholder="Pesquise por nome ou SKU" className={cn(INPUT, "h-[42px] pl-9 text-xs")} /></div></div><div className="space-y-2"><p className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Resultados</p>{inventoryLoading ? <p className="text-xs text-[#5a6a82]">Carregando peças do estoque...</p> : inventoryError ? <p className="text-xs text-red-600">{inventoryError}</p> : visibleItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhum item encontrado.</p> : <div className="max-h-56 space-y-1 overflow-y-auto">{visibleItems.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#0d1b2e]/10 px-3 py-2 text-xs"><span className="min-w-0"><span className="block truncate font-semibold text-[#0d1b2e]">{item.name}</span><span className="text-[11px] text-[#5a6a82]">{item.sku ? `SKU: ${item.sku} · ` : ""}{Number(item.quantity)} {item.unit || "un"}</span></span><button type="button" onClick={() => onSelect(item)} className="shrink-0 rounded-lg border border-[#0057e7]/30 px-2.5 py-1.5 text-xs font-bold text-[#0057e7]">Adicionar</button></div>)}</div>}</div><div className="space-y-2"><p className="text-sm font-bold text-[#0d1b2e]">Peças selecionadas</p>{selectedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça selecionada.</p> : selectedItems.map(item => <div key={item.inventory_item_id} className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3"><div className="flex items-center gap-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.name}</p><p className="text-[11px] text-[#5a6a82]">Disponível: {item.available_quantity} {item.unit}</p></div><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={event => onQuantityChange(item.inventory_item_id, event.target.value)} className={cn(INPUT, "w-24 text-center text-sm")} /><button type="button" onClick={() => onRemove(item.inventory_item_id)} aria-label={`Remover ${item.name}`} className="p-2 text-red-600"><X size={14} /></button></div></div>)}</div><FTextarea label="Observações" value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder="Informe detalhes importantes sobre as peças solicitadas." /></div><div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Enviando..." : "Enviar solicitação"}</BtnPrimary></div></CenteredModal>;
+  const query = normalizeSearchText(search);
+  const visibleItems = inventoryItems.filter(item => !query || normalizeSearchText(item.name).includes(query) || normalizeSearchText(item.sku).includes(query));
+  const selectedIds = new Set(selectedItems.map(item => item.inventory_item_id));
+
+  return <CenteredModal onClose={onClose} className="max-w-4xl" title="Pedir peças">
+    <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#0d1b2e]/10 bg-white px-4 py-4 sm:px-6">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-lg font-black text-[#0d1b2e]">Pedir peças</h3>
+          <span className="rounded-full bg-[#f0f6ff] px-2.5 py-1 text-[10px] font-black text-[#0057e7]">OS {orderNumber || "—"}</span>
+        </div>
+        <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">Selecione a finalidade, escolha as peças e informe as quantidades necessárias.</p>
+      </div>
+      <AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost" className="h-10 w-10 shrink-0"><X size={18} /></AdminIconButton>
+    </div>
+
+    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6">
+      <div className="space-y-5">
+        <section className="rounded-2xl border border-[#0d1b2e]/8 bg-white p-4 shadow-sm">
+          <div className="mb-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Finalidade do pedido</p>
+            <p className="mt-1 text-xs text-[#5a6a82]">Defina como as peças serão utilizadas nesta OS.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => onPurposeChange("RESOLUTION")} aria-pressed={purpose === "RESOLUTION"} className={cn("group rounded-xl border p-4 text-left transition-all", purpose === "RESOLUTION" ? "border-[#0057e7] bg-[#f0f6ff] shadow-sm ring-1 ring-[#0057e7]/10" : "border-[#0d1b2e]/10 bg-white hover:border-[#0057e7]/35 hover:bg-[#f8fbff]")}>
+              <span className="flex items-center gap-2 text-sm font-black text-[#0d1b2e]"><span className={cn("flex h-8 w-8 items-center justify-center rounded-lg", purpose === "RESOLUTION" ? "bg-[#0057e7] text-white" : "bg-[#f5f7fa] text-[#5a6a82]")}><CheckCircle size={16} /></span>Para resolução</span>
+              <span className="mt-2 block text-xs leading-relaxed text-[#5a6a82]">Peças destinadas diretamente à solução definitiva da ordem de serviço.</span>
+            </button>
+            <button type="button" onClick={() => onPurposeChange("TEST")} aria-pressed={purpose === "TEST"} className={cn("group rounded-xl border p-4 text-left transition-all", purpose === "TEST" ? "border-[#0057e7] bg-[#f0f6ff] shadow-sm ring-1 ring-[#0057e7]/10" : "border-[#0d1b2e]/10 bg-white hover:border-[#0057e7]/35 hover:bg-[#f8fbff]")}>
+              <span className="flex items-center gap-2 text-sm font-black text-[#0d1b2e]"><span className={cn("flex h-8 w-8 items-center justify-center rounded-lg", purpose === "TEST" ? "bg-[#0057e7] text-white" : "bg-[#f5f7fa] text-[#5a6a82]")}><PackagePlus size={16} /></span>Para teste</span>
+              <span className="mt-2 block text-xs leading-relaxed text-[#5a6a82]">Peças retiradas temporariamente para diagnóstico, teste e posterior definição do destino.</span>
+            </button>
+          </div>
+        </section>
+
+        <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)]">
+          <section className="min-w-0 overflow-hidden rounded-2xl border border-[#0d1b2e]/8 bg-white shadow-sm">
+            <div className="border-b border-[#0d1b2e]/8 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-[#0d1b2e]">Estoque</p>
+                  <p className="mt-0.5 text-[11px] text-[#5a6a82]">Pesquise e adicione as peças necessárias.</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#f5f7fa] px-2 py-1 text-[10px] font-bold text-[#5a6a82]">{visibleItems.length} item{visibleItems.length === 1 ? "" : "s"}</span>
+              </div>
+              <div className="relative mt-3">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+                <input autoFocus value={search} onChange={event => onSearchChange(event.target.value)} placeholder="Buscar por nome ou SKU" className={cn(INPUT, "h-11 w-full pl-9 pr-3 text-sm")} />
+              </div>
+            </div>
+            <div className="max-h-[19rem] min-h-[10rem] overflow-y-auto p-3">
+              {inventoryLoading ? <div className="flex min-h-36 items-center justify-center text-xs text-[#5a6a82]">Carregando peças do estoque...</div> : inventoryError ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">{inventoryError}</div> : visibleItems.length === 0 ? <div className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-[#0d1b2e]/10 text-center"><Search size={20} className="mb-2 text-[#9aa7b8]" /><p className="text-xs font-bold text-[#5a6a82]">Nenhuma peça encontrada</p></div> : <div className="space-y-2">{visibleItems.map(item => {
+                const selected = selectedIds.has(item.id);
+                return <div key={item.id} className={cn("flex min-w-0 items-center gap-3 rounded-xl border p-3 transition-colors", selected ? "border-[#0057e7]/20 bg-[#f0f6ff]" : "border-[#0d1b2e]/8 bg-white hover:bg-[#f8fafc]")}>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-[#0d1b2e]">{item.name}</p>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#5a6a82]">
+                      {item.sku && <span className="truncate">SKU {item.sku}</span>}
+                      <span className="font-semibold text-[#0d1b2e]">Disponível: {Number(item.quantity)} {item.unit || "un"}</span>
+                    </div>
+                  </div>
+                  <button type="button" disabled={selected || Number(item.quantity) <= 0} onClick={() => onSelect(item)} className={cn("inline-flex h-9 shrink-0 items-center justify-center rounded-lg px-3 text-xs font-black transition-colors", selected ? "bg-emerald-100 text-emerald-700" : "border border-[#0057e7]/25 bg-white text-[#0057e7] hover:bg-[#f0f6ff]", Number(item.quantity) <= 0 && "cursor-not-allowed opacity-50")}>
+                    {selected ? "Adicionada" : "Adicionar"}
+                  </button>
+                </div>;
+              })}</div>}
+            </div>
+          </section>
+
+          <section className="min-w-0 overflow-hidden rounded-2xl border border-[#0d1b2e]/8 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-[#0d1b2e]/8 p-4">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-[#0d1b2e]">Peças selecionadas</p>
+                <p className="mt-0.5 text-[11px] text-[#5a6a82]">Defina a quantidade de cada item.</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#0057e7] px-2.5 py-1 text-[10px] font-black text-white">{selectedItems.length}</span>
+            </div>
+            <div className="max-h-[19rem] min-h-[10rem] overflow-y-auto p-3">
+              {selectedItems.length === 0 ? <div className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-[#0d1b2e]/10 px-4 text-center"><PackagePlus size={22} className="mb-2 text-[#9aa7b8]" /><p className="text-xs font-bold text-[#5a6a82]">Nenhuma peça selecionada</p><p className="mt-1 text-[11px] text-[#8a97a8]">Adicione itens do estoque para montar a solicitação.</p></div> : <div className="space-y-2">{selectedItems.map(item => <div key={item.inventory_item_id} className="min-w-0 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-bold leading-snug text-[#0d1b2e]">{item.name}</p>
+                    <p className="mt-1 break-words text-[11px] text-[#5a6a82]">{item.sku ? `SKU ${item.sku} · ` : ""}Disponível: {item.available_quantity} {item.unit}</p>
+                  </div>
+                  <AdminIconButton ariaLabel={`Remover ${item.name}`} onClick={() => onRemove(item.inventory_item_id)} variant="danger" className="h-9 w-9 shrink-0"><X size={15} /></AdminIconButton>
+                </div>
+                <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(7.5rem,9rem)] items-end gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Quantidade</p>
+                    <p className="mt-1 text-[11px] text-[#8a97a8]">Máximo {item.available_quantity} {item.unit}</p>
+                  </div>
+                  <input type="number" min="0.01" max={item.available_quantity} step="0.01" value={item.quantity} onChange={event => onQuantityChange(item.inventory_item_id, event.target.value)} inputMode="decimal" aria-label={`Quantidade de ${item.name}`} className={cn(INPUT, "h-10 min-w-0 w-full text-center text-sm font-bold")} />
+                </div>
+              </div>)}</div>}
+            </div>
+          </section>
+        </div>
+
+        <section className="rounded-2xl border border-[#0d1b2e]/8 bg-white p-4 shadow-sm">
+          <FTextarea label="Observações" value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder="Adicione informações importantes para quem fará a análise do pedido." />
+        </section>
+      </div>
+    </div>
+
+    <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-[#0d1b2e]/8 bg-white px-4 py-3 sm:flex sm:justify-end sm:px-6 sm:py-4">
+      <BtnSecondary onClick={onClose} className="w-full sm:w-auto">Cancelar</BtnSecondary>
+      <BtnPrimary onClick={onSubmit} disabled={submitting || selectedItems.length === 0} className="w-full sm:w-auto">
+        {submitting ? "Enviando..." : `Enviar solicitação${selectedItems.length ? ` (${selectedItems.length})` : ""}`}
+      </BtnPrimary>
+    </div>
+  </CenteredModal>;
 }
 
 export function PartCustodyModal({ request, action, quantities, submitting, onQuantitiesChange, onClose, onSubmit }: {
