@@ -32,7 +32,7 @@ export function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading
   const visibleItems = inventoryItems.filter(item => !query || normalizeSearchText(item.name).includes(query) || normalizeSearchText(item.sku).includes(query));
   const selectedIds = new Set(selectedItems.map(item => item.inventory_item_id));
 
-  return <CenteredModal onClose={onClose} className="max-w-4xl" title="Pedir peças">
+  return <CenteredModal onClose={onClose} className="max-w-4xl sm:max-w-4xl" title="Pedir peças">
     <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#0d1b2e]/10 bg-white px-4 py-4 sm:px-6">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -63,7 +63,7 @@ export function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading
           </div>
         </section>
 
-        <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)]">
+        <div className="min-w-0 space-y-5">
           <section className="min-w-0 overflow-hidden rounded-2xl border border-[#0d1b2e]/8 bg-white shadow-sm">
             <div className="border-b border-[#0d1b2e]/8 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -114,12 +114,12 @@ export function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading
                   </div>
                   <AdminIconButton ariaLabel={`Remover ${item.name}`} onClick={() => onRemove(item.inventory_item_id)} variant="danger" className="h-9 w-9 shrink-0"><X size={15} /></AdminIconButton>
                 </div>
-                <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(7.5rem,9rem)] items-end gap-3">
+                <div className="mt-3 space-y-2">
                   <div className="min-w-0">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Quantidade</p>
                     <p className="mt-1 text-[11px] text-[#8a97a8]">Máximo {item.available_quantity} {item.unit}</p>
                   </div>
-                  <input type="number" min="0.01" max={item.available_quantity} step="0.01" value={item.quantity} onChange={event => onQuantityChange(item.inventory_item_id, event.target.value)} inputMode="decimal" aria-label={`Quantidade de ${item.name}`} className={cn(INPUT, "h-10 min-w-0 w-full text-center text-sm font-bold")} />
+                  <input type="number" min="0.01" max={item.available_quantity} step="0.01" value={item.quantity} onChange={event => onQuantityChange(item.inventory_item_id, event.target.value)} inputMode="decimal" aria-label={`Quantidade de ${item.name}`} className={cn(INPUT, "h-10 w-full text-center text-sm font-bold sm:max-w-44")} />
                 </div>
               </div>)}</div>}
             </div>
