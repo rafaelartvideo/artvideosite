@@ -14,15 +14,20 @@ import {
   findEquipmentTypeByName,
 } from "../infrastructure/orders-catalog.repository";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
+import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import { saveEquipmentTypeTechnicalFields } from "@/features/equipment/infrastructure/equipment.repository";
 
-export function QuickEquipmentModal({ onClose, onSaved }: {
+export function QuickEquipmentModal({ onClose, onSaved, technicalFields, technicalFieldLinks }: {
   onClose: () => void;
   onSaved: (items: { type: any; brand: any; model: any }) => void;
+  technicalFields: any[];
+  technicalFieldLinks: any[];
 }) {
   const { hasPermission } = useAuth();
   const [typeName, setTypeName] = useState("");
   const [brandName, setBrandName] = useState("");
   const [modelName, setModelName] = useState("");
+  const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -57,6 +62,14 @@ export function QuickEquipmentModal({ onClose, onSaved }: {
       const modelResult = existingModel ? { data: existingModel, error: null } : await createEquipmentModel({ name: modelName.trim(), slug: slugify(modelName), equipment_brand_id: brand.id, is_active: true, sort_order: 0 });
       const { data: model, error: modelError } = modelResult;
       if (modelError || !model) throw modelError || new Error("Modelo não foi cadastrado.");
+      const existingLinks = technicalFieldLinks
+        .filter(link => link.equipment_type_id === type.id)
+        .map(link => ({ technical_field_id: link.technical_field_id, required: Boolean(link.required), sort_order: Number(link.sort_order) || 0 }));
+      const existingIds = new Set(existingLinks.map(link => link.technical_field_id));
+      const selectedLinks = selectedFieldIds
+        .filter(fieldId => !existingIds.has(fieldId))
+        .map((fieldId, index) => ({ technical_field_id: fieldId, required: false, sort_order: (existingLinks.length + index) * 10 }));
+      await saveEquipmentTypeTechnicalFields(type.id, [...existingLinks, ...selectedLinks]);
       onSaved({ type, brand, model });
       onClose();
     } catch (error) {
@@ -66,14 +79,28 @@ export function QuickEquipmentModal({ onClose, onSaved }: {
   };
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent showClose={false} className="max-w-sm border-0 bg-transparent p-0 shadow-none">
+      <DialogContent showClose={false} className="max-w-md border-0 bg-transparent p-0 shadow-none">
       <DialogTitle className="sr-only">Adicionar novo equipamento</DialogTitle>
-      <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10 overflow-hidden">
+      <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-md rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10 overflow-hidden">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 px-4 py-3 select-none">
           <div><h3 className="text-sm font-bold text-[#0d1b2e]">Adicionar novo equipamento</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre a hierarquia completa</p></div>
           <AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost"><X size={16} /></AdminIconButton>
         </div>
-        <div className="p-4 space-y-3"><FInput label="Tipo de equipamento" required autoFocus value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Ex: Televisão" /><FInput label="Marca" required value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder="Ex: Samsung" /><FInput label="Modelo" required value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder="Ex: UN55CU7700" />{errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}</div>
+        <div className="p-4 space-y-3">
+          <FInput label="Tipo de equipamento" required autoFocus value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Ex: Televisão" />
+          <FInput label="Marca" required value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder="Ex: Samsung" />
+          <FInput label="Modelo" required value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder="Ex: UN55CU7700" />
+          {technicalFields.filter(field => field.is_active !== false).length > 0 && <div className="rounded-lg border border-[#0d1b2e]/10 p-3">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#5a6a82]">Campos do equipamento</p>
+            <div className="space-y-2">
+              {technicalFields.filter(field => field.is_active !== false).map(field => <label key={field.id} className="flex items-center gap-2 text-sm font-medium text-[#0d1b2e]">
+                <Checkbox checked={selectedFieldIds.includes(field.id)} onCheckedChange={checked => setSelectedFieldIds(current => checked === true ? [...current, field.id] : current.filter(id => id !== field.id))} />
+                {field.label}
+              </label>)}
+            </div>
+          </div>}
+          {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
+        </div>
         <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("equipment.create") && <BtnPrimary onClick={save} disabled={saving || !typeName.trim() || !brandName.trim() || !modelName.trim()}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
       </div>
       </DialogContent>
