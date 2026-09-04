@@ -11,6 +11,7 @@ import {
 } from "../infrastructure/categories.repository";
 import {
   AdminButton,
+  AdminCard,
   AdminIconButton,
   AdminPage,
   BtnPrimary,
@@ -80,7 +81,6 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
     if (item) openEdit(item);
   }, [routeResourceId, routeSubpage, cats, drawerOpen, editItem?.id]);
 
-
   const handleSave = async () => {
     if (!(editItem ? hasPermission("categories.update") : hasPermission("categories.create"))) return;
     if (!form.name.trim()) { setToast({ msg: "Nome obrigatório.", type: "error" }); return; }
@@ -134,7 +134,7 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
         <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("categories.create") && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Nova categoria</AdminButton>}</div>
       } />
 
-      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+      <AdminCard>
         {loading ? <LoadingState /> : cats.length === 0 ? (
           <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={openNewPage} addLabel="Nova categoria" />
         ) : (
@@ -171,7 +171,7 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
             </table>
           </div>
         )}
-      </div>
+      </AdminCard>
 
       <AdminPage open={drawerOpen} onClose={closeEditor} breadcrumb="Categorias" title={editItem ? "Editar categoria" : "Nova categoria"} maxW="max-w-lg">
         <div className="p-5 space-y-4">
