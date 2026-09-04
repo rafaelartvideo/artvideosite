@@ -43,6 +43,7 @@ import {
   FToggle,
   INPUT,
 } from "@/shared/ui/admin/AdminFormControls";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 
@@ -50,11 +51,11 @@ function PasswordField({ label, value, onChange, required = false, placeholder, 
   const [showPassword, setShowPassword] = useState(false);
   useEffect(() => { setShowPassword(false); }, [resetKey]);
   const visibilityLabel = showPassword ? "Ocultar senha" : "Mostrar senha";
-  return <div>
-    <label className="flex items-baseline gap-1 text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}{required && <span className="text-red-400">*</span>}</label>
-    <div className="relative">
+  return <div className="min-w-0">
+    <label className="mb-1.5 flex items-baseline gap-1 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}{required && <span className="text-red-400">*</span>}</label>
+    <div className="relative min-w-0">
       <input type={showPassword ? "text" : "password"} value={value} onChange={event => onChange(event.target.value)} required={required} placeholder={placeholder} className={cn(INPUT, "pr-11")} />
-      <button type="button" onClick={() => setShowPassword(current => !current)} aria-label={visibilityLabel} title={visibilityLabel} className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#5a6a82] hover:text-[#0057e7] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40 rounded" tabIndex={0}>
+      <button type="button" onClick={() => setShowPassword(current => !current)} aria-label={visibilityLabel} title={visibilityLabel} className="absolute right-3 top-1/2 -translate-y-1/2 cursor-default rounded text-[#5a6a82] hover:text-[#0057e7] focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40" tabIndex={0}>
         {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
       </button>
     </div>
@@ -93,12 +94,19 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
   const [form, setForm] = useState({ name: "", description: "", is_active: true, selected: [] as string[] });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [rolePage, setRolePage] = useState(1);
+  const [rolePageSize, setRolePageSize] = useState(10);
 
   useEffect(() => {
     if (!rolesQuery.error) return;
     const message = rolesQuery.error instanceof Error ? rolesQuery.error.message : String(rolesQuery.error);
     setToast({ msg: `Erro ao carregar permissões: ${message}`, type: "error" });
   }, [rolesQuery.error]);
+
+  const roleTotalPages = Math.max(1, Math.ceil(roles.length / rolePageSize));
+  const safeRolePage = Math.min(rolePage, roleTotalPages);
+  const pagedRoles = roles.slice((safeRolePage - 1) * rolePageSize, safeRolePage * rolePageSize);
+  useEffect(() => { if (rolePage > roleTotalPages) setRolePage(roleTotalPages); }, [rolePage, roleTotalPages]);
 
   const refreshRoles = () => queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
   const grouped = permissions.reduce<Record<string, any[]>>((groups, permission) => {
@@ -209,11 +217,16 @@ function RolePermissionsPanel({ onBack }: { onBack: () => void }) {
   const toggleGroup = (items: any[]) => { const ids = items.map(item => item.id); const allSelected = ids.every(id => form.selected.includes(id)); setForm(current => ({ ...current, selected: allSelected ? current.selected.filter(id => !ids.includes(id)) : Array.from(new Set([...current.selected, ...ids])) })); };
   const allSelected = permissions.length > 0 && permissions.every(permission => form.selected.includes(permission.id));
 
-  return <div className="space-y-5">
+  return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Funções e Permissões" subtitle="Defina os acessos disponíveis para cada perfil" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("roles.create") && <BtnPrimary onClick={openNew}><Plus size={15} /> Nova função</BtnPrimary>}</div>} />
-    <AdminCard><div className="overflow-x-auto"><table className="w-full text-sm min-w-[720px]"><thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold"><tr><th className="px-4 py-3 text-left">Função</th><th className="px-4 py-3 text-left">Descrição</th><th className="px-4 py-3 text-left">Permissões</th><th className="px-4 py-3 text-left">Tipo</th><th className="px-4 py-3 text-left">Usuários</th><th className="px-4 py-3 text-right">Ações</th></tr></thead><tbody className="divide-y divide-[#0d1b2e]/5">{roles.map(role => <RoleRow key={role.id} role={role} permissionCount={role.permission_count} userCount={roleCounts[role.id] || 0} onEdit={() => openEdit(role)} />)}</tbody></table></div></AdminCard>
-    {formOpen && <AdminPage open={true} onClose={() => setFormOpen(false)} breadcrumb="Equipes" title={editing ? "Editar função" : "Nova função"} subtitle="Configure os acessos do perfil" maxW="max-w-3xl"><div className="p-5 space-y-5"><Section title="Dados da função"><div className="grid sm:grid-cols-2 gap-4"><FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} /><FInput label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} /><div className="sm:col-span-2"><FToggle label="Função ativa" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div></div></Section><Section title="Permissões"><div className="flex items-center justify-between mb-4"><label className="flex items-center gap-2 text-sm font-bold text-[#0d1b2e]"><Checkbox checked={allSelected} onCheckedChange={() => toggleGroup(permissions)} /> Selecionar todas as permissões</label><span className="text-xs font-bold text-[#5a6a82]">{form.selected.length}/{permissions.length}</span></div><div className="space-y-3">{Object.entries(grouped).map(([moduleName, items]) => { const moduleItems = items as any[]; const selectedCount = moduleItems.filter(item => form.selected.includes(item.id)).length; return <AdminCard key={moduleName} className="p-4 shadow-none"><div className="flex items-center justify-between mb-3"><label className="flex items-center gap-2 text-sm font-black text-[#0d1b2e]"><Checkbox checked={selectedCount === moduleItems.length} onCheckedChange={() => toggleGroup(moduleItems)} /> {moduleName}</label><span className="text-[11px] text-[#5a6a82]">{selectedCount}/{moduleItems.length}</span></div><div className="grid sm:grid-cols-2 gap-2">{moduleItems.map(permission => <label key={permission.id} className="flex items-start gap-2 text-xs text-[#5a6a82]"><Checkbox checked={form.selected.includes(permission.id)} onCheckedChange={() => togglePermission(permission.id)} /><span>{permission.label || permission.description || permission.key}</span></label>)}</div></AdminCard>; })}</div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{hasPermission(editing ? "roles.edit" : "roles.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar Permissões"}</BtnPrimary>}</div></AdminPage>}
+    <AdminCard>
+      {rolesQuery.isPending ? <LoadingState /> : roles.length === 0 ? <EmptyState icon={Users} title="Nenhuma função cadastrada" message="Cadastre uma função para configurar permissões." /> : <>
+        <div className="overflow-x-auto"><table className="min-w-[720px]"><thead><tr><th className="text-left">Função</th><th className="text-left">Descrição</th><th className="text-left">Permissões</th><th className="text-left">Tipo</th><th className="text-left">Usuários</th><th className="text-right">Ações</th></tr></thead><tbody>{pagedRoles.map(role => <RoleRow key={role.id} role={role} permissionCount={role.permission_count} userCount={roleCounts[role.id] || 0} onEdit={() => openEdit(role)} />)}</tbody></table></div>
+        <PaginationBar page={safeRolePage} pageSize={rolePageSize} totalItems={roles.length} onPageChange={setRolePage} onPageSizeChange={(size) => { setRolePageSize(size); setRolePage(1); }} />
+      </>}
+    </AdminCard>
+    {formOpen && <AdminPage open={true} onClose={() => setFormOpen(false)} breadcrumb="Equipes" title={editing ? "Editar função" : "Nova função"} subtitle="Configure os acessos do perfil" maxW="max-w-3xl"><div className="space-y-5 p-4 sm:p-5"><Section title="Dados da função"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} /><FInput label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} /><div className="sm:col-span-2"><FToggle label="Função ativa" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div></div></Section><Section title="Permissões"><div className="mb-4 flex min-w-0 items-center justify-between gap-3"><label className="flex min-w-0 cursor-default items-center gap-2 break-words text-sm font-bold text-[#0d1b2e]"><Checkbox checked={allSelected} onCheckedChange={() => toggleGroup(permissions)} /> Selecionar todas as permissões</label><span className="shrink-0 text-xs font-bold text-[#5a6a82]">{form.selected.length}/{permissions.length}</span></div><div className="space-y-3">{Object.entries(grouped).map(([moduleName, items]) => { const moduleItems = items as any[]; const selectedCount = moduleItems.filter(item => form.selected.includes(item.id)).length; return <AdminCard key={moduleName} className="p-4 shadow-none"><div className="mb-3 flex min-w-0 items-center justify-between gap-3"><label className="flex min-w-0 cursor-default items-center gap-2 break-words text-sm font-black text-[#0d1b2e]"><Checkbox checked={selectedCount === moduleItems.length} onCheckedChange={() => toggleGroup(moduleItems)} /> {moduleName}</label><span className="shrink-0 text-[11px] text-[#5a6a82]">{selectedCount}/{moduleItems.length}</span></div><div className="grid gap-2 sm:grid-cols-2">{moduleItems.map(permission => <label key={permission.id} className="flex min-w-0 cursor-default items-start gap-2 break-words text-xs text-[#5a6a82]"><Checkbox checked={form.selected.includes(permission.id)} onCheckedChange={() => togglePermission(permission.id)} /><span className="min-w-0 break-words">{permission.label || permission.description || permission.key}</span></label>)}</div></AdminCard>; })}</div></Section></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{hasPermission(editing ? "roles.edit" : "roles.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar Permissões"}</BtnPrimary>}</div></AdminPage>}
   </div>;
 }
 
@@ -221,7 +234,7 @@ function RoleRow({ role, permissionCount, userCount, onEdit }: { role: any; perm
   const [count, setCount] = useState(permissionCount);
   const { hasPermission } = useAuth();
   useEffect(() => { if (count != null) return; countRolePermissions(role.id).then(result => setCount(result.count || 0)); }, [role.id, count]);
-  return <tr className="hover:bg-[#f8fafc]/80"><td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{role.name}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{role.description || "—"}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{count ?? "—"}</td><td className="px-4 py-3.5"><StatusBadge status={role.is_system ? "Padrão" : "Personalizado"} /></td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{userCount}</td><td className="px-4 py-3.5 text-right">{hasPermission("roles.edit") && <AdminIconButton ariaLabel={`Editar função ${role.name}`} title="Editar" onClick={onEdit}><Edit2 size={14} /></AdminIconButton>}</td></tr>;
+  return <tr><td className="font-bold text-[#0d1b2e]">{role.name}</td><td className="max-w-sm break-words text-xs leading-relaxed text-[#5a6a82]">{role.description || "—"}</td><td className="text-xs text-[#5a6a82]">{count ?? "—"}</td><td><StatusBadge status={role.is_system ? "Padrão" : "Personalizado"} /></td><td className="text-xs text-[#5a6a82]">{userCount}</td><td className="text-right">{hasPermission("roles.edit") && <AdminIconButton ariaLabel={`Editar função ${role.name}`} title="Editar" onClick={onEdit}><Edit2 size={14} /></AdminIconButton>}</td></tr>;
 }
 
 export function TabEmployees({ onBack }: { onBack: () => void }) {
@@ -245,6 +258,13 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({ full_name: "", cpf: "", phone: "", email: "", password: "", function_name: "Funcionário", role_id: "", is_active: true });
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [employeePage, setEmployeePage] = useState(1);
+  const [employeePageSize, setEmployeePageSize] = useState(10);
+  const employeeTotalPages = Math.max(1, Math.ceil(employees.length / employeePageSize));
+  const safeEmployeePage = Math.min(employeePage, employeeTotalPages);
+  const pagedEmployees = employees.slice((safeEmployeePage - 1) * employeePageSize, safeEmployeePage * employeePageSize);
+  useEffect(() => { if (employeePage > employeeTotalPages) setEmployeePage(employeeTotalPages); }, [employeePage, employeeTotalPages]);
+
   const getEmployeeErrorMessage = (error: unknown) => {
     if (error instanceof Error) return error.message;
     if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
@@ -330,32 +350,33 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
   if (activeArea === "roles" && hasPermission("roles.view")) return <RolePermissionsPanel onBack={() => setActiveArea("users")} />;
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {deleteId && <ConfirmDialog message="Excluir este funcionário? Isso remove o registro do funcionário, sem afetar o fluxo de ativação/desativação do status." onConfirm={() => { void deleteEmployee(deleteId); }} onCancel={() => setDeleteId(null)} />}
       <PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários da empresa" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("employees.create") && <BtnPrimary onClick={openNew}><Plus size={16} /> Novo funcionário</BtnPrimary>}</div>} />
-      <div className="flex gap-1 border-b border-[#0d1b2e]/10"><button type="button" onClick={() => setActiveArea("users")} className={cn("px-4 py-2.5 text-xs font-bold border-b-2", activeArea === "users" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Usuários</button>{hasPermission("roles.view") && <button type="button" onClick={() => setActiveArea("roles")} className="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-[#5a6a82]">Funções e Permissões</button>}</div>
+      <div className="flex gap-1 border-b border-[#0d1b2e]/10"><button type="button" onClick={() => setActiveArea("users")} className={cn("cursor-default border-b-2 px-4 py-2.5 text-xs font-bold", activeArea === "users" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Usuários</button>{hasPermission("roles.view") && <button type="button" onClick={() => setActiveArea("roles")} className="cursor-default border-b-2 border-transparent px-4 py-2.5 text-xs font-bold text-[#5a6a82]">Funções e Permissões</button>}</div>
 
       <AdminCard>
         {employeesQuery.isPending ? <LoadingState /> : employees.length === 0 ? (
           <EmptyState icon={Users} title="Nenhum funcionário cadastrado" message="Cadastre o primeiro funcionário da equipe." onAdd={openNew} addLabel="Novo funcionário" />
-        ) : (
+        ) : <>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[700px]">
-              <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8"><tr><th className="px-4 py-3 text-left">Nome</th><th className="px-4 py-3 text-left">CPF</th><th className="px-4 py-3 text-left">Telefone</th><th className="px-4 py-3 text-left">Função</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-right">Ações</th></tr></thead>
-              <tbody className="divide-y divide-[#0d1b2e]/5">
-                {employees.map(emp => {
+            <table className="min-w-[700px]">
+              <thead><tr><th className="text-left">Nome</th><th className="text-left">CPF</th><th className="text-left">Telefone</th><th className="text-left">Função</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead>
+              <tbody>
+                {pagedEmployees.map(emp => {
                   const active = emp.is_active !== false;
                   const role = Array.isArray(emp.role) ? emp.role[0] : emp.role;
-                  return <tr key={emp.id} onClick={() => openEdit(emp)} className="hover:bg-[#f8fafc]/80 cursor-pointer"><td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{emp.full_name}</td><td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]">{formatCpf(emp.cpf)}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{formatPhone(emp.phone) || "—"}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{role?.name?.trim() || "Função não informada"}</td><td className="px-4 py-3.5"><StatusBadge status={active ? "Ativo" : "Inativo"} /></td><td className="px-4 py-3.5"><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{hasPermission("employees.edit") && <AdminIconButton ariaLabel="Editar funcionário" title="Editar" onClick={() => openEdit(emp)}><Edit2 size={15} /></AdminIconButton>}{hasPermission("employees.edit") && <AdminIconButton ariaLabel={active ? "Desativar funcionário" : "Ativar funcionário"} title={active ? "Desativar" : "Ativar"} onClick={() => toggleActive(emp)}>{active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>}{hasPermission("employees.delete") && <AdminIconButton ariaLabel="Excluir funcionário" title="Excluir funcionário" variant="danger" onClick={() => setDeleteId(emp.id)}><Trash2 size={15} /></AdminIconButton>}</div></td></tr>;
+                  return <tr key={emp.id} onClick={() => openEdit(emp)} className="cursor-default"><td className="font-bold text-[#0d1b2e]">{emp.full_name}</td><td className="font-mono text-xs text-[#5a6a82]">{formatCpf(emp.cpf)}</td><td className="text-xs text-[#5a6a82]">{formatPhone(emp.phone) || "—"}</td><td className="text-xs text-[#5a6a82]">{role?.name?.trim() || "Função não informada"}</td><td><StatusBadge status={active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{hasPermission("employees.edit") && <AdminIconButton ariaLabel="Editar funcionário" title="Editar" onClick={() => openEdit(emp)}><Edit2 size={15} /></AdminIconButton>}{hasPermission("employees.edit") && <AdminIconButton ariaLabel={active ? "Desativar funcionário" : "Ativar funcionário"} title={active ? "Desativar" : "Ativar"} onClick={() => toggleActive(emp)}>{active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>}{hasPermission("employees.delete") && <AdminIconButton ariaLabel="Excluir funcionário" title="Excluir funcionário" variant="danger" onClick={() => setDeleteId(emp.id)}><Trash2 size={15} /></AdminIconButton>}</div></td></tr>;
                 })}
               </tbody>
             </table>
           </div>
-        )}
+          <PaginationBar page={safeEmployeePage} pageSize={employeePageSize} totalItems={employees.length} onPageChange={setEmployeePage} onPageSizeChange={(size) => { setEmployeePageSize(size); setEmployeePage(1); }} />
+        </>}
       </AdminCard>
       <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Equipes" title={editItem ? editItem.full_name : "Novo funcionário"} subtitle={editItem ? "Atualize os dados do funcionário" : "Cadastre um funcionário da empresa"}>
-        <div className="p-5 space-y-5"><Section title="Dados do funcionário"><div className="grid sm:grid-cols-2 gap-4"><FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} /><FInput label="CPF" required value={formatCpf(form.cpf)} onChange={(e: any) => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" /><FInput label="Número / telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />{editItem ? <FInput label="Gmail" type="email" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} placeholder="usuario@gmail.com" /> : <FInput label="E-mail" type="email" required value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} />}{editItem && <PasswordField key={`edit-${editItem.id}-${formOpen}`} label="Nova senha" value={form.password} onChange={value => setForm({ ...form, password: value })} placeholder="Deixe em branco para manter" resetKey={String(formOpen)} />}{!editItem && <PasswordField key={`create-${formOpen}`} label="Senha" required value={form.password} onChange={value => setForm({ ...form, password: value })} resetKey={String(formOpen)} />}<FSelect label="Função" required value={form.role_id} onChange={(e: any) => setForm({ ...form, role_id: e.target.value })} options={[{ value: "", label: "Selecionar função..." }, ...roles.map(role => ({ value: role.id, label: role.name }))]} /><div className="sm:col-span-2"><FToggle label="Funcionário ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section></div><div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? hasPermission("employees.edit") : hasPermission("employees.create")) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : editItem ? "Salvar alterações" : "Salvar funcionário"}</BtnPrimary>}</div>
+        <div className="space-y-5 p-4 sm:p-5"><Section title="Dados do funcionário"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} /><FInput label="CPF" required value={formatCpf(form.cpf)} onChange={(e: any) => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" /><FInput label="Número / telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />{editItem ? <FInput label="Gmail" type="email" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} placeholder="usuario@gmail.com" /> : <FInput label="E-mail" type="email" required value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} />}{editItem && <PasswordField key={`edit-${editItem.id}-${formOpen}`} label="Nova senha" value={form.password} onChange={value => setForm({ ...form, password: value })} placeholder="Deixe em branco para manter" resetKey={String(formOpen)} />}{!editItem && <PasswordField key={`create-${formOpen}`} label="Senha" required value={form.password} onChange={value => setForm({ ...form, password: value })} resetKey={String(formOpen)} />}<FSelect label="Função" required value={form.role_id} onChange={(e: any) => setForm({ ...form, role_id: e.target.value })} options={[{ value: "", label: "Selecionar função..." }, ...roles.map(role => ({ value: role.id, label: role.name }))]} /><div className="sm:col-span-2"><FToggle label="Funcionário ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? hasPermission("employees.edit") : hasPermission("employees.create")) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : editItem ? "Salvar alterações" : "Salvar funcionário"}</BtnPrimary>}</div>
       </AdminPage>
     </div>
   );
