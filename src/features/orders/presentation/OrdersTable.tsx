@@ -2,7 +2,7 @@ import { ClipboardList, Edit2 } from "lucide-react";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { PriorityBadge } from "./OrderFormControls";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 
@@ -55,7 +55,7 @@ export function OrdersTable({
   const safePage = page;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[#0d1b2e]/8 bg-white shadow-sm">
+    <AdminCard>
       {loading ? <LoadingState /> : filtered.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={hasActiveFilters ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
       ) : (
@@ -154,6 +154,6 @@ export function OrdersTable({
         onPageChange={(nextPage) => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))}
         onPageSizeChange={(nextPageSize) => onPageSizeChange(nextPageSize)}
       />
-    </div>
+    </AdminCard>
   );
 }
