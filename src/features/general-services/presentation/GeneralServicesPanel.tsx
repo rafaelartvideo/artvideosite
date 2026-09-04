@@ -29,6 +29,7 @@ import {
   Toast,
 } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FToggle, FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 const formatMoney = (value: number | null) => value == null
   ? "Não informado"
@@ -52,12 +53,19 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     if (!itemsQuery.error) return;
     const message = itemsQuery.error instanceof Error ? itemsQuery.error.message : String(itemsQuery.error);
     setToast({ msg: `Erro ao carregar serviços gerais: ${message}`, type: "error" });
   }, [itemsQuery.error]);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.generalServices.all });
   const openNew = () => {
@@ -128,35 +136,37 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
     }
   };
 
-  return <div className="space-y-5">
+  return <div className="min-w-0 space-y-5">
     <InternalBackButton onBack={onBack} />
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={canCreate ? <AdminButton onClick={openNew} className="text-xs"><Plus size={16} /> Novo serviço</AdminButton> : null} />
     <AdminCard>
-      {loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={canCreate ? openNew : undefined} addLabel="Novo serviço" /> :
-        <div className="overflow-x-auto"><table className="w-full text-sm min-w-[700px]">
-          <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8"><tr>
-            <th className="px-5 py-3 text-left">Serviço</th><th className="px-5 py-3 text-left">Valor</th><th className="px-5 py-3 text-left">Desconto máximo</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Ações</th>
+      {loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={canCreate ? openNew : undefined} addLabel="Novo serviço" /> : <>
+        <div className="overflow-x-auto"><table className="min-w-[700px]">
+          <thead><tr>
+            <th className="text-left">Serviço</th><th className="text-left">Valor</th><th className="text-left">Desconto máximo</th><th className="text-left">Status</th><th className="text-right">Ações</th>
           </tr></thead>
-          <tbody className="divide-y divide-[#0d1b2e]/5">{items.map(item => <tr key={item.id} className="hover:bg-[#f8fafc]">
-            <td className="px-5 py-4 font-bold text-[#0d1b2e]">{item.name}</td>
-            <td className="px-5 py-4 text-[#0d1b2e]">{formatMoney(item.price)}</td>
-            <td className="px-5 py-4 text-[#5a6a82]">{item.max_discount_percentage == null ? "Não informado" : `${Number(item.max_discount_percentage).toLocaleString("pt-BR")}%`}</td>
-            <td className="px-5 py-4"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>
-            <td className="px-5 py-4"><div className="flex justify-end gap-1">{canEdit && <>
+          <tbody>{pagedItems.map(item => <tr key={item.id}>
+            <td className="font-bold text-[#0d1b2e]">{item.name}</td>
+            <td className="text-[#0d1b2e]">{formatMoney(item.price)}</td>
+            <td className="text-[#5a6a82]">{item.max_discount_percentage == null ? "Não informado" : `${Number(item.max_discount_percentage).toLocaleString("pt-BR")}%`}</td>
+            <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>
+            <td><div className="flex justify-end gap-1">{canEdit && <>
               <AdminIconButton ariaLabel="Editar serviço geral" title="Editar" onClick={() => openEdit(item)}><Edit2 size={15} /></AdminIconButton>
               <AdminIconButton ariaLabel={item.is_active ? "Desativar serviço geral" : "Ativar serviço geral"} title={item.is_active ? "Desativar" : "Ativar"} onClick={() => toggle(item)}>{item.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>
             </>}</div></td>
           </tr>)}</tbody>
-        </table></div>}
+        </table></div>
+        <PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
+      </>}
     </AdminCard>
     <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno">
-      <div className="p-5"><Section title="Serviço geral"><div className="grid sm:grid-cols-2 gap-4">
+      <div className="p-4 sm:p-5"><Section title="Serviço geral"><div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /></div>
         <FCurrencyInput label="Valor (R$)" value={price} onChange={(e: any) => setPrice(e.target.value)} placeholder="Ex: 150,00" />
         <FInput label="Desconto máximo (%)" type="number" min="0" max="100" step="0.01" value={maxDiscountPercentage} onChange={(e: any) => setMaxDiscountPercentage(e.target.value)} placeholder="Ex: 10" />
       </div><div className="mt-4"><FToggle label="Serviço ativo" checked={active} onChange={setActive} /></div></Section></div>
-      <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
+      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
     </AdminPage>
   </div>;
 }
