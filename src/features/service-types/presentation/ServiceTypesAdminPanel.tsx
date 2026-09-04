@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle, Edit2, List, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -27,6 +27,7 @@ import {
   Toast,
 } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FTextarea, FToggle, FHoursInput } from "@/shared/ui/admin/AdminFormControls";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
 
@@ -48,12 +49,19 @@ function ServiceTypesAdminPanelContent() {
   const [saving, setSaving] = useState(false);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     if (!configurationQuery.error) return;
     const message = configurationQuery.error instanceof Error ? configurationQuery.error.message : String(configurationQuery.error);
     setToast({ msg: `Erro ao carregar tipos: ${message}`, type: "error" });
   }, [configurationQuery.error]);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedItems = useMemo(() => items.slice((safePage - 1) * pageSize, safePage * pageSize), [items, safePage, pageSize]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.serviceTypes.all });
 
@@ -115,6 +123,16 @@ function ServiceTypesAdminPanelContent() {
     catch (error) { const message = error instanceof Error ? error.message : String(error); setToast({ msg: `Não foi possível excluir: ${message}`, type: "error" }); }
   };
 
+  const slaSummary = (item: any) => {
+    const links = situationLinks.filter(link => link.service_type_id === item.id);
+    const totalHours = links.reduce((total, link) => {
+      const situation = situations.find(current => current.id === link.situation_id);
+      const hours = Number(link.use_default_hours ? situation?.hours : link.sla_hours);
+      return Number.isFinite(hours) && hours > 0 ? total + hours : total;
+    }, 0);
+    return { count: links.length, totalHours };
+  };
+
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -126,74 +144,76 @@ function ServiceTypesAdminPanelContent() {
         {loading ? <LoadingState /> : items.length === 0 ? (
           <EmptyState icon={List} title="Nenhum tipo cadastrado" message="Crie tipos para disponibilizá-los na Nova OS." onAdd={hasPermission("service_types.create") ? openNew : undefined} addLabel="Novo tipo" />
         ) : (
-          <div className="divide-y divide-[#0d1b2e]/5">
-            {items.map(item => (
-              <div key={item.id} className="px-5 py-4 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="font-bold text-[#0d1b2e]">{item.title}</p>
-                  <p className="text-xs text-[#5a6a82] truncate">
-                    {item.description || "Sem descrição"}
-                    {item.forecast_days != null && ` · ${item.forecast_days} dia(s)`}
-                    {(() => {
-                      const links = situationLinks.filter(link => link.service_type_id === item.id);
-                      const totalHours = links.reduce((total, link) => {
-                        const situation = situations.find(current => current.id === link.situation_id);
-                        const hours = Number(link.use_default_hours ? situation?.hours : link.sla_hours);
-                        return Number.isFinite(hours) && hours > 0 ? total + hours : total;
-                      }, 0);
-                      return links.length ? ` · ${links.length} situações · SLA total teórico: ${totalHours} horas` : " · Nenhuma situação configurada";
-                    })()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <StatusBadge status={item.is_active ? "Ativo" : "Inativo"} />
-                  {hasPermission("service_types.edit") && <>
-                    <AdminIconButton ariaLabel="Editar tipo" title="Editar" onClick={() => openEdit(item)}><Edit2 size={14} /></AdminIconButton>
-                    <AdminIconButton ariaLabel={item.is_active ? "Desativar tipo" : "Ativar tipo"} title={item.is_active ? "Desativar" : "Ativar"} onClick={() => toggle(item)}>{item.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</AdminIconButton>
-                  </>}
-                  {hasPermission("service_types.delete") && <AdminIconButton ariaLabel="Excluir tipo" title="Excluir" variant="danger" onClick={() => setDelId(item.id)}><Trash2 size={14} /></AdminIconButton>}
-                </div>
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-[820px]">
+                <thead><tr>
+                  <th className="text-left">Tipo de atendimento</th>
+                  <th className="text-left">Descrição</th>
+                  <th className="text-left">Previsão</th>
+                  <th className="text-left">SLA</th>
+                  <th className="text-left">Status</th>
+                  <th className="text-right">Ações</th>
+                </tr></thead>
+                <tbody>
+                  {pagedItems.map(item => {
+                    const summary = slaSummary(item);
+                    return <tr key={item.id}>
+                      <td><p className="font-bold text-[#0d1b2e]">{item.title}</p></td>
+                      <td><p className="max-w-sm break-words text-xs leading-relaxed text-[#5a6a82]">{item.description || "Sem descrição"}</p></td>
+                      <td className="text-xs text-[#5a6a82]">{item.forecast_days == null ? "Não informada" : `${item.forecast_days} dia(s)`}</td>
+                      <td className="text-xs text-[#5a6a82]">{summary.count ? `${summary.count} situações · ${summary.totalHours}h` : "Não configurado"}</td>
+                      <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>
+                      <td><div className="flex items-center justify-end gap-1">
+                        {hasPermission("service_types.edit") && <>
+                          <AdminIconButton ariaLabel="Editar tipo" title="Editar" onClick={() => openEdit(item)}><Edit2 size={14} /></AdminIconButton>
+                          <AdminIconButton ariaLabel={item.is_active ? "Desativar tipo" : "Ativar tipo"} title={item.is_active ? "Desativar" : "Ativar"} onClick={() => toggle(item)}>{item.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</AdminIconButton>
+                        </>}
+                        {hasPermission("service_types.delete") && <AdminIconButton ariaLabel="Excluir tipo" title="Excluir" variant="danger" onClick={() => setDelId(item.id)}><Trash2 size={14} /></AdminIconButton>}
+                      </div></td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
+          </>
         )}
       </AdminCard>
 
       <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Tipos de Atendimento" title={editItem ? "Editar tipo de atendimento" : "Novo tipo de atendimento"} subtitle="Preencha os dados do tipo" maxW="max-w-xl">
-        <div className="p-5 space-y-4">
-          <FInput label="Título" required value={form.title} onChange={(e: any) => setForm({ ...form, title: e.target.value })} />
-          <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} />
-          <FInput label="Previsão em dias" type="number" min="0" value={form.forecast_days} onChange={(e: any) => setForm({ ...form, forecast_days: e.target.value })} />
-          <div className="space-y-3">
-            <div><p className="text-sm font-bold text-[#0d1b2e]">Situações e SLA</p><p className="mt-1 text-xs text-[#5a6a82]">Selecione as situações permitidas e configure o prazo máximo de cada etapa.</p></div>
-            <div className="columns-1 sm:columns-2 gap-3">
+        <div className="space-y-5 p-5">
+          <AdminCard className="p-5 shadow-none"><div className="grid gap-4 md:grid-cols-2"><FInput label="Título" required value={form.title} onChange={(e: any) => setForm({ ...form, title: e.target.value })} /><FInput label="Previsão em dias" type="number" min="0" value={form.forecast_days} onChange={(e: any) => setForm({ ...form, forecast_days: e.target.value })} /><div className="md:col-span-2"><FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} /></div></div></AdminCard>
+          <AdminCard className="p-5 shadow-none">
+            <div className="mb-4"><p className="text-sm font-bold text-[#0d1b2e]">Situações e SLA</p><p className="mt-1 break-words text-xs leading-relaxed text-[#5a6a82]">Selecione as situações permitidas e configure o prazo máximo de cada etapa.</p></div>
+            <div className="columns-1 gap-3 sm:columns-2">
               {situations.map(situation => {
                 const selected = form.selectedSituations.find(item => item.situation_id === situation.id);
                 const defaultHours = Number(situation.hours);
                 const hasDefaultHours = Number.isFinite(defaultHours) && defaultHours > 0;
                 return <AdminCard key={situation.id} className="mb-3 w-full break-inside-avoid bg-[#f8fafc] p-3 shadow-none">
-                  <label className="flex items-center gap-2 text-sm font-semibold text-[#0d1b2e]">
+                  <label className="flex cursor-default items-center gap-2 text-sm font-semibold text-[#0d1b2e]">
                     <Checkbox checked={Boolean(selected)} onCheckedChange={checked => setForm(current => ({ ...current, selectedSituations: checked === true ? [...current.selectedSituations, { situation_id: situation.id, use_default_hours: hasDefaultHours, sla_hours: "" }] : current.selectedSituations.filter(item => item.situation_id !== situation.id) }))} />
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} />
-                    <span>{situation.name}</span>
+                    <span className="min-w-0 break-words">{situation.name}</span>
                     {hasDefaultHours && <span className="text-xs font-normal text-[#5a6a82]">({defaultHours} horas)</span>}
                   </label>
-                  {!hasDefaultHours && <p className="mt-1 ml-6 text-xs text-amber-700">Esta situação não possui horas padrão</p>}
-                  {selected && <div className="mt-3 ml-6 space-y-2 text-xs text-[#0d1b2e]">
+                  {!hasDefaultHours && <p className="ml-6 mt-1 break-words text-xs text-amber-700">Esta situação não possui horas padrão</p>}
+                  {selected && <div className="ml-6 mt-3 space-y-2 text-xs text-[#0d1b2e]">
                     <p className="font-bold">Horas:</p>
                     <RadioGroup value={selected.use_default_hours ? "default" : "custom"} onValueChange={value => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: value === "default", ...(value === "default" ? { sla_hours: "" } : {}) } : item) }))} className="gap-2">
-                      <label className="flex cursor-pointer items-center gap-2"><RadioGroupItem value="default" disabled={!hasDefaultHours} /> Manter padrão ({situation.hours == null ? "—" : `${situation.hours} horas`})</label>
-                      <label className="flex cursor-pointer items-center gap-2"><RadioGroupItem value="custom" /> Definir novo prazo</label>
+                      <label className="flex cursor-default items-center gap-2"><RadioGroupItem value="default" disabled={!hasDefaultHours} /> Manter padrão ({situation.hours == null ? "—" : `${situation.hours} horas`})</label>
+                      <label className="flex cursor-default items-center gap-2"><RadioGroupItem value="custom" /> Definir novo prazo</label>
                     </RadioGroup>
                     {!selected.use_default_hours && <FHoursInput label="Prazo em horas" placeholder="00:00" value={selected.sla_hours} onChange={(e: any) => setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}
                   </div>}
                 </AdminCard>;
               })}
             </div>
-          </div>
+          </AdminCard>
           <FToggle label="Tipo ativo" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
         </div>
-        <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
           <BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>
           {(editItem ? hasPermission("service_types.edit") : hasPermission("service_types.create")) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}
         </div>
