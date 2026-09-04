@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Check,
   FileText,
   Paperclip,
   Plus,
@@ -14,6 +13,9 @@ import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import {
   AdminButton,
+  AdminCard,
+  AdminCardHeader,
+  AdminCardToolbar,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -142,12 +144,16 @@ export function TabDocuments({
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <button type="button" onClick={() => selectSection("printing")} className={cn("rounded-xl border p-4 text-left shadow-sm transition-all", section === "printing" ? "border-[#0057e7] bg-[#f4f8ff] ring-2 ring-[#0057e7]/10" : "border-[#0d1b2e]/10 bg-white hover:border-[#0057e7]/35")}>
-          <span className="flex items-center justify-between"><span className="flex items-center gap-3"><span className="rounded-lg bg-[#edf3ff] p-2 text-[#0057e7]"><FileText size={18} /></span><span><strong className="block text-sm text-[#0d1b2e]">Impressão</strong><small className="text-xs text-[#5a6a82]">Modelos e campos para impressão</small></span></span><span className="text-xl font-black text-[#0d1b2e]">{templates.length}</span></span>
-        </button>
-        <button type="button" onClick={() => selectSection("attachments")} className={cn("rounded-xl border p-4 text-left shadow-sm transition-all", section === "attachments" ? "border-[#0057e7] bg-[#f4f8ff] ring-2 ring-[#0057e7]/10" : "border-[#0d1b2e]/10 bg-white hover:border-[#0057e7]/35")}>
-          <span className="flex items-center justify-between"><span className="flex items-center gap-3"><span className="rounded-lg bg-[#edf3ff] p-2 text-[#0057e7]"><Paperclip size={18} /></span><span><strong className="block text-sm text-[#0d1b2e]">Anexos</strong><small className="text-xs text-[#5a6a82]">Tipos disponíveis nas OS</small></span></span><span className="text-xl font-black text-[#0d1b2e]">{attachmentTypes.length}</span></span>
-        </button>
+        <AdminCard className={cn("transition-all", section === "printing" ? "border-[#0057e7] bg-[#f4f8ff] ring-2 ring-[#0057e7]/10" : "hover:border-[#0057e7]/35")}>
+          <button type="button" onClick={() => selectSection("printing")} className="w-full p-4 text-left">
+            <span className="flex items-center justify-between"><span className="flex items-center gap-3"><span className="rounded-lg bg-[#edf3ff] p-2 text-[#0057e7]"><FileText size={18} /></span><span><strong className="block text-sm text-[#0d1b2e]">Impressão</strong><small className="text-xs text-[#5a6a82]">Modelos e campos para impressão</small></span></span><span className="text-xl font-black text-[#0d1b2e]">{templates.length}</span></span>
+          </button>
+        </AdminCard>
+        <AdminCard className={cn("transition-all", section === "attachments" ? "border-[#0057e7] bg-[#f4f8ff] ring-2 ring-[#0057e7]/10" : "hover:border-[#0057e7]/35")}>
+          <button type="button" onClick={() => selectSection("attachments")} className="w-full p-4 text-left">
+            <span className="flex items-center justify-between"><span className="flex items-center gap-3"><span className="rounded-lg bg-[#edf3ff] p-2 text-[#0057e7]"><Paperclip size={18} /></span><span><strong className="block text-sm text-[#0d1b2e]">Anexos</strong><small className="text-xs text-[#5a6a82]">Tipos disponíveis nas OS</small></span></span><span className="text-xl font-black text-[#0d1b2e]">{attachmentTypes.length}</span></span>
+          </button>
+        </AdminCard>
       </div>
 
       {section === "printing" ? (
@@ -156,11 +162,11 @@ export function TabDocuments({
             <div><p className="text-[10px] font-black uppercase tracking-widest text-[#0057e7]">Documentos</p><h2 className="text-lg font-black text-[#0d1b2e]">Impressão</h2></div>
             {hasPermission("documents.create") && <BtnPrimary onClick={openNewDocument}><Plus size={16} /> Novo modelo</BtnPrimary>}
           </div>
-          <section className="rounded-xl border border-[#0d1b2e]/10 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-[#0d1b2e]/8 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <AdminCard>
+            <AdminCardToolbar className="sm:justify-between">
               <div><h3 className="font-black text-[#0d1b2e]">Modelos de impressão</h3><p className="text-xs text-[#5a6a82]">Modelos ativos aparecem no menu Imprimir dos detalhes da OS.</p></div>
               <div className="relative w-full sm:w-72"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b98aa]" /><input className={cn(INPUT, "pl-9")} value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar modelo..." /></div>
-            </div>
+            </AdminCardToolbar>
             {errorMessage && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div>}
             {loading ? <div className="p-8"><LoadingState /></div> : filteredTemplates.length === 0 ? <div className="p-8"><EmptyState icon={FileText} title={templates.length ? "Nenhum modelo encontrado" : "Nenhum documento configurado"} message={templates.length ? "Tente alterar a busca." : "Crie o primeiro modelo para configurar suas impressões."} /></div> : <div className="divide-y divide-[#0d1b2e]/7">
               {filteredTemplates.map(template => <div key={template.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -171,7 +177,7 @@ export function TabDocuments({
                 </div>
               </div>)}
             </div>}
-          </section>
+          </AdminCard>
         </>
       ) : (
         <>
@@ -179,8 +185,8 @@ export function TabDocuments({
             <div><p className="text-[10px] font-black uppercase tracking-widest text-[#0057e7]">Documentos</p><h2 className="text-lg font-black text-[#0d1b2e]">Anexos</h2><p className="text-xs text-[#5a6a82]">Cadastre os tipos exibidos no dropdown ao anexar arquivos em uma OS.</p></div>
             {hasPermission("documents.attachment_types.create") && <BtnPrimary onClick={() => openTypeModal()}><Plus size={16} /> Novo tipo</BtnPrimary>}
           </div>
-          <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-sm">
-            <div className="border-b border-[#0d1b2e]/8 px-5 py-4"><h3 className="font-black text-[#0d1b2e]">Tipos de anexo</h3><p className="text-xs text-[#5a6a82]">O cadastro solicita somente o nome.</p></div>
+          <AdminCard>
+            <AdminCardHeader><div><h3 className="font-black text-[#0d1b2e]">Tipos de anexo</h3><p className="text-xs text-[#5a6a82]">O cadastro solicita somente o nome.</p></div></AdminCardHeader>
             {attachmentErrorMessage && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{attachmentErrorMessage}</div>}
             {attachmentTypesLoading ? <div className="p-8"><LoadingState /></div> : attachmentTypes.length === 0 ? <div className="p-8"><EmptyState icon={Tag} title="Nenhum tipo de anexo" message="Cadastre o primeiro tipo para liberar anexos classificados nas ordens de serviço." onAdd={hasPermission("documents.attachment_types.create") ? () => openTypeModal() : undefined} addLabel="Novo tipo" /></div> : <div className="divide-y divide-[#0d1b2e]/7">
               {attachmentTypes.map(type => <div key={type.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
@@ -192,7 +198,7 @@ export function TabDocuments({
                 </div>
               </div>)}
             </div>}
-          </section>
+          </AdminCard>
         </>
       )}
 
