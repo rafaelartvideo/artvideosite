@@ -13,6 +13,7 @@ import {
 } from "../infrastructure/general-services.repository";
 import {
   AdminButton,
+  AdminCard,
   AdminIconButton,
   AdminPage,
   BtnPrimary,
@@ -131,7 +132,7 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
     <InternalBackButton onBack={onBack} />
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={canCreate ? <AdminButton onClick={openNew} className="text-xs"><Plus size={16} /> Novo serviço</AdminButton> : null} />
-    <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+    <AdminCard>
       {loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." onAdd={canCreate ? openNew : undefined} addLabel="Novo serviço" /> :
         <div className="overflow-x-auto"><table className="w-full text-sm min-w-[700px]">
           <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8"><tr>
@@ -148,7 +149,7 @@ function GeneralServicesPanelContent({ onBack }: { onBack: () => void }) {
             </>}</div></td>
           </tr>)}</tbody>
         </table></div>}
-    </div>
+    </AdminCard>
     <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno">
       <div className="p-5"><Section title="Serviço geral"><div className="grid sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2"><FInput label="Nome do serviço" required value={name} onChange={(e: any) => setName(e.target.value)} /></div>
