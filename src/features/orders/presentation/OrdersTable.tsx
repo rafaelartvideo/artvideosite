@@ -53,6 +53,14 @@ export function OrdersTable({
   const openEdit = onEdit;
   const fmtDate = formatDate;
   const safePage = page;
+  const statusOptions = statuses.map(status => ({ value: status.id, label: `Status: ${status.name}` }));
+  const situationOptions = (order: any) => [
+    { value: "", label: "Situação: selecionar" },
+    ...getSituationsForType(order.service_type_id, order.situation_id, order.situation).map(situation => ({
+      value: situation.id,
+      label: `Situação: ${situation.name}`,
+    })),
+  ];
 
   return (
     <AdminCard>
@@ -104,8 +112,8 @@ export function OrdersTable({
 
                 {hasPermission("orders.table.actions") && (
                   <div onClick={(event) => event.stopPropagation()} className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.25rem] items-center gap-1.5 border-t border-[#0d1b2e]/8 pt-3">
-                    {hasPermission("orders.status") ? <div className="min-w-0"><AdminSelect value={o.status_id || ""} onValueChange={(value) => updateOrderStatus(o, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="h-9 min-h-9 min-w-0 px-2 py-1 text-[11px] font-bold" ariaLabel={`Status da OS ${o.os_number || ""}`} /></div> : <span />}
-                    {hasPermission("orders.edit") ? <div className="min-w-0"><AdminSelect value={o.situation_id || ""} onValueChange={(value) => void updateOrderSituation(o, value)} options={[{ value: "", label: "Situação" }, ...getSituationsForType(o.service_type_id, o.situation_id, o.situation).map(situation => ({ value: situation.id, label: situation.name }))]} className="h-9 min-h-9 min-w-0 px-2 py-1 text-[11px] font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div> : <span />}
+                    {hasPermission("orders.status") ? <div className="min-w-0"><AdminSelect value={o.status_id || ""} onValueChange={(value) => updateOrderStatus(o, value)} options={statusOptions} className="h-9 min-h-9 min-w-0 px-2 py-1 text-[10px] font-bold" ariaLabel={`Status da OS ${o.os_number || ""}`} /></div> : <span />}
+                    {hasPermission("orders.edit") ? <div className="min-w-0"><AdminSelect value={o.situation_id || ""} onValueChange={(value) => void updateOrderSituation(o, value)} options={situationOptions(o)} className="h-9 min-h-9 min-w-0 px-2 py-1 text-[10px] font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div> : <span />}
                     {hasPermission("orders.edit") && !o.is_solved ? <AdminButton variant="secondary" size="sm" onClick={(event) => { event.stopPropagation(); void openEdit(o); }} aria-label={`Editar OS ${o.os_number || ""}`} title="Editar" className="h-9 w-9 min-w-0 border-[#0057e7]/30 p-0 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={15} /></AdminButton> : <span />}
                   </div>
                 )}
@@ -139,7 +147,7 @@ export function OrdersTable({
                     {hasPermission("orders.table.scheduled_at") && (<td className="text-xs text-[#5a6a82]">{o.scheduled_at ? fmtDate(o.scheduled_at, true) : "—"}</td>)}
                     {hasPermission("orders.table.status") && (<td><div className="flex flex-wrap items-center gap-1.5"><StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} />{o.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">✓ Concluída</span> : o.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">✓ Solucionada</span>}{o.cannot_be_solved && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></td>)}
                     {hasPermission("orders.table.situation") && (<td>{(o.situation as any)?.name ? <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>)}
-                    {hasPermission("orders.table.actions") && (<td><div className="flex items-center justify-end gap-2">{hasPermission("orders.status") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.status_id || ""} onValueChange={value => updateOrderStatus(o, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Status da OS ${o.os_number || ""}`} /></div>}{hasPermission("orders.edit") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.situation_id || ""} onValueChange={value => void updateOrderSituation(o, value)} options={[{ value: "", label: "Situação" }, ...getSituationsForType(o.service_type_id, o.situation_id, o.situation).map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div>}{hasPermission("orders.edit") && !o.is_solved && <AdminButton variant="secondary" size="sm" onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={14} /> Editar</AdminButton>}</div></td>)}
+                    {hasPermission("orders.table.actions") && (<td><div className="flex items-center justify-end gap-2">{hasPermission("orders.status") && <div onClick={event => event.stopPropagation()} className="w-40"><AdminSelect value={o.status_id || ""} onValueChange={value => updateOrderStatus(o, value)} options={statusOptions} className="min-h-9 py-1.5 text-[11px] font-bold" ariaLabel={`Status da OS ${o.os_number || ""}`} /></div>}{hasPermission("orders.edit") && <div onClick={event => event.stopPropagation()} className="w-40"><AdminSelect value={o.situation_id || ""} onValueChange={value => void updateOrderSituation(o, value)} options={situationOptions(o)} className="min-h-9 py-1.5 text-[11px] font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div>}{hasPermission("orders.edit") && !o.is_solved && <AdminButton variant="secondary" size="sm" onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={14} /> Editar</AdminButton>}</div></td>)}
                   </tr>
                 ))}
               </tbody>
