@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowUpDown,
@@ -21,6 +22,30 @@ import { OrderFilterMultiSelect } from "./OrderFormControls";
 type CityOption = { name: string; state: string };
 type StateOption = { sigla: string; nome: string };
 type OrderSort = "" | "asc" | "desc";
+type MobileFilterKey =
+  | "osNumber"
+  | "externalOs"
+  | "document"
+  | "status"
+  | "situation"
+  | "orderType"
+  | "serviceType"
+  | "states"
+  | "cities"
+  | "period";
+
+const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
+  { value: "osNumber", label: "Número da OS" },
+  { value: "externalOs", label: "OS externa" },
+  { value: "document", label: "CPF ou CNPJ" },
+  { value: "status", label: "Status" },
+  { value: "situation", label: "Situação" },
+  { value: "orderType", label: "Tipo da OS" },
+  { value: "serviceType", label: "Tipo de Atendimento" },
+  { value: "states", label: "Estado" },
+  { value: "cities", label: "Cidade" },
+  { value: "period", label: "Período" },
+];
 
 export function OrdersFilters({
   osNumberSearch,
@@ -97,6 +122,7 @@ export function OrdersFilters({
   onOrderSortChange: (value: OrderSort) => void;
   onClear: () => void;
 }) {
+  const [mobileFilter, setMobileFilter] = useState<MobileFilterKey>("osNumber");
   const filterStatus = statusId;
   const filterSituation = situationId;
   const filterOrderType = orderType;
@@ -106,60 +132,162 @@ export function OrdersFilters({
   const ibgeStatesLoading = statesLoading;
   const cityFiltersLoading = citiesLoading;
   const clearFilters = onClear;
-  const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenar";
+  const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenação padrão";
   const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
+  const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS";
+  const hasActiveFilters = Boolean(
+    osNumberSearch ||
+    externalOsSearch ||
+    documentSearch ||
+    filterStatus ||
+    filterSituation ||
+    filterOrderType ||
+    selectedServiceTypeId ||
+    selectedStates.length > 0 ||
+    selectedCities.length > 0 ||
+    dateFrom ||
+    dateTo
+  );
+
+  const sortMenu = (iconOnly = false) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Ordenação atual: ${orderLabel}`}
+          title={`Ordenação: ${orderLabel}`}
+          className={cn(
+            "inline-flex h-[42px] items-center justify-center rounded-lg border bg-white text-xs font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
+            iconOnly ? "w-[42px] shrink-0 px-0" : "w-full justify-between gap-2 px-3",
+            orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]",
+          )}
+        >
+          <OrderSortIcon size={17} className="text-[#0057e7]" />
+          {!iconOnly && <><span>{orderLabel}</span><ChevronDown size={14} className="text-[#5a6a82]" /></>}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[190px]">
+        {([["", "Ordenação padrão", ArrowUpDown], ["asc", "OS crescente", ArrowUpNarrowWide], ["desc", "OS decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => (
+          <DropdownMenuItem
+            key={value || "default"}
+            onSelect={() => onOrderSortChange(value)}
+            className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}
+          >
+            <Icon size={15} className={orderSort === value ? "text-[#0057e7]" : "text-[#5a6a82]"} />
+            <span>{label}</span>
+            {orderSort === value && <Check size={15} className="ml-auto text-[#0057e7]" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const renderMobileFilter = () => {
+    switch (mobileFilter) {
+      case "osNumber":
+        return <MobileSearchField value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS" ariaLabel="Buscar por número da OS" />;
+      case "externalOs":
+        return <MobileSearchField value={externalOsSearch} onChange={onExternalOsSearchChange} placeholder="Digite a OS externa" ariaLabel="Buscar por OS externa" />;
+      case "document":
+        return <MobileSearchField value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
+      case "status":
+        return <AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />;
+      case "situation":
+        return <AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por situação" />;
+      case "orderType":
+        return <AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo da OS" />;
+      case "serviceType":
+        return <AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo de atendimento" />;
+      case "states":
+        return <div className="min-w-0"><OrderFilterMultiSelect label="Estado" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estado" loading={ibgeStatesLoading} />{selectedStates.length > 0 && <button type="button" onClick={onStatesClear} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-red-600"><Eraser size={13} />Limpar Estados</button>}</div>;
+      case "cities":
+        return <OrderFilterMultiSelect label="Cidade" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione primeiro um Estado" : "Selecionar Cidade"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />;
+      case "period":
+        return <div className="grid grid-cols-2 gap-2">
+          <div className="min-w-0"><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] min-w-0 px-2 py-2 text-xs")} /></div>
+          <div className="min-w-0"><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] min-w-0 px-2 py-2 text-xs")} /></div>
+          {invalidPeriod && <p className="col-span-2 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}
+        </div>;
+    }
+  };
+
   return (
-<div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm p-4 space-y-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 items-start">
+    <div className="rounded-xl border border-[#0d1b2e]/8 bg-white p-4 shadow-sm">
+      <div className="space-y-3 md:hidden">
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Buscar por: ${mobileFilterLabel}`}
+                className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"
+              >
+                <span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span>
+                <ChevronDown size={15} className="shrink-0 text-[#5a6a82]" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[240px]">
+              {mobileFilterOptions.map(option => (
+                <DropdownMenuItem
+                  key={option.value}
+                  onSelect={() => setMobileFilter(option.value)}
+                  className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}
+                >
+                  <Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} />
+                  <span>{option.label}</span>
+                  {mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {sortMenu(true)}
+        </div>
+
+        <div className="min-w-0">{renderMobileFilter()}</div>
+
+        {hasActiveFilters && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onClear}
+              aria-label="Limpar filtros"
+              title="Limpar filtros"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition-colors hover:bg-red-50"
+            >
+              <Eraser size={15} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="hidden space-y-3 md:block">
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <SearchField label="Número da OS" value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS" />
           <SearchField label="OS externa" value={externalOsSearch} onChange={onExternalOsSearchChange} placeholder="Digite a OS externa" />
           <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
-          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Status</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(s => ({ value: s.id, label: s.name }))]} className="text-xs" ariaLabel="Filtrar por status" /></div>
-          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Situação</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(s => ({ value: s.id, label: s.name }))]} className="text-xs" ariaLabel="Filtrar por situação" /></div>
-          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo</label><AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="text-xs" ariaLabel="Filtrar por tipo da OS" /></div>
+          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="text-xs" ariaLabel="Filtrar por status" /></div>
+          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Situação</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="text-xs" ariaLabel="Filtrar por situação" /></div>
+          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo</label><AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="text-xs" ariaLabel="Filtrar por tipo da OS" /></div>
           <div>
             <OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />
             {selectedStates.length > 0 && <AdminButton variant="ghost" size="sm" onClick={onStatesClear} className="mt-1 px-0 py-1 text-[11px] font-semibold text-red-600 hover:bg-transparent hover:text-red-700 hover:underline"><Eraser size={12} />Limpar Estados</AdminButton>}
           </div>
           <OrderFilterMultiSelect label="Cidades" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione ao menos um Estado" : "Selecionar Cidades"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />
-          <div>
-            <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Data inicial</label>
-            <input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Data final</label>
-            <input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />
-            {invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}
-          </div>
-            <div className="space-y-1.5"><label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>
-          <div className="min-w-0 space-y-1.5">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Ordenação</label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button type="button" aria-label={`Ordenação atual: ${orderLabel}`} title={`Ordenação atual: ${orderLabel}`} className={cn("inline-flex h-[42px] w-full items-center justify-between gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-xs font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40", orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]")}>
-                  <OrderSortIcon size={15} className="text-[#0057e7]" />
-                  <span className="hidden sm:inline">{orderLabel}</span>
-                  <span className="sm:hidden">Ordenar</span>
-                  <ChevronDown size={14} className="text-[#5a6a82]" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[190px]">
-                {([["", "Ordenação padrão", ArrowUpDown], ["asc", "OS crescente", ArrowUpNarrowWide], ["desc", "OS decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => onOrderSortChange(value)} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}>
-                  <Icon size={15} className={orderSort === value ? "text-[#0057e7]" : "text-[#5a6a82]"} />
-                  <span>{label}</span>
-                  {orderSort === value && <Check size={15} className="ml-auto text-[#0057e7]" />}
-                </DropdownMenuItem>)}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} /></div>
+          <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />{invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>
+          <div className="space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>
+          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Ordenação</label>{sortMenu(false)}</div>
         </div>
-        <div className="flex justify-end">
-          {(osNumberSearch || externalOsSearch || documentSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo) && <AdminButton variant="danger" size="sm" onClick={onClear} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} />Limpar filtros</AdminButton>}
-        </div>
+        {hasActiveFilters && <div className="flex justify-end"><AdminButton variant="danger" size="sm" onClick={clearFilters} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} />Limpar filtros</AdminButton></div>}
       </div>
+    </div>
   );
 }
 
 function SearchField({ label, value, onChange, placeholder, inputMode }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; inputMode?: "numeric" }) {
-  return <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label><div className="relative overflow-hidden rounded-lg"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pl-9 py-2 text-xs")} /></div></div>;
+  return <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label><div className="relative overflow-hidden rounded-lg"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap py-2 pl-9 text-xs")} /></div></div>;
+}
+
+function MobileSearchField({ value, onChange, placeholder, ariaLabel, inputMode }: { value: string; onChange: (value: string) => void; placeholder: string; ariaLabel: string; inputMode?: "numeric" }) {
+  return <div className="relative min-w-0 overflow-hidden rounded-lg"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input inputMode={inputMode} aria-label={ariaLabel} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] min-w-0 w-full overflow-hidden text-ellipsis whitespace-nowrap py-2 pl-9 text-sm")} /></div>;
 }
