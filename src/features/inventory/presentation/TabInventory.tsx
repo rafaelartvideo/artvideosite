@@ -39,6 +39,7 @@ import {
   FToggle,
   FCurrencyInput,
 } from "@/shared/ui/admin/AdminFormControls";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function TabInventory({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();
@@ -61,12 +62,19 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
   const [history, setHistory] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [movementForm, setMovementForm] = useState({ type: "in", quantity: "", reason: "", service_order_id: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     if (!itemsQuery.error) return;
     const message = itemsQuery.error instanceof Error ? itemsQuery.error.message : String(itemsQuery.error);
     setToast({ msg: `Erro ao carregar estoque: ${message}`, type: "error" });
   }, [itemsQuery.error]);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const refreshInventory = () => queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
 
@@ -243,7 +251,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <PageHeader title="Estoque" subtitle="Controle de itens, quantidade mínima e movimentações do almoxarifado" actions={
         <div className="flex items-center gap-2">
@@ -255,47 +263,45 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       <AdminCard>
         {itemsQuery.isPending ? <LoadingState /> : items.length === 0 ? (
           <EmptyState icon={Package} title="Nenhum item em estoque" message="Cadastre um item para começar a controlar o inventário." />
-        ) : (
+        ) : <>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[980px]">
-              <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
-                <tr>
-                  <th className="px-4 py-3 text-left">Nome</th>
-                  <th className="px-4 py-3 text-left">SKU</th>
-                  <th className="px-4 py-3 text-left">Unidade</th>
-                  <th className="px-4 py-3 text-left">Quantidade</th>
-                  <th className="px-4 py-3 text-left">Mínimo</th>
-                  <th className="px-4 py-3 text-left">Compra</th>
-                  <th className="px-4 py-3 text-left">Venda</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#0d1b2e]/5">
-                {items.map((item: any) => {
+            <table className="min-w-[980px]">
+              <thead><tr>
+                <th className="text-left">Nome</th>
+                <th className="text-left">SKU</th>
+                <th className="text-left">Unidade</th>
+                <th className="text-left">Quantidade</th>
+                <th className="text-left">Mínimo</th>
+                <th className="text-left">Compra</th>
+                <th className="text-left">Venda</th>
+                <th className="text-left">Status</th>
+                <th className="text-right">Ações</th>
+              </tr></thead>
+              <tbody>
+                {pagedItems.map((item: any) => {
                   const quantity = Number(item.quantity ?? 0);
                   const minQuantity = Number(item.min_quantity ?? 0);
                   const lowStock = quantity <= minQuantity;
                   const isEmpty = quantity === 0;
                   return (
-                    <tr key={item.id} className="hover:bg-[#f8fafc]/80">
-                      <td className="px-4 py-3.5">
+                    <tr key={item.id}>
+                      <td>
                         <div className="font-semibold text-[#0d1b2e]">{item.name}</div>
-                        {item.description && <div className="text-[11px] text-[#5a6a82]">{item.description}</div>}
+                        {item.description && <div className="max-w-sm break-words text-[11px] leading-relaxed text-[#5a6a82]">{item.description}</div>}
                       </td>
-                      <td className="px-4 py-3.5 text-xs font-mono text-[#5a6a82]">{item.sku || "—"}</td>
-                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{item.unit || "un"}</td>
-                      <td className="px-4 py-3.5">
-                        <span className={cn("font-bold text-sm", isEmpty ? "text-red-700" : lowStock ? "text-amber-700" : "text-[#0d1b2e]")}>{quantity}</span>
-                        {isEmpty && <span className="ml-2 text-[10px] uppercase font-bold text-red-700">Sem estoque</span>}
-                        {!isEmpty && lowStock && <span className="ml-2 text-[10px] uppercase font-bold text-amber-700">Baixo</span>}
+                      <td className="font-mono text-xs text-[#5a6a82]">{item.sku || "—"}</td>
+                      <td className="text-xs text-[#5a6a82]">{item.unit || "un"}</td>
+                      <td>
+                        <span className={cn("text-sm font-bold", isEmpty ? "text-red-700" : lowStock ? "text-amber-700" : "text-[#0d1b2e]")}>{quantity}</span>
+                        {isEmpty && <span className="ml-2 text-[10px] font-bold uppercase text-red-700">Sem estoque</span>}
+                        {!isEmpty && lowStock && <span className="ml-2 text-[10px] font-bold uppercase text-amber-700">Baixo</span>}
                       </td>
-                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{minQuantity}</td>
-                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{formatCurrency(item.purchase_price)}</td>
-                      <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{formatCurrency(item.sale_price)}</td>
-                      <td className="px-4 py-3.5"><span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", item.is_active !== false ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active !== false ? "Ativo" : "Inativo"}</span></td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex justify-end gap-2">
+                      <td className="text-xs text-[#5a6a82]">{minQuantity}</td>
+                      <td className="text-xs text-[#5a6a82]">{formatCurrency(item.purchase_price)}</td>
+                      <td className="text-xs text-[#5a6a82]">{formatCurrency(item.sale_price)}</td>
+                      <td><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", item.is_active !== false ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active !== false ? "Ativo" : "Inativo"}</span></td>
+                      <td>
+                        <div className="flex justify-end gap-1">
                           {canEditInventory && <AdminIconButton ariaLabel="Editar item" title="Editar" onClick={() => openEdit(item)}><Edit2 size={14} /></AdminIconButton>}
                           {canEditInventory && <AdminIconButton ariaLabel={item.is_active !== false ? "Desativar item" : "Ativar item"} title={item.is_active !== false ? "Desativar" : "Ativar"} onClick={() => toggleActive(item)}>{item.is_active !== false ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</AdminIconButton>}
                           {canDeleteInventory && <AdminIconButton ariaLabel="Excluir item" title="Excluir" variant="danger" onClick={() => void deleteItem(item)}><Trash2 size={14} /></AdminIconButton>}
@@ -309,25 +315,26 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
               </tbody>
             </table>
           </div>
-        )}
+          <PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
+        </>}
       </AdminCard>
 
       {recordOpen && (
         <AdminPage open={true} onClose={() => setRecordOpen(false)} breadcrumb="Operação > Estoque" title={selectedItem ? "Editar item" : "Novo item"} subtitle="Cadastro do item em estoque" maxW="max-w-xl">
-          <div className="p-5 space-y-4">
+          <div className="space-y-4 p-4 sm:p-5">
             <FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
             <FInput label="SKU" value={form.sku} onChange={(e: any) => setForm({ ...form, sku: e.target.value })} />
             <FInput label="Unidade" value={form.unit} onChange={(e: any) => setForm({ ...form, unit: e.target.value })} />
             <FInput label="Quantidade" type="number" min="0" value={form.quantity} onChange={(e: any) => setForm({ ...form, quantity: e.target.value })} />
             <FInput label="Quantidade mínima" type="number" min="0" value={form.min_quantity} onChange={(e: any) => setForm({ ...form, min_quantity: e.target.value })} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FCurrencyInput label="Valor de compra" value={form.purchase_price} onChange={(e: any) => setForm({ ...form, purchase_price: e.target.value })} />
               <FCurrencyInput label="Valor de venda" value={form.sale_price} onChange={(e: any) => setForm({ ...form, sale_price: e.target.value })} />
             </div>
             <FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} />
             <FToggle label="Item ativo" checked={form.is_active} onChange={(value) => setForm({ ...form, is_active: value })} />
           </div>
-          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+          <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
             <BtnSecondary onClick={() => setRecordOpen(false)}>Cancelar</BtnSecondary>
             {(selectedItem ? canEditInventory : canCreateInventory) && <BtnPrimary onClick={saveItem}>{selectedItem ? "Salvar" : "Cadastrar"}</BtnPrimary>}
           </div>
@@ -336,20 +343,20 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
 
       {selectedItem && !recordOpen && (
         <AdminPage open={true} onClose={() => setSelectedItem(null)} breadcrumb="Operação > Estoque" title={`Movimentação — ${selectedItem.name}`} subtitle="Entrada, saída e ajuste de quantidade" maxW="max-w-xl">
-          <div className="p-5 space-y-4">
-            <div className="grid sm:grid-cols-2 gap-3 text-sm">
-              <AdminCard className="bg-[#f8fafc] p-3 shadow-none"><p className="text-[10px] uppercase text-[#5a6a82] font-bold">Quantidade atual</p><p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.quantity ?? 0)}</p></AdminCard>
-              <AdminCard className="bg-[#f8fafc] p-3 shadow-none"><p className="text-[10px] uppercase text-[#5a6a82] font-bold">Mínimo</p><p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.min_quantity ?? 0)}</p></AdminCard>
+          <div className="space-y-4 p-4 sm:p-5">
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <AdminCard className="bg-[#f8fafc] p-4 shadow-none"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade atual</p><p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.quantity ?? 0)}</p></AdminCard>
+              <AdminCard className="bg-[#f8fafc] p-4 shadow-none"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Mínimo</p><p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.min_quantity ?? 0)}</p></AdminCard>
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Tipo</label>
+            <div className="min-w-0">
+              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo</label>
               <AdminSelect value={movementForm.type} onValueChange={type => setMovementForm({ ...movementForm, type })} options={[{ value: "in", label: "Entrada" }, { value: "out", label: "Saída" }, { value: "adjust", label: "Ajuste" }]} className="text-xs" ariaLabel="Tipo de movimentação" />
             </div>
             <FInput label="Quantidade" type="number" min="1" value={movementForm.quantity} onChange={(e: any) => setMovementForm({ ...movementForm, quantity: e.target.value })} />
             <FInput label="Motivo" value={movementForm.reason} onChange={(e: any) => setMovementForm({ ...movementForm, reason: e.target.value })} />
             <FInput label="OS relacionada (opcional)" value={movementForm.service_order_id} onChange={(e: any) => setMovementForm({ ...movementForm, service_order_id: e.target.value })} />
           </div>
-          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+          <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
             <BtnSecondary onClick={() => setSelectedItem(null)}>Cancelar</BtnSecondary>
             {canEditInventory && <BtnPrimary onClick={saveMovement}>Registrar</BtnPrimary>}
           </div>
@@ -358,19 +365,19 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
 
       {historyOpen && selectedItem && (
         <AdminPage open={true} onClose={() => { setHistoryOpen(false); setSelectedItem(null); }} breadcrumb="Operação > Estoque" title={`Histórico — ${selectedItem.name}`} subtitle="Movimentações do item" maxW="max-w-2xl">
-          <div className="p-5">
+          <div className="p-4 sm:p-5">
             {history.length === 0 ? (
               <p className="text-sm text-[#5a6a82]">Nenhuma movimentação registrada para este item.</p>
             ) : (
               <div className="space-y-3">
                 {history.map((entry: any) => (
-                  <AdminCard key={entry.id} className="bg-[#f8fafc] p-3 shadow-none">
+                  <AdminCard key={entry.id} className="bg-[#f8fafc] p-4 shadow-none">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs font-bold uppercase text-[#5a6a82]">{entry.movement_type}</span>
                       <span className={cn("text-xs font-bold", String(entry.movement_type).toUpperCase() === "OUT" ? "text-red-600" : String(entry.movement_type).toUpperCase() === "IN" ? "text-green-600" : "text-amber-600")}>{String(entry.movement_type).toUpperCase() === "OUT" ? "-" : String(entry.movement_type).toUpperCase() === "IN" ? "+" : "~"}{Number(entry.quantity || 0)}</span>
                     </div>
-                    <div className="mt-2 text-sm text-[#0d1b2e]">{entry.reason || "Movimentação manual"}</div>
-                    <div className="mt-2 grid sm:grid-cols-2 gap-2 text-[11px] text-[#5a6a82]">
+                    <div className="mt-2 break-words text-sm text-[#0d1b2e]">{entry.reason || "Movimentação manual"}</div>
+                    <div className="mt-2 grid gap-2 text-[11px] text-[#5a6a82] sm:grid-cols-2">
                       <div><span className="font-bold">Data:</span> {entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : "—"}</div>
                       <div><span className="font-bold">Usuário:</span> {entry.created_by_profile?.full_name || "—"}</div>
                       <div><span className="font-bold">OS:</span> {entry.service_order?.os_number || "—"}</div>
