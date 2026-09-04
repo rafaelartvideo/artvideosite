@@ -17,6 +17,8 @@ import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { initialOrderStatus } from "@/features/orders/domain/order-status";
 import {
   AdminButton,
+  AdminCard,
+  AdminCardToolbar,
   AdminIconButton,
   AdminPage,
   BtnSecondary,
@@ -27,7 +29,6 @@ import {
   cn,
   formatCnpj,
   formatCpf,
-  formatFoundationDate,
   formatPhone,
 } from "@/shared/domain/formatters";
 import {
@@ -147,14 +148,14 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
         </AdminButton>
       } />
 
-      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#0d1b2e]/8 flex flex-col sm:flex-row gap-3">
+      <AdminCard>
+        <AdminCardToolbar>
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por cliente, CPF, protocolo..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
           <div className="sm:w-48"><AdminSelect value={filterStatus} onValueChange={value => { setFilterStatus(value); setPage(1); }} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="min-h-9 py-2 text-xs" ariaLabel="Filtrar orçamentos por status" /></div>
-        </div>
+        </AdminCardToolbar>
 
         {quotesQuery.isPending ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState icon={FileText} title="Nenhuma solicitação" message="As solicitações de orçamento aparecem aqui." />
@@ -194,7 +195,7 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
                     <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{fmtDate(q.created_at)}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => setDetail(q)} className="flex items-center gap-1 text-xs font-bold text-[#0057e7] hover:underline ml-auto">Ver detalhes</button>
+                        <AdminButton variant="ghost" size="sm" onClick={() => setDetail(q)} className="ml-auto px-0 py-1 hover:bg-transparent hover:underline">Ver detalhes</AdminButton>
                         {hasPermission("quotes.delete") && (
                           <AdminIconButton ariaLabel="Excluir orçamento" title="Excluir orçamento" variant="danger" onClick={(event: any) => { event.stopPropagation(); setDeleteId(q.id); }} className="h-7 w-7">
                             <Trash2 size={14} />
@@ -215,56 +216,55 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
           onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
           onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
         />
-      </div>
+      </AdminCard>
 
-      {/* Quote Detail Page */}
       {detail && (
         <AdminPage open={true} onClose={() => setDetail(null)} breadcrumb={`Orçamentos > ${detail.protocol || detail.id.slice(0, 8)}`} title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} subtitle="Detalhes da solicitação de orçamento">
-            <div className="space-y-4">
-              <Section title="Dados pessoais / empresariais">
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <InfoRow label="Tipo" value={(detail.customer as any)?.customer_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} />
-                  {(detail.customer as any)?.customer_type === "PJ" ? <>
-                    <InfoRow label="Nome fantasia" value={(detail.customer as any)?.trade_name || (detail.customer as any)?.full_name} />
-                    <InfoRow label="Razão social" value={(detail.customer as any)?.legal_name} />
-                    <InfoRow label="CNPJ" value={(detail.customer as any)?.cnpj ? formatCnpj((detail.customer as any).cnpj) : null} />
-                    <InfoRow label="Inscrição estadual" value={(detail.customer as any)?.state_registration} />
-                    <InfoRow label="Data de fundação" value={(detail.customer as any)?.foundation_date ? new Date((detail.customer as any).foundation_date).toLocaleDateString("pt-BR") : null} />
-                  </> : <InfoRow label="Nome completo" value={(detail.customer as any)?.full_name} />}
-                  {(detail.customer as any)?.customer_type !== "PJ" && <InfoRow label="CPF" value={(detail.customer as any)?.document ? formatCpf((detail.customer as any).document) : null} />}
-                  <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
-                  <InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)} />
-                  <InfoRow label="WhatsApp" value={formatPhone((detail.customer as any)?.whatsapp)} />
-                </div>
-              </Section>
-              <Section title="Endereço">
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state", "reference"] as const).map(key => {
-                    const address = ((detail.customer as any)?.addresses || []).find((item: Address) => item.is_default) || (detail.customer as any)?.addresses?.[0];
-                    const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado", reference: "Referência" };
-                    return address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null;
-                  })}
-                </div>
-              </Section>
-              <Section title="Dados do orçamento">
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <InfoRow label="Protocolo" value={detail.protocol || detail.id} />
-                  <InfoRow label="Serviço" value={(detail.service as any)?.title} />
-                  <InfoRow label="Marca" value={(detail.brand as any)?.name} />
-                  <InfoRow label="Produto" value={(detail.product as any)?.name} />
-                  <InfoRow label="Data de criação" value={fmtDate(detail.created_at)} />
-                  <InfoRow label="Atualizado em" value={fmtDate(detail.updated_at)} />
-                  <InfoRow label="Valor estimado" value={detail.estimated_price == null ? null : `R$ ${Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
-                  <InfoRow label="Valor final" value={detail.final_price == null ? null : `R$ ${Number(detail.final_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
-                </div>
-                {detail.customer_message && <div className="mt-4"><InfoRow label="Mensagem do cliente" value={detail.customer_message} /></div>}
-              </Section>
-            </div>
-            <div className="sticky bottom-0 -mx-5 mt-5 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <div className="min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}
-                {hasPermission("quotes.delete") && <AdminButton variant="danger" onClick={() => setDeleteId(detail.id)}><Trash2 size={13} /> Excluir</AdminButton>}
-                {hasPermission("quotes.convert") && <button onClick={async () => {
+          <div className="space-y-4">
+            <Section title="Dados pessoais / empresariais">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <InfoRow label="Tipo" value={(detail.customer as any)?.customer_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} />
+                {(detail.customer as any)?.customer_type === "PJ" ? <>
+                  <InfoRow label="Nome fantasia" value={(detail.customer as any)?.trade_name || (detail.customer as any)?.full_name} />
+                  <InfoRow label="Razão social" value={(detail.customer as any)?.legal_name} />
+                  <InfoRow label="CNPJ" value={(detail.customer as any)?.cnpj ? formatCnpj((detail.customer as any).cnpj) : null} />
+                  <InfoRow label="Inscrição estadual" value={(detail.customer as any)?.state_registration} />
+                  <InfoRow label="Data de fundação" value={(detail.customer as any)?.foundation_date ? new Date((detail.customer as any).foundation_date).toLocaleDateString("pt-BR") : null} />
+                </> : <InfoRow label="Nome completo" value={(detail.customer as any)?.full_name} />}
+                {(detail.customer as any)?.customer_type !== "PJ" && <InfoRow label="CPF" value={(detail.customer as any)?.document ? formatCpf((detail.customer as any).document) : null} />}
+                <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
+                <InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)} />
+                <InfoRow label="WhatsApp" value={formatPhone((detail.customer as any)?.whatsapp)} />
+              </div>
+            </Section>
+            <Section title="Endereço">
+              <div className="grid sm:grid-cols-2 gap-3">
+                {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state", "reference"] as const).map(key => {
+                  const address = ((detail.customer as any)?.addresses || []).find((item: any) => item.is_default) || (detail.customer as any)?.addresses?.[0];
+                  const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado", reference: "Referência" };
+                  return address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null;
+                })}
+              </div>
+            </Section>
+            <Section title="Dados do orçamento">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <InfoRow label="Protocolo" value={detail.protocol || detail.id} />
+                <InfoRow label="Serviço" value={(detail.service as any)?.title} />
+                <InfoRow label="Marca" value={(detail.brand as any)?.name} />
+                <InfoRow label="Produto" value={(detail.product as any)?.name} />
+                <InfoRow label="Data de criação" value={fmtDate(detail.created_at)} />
+                <InfoRow label="Atualizado em" value={fmtDate(detail.updated_at)} />
+                <InfoRow label="Valor estimado" value={detail.estimated_price == null ? null : `R$ ${Number(detail.estimated_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                <InfoRow label="Valor final" value={detail.final_price == null ? null : `R$ ${Number(detail.final_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+              </div>
+              {detail.customer_message && <div className="mt-4"><InfoRow label="Mensagem do cliente" value={detail.customer_message} /></div>}
+            </Section>
+          </div>
+          <div className="sticky bottom-0 -mx-5 mt-5 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {(hasPermission("quotes.update") || hasPermission("quotes.edit")) && <div className="min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}
+              {hasPermission("quotes.delete") && <AdminButton variant="danger" onClick={() => setDeleteId(detail.id)}><Trash2 size={13} /> Excluir</AdminButton>}
+              {hasPermission("quotes.convert") && <AdminButton onClick={async () => {
                 if (!detail) return;
                 if (!hasPermission("quotes.convert")) { setToast({ msg: "Você não possui permissão para converter orçamentos.", type: "error" }); return; }
                 const { data: existing } = await findServiceOrderByQuote(detail.id);
@@ -281,12 +281,10 @@ export function TabQuotes({ onNavigate }: { onNavigate?: (tab: AdminTab) => void
                 setDetail(null);
                 setToast({ msg: "OS criada com sucesso e vinculada ao orçamento.", type: "success" });
                 if (onNavigate) setTimeout(() => onNavigate("orders"), 1200);
-                }} className="flex items-center gap-2 whitespace-nowrap bg-[#0057e7] text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-[#0046c0] transition-colors">
-                  <ClipboardList size={13} /> Converter em OS
-                </button>}
-              </div>
-              <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
+              }}><ClipboardList size={13} /> Converter em OS</AdminButton>}
             </div>
+            <BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary>
+          </div>
         </AdminPage>
       )}
     </div>
