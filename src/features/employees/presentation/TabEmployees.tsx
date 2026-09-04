@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle, Edit2, Eye, EyeOff, Plus, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -59,6 +59,16 @@ function PasswordField({ label, value, onChange, required = false, placeholder, 
         {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
       </button>
     </div>
+  </div>;
+}
+
+function EmployeesAreaHeader({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
+  return <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="min-w-0">
+      <h2 className="break-words text-lg font-black text-[#0d1b2e]">{title}</h2>
+      <p className="mt-1 max-w-3xl break-words text-xs leading-relaxed text-[#5a6a82]">{description}</p>
+    </div>
+    {action && <div className="shrink-0">{action}</div>}
   </div>;
 }
 
@@ -219,14 +229,11 @@ function RolePermissionsPanel() {
 
   return <div className="min-w-0 space-y-4">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#0057e7]">Equipes</p>
-        <h2 className="text-lg font-black text-[#0d1b2e]">Funções e Permissões</h2>
-        <p className="mt-1 max-w-3xl break-words text-xs leading-relaxed text-[#5a6a82]">Defina os acessos disponíveis para cada perfil sem sair do módulo de equipes.</p>
-      </div>
-      {hasPermission("roles.create") && <BtnPrimary onClick={openNew}><Plus size={15} /> Nova função</BtnPrimary>}
-    </div>
+    <EmployeesAreaHeader
+      title="Funções e Permissões"
+      description="Defina os acessos disponíveis para cada perfil"
+      action={hasPermission("roles.create") ? <BtnPrimary onClick={openNew}><Plus size={15} /> Nova função</BtnPrimary> : undefined}
+    />
     <AdminCard>
       {rolesQuery.isPending ? <LoadingState /> : roles.length === 0 ? <EmptyState icon={Users} title="Nenhuma função cadastrada" message="Cadastre uma função para configurar permissões." /> : <>
         <div className="overflow-x-auto"><table className="min-w-[720px]"><thead><tr><th className="text-left">Função</th><th className="text-left">Descrição</th><th className="text-left">Permissões</th><th className="text-left">Tipo</th><th className="text-left">Usuários</th><th className="text-right">Ações</th></tr></thead><tbody>{pagedRoles.map(role => <RoleRow key={role.id} role={role} permissionCount={role.permission_count} userCount={roleCounts[role.id] || 0} onEdit={() => openEdit(role)} />)}</tbody></table></div>
@@ -358,13 +365,18 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
     <div className="min-w-0 space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {deleteId && <ConfirmDialog message="Excluir este funcionário? Isso remove o registro do funcionário, sem afetar o fluxo de ativação/desativação do status." onConfirm={() => { void deleteEmployee(deleteId); }} onCancel={() => setDeleteId(null)} />}
-      <PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários e funções da empresa" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{activeArea === "users" && hasPermission("employees.create") && <BtnPrimary onClick={openNew}><Plus size={16} /> Novo funcionário</BtnPrimary>}</div>} />
+      <PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários e funções da empresa" actions={<InternalBackButton onBack={onBack} />} />
       <div className="flex gap-1 border-b border-[#0d1b2e]/10">
         <button type="button" onClick={() => setActiveArea("users")} className={cn("cursor-default border-b-2 px-4 py-2.5 text-xs font-bold transition-colors", activeArea === "users" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Usuários</button>
         {hasPermission("roles.view") && <button type="button" onClick={() => setActiveArea("roles")} className={cn("cursor-default border-b-2 px-4 py-2.5 text-xs font-bold transition-colors", activeArea === "roles" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Funções e Permissões</button>}
       </div>
 
       {activeArea === "roles" && hasPermission("roles.view") ? <RolePermissionsPanel /> : <>
+        <EmployeesAreaHeader
+          title="Usuários"
+          description="Cadastre e gerencie os funcionários da empresa."
+          action={hasPermission("employees.create") ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo funcionário</BtnPrimary> : undefined}
+        />
         <AdminCard>
           {employeesQuery.isPending ? <LoadingState /> : employees.length === 0 ? (
             <EmptyState icon={Users} title="Nenhum funcionário cadastrado" message="Cadastre o primeiro funcionário da equipe." onAdd={openNew} addLabel="Novo funcionário" />
