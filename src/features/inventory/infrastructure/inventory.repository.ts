@@ -43,14 +43,40 @@ export async function deleteInventoryItem(itemId: string): Promise<void> {
 }
 
 export async function listInventoryMovements(itemId: string) {
-  const { data, error } = await supabase
-    .from("inventory_movements")
-    .select("*, created_by_profile:profiles(full_name), service_order:service_orders(os_number)")
-    .eq("inventory_item_id", itemId)
-    .order("created_at", { ascending: false });
+  const [movementsResult, usedItemsResult] = await Promise.all([
+    supabase
+      .from("inventory_movements")
+      .select("*, created_by_profile:profiles(full_name), service_order:service_orders(os_number)")
+      .eq("inventory_item_id", itemId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("service_order_used_items")
+      .select("id,inventory_item_id,service_order_id,quantity,created_by,created_at,created_by_profile:profiles(full_name),service_order:service_orders(os_number)")
+      .eq("inventory_item_id", itemId)
+      .order("created_at", { ascending: false }),
+  ]);
 
-  if (error) throw error;
-  return data ?? [];
+  if (movementsResult.error) throw movementsResult.error;
+  if (usedItemsResult.error) throw usedItemsResult.error;
+
+  const physicalMovements = movementsResult.data ?? [];
+  const resolutionUsage = (usedItemsResult.data ?? []).map((item: any) => ({
+    id: `resolution-use-${item.id}`,
+    inventory_item_id: item.inventory_item_id,
+    service_order_id: item.service_order_id,
+    movement_type: "USE",
+    quantity: item.quantity,
+    reason: "Uso da peça na resolução da OS (sem nova movimentação de saldo)",
+    created_by: item.created_by,
+    created_at: item.created_at,
+    created_by_profile: item.created_by_profile,
+    service_order: item.service_order,
+    is_resolution_usage: true,
+  }));
+
+  return [...physicalMovements, ...resolutionUsage].sort((a: any, b: any) =>
+    new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+  );
 }
 
 export async function getInventoryItem(itemId: string) {
