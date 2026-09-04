@@ -27,14 +27,14 @@ export function SidebarItem({ item, active, onClick }: SidebarItemProps) {
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all text-left",
+        "flex w-full min-w-0 cursor-default items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-all",
         active
           ? "bg-[#0057e7] text-white shadow-lg shadow-[#0057e7]/25"
           : "text-white/60 hover:bg-white/8 hover:text-white",
       )}
     >
-      <Icon size={16} className="flex-shrink-0" />
-      <span>{item.label}</span>
+      <Icon size={16} className="shrink-0" />
+      <span className="min-w-0 truncate">{item.label}</span>
     </button>
   );
 }
@@ -53,32 +53,31 @@ export function AdminHubPage({
   onSelect,
 }: AdminHubPageProps) {
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <PageHeader title={title} subtitle={description} />
-      <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => {
           const Icon = item.icon;
 
           return (
-            <AdminCard key={item.id} className="group transition-all hover:border-[#0057e7]/40 hover:shadow-md">
+            <AdminCard key={item.id} className="group min-w-0 transition-all hover:border-[#0057e7]/40 hover:shadow-md">
               <AdminButton
                 variant="ghost"
                 type="button"
                 onClick={() => onSelect(item.id, item.label)}
-                className="h-auto w-full flex-col items-stretch whitespace-normal rounded-none p-5 text-left hover:bg-transparent"
+                className="h-auto w-full min-w-0 flex-col items-stretch whitespace-normal rounded-none p-0 text-left hover:bg-transparent"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-[#e8eef8] text-[#0057e7] flex items-center justify-center group-hover:bg-[#0057e7] group-hover:text-white transition-colors">
-                    <Icon size={20} />
+                <div className="min-w-0 p-5 sm:p-6">
+                  <div className="flex min-w-0 items-start justify-between gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#e8eef8] text-[#0057e7] transition-colors group-hover:bg-[#0057e7] group-hover:text-white">
+                      <Icon size={20} />
+                    </div>
+                    <ArrowLeft size={16} className="shrink-0 rotate-180 text-[#5a6a82] transition-colors group-hover:text-[#0057e7]" />
                   </div>
-                  <ArrowLeft
-                    size={16}
-                    className="rotate-180 text-[#5a6a82] group-hover:text-[#0057e7] transition-colors"
-                  />
+                  <h3 className="mt-5 break-words text-base font-black leading-tight text-[#0d1b2e]">{item.label}</h3>
+                  <p className="mt-2 max-w-full break-words text-sm font-normal leading-6 text-[#5a6a82]">{item.description}</p>
+                  <span className="mt-5 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span>
                 </div>
-                <h3 className="mt-5 text-base font-black text-[#0d1b2e]">{item.label}</h3>
-                <p className="mt-1.5 text-sm leading-5 text-[#5a6a82]">{item.description}</p>
-                <span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span>
               </AdminButton>
             </AdminCard>
           );
