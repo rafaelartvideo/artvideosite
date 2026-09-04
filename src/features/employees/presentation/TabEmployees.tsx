@@ -351,7 +351,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
     if (!hasPermission("employees.delete")) return;
     const { error } = await deleteEmployeeRecord(employeeId);
     if (error) { setToast({ msg: `Não foi possível excluir o funcionário: ${error.message}`, type: "error" }); setDeleteId(null); return; }
-    setToast({ msg: "Funcionário excluído." }); setDeleteId(null); await refreshEmployees();
+    setToast({ msg: "Funcionário excluído.", type: "success" }); setDeleteId(null); await refreshEmployees();
   };
 
   return (
