@@ -28,6 +28,7 @@ import {
   Toast,
 } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import { slugify } from "@/shared/domain/formatters";
 
@@ -44,9 +45,10 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
   const [editItem, setEditItem] = useState<any>(null);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-
   const [form, setForm] = useState({ name: "", slug: "", is_active: true, sort_order: 0 });
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     if (!categoriesQuery.error) return;
@@ -54,13 +56,17 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
     setToast({ msg: `Erro ao carregar categorias: ${message}`, type: "error" });
   }, [categoriesQuery.error]);
 
+  const totalPages = Math.max(1, Math.ceil(cats.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedCats = cats.slice((safePage - 1) * pageSize, safePage * pageSize);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.categories() }),
   ]);
 
   const autoSlug = slugify;
-
   const openNew = () => { setForm({ name: "", slug: "", is_active: true, sort_order: 0 }); setEditItem(null); setDrawerOpen(true); };
   const openEdit = (c: any) => { setForm({ name: c.name || "", slug: c.slug || "", is_active: c.is_active ?? true, sort_order: c.sort_order ?? 0 }); setEditItem(c); setDrawerOpen(true); };
   const closeEditor = () => { setDrawerOpen(false); onRouteChange?.(null, null); };
@@ -126,7 +132,7 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
   };
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {delId && <ConfirmDialog message="Excluir esta categoria? Serviços vinculados perderão a referência." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
@@ -138,43 +144,44 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
         {loading ? <LoadingState /> : cats.length === 0 ? (
           <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={openNewPage} addLabel="Nova categoria" />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[500px]">
-              <thead className="bg-[#f8fafc] text-[#5a6a82] text-[10px] uppercase font-bold border-b border-[#0d1b2e]/8">
-                <tr>
-                  <th className="px-4 py-3 text-left">Nome</th>
-                  <th className="px-4 py-3 text-left">Slug</th>
-                  <th className="px-4 py-3 text-left">Ordem</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#0d1b2e]/5">
-                {cats.map(c => (
-                  <tr key={c.id} className="hover:bg-[#f8fafc]/80">
-                    <td className="px-4 py-3.5 font-bold text-[#0d1b2e]">{c.name}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#5a6a82] font-mono">{c.slug}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#5a6a82]">{c.sort_order}</td>
-                    <td className="px-4 py-3.5"><StatusBadge status={c.is_active ? "Ativo" : "Inativo"} /></td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
-                        {hasPermission("categories.update") && <>
-                          <AdminIconButton ariaLabel="Editar categoria" title="Editar" onClick={() => openEditPage(c)}><Edit2 size={15} /></AdminIconButton>
-                          <AdminIconButton ariaLabel={c.is_active ? "Desativar categoria" : "Ativar categoria"} title={c.is_active ? "Desativar" : "Ativar"} onClick={() => toggleActive(c)}>{c.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>
-                        </>}
-                        {hasPermission("categories.delete") && <AdminIconButton ariaLabel="Excluir categoria" title="Excluir" variant="danger" onClick={() => setDelId(c.id)}><Trash2 size={15} /></AdminIconButton>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-[620px]">
+                <thead><tr>
+                  <th className="text-left">Nome</th>
+                  <th className="text-left">Slug</th>
+                  <th className="text-left">Ordem</th>
+                  <th className="text-left">Status</th>
+                  <th className="text-right">Ações</th>
+                </tr></thead>
+                <tbody>
+                  {pagedCats.map(c => (
+                    <tr key={c.id}>
+                      <td className="font-bold text-[#0d1b2e]">{c.name}</td>
+                      <td className="font-mono text-xs text-[#5a6a82]">{c.slug}</td>
+                      <td className="text-xs text-[#5a6a82]">{c.sort_order}</td>
+                      <td><StatusBadge status={c.is_active ? "Ativo" : "Inativo"} /></td>
+                      <td>
+                        <div className="flex items-center justify-end gap-1">
+                          {hasPermission("categories.update") && <>
+                            <AdminIconButton ariaLabel="Editar categoria" title="Editar" onClick={() => openEditPage(c)}><Edit2 size={15} /></AdminIconButton>
+                            <AdminIconButton ariaLabel={c.is_active ? "Desativar categoria" : "Ativar categoria"} title={c.is_active ? "Desativar" : "Ativar"} onClick={() => toggleActive(c)}>{c.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>
+                          </>}
+                          {hasPermission("categories.delete") && <AdminIconButton ariaLabel="Excluir categoria" title="Excluir" variant="danger" onClick={() => setDelId(c.id)}><Trash2 size={15} /></AdminIconButton>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <PaginationBar page={safePage} pageSize={pageSize} totalItems={cats.length} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
+          </>
         )}
       </AdminCard>
 
       <AdminPage open={drawerOpen} onClose={closeEditor} breadcrumb="Categorias" title={editItem ? "Editar categoria" : "Nova categoria"} maxW="max-w-lg">
-        <div className="p-5 space-y-4">
+        <div className="space-y-4 p-4 sm:p-5">
           <Section title="Informações">
             <div className="space-y-4">
               <FInput label="Nome" value={form.name} required onChange={(e: any) => { setForm({ ...form, name: e.target.value, slug: editItem ? form.slug : autoSlug(e.target.value) }); }} placeholder="Ex: Ar-condicionado" />
@@ -188,7 +195,7 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
             </div>
           </Section>
         </div>
-        <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
           <BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary>
           {(editItem ? hasPermission("categories.update") : hasPermission("categories.create")) && <BtnPrimary onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar categoria"}</BtnPrimary>}
         </div>
