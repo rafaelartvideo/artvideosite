@@ -59,12 +59,15 @@ export async function listInventoryMovements(itemId: string) {
   if (movementsResult.error) throw movementsResult.error;
   if (usedItemsResult.error) throw usedItemsResult.error;
 
-  const physicalMovements = movementsResult.data ?? [];
+  const physicalMovements = (movementsResult.data ?? []).map((movement: any) => ({
+    ...movement,
+    movement_type: String(movement.movement_type || "").toLowerCase(),
+  }));
   const resolutionUsage = (usedItemsResult.data ?? []).map((item: any) => ({
     id: `resolution-use-${item.id}`,
     inventory_item_id: item.inventory_item_id,
     service_order_id: item.service_order_id,
-    movement_type: "USE",
+    movement_type: "use",
     quantity: item.quantity,
     reason: "Uso da peça na resolução da OS (sem nova movimentação de saldo)",
     created_by: item.created_by,
