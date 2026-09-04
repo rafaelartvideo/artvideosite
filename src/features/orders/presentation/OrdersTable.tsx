@@ -73,7 +73,7 @@ export function OrdersTable({
                     openDetail(o);
                   }
                 }}
-                className="min-w-0 space-y-3 overflow-hidden p-4 transition-colors active:bg-[#f5f7fa]"
+                className="min-w-0 cursor-default space-y-3 overflow-hidden p-4 transition-colors active:bg-[#f5f7fa]"
               >
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -114,32 +114,32 @@ export function OrdersTable({
           </div>
 
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[1100px] text-sm">
-              <thead className="border-b border-[#0d1b2e]/8 bg-[#f8fafc] text-[10px] font-bold uppercase text-[#5a6a82]">
+            <table className="min-w-[1100px]">
+              <thead>
                 <tr>
-                  <th className="w-28 px-4 py-3 text-left">Protocolo</th>
-                  <th className="px-4 py-3 text-left">Cliente</th>
-                  <th className="w-40 px-4 py-3 text-left">Tipo de atendimento</th>
-                  <th className="w-40 px-4 py-3 text-left">Equipamento</th>
-                  <th className="w-24 px-4 py-3 text-left">Prioridade</th>
-                  <th className="w-32 px-4 py-3 text-left">Data de agendamento</th>
-                  <th className="w-28 px-4 py-3 text-left">Status</th>
-                  <th className="w-36 px-4 py-3 text-left">Situação</th>
-                  <th className="w-28 px-4 py-3 text-right">Ações</th>
+                  <th className="w-28 text-left">Protocolo</th>
+                  <th className="text-left">Cliente</th>
+                  <th className="w-40 text-left">Tipo de atendimento</th>
+                  <th className="w-40 text-left">Equipamento</th>
+                  <th className="w-24 text-left">Prioridade</th>
+                  <th className="w-32 text-left">Data de agendamento</th>
+                  <th className="w-28 text-left">Status</th>
+                  <th className="w-36 text-left">Situação</th>
+                  <th className="w-28 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#0d1b2e]/5">
+              <tbody>
                 {pagedOrders.map(o => (
-                  <tr key={o.id} onClick={() => openDetail(o)} className="cursor-pointer hover:bg-[#f8fafc]/80">
-                    {hasPermission("orders.table.protocol") && (<td className="px-4 py-3.5"><div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || "—"}</span></div></td>)}
-                    {hasPermission("orders.table.customer") && (<td className="px-4 py-3.5"><p className="text-sm font-semibold text-[#0d1b2e]">{(o.customer as any)?.full_name || "—"}</p><p className="text-[11px] text-[#5a6a82]">{formatPhone((o.customer as any)?.whatsapp || (o.customer as any)?.phone)}</p></td>)}
-                    {hasPermission("orders.table.service_type") && (<td className="px-4 py-3.5 text-xs text-[#5a6a82]">{(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}</td>)}
-                    {hasPermission("orders.table.equipment") && (<td className="px-4 py-3.5 text-xs text-[#5a6a82]">{equipmentSummary(o)}</td>)}
-                    {hasPermission("orders.table.priority") && (<td className="px-4 py-3.5"><PriorityBadge priority={o.priority || "normal"} /></td>)}
-                    {hasPermission("orders.table.scheduled_at") && (<td className="px-4 py-3.5 text-xs text-[#5a6a82]">{o.scheduled_at ? fmtDate(o.scheduled_at, true) : "—"}</td>)}
-                    {hasPermission("orders.table.status") && (<td className="px-4 py-3.5"><div className="flex flex-wrap items-center gap-1.5"><StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} />{o.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">✓ Concluída</span> : o.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">✓ Solucionada</span>}{o.cannot_be_solved && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></td>)}
-                    {hasPermission("orders.table.situation") && (<td className="px-4 py-3.5">{(o.situation as any)?.name ? <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>)}
-                    {hasPermission("orders.table.actions") && (<td className="px-4 py-3.5"><div className="flex items-center justify-end gap-2">{hasPermission("orders.status") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.status_id || ""} onValueChange={value => updateOrderStatus(o, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Status da OS ${o.os_number || ""}`} /></div>}{hasPermission("orders.edit") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.situation_id || ""} onValueChange={value => void updateOrderSituation(o, value)} options={[{ value: "", label: "Situação" }, ...getSituationsForType(o.service_type_id, o.situation_id, o.situation).map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div>}{hasPermission("orders.edit") && !o.is_solved && <AdminButton variant="secondary" size="sm" onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={14} /> Editar</AdminButton>}</div></td>)}
+                  <tr key={o.id} onClick={() => openDetail(o)} className="cursor-default">
+                    {hasPermission("orders.table.protocol") && (<td><div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || "—"}</span></div></td>)}
+                    {hasPermission("orders.table.customer") && (<td><p className="text-sm font-semibold text-[#0d1b2e]">{(o.customer as any)?.full_name || "—"}</p><p className="text-[11px] text-[#5a6a82]">{formatPhone((o.customer as any)?.whatsapp || (o.customer as any)?.phone)}</p></td>)}
+                    {hasPermission("orders.table.service_type") && (<td className="text-xs text-[#5a6a82]">{(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}</td>)}
+                    {hasPermission("orders.table.equipment") && (<td className="text-xs text-[#5a6a82]">{equipmentSummary(o)}</td>)}
+                    {hasPermission("orders.table.priority") && (<td><PriorityBadge priority={o.priority || "normal"} /></td>)}
+                    {hasPermission("orders.table.scheduled_at") && (<td className="text-xs text-[#5a6a82]">{o.scheduled_at ? fmtDate(o.scheduled_at, true) : "—"}</td>)}
+                    {hasPermission("orders.table.status") && (<td><div className="flex flex-wrap items-center gap-1.5"><StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} />{o.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">✓ Concluída</span> : o.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">✓ Solucionada</span>}{o.cannot_be_solved && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></td>)}
+                    {hasPermission("orders.table.situation") && (<td>{(o.situation as any)?.name ? <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>)}
+                    {hasPermission("orders.table.actions") && (<td><div className="flex items-center justify-end gap-2">{hasPermission("orders.status") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.status_id || ""} onValueChange={value => updateOrderStatus(o, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Status da OS ${o.os_number || ""}`} /></div>}{hasPermission("orders.edit") && <div onClick={event => event.stopPropagation()} className="w-32"><AdminSelect value={o.situation_id || ""} onValueChange={value => void updateOrderSituation(o, value)} options={[{ value: "", label: "Situação" }, ...getSituationsForType(o.service_type_id, o.situation_id, o.situation).map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 py-1.5 text-xs font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div>}{hasPermission("orders.edit") && !o.is_solved && <AdminButton variant="secondary" size="sm" onClick={(event) => { event.stopPropagation(); void openEdit(o); }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={14} /> Editar</AdminButton>}</div></td>)}
                   </tr>
                 ))}
               </tbody>
