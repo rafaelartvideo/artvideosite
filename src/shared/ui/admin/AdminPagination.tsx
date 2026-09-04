@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+
+const DEFAULT_ADMIN_PAGE_SIZE = 5;
 
 export function PaginationBar({ page, pageSize, totalItems, onPageChange, onPageSizeChange }: {
   page: number;
@@ -8,6 +10,14 @@ export function PaginationBar({ page, pageSize, totalItems, onPageChange, onPage
   onPageChange: (nextPage: number) => void;
   onPageSizeChange: (nextPageSize: number) => void;
 }) {
+  const normalizedRef = useRef(false);
+
+  useEffect(() => {
+    if (normalizedRef.current) return;
+    normalizedRef.current = true;
+    if (pageSize !== DEFAULT_ADMIN_PAGE_SIZE) onPageSizeChange(DEFAULT_ADMIN_PAGE_SIZE);
+  }, [pageSize, onPageSizeChange]);
+
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   if (totalItems === 0) return null;
 
