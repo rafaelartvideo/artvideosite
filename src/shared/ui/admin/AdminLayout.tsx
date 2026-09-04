@@ -98,11 +98,11 @@ export function AdminCard({ className = "", children }: { className?: string; ch
 }
 
 export function AdminCardHeader({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("flex min-h-12 items-center justify-between gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] px-5 py-2.5", className)}>{children}</div>;
+  return <div className={cn("flex min-h-14 items-center justify-between gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] px-4 py-3 md:px-5", className)}>{children}</div>;
 }
 
 export function AdminCardContent({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("p-5", className)}>{children}</div>;
+  return <div className={cn("p-4 md:p-5", className)}>{children}</div>;
 }
 
 export function AdminSegmentedControl<T extends string>({
@@ -254,8 +254,12 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
 export function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return <AdminCard>
     <AdminCardHeader>
-      <h3 className="min-w-0 text-[10px] font-black text-[#0d1b2e] uppercase tracking-widest">{title}</h3>
-      {actions && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{actions}</div>}
+      <h3 className="min-w-0 flex-1 text-xs font-black uppercase leading-tight tracking-[0.12em] text-[#0d1b2e]">{title}</h3>
+      {actions && (
+        <div className="flex shrink-0 items-center justify-end gap-2 [&>*]:!h-9 [&>*]:!min-h-9 [&>*]:!w-9 [&>*]:!min-w-9 [&>*]:!justify-center [&>*]:!gap-0 [&>*]:!px-0 [&>*]:!text-[0px] md:[&>*]:!w-auto md:[&>*]:!min-w-0 md:[&>*]:!gap-1.5 md:[&>*]:!px-3 md:[&>*]:!text-xs">
+          {actions}
+        </div>
+      )}
     </AdminCardHeader>
     <AdminCardContent>{children}</AdminCardContent>
   </AdminCard>;
