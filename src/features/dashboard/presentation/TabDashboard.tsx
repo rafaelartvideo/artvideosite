@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardHeader, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { loadDashboardOverview } from "../infrastructure/dashboard.repository";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 
@@ -18,21 +18,21 @@ export function TabDashboard() {
   const dashboardQuery = useQuery({
     queryKey: queryKeys.admin.dashboard(),
     queryFn: async () => {
-    const [qAll, oAll, sActive, pActive, rQuotes, rOrders] = await loadDashboardOverview();
-    const quotes = qAll.data || [];
-    const orders = oAll.data || [];
-    return {
-      stats: {
-      quotesPending: quotes.filter((q: any) => ((q.request_status as any)?.name || "").toLowerCase().includes("pend")).length,
-      quotesAnalysis: quotes.filter((q: any) => { const n = ((q.request_status as any)?.name || "").toLowerCase(); return n.includes("anál") || n.includes("analise") || n.includes("análise"); }).length,
-      ordersActive: orders.filter((o: any) => { const n = ((o.order_status as any)?.name || "").toLowerCase(); return n.includes("manutenç") || n.includes("andamento") || n.includes("execuç"); }).length,
-      ordersWaiting: orders.filter((o: any) => { const n = ((o.order_status as any)?.name || "").toLowerCase(); return n.includes("aguard") || n.includes("client"); }).length,
-      servicesActive: sActive.count || 0,
-      productsActive: pActive.count || 0,
-      },
-      recentQuotes: rQuotes.data || [],
-      recentOrders: rOrders.data || [],
-    };
+      const [qAll, oAll, sActive, pActive, rQuotes, rOrders] = await loadDashboardOverview();
+      const quotes = qAll.data || [];
+      const orders = oAll.data || [];
+      return {
+        stats: {
+          quotesPending: quotes.filter((q: any) => ((q.request_status as any)?.name || "").toLowerCase().includes("pend")).length,
+          quotesAnalysis: quotes.filter((q: any) => { const n = ((q.request_status as any)?.name || "").toLowerCase(); return n.includes("anál") || n.includes("analise") || n.includes("análise"); }).length,
+          ordersActive: orders.filter((o: any) => { const n = ((o.order_status as any)?.name || "").toLowerCase(); return n.includes("manutenç") || n.includes("andamento") || n.includes("execuç"); }).length,
+          ordersWaiting: orders.filter((o: any) => { const n = ((o.order_status as any)?.name || "").toLowerCase(); return n.includes("aguard") || n.includes("client"); }).length,
+          servicesActive: sActive.count || 0,
+          productsActive: pActive.count || 0,
+        },
+        recentQuotes: rQuotes.data || [],
+        recentOrders: rOrders.data || [],
+      };
     },
   });
   const stats = dashboardQuery.data?.stats ?? { quotesPending: 0, quotesAnalysis: 0, ordersActive: 0, ordersWaiting: 0, servicesActive: 0, productsActive: 0 };
@@ -64,7 +64,7 @@ export function TabDashboard() {
             {cards.map((c) => {
               const Icon = c.icon;
               return (
-                <div key={c.label} className="bg-white rounded-xl p-5 border border-[#0d1b2e]/8 shadow-sm flex items-center justify-between gap-3">
+                <AdminCard key={c.label} className="flex items-center justify-between gap-3 p-5">
                   <div>
                     <p className="text-xs font-semibold text-[#5a6a82] mb-1 leading-tight">{c.label}</p>
                     <p className="text-3xl font-black text-[#0d1b2e]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{c.val}</p>
@@ -72,18 +72,17 @@ export function TabDashboard() {
                   <div className={cn("p-3 rounded-xl border flex-shrink-0", c.color)}>
                     <Icon size={22} />
                   </div>
-                </div>
+                </AdminCard>
               );
             })}
           </div>
 
           <div className="grid lg:grid-cols-2 gap-5">
-            {/* Recent Quotes */}
-            <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#0d1b2e]/8 flex items-center justify-between">
+            <AdminCard>
+              <AdminCardHeader>
                 <h3 className="font-bold text-[#0d1b2e] text-sm">Orçamentos Recentes</h3>
                 <FileText size={16} className="text-[#5a6a82]" />
-              </div>
+              </AdminCardHeader>
               {recentQuotes.length === 0 ? (
                 <p className="text-sm text-[#5a6a82] text-center py-8">Nenhuma solicitação.</p>
               ) : (
@@ -102,14 +101,13 @@ export function TabDashboard() {
                   ))}
                 </div>
               )}
-            </div>
+            </AdminCard>
 
-            {/* Recent Orders */}
-            <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#0d1b2e]/8 flex items-center justify-between">
+            <AdminCard>
+              <AdminCardHeader>
                 <h3 className="font-bold text-[#0d1b2e] text-sm">Ordens de Serviço Recentes</h3>
                 <ClipboardList size={16} className="text-[#5a6a82]" />
-              </div>
+              </AdminCardHeader>
               {recentOrders.length === 0 ? (
                 <p className="text-sm text-[#5a6a82] text-center py-8">Nenhuma OS cadastrada.</p>
               ) : (
@@ -128,7 +126,7 @@ export function TabDashboard() {
                   ))}
                 </div>
               )}
-            </div>
+            </AdminCard>
           </div>
         </>
       )}
