@@ -129,7 +129,7 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
               <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ</label>
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                 <FInput label="" value={form.company_cnpj} onChange={(event: any) => update("company_cnpj", maskCnpj(event.target.value))} placeholder="00.000.000/0000-00" className="min-w-0 flex-1" />
-                <BtnSecondary onClick={() => void lookupCnpj()} disabled={lookingUp}><Search size={15} />{lookingUp ? "Consultando..." : "Consultar CNPJ"}</BtnSecondary>
+                <AdminButton variant="secondary" onClick={() => void lookupCnpj()} disabled={lookingUp}><Search size={15} />{lookingUp ? "Consultando..." : "Consultar CNPJ"}</AdminButton>
               </div>
               <p className="mt-2 break-words text-xs leading-relaxed text-[#718096]">A consulta preenche automaticamente os dados públicos disponíveis. Revise antes de salvar.</p>
             </div>
