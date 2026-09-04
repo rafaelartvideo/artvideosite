@@ -11,6 +11,8 @@ import {
 } from "../infrastructure/products.repository";
 import {
   AdminButton,
+  AdminCard,
+  AdminCardToolbar,
   AdminIconButton,
   AdminPage,
   BtnPrimary,
@@ -94,7 +96,6 @@ export function TabProducts({ onBack, routeResourceId, routeSubpage, onRouteChan
     if (item) openEdit(item);
   }, [routeResourceId, routeSubpage, products, drawerOpen, editItem?.id]);
 
-
   const handleSave = async () => {
     if (!(editItem ? hasPermission("products.update") : hasPermission("products.create"))) return;
     if (!form.name.trim()) { setToast({ msg: "Nome do produto é obrigatório.", type: "error" }); return; }
@@ -170,13 +171,13 @@ export function TabProducts({ onBack, routeResourceId, routeSubpage, onRouteChan
         <div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{hasPermission("products.create") && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo produto</AdminButton>}</div>
       } />
 
-      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#0d1b2e]/8">
-          <div className="relative max-w-xs">
+      <AdminCard>
+        <AdminCardToolbar>
+          <div className="relative max-w-xs flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar produtos..." className={cn(INPUT, "pl-9 py-2 text-xs")} />
           </div>
-        </div>
+        </AdminCardToolbar>
         {loading ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState icon={Package} title={search ? "Nenhum resultado" : "Nenhum produto cadastrado"} message="Adicione produtos para exibi-los na loja." onAdd={openNewPage} addLabel="Novo produto" />
         ) : (
@@ -227,7 +228,7 @@ export function TabProducts({ onBack, routeResourceId, routeSubpage, onRouteChan
           onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
           onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
         />
-      </div>
+      </AdminCard>
 
       <AdminPage open={drawerOpen} onClose={closeEditor} breadcrumb="Produtos" title={editItem ? "Editar produto" : "Novo produto"} maxW="max-w-xl">
         <div className="p-5 space-y-4">
