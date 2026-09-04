@@ -47,7 +47,7 @@ export function AdminButton({
     type={type}
     aria-label={buttonProps["aria-label"] ?? ariaLabel}
     className={cn(
-      "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+      "inline-flex min-w-0 max-w-full cursor-default items-center justify-center whitespace-nowrap rounded-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
       variants[variant],
       sizes[size],
       className,
@@ -84,7 +84,7 @@ export function AdminIconButton({
     aria-label={buttonProps["aria-label"] ?? ariaLabel}
     title={title ?? buttonProps["aria-label"] ?? ariaLabel}
     className={cn(
-      "inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40",
+      "inline-flex h-8 w-8 cursor-default items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-40",
       variants[variant],
       className,
     )}
@@ -94,19 +94,28 @@ export function AdminIconButton({
 }
 
 export function AdminCard({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("overflow-hidden rounded-xl border border-[#0d1b2e]/8 bg-white shadow-sm", className)}>{children}</div>;
+  return <div className={cn(
+    "min-w-0 max-w-full overflow-hidden break-words rounded-xl border border-[#0d1b2e]/8 bg-white shadow-sm",
+    "[&_table]:w-full [&_table]:text-sm",
+    "[&_thead]:border-b [&_thead]:border-[#0d1b2e]/8 [&_thead]:bg-[#f8fafc] [&_thead]:text-[10px] [&_thead]:font-bold [&_thead]:uppercase [&_thead]:text-[#5a6a82]",
+    "[&_th]:px-4 [&_th]:py-3",
+    "[&_tbody]:divide-y [&_tbody]:divide-[#0d1b2e]/5",
+    "[&_tbody>tr]:cursor-default [&_tbody>tr]:transition-colors [&_tbody>tr:hover]:bg-[#f8fafc]/80",
+    "[&_td]:px-4 [&_td]:py-3.5",
+    className,
+  )}>{children}</div>;
 }
 
 export function AdminCardHeader({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("flex min-h-14 items-center justify-between gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] px-4 py-3 md:px-5", className)}>{children}</div>;
+  return <div className={cn("flex min-h-14 min-w-0 items-center justify-between gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] px-4 py-3.5 sm:px-5", className)}>{children}</div>;
 }
 
 export function AdminCardToolbar({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("flex min-h-14 flex-col gap-3 border-b border-[#0d1b2e]/8 bg-white px-4 py-3 sm:flex-row sm:items-center", className)}>{children}</div>;
+  return <div className={cn("flex min-h-14 min-w-0 flex-col gap-3 border-b border-[#0d1b2e]/8 bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:px-5", className)}>{children}</div>;
 }
 
 export function AdminCardContent({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("p-4 md:p-5", className)}>{children}</div>;
+  return <div className={cn("min-w-0 p-4 sm:p-5", className)}>{children}</div>;
 }
 
 export function AdminSegmentedControl<T extends string>({
@@ -122,7 +131,7 @@ export function AdminSegmentedControl<T extends string>({
   disabled?: boolean;
   className?: string;
 }) {
-  return <div className={cn("grid overflow-hidden rounded-lg border border-[#0d1b2e]/15 bg-white", className)}>
+  return <div className={cn("grid min-w-0 overflow-hidden rounded-lg border border-[#0d1b2e]/15 bg-white", className)}>
     {options.map((option) => (
       <button
         key={option.value}
@@ -131,9 +140,9 @@ export function AdminSegmentedControl<T extends string>({
         aria-pressed={value === option.value}
         onClick={() => onChange(option.value)}
         className={cn(
-          "px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-inset",
+          "cursor-default px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-inset",
           value === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]",
-          disabled && "cursor-not-allowed opacity-70",
+          disabled && "cursor-default opacity-70",
         )}
       >
         {option.label}
@@ -161,14 +170,14 @@ export function AdminDialog({
 }) {
   return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
     <DialogContent showClose={false} className={cn("z-[150] max-h-[90vh] max-w-lg gap-0 overflow-hidden rounded-2xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl", className)}>
-      {(title || description || onClose) && <div className="flex items-start justify-between gap-3 border-b border-[#0d1b2e]/8 px-5 py-4">
-        <div className="min-w-0">
-          {title ? <DialogTitle className="text-base font-bold text-[#0d1b2e]">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
-          {description && <DialogDescription className="mt-1 text-sm leading-relaxed text-[#5a6a82]">{description}</DialogDescription>}
+      {(title || description || onClose) && <div className="flex min-w-0 items-start justify-between gap-3 border-b border-[#0d1b2e]/8 px-5 py-4">
+        <div className="min-w-0 flex-1">
+          {title ? <DialogTitle className="break-words text-base font-bold text-[#0d1b2e]">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
+          {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-[#5a6a82]">{description}</DialogDescription>}
         </div>
         <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>
       </div>}
-      <div className="max-h-[calc(90vh-140px)] overflow-y-auto p-5">{children}</div>
+      <div className="max-h-[calc(90vh-140px)] min-w-0 overflow-y-auto p-5">{children}</div>
       {footer && <div className="border-t border-[#0d1b2e]/8 bg-[#f8fafc] px-5 py-4">{footer}</div>}
     </DialogContent>
   </Dialog>;
@@ -250,15 +259,15 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
         padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important;
       }
     }`}</style>
-    {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 z-10 p-2 text-[#5a6a82] bg-white border border-[#0d1b2e]/10 rounded-lg shadow-sm hover:text-[#0057e7] hover:bg-[#f5f7fa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"><X size={16} /></button>}
-    <div className={cn("mx-auto w-full p-4 sm:p-6 lg:p-8", resolvedMaxW)}>{children}</div>
+    {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute right-4 top-4 z-10 cursor-default rounded-lg border border-[#0d1b2e]/10 bg-white p-2 text-[#5a6a82] shadow-sm hover:bg-[#f5f7fa] hover:text-[#0057e7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"><X size={16} /></button>}
+    <div className={cn("mx-auto w-full min-w-0 p-4 sm:p-6 lg:p-8", resolvedMaxW)}>{children}</div>
   </div>;
 }
 
 export function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return <AdminCard>
     <AdminCardHeader>
-      <h3 className="min-w-0 flex-1 text-xs font-black uppercase leading-tight tracking-[0.12em] text-[#0d1b2e]">{title}</h3>
+      <h3 className="min-w-0 flex-1 break-words text-xs font-black uppercase leading-tight tracking-[0.12em] text-[#0d1b2e]">{title}</h3>
       {actions && (
         <div className="flex shrink-0 items-center justify-end gap-2 [&>*]:!h-9 [&>*]:!min-h-9 [&>*]:!w-9 [&>*]:!min-w-9 [&>*]:!justify-center [&>*]:!gap-0 [&>*]:!px-0 [&>*]:!text-[0px] md:[&>*]:!w-auto md:[&>*]:!min-w-0 md:[&>*]:!gap-1.5 md:[&>*]:!px-3 md:[&>*]:!text-xs">
           {actions}
@@ -272,14 +281,14 @@ export function Section({ title, actions, children }: { title: string; actions?:
 export function PageHeader({ title, subtitle, eyebrow, actions }: { title: string; subtitle?: string; eyebrow?: string; actions?: React.ReactNode }) {
   const onBack = React.useContext(AdminBackContext);
   return (
-    <header className="flex flex-col gap-4 border-b border-[#0d1b2e]/8 pb-5 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
-        {eyebrow && <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#0057e7]">{eyebrow}</p>}
-        <h1 className="text-2xl font-black leading-tight text-[#0d1b2e]">{title}</h1>
-        {subtitle && <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[#5a6a82]">{subtitle}</p>}
+    <header className="flex min-w-0 flex-col gap-4 border-b border-[#0d1b2e]/8 pb-5 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 flex-1">
+        {eyebrow && <p className="mb-1 break-words text-[10px] font-black uppercase tracking-[0.16em] text-[#0057e7]">{eyebrow}</p>}
+        <h1 className="break-words text-2xl font-black leading-tight text-[#0d1b2e]">{title}</h1>
+        {subtitle && <p className="mt-1 max-w-3xl break-words text-sm leading-relaxed text-[#5a6a82]">{subtitle}</p>}
       </div>
       {(actions || onBack) && (
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex min-w-0 flex-shrink-0 flex-wrap items-center gap-2">
           {onBack && <InternalBackButton onBack={onBack} inHeader />}
           {actions}
         </div>
@@ -305,5 +314,5 @@ export function BtnSecondary({ children, onClick, className = "" }: { children: 
 export function InternalBackButton({ onBack, inHeader = false }: { onBack: () => void; inHeader?: boolean }) {
   const contextualBack = React.useContext(AdminBackContext);
   if (!inHeader && contextualBack === onBack) return null;
-  return <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5a6a82] hover:text-[#0057e7] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"><ArrowLeft size={14} /> Voltar</button>;
+  return <button type="button" onClick={onBack} className="inline-flex cursor-default items-center gap-1.5 text-xs font-bold text-[#5a6a82] transition-colors hover:text-[#0057e7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"><ArrowLeft size={14} /> Voltar</button>;
 }
