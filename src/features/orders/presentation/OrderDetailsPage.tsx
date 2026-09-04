@@ -28,6 +28,8 @@ import type { useOrderResolution } from "../application/useOrderResolution";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
 import type { useOrdersWorkspace } from "../application/useOrdersWorkspace";
 
+const ORDER_EMAIL_ACTION_VISIBLE = false;
+
 type PermissionCheck = (permission: string) => boolean;
 
 type Props = {
@@ -294,7 +296,7 @@ export function OrderDetailsPage(props: Props) {
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>}
-                  {canPrintDocuments && <DropdownMenu>
+                  {ORDER_EMAIL_ACTION_VISIBLE && canPrintDocuments && <DropdownMenu>
                     <DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Mail size={14} /> Enviar e-mail <ChevronDown size={13} /></button></DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-72">
                       {printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}
@@ -313,7 +315,7 @@ export function OrderDetailsPage(props: Props) {
                   {hasPermission("orders.section.history") && <button type="button" onClick={() => history.setPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button>}
                 </div>
               </div>
-              {emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
+              {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
               {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} />}
               <OrderDetailsContent
                 detail={detail}
