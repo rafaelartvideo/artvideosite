@@ -55,7 +55,7 @@ export function AdminHubPage({
   return (
     <div className="min-w-0 space-y-5">
       <PageHeader title={title} subtitle={description} />
-      <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => {
           const Icon = item.icon;
 
@@ -67,16 +67,16 @@ export function AdminHubPage({
                 onClick={() => onSelect(item.id, item.label)}
                 className="h-auto w-full min-w-0 flex-col items-stretch whitespace-normal rounded-none p-0 text-left hover:bg-transparent"
               >
-                <div className="min-w-0 p-5 sm:p-6">
-                  <div className="flex min-w-0 items-start justify-between gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#e8eef8] text-[#0057e7] transition-colors group-hover:bg-[#0057e7] group-hover:text-white">
-                      <Icon size={20} />
+                <div className="min-w-0 px-4 py-4 sm:px-5 sm:py-5">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e8eef8] text-[#0057e7] transition-colors group-hover:bg-[#0057e7] group-hover:text-white">
+                      <Icon size={18} />
                     </div>
-                    <ArrowLeft size={16} className="shrink-0 rotate-180 text-[#5a6a82] transition-colors group-hover:text-[#0057e7]" />
+                    <ArrowLeft size={15} className="shrink-0 rotate-180 text-[#5a6a82] transition-colors group-hover:text-[#0057e7]" />
                   </div>
-                  <h3 className="mt-5 break-words text-base font-black leading-tight text-[#0d1b2e]">{item.label}</h3>
-                  <p className="mt-2 max-w-full break-words text-sm font-normal leading-6 text-[#5a6a82]">{item.description}</p>
-                  <span className="mt-5 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span>
+                  <h3 className="mt-4 min-w-0 whitespace-normal break-words text-base font-black leading-tight text-[#0d1b2e]">{item.label}</h3>
+                  <p className="mt-1.5 min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-normal leading-5 text-[#5a6a82]">{item.description}</p>
+                  <span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span>
                 </div>
               </AdminButton>
             </AdminCard>
