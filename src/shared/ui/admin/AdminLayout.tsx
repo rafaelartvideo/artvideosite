@@ -101,6 +101,10 @@ export function AdminCardHeader({ className = "", children }: { className?: stri
   return <div className={cn("flex min-h-14 items-center justify-between gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] px-4 py-3 md:px-5", className)}>{children}</div>;
 }
 
+export function AdminCardToolbar({ className = "", children }: { className?: string; children: React.ReactNode }) {
+  return <div className={cn("flex min-h-14 flex-col gap-3 border-b border-[#0d1b2e]/8 bg-white px-4 py-3 sm:flex-row sm:items-center", className)}>{children}</div>;
+}
+
 export function AdminCardContent({ className = "", children }: { className?: string; children: React.ReactNode }) {
   return <div className={cn("p-4 md:p-5", className)}>{children}</div>;
 }
