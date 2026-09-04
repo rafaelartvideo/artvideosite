@@ -22,6 +22,7 @@ import {
 } from "../infrastructure/inventory.repository";
 import {
   AdminButton,
+  AdminCard,
   AdminIconButton,
   AdminPage,
   BtnPrimary,
@@ -36,8 +37,8 @@ import {
   FInput,
   FTextarea,
   FToggle,
-  INPUT,
-  FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
+  FCurrencyInput,
+} from "@/shared/ui/admin/AdminFormControls";
 
 export function TabInventory({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();
@@ -63,15 +64,11 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     if (!itemsQuery.error) return;
-    const message = itemsQuery.error instanceof Error
-      ? itemsQuery.error.message
-      : String(itemsQuery.error);
+    const message = itemsQuery.error instanceof Error ? itemsQuery.error.message : String(itemsQuery.error);
     setToast({ msg: `Erro ao carregar estoque: ${message}`, type: "error" });
   }, [itemsQuery.error]);
 
-  const refreshInventory = () => queryClient.invalidateQueries({
-    queryKey: queryKeys.inventory.all,
-  });
+  const refreshInventory = () => queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
 
   const openNew = () => {
     setSelectedItem(null);
@@ -222,9 +219,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       }
       nextQuantity = current - quantity;
     }
-    if (movementType === "ADJUST") {
-      nextQuantity = quantity;
-    }
+    if (movementType === "ADJUST") nextQuantity = quantity;
 
     const insertPayload = {
       inventory_item_id: selectedItem.id,
@@ -257,7 +252,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
         </div>
       } />
 
-      <div className="bg-white rounded-xl border border-[#0d1b2e]/8 shadow-sm overflow-hidden">
+      <AdminCard>
         {itemsQuery.isPending ? <LoadingState /> : items.length === 0 ? (
           <EmptyState icon={Package} title="Nenhum item em estoque" message="Cadastre um item para começar a controlar o inventário." />
         ) : (
@@ -315,7 +310,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
             </table>
           </div>
         )}
-      </div>
+      </AdminCard>
 
       {recordOpen && (
         <AdminPage open={true} onClose={() => setRecordOpen(false)} breadcrumb="Operação > Estoque" title={selectedItem ? "Editar item" : "Novo item"} subtitle="Cadastro do item em estoque" maxW="max-w-xl">
@@ -343,14 +338,8 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
         <AdminPage open={true} onClose={() => setSelectedItem(null)} breadcrumb="Operação > Estoque" title={`Movimentação — ${selectedItem.name}`} subtitle="Entrada, saída e ajuste de quantidade" maxW="max-w-xl">
           <div className="p-5 space-y-4">
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
-                <p className="text-[10px] uppercase text-[#5a6a82] font-bold">Quantidade atual</p>
-                <p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.quantity ?? 0)}</p>
-              </div>
-              <div className="rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
-                <p className="text-[10px] uppercase text-[#5a6a82] font-bold">Mínimo</p>
-                <p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.min_quantity ?? 0)}</p>
-              </div>
+              <AdminCard className="bg-[#f8fafc] p-3 shadow-none"><p className="text-[10px] uppercase text-[#5a6a82] font-bold">Quantidade atual</p><p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.quantity ?? 0)}</p></AdminCard>
+              <AdminCard className="bg-[#f8fafc] p-3 shadow-none"><p className="text-[10px] uppercase text-[#5a6a82] font-bold">Mínimo</p><p className="mt-1 text-lg font-black text-[#0d1b2e]">{Number(selectedItem.min_quantity ?? 0)}</p></AdminCard>
             </div>
             <div>
               <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Tipo</label>
@@ -375,10 +364,10 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
             ) : (
               <div className="space-y-3">
                 {history.map((entry: any) => (
-                  <div key={entry.id} className="rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
+                  <AdminCard key={entry.id} className="bg-[#f8fafc] p-3 shadow-none">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs font-bold uppercase text-[#5a6a82]">{entry.movement_type}</span>
-                      <span className={cn("text-xs font-bold", entry.movement_type === "out" ? "text-red-600" : entry.movement_type === "in" ? "text-green-600" : "text-amber-600")}>{entry.movement_type === "out" ? "-" : entry.movement_type === "in" ? "+" : "~"}{Number(entry.quantity || 0)}</span>
+                      <span className={cn("text-xs font-bold", String(entry.movement_type).toUpperCase() === "OUT" ? "text-red-600" : String(entry.movement_type).toUpperCase() === "IN" ? "text-green-600" : "text-amber-600")}>{String(entry.movement_type).toUpperCase() === "OUT" ? "-" : String(entry.movement_type).toUpperCase() === "IN" ? "+" : "~"}{Number(entry.quantity || 0)}</span>
                     </div>
                     <div className="mt-2 text-sm text-[#0d1b2e]">{entry.reason || "Movimentação manual"}</div>
                     <div className="mt-2 grid sm:grid-cols-2 gap-2 text-[11px] text-[#5a6a82]">
@@ -387,7 +376,7 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
                       <div><span className="font-bold">OS:</span> {entry.service_order?.os_number || "—"}</div>
                       <div><span className="font-bold">Quantidade:</span> {Number(entry.quantity || 0)}</div>
                     </div>
-                  </div>
+                  </AdminCard>
                 ))}
               </div>
             )}
@@ -396,6 +385,11 @@ export function TabInventory({ onBack }: { onBack: () => void }) {
       )}
     </div>
   );
+}
+
+function supabaseErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error) return String((error as { message?: unknown }).message || "Erro desconhecido");
+  return error instanceof Error ? error.message : String(error || "Erro desconhecido");
 }
 
 /* ─────────────────────────── TAB: CUSTOMERS ─────────────────────────── */
