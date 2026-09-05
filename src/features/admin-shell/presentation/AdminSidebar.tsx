@@ -2,6 +2,7 @@ import { ArrowLeft, Globe, LogOut, Settings, Users } from "lucide-react";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { mainItems, utilityItems } from "../navigation-config";
+import { parentAdminTab } from "../admin-routing";
 import { SidebarItem } from "./AdminNavigation";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 
@@ -35,6 +36,7 @@ export function AdminSidebar({
   onBackToSite,
 }: AdminSidebarProps) {
   const canAccessTab = (tab: string) => hasPermission(`${tab}.view`);
+  const selectedTab = parentAdminTab(activeTab) || activeTab;
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -71,7 +73,7 @@ export function AdminSidebar({
       <nav className="px-3 py-4 space-y-0.5">
         {mainItems.filter((item) => canAccessTab(item.id)).map((item) => {
           const Icon = item.icon;
-          const active = activeTab === item.id;
+          const active = selectedTab === item.id;
 
           return (
             <button
@@ -94,7 +96,7 @@ export function AdminSidebar({
         {hasPermission("site.view") && (
           <SidebarItem
             item={{ id: "site", label: "Site", icon: Globe }}
-            active={activeTab === "site"}
+            active={selectedTab === "site"}
             onClick={() => onNavigate("site")}
           />
         )}
@@ -102,7 +104,7 @@ export function AdminSidebar({
         {operationPermissions.some(hasPermission) && (
           <SidebarItem
             item={{ id: "operation", label: "Operação", icon: Settings }}
-            active={activeTab === "operation"}
+            active={selectedTab === "operation"}
             onClick={() => onNavigate("operation")}
           />
         )}
@@ -112,7 +114,7 @@ export function AdminSidebar({
             <SidebarItem
               key={item.id}
               item={item}
-              active={activeTab === item.id}
+              active={selectedTab === item.id}
               onClick={() => onNavigate(item.id as AdminTab)}
             />
           ))}
