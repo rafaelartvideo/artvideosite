@@ -66,7 +66,7 @@ export function OrderCustomerSection({
   const setQuickCustomer = (open: boolean) => {
     if (open) onCreateCustomer();
   };
-  const compactActionClass = "h-8 w-8 shrink-0 justify-center p-0 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5";
+  const compactActionClass = "h-[42px] w-[42px] shrink-0 justify-center p-0 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5";
   const compactHeaderLinkClass = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white p-0 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
   const mobileHiddenLabel = "hidden sm:inline";
 
@@ -143,7 +143,7 @@ export function OrderCustomerSection({
                       <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
                       <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "min-w-0 pl-9 py-2 text-xs")} />
                     </div>
-                    {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={14} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
+                    {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={15} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
                   </div>
                   {customerResults.length > 0 && (
                     <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
