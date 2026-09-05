@@ -369,29 +369,41 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
   }, [initialOrderId, routeSubpage, loading, orders, detail?.id, formOpen, editingOS?.id]);
 
   const openRoutedDetail = (order: any) => {
+    if (onOrderRouteChange) {
+      onOrderRouteChange(order.id, null);
+      return;
+    }
     openDetail(order);
-    onOrderRouteChange?.(order.id, null);
   };
 
   const openRoutedNew = () => {
+    if (onOrderRouteChange) {
+      onOrderRouteChange("new", null);
+      return;
+    }
     openNew();
-    onOrderRouteChange?.("new", null);
   };
 
   const openRoutedEdit = async (order: any) => {
+    if (onOrderRouteChange) {
+      onOrderRouteChange(order.id, "edit");
+      return;
+    }
     await openEdit(order);
     closeDetail();
-    onOrderRouteChange?.(order.id, "edit");
   };
 
   const closeRoutedPage = () => {
-    closeDetail();
-    closeOrderForm();
     if (initialOrderId && onOrderRouteClose) {
       onOrderRouteClose();
       return;
     }
-    onOrderRouteChange?.(null, null);
+    if (onOrderRouteChange) {
+      onOrderRouteChange(null, null);
+      return;
+    }
+    closeDetail();
+    closeOrderForm();
   };
 
   const saveRoutedOrder = async () => {
@@ -476,7 +488,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <OrdersListWorkspace
-        visible={!initialOrderId && !detail && !formOpen && !solveOpen}
+        visible={!detail && !formOpen && !solveOpen}
         displayMode={displayMode}
         workspace={workspace}
         filters={filters}
