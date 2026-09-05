@@ -72,7 +72,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
     });
 
-    return () => { cancelled = true; listener.subscription.unsubscribe(); };
+    const handlePermissionChange = () => {
+      const userId = signedInUserRef.current;
+      if (!userId) return;
+      accessLoadingUserRef.current = null;
+      void loadAccess(userId);
+    };
+    window.addEventListener("artvideo:permissions-changed", handlePermissionChange);
+
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+      window.removeEventListener("artvideo:permissions-changed", handlePermissionChange);
+    };
   }, []);
 
   async function loadAccess(userId: string) {
@@ -87,18 +99,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     const { data: profileData, error: profileError } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
     if (profileError || !profileData) { console.error("Auth profile load error:", profileError); setLoading(false); return; }
-
     const roleId = profileData.role_id;
     const [{ data: employeeData }, { data: roleData, error: roleError }, { data: permissionData, error: permissionError }] = await Promise.all([
       supabase.from("employees").select("*").eq("profile_id", userId).maybeSingle(),
       roleId ? supabase.from("roles").select("*").eq("id", roleId).maybeSingle() : Promise.resolve({ data: null, error: null }),
       supabase.rpc("my_permissions"),
     ]);
-
     const permissionKeys = (permissionData || []).map((permission: any) => typeof permission === "string" ? permission : permission?.permission_key).filter((permissionKey: unknown): permissionKey is string => typeof permissionKey === "string" && permissionKey.length > 0);
     if (permissionError) console.error("Auth permissions RPC error:", permissionError);
     if (requestId !== accessRequestRef.current) return;
-
     setProfile(profileData ?? null);
     setEmployee(employeeData ?? null);
     setRole(!roleError ? roleData ?? null : null);
