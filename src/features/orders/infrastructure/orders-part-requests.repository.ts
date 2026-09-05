@@ -22,7 +22,13 @@ type PartReturnItemInput = {
   quantity: number;
 };
 
-export const requestServiceOrderParts = ({
+function assertWholeUnits(value: number, label: string, allowZero = false) {
+  if (!Number.isFinite(value) || !Number.isInteger(value) || (allowZero ? value < 0 : value <= 0)) {
+    throw new Error(`${label} deve ser informada em unidades inteiras.`);
+  }
+}
+
+export async function requestServiceOrderParts({
   serviceOrderId,
   items,
   notes,
@@ -32,15 +38,17 @@ export const requestServiceOrderParts = ({
   items: PartRequestItemInput[];
   notes: string | null;
   purpose: "RESOLUTION" | "TEST";
-}) =>
-  supabase.rpc("request_service_order_parts", {
+}) {
+  items.forEach(item => assertWholeUnits(item.quantity, "A quantidade solicitada"));
+  return supabase.rpc("request_service_order_parts", {
     p_service_order_id: serviceOrderId,
     p_items: items,
     p_notes: notes,
     p_purpose: purpose,
   });
+}
 
-export const reviewServiceOrderPartRequest = ({
+export async function reviewServiceOrderPartRequest({
   requestId,
   decision,
   items,
@@ -50,13 +58,15 @@ export const reviewServiceOrderPartRequest = ({
   decision: "APPROVED" | "REJECTED";
   items: PartReviewItemInput[];
   reviewNotes: string | null;
-}) =>
-  supabase.rpc("review_service_order_part_request", {
+}) {
+  items.forEach(item => assertWholeUnits(item.approved_quantity, "A quantidade aprovada", true));
+  return supabase.rpc("review_service_order_part_request", {
     p_request_id: requestId,
     p_decision: decision,
     p_items: items,
     p_review_notes: reviewNotes,
   });
+}
 
 export const dispatchServiceOrderPartRequest = (requestId: string) =>
   supabase.rpc("dispatch_service_order_part_request", {
@@ -68,7 +78,7 @@ export const confirmServiceOrderPartDelivery = (requestId: string) =>
     p_request_id: requestId,
   });
 
-export const registerServiceOrderPartReturn = ({
+export async function registerServiceOrderPartReturn({
   requestId,
   items,
   notes,
@@ -76,12 +86,14 @@ export const registerServiceOrderPartReturn = ({
   requestId: string;
   items: PartReturnItemInput[];
   notes: string | null;
-}) =>
-  supabase.rpc("register_service_order_part_return", {
+}) {
+  items.forEach(item => assertWholeUnits(item.quantity, "A quantidade devolvida"));
+  return supabase.rpc("register_service_order_part_return", {
     p_request_id: requestId,
     p_items: items,
     p_notes: notes,
   });
+}
 
 export const receiveServiceOrderPartReturn = (requestId: string) =>
   supabase.rpc("receive_service_order_part_return", {
@@ -91,17 +103,19 @@ export const receiveServiceOrderPartReturn = (requestId: string) =>
 // Compatibilidade: a função antiga no banco encaminha para a saída de estoque.
 export const deliverServiceOrderTestRequest = dispatchServiceOrderPartRequest;
 
-export const recordServiceOrderTestResults = ({
+export async function recordServiceOrderTestResults({
   requestId,
   actions,
 }: {
   requestId: string;
   actions: TestResultActionInput[];
-}) =>
-  supabase.rpc("record_service_order_test_results", {
+}) {
+  actions.forEach(action => assertWholeUnits(action.quantity, "A quantidade do resultado"));
+  return supabase.rpc("record_service_order_test_results", {
     p_request_id: requestId,
     p_actions: actions,
   });
+}
 
 export async function listActivePartInventory() {
   const result = await supabase
