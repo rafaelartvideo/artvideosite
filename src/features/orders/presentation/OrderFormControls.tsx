@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle, ChevronDown, X } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFilterMultiSelect } from "@/shared/ui/admin/AdminFilterMultiSelect";
 import {
   Select,
   SelectContent,
@@ -9,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/primitives/select";
-import { normalizeSearchText } from "../application/order-search";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 
 export type EmployeeOption = { id: string; full_name: string };
@@ -47,48 +47,22 @@ export function EmployeeMultiSelect({ label, employees, selectedIds, onChange, d
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
-  baixa:   "bg-[#e8eef8] text-[#5a6a82]",
-  normal:  "bg-[#e8f5e9] text-[#2e7d32]",
-  alta:    "bg-[#fff3e0] text-[#e65100]",
-  urgente: "bg-[#ffebee] text-[#c62828]",
+  baixa: "bg-[#e8eef8] text-[#5a6a82]", normal: "bg-[#e8f5e9] text-[#2e7d32]", alta: "bg-[#fff3e0] text-[#e65100]", urgente: "bg-[#ffebee] text-[#c62828]",
 };
 const PRIORITY_LABELS: Record<string, string> = { baixa: "Baixa", normal: "Normal", alta: "Alta", urgente: "Urgente" };
-
-export const getPriorityLabel = (priority?: string | null) =>
-  priority ? PRIORITY_LABELS[priority] || priority : "";
-
-export function PriorityBadge({ priority }: { priority?: string }) {
-  const p = priority || "normal";
-  return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap", PRIORITY_COLORS[p] || PRIORITY_COLORS.normal)}>{PRIORITY_LABELS[p] || p}</span>;
-}
+export const getPriorityLabel = (priority?: string | null) => priority ? PRIORITY_LABELS[priority] || priority : "";
+export function PriorityBadge({ priority }: { priority?: string }) { const p = priority || "normal"; return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap", PRIORITY_COLORS[p] || PRIORITY_COLORS.normal)}>{PRIORITY_LABELS[p] || p}</span>; }
 
 export function OrderFilterMultiSelect({ label, options, selectedValues, onSelect, onRemove, placeholder, disabled = false, loading = false }: { label: string; options: MultiSelectOption[]; selectedValues: string[]; onSelect: (value: string) => void; onRemove: (value: string) => void; placeholder: string; disabled?: boolean; loading?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-  const normalizedQuery = normalizeSearchText(query);
-  const visibleOptions = options.filter(option => !normalizedQuery || normalizeSearchText(option.label).includes(normalizedQuery));
-
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => { if (!containerRef.current?.contains(event.target as Node)) setOpen(false); };
-    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => { document.removeEventListener("pointerdown", handlePointerDown); document.removeEventListener("keydown", handleKeyDown); };
-  }, []);
-
-  return <div ref={containerRef} className="relative w-full">
-    <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}</label>
-    <button type="button" disabled={disabled} onClick={() => setOpen(value => !value)} className={cn(INPUT, "h-[42px] w-full cursor-pointer text-left", disabled && "cursor-not-allowed opacity-60")}>
-      {selectedValues.length === 0 ? <span className="text-sm font-normal text-[#5a6a82]/70">{loading ? "Carregando..." : placeholder}</span> : <span className="text-sm font-normal text-[#0d1b2e]">{selectedValues.length} selecionado{selectedValues.length !== 1 ? "s" : ""}</span>}
-      <ChevronDown size={14} className="float-right mt-0.5" />
-    </button>
-    {selectedValues.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{selectedValues.map(value => <span key={value} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#0057e7] px-2.5 py-1 text-xs font-medium text-white"><span className="truncate">{options.find(option => option.value === value)?.label || value}</span><button type="button" onClick={event => { event.stopPropagation(); onRemove(value); }} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white hover:bg-[#0046c0]" aria-label={`Remover ${value}`}><X size={13} /></button></span>)}</div>}
-    {open && !disabled && <div className="absolute left-0 right-0 top-full z-[60] mt-1 overflow-hidden rounded-lg border border-[#0d1b2e]/15 bg-white shadow-lg">
-      <div className="border-b border-[#0d1b2e]/10 p-2"><input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar..." className={cn(INPUT, "py-2 text-xs")} /></div>
-      <div className="max-h-56 overflow-y-auto p-1">{loading ? <p className="p-3 text-xs text-[#5a6a82]">Carregando...</p> : visibleOptions.length === 0 ? <p className="p-3 text-xs text-[#5a6a82]">Nenhuma opção encontrada.</p> : visibleOptions.map(option => { const selected = selectedValues.includes(option.value); return <button type="button" key={option.value} onClick={() => onSelect(option.value)} className={cn("flex w-full items-center justify-between rounded px-2 py-2 text-left text-xs hover:bg-[#e8eef8]", selected && "bg-[#e8eef8] font-bold")}><span>{option.label}</span>{selected && <CheckCircle size={14} className="text-[#0057e7]" />}</button>; })}</div>
-    </div>}
-  </div>;
+  return <AdminFilterMultiSelect
+    label={label}
+    options={options}
+    selectedValues={selectedValues}
+    onToggle={(value) => selectedValues.includes(value) ? onRemove(value) : onSelect(value)}
+    placeholder={placeholder}
+    disabled={disabled}
+    loading={loading}
+  />;
 }
 
 export function OrderAddressSelect({ label, value, onChange, disabled, placeholder, options }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean; placeholder: string; options: { value: string; label: string }[] }) {
