@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { deleteCustomer, listCustomers } from "../infrastructure/customers.repository";
@@ -8,44 +8,78 @@ type Options = {
   onToast: (message: string, type: "success" | "error") => void;
 };
 
+const normalizeDocument = (value: string) => value.replace(/\D/g, "");
+const normalizeText = (value: unknown) => String(value ?? "").trim().toLocaleLowerCase("pt-BR");
+
 export function useCustomersList({ canDelete, onToast }: Options) {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: queryKeys.customers.lists(), queryFn: listCustomers });
   const customers = query.data ?? [];
-  const [search, setSearch] = useState("");
+  const [nameSearch, setNameSearch] = useState("");
+  const [documentSearch, setDocumentSearch] = useState("");
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!query.error) return;
-    onToast(
-      `Erro ao carregar clientes: ${query.error instanceof Error ? query.error.message : String(query.error)}`,
-      "error",
-    );
+    onToast(`Erro ao carregar clientes: ${query.error instanceof Error ? query.error.message : String(query.error)}`, "error");
   }, [query.error]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
-  const normalizeDocument = (value: string) => value.replace(/\D/g, "");
-  const filtered = customers.filter(customer => {
-    if (!search) return true;
-    const normalizedSearch = search.toLowerCase();
-    return (customer.full_name || "").toLowerCase().includes(normalizedSearch)
-      || (customer.trade_name || "").toLowerCase().includes(normalizedSearch)
-      || (customer.legal_name || "").toLowerCase().includes(normalizedSearch)
-      || (customer.whatsapp || "").includes(search)
-      || (customer.email || "").toLowerCase().includes(normalizedSearch)
-      || normalizeDocument(customer.document || "").includes(normalizeDocument(search))
-      || normalizeDocument(customer.cnpj || "").includes(normalizeDocument(search));
+
+  const stateOptions = useMemo(() => {
+    const states = new Set<string>();
+    customers.forEach((customer: any) => (customer.addresses || []).forEach((address: any) => {
+      const state = String(address?.state || "").trim().toUpperCase();
+      if (state) states.add(state);
+    }));
+    return [...states].sort().map(state => ({ value: state, label: state }));
+  }, [customers]);
+
+  const cityOptions = useMemo(() => {
+    const cities = new Map<string, { value: string; label: string }>();
+    customers.forEach((customer: any) => (customer.addresses || []).forEach((address: any) => {
+      const state = String(address?.state || "").trim().toUpperCase();
+      const city = String(address?.city || "").trim();
+      if (!city || !state || (selectedStates.length && !selectedStates.includes(state))) return;
+      const value = `${state}:${city}`;
+      cities.set(value, { value, label: `${city} — ${state}` });
+    }));
+    return [...cities.values()].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  }, [customers, selectedStates]);
+
+  useEffect(() => {
+    if (!selectedStates.length) return;
+    setSelectedCities(current => current.filter(value => selectedStates.includes(value.split(":")[0])));
+  }, [selectedStates]);
+
+  const filtered = customers.filter((customer: any) => {
+    const nameNeedle = normalizeText(nameSearch);
+    const matchName = !nameNeedle
+      || normalizeText(customer.full_name).includes(nameNeedle)
+      || normalizeText(customer.trade_name).includes(nameNeedle)
+      || normalizeText(customer.legal_name).includes(nameNeedle);
+    const documentNeedle = normalizeDocument(documentSearch);
+    const matchDocument = !documentNeedle
+      || normalizeDocument(customer.document || "").includes(documentNeedle)
+      || normalizeDocument(customer.cnpj || "").includes(documentNeedle);
+    const addresses = customer.addresses || [];
+    const matchState = !selectedStates.length || addresses.some((address: any) => selectedStates.includes(String(address?.state || "").trim().toUpperCase()));
+    const matchCity = !selectedCities.length || addresses.some((address: any) => selectedCities.includes(`${String(address?.state || "").trim().toUpperCase()}:${String(address?.city || "").trim()}`));
+    return matchName && matchDocument && matchState && matchCity;
   });
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedCustomers = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const hasFilters = Boolean(nameSearch || documentSearch || selectedStates.length || selectedCities.length);
+  const clearFilters = () => { setNameSearch(""); setDocumentSearch(""); setSelectedStates([]); setSelectedCities([]); setPage(1); };
 
-  useEffect(() => setPage(1), [search]);
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  useEffect(() => setPage(1), [nameSearch, documentSearch, selectedStates, selectedCities]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const remove = async (id: string) => {
     if (!canDelete) return false;
@@ -55,10 +89,7 @@ export function useCustomersList({ canDelete, onToast }: Options) {
       await refresh();
       return true;
     } catch (error) {
-      onToast(
-        `Não foi possível excluir o cliente: ${error instanceof Error ? error.message : String(error)}`,
-        "error",
-      );
+      onToast(`Não foi possível excluir o cliente: ${error instanceof Error ? error.message : String(error)}`, "error");
       return false;
     } finally {
       setDeleteId(null);
@@ -71,8 +102,18 @@ export function useCustomersList({ canDelete, onToast }: Options) {
     isFetching: query.isFetching,
     refetch: query.refetch,
     refresh,
-    search,
-    setSearch,
+    nameSearch,
+    setNameSearch,
+    documentSearch,
+    setDocumentSearch,
+    selectedStates,
+    setSelectedStates,
+    selectedCities,
+    setSelectedCities,
+    stateOptions,
+    cityOptions,
+    hasFilters,
+    clearFilters,
     page,
     setPage,
     pageSize,
