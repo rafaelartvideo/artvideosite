@@ -1,14 +1,15 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
+import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
+
 const AdminLogin = lazy(() =>
   import("@/app/Admin").then(({ AdminLogin }) => ({ default: AdminLogin })),
 );
 const AdminDashboard = lazy(() =>
   import("@/app/Admin").then(({ AdminDashboard }) => ({ default: AdminDashboard })),
 );
-import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
-import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
-
 const HomePage = lazy(() => import("@/features/home/presentation/HomePage").then(module => ({ default: module.HomePage })));
 const ServicesPage = lazy(() => import("@/features/public-services/presentation/ServicesPage").then(module => ({ default: module.ServicesPage })));
 const ServiceDetailPage = lazy(() => import("@/features/public-services/presentation/ServiceDetailPage").then(module => ({ default: module.ServiceDetailPage })));
@@ -20,156 +21,111 @@ const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistan
 const ServiceTrackingSection = lazy(() => import("@/features/service-tracking/presentation/ServiceTrackingSection").then(module => ({ default: module.ServiceTrackingSection })));
 const PublicQuotePage = lazy(() => import("@/features/public-quotes/presentation/PublicQuotePage").then(module => ({ default: module.PublicQuotePage })));
 
+const PUBLIC_PAGE_PATHS: Record<Page, string> = {
+  home: "/",
+  loja: "/loja",
+  produto: "/loja",
+  servicos: "/servicos",
+  servico: "/servicos",
+  sobre: "/sobre",
+  contato: "/contato",
+  orcamento: "/orcamento",
+  assistencia: "/assistencia",
+};
+
 function PublicPageFallback() {
   return <div className="min-h-[55vh] bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">Carregando página...</div>;
 }
-/* ─── App ─── */
+
+function AdminFallback() {
+  return (
+    <div className="min-h-screen bg-[#0d1b2e] flex items-center justify-center text-white font-bold text-sm">
+      Carregando painel...
+    </div>
+  );
+}
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "auto" }); }, [pathname]);
+  return null;
+}
+
 export default function App() {
-  const [page, setPageState] = useState<Page>("home");
-  const [serviceSlug, setServiceSlug] = useState<string | null>(null);
-  const [productSlug, setProductSlug] = useState<string | null>(null);
-  const [isAdminRoute, setIsAdminRoute] = useState(false);
-
-  useEffect(() => {
-    const handleLocation = () => {
-      const path = window.location.pathname;
-      if (path.startsWith("/admin")) {
-        setIsAdminRoute(true);
-      } else {
-        setIsAdminRoute(false);
-        const serviceMatch = path.match(/^\/servicos\/([^/]+)$/);
-        if (serviceMatch) {
-          setServiceSlug(decodeURIComponent(serviceMatch[1]));
-          setProductSlug(null);
-          setPageState("servico");
-          return;
-        }
-
-        const productMatch = path.match(/^\/loja\/([^/]+)$/);
-        if (productMatch) {
-          setProductSlug(decodeURIComponent(productMatch[1]));
-          setServiceSlug(null);
-          setPageState("produto");
-          return;
-        }
-
-        setServiceSlug(null);
-        setProductSlug(null);
-        if (path === "/loja") setPageState("loja");
-        else if (path === "/servicos") setPageState("servicos");
-        else if (path === "/sobre") setPageState("sobre");
-        else if (path === "/contato") setPageState("contato");
-        else if (path === "/orcamento") setPageState("orcamento");
-        else if (path === "/assistencia") setPageState("assistencia");
-        else setPageState("home");
-      }
-    };
-    handleLocation();
-    window.addEventListener("popstate", handleLocation);
-    return () => window.removeEventListener("popstate", handleLocation);
-  }, []);
-
-  const setPage = (p: Page) => {
-    setIsAdminRoute(false);
-    setPageState(p);
-    if (p !== "servico" && p !== "produto") {
-      const route = p === "home" ? "/" : `/${p}`;
-      window.history.pushState({}, "", route);
-    }
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const selectService = (slug: string) => {
-    setServiceSlug(slug);
-    setProductSlug(null);
-    setPageState("servico");
-    window.history.pushState({}, "", `/servicos/${encodeURIComponent(slug)}`);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const selectProduct = (slug: string) => {
-    setProductSlug(slug);
-    setServiceSlug(null);
-    setPageState("produto");
-    window.history.pushState({}, "", `/loja/${encodeURIComponent(slug)}`);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   return (
     <AuthProvider>
-      <AppContent
-        isAdminRoute={isAdminRoute}
-        page={page}
-        setPage={setPage}
-        serviceSlug={serviceSlug}
-        productSlug={productSlug}
-        onSelectService={selectService}
-        onSelectProduct={selectProduct}
-        setIsAdminRoute={setIsAdminRoute}
-      />
+      <ScrollToTop />
+      <Routes>
+        <Route path="/admin/*" element={<AdminEntry />} />
+        <Route path="/*" element={<PublicRoutes />} />
+      </Routes>
     </AuthProvider>
   );
 }
 
-function AppContent({
-  isAdminRoute,
-  page,
-  setPage,
-  serviceSlug,
-  productSlug,
-  onSelectService,
-  onSelectProduct,
-  setIsAdminRoute,
-}: {
-  isAdminRoute: boolean;
-  page: Page;
-  setPage: (p: Page) => void;
-  serviceSlug: string | null;
-  productSlug: string | null;
-  onSelectService: (slug: string) => void;
-  onSelectProduct: (slug: string) => void;
-  setIsAdminRoute: (val: boolean) => void;
-}) {
+function AdminEntry() {
   const { session, loading } = useAuth();
+  const navigate = useNavigate();
 
-  if (isAdminRoute) {
-    const adminFallback = (
-      <div className="min-h-screen bg-[#0d1b2e] flex items-center justify-center text-white font-bold text-sm">
-        Carregando painel...
-      </div>
-    );
+  if (loading) return <AdminFallback />;
 
-    if (loading) return adminFallback;
+  return (
+    <Suspense fallback={<AdminFallback />}>
+      {!session ? (
+        <AdminLogin onLoginSuccess={() => undefined} />
+      ) : (
+        <AdminDashboard onBackToSite={() => navigate("/")} />
+      )}
+    </Suspense>
+  );
+}
 
-    return (
-      <Suspense fallback={adminFallback}>
-        {!session ? (
-          <AdminLogin onLoginSuccess={() => setIsAdminRoute(true)} />
-        ) : (
-          <AdminDashboard
-            onBackToSite={() => {
-              window.history.pushState({}, "", "/");
-              setIsAdminRoute(false);
-            }}
-          />
-        )}
-      </Suspense>
-    );
-  }
+function PublicRoutes() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const page = pageFromPath(location.pathname);
+  const setPage = (nextPage: Page) => navigate(PUBLIC_PAGE_PATHS[nextPage]);
+  const selectService = (slug: string) => navigate(`/servicos/${encodeURIComponent(slug)}`);
+  const selectProduct = (slug: string) => navigate(`/loja/${encodeURIComponent(slug)}`);
 
   return (
     <PublicShell page={page} setPage={setPage}>
       <Suspense fallback={<PublicPageFallback />}>
-        {page === "home" && <HomePage setPage={setPage} onSelectService={onSelectService} onSelectProduct={onSelectProduct} trackingSection={<ServiceTrackingSection />} />}
-        {page === "loja" && <StorePage setPage={setPage} onSelectProduct={onSelectProduct} />}
-        {page === "produto" && <ProductDetailPage slug={productSlug} setPage={setPage} />}
-        {page === "servicos" && <ServicesPage setPage={setPage} onSelectService={onSelectService} />}
-        {page === "servico" && <ServiceDetailPage slug={serviceSlug} setPage={setPage} />}
-        {page === "sobre" && <AboutPage setPage={setPage} />}
-        {page === "contato" && <ContactPage />}
-        {page === "orcamento" && <PublicQuotePage />}
-        {page === "assistencia" && <TechnicalAssistancePage setPage={setPage} />}
+        <Routes>
+          <Route path="/" element={<HomePage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} trackingSection={<ServiceTrackingSection />} />} />
+          <Route path="/loja" element={<StorePage setPage={setPage} onSelectProduct={selectProduct} />} />
+          <Route path="/loja/:slug" element={<ProductDetailRoute setPage={setPage} />} />
+          <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} />} />
+          <Route path="/servicos/:slug" element={<ServiceDetailRoute setPage={setPage} />} />
+          <Route path="/sobre" element={<AboutPage setPage={setPage} />} />
+          <Route path="/contato" element={<ContactPage />} />
+          <Route path="/orcamento" element={<PublicQuotePage />} />
+          <Route path="/assistencia" element={<TechnicalAssistancePage setPage={setPage} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </Suspense>
     </PublicShell>
   );
+}
+
+function ProductDetailRoute({ setPage }: { setPage: (page: Page) => void }) {
+  const { slug } = useParams();
+  return <ProductDetailPage slug={slug || null} setPage={setPage} />;
+}
+
+function ServiceDetailRoute({ setPage }: { setPage: (page: Page) => void }) {
+  const { slug } = useParams();
+  return <ServiceDetailPage slug={slug || null} setPage={setPage} />;
+}
+
+function pageFromPath(pathname: string): Page {
+  if (/^\/loja\/[^/]+$/.test(pathname)) return "produto";
+  if (/^\/servicos\/[^/]+$/.test(pathname)) return "servico";
+  if (pathname === "/loja") return "loja";
+  if (pathname === "/servicos") return "servicos";
+  if (pathname === "/sobre") return "sobre";
+  if (pathname === "/contato") return "contato";
+  if (pathname === "/orcamento") return "orcamento";
+  if (pathname === "/assistencia") return "assistencia";
+  return "home";
 }
