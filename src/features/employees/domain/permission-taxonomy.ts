@@ -71,11 +71,7 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
   return Array.from(modules.entries()).map(([name, modulePermissions]): PermissionModuleGroup => {
     const sections = new Map<string, PermissionRecord[]>();
     modulePermissions.forEach(permission => { const sectionName = permissionSectionName(permission); sections.set(sectionName, [...(sections.get(sectionName) || []), permission]); });
-    return {
-      name,
-      permissions: modulePermissions,
-      sections: Array.from(sections.entries()).map(([sectionName, sectionPermissions]) => ({ name: sectionName, permissions: [...sectionPermissions].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.label || a.key).localeCompare(String(b.label || b.key), "pt-BR")) })).sort((a, b) => { const ai = SECTION_ORDER.indexOf(a.name); const bi = SECTION_ORDER.indexOf(b.name); return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.name.localeCompare(b.name, "pt-BR"); }),
-    };
+    return { name, permissions: modulePermissions, sections: Array.from(sections.entries()).map(([sectionName, sectionPermissions]) => ({ name: sectionName, permissions: [...sectionPermissions].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.label || a.key).localeCompare(String(b.label || b.key), "pt-BR")) })).sort((a, b) => { const ai = SECTION_ORDER.indexOf(a.name); const bi = SECTION_ORDER.indexOf(b.name); return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.name.localeCompare(b.name, "pt-BR"); }) };
   }).sort((a, b) => { const ai = MODULE_ORDER.indexOf(a.name); const bi = MODULE_ORDER.indexOf(b.name); return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.name.localeCompare(b.name, "pt-BR"); });
 }
 
@@ -92,22 +88,17 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "general_services.toggle_active": ["general_services.edit", "general_services.view"], "service_types.toggle_active": ["service_types.edit", "service_types.view"],
   "service_types.sla.manage": ["service_types.edit", "service_types.view"], "employees.toggle_active": ["employees.edit", "employees.details.view", "employees.view"],
   "quotes.status.change": ["quotes.edit", "quotes.view"], "quotes.convert_to_order": ["quotes.view", "orders.create"],
-  "agenda.create": ["agenda.view"], "agenda.edit": ["agenda.view"], "agenda.reschedule": ["agenda.edit", "agenda.view"],
+  "agenda.create": ["agenda.view"], "agenda.reschedule": ["agenda.view"], "agenda.view_others": ["agenda.view"],
   "situations.table.view": ["situations.view"], "situations.create": ["situations.view"], "situations.edit": ["situations.view"], "situations.delete": ["situations.view"],
   "order_statuses.table.view": ["order_statuses.view"], "order_statuses.create": ["order_statuses.view"], "order_statuses.edit": ["order_statuses.view"], "order_statuses.delete": ["order_statuses.view"],
   "site_settings.update": ["site_settings.view"],
-  "services.info.manage": ["services.update", "services.details.view", "services.view"],
-  "services.price.manage": ["services.update", "services.details.view", "services.view"],
-  "services.media.manage": ["services.update", "services.details.view", "services.view"],
-  "services.variants.manage": ["services.update", "services.details.view", "services.view"],
-  "services.features.manage": ["services.update", "services.details.view", "services.view"],
-  "services.exclusions.manage": ["services.update", "services.details.view", "services.view"],
-  "services.factors.manage": ["services.update", "services.details.view", "services.view"],
-  "services.faq.manage": ["services.update", "services.details.view", "services.view"],
-  "services.sections.manage": ["services.update", "services.details.view", "services.view"],
-  "services.publication.manage": ["services.update", "services.details.view", "services.view"],
+  "services.info.manage": ["services.update", "services.details.view", "services.view"], "services.price.manage": ["services.update", "services.details.view", "services.view"],
+  "services.media.manage": ["services.update", "services.details.view", "services.view"], "services.variants.manage": ["services.update", "services.details.view", "services.view"],
+  "services.features.manage": ["services.update", "services.details.view", "services.view"], "services.exclusions.manage": ["services.update", "services.details.view", "services.view"],
+  "services.factors.manage": ["services.update", "services.details.view", "services.view"], "services.faq.manage": ["services.update", "services.details.view", "services.view"],
+  "services.sections.manage": ["services.update", "services.details.view", "services.view"], "services.publication.manage": ["services.update", "services.details.view", "services.view"],
   "services.toggle_active": ["services.update", "services.view"],
-  "roles.permissions.manage": ["roles.edit", "roles.details.view", "roles.view"],
+  "roles.view": ["employees.view"], "roles.permissions.manage": ["roles.edit", "roles.details.view", "roles.view", "employees.view"],
   "settings.lookup_cnpj": ["settings.update", "settings.details.view", "settings.view"],
 };
 
@@ -117,19 +108,11 @@ export function permissionDependencies(key: string) {
   const isModuleView = key === `${module}.view`;
   if (key.includes(".table.") && key !== `${module}.table.view`) dependencies.add(`${module}.table.view`);
   if (key.includes(".details.") && key !== `${module}.details.view`) dependencies.add(`${module}.details.view`);
-  if (!isModuleView && (key.endsWith(".create") || key.endsWith(".delete") || key.endsWith(".toggle_active") || key.endsWith(".toggle_featured") || key.endsWith(".refresh"))) {
-    dependencies.add(`${module}.view`);
-    dependencies.add(`${module}.table.view`);
-  }
-  if (!isModuleView && (key.endsWith(".edit") || key.endsWith(".update"))) {
-    dependencies.add(`${module}.view`);
-    dependencies.add(`${module}.details.view`);
-  }
+  if (!isModuleView && (key.endsWith(".create") || key.endsWith(".delete") || key.endsWith(".toggle_active") || key.endsWith(".toggle_featured") || key.endsWith(".refresh"))) { dependencies.add(`${module}.view`); dependencies.add(`${module}.table.view`); }
+  if (!isModuleView && (key.endsWith(".edit") || key.endsWith(".update"))) { dependencies.add(`${module}.view`); dependencies.add(`${module}.details.view`); }
   if (key.startsWith("orders.section.")) { dependencies.add("orders.details.view"); dependencies.add("orders.view"); }
   if (!isModuleView) dependencies.add(`${module}.view`);
   return Array.from(dependencies);
 }
 
-export function permissionLabel(permission: PermissionRecord) {
-  return String(permission.label || permission.description || permission.key);
-}
+export function permissionLabel(permission: PermissionRecord) { return String(permission.label || permission.description || permission.key); }
