@@ -20,6 +20,12 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const canUpdate = hasPermission("services.update");
   const canDelete = hasPermission("services.delete");
   const canToggleActive = hasPermission("services.toggle_active");
+  const showService = hasPermission("services.table.service");
+  const showCategory = hasPermission("services.table.category");
+  const showVariants = hasPermission("services.table.variants");
+  const showFeatured = hasPermission("services.table.featured");
+  const showStatus = hasPermission("services.table.status");
+  const showActions = hasPermission("services.table.actions");
   const queryClient = useQueryClient();
   const catalogQuery = useQuery({ queryKey: queryKeys.catalog.services(), queryFn: loadServicesCatalog, enabled: canView });
   const services = catalogQuery.data?.services ?? [];
@@ -35,43 +41,17 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  useEffect(() => {
-    if (!catalogQuery.error) return;
-    const message = catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error);
-    setToast({ msg: `Erro ao carregar serviços: ${message}`, type: "error" });
-  }, [catalogQuery.error]);
-
-  const refresh = () => Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard() }),
-  ]);
-
+  useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar serviços: ${catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
+  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() }), queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard() })]);
   const openNew = () => { if (!canCreate) return; setEditItem(null); setDrawerOpen(true); };
   const openEdit = (service: any) => { if (!(canViewDetails && canUpdate)) return; setEditItem(service); setDrawerOpen(true); };
   const closeEditor = () => { setDrawerOpen(false); onRouteChange?.(null, null); };
   const openNewPage = () => onRouteChange ? onRouteChange("new", null) : openNew();
   const openEditPage = (item: any) => { if (!(canViewDetails && canUpdate)) return; onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item); };
 
-  useEffect(() => {
-    if (!routeResourceId) { if (drawerOpen) setDrawerOpen(false); return; }
-    if (routeResourceId === "new") { if (canCreate && (!drawerOpen || editItem)) openNew(); return; }
-    if (!(canViewDetails && canUpdate) || routeSubpage !== "edit" || editItem?.id === routeResourceId) return;
-    const item = services.find((entry: any) => entry.id === routeResourceId);
-    if (item) openEdit(item);
-  }, [routeResourceId, routeSubpage, services, drawerOpen, editItem?.id, canCreate, canViewDetails, canUpdate]);
-
-  const handleDelete = async (id: string) => {
-    if (!canDelete) return;
-    try { await deleteService(id); setDelId(null); setToast({ msg: "Serviço excluído com sucesso.", type: "success" }); await refresh(); }
-    catch (error) { setToast({ msg: `Erro ao excluir: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
-  };
-
-  const toggleActive = async (service: any) => {
-    if (!canToggleActive) return;
-    try { await setServiceActive(service.id, !service.is_active); setToast({ msg: "Status atualizado com sucesso.", type: "success" }); await refresh(); }
-    catch (error) { setToast({ msg: `Erro ao atualizar: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
-  };
+  useEffect(() => { if (!routeResourceId) { if (drawerOpen) setDrawerOpen(false); return; } if (routeResourceId === "new") { if (canCreate && (!drawerOpen || editItem)) openNew(); return; } if (!(canViewDetails && canUpdate) || routeSubpage !== "edit" || editItem?.id === routeResourceId) return; const item = services.find((entry: any) => entry.id === routeResourceId); if (item) openEdit(item); }, [routeResourceId, routeSubpage, services, drawerOpen, editItem?.id, canCreate, canViewDetails, canUpdate]);
+  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteService(id); setDelId(null); setToast({ msg: "Serviço excluído com sucesso.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
+  const toggleActive = async (service: any) => { if (!canToggleActive) return; try { await setServiceActive(service.id, !service.is_active); setToast({ msg: "Status atualizado com sucesso.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
 
   const filtered = services.filter(service => !search || service.title?.toLowerCase().includes(search.toLowerCase()));
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -86,13 +66,11 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {delId && <ConfirmDialog message="Excluir este serviço e todos os dados associados?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
     <PageHeader title="Serviços do Site" subtitle={`${services.length} serviço${services.length !== 1 ? "s" : ""} cadastrado${services.length !== 1 ? "s" : ""}`} actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{canCreate && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo serviço</AdminButton>}</div>} />
-
     {canViewTable && <AdminCard>
       <AdminCardToolbar><div className="relative flex-1"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar serviços..." className={cn(INPUT, "pl-9 py-2 text-xs")} /></div></AdminCardToolbar>
-      {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Wrench} title={search ? "Nenhum resultado" : "Nenhum serviço cadastrado"} message={search ? `Nenhum serviço com "${search}"` : "Clique em Novo serviço para começar."} onAdd={!search && canCreate ? openNewPage : undefined} addLabel="Novo serviço" /> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-sm"><thead className="border-b border-[#0d1b2e]/8 bg-[#f8fafc] text-[10px] font-bold uppercase text-[#5a6a82]"><tr><th className="px-4 py-3 text-left">Serviço</th><th className="px-4 py-3 text-left">Categoria</th><th className="px-4 py-3 text-left">Variações</th><th className="px-4 py-3 text-left">Destaque</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-right">Ações</th></tr></thead><tbody className="divide-y divide-[#0d1b2e]/5">{pagedServices.map(service => { const category = categories.find(item => item.id === service.category_id); return <tr key={service.id} className="transition-colors hover:bg-[#f8fafc]/80"><td className="px-4 py-3.5"><p className="font-bold text-[#0d1b2e]">{service.title}</p>{service.short_description && <p className="max-w-xs truncate text-xs text-[#5a6a82]">{service.short_description}</p>}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{category?.name || "—"}</td><td className="px-4 py-3.5 text-xs text-[#5a6a82]">{service.service_variants?.length || 0}</td><td className="px-4 py-3.5">{service.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <span className="text-xs text-[#5a6a82]">—</span>}</td><td className="px-4 py-3.5"><StatusBadge status={service.is_active ? "Ativo" : "Inativo"} /></td><td className="px-4 py-3.5"><div className="flex items-center justify-end gap-1">{canViewDetails && canUpdate && <AdminIconButton ariaLabel="Editar serviço" title="Editar" onClick={() => openEditPage(service)}><Edit2 size={15} /></AdminIconButton>}{canToggleActive && <AdminIconButton ariaLabel={service.is_active ? "Desativar serviço" : "Ativar serviço"} title={service.is_active ? "Desativar" : "Ativar"} onClick={() => toggleActive(service)}>{service.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>}{canDelete && <AdminIconButton ariaLabel="Excluir serviço" title="Excluir" variant="danger" onClick={() => setDelId(service.id)}><Trash2 size={15} /></AdminIconButton>}</div></td></tr>; })}</tbody></table></div>}
+      {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Wrench} title={search ? "Nenhum resultado" : "Nenhum serviço cadastrado"} message={search ? `Nenhum serviço com "${search}"` : "Clique em Novo serviço para começar."} onAdd={!search && canCreate ? openNewPage : undefined} addLabel="Novo serviço" /> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-sm"><thead><tr>{showService && <th className="text-left">Serviço</th>}{showCategory && <th className="text-left">Categoria</th>}{showVariants && <th className="text-left">Variações</th>}{showFeatured && <th className="text-left">Destaque</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedServices.map(service => { const category = categories.find(item => item.id === service.category_id); return <tr key={service.id}>{showService && <td><p className="font-bold text-[#0d1b2e]">{service.title}</p>{service.short_description && <p className="max-w-xs truncate text-xs text-[#5a6a82]">{service.short_description}</p>}</td>}{showCategory && <td className="text-xs text-[#5a6a82]">{category?.name || "—"}</td>}{showVariants && <td className="text-xs text-[#5a6a82]">{service.service_variants?.length || 0}</td>}{showFeatured && <td>{service.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>}{showStatus && <td><StatusBadge status={service.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canUpdate && <AdminIconButton ariaLabel="Editar serviço" title="Editar" onClick={() => openEditPage(service)}><Edit2 size={15} /></AdminIconButton>}{canToggleActive && <AdminIconButton ariaLabel={service.is_active ? "Desativar serviço" : "Ativar serviço"} title={service.is_active ? "Desativar" : "Ativar"} onClick={() => toggleActive(service)}>{service.is_active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>}{canDelete && <AdminIconButton ariaLabel="Excluir serviço" title="Excluir" variant="danger" onClick={() => setDelId(service.id)}><Trash2 size={15} /></AdminIconButton>}</div></td>}</tr>; })}</tbody></table></div>}
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={next => setPage(Math.max(1, Math.min(next, totalPages)))} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
     </AdminCard>}
-
     <ServiceDrawer open={drawerOpen} onClose={() => { closeEditor(); void refresh(); }} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
   </div>;
 }
@@ -149,32 +127,14 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {};
-      if (canInfo) {
-        const baseSlug = slugify(name);
-        const titleChanged = editItem && slugify(editItem.title || "") !== baseSlug;
-        const finalSlug = !editItem || titleChanged ? await findUniqueServiceSlug(baseSlug, editItem?.id) : slug;
-        Object.assign(payload, { title: name.trim(), slug: finalSlug, category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, short_description: shortDesc || null, description: description || null });
-      }
+      if (canInfo) { const baseSlug = slugify(name); const titleChanged = editItem && slugify(editItem.title || "") !== baseSlug; const finalSlug = !editItem || titleChanged ? await findUniqueServiceSlug(baseSlug, editItem?.id) : slug; Object.assign(payload, { title: name.trim(), slug: finalSlug, category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, short_description: shortDesc || null, description: description || null }); }
       if (canMedia) payload.cover_media_id = coverMediaId || null;
       if (canPrice) Object.assign(payload, { base_price: basePrice ? Number(basePrice) : null, price_mode: priceMode });
       if (canPublication) Object.assign(payload, { is_featured: featured, sort_order: sortOrder });
       if (canToggleActive) payload.is_active = active;
       if (!creating && Object.keys(payload).length) payload.updated_by = userId;
-
-      await saveServiceAggregate({
-        serviceId: editItem?.id,
-        payload,
-        userId,
-        variants,
-        inclusions: features,
-        exclusions,
-        priceFactors,
-        sections,
-        faqs,
-        scope: creating ? undefined : { variants: canVariants, inclusions: canFeatures, exclusions: canExclusions, priceFactors: canFactors, sections: canSections, faqs: canFaq },
-      });
-      onToast({ msg: editItem ? "Serviço atualizado com sucesso!" : "Serviço criado com sucesso!", type: "success" });
-      onClose();
+      await saveServiceAggregate({ serviceId: editItem?.id, payload, userId, variants, inclusions: features, exclusions, priceFactors, sections, faqs, scope: creating ? undefined : { variants: canVariants, inclusions: canFeatures, exclusions: canExclusions, priceFactors: canFactors, sections: canSections, faqs: canFaq } });
+      onToast({ msg: editItem ? "Serviço atualizado com sucesso!" : "Serviço criado com sucesso!", type: "success" }); onClose();
     } catch (error) { onToast({ msg: `Erro ao salvar: ${error instanceof Error ? error.message : "Erro desconhecido"}`, type: "error" }); }
     finally { setSaving(false); }
   };
