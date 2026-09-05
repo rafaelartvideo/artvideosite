@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { slugify } from "@/shared/domain/formatters";
+import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import {
   createEquipmentBrand,
   createEquipmentModel,
@@ -49,19 +49,28 @@ export function QuickEquipmentModal({ onClose, onSaved, technicalFields, technic
     try {
       const { data: existingType, error: typeLookupError } = await findEquipmentTypeByName(typeName.trim());
       if (typeLookupError) throw typeLookupError;
-      const typeResult = existingType ? { data: existingType, error: null } : await createEquipmentType({ name: typeName.trim(), slug: slugify(typeName), is_active: true, sort_order: 0 });
+      const typeResult = existingType
+        ? { data: existingType, error: null }
+        : await createEquipmentType({ name: typeName.trim(), slug: await generateUniqueSlug("equipment_types", typeName), is_active: true, sort_order: 0 });
       const { data: type, error: typeError } = typeResult;
       if (typeError || !type) throw typeError || new Error("Equipamento não foi cadastrado.");
+
       const { data: existingBrand, error: brandLookupError } = await findEquipmentBrandByName(type.id, brandName.trim());
       if (brandLookupError) throw brandLookupError;
-      const brandResult = existingBrand ? { data: existingBrand, error: null } : await createEquipmentBrand({ name: brandName.trim(), slug: slugify(brandName), equipment_type_id: type.id, is_active: true, sort_order: 0 });
+      const brandResult = existingBrand
+        ? { data: existingBrand, error: null }
+        : await createEquipmentBrand({ name: brandName.trim(), slug: await generateUniqueSlug("equipment_brands", brandName), equipment_type_id: type.id, is_active: true, sort_order: 0 });
       const { data: brand, error: brandError } = brandResult;
       if (brandError || !brand) throw brandError || new Error("Marca não foi cadastrada.");
+
       const { data: existingModel, error: modelLookupError } = await findEquipmentModelByName(brand.id, modelName.trim());
       if (modelLookupError) throw modelLookupError;
-      const modelResult = existingModel ? { data: existingModel, error: null } : await createEquipmentModel({ name: modelName.trim(), slug: slugify(modelName), equipment_brand_id: brand.id, is_active: true, sort_order: 0 });
+      const modelResult = existingModel
+        ? { data: existingModel, error: null }
+        : await createEquipmentModel({ name: modelName.trim(), slug: await generateUniqueSlug("equipment_models", modelName), equipment_brand_id: brand.id, is_active: true, sort_order: 0 });
       const { data: model, error: modelError } = modelResult;
       if (modelError || !model) throw modelError || new Error("Modelo não foi cadastrado.");
+
       const existingLinks = technicalFieldLinks
         .filter(link => link.equipment_type_id === type.id)
         .map(link => ({ technical_field_id: link.technical_field_id, required: Boolean(link.required), sort_order: Number(link.sort_order) || 0 }));
