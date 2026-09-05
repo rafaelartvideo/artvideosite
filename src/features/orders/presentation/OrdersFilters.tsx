@@ -203,7 +203,7 @@ export function OrdersFilters({
 
   return (
     <AdminCard className="overflow-hidden p-0">
-      <div className="flex items-center gap-2 bg-[#0d1b2e] px-4 py-3 text-white">
+      <div className="flex items-center gap-2 bg-[#0057e7] px-4 py-3 text-white">
         <Search size={16} className="shrink-0" />
         <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
       </div>
