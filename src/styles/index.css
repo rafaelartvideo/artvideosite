@@ -17,6 +17,32 @@ body {
 }
 
 @media (max-width: 767px) {
+	/*
+	 * Mobile browser bars can cover the final controls of the CRM because the
+	 * admin shell owns its own scroll container. Keep the shell tied to the
+	 * dynamic viewport and reserve a scrollable safe area at the bottom of every
+	 * root module. This keeps pagination, "Linhas" selectors and final actions
+	 * reachable above Android/iOS browser UI.
+	 */
+	.admin-crm,
+	.admin-crm > main {
+		height: 100dvh !important;
+		max-height: 100dvh !important;
+	}
+
+	.admin-crm > main > .relative.flex-1.min-h-0.overflow-y-auto {
+		padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px)) !important;
+		scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+	}
+
+	/* Internal AdminPage routes get the same safety even when they have no
+	 * sticky action toolbar. AdminPage's existing sticky-toolbar rule can still
+	 * increase this spacing when needed.
+	 */
+	.admin-page-mobile-safe > div {
+		padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px) + var(--admin-browser-bottom-inset, 0px)) !important;
+	}
+
 	.admin-crm .overflow-x-auto:has(table:not(.mobile-table-preserve)) {
 		overflow-x: visible;
 	}
