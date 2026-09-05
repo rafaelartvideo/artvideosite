@@ -156,21 +156,22 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
     if (!form.name.trim()) { setToast({ msg: "Informe o nome do item do estoque.", type: "error" }); return; }
     const factor = form.unit === "cx" ? Number(form.conversion_factor) : 1;
     if (!selectedItem && (!Number.isInteger(factor) || factor < 1)) { setToast({ msg: "Informe quantas unidades existem em cada caixa.", type: "error" }); return; }
+    const minQuantity = Number(form.min_quantity || 0);
+    if (!Number.isFinite(minQuantity) || minQuantity < 0) { setToast({ msg: "Informe uma quantidade mínima válida.", type: "error" }); return; }
     const purchasePrice = form.purchase_price.trim() === "" ? null : Number(form.purchase_price);
     const salePrice = form.sale_price.trim() === "" ? null : Number(form.sale_price);
     if ((purchasePrice !== null && (!Number.isFinite(purchasePrice) || purchasePrice < 0)) || (salePrice !== null && (!Number.isFinite(salePrice) || salePrice < 0))) { setToast({ msg: "Informe valores de compra e venda válidos e não negativos.", type: "error" }); return; }
     const commonPayload = {
       name: form.name.trim(), sku: form.sku.trim() || null, description: form.description.trim() || null,
-      purchase_price: purchasePrice, sale_price: salePrice, is_active: form.is_active,
+      purchase_price: purchasePrice, sale_price: salePrice, is_active: form.is_active, min_quantity: minQuantity,
       storage_shelf: form.storage_shelf.trim() || null, storage_level: form.storage_level.trim() || null, storage_compartment: form.storage_compartment.trim() || null,
     };
     const payload = selectedItem ? {
       ...commonPayload,
-      // Unidade e fator seguem no payload apenas para preservar corretamente a conversão de preços; não são editáveis nesta tela.
       unit: form.unit, conversion_factor: factor,
     } : {
       ...commonPayload, unit: form.unit, conversion_factor: factor,
-      quantity: Number(form.quantity || 0), min_quantity: Number(form.min_quantity || 0),
+      quantity: Number(form.quantity || 0),
     };
     try {
       await saveInventoryItem(payload, selectedItem?.id);
@@ -249,7 +250,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
     {recordOpen && <AdminPage open onClose={closePage} breadcrumb="Estoque" title={selectedItem ? "Editar item" : "Novo item"} subtitle={selectedItem ? "Atualize os dados cadastrais e o endereço físico da peça." : "Cadastre a peça, unidade, saldo inicial e endereço físico."} maxW="max-w-3xl"><div className="space-y-5 p-4 sm:p-5">
       <Section title="Dados da peça"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} /><FInput label="SKU" value={form.sku} onChange={(e: any) => setForm({ ...form, sku: e.target.value })} /><div className="sm:col-span-2"><FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} /></div><FCurrencyInput label="Valor de compra" value={form.purchase_price} onChange={(e: any) => setForm({ ...form, purchase_price: e.target.value })} /><FCurrencyInput label="Valor de venda" value={form.sale_price} onChange={(e: any) => setForm({ ...form, sale_price: e.target.value })} /><div className="sm:col-span-2"><FToggle label="Item ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section>
       {!selectedItem && <Section title="Controle de estoque"><div className="space-y-4"><div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Unidade</label><AdminSelect value={form.unit} onValueChange={unit => setForm(current => ({ ...current, unit: unit === "cx" ? "cx" : "un", conversion_factor: unit === "cx" ? (current.conversion_factor === "1" ? "" : current.conversion_factor) : "1" }))} options={[{ value: "un", label: "Unidade (un)" }, { value: "cx", label: "Caixa (cx)" }]} ariaLabel="Unidade do item" /></div>{form.unit === "cx" && <FInput label="Unidades por caixa" required type="number" min="1" step="1" value={form.conversion_factor} onChange={(e: any) => setForm({ ...form, conversion_factor: e.target.value })} />}<div className="grid gap-4 sm:grid-cols-2"><FInput label={`Quantidade inicial (${form.unit})`} type="number" min="0" value={form.quantity} onChange={(e: any) => setForm({ ...form, quantity: e.target.value })} /><FInput label={`Quantidade mínima (${form.unit})`} type="number" min="0" value={form.min_quantity} onChange={(e: any) => setForm({ ...form, min_quantity: e.target.value })} /></div>{form.unit === "cx" && Number(form.conversion_factor) > 0 && <AdminCard className="bg-[#f8fafc] p-3 shadow-none"><p className="text-xs font-semibold text-[#5a6a82]">{Number(form.quantity || 0)} cx = {Number(form.quantity || 0) * Number(form.conversion_factor || 0)} un</p></AdminCard>}</div></Section>}
-      {selectedItem && <AdminCard className="border-blue-100 bg-blue-50 p-4 shadow-none"><p className="text-xs font-black uppercase tracking-wide text-blue-700">Saldo e unidade protegidos</p><p className="mt-1 text-sm text-blue-800">Unidade, fator de conversão, quantidade e estoque mínimo não são alterados na edição. Use <strong>Movimentar</strong> para qualquer ajuste de saldo.</p></AdminCard>}
+      {selectedItem && <Section title="Controle de estoque"><FInput label={`Quantidade mínima (${form.unit})`} type="number" min="0" value={form.min_quantity} onChange={(e: any) => setForm({ ...form, min_quantity: e.target.value })} /></Section>}
       <Section title="Endereço da peça"><div className="grid gap-4 sm:grid-cols-3"><FInput label="Estante" value={form.storage_shelf} onChange={(e: any) => setForm({ ...form, storage_shelf: e.target.value })} placeholder="Ex.: A, 1, A1" /><FInput label="Prateleira" value={form.storage_level} onChange={(e: any) => setForm({ ...form, storage_level: e.target.value })} placeholder="Ex.: 1, B, 2B" /><FInput label="Compartimento" value={form.storage_compartment} onChange={(e: any) => setForm({ ...form, storage_compartment: e.target.value })} placeholder="Ex.: A, 12, C3" /></div><p className="mt-3 text-xs text-[#718096]">Os três campos aceitam letras e números. Ex.: Estante A · Prateleira 1 · Compartimento A.</p></Section>
     </div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closePage}>Cancelar</BtnSecondary><BtnPrimary onClick={saveItem}>{selectedItem ? "Salvar" : "Cadastrar"}</BtnPrimary></div></AdminPage>}
 
