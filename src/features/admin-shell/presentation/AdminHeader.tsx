@@ -42,7 +42,7 @@ export function AdminHeader({
 }: AdminHeaderProps) {
   return (
     <>
-      <header className="relative z-40 shrink-0 border-b border-[#0d1b2e]/8 bg-white pt-[env(safe-area-inset-top)] shadow-sm md:hidden">
+      <header className="relative z-50 shrink-0 border-b border-[#0d1b2e]/8 bg-white pt-[env(safe-area-inset-top)] shadow-sm md:hidden">
         <div className="relative flex h-16 items-center px-4">
           <button
             type="button"
@@ -62,7 +62,7 @@ export function AdminHeader({
       </header>
 
       {page && (
-        <header className="hidden md:flex bg-white border-b border-[#0d1b2e]/8 px-6 py-3.5 items-center justify-between sticky top-0 z-30">
+        <header className="hidden md:flex bg-white border-b border-[#0d1b2e]/8 px-6 py-3.5 items-center justify-between sticky top-0 z-50 shadow-sm">
           <div>
             <div className="flex items-center gap-1.5 text-[10px] text-[#5a6a82] mb-0.5">
               <button
