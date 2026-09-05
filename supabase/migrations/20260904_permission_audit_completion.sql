@@ -24,6 +24,7 @@ with inheritance(child_key, parent_key) as (
     ('services.exclusions.manage','services.update'),
     ('services.publication.manage','services.update'),
     ('agenda.view_others','agenda.view'),
+    ('employees.view','roles.view'),
     ('roles.permissions.manage','roles.edit'),
     ('settings.lookup_cnpj','settings.update')
 )
