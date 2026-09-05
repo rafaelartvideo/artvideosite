@@ -33,6 +33,11 @@ const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabS
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
 
+type AdminLocationState = {
+  menuTab?: AdminTab;
+  origin?: { tab: AdminTab; resourceId: string | null; subpage: string | null };
+};
+
 function AdminRouteLoading() {
   return (
     <div className="flex min-h-[320px] items-center justify-center">
@@ -50,7 +55,8 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const navigate = useNavigate();
   const route = resolveAdminRoute(location.pathname);
   const activeTab = route.tab;
-  const activeMenuTab = (location.state as { menuTab?: AdminTab } | null)?.menuTab || activeTab;
+  const locationState = (location.state as AdminLocationState | null) || null;
+  const activeMenuTab = locationState?.menuTab || activeTab;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState<AdminPageState>(null);
 
@@ -61,7 +67,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     tab: AdminTab,
     resourceId?: string | null,
     subpage?: string | null,
-    options?: { replace?: boolean; menuTab?: AdminTab; origin?: { tab: AdminTab; resourceId: string | null; subpage: string | null } },
+    options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] },
   ) => {
     navigate(adminPath(tab, resourceId, subpage), {
       replace: options?.replace,
@@ -69,6 +75,21 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     });
     setPage(null);
     setSidebarOpen(false);
+  };
+
+  const navigateOrderRoute = (orderId?: string | null, subpage?: string | null) => {
+    navigateAdmin("orders", orderId, subpage, {
+      menuTab: locationState?.menuTab,
+      origin: locationState?.origin,
+    });
+  };
+
+  const closeOrderRoute = () => {
+    if (locationState?.origin) {
+      navigateAdmin(locationState.origin.tab, locationState.origin.resourceId, locationState.origin.subpage);
+      return;
+    }
+    navigateAdmin("orders");
   };
 
   useEffect(() => {
@@ -142,7 +163,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
               <Route path="/admin/operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("documents", resourceId, subpage)} />} />
 
               <Route path="/admin/quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} />} />
-              <Route path="/admin/orders/*" element={<TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={(orderId, subpage) => navigateAdmin("orders", orderId, subpage)} />} />
+              <Route path="/admin/orders/*" element={<TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={navigateOrderRoute} onOrderRouteClose={closeOrderRoute} />} />
               <Route path="/admin/agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
               <Route path="/admin/customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || null, subpage: null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("customers", resourceId, subpage)} />} />
               <Route path="/admin/inventory/*" element={<TabInventory />} />
