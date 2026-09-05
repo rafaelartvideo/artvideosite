@@ -108,7 +108,7 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Configurações" subtitle="Gerencie as informações institucionais e configurações do site." actions={<InternalBackButton onBack={onBack} />} />
+    <PageHeader title="Configurações" subtitle="Gerencie as informações institucionais e configurações do site." actions={<InternalBackButton onBack={onBack} inHeader />} />
     <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {canViewDetails && <AdminCard className="group min-w-0 transition-all hover:border-[#0057e7]/40 hover:shadow-md">
         <AdminButton variant="ghost" type="button" onClick={() => onRouteChange?.("company")} className="h-auto w-full min-w-0 flex-col items-stretch whitespace-normal rounded-none p-0 text-left hover:bg-transparent">
