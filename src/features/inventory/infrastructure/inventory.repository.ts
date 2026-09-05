@@ -1,5 +1,35 @@
 import { supabase } from "@/lib/supabase";
 
+const factorOf = (item: any) => Math.max(1, Number(item?.conversion_factor ?? 1) || 1);
+const isBox = (item: any) => String(item?.unit || "un").toLowerCase() === "cx";
+
+function toDisplayItem(item: any) {
+  if (!item) return item;
+  const factor = factorOf(item);
+  if (!isBox(item) || factor === 1) return { ...item, conversion_factor: factor };
+  return {
+    ...item,
+    conversion_factor: factor,
+    quantity: Number(item.quantity ?? 0) / factor,
+    min_quantity: item.min_quantity == null ? item.min_quantity : Number(item.min_quantity) / factor,
+    purchase_price: item.purchase_price == null ? null : Number(item.purchase_price) * factor,
+    sale_price: item.sale_price == null ? null : Number(item.sale_price) * factor,
+  };
+}
+
+function toBasePayload(payload: Record<string, unknown>) {
+  const unit = String(payload.unit || "un").toLowerCase() === "cx" ? "cx" : "un";
+  const factor = unit === "cx" ? Math.max(1, Number(payload.conversion_factor ?? 1) || 1) : 1;
+  const base: Record<string, unknown> = { ...payload, unit, conversion_factor: factor };
+
+  if (payload.quantity != null) base.quantity = Number(payload.quantity || 0) * factor;
+  if (payload.min_quantity != null) base.min_quantity = Number(payload.min_quantity || 0) * factor;
+  if (payload.purchase_price != null) base.purchase_price = Number(payload.purchase_price) / factor;
+  if (payload.sale_price != null) base.sale_price = Number(payload.sale_price) / factor;
+
+  return base;
+}
+
 export async function listInventoryItems() {
   const { data, error } = await supabase
     .from("inventory_items")
@@ -7,16 +37,17 @@ export async function listInventoryItems() {
     .order("name");
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map(toDisplayItem);
 }
 
 export async function saveInventoryItem(
   payload: Record<string, unknown>,
   itemId?: string,
 ): Promise<void> {
+  const basePayload = toBasePayload(payload);
   const { error } = itemId
-    ? await supabase.from("inventory_items").update(payload).eq("id", itemId)
-    : await supabase.from("inventory_items").insert(payload);
+    ? await supabase.from("inventory_items").update(basePayload).eq("id", itemId)
+    : await supabase.from("inventory_items").insert(basePayload);
 
   if (error) throw error;
 }
@@ -43,7 +74,7 @@ export async function deleteInventoryItem(itemId: string): Promise<void> {
 }
 
 export async function listInventoryMovements(itemId: string) {
-  const [movementsResult, usedItemsResult] = await Promise.all([
+  const [movementsResult, usedItemsResult, itemResult] = await Promise.all([
     supabase
       .from("inventory_movements")
       .select("*, created_by_profile:profiles(full_name), service_order:service_orders(os_number)")
@@ -54,21 +85,33 @@ export async function listInventoryMovements(itemId: string) {
       .select("id,inventory_item_id,service_order_id,quantity,created_by,created_at,created_by_profile:profiles(full_name),service_order:service_orders(os_number)")
       .eq("inventory_item_id", itemId)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("inventory_items")
+      .select("id,unit,conversion_factor")
+      .eq("id", itemId)
+      .maybeSingle(),
   ]);
 
   if (movementsResult.error) throw movementsResult.error;
   if (usedItemsResult.error) throw usedItemsResult.error;
+  if (itemResult.error) throw itemResult.error;
+
+  const factor = factorOf(itemResult.data);
+  const displayQuantity = (quantity: unknown) => isBox(itemResult.data) ? Number(quantity || 0) / factor : Number(quantity || 0);
 
   const physicalMovements = (movementsResult.data ?? []).map((movement: any) => ({
     ...movement,
     movement_type: String(movement.movement_type || "").toLowerCase(),
+    quantity: displayQuantity(movement.quantity),
+    base_quantity: Number(movement.quantity || 0),
   }));
   const resolutionUsage = (usedItemsResult.data ?? []).map((item: any) => ({
     id: `resolution-use-${item.id}`,
     inventory_item_id: item.inventory_item_id,
     service_order_id: item.service_order_id,
     movement_type: "use",
-    quantity: item.quantity,
+    quantity: displayQuantity(item.quantity),
+    base_quantity: Number(item.quantity || 0),
     reason: "Uso da peça na resolução da OS (sem nova movimentação de saldo)",
     created_by: item.created_by,
     created_at: item.created_at,
@@ -90,7 +133,7 @@ export async function getInventoryItem(itemId: string) {
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  return toDisplayItem(data);
 }
 
 export async function recordInventoryMovement(
@@ -98,15 +141,36 @@ export async function recordInventoryMovement(
   itemId: string,
   nextQuantity: number,
 ): Promise<void> {
+  const { data: item, error: itemLoadError } = await supabase
+    .from("inventory_items")
+    .select("id,unit,conversion_factor")
+    .eq("id", itemId)
+    .maybeSingle();
+
+  if (itemLoadError) throw itemLoadError;
+  if (!item) throw new Error("Item do estoque não encontrado.");
+
+  const factor = factorOf(item);
+  const inputQuantity = Number(movement.quantity || 0);
+  const baseQuantity = isBox(item) ? inputQuantity * factor : inputQuantity;
+  const baseNextQuantity = isBox(item) ? Number(nextQuantity) * factor : Number(nextQuantity);
+  const movementPayload = {
+    ...movement,
+    quantity: baseQuantity,
+    input_unit: isBox(item) ? "cx" : "un",
+    input_quantity: inputQuantity,
+    conversion_factor_snapshot: factor,
+  };
+
   const { error: movementError } = await supabase
     .from("inventory_movements")
-    .insert(movement);
+    .insert(movementPayload);
 
   if (movementError) throw movementError;
 
   const { error: itemError } = await supabase
     .from("inventory_items")
-    .update({ quantity: nextQuantity })
+    .update({ quantity: baseNextQuantity })
     .eq("id", itemId);
 
   if (itemError) throw itemError;
