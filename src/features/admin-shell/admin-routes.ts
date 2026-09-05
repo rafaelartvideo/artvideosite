@@ -1,6 +1,12 @@
 import { matchPath } from "react-router";
 import type { AdminTab } from "./domain/admin.types";
 
+export type AdminRouteParts = {
+  tab: AdminTab;
+  resourceId: string | null;
+  subpage: string | null;
+};
+
 export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   dashboard: "/admin",
   quotes: "/admin/quotes",
@@ -37,11 +43,18 @@ export function adminPath(tab: AdminTab, resourceId?: string | null, subpage?: s
   return segments.length ? `${basePath}/${segments.join("/")}` : basePath;
 }
 
-export function resolveAdminTab(pathname: string): AdminTab {
+export function resolveAdminRoute(pathname: string): AdminRouteParts {
   for (const [tab, basePath] of ROUTES_BY_SPECIFICITY) {
-    if (pathname === basePath || matchPath({ path: `${basePath}/*`, end: false }, pathname)) return tab;
+    if (pathname !== basePath && !matchPath({ path: `${basePath}/*`, end: false }, pathname)) continue;
+    const remainder = pathname.slice(basePath.length).replace(/^\/+/, "");
+    const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
+    return { tab, resourceId: segments[0] || null, subpage: segments[1] || null };
   }
-  return "dashboard";
+  return { tab: "dashboard", resourceId: null, subpage: null };
+}
+
+export function resolveAdminTab(pathname: string): AdminTab {
+  return resolveAdminRoute(pathname).tab;
 }
 
 export function parentAdminTab(tab: AdminTab): AdminTab | null {
