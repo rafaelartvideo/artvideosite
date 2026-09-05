@@ -91,7 +91,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
               <Route path="/admin/operation/service-types/*" element={<ServiceTypesAdminPanel onBack={() => backToParent("serviceTypes")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("serviceTypes")} />} />
               <Route path="/admin/operation/order-situations/*" element={<OSSituationsView onBack={() => backToParent("situations")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("situations")} />} />
               <Route path="/admin/operation/order-statuses/*" element={<OrderStatusesAdminPanel onBack={() => backToParent("orderStatuses")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("orderStatuses")} />} />
-              <Route path="/admin/operation/employees/*" element={<TabEmployees onBack={() => backToParent("employees")} />} />
+              <Route path="/admin/operation/employees/*" element={<TabEmployees onBack={() => backToParent("employees")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("employees")} />} />
               <Route path="/admin/operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
 
               <Route path="/admin/quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
