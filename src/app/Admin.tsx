@@ -59,13 +59,17 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
   const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] }) => {
     navigate(adminPath(tab, resourceId, subpage), { replace: options?.replace, state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined });
-    setPage(null); setSidebarOpen(false);
+    if (!resourceId) setPage(null);
+    setSidebarOpen(false);
   };
   const routeChange = (tab: AdminTab) => (resourceId: string | null, subpage?: string | null) => navigateAdmin(tab, resourceId, subpage);
   const navigateOrderRoute = (orderId?: string | null, subpage?: string | null) => navigateAdmin("orders", orderId, subpage, { menuTab: locationState?.menuTab, origin: locationState?.origin });
   const closeOrderRoute = () => { if (locationState?.origin) { navigateAdmin(locationState.origin.tab, locationState.origin.resourceId, locationState.origin.subpage); return; } navigateAdmin("orders"); };
 
-  useEffect(() => { setPage(null); setSidebarOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    if (!route.resourceId) setPage(null);
+    setSidebarOpen(false);
+  }, [location.pathname, route.resourceId]);
   useEffect(() => { if (canAccessTab(activeTab)) return; navigateAdmin("dashboard", null, null, { replace: true }); }, [activeTab, hasPermission]);
 
   useEffect(() => {
