@@ -16,7 +16,7 @@ export function AdminLayout({
   children,
 }: AdminLayoutProps) {
   return (
-    <div className="h-screen overflow-hidden bg-[#f8fafc] flex">
+    <div className="admin-crm h-screen overflow-hidden bg-[#f8fafc] flex">
       <aside className="hidden md:flex w-60 flex-shrink-0 bg-[#0d1b2e] flex-col fixed left-0 top-0 h-full z-40">
         {sidebar}
       </aside>
