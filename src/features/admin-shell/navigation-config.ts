@@ -17,9 +17,7 @@ import {
 import type { AdminTab } from "./domain/admin.types";
 import type { AdminHubItem, AdminNavigationItem } from "./presentation/AdminNavigation";
 
-type PermissionAwareHubItem = AdminHubItem & {
-  permissionKey: string;
-};
+type PermissionAwareHubItem = AdminHubItem & { permissionKey: string };
 
 export const mainItems: AdminNavigationItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -35,7 +33,7 @@ export const siteItems: PermissionAwareHubItem[] = [
   { id: "categories", label: "Categorias", icon: FolderTree, description: "Organize as categorias utilizadas pelos produtos do site.", permissionKey: "categories.view" },
   { id: "brands", label: "Marcas", icon: Tag, description: "Gerencie as marcas utilizadas no catálogo da loja.", permissionKey: "brands.view" },
   { id: "services", label: "Serviços do Site", icon: Wrench, description: "Cadastre e gerencie os serviços apresentados no site público.", permissionKey: "services.view" },
-  { id: "siteSettings", label: "Configurações do Site", icon: Settings, description: "Gerencie identidade visual e conteúdo do site público.", permissionKey: "settings.view" },
+  { id: "siteSettings", label: "Configurações do Site", icon: Settings, description: "Gerencie identidade visual e conteúdo do site público.", permissionKey: "site_settings.view" },
 ];
 
 export const operationItems: PermissionAwareHubItem[] = [
@@ -72,8 +70,8 @@ export const permissionForTab: Record<AdminTab, string> = {
   orderStatuses: "order_statuses.view",
   employees: "employees.view",
   settings: "settings.view",
-  siteSettings: "settings.view",
+  siteSettings: "site_settings.view",
   contact: "contact.view",
   site: "site.view",
-  operation: "orders.view",
+  operation: "operation.view",
 };
