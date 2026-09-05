@@ -24,7 +24,13 @@ function EmployeesAreaHeader({ title, description, action }: { title: string; de
   return <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div className="min-w-0"><h2 className="break-words text-lg font-black text-[#0d1b2e]">{title}</h2><p className="mt-1 max-w-3xl break-words text-xs leading-relaxed text-[#5a6a82]">{description}</p></div>{action && <div className="shrink-0">{action}</div>}</div>;
 }
 
-function RolePermissionsPanel() {
+type TeamRouteProps = {
+  routeResourceId?: string | null;
+  routeSubpage?: string | null;
+  onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
+};
+
+function RolePermissionsPanel({ routeResourceId, routeSubpage, onRouteChange }: TeamRouteProps) {
   const { hasPermission } = useAuth();
   const canView = hasPermission("roles.view");
   const canViewTable = hasPermission("roles.table.view");
@@ -82,35 +88,36 @@ function RolePermissionsPanel() {
       addRequiredPermissions(selected, required.key, visited);
     });
   };
-
   const permissionDependsOn = (candidateKey: string, targetKey: string, visited = new Set<string>()): boolean => {
     if (candidateKey === targetKey || visited.has(candidateKey)) return candidateKey === targetKey;
     visited.add(candidateKey);
     return permissionDependencies(candidateKey).some(requiredKey => requiredKey === targetKey || permissionDependsOn(requiredKey, targetKey, visited));
   };
-
   const removePermissionAndDependents = (selected: Set<string>, permission: PermissionRecord) => {
     selected.delete(permission.id);
-    permissions.forEach(candidate => {
-      if (candidate.id !== permission.id && selected.has(candidate.id) && permissionDependsOn(candidate.key, permission.key)) selected.delete(candidate.id);
-    });
+    permissions.forEach(candidate => { if (candidate.id !== permission.id && selected.has(candidate.id) && permissionDependsOn(candidate.key, permission.key)) selected.delete(candidate.id); });
   };
 
   const openNew = () => { if (!canCreate) return; setEditing(null); setForm({ name: "", description: "", is_active: true, selected: [] }); setFormOpen(true); };
-  const reloadRolePermissions = async (roleId: string) => {
-    const { data, error } = await getRolePermissionIds(roleId);
-    if (error) return error;
-    setForm(current => ({ ...current, selected: (data || []).map((item: any) => item.permission_id) }));
-    return null;
-  };
+  const reloadRolePermissions = async (roleId: string) => { const { data, error } = await getRolePermissionIds(roleId); if (error) return error; setForm(current => ({ ...current, selected: (data || []).map((item: any) => item.permission_id) })); return null; };
   const openEdit = async (role: any) => {
     if (!canViewDetails) return;
-    setEditing(role);
-    setForm({ name: role.name || "", description: role.description || "", is_active: role.is_active !== false, selected: [] });
+    setEditing(role); setForm({ name: role.name || "", description: role.description || "", is_active: role.is_active !== false, selected: [] });
     const error = await reloadRolePermissions(role.id);
     if (error) { setToast({ msg: `Erro ao carregar permissões da função: ${supabaseErrorMessage(error)}`, type: "error" }); return; }
     setFormOpen(true);
   };
+  const closeRoleForm = () => { setFormOpen(false); onRouteChange?.("roles", null); };
+  const openNewRolePage = () => canCreate && (onRouteChange ? onRouteChange("new-role", null) : openNew());
+  const openRolePage = (role: any) => canViewDetails && (onRouteChange ? onRouteChange(role.id, "role") : void openEdit(role));
+
+  useEffect(() => {
+    if (routeResourceId === "roles") { if (formOpen) setFormOpen(false); return; }
+    if (routeResourceId === "new-role") { if (canCreate && !formOpen) openNew(); return; }
+    if (routeSubpage !== "role" || !canViewDetails || editing?.id === routeResourceId) return;
+    const role = roles.find(item => item.id === routeResourceId);
+    if (role) void openEdit(role);
+  }, [routeResourceId, routeSubpage, roles, formOpen, editing?.id, canCreate, canViewDetails]);
 
   const save = async () => {
     const creating = !editing;
@@ -119,93 +126,48 @@ function RolePermissionsPanel() {
     if (creating && !form.name.trim()) { setToast({ msg: "Informe o nome da função.", type: "error" }); return; }
     setSaving(true);
     const roleId = editing?.id || crypto.randomUUID();
-
     if (canSaveRoleData) {
       const payload = { name: form.name.trim(), description: form.description.trim() || null, is_active: form.is_active };
       const result = editing ? await updateRole(roleId, payload) : await createRole({ ...payload, id: roleId, is_system: false, sort_order: roles.length });
       if (result.error) { setSaving(false); setToast({ msg: `Erro ao ${editing ? "atualizar" : "criar"} função: ${supabaseErrorMessage(result.error)}`, type: "error" }); return; }
     }
-
     if (canManagePermissions) {
       const previousPermissionIds = new Set<string>();
-      if (editing) {
-        const { data, error } = await getRolePermissionIds(roleId);
-        if (error) { setSaving(false); setToast({ msg: `Não foi possível ler as permissões atuais: ${supabaseErrorMessage(error)}`, type: "error" }); return; }
-        (data || []).forEach((item: any) => previousPermissionIds.add(item.permission_id));
-      }
+      if (editing) { const { data, error } = await getRolePermissionIds(roleId); if (error) { setSaving(false); setToast({ msg: `Não foi possível ler as permissões atuais: ${supabaseErrorMessage(error)}`, type: "error" }); return; } (data || []).forEach((item: any) => previousPermissionIds.add(item.permission_id)); }
       const selectedPermissionIds = new Set(form.selected);
       try {
         for (const permissionId of [...selectedPermissionIds].filter(id => !previousPermissionIds.has(id))) { const { error } = await addRolePermission(roleId, permissionId); if (error) throw error; }
         for (const permissionId of [...previousPermissionIds].filter(id => !selectedPermissionIds.has(id))) { const { error } = await removeRolePermission(roleId, permissionId); if (error) throw error; }
       } catch (error) {
-        setSaving(false);
-        setToast({ msg: `Não foi possível sincronizar as permissões: ${supabaseErrorMessage(error)}`, type: "error" });
-        if (editing) await reloadRolePermissions(roleId);
-        await refreshRoles();
-        return;
+        setSaving(false); setToast({ msg: `Não foi possível sincronizar as permissões: ${supabaseErrorMessage(error)}`, type: "error" }); if (editing) await reloadRolePermissions(roleId); await refreshRoles(); return;
       }
     }
-
-    setSaving(false);
-    setFormOpen(false);
-    setToast({ msg: editing ? "Função atualizada." : "Função criada.", type: "success" });
-    await refreshRoles();
+    setSaving(false); setToast({ msg: editing ? "Função atualizada." : "Função criada.", type: "success" }); await refreshRoles(); closeRoleForm();
   };
 
   const togglePermission = (permissionId: string) => {
     if (!canManagePermissions) return;
-    setForm(current => {
-      const permission = permissions.find(item => item.id === permissionId);
-      if (!permission) return current;
-      const selected = new Set(current.selected);
-      if (selected.has(permissionId)) removePermissionAndDependents(selected, permission);
-      else { selected.add(permissionId); addRequiredPermissions(selected, permission.key); }
-      return { ...current, selected: Array.from(selected) };
-    });
+    setForm(current => { const permission = permissions.find(item => item.id === permissionId); if (!permission) return current; const selected = new Set(current.selected); if (selected.has(permissionId)) removePermissionAndDependents(selected, permission); else { selected.add(permissionId); addRequiredPermissions(selected, permission.key); } return { ...current, selected: Array.from(selected) }; });
   };
-
   const toggleGroup = (items: PermissionRecord[]) => {
     if (!canManagePermissions) return;
-    setForm(current => {
-      const selected = new Set(current.selected);
-      const allSelected = items.length > 0 && items.every(item => selected.has(item.id));
-      if (allSelected) items.forEach(item => removePermissionAndDependents(selected, item));
-      else items.forEach(item => { selected.add(item.id); addRequiredPermissions(selected, item.key); });
-      return { ...current, selected: Array.from(selected) };
-    });
+    setForm(current => { const selected = new Set(current.selected); const allSelected = items.length > 0 && items.every(item => selected.has(item.id)); if (allSelected) items.forEach(item => removePermissionAndDependents(selected, item)); else items.forEach(item => { selected.add(item.id); addRequiredPermissions(selected, item.key); }); return { ...current, selected: Array.from(selected) }; });
   };
-
   const allSelected = permissions.length > 0 && permissions.every(permission => form.selected.includes(permission.id));
+  const roleEditorRoute = routeResourceId === "new-role" || routeSubpage === "role";
 
   if (!canView) return null;
   return <div className="min-w-0 space-y-4">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <EmployeesAreaHeader title="Funções e Permissões" description="Defina os acessos disponíveis para cada perfil" action={canCreate ? <BtnPrimary onClick={openNew}><Plus size={15} /> Nova função</BtnPrimary> : undefined} />
-    {canViewTable && <AdminCard>{rolesQuery.isPending ? <LoadingState /> : roles.length === 0 ? <EmptyState icon={Users} title="Nenhuma função cadastrada" message="Cadastre uma função para configurar permissões." /> : <><div className="overflow-x-auto"><table className="min-w-[720px]"><thead><tr>{showName && <th className="text-left">Função</th>}{showDescription && <th className="text-left">Descrição</th>}{showPermissionCount && <th className="text-left">Permissões</th>}{showType && <th className="text-left">Tipo</th>}{showUsers && <th className="text-left">Usuários</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedRoles.map(role => <RoleRow key={role.id} role={role} permissionCount={role.permission_count} userCount={roleCounts[role.id] || 0} canOpen={canViewDetails} canEdit={canEdit} showName={showName} showDescription={showDescription} showPermissionCount={showPermissionCount} showType={showType} showUsers={showUsers} showActions={showActions} onEdit={() => openEdit(role)} />)}</tbody></table></div><PaginationBar page={safeRolePage} pageSize={rolePageSize} totalItems={roles.length} onPageChange={setRolePage} onPageSizeChange={size => { setRolePageSize(size); setRolePage(1); }} /></>}</AdminCard>}
-
-    {formOpen && canViewDetails && <AdminPage open onClose={() => setFormOpen(false)} breadcrumb="Equipes > Funções e Permissões" title={editing ? "Editar função" : "Nova função"} subtitle="Configure os dados e acessos do perfil" maxW="max-w-4xl">
-      <div className="space-y-5 p-4 sm:p-5">
-        <Section title="Dados da função"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required disabled={Boolean(editing) && !canEdit} value={form.name} onChange={(event: any) => setForm({ ...form, name: event.target.value })} /><FInput label="Descrição" disabled={Boolean(editing) && !canEdit} value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} /><div className="sm:col-span-2"><FToggle label="Função ativa" disabled={Boolean(editing) && !canEdit} checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div></div></Section>
-        <Section title="Permissões">
-          <div className="mb-5 flex min-w-0 items-center justify-between gap-3 border-b border-[#0d1b2e]/8 pb-4"><label className="flex min-w-0 items-center gap-2 break-words text-sm font-bold text-[#0d1b2e]"><Checkbox disabled={!canManagePermissions} checked={allSelected} onCheckedChange={() => toggleGroup(permissions)} /> Todas as permissões</label><span className="shrink-0 text-xs font-bold text-[#5a6a82]">{form.selected.length}/{permissions.length}</span></div>
-          <div className="space-y-5">{permissionGroups.map(module => {
-            const moduleCount = module.permissions.filter(permission => form.selected.includes(permission.id)).length;
-            const moduleAll = module.permissions.length > 0 && moduleCount === module.permissions.length;
-            return <div key={module.name} className="min-w-0 rounded-xl border border-[#0d1b2e]/8 bg-white p-3 sm:p-4">
-              <div className="flex min-w-0 items-center justify-between gap-3"><label className="flex min-w-0 items-center gap-2 break-words text-sm font-black text-[#0d1b2e]"><Checkbox disabled={!canManagePermissions} checked={moduleAll} onCheckedChange={() => toggleGroup(module.permissions)} /> {module.name}</label><span className="shrink-0 text-[11px] font-bold text-[#5a6a82]">{moduleCount}/{module.permissions.length}</span></div>
-              <div className="ml-3 mt-4 space-y-4 border-l-2 border-[#0057e7]/15 pl-4 sm:ml-5 sm:pl-5">{module.sections.map(section => {
-                const sectionCount = section.permissions.filter(permission => form.selected.includes(permission.id)).length;
-                const sectionAll = section.permissions.length > 0 && sectionCount === section.permissions.length;
-                return <div key={`${module.name}-${section.name}`} className="min-w-0">
-                  <div className="flex min-w-0 items-center justify-between gap-3"><label className="flex min-w-0 items-center gap-2 break-words text-[11px] font-black uppercase tracking-[0.1em] text-[#34445b]"><Checkbox disabled={!canManagePermissions} checked={sectionAll} onCheckedChange={() => toggleGroup(section.permissions)} /> {section.name}</label><span className="shrink-0 text-[10px] font-bold text-[#8a96a8]">{sectionCount}/{section.permissions.length}</span></div>
-                  <div className="ml-3 mt-2 grid gap-1.5 border-l border-[#0d1b2e]/8 pl-4 sm:grid-cols-2">{section.permissions.map(permission => <label key={permission.id} className="flex min-w-0 items-start gap-2 rounded-md px-2 py-2 text-xs text-[#5a6a82] hover:bg-[#f8fafc]"><Checkbox disabled={!canManagePermissions} checked={form.selected.includes(permission.id)} onCheckedChange={() => togglePermission(permission.id)} /><span className="min-w-0 break-words font-semibold leading-relaxed text-[#34445b]">{permissionLabel(permission)}</span></label>)}</div>
-                </div>;
-              })}</div>
-            </div>;
-          })}</div>
-        </Section>
-      </div>
-      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => setFormOpen(false)}>Fechar</BtnSecondary>{((editing && (canEdit || canManagePermissions)) || (!editing && canCreate)) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar função"}</BtnPrimary>}</div>
+    {!roleEditorRoute && <><EmployeesAreaHeader title="Funções e Permissões" description="Defina os acessos disponíveis para cada perfil" action={canCreate ? <BtnPrimary onClick={openNewRolePage}><Plus size={15} /> Nova função</BtnPrimary> : undefined} />
+    {canViewTable && <AdminCard>{rolesQuery.isPending ? <LoadingState /> : roles.length === 0 ? <EmptyState icon={Users} title="Nenhuma função cadastrada" message="Cadastre uma função para configurar permissões." /> : <><div className="overflow-x-auto"><table className="min-w-[720px]"><thead><tr>{showName && <th className="text-left">Função</th>}{showDescription && <th className="text-left">Descrição</th>}{showPermissionCount && <th className="text-left">Permissões</th>}{showType && <th className="text-left">Tipo</th>}{showUsers && <th className="text-left">Usuários</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedRoles.map(role => <RoleRow key={role.id} role={role} permissionCount={role.permission_count} userCount={roleCounts[role.id] || 0} canOpen={canViewDetails} canEdit={canEdit} showName={showName} showDescription={showDescription} showPermissionCount={showPermissionCount} showType={showType} showUsers={showUsers} showActions={showActions} onEdit={() => openRolePage(role)} />)}</tbody></table></div><PaginationBar page={safeRolePage} pageSize={rolePageSize} totalItems={roles.length} onPageChange={setRolePage} onPageSizeChange={size => { setRolePageSize(size); setRolePage(1); }} /></>}</AdminCard>}</>}
+    {roleEditorRoute && !formOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
+    {formOpen && canViewDetails && <AdminPage open onClose={closeRoleForm} breadcrumb="Equipes > Funções e Permissões" title={editing ? "Editar função" : "Nova função"} subtitle="Configure os dados e acessos do perfil" maxW="max-w-4xl">
+      <div className="space-y-5 p-4 sm:p-5"><Section title="Dados da função"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required disabled={Boolean(editing) && !canEdit} value={form.name} onChange={(event: any) => setForm({ ...form, name: event.target.value })} /><FInput label="Descrição" disabled={Boolean(editing) && !canEdit} value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} /><div className="sm:col-span-2"><FToggle label="Função ativa" disabled={Boolean(editing) && !canEdit} checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div></div></Section>
+        <Section title="Permissões"><div className="mb-5 flex min-w-0 items-center justify-between gap-3 border-b border-[#0d1b2e]/8 pb-4"><label className="flex min-w-0 items-center gap-2 break-words text-sm font-bold text-[#0d1b2e]"><Checkbox disabled={!canManagePermissions} checked={allSelected} onCheckedChange={() => toggleGroup(permissions)} /> Todas as permissões</label><span className="shrink-0 text-xs font-bold text-[#5a6a82]">{form.selected.length}/{permissions.length}</span></div>
+          <div className="space-y-5">{permissionGroups.map(module => { const moduleCount = module.permissions.filter(permission => form.selected.includes(permission.id)).length; const moduleAll = module.permissions.length > 0 && moduleCount === module.permissions.length; return <div key={module.name} className="min-w-0 rounded-xl border border-[#0d1b2e]/8 bg-white p-3 sm:p-4"><div className="flex min-w-0 items-center justify-between gap-3"><label className="flex min-w-0 items-center gap-2 break-words text-sm font-black text-[#0d1b2e]"><Checkbox disabled={!canManagePermissions} checked={moduleAll} onCheckedChange={() => toggleGroup(module.permissions)} /> {module.name}</label><span className="shrink-0 text-[11px] font-bold text-[#5a6a82]">{moduleCount}/{module.permissions.length}</span></div><div className="ml-3 mt-4 space-y-4 border-l-2 border-[#0057e7]/15 pl-4 sm:ml-5 sm:pl-5">{module.sections.map(section => { const sectionCount = section.permissions.filter(permission => form.selected.includes(permission.id)).length; const sectionAll = section.permissions.length > 0 && sectionCount === section.permissions.length; return <div key={`${module.name}-${section.name}`} className="min-w-0"><div className="flex min-w-0 items-center justify-between gap-3"><label className="flex min-w-0 items-center gap-2 break-words text-[11px] font-black uppercase tracking-[0.1em] text-[#34445b]"><Checkbox disabled={!canManagePermissions} checked={sectionAll} onCheckedChange={() => toggleGroup(section.permissions)} /> {section.name}</label><span className="shrink-0 text-[10px] font-bold text-[#8a96a8]">{sectionCount}/{section.permissions.length}</span></div><div className="ml-3 mt-2 grid gap-1.5 border-l border-[#0d1b2e]/8 pl-4 sm:grid-cols-2">{section.permissions.map(permission => <label key={permission.id} className="flex min-w-0 items-start gap-2 rounded-md px-2 py-2 text-xs text-[#5a6a82] hover:bg-[#f8fafc]"><Checkbox disabled={!canManagePermissions} checked={form.selected.includes(permission.id)} onCheckedChange={() => togglePermission(permission.id)} /><span className="min-w-0 break-words font-semibold leading-relaxed text-[#34445b]">{permissionLabel(permission)}</span></label>)}</div></div>; })}</div></div>; })}</div>
+        </Section></div>
+      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeRoleForm}>Fechar</BtnSecondary>{((editing && (canEdit || canManagePermissions)) || (!editing && canCreate)) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar função"}</BtnPrimary>}</div>
     </AdminPage>}
   </div>;
 }
@@ -216,8 +178,9 @@ function RoleRow({ role, permissionCount, userCount, canOpen, canEdit, showName,
   return <tr onClick={canOpen ? onEdit : undefined} className={canOpen ? "cursor-default" : undefined}>{showName && <td className="font-bold text-[#0d1b2e]">{role.name}</td>}{showDescription && <td className="max-w-sm break-words text-xs leading-relaxed text-[#5a6a82]">{role.description || "—"}</td>}{showPermissionCount && <td className="text-xs text-[#5a6a82]">{count ?? "—"}</td>}{showType && <td><StatusBadge status={role.is_system ? "Padrão" : "Personalizado"} /></td>}{showUsers && <td className="text-xs text-[#5a6a82]">{userCount}</td>}{showActions && <td className="text-right" onClick={event => event.stopPropagation()}>{canOpen && canEdit && <AdminIconButton ariaLabel={`Editar função ${role.name}`} title="Editar" onClick={onEdit}><Edit2 size={14} /></AdminIconButton>}</td>}</tr>;
 }
 
-export function TabEmployees({ onBack }: { onBack: () => void }) {
-  const [activeArea, setActiveArea] = useState<"users" | "roles">("users");
+export function TabEmployees({ onBack, routeResourceId, routeSubpage, onRouteChange }: { onBack: () => void } & TeamRouteProps) {
+  const initialArea = routeResourceId === "roles" || routeResourceId === "new-role" || routeSubpage === "role" ? "roles" : "users";
+  const [activeArea, setActiveArea] = useState<"users" | "roles">(initialArea);
   const { hasPermission } = useAuth();
   const canViewEmployees = hasPermission("employees.view");
   const canViewEmployeeTable = hasPermission("employees.table.view");
@@ -234,11 +197,7 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
   const showEmployeeStatus = hasPermission("employees.table.status");
   const showEmployeeActions = hasPermission("employees.table.actions");
   const queryClient = useQueryClient();
-  const employeesQuery = useQuery({
-    queryKey: queryKeys.employees.lists(),
-    enabled: canViewEmployees,
-    queryFn: async () => { const [{ data, error }, rolesResult] = await Promise.all([getEmployees(), listActiveRoles()]); if (error) throw error; if (rolesResult.error) throw rolesResult.error; return { employees: data || [], roles: rolesResult.data || [] }; },
-  });
+  const employeesQuery = useQuery({ queryKey: queryKeys.employees.lists(), enabled: canViewEmployees, queryFn: async () => { const [{ data, error }, rolesResult] = await Promise.all([getEmployees(), listActiveRoles()]); if (error) throw error; if (rolesResult.error) throw rolesResult.error; return { employees: data || [], roles: rolesResult.data || [] }; } });
   const employees = employeesQuery.data?.employees ?? [];
   const roles = employeesQuery.data?.roles ?? [];
   const [formOpen, setFormOpen] = useState(false);
@@ -247,11 +206,8 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({ full_name: "", cpf: "", phone: "", email: "", password: "", function_name: "Funcionário", role_id: "", is_active: true });
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [employeePage, setEmployeePage] = useState(1);
-  const [employeePageSize, setEmployeePageSize] = useState(5);
-  const employeeTotalPages = Math.max(1, Math.ceil(employees.length / employeePageSize));
-  const safeEmployeePage = Math.min(employeePage, employeeTotalPages);
-  const pagedEmployees = employees.slice((safeEmployeePage - 1) * employeePageSize, safeEmployeePage * employeePageSize);
+  const [employeePage, setEmployeePage] = useState(1); const [employeePageSize, setEmployeePageSize] = useState(5);
+  const employeeTotalPages = Math.max(1, Math.ceil(employees.length / employeePageSize)); const safeEmployeePage = Math.min(employeePage, employeeTotalPages); const pagedEmployees = employees.slice((safeEmployeePage - 1) * employeePageSize, safeEmployeePage * employeePageSize);
   useEffect(() => { if (employeePage > employeeTotalPages) setEmployeePage(employeeTotalPages); }, [employeePage, employeeTotalPages]);
   useEffect(() => { if (activeArea === "users" && !canViewEmployees && canViewRoles) setActiveArea("roles"); if (activeArea === "roles" && !canViewRoles && canViewEmployees) setActiveArea("users"); }, [activeArea, canViewEmployees, canViewRoles]);
   useEffect(() => { if (employeesQuery.error) setToast({ msg: `Erro ao carregar equipes: ${employeesQuery.error instanceof Error ? employeesQuery.error.message : String(employeesQuery.error)}`, type: "error" }); }, [employeesQuery.error]);
@@ -259,13 +215,27 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
   const refreshEmployees = () => queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
   const openNew = () => { if (!canCreateEmployee) return; setEditItem(null); setForm({ full_name: "", cpf: "", phone: "", email: "", password: "", function_name: "Funcionário", role_id: roles[0]?.id || "", is_active: true }); setFormOpen(true); };
   const openEdit = (employee: any) => { if (!canViewEmployeeDetails) return; setEditItem(employee); setForm({ full_name: employee.full_name || "", cpf: employee.cpf || "", phone: formatPhone(employee.phone), email: "", password: "", function_name: employee.function_name || "Funcionário", role_id: employee.role_id || "", is_active: employee.is_active !== false }); setFormOpen(true); };
+  const closeUserForm = () => { setFormOpen(false); onRouteChange?.(null, null); };
+  const openNewUserPage = () => canCreateEmployee && (onRouteChange ? onRouteChange("new", null) : openNew());
+  const openUserPage = (employee: any) => canViewEmployeeDetails && (onRouteChange ? onRouteChange(employee.id, "edit") : openEdit(employee));
+  const openUsersArea = () => { setActiveArea("users"); onRouteChange?.(null, null); };
+  const openRolesArea = () => { setActiveArea("roles"); onRouteChange?.("roles", null); };
+
+  useEffect(() => {
+    if (routeResourceId === "roles" || routeResourceId === "new-role" || routeSubpage === "role") { setActiveArea("roles"); if (formOpen) setFormOpen(false); return; }
+    setActiveArea("users");
+    if (!routeResourceId) { if (formOpen) setFormOpen(false); return; }
+    if (routeResourceId === "new") { if (canCreateEmployee && !formOpen) openNew(); return; }
+    if (routeSubpage !== "edit" || !canViewEmployeeDetails || editItem?.id === routeResourceId) return;
+    const employee = employees.find(item => item.id === routeResourceId);
+    if (employee) openEdit(employee);
+  }, [routeResourceId, routeSubpage, employees, formOpen, editItem?.id, canCreateEmployee, canViewEmployeeDetails]);
+
   const normalizeCpf = (value: string) => value.replace(/\D/g, "");
   const getEmployeeErrorMessage = (error: unknown) => error instanceof Error ? error.message : error && typeof error === "object" && "message" in error ? String((error as any).message) : "Não foi possível atualizar o funcionário.";
-
   const save = async () => {
     if (!(editItem ? canEditEmployee : canCreateEmployee)) { setToast({ msg: "Você não possui permissão para salvar usuários.", type: "error" }); return; }
-    const cpf = normalizeCpf(form.cpf);
-    if (!form.full_name.trim() || cpf.length !== 11) { setToast({ msg: "Informe nome completo e um CPF válido.", type: "error" }); return; }
+    const cpf = normalizeCpf(form.cpf); if (!form.full_name.trim() || cpf.length !== 11) { setToast({ msg: "Informe nome completo e um CPF válido.", type: "error" }); return; }
     const normalizedEmail = String(form.email || "").trim().replace(/\s+/g, "").toLowerCase();
     if (!editItem && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) { setToast({ msg: "Informe um e-mail válido.", type: "error" }); return; }
     if (form.password && form.password.length < 8) { setToast({ msg: "A senha deve ter pelo menos 8 caracteres.", type: "error" }); return; }
@@ -276,31 +246,29 @@ export function TabEmployees({ onBack }: { onBack: () => void }) {
       if (editItem) {
         const payload: Record<string, unknown> = { action: "update_employee_user", employee_id: editItem.id, full_name: form.full_name.trim(), cpf, phone: form.phone.replace(/\D/g, "") || null, function_name: form.function_name.trim() || null, role_id: form.role_id, is_active: form.is_active, password: form.password || undefined };
         if (normalizedEmail) payload.email = normalizedEmail;
-        const { data, error } = await invokeEmployeeCommand(payload);
-        if (error) throw error; if (data?.error) throw new Error(typeof data.error === "string" ? data.error : getEmployeeErrorMessage(data.error)); if (data?.success !== true) throw new Error("Não foi possível atualizar o funcionário.");
+        const { data, error } = await invokeEmployeeCommand(payload); if (error) throw error; if (data?.error) throw new Error(typeof data.error === "string" ? data.error : getEmployeeErrorMessage(data.error)); if (data?.success !== true) throw new Error("Não foi possível atualizar o funcionário.");
       } else {
         const { data, error } = await invokeEmployeeCommand({ action: "create_employee_user", email: normalizedEmail, password: form.password, full_name: form.full_name.trim(), cpf, phone: form.phone ? form.phone.replace(/\D/g, "") : null, function_name: form.function_name.trim() || "Funcionário", role_id: form.role_id });
         if (error) throw error; if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Não foi possível cadastrar o funcionário."); if (data?.success !== true) throw new Error("Não foi possível cadastrar o funcionário.");
       }
-      setFormOpen(false); setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); await refreshEmployees();
-    } catch (error) { setToast({ msg: getEmployeeErrorMessage(error), type: "error" }); }
-    finally { setSaving(false); }
+      setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); await refreshEmployees(); closeUserForm();
+    } catch (error) { setToast({ msg: getEmployeeErrorMessage(error), type: "error" }); } finally { setSaving(false); }
   };
-
   const toggleActive = async (employee: any) => { if (!canToggleEmployee) return; const currentlyActive = employee.is_active !== false; const { error } = await setEmployeeActive(employee.id, !currentlyActive); if (error) { setToast({ msg: `Erro ao atualizar funcionário: ${error.message}`, type: "error" }); return; } setToast({ msg: `Funcionário ${currentlyActive ? "desativado" : "ativado"}.`, type: "success" }); await refreshEmployees(); };
   const deleteEmployee = async (employeeId: string) => { if (!canDeleteEmployee) return; const { error } = await deleteEmployeeRecord(employeeId); if (error) { setToast({ msg: `Não foi possível excluir o funcionário: ${error.message}`, type: "error" }); setDeleteId(null); return; } setToast({ msg: "Funcionário excluído.", type: "success" }); setDeleteId(null); await refreshEmployees(); };
+  const userEditorRoute = routeResourceId === "new" || (Boolean(routeResourceId) && routeSubpage === "edit");
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {deleteId && <ConfirmDialog message="Excluir este funcionário?" onConfirm={() => void deleteEmployee(deleteId)} onCancel={() => setDeleteId(null)} />}
-    <PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários e funções da empresa" actions={<InternalBackButton onBack={onBack} />} />
-    <div className="flex gap-1 border-b border-[#0d1b2e]/10">{canViewEmployees && <button type="button" onClick={() => setActiveArea("users")} className={cn("border-b-2 px-4 py-2.5 text-xs font-bold", activeArea === "users" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Usuários</button>}{canViewRoles && <button type="button" onClick={() => setActiveArea("roles")} className={cn("border-b-2 px-4 py-2.5 text-xs font-bold", activeArea === "roles" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Funções e Permissões</button>}</div>
+    {!userEditorRoute && routeSubpage !== "role" && routeResourceId !== "new-role" && <><PageHeader title="Equipes" subtitle="Cadastro e gestão dos funcionários e funções da empresa" actions={<InternalBackButton onBack={onBack} />} />
+    <div className="flex gap-1 border-b border-[#0d1b2e]/10">{canViewEmployees && <button type="button" onClick={openUsersArea} className={cn("border-b-2 px-4 py-2.5 text-xs font-bold", activeArea === "users" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Usuários</button>}{canViewRoles && <button type="button" onClick={openRolesArea} className={cn("border-b-2 px-4 py-2.5 text-xs font-bold", activeArea === "roles" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Funções e Permissões</button>}</div></>}
 
-    {activeArea === "roles" && canViewRoles ? <RolePermissionsPanel /> : activeArea === "users" && canViewEmployees ? <>
-      <EmployeesAreaHeader title="Usuários" description="Cadastre e gerencie os funcionários da empresa." action={canCreateEmployee ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo funcionário</BtnPrimary> : undefined} />
-      {canViewEmployeeTable && <AdminCard>{employeesQuery.isPending ? <LoadingState /> : employees.length === 0 ? <EmptyState icon={Users} title="Nenhum funcionário cadastrado" message="Cadastre o primeiro funcionário da equipe." onAdd={canCreateEmployee ? openNew : undefined} addLabel="Novo funcionário" /> : <><div className="overflow-x-auto"><table className="min-w-[700px]"><thead><tr>{showEmployeeName && <th className="text-left">Nome</th>}{showEmployeeCpf && <th className="text-left">CPF</th>}{showEmployeePhone && <th className="text-left">Telefone</th>}{showEmployeeRole && <th className="text-left">Função</th>}{showEmployeeStatus && <th className="text-left">Status</th>}{showEmployeeActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedEmployees.map(employee => { const active = employee.is_active !== false; const role = Array.isArray(employee.role) ? employee.role[0] : employee.role; return <tr key={employee.id} onClick={canViewEmployeeDetails ? () => openEdit(employee) : undefined} className={canViewEmployeeDetails ? "cursor-default" : undefined}>{showEmployeeName && <td className="font-bold text-[#0d1b2e]">{employee.full_name}</td>}{showEmployeeCpf && <td className="font-mono text-xs text-[#5a6a82]">{formatCpf(employee.cpf)}</td>}{showEmployeePhone && <td className="text-xs text-[#5a6a82]">{formatPhone(employee.phone) || "—"}</td>}{showEmployeeRole && <td className="text-xs text-[#5a6a82]">{role?.name?.trim() || "Função não informada"}</td>}{showEmployeeStatus && <td><StatusBadge status={active ? "Ativo" : "Inativo"} /></td>}{showEmployeeActions && <td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canViewEmployeeDetails && canEditEmployee && <AdminIconButton ariaLabel="Editar funcionário" title="Editar" onClick={() => openEdit(employee)}><Edit2 size={15} /></AdminIconButton>}{canToggleEmployee && <AdminIconButton ariaLabel={active ? "Desativar funcionário" : "Ativar funcionário"} title={active ? "Desativar" : "Ativar"} onClick={() => toggleActive(employee)}>{active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>}{canDeleteEmployee && <AdminIconButton ariaLabel="Excluir funcionário" title="Excluir funcionário" variant="danger" onClick={() => setDeleteId(employee.id)}><Trash2 size={15} /></AdminIconButton>}</div></td>}</tr>; })}</tbody></table></div><PaginationBar page={safeEmployeePage} pageSize={employeePageSize} totalItems={employees.length} onPageChange={setEmployeePage} onPageSizeChange={size => { setEmployeePageSize(size); setEmployeePage(1); }} /></>}</AdminCard>}
-
-      <AdminPage open={formOpen && (canViewEmployeeDetails || canCreateEmployee)} onClose={() => setFormOpen(false)} breadcrumb="Equipes" title={editItem ? editItem.full_name : "Novo funcionário"} subtitle={editItem && !canEditEmployee ? "Visualização dos dados do funcionário" : editItem ? "Atualize os dados do funcionário" : "Cadastre um funcionário da empresa"}><div className="space-y-5 p-4 sm:p-5"><Section title="Dados do funcionário"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome completo" required disabled={Boolean(editItem) && !canEditEmployee} value={form.full_name} onChange={(event: any) => setForm({ ...form, full_name: event.target.value })} /><FInput label="CPF" required disabled={Boolean(editItem)} value={formatCpf(form.cpf)} onChange={(event: any) => setForm({ ...form, cpf: event.target.value })} /><FInput label="Número / telefone" disabled={Boolean(editItem) && !canEditEmployee} value={form.phone} onChange={(event: any) => setForm({ ...form, phone: event.target.value })} />{editItem ? canEditEmployee && <FInput label="Gmail" type="email" value={form.email} onChange={(event: any) => setForm({ ...form, email: event.target.value })} /> : <FInput label="E-mail" type="email" required value={form.email} onChange={(event: any) => setForm({ ...form, email: event.target.value })} />}{editItem ? canEditEmployee && <PasswordField key={`edit-${editItem.id}-${formOpen}`} label="Nova senha" value={form.password} onChange={value => setForm({ ...form, password: value })} placeholder="Deixe em branco para manter" /> : <PasswordField key={`create-${formOpen}`} label="Senha" required value={form.password} onChange={value => setForm({ ...form, password: value })} />}<FSelect label="Função" required disabled={Boolean(editItem) && !canEditEmployee} value={form.role_id} onChange={(event: any) => setForm({ ...form, role_id: event.target.value })} options={[{ value: "", label: "Selecionar função..." }, ...roles.map(role => ({ value: role.id, label: role.name }))]} />{(!editItem || canEditEmployee) && <div className="sm:col-span-2"><FToggle label="Funcionário ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div>}</div></Section></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => setFormOpen(false)}>Fechar</BtnSecondary>{(editItem ? canEditEmployee : canCreateEmployee) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : editItem ? "Salvar alterações" : "Salvar funcionário"}</BtnPrimary>}</div></AdminPage>
+    {activeArea === "roles" && canViewRoles ? <RolePermissionsPanel routeResourceId={routeResourceId} routeSubpage={routeSubpage} onRouteChange={onRouteChange} /> : activeArea === "users" && canViewEmployees ? <>
+      {!userEditorRoute && <><EmployeesAreaHeader title="Usuários" description="Cadastre e gerencie os funcionários da empresa." action={canCreateEmployee ? <BtnPrimary onClick={openNewUserPage}><Plus size={16} /> Novo funcionário</BtnPrimary> : undefined} />
+      {canViewEmployeeTable && <AdminCard>{employeesQuery.isPending ? <LoadingState /> : employees.length === 0 ? <EmptyState icon={Users} title="Nenhum funcionário cadastrado" message="Cadastre o primeiro funcionário da equipe." onAdd={canCreateEmployee ? openNewUserPage : undefined} addLabel="Novo funcionário" /> : <><div className="overflow-x-auto"><table className="min-w-[700px]"><thead><tr>{showEmployeeName && <th className="text-left">Nome</th>}{showEmployeeCpf && <th className="text-left">CPF</th>}{showEmployeePhone && <th className="text-left">Telefone</th>}{showEmployeeRole && <th className="text-left">Função</th>}{showEmployeeStatus && <th className="text-left">Status</th>}{showEmployeeActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedEmployees.map(employee => { const active = employee.is_active !== false; const role = Array.isArray(employee.role) ? employee.role[0] : employee.role; return <tr key={employee.id} onClick={canViewEmployeeDetails ? () => openUserPage(employee) : undefined} className={canViewEmployeeDetails ? "cursor-default" : undefined}>{showEmployeeName && <td className="font-bold text-[#0d1b2e]">{employee.full_name}</td>}{showEmployeeCpf && <td className="font-mono text-xs text-[#5a6a82]">{formatCpf(employee.cpf)}</td>}{showEmployeePhone && <td className="text-xs text-[#5a6a82]">{formatPhone(employee.phone) || "—"}</td>}{showEmployeeRole && <td className="text-xs text-[#5a6a82]">{role?.name?.trim() || "Função não informada"}</td>}{showEmployeeStatus && <td><StatusBadge status={active ? "Ativo" : "Inativo"} /></td>}{showEmployeeActions && <td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canViewEmployeeDetails && canEditEmployee && <AdminIconButton ariaLabel="Editar funcionário" title="Editar" onClick={() => openUserPage(employee)}><Edit2 size={15} /></AdminIconButton>}{canToggleEmployee && <AdminIconButton ariaLabel={active ? "Desativar funcionário" : "Ativar funcionário"} title={active ? "Desativar" : "Ativar"} onClick={() => toggleActive(employee)}>{active ? <CheckCircle size={15} /> : <AlertCircle size={15} />}</AdminIconButton>}{canDeleteEmployee && <AdminIconButton ariaLabel="Excluir funcionário" title="Excluir funcionário" variant="danger" onClick={() => setDeleteId(employee.id)}><Trash2 size={15} /></AdminIconButton>}</div></td>}</tr>; })}</tbody></table></div><PaginationBar page={safeEmployeePage} pageSize={employeePageSize} totalItems={employees.length} onPageChange={setEmployeePage} onPageSizeChange={size => { setEmployeePageSize(size); setEmployeePage(1); }} /></>}</AdminCard>}</>}
+      {userEditorRoute && !formOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
+      <AdminPage open={formOpen && (canViewEmployeeDetails || canCreateEmployee)} onClose={closeUserForm} breadcrumb="Equipes" title={editItem ? editItem.full_name : "Novo funcionário"} subtitle={editItem && !canEditEmployee ? "Visualização dos dados do funcionário" : editItem ? "Atualize os dados do funcionário" : "Cadastre um funcionário da empresa"}><div className="space-y-5 p-4 sm:p-5"><Section title="Dados do funcionário"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome completo" required disabled={Boolean(editItem) && !canEditEmployee} value={form.full_name} onChange={(event: any) => setForm({ ...form, full_name: event.target.value })} /><FInput label="CPF" required disabled={Boolean(editItem)} value={formatCpf(form.cpf)} onChange={(event: any) => setForm({ ...form, cpf: event.target.value })} /><FInput label="Número / telefone" disabled={Boolean(editItem) && !canEditEmployee} value={form.phone} onChange={(event: any) => setForm({ ...form, phone: event.target.value })} />{editItem ? canEditEmployee && <FInput label="Gmail" type="email" value={form.email} onChange={(event: any) => setForm({ ...form, email: event.target.value })} /> : <FInput label="E-mail" type="email" required value={form.email} onChange={(event: any) => setForm({ ...form, email: event.target.value })} />}{editItem ? canEditEmployee && <PasswordField key={`edit-${editItem.id}-${formOpen}`} label="Nova senha" value={form.password} onChange={value => setForm({ ...form, password: value })} placeholder="Deixe em branco para manter" /> : <PasswordField key={`create-${formOpen}`} label="Senha" required value={form.password} onChange={value => setForm({ ...form, password: value })} />}<FSelect label="Função" required disabled={Boolean(editItem) && !canEditEmployee} value={form.role_id} onChange={(event: any) => setForm({ ...form, role_id: event.target.value })} options={[{ value: "", label: "Selecionar função..." }, ...roles.map(role => ({ value: role.id, label: role.name }))]} />{(!editItem || canEditEmployee) && <div className="sm:col-span-2"><FToggle label="Funcionário ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div>}</div></Section></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeUserForm}>Fechar</BtnSecondary>{(editItem ? canEditEmployee : canCreateEmployee) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : editItem ? "Salvar alterações" : "Salvar funcionário"}</BtnPrimary>}</div></AdminPage>
     </> : null}
   </div>;
 }
