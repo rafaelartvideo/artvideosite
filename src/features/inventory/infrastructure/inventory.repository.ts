@@ -85,7 +85,7 @@ export async function listInventoryMovements(itemId: string) {
 export async function getInventoryItem(itemId: string) {
   const { data, error } = await supabase
     .from("inventory_items")
-    .select("id,name,quantity,is_active")
+    .select("id,name,unit,conversion_factor,quantity,is_active")
     .eq("id", itemId)
     .maybeSingle();
 
