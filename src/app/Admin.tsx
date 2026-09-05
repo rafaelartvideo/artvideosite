@@ -39,14 +39,7 @@ type AdminLocationState = {
 };
 
 function AdminRouteLoading() {
-  return (
-    <div className="flex min-h-[320px] items-center justify-center">
-      <div className="flex items-center gap-3 text-sm text-[#5a6a82]">
-        <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-[#0057e7]/20 border-t-[#0057e7]" />
-        Carregando módulo...
-      </div>
-    </div>
-  );
+  return <div className="flex min-h-[320px] items-center justify-center"><div className="flex items-center gap-3 text-sm text-[#5a6a82]"><span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-[#0057e7]/20 border-t-[#0057e7]" />Carregando módulo...</div></div>;
 }
 
 export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
@@ -59,113 +52,52 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const activeMenuTab = locationState?.menuTab || activeTab;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState<AdminPageState>(null);
-
   const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
   const canAccessTab = (tab: AdminTab) => hasPermission(permissionForTab[tab]);
 
-  const navigateAdmin = (
-    tab: AdminTab,
-    resourceId?: string | null,
-    subpage?: string | null,
-    options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] },
-  ) => {
-    navigate(adminPath(tab, resourceId, subpage), {
-      replace: options?.replace,
-      state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined,
-    });
-    setPage(null);
-    setSidebarOpen(false);
+  const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] }) => {
+    navigate(adminPath(tab, resourceId, subpage), { replace: options?.replace, state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined });
+    setPage(null); setSidebarOpen(false);
   };
+  const routeChange = (tab: AdminTab) => (resourceId: string | null, subpage?: string | null) => navigateAdmin(tab, resourceId, subpage);
+  const navigateOrderRoute = (orderId?: string | null, subpage?: string | null) => navigateAdmin("orders", orderId, subpage, { menuTab: locationState?.menuTab, origin: locationState?.origin });
+  const closeOrderRoute = () => { if (locationState?.origin) { navigateAdmin(locationState.origin.tab, locationState.origin.resourceId, locationState.origin.subpage); return; } navigateAdmin("orders"); };
 
-  const navigateOrderRoute = (orderId?: string | null, subpage?: string | null) => {
-    navigateAdmin("orders", orderId, subpage, {
-      menuTab: locationState?.menuTab,
-      origin: locationState?.origin,
-    });
-  };
-
-  const closeOrderRoute = () => {
-    if (locationState?.origin) {
-      navigateAdmin(locationState.origin.tab, locationState.origin.resourceId, locationState.origin.subpage);
-      return;
-    }
-    navigateAdmin("orders");
-  };
-
-  useEffect(() => {
-    setPage(null);
-    setSidebarOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (canAccessTab(activeTab)) return;
-    navigateAdmin("dashboard", null, null, { replace: true });
-  }, [activeTab, hasPermission]);
+  useEffect(() => { setPage(null); setSidebarOpen(false); }, [location.pathname]);
+  useEffect(() => { if (canAccessTab(activeTab)) return; navigateAdmin("dashboard", null, null, { replace: true }); }, [activeTab, hasPermission]);
 
   const backToParent = (tab: AdminTab) => navigateAdmin(parentAdminTab(tab) || "dashboard");
-
-  const siteHub = (
-    <AdminHubPage
-      title="Site"
-      description="Conteúdo e cadastros exibidos no site público."
-      items={siteItems.filter(item => hasPermission(item.permissionKey))}
-      onSelect={id => navigateAdmin(id as AdminTab)}
-    />
-  );
-
-  const operationHub = (
-    <AdminHubPage
-      title="Operação"
-      description="Cadastros e configurações internas da assistência técnica."
-      items={operationItems.filter(item => hasPermission(item.permissionKey))}
-      onSelect={id => navigateAdmin(id as AdminTab)}
-    />
-  );
-
-  const sidebar = (
-    <AdminSidebar
-      activeTab={activeMenuTab}
-      userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
-      roleName={roleName}
-      hasPermission={hasPermission}
-      onNavigate={tab => navigateAdmin(tab)}
-      onSignOut={() => signOut()}
-      onBackToSite={onBackToSite}
-    />
-  );
+  const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey))} onSelect={id => navigateAdmin(id as AdminTab)} />;
+  const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey))} onSelect={id => navigateAdmin(id as AdminTab)} />;
+  const sidebar = <AdminSidebar activeTab={activeMenuTab} userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"} roleName={roleName} hasPermission={hasPermission} onNavigate={tab => navigateAdmin(tab)} onSignOut={() => signOut()} onBackToSite={onBackToSite} />;
 
   return (
     <AdminPageContext.Provider value={{ page, setPage }}>
-      <AdminLayout
-        sidebar={sidebar}
-        mobileSidebarOpen={sidebarOpen}
-        onCloseMobileSidebar={() => setSidebarOpen(false)}
-        header={<AdminHeader activeTab={activeTab} page={page} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(current => !current)} />}
-      >
+      <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader activeTab={activeTab} page={page} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(current => !current)} />}>
         <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           <Suspense fallback={<AdminRouteLoading />}>
             <Routes>
               <Route path="/admin" element={<TabDashboard />} />
               <Route path="/admin/site" element={siteHub} />
-              <Route path="/admin/site/services/*" element={<TabServices onBack={() => backToParent("services")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("services", resourceId, subpage)} />} />
-              <Route path="/admin/site/categories/*" element={<TabCategories onBack={() => backToParent("categories")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("categories", resourceId, subpage)} />} />
-              <Route path="/admin/site/products/*" element={<TabProducts onBack={() => backToParent("products")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("products", resourceId, subpage)} />} />
-              <Route path="/admin/site/brands/*" element={<TabBrands onBack={() => backToParent("brands")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("brands", resourceId, subpage)} />} />
+              <Route path="/admin/site/services/*" element={<TabServices onBack={() => backToParent("services")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("services")} />} />
+              <Route path="/admin/site/categories/*" element={<TabCategories onBack={() => backToParent("categories")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("categories")} />} />
+              <Route path="/admin/site/products/*" element={<TabProducts onBack={() => backToParent("products")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("products")} />} />
+              <Route path="/admin/site/brands/*" element={<TabBrands onBack={() => backToParent("brands")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("brands")} />} />
               <Route path="/admin/site/settings/*" element={<TabSiteSettings onBack={() => backToParent("siteSettings")} />} />
 
               <Route path="/admin/operation" element={operationHub} />
               <Route path="/admin/operation/equipment/*" element={<EquipmentAdminPanel onBack={() => backToParent("equipment")} />} />
-              <Route path="/admin/operation/general-services/*" element={<GeneralServicesPanel onBack={() => backToParent("generalServices")} />} />
-              <Route path="/admin/operation/service-types/*" element={<ServiceTypesAdminPanel onBack={() => backToParent("serviceTypes")} />} />
-              <Route path="/admin/operation/order-situations/*" element={<OSSituationsView onBack={() => backToParent("situations")} />} />
-              <Route path="/admin/operation/order-statuses/*" element={<OrderStatusesAdminPanel onBack={() => backToParent("orderStatuses")} />} />
+              <Route path="/admin/operation/general-services/*" element={<GeneralServicesPanel onBack={() => backToParent("generalServices")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("generalServices")} />} />
+              <Route path="/admin/operation/service-types/*" element={<ServiceTypesAdminPanel onBack={() => backToParent("serviceTypes")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("serviceTypes")} />} />
+              <Route path="/admin/operation/order-situations/*" element={<OSSituationsView onBack={() => backToParent("situations")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("situations")} />} />
+              <Route path="/admin/operation/order-statuses/*" element={<OrderStatusesAdminPanel onBack={() => backToParent("orderStatuses")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("orderStatuses")} />} />
               <Route path="/admin/operation/employees/*" element={<TabEmployees onBack={() => backToParent("employees")} />} />
-              <Route path="/admin/operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("documents", resourceId, subpage)} />} />
+              <Route path="/admin/operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
 
               <Route path="/admin/quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} />} />
               <Route path="/admin/orders/*" element={<TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={navigateOrderRoute} onOrderRouteClose={closeOrderRoute} />} />
               <Route path="/admin/agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
-              <Route path="/admin/customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || null, subpage: null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(resourceId, subpage) => navigateAdmin("customers", resourceId, subpage)} />} />
+              <Route path="/admin/customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || null, subpage: null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
               <Route path="/admin/inventory/*" element={<TabInventory />} />
               <Route path="/admin/settings/*" element={<TabSettings onBack={() => backToParent("settings")} routeResourceId={route.resourceId} onRouteChange={resourceId => navigateAdmin("settings", resourceId, null)} />} />
               <Route path="/admin/contact/*" element={<TabContact />} />
