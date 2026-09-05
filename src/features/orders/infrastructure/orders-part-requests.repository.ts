@@ -103,16 +103,50 @@ export const recordServiceOrderTestResults = ({
     p_actions: actions,
   });
 
-export const listActivePartInventory = () =>
-  supabase
+export async function listActivePartInventory() {
+  const result = await supabase
     .from("inventory_items")
     .select("id,name,sku,unit,conversion_factor,quantity,is_active")
     .eq("is_active", true)
     .order("name");
 
-export const listServiceOrderPartRequests = (serviceOrderId: string) =>
-  supabase
+  if (result.error) return result;
+
+  return {
+    ...result,
+    data: (result.data || []).map((item: any) => ({
+      ...item,
+      package_unit: item.unit || "un",
+      unit: "un" as const,
+      conversion_factor: Math.max(1, Number(item.conversion_factor ?? 1) || 1),
+      quantity: Number(item.quantity ?? 0),
+    })),
+  };
+}
+
+export async function listServiceOrderPartRequests(serviceOrderId: string) {
+  const result = await supabase
     .from("service_order_part_requests")
     .select("id,service_order_id,requested_by,purpose,status,notes,reviewed_by,reviewed_at,review_notes,created_at,service_order:service_orders!service_order_id(is_solved,completed_at),requested_by_profile:profiles!requested_by(full_name),reviewed_by_profile:profiles!reviewed_by(full_name),items:service_order_part_request_items(id,inventory_item_id,quantity,approved_quantity,source_test_item_id,delivered_quantity,delivered_at,delivered_by,technician_received_quantity,technician_received_at,technician_received_by,return_pending_quantity,return_registered_at,return_registered_by,returned_quantity,return_received_at,return_received_by,damaged_quantity,inventory_item:inventory_items(id,name,sku,unit,conversion_factor,quantity))")
     .eq("service_order_id", serviceOrderId)
     .order("created_at", { ascending: false });
+
+  if (result.error) return result;
+
+  return {
+    ...result,
+    data: (result.data || []).map((request: any) => ({
+      ...request,
+      items: (request.items || []).map((item: any) => ({
+        ...item,
+        inventory_item: item.inventory_item ? {
+          ...item.inventory_item,
+          package_unit: item.inventory_item.unit || "un",
+          unit: "un" as const,
+          conversion_factor: Math.max(1, Number(item.inventory_item.conversion_factor ?? 1) || 1),
+          quantity: Number(item.inventory_item.quantity ?? 0),
+        } : null,
+      })),
+    })),
+  };
+}
