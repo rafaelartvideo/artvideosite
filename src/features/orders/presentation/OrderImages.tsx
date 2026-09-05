@@ -29,12 +29,34 @@ export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = tr
 
   const content = (
     <>
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="text-xs text-[#5a6a82]">{images.length}/5 imagens</p>
+      <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+        <p className="min-w-0 text-xs text-[#5a6a82]">{images.length}/5 imagens</p>
         {canEdit && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <AdminButton variant="secondary" size="sm" disabled={images.length >= 5} onClick={() => inputRef.current?.click()} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Upload size={13} /> Adicionar imagens</AdminButton>
-            <AdminButton variant="secondary" size="sm" disabled={images.length >= 5} onClick={() => cameraInputRef.current?.click()} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Camera size={13} /> Abrir câmera</AdminButton>
+          <div className="flex shrink-0 items-center gap-2">
+            <AdminButton
+              variant="secondary"
+              size="sm"
+              disabled={images.length >= 5}
+              onClick={() => inputRef.current?.click()}
+              aria-label="Adicionar imagens"
+              title="Adicionar imagens"
+              className="h-[42px] w-[42px] shrink-0 justify-center border-[#0057e7]/30 p-0 text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:px-3 sm:py-2"
+            >
+              <Upload size={14} />
+              <span className="hidden sm:inline">Adicionar imagens</span>
+            </AdminButton>
+            <AdminButton
+              variant="secondary"
+              size="sm"
+              disabled={images.length >= 5}
+              onClick={() => cameraInputRef.current?.click()}
+              aria-label="Abrir câmera"
+              title="Abrir câmera"
+              className="h-[42px] w-[42px] shrink-0 justify-center border-[#0057e7]/30 p-0 text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:px-3 sm:py-2"
+            >
+              <Camera size={14} />
+              <span className="hidden sm:inline">Abrir câmera</span>
+            </AdminButton>
           </div>
         )}
       </div>
@@ -45,12 +67,10 @@ export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = tr
   );
 
   return embedded ? content : <Section title="Imagens da OS">{content}</Section>;
-
 }
 
 export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: () => void }) {
   const { url: mediaUrl } = useMediaUrl(image.mediaId);
   const url = image.url || mediaUrl;
   return url ? <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0d1b2e]/80 p-5" onClick={onClose}><AdminIconButton ariaLabel="Fechar imagem" onClick={onClose} variant="ghost" className="absolute right-4 top-4 h-10 w-10 rounded-full bg-white/15 text-white hover:bg-white/25 hover:text-white"><X size={20} /></AdminIconButton><img src={url} alt={image.name} className="max-w-full max-h-full object-contain" onClick={event => event.stopPropagation()} /></div> : null;
-
 }
