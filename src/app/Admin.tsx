@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { useAuth } from "@/lib/auth";
 import { AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
@@ -52,8 +52,10 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const activeMenuTab = locationState?.menuTab || activeTab;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState<AdminPageState>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
   const canAccessTab = (tab: AdminTab) => hasPermission(permissionForTab[tab]);
+  const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
 
   const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] }) => {
     navigate(adminPath(tab, resourceId, subpage), { replace: options?.replace, state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined });
@@ -66,6 +68,34 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   useEffect(() => { setPage(null); setSidebarOpen(false); }, [location.pathname]);
   useEffect(() => { if (canAccessTab(activeTab)) return; navigateAdmin("dashboard", null, null, { replace: true }); }, [activeTab, hasPermission]);
 
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root || !operationModule) return;
+
+    const applyMobileLabels = () => {
+      root.querySelectorAll("table:not(.mobile-table-preserve)").forEach(table => {
+        const labels = Array.from(table.querySelectorAll("thead th")).map(header => header.textContent?.trim() || "");
+        table.querySelectorAll("tbody tr").forEach(row => {
+          Array.from(row.children).forEach((cell, index) => {
+            if (!(cell instanceof HTMLTableCellElement)) return;
+            const label = labels[index] || "";
+            const normalizedLabel = label.toLocaleLowerCase("pt-BR");
+            if (!label || normalizedLabel === "ações" || normalizedLabel === "ação") {
+              cell.removeAttribute("data-mobile-label");
+              return;
+            }
+            cell.dataset.mobileLabel = label;
+          });
+        });
+      });
+    };
+
+    applyMobileLabels();
+    const observer = new MutationObserver(applyMobileLabels);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [operationModule, activeTab, route.resourceId, route.subpage]);
+
   const backToParent = (tab: AdminTab) => navigateAdmin(parentAdminTab(tab) || "dashboard");
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey))} onSelect={id => navigateAdmin(id as AdminTab)} />;
@@ -74,7 +104,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   return (
     <AdminPageContext.Provider value={{ page, setPage }}>
       <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader activeTab={activeTab} page={page} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(current => !current)} />}>
-        <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+        <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${operationModule ? " admin-operation-mobile-labels" : ""}`}>
           <Suspense fallback={<AdminRouteLoading />}>
             <Routes>
               <Route index element={<TabDashboard />} />
