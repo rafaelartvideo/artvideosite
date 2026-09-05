@@ -17,30 +17,26 @@ body {
 }
 
 @media (max-width: 767px) {
-	.admin-crm .overflow-x-auto:has(> table) {
+	.admin-crm .overflow-x-auto:has(table:not(.mobile-table-preserve)) {
 		overflow-x: visible;
 	}
 
-	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve),
-	.admin-crm table.admin-mobile-table {
+	.admin-crm table:not(.mobile-table-preserve) {
 		min-width: 0 !important;
 		width: 100% !important;
 		table-layout: fixed;
 	}
 
-	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) thead,
-	.admin-crm table.admin-mobile-table thead {
+	.admin-crm table:not(.mobile-table-preserve) thead {
 		display: none;
 	}
 
-	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody,
-	.admin-crm table.admin-mobile-table tbody {
+	.admin-crm table:not(.mobile-table-preserve) tbody {
 		display: block;
 		width: 100%;
 	}
 
-	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr,
-	.admin-crm table.admin-mobile-table tbody > tr {
+	.admin-crm table:not(.mobile-table-preserve) tbody > tr {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		gap: 0;
@@ -50,13 +46,11 @@ body {
 		background: #fff;
 	}
 
-	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr:last-child,
-	.admin-crm table.admin-mobile-table tbody > tr:last-child {
+	.admin-crm table:not(.mobile-table-preserve) tbody > tr:last-child {
 		border-bottom: 0;
 	}
 
-	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr > td,
-	.admin-crm table.admin-mobile-table tbody > tr > td {
+	.admin-crm table:not(.mobile-table-preserve) tbody > tr > td {
 		display: block;
 		min-width: 0;
 		max-width: 100%;
@@ -65,22 +59,23 @@ body {
 		overflow-wrap: anywhere;
 	}
 
-	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr > td:first-child,
-	.admin-crm table.admin-mobile-table tbody > tr > td:first-child {
+	.admin-crm table:not(.mobile-table-preserve) tbody > tr > td:first-child {
 		grid-column: 1 / -1;
 		padding-top: 0.25rem !important;
 		padding-bottom: 0.55rem !important;
 	}
 
-	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr > td:last-child,
-	.admin-crm table.admin-mobile-table tbody > tr > td:last-child {
+	.admin-crm table:not(.mobile-table-preserve) tbody > tr > td:last-child {
 		grid-column: 1 / -1;
 		padding-top: 0.55rem !important;
 	}
 
-	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr > td:last-child > div,
-	.admin-crm table.admin-mobile-table tbody > tr > td:last-child > div {
+	.admin-crm table:not(.mobile-table-preserve) tbody > tr > td:last-child > div {
 		justify-content: flex-end;
 		flex-wrap: wrap;
+	}
+
+	.admin-crm table:not(.mobile-table-preserve) tbody > tr > td .truncate {
+		max-width: 100%;
 	}
 }
