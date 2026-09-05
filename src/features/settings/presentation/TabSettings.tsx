@@ -3,7 +3,7 @@ import { ArrowLeft, Building2, CheckCircle, Clock, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useSaveSiteSettingsMutation, useSiteSettingsQuery } from "./useSiteSettingsQuery";
 import { lookupCompanyByCnpj } from "../infrastructure/company-registry.gateway";
-import { AdminButton, AdminCard, AdminPage, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminPage, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
@@ -34,8 +34,7 @@ const settingText = (value: unknown) => typeof value === "string" || typeof valu
 const maskCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
 const maskZipCode = (value: string) => value.replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d)/, "$1-$2");
 
-export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
-  onBack: () => void;
+export function TabSettings({ routeResourceId, onRouteChange }: {
   routeResourceId?: string | null;
   onRouteChange?: (resourceId: string | null) => void;
 }) {
@@ -108,7 +107,7 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Configurações" subtitle="Gerencie as informações institucionais e configurações do site." actions={<InternalBackButton onBack={onBack} inHeader />} />
+    <PageHeader title="Configurações" subtitle="Gerencie as informações institucionais e configurações do site." />
     <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {canViewDetails && <AdminCard className="group min-w-0 transition-all hover:border-[#0057e7]/40 hover:shadow-md">
         <AdminButton variant="ghost" type="button" onClick={() => onRouteChange?.("company")} className="h-auto w-full min-w-0 flex-col items-stretch whitespace-normal rounded-none p-0 text-left hover:bg-transparent">
