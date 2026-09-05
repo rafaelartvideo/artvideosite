@@ -103,25 +103,32 @@ function PartCustodyWizard({ request, orderSolved, getCommittedQuantity }: {
       {stages.some(stage => stage.state === "current") && <span className="mt-2 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700">Aguardando ação</span>}
     </div>
 
-    <div className="mx-auto mt-4 w-full max-w-lg">
-      {stages.map((stage, index) => {
-        const tone = stageTone(stage.state);
-        const nextTone = index < stages.length - 1 ? stageTone(stages[index + 1].state) : null;
-        return <div key={`${stage.label}-${index}`} className="relative flex min-w-0 gap-3 pb-4 last:pb-0">
-          {nextTone && <span
-            aria-hidden="true"
-            className="absolute left-[15px] top-8 bottom-[-1px] w-[2px] rounded-full"
-            style={{ background: `linear-gradient(to bottom, ${tone.line} 0%, ${tone.line} 50%, ${nextTone.line} 50%, ${nextTone.line} 100%)` }}
-          />}
-          <span className={cn("relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", tone.dot)}>
-            {stage.state === "done" ? <Check size={14} /> : stage.state === "error" ? <X size={14} /> : index + 1}
-          </span>
-          <div className={cn("min-w-0 flex-1 rounded-lg border px-3 py-2.5", tone.panel)}>
-            <p className={cn("break-words text-xs font-semibold", tone.title)}>{stage.label}</p>
-            <p className="mt-0.5 break-words text-[10px] leading-relaxed text-[#5a6a82]">{stage.description}</p>
-          </div>
-        </div>;
-      })}
+    <div className="mt-5 w-full overflow-x-auto pb-2">
+      <div
+        className="mx-auto grid items-start"
+        style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(132px, 1fr))`, minWidth: `${Math.max(680, stages.length * 142)}px` }}
+      >
+        {stages.map((stage, index) => {
+          const tone = stageTone(stage.state);
+          const nextTone = index < stages.length - 1 ? stageTone(stages[index + 1].state) : null;
+          return <div key={`${stage.label}-${index}`} className="relative min-w-0 px-2 text-center">
+            {nextTone && <span
+              aria-hidden="true"
+              className="absolute left-1/2 top-[15px] z-0 h-[3px] w-full"
+              style={{ background: `linear-gradient(to right, ${tone.line} 0%, ${tone.line} 50%, ${nextTone.line} 50%, ${nextTone.line} 100%)` }}
+            />}
+            <div className="relative z-10 mx-auto flex h-8 w-8 items-center justify-center">
+              <span className={cn("flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold", tone.dot)}>
+                {stage.state === "done" ? <Check size={14} /> : stage.state === "error" ? <X size={14} /> : index + 1}
+              </span>
+            </div>
+            <div className={cn("relative z-10 mx-auto mt-3 min-h-[74px] max-w-[160px] rounded-lg border px-2.5 py-2.5 text-center", tone.panel)}>
+              <p className={cn("break-words text-[11px] font-semibold leading-tight", tone.title)}>{stage.label}</p>
+              <p className="mt-1 break-words text-[10px] leading-snug text-[#5a6a82]">{stage.description}</p>
+            </div>
+          </div>;
+        })}
+      </div>
     </div>
   </div>;
 }
