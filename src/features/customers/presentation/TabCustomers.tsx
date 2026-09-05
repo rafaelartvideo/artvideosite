@@ -49,6 +49,7 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
       documentSearch={list.documentSearch}
       selectedStates={list.selectedStates}
       selectedCities={list.selectedCities}
+      orderSort={list.orderSort}
       stateOptions={list.stateOptions}
       cityOptions={list.cityOptions}
       hasFilters={list.hasFilters}
@@ -62,6 +63,7 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
       onDocumentSearchChange={list.setDocumentSearch}
       onStateToggle={(value) => list.setSelectedStates(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value])}
       onCityToggle={(value) => list.setSelectedCities(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value])}
+      onOrderSortChange={list.setOrderSort}
       onClearFilters={list.clearFilters}
       onPageChange={list.setPage}
       onPageSizeChange={list.setPageSize}
