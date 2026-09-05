@@ -7,6 +7,7 @@ values
   ('services.price.manage', 'Gerenciar preço base', 'Permite alterar preço base e modo de preço do serviço.', 'Serviços do Site — Preço', 2711),
   ('services.exclusions.manage', 'Gerenciar itens não inclusos', 'Permite criar, editar e remover itens que não estão inclusos no serviço.', 'Serviços do Site — Conteúdo', 2712),
   ('services.publication.manage', 'Gerenciar publicação do serviço', 'Permite alterar destaque e ordem de exibição do serviço.', 'Serviços do Site — Publicação', 2713),
+  ('agenda.view_others', 'Visualizar agendas de outros usuários', 'Permite consultar agendamentos atribuídos a outros funcionários.', 'Agenda — Acesso', 2207),
   ('roles.permissions.manage', 'Gerenciar permissões da função', 'Permite conceder ou remover permissões de uma função.', 'Funções e Permissões — Permissões', 3410),
   ('settings.lookup_cnpj', 'Consultar CNPJ da empresa', 'Permite consultar dados públicos de CNPJ para preencher os dados da empresa.', 'Dados da Empresa — Ações', 3611)
 on conflict (key) do update set
@@ -22,6 +23,7 @@ with inheritance(child_key, parent_key) as (
     ('services.price.manage','services.update'),
     ('services.exclusions.manage','services.update'),
     ('services.publication.manage','services.update'),
+    ('agenda.view_others','agenda.view'),
     ('roles.permissions.manage','roles.edit'),
     ('settings.lookup_cnpj','settings.update')
 )
