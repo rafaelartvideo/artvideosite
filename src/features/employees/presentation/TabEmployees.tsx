@@ -20,6 +20,12 @@ import {
   updateRole,
 } from "../infrastructure/employees.repository";
 import {
+  buildPermissionGroups,
+  permissionDependencies,
+  permissionLabel,
+  type PermissionRecord,
+} from "../domain/permission-taxonomy";
+import {
   AdminCard,
   AdminIconButton,
   AdminPage,
@@ -97,7 +103,7 @@ function RolePermissionsPanel() {
     },
   });
   const roles = rolesQuery.data?.roles ?? [];
-  const permissions = rolesQuery.data?.permissions ?? [];
+  const permissions = (rolesQuery.data?.permissions ?? []) as PermissionRecord[];
   const roleCounts = rolesQuery.data?.roleCounts ?? {};
   const [editing, setEditing] = useState<any>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -119,16 +125,29 @@ function RolePermissionsPanel() {
   useEffect(() => { if (rolePage > roleTotalPages) setRolePage(roleTotalPages); }, [rolePage, roleTotalPages]);
 
   const refreshRoles = () => queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
-  const grouped = permissions.reduce<Record<string, any[]>>((groups, permission) => {
-    const moduleName = permission.key?.startsWith("orders.") ? "Ordens de Serviço" : permission.key?.startsWith("inventory.") ? "Estoque" : permission.module_name || "Outros";
-    (groups[moduleName] ||= []).push(permission);
-    return groups;
-  }, {});
+  const permissionGroups = buildPermissionGroups(permissions);
+  const permissionByKey = new Map(permissions.map(permission => [permission.key, permission]));
+  const addRequiredPermissions = (selected: Set<string>, permissionKey: string, visited = new Set<string>()) => {
+    if (visited.has(permissionKey)) return;
+    visited.add(permissionKey);
+    permissionDependencies(permissionKey).forEach(requiredKey => {
+      const requiredPermission = permissionByKey.get(requiredKey);
+      if (!requiredPermission) return;
+      selected.add(requiredPermission.id);
+      addRequiredPermissions(selected, requiredPermission.key, visited);
+    });
+  };
+  const normalizeSelection = (permissionIds: Iterable<string>) => {
+    const selected = new Set(permissionIds);
+    permissions.filter(permission => selected.has(permission.id)).forEach(permission => addRequiredPermissions(selected, permission.key));
+    return selected;
+  };
+
   const openNew = () => { setEditing(null); setForm({ name: "", description: "", is_active: true, selected: [] }); setFormOpen(true); };
   const reloadRolePermissions = async (roleId: string) => {
     const { data, error } = await getRolePermissionIds(roleId);
     if (error) return error;
-    setForm(current => ({ ...current, selected: (data || []).map((item: any) => item.permission_id) }));
+    setForm(current => ({ ...current, selected: Array.from(normalizeSelection((data || []).map((item: any) => item.permission_id))) }));
     return null;
   };
   const openEdit = async (role: any) => {
@@ -163,20 +182,7 @@ function RolePermissionsPanel() {
       (currentPermissions || []).forEach((item: any) => previousPermissionIds.add(item.permission_id));
     }
 
-    const selectedPermissionIds = new Set(form.selected);
-    const permissionByKey = new Map(permissions.map(permission => [permission.key, permission.id]));
-    const viewPermissionId = permissionByKey.get("orders.view");
-    const viewAllPermissionId = permissionByKey.get("orders.view_all");
-    const requestPartsPermissionId = permissionByKey.get("orders.request_parts");
-    const managePartRequestsPermissionId = permissionByKey.get("orders.manage_part_requests");
-    if (viewPermissionId && (selectedPermissionIds.has(viewAllPermissionId) || selectedPermissionIds.has(requestPartsPermissionId) || selectedPermissionIds.has(managePartRequestsPermissionId))) selectedPermissionIds.add(viewPermissionId);
-    if (viewAllPermissionId && selectedPermissionIds.has(managePartRequestsPermissionId)) selectedPermissionIds.add(viewAllPermissionId);
-    if (viewPermissionId && !selectedPermissionIds.has(viewPermissionId)) {
-      if (viewAllPermissionId) selectedPermissionIds.delete(viewAllPermissionId);
-      if (requestPartsPermissionId) selectedPermissionIds.delete(requestPartsPermissionId);
-      if (managePartRequestsPermissionId) selectedPermissionIds.delete(managePartRequestsPermissionId);
-    }
-    if (viewAllPermissionId && !selectedPermissionIds.has(viewAllPermissionId) && managePartRequestsPermissionId) selectedPermissionIds.delete(managePartRequestsPermissionId);
+    const selectedPermissionIds = normalizeSelection(form.selected);
     const permissionIdsToRemove = [...previousPermissionIds].filter(permissionId => !selectedPermissionIds.has(permissionId));
     const permissionIdsToAdd = [...selectedPermissionIds].filter(permissionId => !previousPermissionIds.has(permissionId));
     try {
@@ -206,25 +212,26 @@ function RolePermissionsPanel() {
     const permission = permissions.find(item => item.id === permissionId);
     const nextSelected = new Set(current.selected);
     const wasSelected = nextSelected.has(permissionId);
-    if (wasSelected) nextSelected.delete(permissionId); else nextSelected.add(permissionId);
-    if (permission?.key === "orders.view") {
-      if (!nextSelected.has(permissionId)) permissions.filter(item => item.key === "orders.view_all" || item.key === "orders.request_parts" || item.key === "orders.manage_part_requests").forEach(item => nextSelected.delete(item.id));
-    } else if (permission?.key === "orders.view_all" || permission?.key === "orders.request_parts") {
-      const viewPermission = permissions.find(item => item.key === "orders.view");
-      if (viewPermission) nextSelected.add(viewPermission.id);
-      if (permission?.key === "orders.view_all" && wasSelected) {
-        const managePermission = permissions.find(item => item.key === "orders.manage_part_requests");
-        if (managePermission) nextSelected.delete(managePermission.id);
-      }
-    } else if (permission?.key === "orders.manage_part_requests") {
-      const viewPermission = permissions.find(item => item.key === "orders.view");
-      const viewAllPermission = permissions.find(item => item.key === "orders.view_all");
-      if (viewPermission) nextSelected.add(viewPermission.id);
-      if (viewAllPermission) nextSelected.add(viewAllPermission.id);
+    if (wasSelected) nextSelected.delete(permissionId);
+    else {
+      nextSelected.add(permissionId);
+      if (permission) addRequiredPermissions(nextSelected, permission.key);
     }
+
+    if (permission?.key === "orders.view" && wasSelected) {
+      permissions.filter(item => item.key.startsWith("orders.") && item.key !== "orders.view").forEach(item => nextSelected.delete(item.id));
+    }
+
     return { ...current, selected: Array.from(nextSelected) };
   });
-  const toggleGroup = (items: any[]) => { const ids = items.map(item => item.id); const allSelected = ids.every(id => form.selected.includes(id)); setForm(current => ({ ...current, selected: allSelected ? current.selected.filter(id => !ids.includes(id)) : Array.from(new Set([...current.selected, ...ids])) })); };
+  const toggleGroup = (items: PermissionRecord[]) => setForm(current => {
+    const ids = items.map(item => item.id);
+    const allGroupSelected = ids.length > 0 && ids.every(id => current.selected.includes(id));
+    const selected = new Set(current.selected);
+    if (allGroupSelected) ids.forEach(id => selected.delete(id));
+    else items.forEach(item => { selected.add(item.id); addRequiredPermissions(selected, item.key); });
+    return { ...current, selected: Array.from(selected) };
+  });
   const allSelected = permissions.length > 0 && permissions.every(permission => form.selected.includes(permission.id));
 
   return <div className="min-w-0 space-y-4">
@@ -240,7 +247,51 @@ function RolePermissionsPanel() {
         <PaginationBar page={safeRolePage} pageSize={rolePageSize} totalItems={roles.length} onPageChange={setRolePage} onPageSizeChange={(size) => { setRolePageSize(size); setRolePage(1); }} />
       </>}
     </AdminCard>
-    {formOpen && <AdminPage open={true} onClose={() => setFormOpen(false)} breadcrumb="Equipes > Funções e Permissões" title={editing ? "Editar função" : "Nova função"} subtitle="Configure os acessos do perfil" maxW="max-w-3xl"><div className="space-y-5 p-4 sm:p-5"><Section title="Dados da função"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} /><FInput label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} /><div className="sm:col-span-2"><FToggle label="Função ativa" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div></div></Section><Section title="Permissões"><div className="mb-4 flex min-w-0 items-center justify-between gap-3"><label className="flex min-w-0 cursor-default items-center gap-2 break-words text-sm font-bold text-[#0d1b2e]"><Checkbox checked={allSelected} onCheckedChange={() => toggleGroup(permissions)} /> Selecionar todas as permissões</label><span className="shrink-0 text-xs font-bold text-[#5a6a82]">{form.selected.length}/{permissions.length}</span></div><div className="space-y-3">{Object.entries(grouped).map(([moduleName, items]) => { const moduleItems = items as any[]; const selectedCount = moduleItems.filter(item => form.selected.includes(item.id)).length; return <AdminCard key={moduleName} className="p-4 shadow-none"><div className="mb-3 flex min-w-0 items-center justify-between gap-3"><label className="flex min-w-0 cursor-default items-center gap-2 break-words text-sm font-black text-[#0d1b2e]"><Checkbox checked={selectedCount === moduleItems.length} onCheckedChange={() => toggleGroup(moduleItems)} /> {moduleName}</label><span className="shrink-0 text-[11px] text-[#5a6a82]">{selectedCount}/{moduleItems.length}</span></div><div className="grid gap-2 sm:grid-cols-2">{moduleItems.map(permission => <label key={permission.id} className="flex min-w-0 cursor-default items-start gap-2 break-words text-xs text-[#5a6a82]"><Checkbox checked={form.selected.includes(permission.id)} onCheckedChange={() => togglePermission(permission.id)} /><span className="min-w-0 break-words">{permission.label || permission.description || permission.key}</span></label>)}</div></AdminCard>; })}</div></Section></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{hasPermission(editing ? "roles.edit" : "roles.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar Permissões"}</BtnPrimary>}</div></AdminPage>}
+    {formOpen && <AdminPage open={true} onClose={() => setFormOpen(false)} breadcrumb="Equipes > Funções e Permissões" title={editing ? "Editar função" : "Nova função"} subtitle="Configure os acessos do perfil" maxW="max-w-3xl">
+      <div className="space-y-5 p-4 sm:p-5">
+        <Section title="Dados da função"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} /><FInput label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} /><div className="sm:col-span-2"><FToggle label="Função ativa" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div></div></Section>
+        <Section title="Permissões">
+          <div className="mb-4 flex min-w-0 items-center justify-between gap-3">
+            <label className="flex min-w-0 cursor-default items-center gap-2 break-words text-sm font-bold text-[#0d1b2e]"><Checkbox checked={allSelected} onCheckedChange={() => toggleGroup(permissions)} /> Selecionar todas as permissões</label>
+            <span className="shrink-0 text-xs font-bold text-[#5a6a82]">{form.selected.length}/{permissions.length}</span>
+          </div>
+          <div className="space-y-4">
+            {permissionGroups.map(module => {
+              const moduleSelectedCount = module.permissions.filter(permission => form.selected.includes(permission.id)).length;
+              const moduleAllSelected = module.permissions.length > 0 && moduleSelectedCount === module.permissions.length;
+              return <AdminCard key={module.name} className="p-3 shadow-none sm:p-4">
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <label className="flex min-w-0 cursor-default items-center gap-2 break-words text-sm font-black text-[#0d1b2e]"><Checkbox checked={moduleAllSelected} onCheckedChange={() => toggleGroup(module.permissions)} /> {module.name}</label>
+                  <span className="shrink-0 text-[11px] font-bold text-[#5a6a82]">{moduleSelectedCount}/{module.permissions.length}</span>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {module.sections.map(section => {
+                    const sectionSelectedCount = section.permissions.filter(permission => form.selected.includes(permission.id)).length;
+                    const sectionAllSelected = section.permissions.length > 0 && sectionSelectedCount === section.permissions.length;
+                    return <div key={`${module.name}-${section.name}`} className="min-w-0 rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
+                      <div className="mb-2.5 flex min-w-0 items-center justify-between gap-3">
+                        <label className="flex min-w-0 cursor-default items-center gap-2 text-[11px] font-black uppercase tracking-[0.1em] text-[#0d1b2e]"><Checkbox checked={sectionAllSelected} onCheckedChange={() => toggleGroup(section.permissions)} /> <span className="min-w-0 break-words">{section.name}</span></label>
+                        <span className="shrink-0 text-[10px] font-bold text-[#8a96a8]">{sectionSelectedCount}/{section.permissions.length}</span>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {section.permissions.map(permission => <label key={permission.id} className="flex min-w-0 cursor-default items-start gap-2 rounded-md bg-white p-2.5 text-xs text-[#5a6a82]">
+                          <Checkbox checked={form.selected.includes(permission.id)} onCheckedChange={() => togglePermission(permission.id)} />
+                          <span className="min-w-0">
+                            <span className="block break-words font-semibold leading-relaxed text-[#34445b]">{permissionLabel(permission)}</span>
+                            <span className="mt-0.5 block break-all font-mono text-[9px] text-[#8a96a8]">{permission.key}</span>
+                          </span>
+                        </label>)}
+                      </div>
+                    </div>;
+                  })}
+                </div>
+              </AdminCard>;
+            })}
+          </div>
+        </Section>
+      </div>
+      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>{hasPermission(editing ? "roles.edit" : "roles.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar Permissões"}</BtnPrimary>}</div>
+    </AdminPage>}
   </div>;
 }
 
