@@ -15,3 +15,72 @@ body {
 .admin-crm .font-black {
 	font-weight: 800;
 }
+
+@media (max-width: 767px) {
+	.admin-crm .overflow-x-auto:has(> table) {
+		overflow-x: visible;
+	}
+
+	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve),
+	.admin-crm table.admin-mobile-table {
+		min-width: 0 !important;
+		width: 100% !important;
+		table-layout: fixed;
+	}
+
+	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) thead,
+	.admin-crm table.admin-mobile-table thead {
+		display: none;
+	}
+
+	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody,
+	.admin-crm table.admin-mobile-table tbody {
+		display: block;
+		width: 100%;
+	}
+
+	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr,
+	.admin-crm table.admin-mobile-table tbody > tr {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 0;
+		margin: 0;
+		padding: 0.75rem;
+		border-bottom: 1px solid rgba(13, 27, 46, 0.08);
+		background: #fff;
+	}
+
+	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr:last-child,
+	.admin-crm table.admin-mobile-table tbody > tr:last-child {
+		border-bottom: 0;
+	}
+
+	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr > td,
+	.admin-crm table.admin-mobile-table tbody > tr > td {
+		display: block;
+		min-width: 0;
+		max-width: 100%;
+		padding: 0.4rem 0.5rem !important;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+
+	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr > td:first-child,
+	.admin-crm table.admin-mobile-table tbody > tr > td:first-child {
+		grid-column: 1 / -1;
+		padding-top: 0.25rem !important;
+		padding-bottom: 0.55rem !important;
+	}
+
+	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr > td:last-child,
+	.admin-crm table.admin-mobile-table tbody > tr > td:last-child {
+		grid-column: 1 / -1;
+		padding-top: 0.55rem !important;
+	}
+
+	.admin-crm .overflow-x-auto > table:not(.mobile-table-preserve) tbody > tr > td:last-child > div,
+	.admin-crm table.admin-mobile-table tbody > tr > td:last-child > div {
+		justify-content: flex-end;
+		flex-wrap: wrap;
+	}
+}
