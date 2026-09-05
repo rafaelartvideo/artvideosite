@@ -40,21 +40,28 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
   onRouteChange?: (resourceId: string | null) => void;
 }) {
   const { user, hasPermission } = useAuth();
+  const canView = hasPermission("settings.view");
+  const canViewDetails = hasPermission("settings.details.view");
+  const canUpdate = hasPermission("settings.update");
   const query = useSiteSettingsQuery();
   const saveSettings = useSaveSiteSettingsMutation();
   const [form, setForm] = useState<CompanyForm>(EMPTY_COMPANY);
   const [lookingUp, setLookingUp] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const companyOpen = routeResourceId === "company";
+  const companyOpen = routeResourceId === "company" && canViewDetails;
 
   useEffect(() => {
     if (!query.data) return;
     setForm(Object.fromEntries(COMPANY_KEYS.map((key) => [key, settingText(query.data?.[key])])) as CompanyForm);
   }, [query.data]);
 
-  const update = (key: keyof CompanyForm, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const update = (key: keyof CompanyForm, value: string) => {
+    if (!canUpdate) return;
+    setForm((current) => ({ ...current, [key]: value }));
+  };
 
   const lookupCnpj = async () => {
+    if (!canUpdate) return;
     setLookingUp(true);
     try {
       const company = await lookupCompanyByCnpj(form.company_cnpj);
@@ -82,6 +89,7 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
   };
 
   const save = async () => {
+    if (!canUpdate) return;
     if (!form.company_name.trim()) {
       setToast({ msg: "Informe o nome da empresa.", type: "error" });
       return;
@@ -94,6 +102,7 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
     }
   };
 
+  if (!canView) return null;
   if (query.isPending) return <LoadingState />;
 
   return <div className="min-w-0 space-y-5">
@@ -104,7 +113,7 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
       actions={<InternalBackButton onBack={onBack} />}
     />
     <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      <AdminCard className="group min-w-0 transition-all hover:border-[#0057e7]/40 hover:shadow-md">
+      {canViewDetails && <AdminCard className="group min-w-0 transition-all hover:border-[#0057e7]/40 hover:shadow-md">
         <AdminButton variant="ghost" type="button" onClick={() => onRouteChange?.("company")} className="h-auto w-full min-w-0 flex-col items-stretch whitespace-normal rounded-none p-0 text-left hover:bg-transparent">
           <div className="min-w-0 px-4 py-4 sm:px-5 sm:py-5">
             <div className="flex min-w-0 items-start justify-between gap-3">
@@ -118,7 +127,7 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
             <span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span>
           </div>
         </AdminButton>
-      </AdminCard>
+      </AdminCard>}
     </div>
 
     <AdminPage open={companyOpen} onClose={() => onRouteChange?.(null)} breadcrumb="Configurações" title="Dados da empresa" subtitle="Informações oficiais utilizadas no site e nos documentos impressos." maxW="max-w-6xl">
@@ -128,35 +137,35 @@ export function TabSettings({ onBack, routeResourceId, onRouteChange }: {
             <div className="min-w-0 md:col-span-2">
               <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ</label>
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-                <FInput label="" value={form.company_cnpj} onChange={(event: any) => update("company_cnpj", maskCnpj(event.target.value))} placeholder="00.000.000/0000-00" className="min-w-0 flex-1" />
-                <AdminButton variant="secondary" onClick={() => void lookupCnpj()} disabled={lookingUp}><Search size={15} />{lookingUp ? "Consultando..." : "Consultar CNPJ"}</AdminButton>
+                <FInput label="" value={form.company_cnpj} disabled={!canUpdate} onChange={(event: any) => update("company_cnpj", maskCnpj(event.target.value))} placeholder="00.000.000/0000-00" className="min-w-0 flex-1" />
+                {canUpdate && <AdminButton variant="secondary" onClick={() => void lookupCnpj()} disabled={lookingUp}><Search size={15} />{lookingUp ? "Consultando..." : "Consultar CNPJ"}</AdminButton>}
               </div>
               <p className="mt-2 break-words text-xs leading-relaxed text-[#718096]">A consulta preenche automaticamente os dados públicos disponíveis. Revise antes de salvar.</p>
             </div>
-            <FInput label="Nome da empresa / Nome fantasia" value={form.company_name} required onChange={(event: any) => update("company_name", event.target.value)} />
-            <FInput label="Razão social" value={form.company_legal_name} onChange={(event: any) => update("company_legal_name", event.target.value)} />
-            <FInput label="Telefone" value={form.company_phone} onChange={(event: any) => update("company_phone", event.target.value)} />
-            <FInput label="E-mail" type="email" value={form.company_email} onChange={(event: any) => update("company_email", event.target.value)} />
+            <FInput label="Nome da empresa / Nome fantasia" value={form.company_name} required disabled={!canUpdate} onChange={(event: any) => update("company_name", event.target.value)} />
+            <FInput label="Razão social" value={form.company_legal_name} disabled={!canUpdate} onChange={(event: any) => update("company_legal_name", event.target.value)} />
+            <FInput label="Telefone" value={form.company_phone} disabled={!canUpdate} onChange={(event: any) => update("company_phone", event.target.value)} />
+            <FInput label="E-mail" type="email" value={form.company_email} disabled={!canUpdate} onChange={(event: any) => update("company_email", event.target.value)} />
           </div>
         </Section>
         <Section title="Endereço">
           <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <FInput label="CEP" value={form.company_zip_code} onChange={(event: any) => update("company_zip_code", maskZipCode(event.target.value))} />
-            <div className="min-w-0 lg:col-span-2"><FInput label="Rua / Logradouro" value={form.company_street} onChange={(event: any) => update("company_street", event.target.value)} /></div>
-            <FInput label="Número" value={form.company_number} onChange={(event: any) => update("company_number", event.target.value)} />
-            <div className="min-w-0 lg:col-span-2"><FInput label="Complemento" value={form.company_complement} onChange={(event: any) => update("company_complement", event.target.value)} /></div>
-            <div className="min-w-0 lg:col-span-2"><FInput label="Bairro" value={form.company_neighborhood} onChange={(event: any) => update("company_neighborhood", event.target.value)} /></div>
-            <div className="min-w-0 lg:col-span-2"><FInput label="Cidade" value={form.company_city} onChange={(event: any) => update("company_city", event.target.value)} /></div>
-            <FInput label="Estado / UF" maxLength={2} value={form.company_state} onChange={(event: any) => update("company_state", event.target.value.toUpperCase())} />
+            <FInput label="CEP" value={form.company_zip_code} disabled={!canUpdate} onChange={(event: any) => update("company_zip_code", maskZipCode(event.target.value))} />
+            <div className="min-w-0 lg:col-span-2"><FInput label="Rua / Logradouro" value={form.company_street} disabled={!canUpdate} onChange={(event: any) => update("company_street", event.target.value)} /></div>
+            <FInput label="Número" value={form.company_number} disabled={!canUpdate} onChange={(event: any) => update("company_number", event.target.value)} />
+            <div className="min-w-0 lg:col-span-2"><FInput label="Complemento" value={form.company_complement} disabled={!canUpdate} onChange={(event: any) => update("company_complement", event.target.value)} /></div>
+            <div className="min-w-0 lg:col-span-2"><FInput label="Bairro" value={form.company_neighborhood} disabled={!canUpdate} onChange={(event: any) => update("company_neighborhood", event.target.value)} /></div>
+            <div className="min-w-0 lg:col-span-2"><FInput label="Cidade" value={form.company_city} disabled={!canUpdate} onChange={(event: any) => update("company_city", event.target.value)} /></div>
+            <FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canUpdate} onChange={(event: any) => update("company_state", event.target.value.toUpperCase())} />
           </div>
         </Section>
         <Section title="Logo da empresa">
-          <ImageUpload bucket="public-assets" currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={hasPermission("settings.update")} label="Logo utilizada nos documentos" />
+          <ImageUpload bucket="public-assets" currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={canUpdate} label="Logo utilizada nos documentos" />
         </Section>
       </div>
       <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
         <BtnSecondary onClick={() => onRouteChange?.(null)}>Voltar</BtnSecondary>
-        {hasPermission("settings.update") && <BtnPrimary onClick={() => void save()} disabled={saveSettings.isPending}>{saveSettings.isPending ? <Clock size={15} /> : <CheckCircle size={15} />}{saveSettings.isPending ? "Salvando..." : "Salvar dados"}</BtnPrimary>}
+        {canUpdate && <BtnPrimary onClick={() => void save()} disabled={saveSettings.isPending}>{saveSettings.isPending ? <Clock size={15} /> : <CheckCircle size={15} />}{saveSettings.isPending ? "Salvando..." : "Salvar dados"}</BtnPrimary>}
       </div>
     </AdminPage>
   </div>;
