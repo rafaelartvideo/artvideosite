@@ -36,7 +36,15 @@ import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type OrderType = "internal" | "external";
 
-export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRouteChange }: { onNavigate?: (tab: AdminTab) => void; initialOrderId?: string | null; routeSubpage?: string | null; onOrderRouteChange?: (id: string | null, subpage?: string | null) => void }) {
+type TabOrdersProps = {
+  onNavigate?: (tab: AdminTab) => void;
+  initialOrderId?: string | null;
+  routeSubpage?: string | null;
+  onOrderRouteChange?: (id: string | null, subpage?: string | null) => void;
+  onOrderRouteClose?: () => void;
+};
+
+export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRouteChange, onOrderRouteClose }: TabOrdersProps) {
   const { user, profile, hasPermission } = useAuth();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [subView, setSubView] = useState<"list" | "situations">("list");
@@ -377,12 +385,12 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
   };
 
   const closeRoutedPage = () => {
-    if (initialOrderId) {
-      window.history.back();
-      return;
-    }
     closeDetail();
     closeOrderForm();
+    if (initialOrderId && onOrderRouteClose) {
+      onOrderRouteClose();
+      return;
+    }
     onOrderRouteChange?.(null, null);
   };
 
