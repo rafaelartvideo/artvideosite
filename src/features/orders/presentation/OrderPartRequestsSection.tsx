@@ -96,14 +96,35 @@ function PartCustodyWizard({ request, orderSolved, getCommittedQuantity }: {
     ]),
   ];
 
-  return <div className="border-t border-[#0d1b2e]/8 px-4 py-4 sm:px-5">
+  return <div className="border-t border-[#0d1b2e]/8 px-4 py-3.5 sm:px-5 sm:py-4">
     <div className="flex flex-col items-center text-center">
       <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0d1b2e]">Fluxo das peças</p>
       <p className="mt-0.5 text-[10px] text-[#5a6a82]">{purpose === "TEST" ? "Pedido para teste" : "Pedido para resolução"}</p>
-      {stages.some(stage => stage.state === "current") && <span className="mt-2 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700">Aguardando ação</span>}
+      {stages.some(stage => stage.state === "current") && <span className="mt-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-700 sm:mt-2 sm:px-2.5 sm:py-1 sm:text-[10px]">Aguardando ação</span>}
     </div>
 
-    <div className="mt-5 w-full overflow-x-auto pb-2">
+    <div className="mx-auto mt-3 w-full max-w-md md:hidden">
+      {stages.map((stage, index) => {
+        const tone = stageTone(stage.state);
+        const nextTone = index < stages.length - 1 ? stageTone(stages[index + 1].state) : null;
+        return <div key={`${stage.label}-mobile-${index}`} className="relative flex min-w-0 gap-2.5 pb-2.5 last:pb-0">
+          {nextTone && <span
+            aria-hidden="true"
+            className="absolute left-[12px] top-6 bottom-[-1px] w-[2px] rounded-full"
+            style={{ background: `linear-gradient(to bottom, ${tone.line} 0%, ${tone.line} 50%, ${nextTone.line} 50%, ${nextTone.line} 100%)` }}
+          />}
+          <span className={cn("relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold", tone.dot)}>
+            {stage.state === "done" ? <Check size={11} /> : stage.state === "error" ? <X size={11} /> : index + 1}
+          </span>
+          <div className={cn("min-w-0 flex-1 rounded-md border px-2.5 py-2", tone.panel)}>
+            <p className={cn("break-words text-[10px] font-semibold leading-tight", tone.title)}>{stage.label}</p>
+            <p className="mt-0.5 break-words text-[9px] leading-snug text-[#5a6a82]">{stage.description}</p>
+          </div>
+        </div>;
+      })}
+    </div>
+
+    <div className="mt-5 hidden w-full overflow-x-auto pb-2 md:block">
       <div
         className="mx-auto grid items-start"
         style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(132px, 1fr))`, minWidth: `${Math.max(680, stages.length * 142)}px` }}
@@ -111,7 +132,7 @@ function PartCustodyWizard({ request, orderSolved, getCommittedQuantity }: {
         {stages.map((stage, index) => {
           const tone = stageTone(stage.state);
           const nextTone = index < stages.length - 1 ? stageTone(stages[index + 1].state) : null;
-          return <div key={`${stage.label}-${index}`} className="relative min-w-0 px-2 text-center">
+          return <div key={`${stage.label}-desktop-${index}`} className="relative min-w-0 px-2 text-center">
             {nextTone && <span
               aria-hidden="true"
               className="absolute left-1/2 top-[15px] z-0 h-[3px] w-full"
@@ -122,7 +143,7 @@ function PartCustodyWizard({ request, orderSolved, getCommittedQuantity }: {
                 {stage.state === "done" ? <Check size={14} /> : stage.state === "error" ? <X size={14} /> : index + 1}
               </span>
             </div>
-            <div className={cn("relative z-10 mx-auto mt-3 min-h-[74px] max-w-[160px] rounded-lg border px-2.5 py-2.5 text-center", tone.panel)}>
+            <div className={cn("relative z-10 mx-auto mt-3 min-h-[68px] max-w-[156px] rounded-lg border px-2.5 py-2 text-center", tone.panel)}>
               <p className={cn("break-words text-[11px] font-semibold leading-tight", tone.title)}>{stage.label}</p>
               <p className="mt-1 break-words text-[10px] leading-snug text-[#5a6a82]">{stage.description}</p>
             </div>
