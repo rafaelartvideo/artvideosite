@@ -29,7 +29,7 @@ import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
 export function OrderStatusesAdminPanel({ onBack }: { onBack: () => void }) {
   const { hasPermission } = useAuth();
-  if (!hasPermission("orders.view")) return null;
+  if (!hasPermission("order_statuses.view")) return null;
 
   return (
     <AdminBackContext.Provider value={onBack}>
@@ -40,8 +40,12 @@ export function OrderStatusesAdminPanel({ onBack }: { onBack: () => void }) {
 
 function OrderStatusesAdminPanelContent() {
   const { hasPermission } = useAuth();
+  const canViewTable = hasPermission("order_statuses.table.view");
+  const canCreate = hasPermission("order_statuses.create");
+  const canEdit = hasPermission("order_statuses.edit");
+  const canDelete = hasPermission("order_statuses.delete");
   const queryClient = useQueryClient();
-  const statusesQuery = useQuery({ queryKey: queryKeys.orderStatuses.lists(), queryFn: listOrderStatuses });
+  const statusesQuery = useQuery({ queryKey: queryKeys.orderStatuses.lists(), queryFn: listOrderStatuses, enabled: canViewTable });
   const items = statusesQuery.data ?? [];
   const loading = statusesQuery.isPending;
   const [formOpen, setFormOpen] = useState(false);
@@ -51,7 +55,7 @@ function OrderStatusesAdminPanelContent() {
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
 
   useEffect(() => {
     if (!statusesQuery.error) return;
@@ -66,11 +70,11 @@ function OrderStatusesAdminPanelContent() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.orderStatuses.all });
 
-  const openNew = () => { setEditItem(null); setForm({ name: "", color: "#0057e7", sort_order: items.length }); setFormOpen(true); };
-  const openEdit = (item: any) => { setEditItem(item); setForm({ name: item.name || "", color: item.color || "#0057e7", sort_order: item.sort_order || 0 }); setFormOpen(true); };
+  const openNew = () => { if (!canCreate) return; setEditItem(null); setForm({ name: "", color: "#0057e7", sort_order: items.length }); setFormOpen(true); };
+  const openEdit = (item: any) => { if (!canEdit) return; setEditItem(item); setForm({ name: item.name || "", color: item.color || "#0057e7", sort_order: item.sort_order || 0 }); setFormOpen(true); };
 
   const save = async () => {
-    if (!hasPermission("orders.update")) return;
+    if (!(editItem ? canEdit : canCreate)) return;
     if (!form.name.trim()) { setToast({ msg: "Informe o nome do status.", type: "error" }); return; }
     if (!isHexColor(form.color)) { setToast({ msg: "Informe uma cor HEX válida no formato #RRGGBB.", type: "error" }); return; }
 
@@ -91,7 +95,7 @@ function OrderStatusesAdminPanelContent() {
   };
 
   const remove = async (id: string) => {
-    if (!hasPermission("orders.delete")) return;
+    if (!canDelete) return;
     try { await deleteOrderStatus(id); await refresh(); }
     catch (error) { const message = error instanceof Error ? error.message : String(error); setToast({ msg: `Não foi possível excluir: ${message}`, type: "error" }); }
   };
@@ -101,11 +105,11 @@ function OrderStatusesAdminPanelContent() {
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {delId && <ConfirmDialog message="Excluir este status? O histórico relacionado pode impedir a exclusão." onConfirm={() => { setDelId(null); void remove(delId); }} onCancel={() => setDelId(null)} />}
 
-      <PageHeader title="Status da OS" subtitle="Status principais utilizados pelas ordens de serviço" actions={hasPermission("orders.update") ? <AdminButton onClick={openNew} className="text-xs"><Plus size={15} /> Novo status</AdminButton> : null} />
+      <PageHeader title="Status da OS" subtitle="Status principais utilizados pelas ordens de serviço" actions={canCreate ? <AdminButton onClick={openNew} className="text-xs"><Plus size={15} /> Novo status</AdminButton> : null} />
 
-      <AdminCard>
+      {canViewTable && <AdminCard>
         {loading ? <LoadingState /> : items.length === 0 ? (
-          <EmptyState icon={CheckCircle} title="Nenhum status cadastrado" message="Cadastre o primeiro status da OS." onAdd={hasPermission("orders.update") ? openNew : undefined} addLabel="Novo status" />
+          <EmptyState icon={CheckCircle} title="Nenhum status cadastrado" message="Cadastre o primeiro status da OS." onAdd={canCreate ? openNew : undefined} addLabel="Novo status" />
         ) : <>
           <div className="overflow-x-auto">
             <table className="min-w-[560px]">
@@ -121,8 +125,8 @@ function OrderStatusesAdminPanelContent() {
                   <td className="font-mono text-xs text-[#5a6a82]">{item.color || "#0057E7"}</td>
                   <td className="text-xs text-[#5a6a82]">{item.sort_order}</td>
                   <td><div className="flex justify-end gap-1">
-                    {hasPermission("orders.update") && <AdminIconButton ariaLabel="Editar status" title="Editar" onClick={() => openEdit(item)}><Edit2 size={14} /></AdminIconButton>}
-                    {hasPermission("orders.delete") && <AdminIconButton ariaLabel="Excluir status" title="Excluir" variant="danger" onClick={() => setDelId(item.id)}><Trash2 size={14} /></AdminIconButton>}
+                    {canEdit && <AdminIconButton ariaLabel="Editar status" title="Editar" onClick={() => openEdit(item)}><Edit2 size={14} /></AdminIconButton>}
+                    {canDelete && <AdminIconButton ariaLabel="Excluir status" title="Excluir" variant="danger" onClick={() => setDelId(item.id)}><Trash2 size={14} /></AdminIconButton>}
                   </div></td>
                 </tr>
               ))}</tbody>
@@ -130,7 +134,7 @@ function OrderStatusesAdminPanelContent() {
           </div>
           <PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
         </>}
-      </AdminCard>
+      </AdminCard>}
 
       <AdminPage open={formOpen} onClose={() => setFormOpen(false)} breadcrumb="Operação > Status da OS" title={editItem ? "Editar status" : "Novo status"} subtitle="Configure o status da OS">
         <div className="space-y-4 p-4 sm:p-5">
@@ -140,7 +144,7 @@ function OrderStatusesAdminPanelContent() {
         </div>
         <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
           <BtnSecondary onClick={() => setFormOpen(false)}>Cancelar</BtnSecondary>
-          {hasPermission("orders.update") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}
+          {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}
         </div>
       </AdminPage>
     </div>
