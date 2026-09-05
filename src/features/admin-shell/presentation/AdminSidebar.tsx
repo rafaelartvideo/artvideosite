@@ -2,7 +2,7 @@ import { ArrowLeft, Globe, LogOut, Settings, Users } from "lucide-react";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { mainItems, utilityItems } from "../navigation-config";
-import { parentAdminTab } from "../admin-routing";
+import { parentAdminTab } from "../admin-routes";
 import { SidebarItem } from "./AdminNavigation";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 
