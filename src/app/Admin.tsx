@@ -86,7 +86,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
               <Route path="/admin/site/settings/*" element={<TabSiteSettings onBack={() => backToParent("siteSettings")} />} />
 
               <Route path="/admin/operation" element={operationHub} />
-              <Route path="/admin/operation/equipment/*" element={<EquipmentAdminPanel onBack={() => backToParent("equipment")} />} />
+              <Route path="/admin/operation/equipment/*" element={<EquipmentAdminPanel onBack={() => backToParent("equipment")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("equipment")} />} />
               <Route path="/admin/operation/general-services/*" element={<GeneralServicesPanel onBack={() => backToParent("generalServices")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("generalServices")} />} />
               <Route path="/admin/operation/service-types/*" element={<ServiceTypesAdminPanel onBack={() => backToParent("serviceTypes")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("serviceTypes")} />} />
               <Route path="/admin/operation/order-situations/*" element={<OSSituationsView onBack={() => backToParent("situations")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("situations")} />} />
@@ -94,11 +94,11 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
               <Route path="/admin/operation/employees/*" element={<TabEmployees onBack={() => backToParent("employees")} />} />
               <Route path="/admin/operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
 
-              <Route path="/admin/quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} />} />
+              <Route path="/admin/quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
               <Route path="/admin/orders/*" element={<TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={navigateOrderRoute} onOrderRouteClose={closeOrderRoute} />} />
               <Route path="/admin/agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
               <Route path="/admin/customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || null, subpage: null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
-              <Route path="/admin/inventory/*" element={<TabInventory />} />
+              <Route path="/admin/inventory/*" element={<TabInventory onBack={() => navigateAdmin("dashboard")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
               <Route path="/admin/settings/*" element={<TabSettings onBack={() => backToParent("settings")} routeResourceId={route.resourceId} onRouteChange={resourceId => navigateAdmin("settings", resourceId, null)} />} />
               <Route path="/admin/contact/*" element={<TabContact />} />
               <Route path="*" element={<Navigate to="/admin" replace />} />
