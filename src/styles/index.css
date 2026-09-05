@@ -104,4 +104,23 @@ body {
 	.admin-crm table:not(.mobile-table-preserve) tbody > tr > td .truncate {
 		max-width: 100%;
 	}
+
+	/* Operation modules reuse their desktop column titles as mobile card field
+	 * labels, matching the visual language already used by OS and Clientes.
+	 */
+	.admin-operation-mobile-labels table:not(.mobile-table-preserve) tbody > tr > td[data-mobile-label]::before {
+		content: attr(data-mobile-label);
+		display: block;
+		margin-bottom: 0.22rem;
+		font-size: 0.625rem;
+		font-weight: 700;
+		line-height: 1.15;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
+		color: #8a96a8;
+	}
+
+	.admin-operation-mobile-labels table:not(.mobile-table-preserve) tbody > tr > td:last-child::before {
+		display: none;
+	}
 }
