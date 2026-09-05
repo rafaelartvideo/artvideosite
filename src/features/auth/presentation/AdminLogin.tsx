@@ -34,7 +34,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
   const passwordVisibilityLabel = showPassword ? "Ocultar senha" : "Mostrar senha";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0d1b2e] via-[#0a1520] to-[#06101a] flex items-center justify-center p-4">
+    <div className="admin-crm min-h-screen bg-gradient-to-br from-[#0d1b2e] via-[#0a1520] to-[#06101a] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-6">
@@ -47,7 +47,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
         </div>
 
         <div className="bg-white rounded-2xl p-8 shadow-2xl border border-white/5">
-          <h1 className="text-2xl font-black text-[#0d1b2e] mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Bem-vindo de volta</h1>
+          <h1 className="text-2xl font-extrabold text-[#0d1b2e] mb-1">Bem-vindo de volta</h1>
           <p className="text-sm text-[#5a6a82] mb-6">Entre com suas credenciais para acessar o painel.</p>
 
           {error && (
@@ -94,7 +94,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#0057e7] text-white font-bold py-3 px-6 rounded-xl text-sm hover:bg-[#0046c0] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+              className="w-full bg-[#0057e7] text-white font-semibold py-3 px-6 rounded-xl text-sm hover:bg-[#0046c0] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
             >
               {loading ? <Clock size={18} className="animate-spin" /> : null}
               {loading ? "Entrando..." : "Entrar no painel"}
