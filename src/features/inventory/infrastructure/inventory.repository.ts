@@ -97,20 +97,29 @@ export async function listInventoryMovements(itemId: string) {
   if (itemResult.error) throw itemResult.error;
 
   const factor = factorOf(itemResult.data);
-  const displayQuantity = (quantity: unknown) => isBox(itemResult.data) ? Number(quantity || 0) / factor : Number(quantity || 0);
 
-  const physicalMovements = (movementsResult.data ?? []).map((movement: any) => ({
-    ...movement,
-    movement_type: String(movement.movement_type || "").toLowerCase(),
-    quantity: displayQuantity(movement.quantity),
-    base_quantity: Number(movement.quantity || 0),
-  }));
+  const physicalMovements = (movementsResult.data ?? []).map((movement: any) => {
+    const baseQuantity = Number(movement.quantity || 0);
+    const inputUnit = movement.input_unit === "cx" ? "cx" : "un";
+    const displayQuantity = movement.input_quantity != null
+      ? Number(movement.input_quantity)
+      : inputUnit === "cx" ? baseQuantity / factor : baseQuantity;
+    return {
+      ...movement,
+      movement_type: String(movement.movement_type || "").toLowerCase(),
+      quantity: displayQuantity,
+      display_unit: inputUnit,
+      base_quantity: baseQuantity,
+    };
+  });
+
   const resolutionUsage = (usedItemsResult.data ?? []).map((item: any) => ({
     id: `resolution-use-${item.id}`,
     inventory_item_id: item.inventory_item_id,
     service_order_id: item.service_order_id,
     movement_type: "use",
-    quantity: displayQuantity(item.quantity),
+    quantity: Number(item.quantity || 0),
+    display_unit: "un",
     base_quantity: Number(item.quantity || 0),
     reason: "Uso da peça na resolução da OS (sem nova movimentação de saldo)",
     created_by: item.created_by,
