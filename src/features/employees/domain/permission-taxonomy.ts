@@ -106,9 +106,12 @@ export function permissionDependencies(key: string) {
   const dependencies = new Set(EXPLICIT_DEPENDENCIES[key] || []);
   const module = key.split(".")[0];
   const isModuleView = key === `${module}.view`;
-  if (key.includes(".table.") && key !== `${module}.table.view`) dependencies.add(`${module}.table.view`);
+
+  // Colunas não reativam a tabela. Assim é possível manter a configuração das
+  // colunas e desligar apenas a visualização da tabela inteira.
+  const isTableColumn = key.includes(".table.") && key !== `${module}.table.view`;
   if (key.includes(".details.") && key !== `${module}.details.view`) dependencies.add(`${module}.details.view`);
-  if (!isModuleView && (key.endsWith(".create") || key.endsWith(".delete") || key.endsWith(".toggle_active") || key.endsWith(".toggle_featured") || key.endsWith(".refresh"))) { dependencies.add(`${module}.view`); dependencies.add(`${module}.table.view`); }
+  if (!isModuleView && !isTableColumn && (key.endsWith(".create") || key.endsWith(".delete") || key.endsWith(".toggle_active") || key.endsWith(".toggle_featured") || key.endsWith(".refresh"))) { dependencies.add(`${module}.view`); dependencies.add(`${module}.table.view`); }
   if (!isModuleView && (key.endsWith(".edit") || key.endsWith(".update"))) { dependencies.add(`${module}.view`); dependencies.add(`${module}.details.view`); }
   if (key.startsWith("orders.section.")) { dependencies.add("orders.details.view"); dependencies.add("orders.view"); }
   if (!isModuleView) dependencies.add(`${module}.view`);
