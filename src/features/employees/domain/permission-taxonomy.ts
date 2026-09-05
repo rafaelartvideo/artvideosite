@@ -19,11 +19,11 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Clientes", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Status da OS", "Usuários", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
-const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Campos Técnicos", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
+const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.update", "orders.delete", "orders.view_all", "orders.status", "orders.status.change", "orders.situation.change", "orders.solve", "orders.complete"]);
-const ACTION_SUFFIXES = [".create", ".edit", ".update", ".delete", ".toggle_active", ".toggle_featured", ".status.change", ".refresh", ".convert_to_order"];
+const ACTION_SUFFIXES = [".create", ".edit", ".update", ".delete", ".toggle_active", ".toggle_featured", ".status.change", ".refresh", ".convert_to_order", ".lookup_cnpj"];
 
 export function permissionModuleName(permission: PermissionRecord) {
   const prefix = String(permission.key || "").split(".")[0];
@@ -53,9 +53,12 @@ export function permissionSectionName(permission: PermissionRecord) {
   if (module === "equipment" && key.includes("technical_field")) return "Campos Técnicos";
   if (module === "agenda") { if (key.includes("calendar")) return "Calendário"; if (key.includes("details")) return "Detalhes"; }
   if (module === "customers" && key.includes("address")) return "Endereços";
+  if (module === "roles" && key.includes("permissions.manage")) return "Permissões";
   if (module === "services") {
-    if (key.includes("variant") || key.includes("faq") || key.includes("feature") || key.includes("section") || key.includes("factor") || key.includes("media")) return "Conteúdo";
-    if (key.includes("publish") || key.includes("toggle_active")) return "Publicação";
+    if (key === "services.info.manage") return "Informações";
+    if (key === "services.price.manage" || key.includes("variant")) return "Preço";
+    if (key.includes("faq") || key.includes("feature") || key.includes("exclusion") || key.includes("section") || key.includes("factor") || key.includes("media")) return "Conteúdo";
+    if (key.includes("publication") || key.includes("publish") || key.includes("toggle_active")) return "Publicação";
   }
   if (key.endsWith(".view")) return "Acesso";
   if (ACTION_SUFFIXES.some(suffix => key.endsWith(suffix))) return "Ações";
@@ -87,12 +90,25 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "products.toggle_active": ["products.update", "products.view"], "products.toggle_featured": ["products.update", "products.view"],
   "categories.toggle_active": ["categories.update", "categories.view"], "brands.toggle_active": ["brands.update", "brands.view"],
   "general_services.toggle_active": ["general_services.edit", "general_services.view"], "service_types.toggle_active": ["service_types.edit", "service_types.view"],
-  "service_types.sla.manage": ["service_types.edit", "service_types.view"], "employees.toggle_active": ["employees.edit", "employees.view"],
+  "service_types.sla.manage": ["service_types.edit", "service_types.view"], "employees.toggle_active": ["employees.edit", "employees.details.view", "employees.view"],
   "quotes.status.change": ["quotes.edit", "quotes.view"], "quotes.convert_to_order": ["quotes.view", "orders.create"],
   "agenda.create": ["agenda.view"], "agenda.edit": ["agenda.view"], "agenda.reschedule": ["agenda.edit", "agenda.view"],
   "situations.table.view": ["situations.view"], "situations.create": ["situations.view"], "situations.edit": ["situations.view"], "situations.delete": ["situations.view"],
   "order_statuses.table.view": ["order_statuses.view"], "order_statuses.create": ["order_statuses.view"], "order_statuses.edit": ["order_statuses.view"], "order_statuses.delete": ["order_statuses.view"],
   "site_settings.update": ["site_settings.view"],
+  "services.info.manage": ["services.update", "services.details.view", "services.view"],
+  "services.price.manage": ["services.update", "services.details.view", "services.view"],
+  "services.media.manage": ["services.update", "services.details.view", "services.view"],
+  "services.variants.manage": ["services.update", "services.details.view", "services.view"],
+  "services.features.manage": ["services.update", "services.details.view", "services.view"],
+  "services.exclusions.manage": ["services.update", "services.details.view", "services.view"],
+  "services.factors.manage": ["services.update", "services.details.view", "services.view"],
+  "services.faq.manage": ["services.update", "services.details.view", "services.view"],
+  "services.sections.manage": ["services.update", "services.details.view", "services.view"],
+  "services.publication.manage": ["services.update", "services.details.view", "services.view"],
+  "services.toggle_active": ["services.update", "services.view"],
+  "roles.permissions.manage": ["roles.edit", "roles.details.view", "roles.view"],
+  "settings.lookup_cnpj": ["settings.update", "settings.details.view", "settings.view"],
 };
 
 export function permissionDependencies(key: string) {
