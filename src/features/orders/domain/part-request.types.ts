@@ -2,7 +2,8 @@ export type PartRequestInventoryItem = {
   id: string;
   name: string;
   sku: string | null;
-  unit: string | null;
+  unit: "un";
+  package_unit: string;
   conversion_factor: number;
   quantity: number;
   is_active: boolean;
@@ -12,8 +13,9 @@ export type SelectedPartRequestItem = {
   inventory_item_id: string;
   name: string;
   sku: string | null;
-  package_unit: string;
-  conversion_factor: number;
+  unit: "un";
+  package_unit?: string;
+  conversion_factor?: number;
   available_quantity: number;
   quantity: string;
 };
@@ -42,7 +44,8 @@ export type ReviewPartRequestItem = {
     id: string;
     name: string;
     sku: string | null;
-    unit: string | null;
+    unit: "un";
+    package_unit?: string;
     conversion_factor: number;
     quantity: number;
   } | null;
