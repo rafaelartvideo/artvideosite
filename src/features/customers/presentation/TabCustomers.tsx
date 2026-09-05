@@ -40,10 +40,31 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!routeResourceId && canViewTable && <CustomersList
-      customers={list.customers} filtered={list.filtered} pagedCustomers={list.pagedCustomers} loading={list.loading} isFetching={list.isFetching}
-      search={list.search} page={list.page} safePage={list.safePage} pageSize={list.pageSize} totalPages={list.totalPages}
-      canCreate={canCreate} canDelete={false}
-      onSearchChange={list.setSearch} onPageChange={list.setPage} onPageSizeChange={list.setPageSize}
+      customers={list.customers}
+      filtered={list.filtered}
+      pagedCustomers={list.pagedCustomers}
+      loading={list.loading}
+      isFetching={list.isFetching}
+      nameSearch={list.nameSearch}
+      documentSearch={list.documentSearch}
+      selectedStates={list.selectedStates}
+      selectedCities={list.selectedCities}
+      stateOptions={list.stateOptions}
+      cityOptions={list.cityOptions}
+      hasFilters={list.hasFilters}
+      page={list.page}
+      safePage={list.safePage}
+      pageSize={list.pageSize}
+      totalPages={list.totalPages}
+      canCreate={canCreate}
+      canDelete={false}
+      onNameSearchChange={list.setNameSearch}
+      onDocumentSearchChange={list.setDocumentSearch}
+      onStateToggle={(value) => list.setSelectedStates(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value])}
+      onCityToggle={(value) => list.setSelectedCities(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value])}
+      onClearFilters={list.clearFilters}
+      onPageChange={list.setPage}
+      onPageSizeChange={list.setPageSize}
       onCreate={() => canCreate && (onRouteChange ? onRouteChange("new", null) : creation.openPage())}
       onRefresh={() => { if (canRefresh) void list.refetch(); }}
       onOpenDetail={customer => { if (!canViewDetails) return; if (onRouteChange) onRouteChange(customer.id, null); else void details.open(customer); }}
