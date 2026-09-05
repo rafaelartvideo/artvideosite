@@ -19,7 +19,7 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Clientes", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Status da OS", "Usuários", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
-const SECTION_ORDER = ["Acesso", "Tabela", "Detalhes", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Campos Técnicos", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
+const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Campos Técnicos", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.update", "orders.delete", "orders.view_all", "orders.status", "orders.status.change", "orders.situation.change", "orders.solve", "orders.complete"]);
@@ -39,6 +39,7 @@ export function permissionSectionName(permission: PermissionRecord) {
   if (key.includes(".details.")) return "Detalhes";
   if (module === "orders") {
     if (key === "orders.view") return "Acesso";
+    if (key.includes(".kanban.")) return "Kanban";
     if (key.startsWith("orders.section.sla") || key === "orders.section.sla_cards") return "SLA";
     if (ORDER_PART_KEYS.has(key) || key === "orders.section.parts") return "Peças";
     if (key.startsWith("orders.history.") || key === "orders.section.history") return "Histórico";
@@ -76,7 +77,7 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
 }
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
-  "orders.view_all": ["orders.view"], "orders.table.view": ["orders.view"], "orders.details.view": ["orders.view"],
+  "orders.view_all": ["orders.view"], "orders.table.view": ["orders.view"], "orders.kanban.view": ["orders.view"], "orders.details.view": ["orders.view"],
   "orders.status.change": ["orders.edit", "orders.view"], "orders.situation.change": ["orders.edit", "orders.view"],
   "orders.request_parts": ["orders.section.parts", "orders.view"], "orders.manage_part_requests": ["orders.section.parts", "orders.view_all", "orders.view"],
   "orders.dispatch_parts": ["orders.section.parts", "orders.view"], "orders.confirm_part_delivery": ["orders.section.parts", "orders.view"],
