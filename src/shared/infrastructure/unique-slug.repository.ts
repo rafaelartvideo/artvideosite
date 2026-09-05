@@ -1,14 +1,29 @@
 import { supabase } from "@/lib/supabase";
 import { slugify } from "@/shared/domain/formatters";
 
-type SlugTable = "service_categories" | "product_categories" | "products" | "brands";
+export type SlugTable =
+  | "service_categories"
+  | "product_categories"
+  | "products"
+  | "brands"
+  | "services"
+  | "order_situations"
+  | "equipment_types"
+  | "equipment_brands"
+  | "equipment_models";
 
 export async function generateUniqueSlug(table: SlugTable, value: string, excludeId?: string) {
-  const baseSlug = slugify(value);
+  const baseSlug = slugify(value) || "item";
   const { data, error } = await supabase.from(table).select("id, slug");
   if (error) throw error;
 
-  const existingSlugs = new Set((data || []).filter((item: any) => item.id !== excludeId).map((item: any) => item.slug));
+  const existingSlugs = new Set(
+    (data || [])
+      .filter((item: any) => item.id !== excludeId)
+      .map((item: any) => String(item.slug || "").trim())
+      .filter(Boolean),
+  );
+
   if (!existingSlugs.has(baseSlug)) return baseSlug;
 
   let suffix = 2;
