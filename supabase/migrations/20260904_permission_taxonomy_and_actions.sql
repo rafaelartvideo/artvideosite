@@ -145,7 +145,7 @@ with inheritance(child_key, parent_key) as (
     ('quotes.table.view','quotes.view'),
     ('quotes.details.view','quotes.view'),
     ('quotes.status.change','quotes.update'),
-    ('quotes.convert_to_order','quotes.view'),
+    ('quotes.convert_to_order','quotes.convert'),
     ('quotes.refresh','quotes.view'),
 
     ('agenda.table.view','agenda.view'),
