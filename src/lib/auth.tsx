@@ -11,6 +11,7 @@ interface AuthContextValue {
   role: any | null;
   permissions: any[];
   hasPermission: (permissionKey: string) => boolean;
+  refreshAccess: () => Promise<void>;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextValue>({
   role: null,
   permissions: [],
   hasPermission: () => false,
+  refreshAccess: async () => {},
   loading: true,
   signOut: async () => {},
 });
@@ -40,44 +42,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    // Hydrate session from storage on mount
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return;
       setSession(data.session);
       if (data.session?.user) {
         signedInUserRef.current = data.session.user.id;
         loadAccess(data.session.user.id);
-      }
-      else setLoading(false);
+      } else setLoading(false);
     });
 
-    // Keep session in sync across tabs / token refreshes
     const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") return;
-
       if (event === "SIGNED_IN" || event === "USER_UPDATED") {
         if (!newSession?.user) return;
-
         const activeUserId = signedInUserRef.current ?? session?.user?.id ?? null;
-        if (activeUserId && newSession.user.id !== activeUserId) {
-          return;
-        }
-
+        if (activeUserId && newSession.user.id !== activeUserId) return;
         if (event === "SIGNED_IN" && newSession.user.id === signedInUserRef.current) return;
-
         setSession(newSession);
         signedInUserRef.current = newSession.user.id;
         loadAccess(newSession.user.id);
         return;
       }
-
       if (event === "SIGNED_OUT") {
         signedInUserRef.current = null;
         setSession(null);
         setProfile(null); setEmployee(null); setRole(null); setPermissions([]); setLoading(false);
         return;
       }
-
       setSession(newSession);
     });
 
@@ -85,31 +76,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function loadAccess(userId: string) {
-    if (accessLoadingUserRef.current === userId) {
-      return;
-    }
+    if (accessLoadingUserRef.current === userId) return;
     accessLoadingUserRef.current = userId;
-    try {
-      await loadAccessData(userId);
-    } finally {
-      if (accessLoadingUserRef.current === userId) accessLoadingUserRef.current = null;
-    }
+    try { await loadAccessData(userId); }
+    finally { if (accessLoadingUserRef.current === userId) accessLoadingUserRef.current = null; }
   }
 
   async function loadAccessData(userId: string) {
     const requestId = ++accessRequestRef.current;
     setLoading(true);
-
-    const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
-    if (profileError || !profileData) {
-      console.error("Auth profile load error:", profileError);
-      setLoading(false);
-      return;
-    }
+    const { data: profileData, error: profileError } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+    if (profileError || !profileData) { console.error("Auth profile load error:", profileError); setLoading(false); return; }
 
     const roleId = profileData.role_id;
     const [{ data: employeeData }, { data: roleData, error: roleError }, { data: permissionData, error: permissionError }] = await Promise.all([
@@ -118,17 +95,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.rpc("my_permissions"),
     ]);
 
-    const permissionKeys = (permissionData || [])
-      .map((permission: any) => typeof permission === "string" ? permission : permission?.permission_key)
-      .filter((permissionKey: unknown): permissionKey is string => typeof permissionKey === "string" && permissionKey.length > 0);
+    const permissionKeys = (permissionData || []).map((permission: any) => typeof permission === "string" ? permission : permission?.permission_key).filter((permissionKey: unknown): permissionKey is string => typeof permissionKey === "string" && permissionKey.length > 0);
     if (permissionError) console.error("Auth permissions RPC error:", permissionError);
     if (requestId !== accessRequestRef.current) return;
 
     setProfile(profileData ?? null);
-    if (employeeData) setEmployee(employeeData);
-    if (!roleError && roleData) setRole(roleData);
+    setEmployee(employeeData ?? null);
+    setRole(!roleError ? roleData ?? null : null);
     if (!permissionError) setPermissions(permissionKeys.map(key => ({ key })));
     setLoading(false);
+  }
+
+  async function refreshAccess() {
+    const userId = session?.user?.id ?? signedInUserRef.current;
+    if (!userId) return;
+    accessLoadingUserRef.current = null;
+    await loadAccess(userId);
   }
 
   async function signOut() {
@@ -143,26 +125,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasPermission = (permissionKey: string) => permissions.some(permission => String(permission.key || "").trim() === permissionKey);
 
-  return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, employee, role, permissions, hasPermission, loading, signOut }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, employee, role, permissions, hasPermission, refreshAccess, loading, signOut }}>{children}</AuthContext.Provider>;
 }
 
-/** Use inside any component to access the current session and user. */
-export function useAuth() {
-  return useContext(AuthContext);
-}
+export function useAuth() { return useContext(AuthContext); }
 
-/**
- * Guard helper — returns true if the current user is authenticated.
- * Use this to conditionally render admin UI or protected content.
- */
 export function useRequireAuth() {
   const auth = useAuth();
-  return {
-    ...auth,
-    isAuthenticated: auth.session !== null,
-  };
+  return { ...auth, isAuthenticated: auth.session !== null };
 }
