@@ -11,15 +11,18 @@ import {
   validateCustomerForm,
 } from "@/features/customers/domain/customer-form";
 import { AdminButton, AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
-import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
 import {
-  formatCnpj,
-  formatCpf,
-  formatFoundationDate,
-  formatPhone,
-  todayDateOnly,
-} from "@/shared/domain/formatters";
+  CustomerTypeToggle,
+  FBrazilianDateInput,
+  FCnpjInput,
+  FCpfInput,
+  FEmailInput,
+  FInput,
+  FPhoneInput,
+  INPUT,
+} from "@/shared/ui/admin/AdminFormControls";
+import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
+import { todayDateOnly } from "@/shared/domain/formatters";
 import {
   createQuickCustomer,
   createQuickCustomerAddress,
@@ -109,18 +112,18 @@ export function QuickCustomerModal({ onClose, onSaved }: {
             <CustomerTypeToggle value={form.customerType} onChange={customerType => setForm({ ...form, customerType })} />
             {form.customerType === "PF" ? <>
               <FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} />
-              <FInput label="CPF" required inputMode="numeric" maxLength={14} value={form.document} placeholder="000.000.000-00" onChange={(e: any) => setForm({ ...form, document: formatCpf(e.target.value) })} />
+              <FCpfInput label="CPF" required value={form.document} onChange={(e: any) => setForm({ ...form, document: e.target.value })} />
               <div><FInput label="Data de nascimento" type="date" required value={form.birth_date} max={todayDateOnly()} onChange={(e: any) => setForm({ ...form, birth_date: e.target.value })} />{!form.birth_date && <p className="mt-1 text-xs text-red-600">Informe a data de nascimento.</p>}</div>
             </> : <>
               <FInput label="Nome fantasia" required value={form.trade_name} onChange={(e: any) => setForm({ ...form, trade_name: e.target.value })} />
-              <FInput label="CNPJ" required inputMode="numeric" maxLength={18} value={form.cnpj} placeholder="00.000.000/0000-00" onBlur={(e: any) => lookupCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = formatCnpj(e.target.value); setCnpjMessage(""); setForm({ ...form, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCnpj(nextCnpj, { ...form, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : cnpjMessage || undefined} />
+              <FCnpjInput label="CNPJ" required value={form.cnpj} onBlur={(e: any) => lookupCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = e.target.value; setCnpjMessage(""); setForm({ ...form, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCnpj(nextCnpj, { ...form, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : cnpjMessage || undefined} />
               <FInput label="Razão social" value={form.legal_name} onChange={(e: any) => setForm({ ...form, legal_name: e.target.value })} />
               <FInput label="Inscrição estadual" value={form.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setForm({ ...form, state_registration: e.target.value })} />
-              <FInput label="Fundação" inputMode="numeric" value={form.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setForm({ ...form, foundation_date: formatFoundationDate(e.target.value) })} />
+              <FBrazilianDateInput label="Fundação" value={form.foundation_date} onChange={(e: any) => setForm({ ...form, foundation_date: e.target.value })} />
             </>}
-            <FInput label="E-mail" type="email" autoComplete="email" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value.trimStart() })} />
-            <FInput label="Telefone" inputMode="tel" autoComplete="tel" placeholder="(79) 3333-3333" maxLength={16} value={form.phone} onChange={(e: any) => setForm({ ...form, phone: formatPhone(e.target.value) })} />
-            <FInput label="WhatsApp" required inputMode="tel" autoComplete="tel" placeholder="(79) 9 9999-9999" maxLength={16} value={form.whatsapp} onChange={(e: any) => setForm({ ...form, whatsapp: formatPhone(e.target.value) })} />
+            <FEmailInput label="E-mail" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} />
+            <FPhoneInput label="Telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />
+            <FPhoneInput label="WhatsApp" required mobile value={form.whatsapp} onChange={(e: any) => setForm({ ...form, whatsapp: e.target.value })} />
           </div>
           <Section
             title="Endereço do cliente"
