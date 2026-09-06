@@ -2,10 +2,15 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Eye, Save } from "lucide-react";
 import { PRINT_FIELD_REGISTRY } from "../domain/print-field-registry";
 import { cn } from "@/shared/domain/formatters";
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { FDecimalInput, FIntegerInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminCard, AdminCardHeader, AdminCardContent, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { PrintTemplatePreview } from "./PrintTemplatePreview";
 import type { PrintTemplateEditorValue } from "../domain/print-template";
+
+const inRange = (value: unknown, min: number, max: number, integer = false) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= min && numeric <= max && (!integer || Number.isInteger(numeric));
+};
 
 export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, saveError }: { initialValue: PrintTemplateEditorValue; onCancel: () => void; onSave: (value: PrintTemplateEditorValue) => Promise<unknown>; saving: boolean; saveError?: string }) {
   const [value, setValue] = useState<PrintTemplateEditorValue>(() => ({ ...initialValue, layout: { ...initialValue.layout }, selectedFields: new Set(initialValue.selectedFields) }));
@@ -39,6 +44,13 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
   const save = async () => {
     if (!value.name.trim()) { setValidationError("Informe o nome do documento."); return; }
     if (!selectedCount) { setValidationError("Selecione pelo menos um campo para o documento."); return; }
+    if (![value.margin_top, value.margin_right, value.margin_bottom, value.margin_left].every(item => inRange(item, 0, 100, true))) { setValidationError("As margens devem ser números inteiros entre 0 e 100."); return; }
+    if (!inRange(value.layout.body_font_size, 7, 18, true)) { setValidationError("O tamanho do texto deve estar entre 7 e 18 pt."); return; }
+    if (!inRange(value.layout.label_font_size, 6, 14, true)) { setValidationError("O tamanho dos rótulos deve estar entre 6 e 14 pt."); return; }
+    if (!inRange(value.layout.section_title_font_size, 8, 18, true)) { setValidationError("O título das seções deve estar entre 8 e 18 pt."); return; }
+    if (!inRange(value.layout.line_height, 1, 2)) { setValidationError("A altura da linha deve estar entre 1 e 2."); return; }
+    if (!inRange(value.layout.section_spacing, 0, 40, true)) { setValidationError("O espaço entre seções deve estar entre 0 e 40 px."); return; }
+    if (!inRange(value.layout.field_spacing, 0, 30, true)) { setValidationError("O espaço entre campos deve estar entre 0 e 30 px."); return; }
     setValidationError("");
     await onSave(value);
   };
@@ -63,7 +75,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
               <Field label="Orientação"><select className={INPUT} value={value.orientation} onChange={e => setValue(v => ({...v,orientation:e.target.value as any}))}><option value="portrait">Retrato</option><option value="landscape">Paisagem</option></select></Field>
               <Field label="Papel"><select className={INPUT} value={value.paper_size} disabled><option>A4</option></select></Field>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{(["margin_top","margin_right","margin_bottom","margin_left"] as const).map((key,index)=><Field key={key} label={["Margem superior","Direita","Inferior","Esquerda"][index]}><input type="number" min="0" className={INPUT} value={value[key]} onChange={e=>setValue(v=>({...v,[key]:Number(e.target.value)}))}/></Field>)}</div>
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{(["margin_top","margin_right","margin_bottom","margin_left"] as const).map((key,index)=><Field key={key} label={["Margem superior","Direita","Inferior","Esquerda"][index]}><FIntegerInput value={String(value[key])} onChange={(e:any)=>setValue(v=>({...v,[key]:Number(e.target.value || 0)}))} /></Field>)}</div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">{([['show_logo','Exibir logo'],['show_company_info','Dados da empresa'],['show_page_number','Número da página'],['show_printed_at','Data da impressão'],['is_active','Modelo ativo']] as const).map(([key,label])=><CheckOption key={key} checked={value[key]} label={label} onChange={()=>setValue(v=>({...v,[key]:!v[key]}))}/>)}</div>
             <div className="mt-4 grid gap-4 md:grid-cols-2"><Field label="Texto do cabeçalho"><input className={INPUT} value={value.header_text} onChange={e=>setValue(v=>({...v,header_text:e.target.value}))}/></Field><Field label="Texto do rodapé"><input className={INPUT} value={value.footer_text} onChange={e=>setValue(v=>({...v,footer_text:e.target.value}))}/></Field></div>
           </AdminCardContent>
@@ -76,12 +88,12 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Field label="Fonte"><select className={INPUT} value={value.layout.font_family} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, font_family: e.target.value as typeof v.layout.font_family } }))}><option value="Arial">Arial</option><option value="Inter">Inter</option><option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option></select></Field>
               <Field label="Estilo das informações"><select className={INPUT} value={value.layout.section_style} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, section_style: e.target.value as typeof v.layout.section_style } }))}><option value="lines">Linhas</option><option value="boxed">Blocos</option><option value="table">Tabela</option></select></Field>
-              <Field label="Texto (pt)"><input type="number" min="7" max="18" step="1" className={INPUT} value={value.layout.body_font_size} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, body_font_size: Number(e.target.value) } }))} /></Field>
-              <Field label="Rótulos (pt)"><input type="number" min="6" max="14" step="1" className={INPUT} value={value.layout.label_font_size} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, label_font_size: Number(e.target.value) } }))} /></Field>
-              <Field label="Título das seções (pt)"><input type="number" min="8" max="18" step="1" className={INPUT} value={value.layout.section_title_font_size} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, section_title_font_size: Number(e.target.value) } }))} /></Field>
-              <Field label="Altura da linha"><input type="number" min="1" max="2" step="0.1" className={INPUT} value={value.layout.line_height} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, line_height: Number(e.target.value) } }))} /></Field>
-              <Field label="Espaço entre seções (px)"><input type="number" min="0" max="40" className={INPUT} value={value.layout.section_spacing} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, section_spacing: Number(e.target.value) } }))} /></Field>
-              <Field label="Espaço entre campos (px)"><input type="number" min="0" max="30" className={INPUT} value={value.layout.field_spacing} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, field_spacing: Number(e.target.value) } }))} /></Field>
+              <Field label="Texto (pt)"><FIntegerInput value={String(value.layout.body_font_size)} onChange={(e:any)=>setValue(v=>({...v,layout:{...v.layout,body_font_size:Number(e.target.value || 0)}}))} /></Field>
+              <Field label="Rótulos (pt)"><FIntegerInput value={String(value.layout.label_font_size)} onChange={(e:any)=>setValue(v=>({...v,layout:{...v.layout,label_font_size:Number(e.target.value || 0)}}))} /></Field>
+              <Field label="Título das seções (pt)"><FIntegerInput value={String(value.layout.section_title_font_size)} onChange={(e:any)=>setValue(v=>({...v,layout:{...v.layout,section_title_font_size:Number(e.target.value || 0)}}))} /></Field>
+              <Field label="Altura da linha"><FDecimalInput value={String(value.layout.line_height)} decimalPlaces={1} onChange={(e:any)=>setValue(v=>({...v,layout:{...v.layout,line_height:Number(e.target.value || 0)}}))} /></Field>
+              <Field label="Espaço entre seções (px)"><FIntegerInput value={String(value.layout.section_spacing)} onChange={(e:any)=>setValue(v=>({...v,layout:{...v.layout,section_spacing:Number(e.target.value || 0)}}))} /></Field>
+              <Field label="Espaço entre campos (px)"><FIntegerInput value={String(value.layout.field_spacing)} onChange={(e:any)=>setValue(v=>({...v,layout:{...v.layout,field_spacing:Number(e.target.value || 0)}}))} /></Field>
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2"><CheckOption checked={value.layout.show_section_borders} label="Exibir linhas das seções" onChange={() => setValue(v => ({ ...v, layout: { ...v.layout, show_section_borders: !v.layout.show_section_borders } }))} /><CheckOption checked={value.layout.show_field_borders} label="Exibir bordas nos campos" onChange={() => setValue(v => ({ ...v, layout: { ...v.layout, show_field_borders: !v.layout.show_field_borders } }))} /></div>
           </AdminCardContent>
