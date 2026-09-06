@@ -58,7 +58,6 @@ function visitState(visit: ServiceOrderSituationVisit) {
 export function OrderSituationRecordsPage({
   open,
   order,
-  situationName,
   visits,
   loading,
   error,
@@ -66,7 +65,6 @@ export function OrderSituationRecordsPage({
 }: {
   open: boolean;
   order: any;
-  situationName: string;
   visits: ServiceOrderSituationVisit[];
   loading: boolean;
   error: string;
@@ -74,78 +72,111 @@ export function OrderSituationRecordsPage({
 }) {
   if (!open) return null;
 
-  return <AdminPage
-    open={open}
-    onClose={onClose}
-    breadcrumb={`Ordens de Serviço > ${order?.os_number || "OS"}`}
-    title={`Registros · ${situationName || "Situação"}`}
-    subtitle="Histórico de todas as vezes em que esta OS entrou nesta situação"
-    maxW="max-w-2xl"
-  >
-    <div className="space-y-4 p-5">
-      {loading && <AdminCard className="p-5 text-sm font-semibold text-[#5a6a82]">Carregando registros...</AdminCard>}
-      {!loading && error && <AdminCard className="border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</AdminCard>}
-      {!loading && !error && visits.length === 0 && <AdminCard className="p-6 text-center">
-        <History className="mx-auto mb-3 text-[#8b98aa]" size={24} />
-        <p className="font-bold text-[#0d1b2e]">Nenhum registro encontrado</p>
-        <p className="mt-1 text-sm text-[#5a6a82]">Os registros começarão a aparecer após a migration do histórico ser aplicada.</p>
-      </AdminCard>}
+  const grouped = visits.reduce<Record<string, ServiceOrderSituationVisit[]>>((acc, visit) => {
+    const key = visit.situation_id || `removed:${visit.situation_name_snapshot}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(visit);
+    return acc;
+  }, {});
 
-      {!loading && !error && visits.map((visit) => {
-        const state = visitState(visit);
-        const styles = state.key === "danger"
-          ? { card: "border-red-200 bg-red-50/70", icon: "bg-red-100 text-red-700", badge: "bg-red-100 text-red-700 border-red-200" }
-          : state.key === "active"
-            ? { card: "border-blue-200 bg-blue-50/70", icon: "bg-blue-100 text-[#0057e7]", badge: "bg-blue-100 text-[#0057e7] border-blue-200" }
-            : { card: "border-emerald-200 bg-emerald-50/60", icon: "bg-emerald-100 text-emerald-700", badge: "bg-emerald-100 text-emerald-700 border-emerald-200" };
-        const slaHours = Number(visit.sla_hours_snapshot);
-        const validSla = Number.isFinite(slaHours) && slaHours > 0;
+  const groups = Object.values(grouped)
+    .map(group => [...group].sort((a, b) => b.visit_number - a.visit_number))
+    .sort((a, b) => new Date(b[0]?.entered_at || 0).getTime() - new Date(a[0]?.entered_at || 0).getTime());
 
-        return <AdminCard key={visit.id} className={cn("p-4 sm:p-5", styles.card)}>
-          <div className="flex min-w-0 items-start justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className={cn("mt-0.5 shrink-0 rounded-lg p-2", styles.icon)}>
-                {state.key === "danger" ? <AlertTriangle size={17} /> : state.key === "success" ? <CheckCircle2 size={17} /> : <Clock3 size={17} />}
-              </div>
+  return <div className="fixed inset-0 z-[120] bg-[#f8fafc]">
+    <AdminPage
+      open={open}
+      onClose={onClose}
+      breadcrumb={`Ordens de Serviço > ${order?.os_number || "OS"}`}
+      title="Registros de SLA"
+      subtitle="Histórico completo das passagens da OS por cada situação"
+      maxW="max-w-2xl"
+      fullPage
+    >
+      <div className="space-y-5 p-5">
+        {loading && <AdminCard className="p-5 text-sm font-semibold text-[#5a6a82]">Carregando registros...</AdminCard>}
+        {!loading && error && <AdminCard className="border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</AdminCard>}
+        {!loading && !error && visits.length === 0 && <AdminCard className="p-6 text-center">
+          <History className="mx-auto mb-3 text-[#8b98aa]" size={24} />
+          <p className="font-bold text-[#0d1b2e]">Nenhum registro encontrado</p>
+          <p className="mt-1 text-sm text-[#5a6a82]">Os registros aparecerão conforme a OS passar pelas situações configuradas.</p>
+        </AdminCard>}
+
+        {!loading && !error && groups.map((group) => {
+          const first = group[0];
+          const totalVisits = group.length;
+          return <section key={first.situation_id || first.situation_name_snapshot} className="space-y-3">
+            <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[#0d1b2e]/10 bg-white px-4 py-3 shadow-sm">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-black text-[#0d1b2e]">{visit.visit_number}ª passagem</p>
-                  <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase", styles.badge)}>{state.label}</span>
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10"
+                    style={{ backgroundColor: first.situation_color_snapshot || "#94a3b8" }}
+                  />
+                  <h2 className="break-words text-sm font-black text-[#0d1b2e]">{first.situation_name_snapshot}</h2>
                 </div>
-                <p className="mt-1 text-xs text-[#5a6a82]">{visit.situation_name_snapshot}</p>
+                <p className="mt-1 text-[11px] text-[#5a6a82]">Todas as permanências registradas nesta situação</p>
               </div>
+              <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full border border-[#0057e7]/20 bg-[#f0f6ff] px-2 text-[11px] font-black text-[#0057e7]">{totalVisits}</span>
             </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Duração</p>
-              <p className="mt-0.5 text-sm font-black text-[#0d1b2e]">{formatElapsedHours(state.elapsed)}</p>
-            </div>
-          </div>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Entrada</p>
-              <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{formatDateTime(visit.entered_at)}</p>
-            </div>
-            <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Saída</p>
-              <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{visit.exited_at ? formatDateTime(visit.exited_at) : "Situação atual"}</p>
-            </div>
-            <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Prazo registrado</p>
-              <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{validSla ? formatElapsedHours(slaHours) : "Não configurado"}</p>
-            </div>
-            <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Término previsto</p>
-              <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{visit.sla_due_at ? formatDateTime(visit.sla_due_at) : "Não configurado"}</p>
-            </div>
-          </div>
+            {group.map((visit) => {
+              const state = visitState(visit);
+              const styles = state.key === "danger"
+                ? { card: "border-red-200 bg-red-50/70", icon: "bg-red-100 text-red-700", badge: "bg-red-100 text-red-700 border-red-200" }
+                : state.key === "active"
+                  ? { card: "border-blue-200 bg-blue-50/70", icon: "bg-blue-100 text-[#0057e7]", badge: "bg-blue-100 text-[#0057e7] border-blue-200" }
+                  : { card: "border-emerald-200 bg-emerald-50/60", icon: "bg-emerald-100 text-emerald-700", badge: "bg-emerald-100 text-emerald-700 border-emerald-200" };
+              const slaHours = Number(visit.sla_hours_snapshot);
+              const validSla = Number.isFinite(slaHours) && slaHours > 0;
 
-          {state.exceededBy > 0 && <div className="mt-3 rounded-lg border border-red-200 bg-white/80 px-3 py-2 text-xs font-black text-red-700">Tempo excedido nesta passagem: +{formatElapsedHours(state.exceededBy)}</div>}
-        </AdminCard>;
-      })}
-    </div>
-    <div className="sticky bottom-0 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
-      <BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary>
-    </div>
-  </AdminPage>;
+              return <AdminCard key={visit.id} className={cn("p-4 sm:p-5", styles.card)}>
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className={cn("mt-0.5 shrink-0 rounded-lg p-2", styles.icon)}>
+                      {state.key === "danger" ? <AlertTriangle size={17} /> : state.key === "success" ? <CheckCircle2 size={17} /> : <Clock3 size={17} />}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-black text-[#0d1b2e]">{visit.visit_number}ª passagem</p>
+                        <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase", styles.badge)}>{state.label}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Duração</p>
+                    <p className="mt-0.5 text-sm font-black text-[#0d1b2e]">{formatElapsedHours(state.elapsed)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Entrada</p>
+                    <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{formatDateTime(visit.entered_at)}</p>
+                  </div>
+                  <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Saída</p>
+                    <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{visit.exited_at ? formatDateTime(visit.exited_at) : "Situação atual"}</p>
+                  </div>
+                  <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Prazo registrado</p>
+                    <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{validSla ? formatElapsedHours(slaHours) : "Não configurado"}</p>
+                  </div>
+                  <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Término previsto</p>
+                    <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{visit.sla_due_at ? formatDateTime(visit.sla_due_at) : "Não configurado"}</p>
+                  </div>
+                </div>
+
+                {state.exceededBy > 0 && <div className="mt-3 rounded-lg border border-red-200 bg-white/80 px-3 py-2 text-xs font-black text-red-700">Tempo excedido nesta passagem: +{formatElapsedHours(state.exceededBy)}</div>}
+              </AdminCard>;
+            })}
+          </section>;
+        })}
+      </div>
+      <div className="sticky bottom-0 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
+        <BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary>
+      </div>
+    </AdminPage>
+  </div>;
 }
