@@ -1,5 +1,6 @@
-import { CheckCircle, Clock } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
 
 export function OrderFormActions({
   saving,
@@ -15,7 +16,7 @@ export function OrderFormActions({
   return (
     <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
       <BtnSecondary onClick={onCancel}>Cancelar</BtnSecondary>
-      {canSave && <BtnPrimary onClick={onSave} disabled={saving}>{saving ? <Clock size={14} className="animate-spin" /> : <CheckCircle size={14} />}{saving ? "Salvando..." : "Salvar OS"}</BtnPrimary>}
+      {canSave && <BtnPrimary onClick={onSave} disabled={saving}>{saving ? <LoadingSpinner size="sm" /> : <CheckCircle size={14} />}{saving ? "Salvando..." : "Salvar OS"}</BtnPrimary>}
     </div>
   );
 }
