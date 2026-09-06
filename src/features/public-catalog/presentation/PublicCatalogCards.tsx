@@ -1,4 +1,5 @@
 import { ChevronRight, Package } from "lucide-react";
+import { formatCurrency } from "@/shared/domain/formatters";
 import { publicMediaUrl } from "../infrastructure/public-media";
 
 export function BrandCard({ brand }: { brand: any }) {
@@ -15,7 +16,7 @@ export function ProductCard({ product, onSelectProduct }: { product: any; onSele
         <span className="text-xs font-bold text-[#0057e7] uppercase tracking-wide">Produto</span>
         <h3 className="font-semibold text-[#0d1b2e] mt-1 mb-3 text-sm leading-snug">{product.name}</h3>
         <div className="flex items-center justify-between">
-          <span className="text-lg font-black text-[#0d1b2e]">{product.price != null ? `R$ ${Number(product.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte"}</span>
+          <span className="text-lg font-black text-[#0d1b2e]">{product.price != null ? formatCurrency(product.price) : "Consulte"}</span>
           <button type="button" onClick={() => onSelectProduct(product.slug)} className="inline-flex items-center justify-center gap-2 font-semibold rounded-md px-3 py-1.5 text-xs border-2 border-[#0057e7] text-[#0057e7] hover:bg-[#0057e7] hover:text-white active:scale-[0.98] transition-all">Ver produto</button>
         </div>
       </div>
@@ -25,7 +26,15 @@ export function ProductCard({ product, onSelectProduct }: { product: any; onSele
 
 export function ServiceCard({ service, onSelectService }: { service: any; onSelectService: (slug: string) => void }) {
   const imageUrl = publicMediaUrl(service.cover_media);
-  const cardPrice = service.price_mode === "HIDDEN" ? null : service.price_mode === "STARTING_FROM" && service.base_price ? `A partir de R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : service.price_mode === "FIXED" && service.base_price ? `R$ ${Number(service.base_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte o valor";
+  const hasBasePrice = service.base_price != null;
+  const basePrice = hasBasePrice ? formatCurrency(service.base_price) : null;
+  const cardPrice = service.price_mode === "HIDDEN"
+    ? null
+    : service.price_mode === "STARTING_FROM" && basePrice
+      ? `A partir de ${basePrice}`
+      : service.price_mode === "FIXED" && basePrice
+        ? basePrice
+        : "Consulte o valor";
   return (
     <div className="bg-white rounded-xl overflow-hidden border border-[#0d1b2e]/10 shadow-sm hover:shadow-md hover:border-[#0057e7]/30 transition-all group">
       <div className="h-40 overflow-hidden bg-[#e8eef8]">{imageUrl ? <img src={imageUrl} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /> : <div className="w-full h-full flex items-center justify-center text-[#5a6a82]"><Package size={32} /></div>}</div>
