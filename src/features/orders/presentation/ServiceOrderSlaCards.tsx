@@ -124,7 +124,7 @@ export function ServiceOrderSlaCards({ order, slaHours }: { order: any; slaHours
               <p className={cn("break-words text-[10px] font-black uppercase tracking-wider", styles.title)}>Situação: {order.situation?.name || "Não definida"}</p>
               {currentSituationVisits.length > 1 && <span
                 title={`${currentSituationVisits.length} passagens por esta situação`}
-                className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full border bg-white px-1 text-[10px] font-black shadow-sm", styles.infoBorder, styles.title)}
+                className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full border bg-white px-1 text-[10px] font-black", styles.infoBorder, styles.title)}
               >{currentSituationVisits.length}</span>}
             </div>
             <p className="mt-1 break-words text-2xl font-black text-[#0d1b2e]">{formatElapsedHours(situationElapsed)}</p>
@@ -133,9 +133,9 @@ export function ServiceOrderSlaCards({ order, slaHours }: { order: any; slaHours
           <button
             type="button"
             onClick={() => setRecordsOpen(true)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#0d1b2e]/15 bg-white px-2.5 py-2 text-[11px] font-black text-[#0d1b2e] shadow-sm transition-colors hover:bg-[#f5f7fa]"
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"
           >
-            <History size={13} /> Registros
+            <History size={14} /> Registros
           </button>
         </div>
 
