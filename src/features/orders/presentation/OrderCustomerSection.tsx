@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Edit2, Link2, MapPin, MessageCircle, Plus, RefreshCcw, Search } from "lucide-react";
+import { Edit2, Link2, MapPin, Plus, RefreshCcw, Search } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -9,7 +9,6 @@ import {
   formatCpf,
   formatFoundationDate,
   formatPhone,
-  getWhatsAppUrl,
   todayDateOnly,
 } from "@/shared/domain/formatters";
 import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -69,6 +68,7 @@ export function OrderCustomerSection({
   const compactActionClass = "h-[42px] w-[42px] shrink-0 justify-center p-0 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5";
   const compactHeaderLinkClass = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white p-0 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
   const mobileHiddenLabel = "hidden sm:inline";
+  const actionIconClass = "h-5 w-5 shrink-0";
 
   return (
 <Section
@@ -125,13 +125,13 @@ export function OrderCustomerSection({
                       <div className="grid sm:grid-cols-3 gap-3">
                         <InfoRow label="Nome" value={selectedCustomer.full_name} />
                         <InfoRow label="Telefone" value={formatPhone(selectedCustomer.phone)} />
-                        <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-0.5">WhatsApp</p><div className="flex items-center gap-2 text-sm font-medium text-[#0d1b2e]">{formatPhone(selectedCustomer.whatsapp) || "—"}{getWhatsAppUrl(selectedCustomer.whatsapp) && <a href={getWhatsAppUrl(selectedCustomer.whatsapp) || "#"} target="_blank" rel="noreferrer" aria-label="Abrir WhatsApp do cliente" className="text-[#25d366] hover:text-[#1da851]"><MessageCircle size={16} /></a>}</div></div>
+                        <InfoRow label="WhatsApp" value={formatPhone(selectedCustomer.whatsapp) || "—"} />
                         <InfoRow label="E-mail" value={selectedCustomer.email} />
                         <InfoRow label="Documento" value={selectedCustomer.document} />
                       </div>
                       <button type="button" onClick={() => setAddressExpanded(value => !value)} className="text-xs font-bold text-[#0057e7] hover:underline">{addressExpanded ? "Ocultar endereço ▲" : "Mostrar endereço ▼"}</button>
                       {addressExpanded && <div className="border-t border-[#0d1b2e]/8 pt-4"><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Endereço</p><div className="grid sm:grid-cols-3 gap-3">{(() => { const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0]; const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" }; return (["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null); })()}</div></div>}
-                      <div className="flex min-w-0 flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={onClearCustomer} aria-label="Trocar cliente" title="Trocar cliente" className={compactActionClass}><RefreshCcw size={18} /><span className={mobileHiddenLabel}>Trocar cliente</span></BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)} aria-label="Editar dados" title="Editar dados" className={compactActionClass}><Edit2 size={18} /><span className={mobileHiddenLabel}>Editar dados</span></BtnSecondary>}</div>
+                      <div className="flex min-w-0 flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={onClearCustomer} aria-label="Trocar cliente" title="Trocar cliente" className={compactActionClass}><RefreshCcw size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Trocar cliente</span></BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)} aria-label="Editar dados" title="Editar dados" className={compactActionClass}><Edit2 size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Editar dados</span></BtnSecondary>}</div>
                     </>
                   )}
                   {editingCustomer && <button onClick={() => setEditingCustomer(false)} className="text-xs text-[#5a6a82] hover:underline">Cancelar edição</button>}
@@ -143,7 +143,7 @@ export function OrderCustomerSection({
                       <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
                       <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "min-w-0 pl-9")} />
                     </div>
-                    {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={18} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
+                    {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
                   </div>
                   {customerResults.length > 0 && (
                     <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
