@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { AlertCircle, Clock, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { authenticateAdmin } from "@/features/auth/infrastructure/auth.repository";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { LoadingOverlay, LoadingSpinner, Toast } from "@/shared/ui/admin/AdminFeedback";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 
 type AdminLoginProps = {
@@ -35,6 +36,9 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
 
   return (
     <div className="admin-crm min-h-screen bg-gradient-to-br from-[#0d1b2e] via-[#0a1520] to-[#06101a] flex items-center justify-center p-4">
+      <LoadingOverlay show={loading} text="Entrando no painel..." />
+      {error && <Toast message={error} type="error" onClose={() => setError("")} />}
+
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-6">
@@ -49,12 +53,6 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
         <div className="bg-white rounded-2xl p-8 shadow-2xl border border-white/5">
           <h1 className="text-2xl font-extrabold text-[#0d1b2e] mb-1">Bem-vindo de volta</h1>
           <p className="text-sm text-[#5a6a82] mb-6">Entre com suas credenciais para acessar o painel.</p>
-
-          {error && (
-            <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
-              <AlertCircle size={16} className="flex-shrink-0" /> {error}
-            </div>
-          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <FInput
@@ -96,7 +94,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
               disabled={loading}
               className="w-full bg-[#0057e7] text-white font-semibold py-3 px-6 rounded-xl text-sm hover:bg-[#0046c0] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
             >
-              {loading ? <Clock size={18} className="animate-spin" /> : null}
+              {loading ? <LoadingSpinner size="sm" /> : null}
               {loading ? "Entrando..." : "Entrar no painel"}
             </button>
           </form>
