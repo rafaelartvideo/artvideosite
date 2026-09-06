@@ -134,9 +134,16 @@ export function prepareOrderForm({
   }
 
   for (const relation of technicalFields) {
+    const field = relation.technical_field;
     const value = String(technicalValues[relation.technical_field_id] ?? "").trim();
     if (relation.required && !value) {
-      return { error: `Informe ${relation.technical_field?.label || "o campo técnico"}.` };
+      return { error: `Informe ${field?.label || "o campo técnico"}.` };
+    }
+    if (field?.field_type === "number" && value) {
+      const numericValue = Number(value.replace(",", "."));
+      if (!Number.isFinite(numericValue)) {
+        return { error: `${field.label || "O campo técnico"} deve conter um número válido.` };
+      }
     }
   }
 
@@ -238,6 +245,7 @@ export function buildTechnicalValuesPayload({
       const field = relation.technical_field;
       const value = String(technicalValues[relation.technical_field_id] ?? "").trim();
       if (!field || (!value && !relation.required)) return null;
+      const numericValue = field.field_type === "number" && value ? Number(value.replace(",", ".")) : null;
       return {
         service_order_id: serviceOrderId,
         technical_field_id: field.id,
@@ -245,7 +253,7 @@ export function buildTechnicalValuesPayload({
         label_snapshot: field.label,
         field_type_snapshot: field.field_type,
         value_text: field.field_type === "text" ? value || null : null,
-        value_number: field.field_type === "number" ? (value ? Number(value) : null) : null,
+        value_number: field.field_type === "number" ? numericValue : null,
       };
     })
     .filter(Boolean) as Array<Record<string, unknown>>;
