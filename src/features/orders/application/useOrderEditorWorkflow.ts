@@ -11,6 +11,7 @@ import type { useOrderFormState } from "./useOrderFormState";
 import type { useOrderImages } from "./useOrderImages";
 import type { useOrdersWorkspace } from "./useOrdersWorkspace";
 import type { useOrderServiceAddress } from "./useOrderServiceAddress";
+import { beginAdminLoading } from "@/shared/ui/admin/AdminFeedback";
 
 type PermissionCheck = (permission: string) => boolean;
 type Toast = { msg: string; type: "success" | "error" };
@@ -58,28 +59,33 @@ export function useOrderEditorWorkflow({
   };
 
   const openEdit = async (order: any) => {
-    const { data: currentOrder, error } = await getOrderEditState(order.id);
-    if (error) {
-      showToast({ msg: `Não foi possível verificar o estado da OS: ${formatError(error)}`, type: "error" });
-      return;
+    const endLoading = beginAdminLoading("Carregando edição da OS...");
+    try {
+      const { data: currentOrder, error } = await getOrderEditState(order.id);
+      if (error) {
+        showToast({ msg: `Não foi possível verificar o estado da OS: ${formatError(error)}`, type: "error" });
+        return;
+      }
+      if (currentOrder?.is_solved || order.is_solved) {
+        showToast({ msg: "Esta OS está solucionada e é somente leitura.", type: "error" });
+        return;
+      }
+      await images.loadOrderImages(order.id);
+      const { data: technicalValues, error: technicalValuesError } = await listServiceOrderTechnicalValues(order.id);
+      if (technicalValuesError) {
+        showToast({ msg: `Não foi possível carregar os campos técnicos: ${formatError(technicalValuesError)}`, type: "error" });
+        return;
+      }
+      formState.hydrateOrderForm(order, technicalValues || []);
+      address.hydrateServiceAddress({
+        useCustomerAddress: order.order_type === "external" && order.service_address_source === "customer",
+        state: order.order_type === "external" ? order.service_state : undefined,
+        city: order.order_type === "external" ? order.service_city : undefined,
+      });
+      customers.hydrateCustomer(order.customer || null);
+    } finally {
+      endLoading();
     }
-    if (currentOrder?.is_solved || order.is_solved) {
-      showToast({ msg: "Esta OS está solucionada e é somente leitura.", type: "error" });
-      return;
-    }
-    await images.loadOrderImages(order.id);
-    const { data: technicalValues, error: technicalValuesError } = await listServiceOrderTechnicalValues(order.id);
-    if (technicalValuesError) {
-      showToast({ msg: `Não foi possível carregar os campos técnicos: ${formatError(technicalValuesError)}`, type: "error" });
-      return;
-    }
-    formState.hydrateOrderForm(order, technicalValues || []);
-    address.hydrateServiceAddress({
-      useCustomerAddress: order.order_type === "external" && order.service_address_source === "customer",
-      state: order.order_type === "external" ? order.service_state : undefined,
-      city: order.order_type === "external" ? order.service_city : undefined,
-    });
-    customers.hydrateCustomer(order.customer || null);
   };
 
   const save = async () => {
