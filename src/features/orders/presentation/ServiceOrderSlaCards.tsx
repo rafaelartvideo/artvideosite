@@ -59,7 +59,7 @@ export function ServiceOrderSlaCards({ order, slaHours }: { order: any; slaHours
       if (!active) return;
       if (error) {
         setVisits([]);
-        setRecordsError(error.message || "Não foi possível carregar os registros da situação.");
+        setRecordsError(error.message || "Não foi possível carregar os registros de SLA da OS.");
       } else {
         setVisits((data || []) as ServiceOrderSituationVisit[]);
       }
@@ -99,18 +99,17 @@ export function ServiceOrderSlaCards({ order, slaHours }: { order: any; slaHours
   const usage = validSla ? situationElapsed / slaHours : 0;
   const state = !validSla ? "neutral" : usage > 1 ? "danger" : usage >= 0.8 ? "warning" : "success";
   const styles = {
-    neutral: { card: "border-slate-300 bg-slate-50", icon: "bg-slate-200 text-slate-700", title: "text-slate-700", bar: "bg-slate-400", infoBorder: "border-slate-300", infoBg: "bg-white", infoLabel: "text-slate-600" },
-    success: { card: "border-emerald-300 bg-emerald-50", icon: "bg-emerald-100 text-emerald-700", title: "text-emerald-700", bar: "bg-emerald-500", infoBorder: "border-emerald-200", infoBg: "bg-white", infoLabel: "text-emerald-700" },
-    warning: { card: "border-amber-400 bg-amber-50", icon: "bg-amber-100 text-amber-700", title: "text-amber-700", bar: "bg-amber-500", infoBorder: "border-amber-300", infoBg: "bg-white", infoLabel: "text-amber-700" },
-    danger: { card: "border-red-400 bg-red-50", icon: "bg-red-100 text-red-700", title: "text-red-700", bar: "bg-red-500", infoBorder: "border-red-300", infoBg: "bg-white", infoLabel: "text-red-700" },
+    neutral: { card: "border-slate-300 bg-slate-50", icon: "bg-slate-200 text-slate-700", title: "text-slate-700", bar: "bg-slate-400", infoBorder: "border-slate-300" },
+    success: { card: "border-emerald-300 bg-emerald-50", icon: "bg-emerald-100 text-emerald-700", title: "text-emerald-700", bar: "bg-emerald-500", infoBorder: "border-emerald-200" },
+    warning: { card: "border-amber-400 bg-amber-50", icon: "bg-amber-100 text-amber-700", title: "text-amber-700", bar: "bg-amber-500", infoBorder: "border-amber-300" },
+    danger: { card: "border-red-400 bg-red-50", icon: "bg-red-100 text-red-700", title: "text-red-700", bar: "bg-red-500", infoBorder: "border-red-300" },
   }[state];
 
   return <>
     <OrderSituationRecordsPage
       open={recordsOpen}
       order={order}
-      situationName={order.situation?.name || "Situação"}
-      visits={currentSituationVisits}
+      visits={visits}
       loading={recordsLoading}
       error={recordsError}
       onClose={() => setRecordsOpen(false)}
@@ -140,14 +139,15 @@ export function ServiceOrderSlaCards({ order, slaHours }: { order: any; slaHours
           </button>
         </div>
 
-        <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-2">
-          <div className={cn("rounded-lg border-2 px-3 py-3 shadow-sm", styles.infoBorder, styles.infoBg)}>
-            <span className={cn("block text-[10px] font-black uppercase tracking-wide", styles.infoLabel)}>Início desta passagem</span>
-            <span className="mt-1 block break-words text-sm font-black text-[#0d1b2e]">{formatDateTime(situationStart)}</span>
+        <div className={cn("mt-4 flex min-w-0 flex-col rounded-lg border-2 bg-white/70 px-3 py-3 text-[11px] sm:flex-row sm:items-center", styles.infoBorder)}>
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 sm:pr-3">
+            <span className="shrink-0 font-semibold text-[#5a6a82]">Início</span>
+            <span className="break-words text-right font-bold text-[#0d1b2e]">{formatDateTime(situationStart)}</span>
           </div>
-          <div className={cn("rounded-lg border-2 px-3 py-3 shadow-sm", styles.infoBorder, styles.infoBg)}>
-            <span className={cn("block text-[10px] font-black uppercase tracking-wide", styles.infoLabel)}>Término previsto</span>
-            <span className="mt-1 block break-words text-sm font-black text-[#0d1b2e]">{situationForecastEnd ? formatDateTime(situationForecastEnd) : "Não configurado"}</span>
+          <div aria-hidden="true" className="my-2 h-px bg-current opacity-15 sm:my-0 sm:h-8 sm:w-px" />
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 sm:pl-3">
+            <span className="shrink-0 font-semibold text-[#5a6a82]">Término previsto</span>
+            <span className="break-words text-right font-bold text-[#0d1b2e]">{situationForecastEnd ? formatDateTime(situationForecastEnd) : "Não configurado"}</span>
           </div>
         </div>
 
@@ -173,14 +173,15 @@ export function ServiceOrderSlaCards({ order, slaHours }: { order: any; slaHours
             <p className="break-words text-[11px] leading-relaxed text-[#5a6a82]">{order.completed_at ? "Tempo encerrado na conclusão" : "Correndo desde a abertura da OS"}</p>
           </div>
         </div>
-        <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-2">
-          <div className="rounded-lg border-2 border-blue-200 bg-white px-3 py-3 shadow-sm">
-            <span className="block text-[10px] font-black uppercase tracking-wide text-[#0057e7]">Início da OS</span>
-            <span className="mt-1 block break-words text-sm font-black text-[#0d1b2e]">{formatDateTime(order.created_at)}</span>
+        <div className="mt-4 flex min-w-0 flex-col rounded-lg border-2 border-blue-200 bg-white/70 px-3 py-3 text-[11px] sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 sm:pr-3">
+            <span className="shrink-0 font-semibold text-[#5a6a82]">Início</span>
+            <span className="break-words text-right font-bold text-[#0d1b2e]">{formatDateTime(order.created_at)}</span>
           </div>
-          <div className="rounded-lg border-2 border-blue-200 bg-white px-3 py-3 shadow-sm">
-            <span className="block text-[10px] font-black uppercase tracking-wide text-[#0057e7]">Término previsto</span>
-            <span className="mt-1 block break-words text-sm font-black text-[#0d1b2e]">{forecastEnd ? formatDateTime(forecastEnd) : "Não configurado"}</span>
+          <div aria-hidden="true" className="my-2 h-px bg-blue-200 sm:my-0 sm:h-8 sm:w-px" />
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 sm:pl-3">
+            <span className="shrink-0 font-semibold text-[#5a6a82]">Término previsto</span>
+            <span className="break-words text-right font-bold text-[#0d1b2e]">{forecastEnd ? formatDateTime(forecastEnd) : "Não configurado"}</span>
           </div>
         </div>
       </AdminCard>
