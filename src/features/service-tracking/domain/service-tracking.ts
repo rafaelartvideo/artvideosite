@@ -1,3 +1,5 @@
+import { formatDateTime } from "@/shared/domain/formatters";
+
 export type PublicOrderHistory = {
   created_at: string;
   notes: string | null;
@@ -40,14 +42,5 @@ export function getTrackingStatusIndex(status: string): number {
 }
 
 export function formatTrackingDate(date?: string | null): string {
-  if (!date) return "-";
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return parsed.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDateTime(date, "-");
 }
