@@ -95,10 +95,7 @@ export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?:
 }
 
 export function LoadingState({ text = "Carregando..." }: { text?: string }) {
-  return <div className="flex flex-col items-center justify-center gap-3 py-20" role="status" aria-live="polite" aria-busy="true">
-    <LoadingSpinner />
-    <p className="text-sm font-medium text-[#5a6a82]">{text}</p>
-  </div>;
+  return <LoadingOverlay text={text} />;
 }
 
 export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLabel = "Adicionar" }: {
