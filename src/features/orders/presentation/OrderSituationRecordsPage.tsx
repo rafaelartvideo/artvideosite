@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, History } from "lucide-react";
-import { AdminCard, AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardHeader, AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
 import type { ServiceOrderSituationVisit } from "../infrastructure/order-situation-visits.repository";
 
@@ -51,7 +52,7 @@ function visitState(visit: ServiceOrderSituationVisit) {
   const validSla = Number.isFinite(slaHours) && slaHours > 0;
   const exceededBy = validSla ? Math.max(0, elapsed - slaHours) : 0;
   if (exceededBy > 0) return { key: "danger", label: `Estourou +${formatElapsedHours(exceededBy)}`, elapsed, exceededBy };
-  if (visit.exited_at) return { key: "success", label: "Encerrado no prazo", elapsed, exceededBy: 0 };
+  if (visit.exited_at) return { key: "success", label: "No prazo", elapsed, exceededBy: 0 };
   return { key: "active", label: "Em andamento", elapsed, exceededBy: 0 };
 }
 
@@ -70,6 +71,27 @@ export function OrderSituationRecordsPage({
   error: string;
   onClose: () => void;
 }) {
+  const [browserBottomInset, setBrowserBottomInset] = useState(0);
+
+  useEffect(() => {
+    if (!open) { setBrowserBottomInset(0); return; }
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const updateBottomInset = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setBrowserBottomInset(Math.min(110, Math.round(inset)));
+    };
+    updateBottomInset();
+    viewport.addEventListener("resize", updateBottomInset);
+    viewport.addEventListener("scroll", updateBottomInset);
+    window.addEventListener("resize", updateBottomInset);
+    return () => {
+      viewport.removeEventListener("resize", updateBottomInset);
+      viewport.removeEventListener("scroll", updateBottomInset);
+      window.removeEventListener("resize", updateBottomInset);
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const grouped = visits.reduce<Record<string, ServiceOrderSituationVisit[]>>((acc, visit) => {
@@ -80,103 +102,81 @@ export function OrderSituationRecordsPage({
   }, {});
 
   const groups = Object.values(grouped)
-    .map(group => [...group].sort((a, b) => b.visit_number - a.visit_number))
-    .sort((a, b) => new Date(b[0]?.entered_at || 0).getTime() - new Date(a[0]?.entered_at || 0).getTime());
+    .map(group => [...group].sort((a, b) => a.visit_number - b.visit_number))
+    .sort((a, b) => new Date(b[b.length - 1]?.entered_at || 0).getTime() - new Date(a[a.length - 1]?.entered_at || 0).getTime());
 
-  return <div className="fixed inset-0 z-[120] bg-[#f8fafc]">
-    <AdminPage
-      open={open}
-      onClose={onClose}
-      breadcrumb={`Ordens de Serviço > ${order?.os_number || "OS"}`}
-      title="Registros de SLA"
-      subtitle="Histórico completo das passagens da OS por cada situação"
-      maxW="max-w-2xl"
-      fullPage
-    >
-      <div className="space-y-5 p-5">
-        {loading && <AdminCard className="p-5 text-sm font-semibold text-[#5a6a82]">Carregando registros...</AdminCard>}
-        {!loading && error && <AdminCard className="border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</AdminCard>}
-        {!loading && !error && visits.length === 0 && <AdminCard className="p-6 text-center">
-          <History className="mx-auto mb-3 text-[#8b98aa]" size={24} />
-          <p className="font-bold text-[#0d1b2e]">Nenhum registro encontrado</p>
-          <p className="mt-1 text-sm text-[#5a6a82]">Os registros aparecerão conforme a OS passar pelas situações configuradas.</p>
-        </AdminCard>}
+  return <AdminPage
+    open
+    onClose={onClose}
+    breadcrumb={`Ordens de Serviço > ${order?.os_number || "OS"} > Registros de SLA`}
+    title="Registros de SLA"
+    subtitle="Histórico das passagens da ordem de serviço pelas situações"
+    maxW="max-w-4xl"
+  >
+    <div className="min-w-0 max-w-full space-y-4 overflow-hidden p-5">
+      {loading && <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando registros...</p>}
+      {!loading && error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-xs font-semibold text-red-700">{error}</div>}
+      {!loading && !error && visits.length === 0 && <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">
+        <History className="mx-auto mb-2 text-[#8b98aa]" size={22} />
+        Nenhum registro de SLA nesta OS.
+      </div>}
 
-        {!loading && !error && groups.map((group) => {
-          const first = group[0];
-          const totalVisits = group.length;
-          return <section key={first.situation_id || first.situation_name_snapshot} className="space-y-3">
-            <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[#0d1b2e]/10 bg-white px-4 py-3 shadow-sm">
+      {!loading && !error && groups.map(group => {
+        const first = group[0];
+        const current = group.some(visit => !visit.exited_at);
+        return <AdminCard key={first.situation_id || first.situation_name_snapshot} className={cn("min-w-0 max-w-full shadow-none", current && "border-[#0057e7]/30 bg-[#f7faff]")}>
+          <AdminCardHeader className={current ? "bg-[#f7faff]" : undefined}>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: first.situation_color_snapshot || "#94a3b8" }} />
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10"
-                    style={{ backgroundColor: first.situation_color_snapshot || "#94a3b8" }}
-                  />
-                  <h2 className="break-words text-sm font-black text-[#0d1b2e]">{first.situation_name_snapshot}</h2>
-                </div>
-                <p className="mt-1 text-[11px] text-[#5a6a82]">Todas as permanências registradas nesta situação</p>
+                <p className="truncate text-xs font-black text-[#0d1b2e]">{first.situation_name_snapshot}</p>
+                <p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"} · {group.length} {group.length === 1 ? "passagem" : "passagens"}</p>
               </div>
-              <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full border border-[#0057e7]/20 bg-[#f0f6ff] px-2 text-[11px] font-black text-[#0057e7]">{totalVisits}</span>
             </div>
+          </AdminCardHeader>
 
-            {group.map((visit) => {
+          <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+            {group.map(visit => {
               const state = visitState(visit);
-              const styles = state.key === "danger"
-                ? { card: "border-red-200 bg-red-50/70", icon: "bg-red-100 text-red-700", badge: "bg-red-100 text-red-700 border-red-200" }
-                : state.key === "active"
-                  ? { card: "border-blue-200 bg-blue-50/70", icon: "bg-blue-100 text-[#0057e7]", badge: "bg-blue-100 text-[#0057e7] border-blue-200" }
-                  : { card: "border-emerald-200 bg-emerald-50/60", icon: "bg-emerald-100 text-emerald-700", badge: "bg-emerald-100 text-emerald-700 border-emerald-200" };
               const slaHours = Number(visit.sla_hours_snapshot);
               const validSla = Number.isFinite(slaHours) && slaHours > 0;
+              const stateStyles = state.key === "danger"
+                ? "border-red-200 text-red-700 bg-red-50"
+                : state.key === "active"
+                  ? "border-blue-200 text-[#0057e7] bg-[#f7faff]"
+                  : "border-emerald-200 text-emerald-700 bg-emerald-50";
 
-              return <AdminCard key={visit.id} className={cn("p-4 sm:p-5", styles.card)}>
+              return <div key={visit.id} className="min-w-0 rounded-xl border border-[#0d1b2e]/10 bg-white p-3">
                 <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className={cn("mt-0.5 shrink-0 rounded-lg p-2", styles.icon)}>
-                      {state.key === "danger" ? <AlertTriangle size={17} /> : state.key === "success" ? <CheckCircle2 size={17} /> : <Clock3 size={17} />}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-black text-[#0d1b2e]">{visit.visit_number}ª passagem</p>
-                        <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase", styles.badge)}>{state.label}</span>
-                      </div>
-                    </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-[#0d1b2e]">{visit.visit_number}ª passagem</p>
+                    <p className="mt-0.5 text-[10px] text-[#7c899c]">{formatDateTime(visit.entered_at)}</p>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Duração</p>
-                    <p className="mt-0.5 text-sm font-black text-[#0d1b2e]">{formatElapsedHours(state.elapsed)}</p>
-                  </div>
+                  <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-black uppercase", stateStyles)}>
+                    {state.key === "danger" ? <AlertTriangle size={10} /> : state.key === "active" ? <Clock3 size={10} /> : <CheckCircle2 size={10} />}
+                    {state.label}
+                  </span>
                 </div>
 
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Entrada</p>
-                    <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{formatDateTime(visit.entered_at)}</p>
-                  </div>
-                  <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Saída</p>
-                    <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{visit.exited_at ? formatDateTime(visit.exited_at) : "Situação atual"}</p>
-                  </div>
-                  <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Prazo registrado</p>
-                    <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{validSla ? formatElapsedHours(slaHours) : "Não configurado"}</p>
-                  </div>
-                  <div className="rounded-lg border border-[#0d1b2e]/10 bg-white/80 px-3 py-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8b98aa]">Término previsto</p>
-                    <p className="mt-1 text-xs font-bold text-[#0d1b2e]">{visit.sla_due_at ? formatDateTime(visit.sla_due_at) : "Não configurado"}</p>
-                  </div>
+                <div className="mt-3 space-y-2 border-t border-[#0d1b2e]/7 pt-2.5 text-[11px]">
+                  <div className="flex min-w-0 items-center justify-between gap-3"><span className="text-[#7c899c]">Saída</span><span className="break-words text-right font-bold text-[#0d1b2e]">{visit.exited_at ? formatDateTime(visit.exited_at) : "Em andamento"}</span></div>
+                  <div className="flex min-w-0 items-center justify-between gap-3"><span className="text-[#7c899c]">Duração</span><span className="font-black text-[#0d1b2e]">{formatElapsedHours(state.elapsed)}</span></div>
+                  <div className="flex min-w-0 items-center justify-between gap-3"><span className="text-[#7c899c]">Prazo</span><span className="font-bold text-[#0d1b2e]">{validSla ? formatElapsedHours(slaHours) : "Não configurado"}</span></div>
+                  {visit.sla_due_at && <div className="flex min-w-0 items-center justify-between gap-3"><span className="text-[#7c899c]">Previsão</span><span className="break-words text-right font-bold text-[#0d1b2e]">{formatDateTime(visit.sla_due_at)}</span></div>}
                 </div>
-
-                {state.exceededBy > 0 && <div className="mt-3 rounded-lg border border-red-200 bg-white/80 px-3 py-2 text-xs font-black text-red-700">Tempo excedido nesta passagem: +{formatElapsedHours(state.exceededBy)}</div>}
-              </AdminCard>;
+              </div>;
             })}
-          </section>;
-        })}
-      </div>
-      <div className="sticky bottom-0 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
-        <BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary>
-      </div>
-    </AdminPage>
-  </div>;
+          </div>
+        </AdminCard>;
+      })}
+    </div>
+
+    <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
+    <div
+      className="fixed inset-x-0 z-[70] border-t border-[#0d1b2e]/10 bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none"
+      style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+    >
+      <div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div>
+    </div>
+  </AdminPage>;
 }
