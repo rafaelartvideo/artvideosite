@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle, Clock } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   useSaveSiteSettingsMutation,
@@ -7,7 +7,7 @@ import {
 } from "@/features/settings/presentation/useSiteSettingsQuery";
 import { BtnPrimary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 
 export function TabContact() {
   const { user, hasPermission } = useAuth();
@@ -72,7 +72,7 @@ export function TabContact() {
 
           <div className="flex items-center gap-3">
             {canUpdate && <BtnPrimary type="submit" disabled={saveSettings.isPending}>
-              {saveSettings.isPending ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}
+              {saveSettings.isPending ? <LoadingSpinner size="sm" /> : <CheckCircle size={15} />}
               {saveSettings.isPending ? "Salvando..." : "Salvar contato"}
             </BtnPrimary>}
             <p className="text-xs text-[#5a6a82]">Essas informações alimentam o site público.</p>
