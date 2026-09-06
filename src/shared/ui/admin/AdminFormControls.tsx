@@ -69,9 +69,25 @@ function currencyInputDisplay(value: unknown) {
 function currencyInputValue(value: string) { const digits = value.replace(/\D/g, ""); if (!digits) return ""; return (Number(digits) / 100).toFixed(2); }
 export function FCurrencyInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) { return <FInput {...props} type="text" inputMode="numeric" value={currencyInputDisplay(value)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: currencyInputValue(event.target.value) } })} />; }
 
-function hoursInputDisplay(value: unknown) { if (value == null || value === "") return ""; const totalMinutes = Math.max(0, Math.round(Number(value) * 60)); if (!Number.isFinite(totalMinutes)) return ""; const hours = Math.floor(totalMinutes / 60); const minutes = totalMinutes % 60; return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`; }
-function hoursInputValue(value: string) { const rawDigits = value.replace(/\D/g, ""); if (!rawDigits) return ""; const digits = rawDigits.slice(-4).padStart(4, "0"); const hours = Number(digits.slice(0, 2)); const minutes = Math.min(59, Number(digits.slice(2))); return String(hours + minutes / 60); }
-export function FHoursInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) { return <FInput {...props} type="text" inputMode="numeric" placeholder={props.placeholder || "00:00"} maxLength={5} value={hoursInputDisplay(value)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: hoursInputValue(event.target.value) } })} />; }
+function hoursInputDisplay(value: unknown) {
+  if (value == null || value === "") return "";
+  const numericHours = Number(value);
+  if (!Number.isFinite(numericHours) || numericHours < 0) return "";
+  const totalMinutes = Math.round(numericHours * 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+function hoursInputValue(value: string) {
+  const rawDigits = value.replace(/\D/g, "");
+  if (!rawDigits) return "";
+  const minutesDigits = rawDigits.length > 2 ? rawDigits.slice(-2) : rawDigits;
+  const hoursDigits = rawDigits.length > 2 ? rawDigits.slice(0, -2) : "0";
+  const hours = Number(hoursDigits || 0);
+  const minutes = Math.min(59, Number(minutesDigits || 0));
+  return String(hours + minutes / 60);
+}
+export function FHoursInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) { return <FInput {...props} type="text" inputMode="numeric" placeholder={props.placeholder || "00:00"} value={hoursInputDisplay(value)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: hoursInputValue(event.target.value) } })} />; }
 
 export function CustomerTypeToggle({ value, onChange, disabled = false }: { value: CustomerType; onChange: (value: CustomerType) => void; disabled?: boolean }) {
   return <div className="min-w-0 sm:col-span-2"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de cliente</label><div className="grid grid-cols-2 overflow-hidden rounded-lg border border-[#0d1b2e]/15">{[{ value: "PF" as const, label: "PESSOA FÍSICA" }, { value: "PJ" as const, label: "PESSOA JURÍDICA" }].map(option => <button key={option.value} type="button" disabled={disabled} onClick={() => onChange(option.value)} className={`cursor-default px-3 py-2.5 text-xs font-black tracking-wide transition-colors ${value === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]"} ${disabled ? "opacity-70" : ""}`} aria-pressed={value === option.value}>{option.label}</button>)}</div></div>;
