@@ -3,6 +3,7 @@ import { Package, Tag, Upload } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { supabaseErrorMessage, uploadMediaFile, type MediaBucket } from "@/shared/infrastructure/media.repository";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { beginAdminLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
 export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true }: {
   bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; label?: string; canUpload?: boolean;
@@ -22,13 +23,16 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     if (!file) return;
     setPreviewUrl(URL.createObjectURL(file));
     setUploading(true);
+    const endLoading = beginAdminLoading("Enviando imagem...");
     try {
       onUpload(await uploadMediaFile(bucket, file));
       setPreviewUrl(null);
+      notifyAdmin("Imagem enviada com sucesso.", "success");
     } catch (error) {
       console.error("[MEDIA] image upload error:", error);
-      alert(supabaseErrorMessage(error));
+      notifyAdmin(`Erro ao enviar imagem: ${supabaseErrorMessage(error)}`, "error");
     } finally {
+      endLoading();
       setUploading(false);
       event.currentTarget.value = "";
     }
