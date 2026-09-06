@@ -56,6 +56,8 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
   const canAccessTab = (tab: AdminTab) => hasPermission(permissionForTab[tab]);
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
+  const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
+  const mobileLabelModule = operationModule || siteModule;
 
   const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] }) => {
     navigate(adminPath(tab, resourceId, subpage), { replace: options?.replace, state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined });
@@ -74,7 +76,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
   useEffect(() => {
     const root = contentRef.current;
-    if (!root || !operationModule) return;
+    if (!root || !mobileLabelModule) return;
 
     const applyMobileLabels = () => {
       root.querySelectorAll("table:not(.mobile-table-preserve)").forEach(table => {
@@ -98,7 +100,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
     const observer = new MutationObserver(applyMobileLabels);
     observer.observe(root, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [operationModule, activeTab, route.resourceId, route.subpage]);
+  }, [mobileLabelModule, activeTab, route.resourceId, route.subpage]);
 
   const backToParent = (tab: AdminTab) => navigateAdmin(parentAdminTab(tab) || "dashboard");
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey))} onSelect={id => navigateAdmin(id as AdminTab)} />;
@@ -108,7 +110,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   return (
     <AdminPageContext.Provider value={{ page, setPage }}>
       <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader page={page} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(current => !current)} />}>
-        <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${operationModule ? " admin-operation-mobile-labels" : ""}`}>
+        <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
           <Suspense fallback={<AdminRouteLoading />}>
             <Routes>
               <Route index element={<TabDashboard />} />
