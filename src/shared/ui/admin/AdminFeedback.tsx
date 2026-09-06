@@ -15,6 +15,7 @@ import {
 } from "@/shared/ui/primitives/alert-dialog";
 
 const ADMIN_FEEDBACK_EVENT = "artvideo:admin-feedback";
+const BUSY_ACTION_PATTERN = /\b(carregando|salvando|enviando|atualizando|processando|buscando|consultando|gerando|excluindo|removendo|concluindo|resolvendo|aprovando|rejeitando|convertendo|criando|cadastrando)\b/i;
 
 type FeedbackType = "success" | "error";
 type AdminFeedbackEvent =
@@ -141,6 +142,7 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
   const activeQueries = useIsFetching();
   const activeMutations = useIsMutating();
   const [loaders, setLoaders] = useState<Array<{ token: string; text: string }>>([]);
+  const [legacyBusyText, setLegacyBusyText] = useState("");
   const [toast, setToast] = useState<{ message: string; type: FeedbackType } | null>(null);
 
   useEffect(() => {
@@ -161,10 +163,26 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
     return () => window.removeEventListener(ADMIN_FEEDBACK_EVENT, listener);
   }, []);
 
+  useEffect(() => {
+    const root = document.querySelector(".admin-crm");
+    if (!root) return;
+    const detectLegacyBusy = () => {
+      const busyButton = Array.from(root.querySelectorAll("button:disabled")).find(button => BUSY_ACTION_PATTERN.test(button.textContent || ""));
+      const text = busyButton?.textContent?.trim() || "";
+      setLegacyBusyText(current => current === text ? current : text);
+    };
+    detectLegacyBusy();
+    const observer = new MutationObserver(detectLegacyBusy);
+    observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["disabled", "aria-busy"] });
+    return () => observer.disconnect();
+  }, []);
+
   const activeLoader = loaders[loaders.length - 1];
   const queryBusy = activeQueries > 0 || activeMutations > 0;
+  const showLoading = busy || queryBusy || loaders.length > 0 || Boolean(legacyBusyText);
+  const loadingText = activeLoader?.text || legacyBusyText || busyText;
   return <>
-    <LoadingOverlay show={busy || queryBusy || loaders.length > 0} text={activeLoader?.text || busyText} />
+    <LoadingOverlay show={showLoading} text={loadingText} />
     {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
   </>;
 }
