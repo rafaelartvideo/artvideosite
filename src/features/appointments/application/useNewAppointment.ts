@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { fetchAddressByZipCode, formatZipCode, type Address } from "@/lib/address";
 import type { AppointmentSituation } from "@/lib/database.types";
+import { isValidIsoDate } from "@/shared/domain/formatters";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 import {
   createAppointment,
@@ -132,12 +133,12 @@ export function useNewAppointment({
       onToast("Selecione um cliente para o agendamento.", "error");
       return;
     }
-    if (!form.appointment_date) {
-      onToast("Informe a data do agendamento.", "error");
+    if (!form.appointment_date || !isValidIsoDate(form.appointment_date)) {
+      onToast("Informe uma data de agendamento válida.", "error");
       return;
     }
     if (form.period === "custom" && (!form.start_time || !form.end_time || form.end_time <= form.start_time)) {
-      onToast("Informe um horário personalizado válido.", "error");
+      onToast("Informe um horário personalizado válido, com término após o início.", "error");
       return;
     }
     const selectedSituation = situations.find(item => item.id === form.situation_id);
