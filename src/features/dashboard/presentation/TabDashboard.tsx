@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Wrench,
 } from "lucide-react";
-import { cn } from "@/shared/domain/formatters";
+import { cn, formatDateOnly } from "@/shared/domain/formatters";
 import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminCardHeader, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { loadDashboardOverview } from "../infrastructure/dashboard.repository";
@@ -48,7 +48,7 @@ export function TabDashboard() {
     { label: "Produtos ativos", val: stats.productsActive, icon: Package, color: "text-purple-600 bg-purple-50 border-purple-100" },
   ];
 
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  const fmtDate = (value?: string | null) => formatDateOnly(value, "—");
 
   return (
     <div className="space-y-6">
