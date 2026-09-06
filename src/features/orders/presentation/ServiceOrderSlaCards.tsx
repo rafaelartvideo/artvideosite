@@ -1,31 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Clock, History } from "lucide-react";
-import { cn } from "@/shared/domain/formatters";
+import { cn, formatDateTime, formatDurationHours, formatNumber } from "@/shared/domain/formatters";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import type { ServiceOrderSituationVisit } from "../infrastructure/order-situation-visits.repository";
 
 export function formatElapsedHours(hours: number) {
-  let totalMinutes = Math.max(0, Math.floor(Number(hours) * 60 + 0.000001));
-  if (totalMinutes < 24 * 60) {
-    return `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
-  }
-
-  const units = [
-    { singular: "ano", plural: "anos", minutes: 365 * 24 * 60 },
-    { singular: "mês", plural: "meses", minutes: 30 * 24 * 60 },
-    { singular: "semana", plural: "semanas", minutes: 7 * 24 * 60 },
-    { singular: "dia", plural: "dias", minutes: 24 * 60 },
-  ];
-  const parts: string[] = [];
-  for (const unit of units) {
-    const amount = Math.floor(totalMinutes / unit.minutes);
-    if (!amount) continue;
-    parts.push(`${amount} ${amount === 1 ? unit.singular : unit.plural}`);
-    totalMinutes %= unit.minutes;
-  }
-  parts.push(`${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}h`);
-  parts.push(`${String(totalMinutes % 60).padStart(2, "0")}min`);
-  return parts.join(", ");
+  return formatDurationHours(hours);
 }
 
 function elapsedHours(start?: string | null, end?: string | null, now = Date.now()) {
@@ -72,13 +52,6 @@ export function ServiceOrderSlaCards({
   const forecastDays = Number(order.service_type?.forecast_days);
   const hasForecast = Number.isFinite(orderStartTime) && Number.isFinite(forecastDays) && forecastDays > 0;
   const forecastEnd = hasForecast ? new Date(orderStartTime + forecastDays * 86_400_000) : null;
-  const formatDateTime = (value: Date | string) => new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
   const validSla = slaHours != null && Number.isFinite(slaHours) && slaHours > 0;
   const situationForecastEnd = validSla && Number.isFinite(situationStartTime)
     ? new Date(situationStartTime + slaHours * 3_600_000)
@@ -134,7 +107,7 @@ export function ServiceOrderSlaCards({
           <span className="font-semibold text-[#5a6a82]">Prazo: {formatElapsedHours(slaHours)}</span>
           {exceededBy > 0
             ? <span className="font-black text-red-700">Estourou: +{formatElapsedHours(exceededBy)}</span>
-            : <span className={cn("font-bold", styles.title)}>{Math.max(0, 100 - usage * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}% restante</span>}
+            : <span className={cn("font-bold", styles.title)}>{formatNumber(Math.max(0, 100 - usage * 100), { maximumFractionDigits: 0 }, "0")}% restante</span>}
         </div>
         <div className="mt-2 h-3 overflow-hidden rounded-full border border-[#0d1b2e]/20 bg-white shadow-inner">
           <div className={cn("h-full rounded-full transition-all", styles.bar)} style={{ width: `${Math.min(100, Math.max(0, usage * 100))}%` }} />
