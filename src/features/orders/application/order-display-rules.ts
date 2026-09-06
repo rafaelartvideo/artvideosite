@@ -1,11 +1,8 @@
+import { formatCurrency, formatDateOnly, formatDateTime } from "@/shared/domain/formatters";
+
 export function formatOrderDate(value?: string | null, time = false) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    ...(time ? { hour: "2-digit", minute: "2-digit" } : {}),
-  });
+  return time ? formatDateTime(value) : formatDateOnly(value, "—");
 }
 
 export function equipmentSummary(order: any) {
@@ -61,14 +58,8 @@ export function slaForOrder(
     : null;
 }
 
-export const formatSolvedAt = (value: string) =>
-  Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  }).format(new Date(value)).replace(", ", " às ");
-
-export const formatOrderCurrency = (value: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+export const formatSolvedAt = (value: string) => formatDateTime(value).replace(", ", " às ");
+export const formatOrderCurrency = (value: number) => formatCurrency(value, "R$ 0,00");
 
 export function usedItemsTotal(items: any[]) {
   return items.reduce((total, item) => {
