@@ -222,3 +222,35 @@ export function normalizeDecimalInput(value: unknown, { allowNegative = false, d
   if (!integerPart && !decimals) return "";
   return `${sign}${integerPart || "0"}${decimalParts.length ? `.${decimals}` : ""}`;
 }
+
+export function formatDurationMinutes(value: number | string | null | undefined, fallback = "00:00") {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return fallback;
+  let totalMinutes = Math.floor(numeric + 0.000001);
+  if (totalMinutes < 24 * 60) {
+    return `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+  }
+
+  const units = [
+    { singular: "ano", plural: "anos", minutes: 365 * 24 * 60 },
+    { singular: "mês", plural: "meses", minutes: 30 * 24 * 60 },
+    { singular: "semana", plural: "semanas", minutes: 7 * 24 * 60 },
+    { singular: "dia", plural: "dias", minutes: 24 * 60 },
+  ];
+  const parts: string[] = [];
+  for (const unit of units) {
+    const amount = Math.floor(totalMinutes / unit.minutes);
+    if (!amount) continue;
+    parts.push(`${amount} ${amount === 1 ? unit.singular : unit.plural}`);
+    totalMinutes %= unit.minutes;
+  }
+  parts.push(`${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}h`);
+  parts.push(`${String(totalMinutes % 60).padStart(2, "0")}min`);
+  return parts.join(", ");
+}
+
+export function formatDurationHours(value: number | string | null | undefined, fallback = "00:00") {
+  const hours = Number(value);
+  if (!Number.isFinite(hours) || hours < 0) return fallback;
+  return formatDurationMinutes(hours * 60, fallback);
+}
