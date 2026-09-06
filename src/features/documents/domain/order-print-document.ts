@@ -1,3 +1,16 @@
+import { formatZipCode } from "@/lib/address";
+import {
+  formatCnpj,
+  formatCpf,
+  formatCurrency,
+  formatDateOnly,
+  formatDateTime,
+  formatDurationHours,
+  formatNumber,
+  formatPhone,
+  normalizeDigits,
+  todayDateOnly,
+} from "@/shared/domain/formatters";
 import { PRINT_FIELD_REGISTRY } from "./print-field-registry";
 import type { PrintTemplateEditorValue } from "./print-template";
 
@@ -25,14 +38,19 @@ const escapeHtml = (value: unknown) => text(value)
   .replaceAll(">", "&gt;")
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#039;");
-const date = (value: unknown) => value ? new Date(String(value)).toLocaleString("pt-BR") : "—";
-const money = (value: unknown) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const digits = (value: unknown) => String(value || "").replace(/\D/g, "");
+const date = (value: unknown) => formatDateTime(value ? String(value) : null, "—");
+const money = (value: unknown) => formatCurrency(value as number | string | null | undefined, "—");
 const formatDocument = (value: unknown) => {
-  const number = digits(value);
-  if (number.length === 11) return number.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-  if (number.length === 14) return number.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  const digits = normalizeDigits(value);
+  if (digits.length === 11) return formatCpf(digits);
+  if (digits.length === 14) return formatCnpj(digits);
   return text(value);
+};
+const formatForecastDays = (value: unknown) => {
+  const days = Number(value);
+  if (!Number.isFinite(days) || days < 0) return "—";
+  const rounded = Math.trunc(days);
+  return `${formatNumber(rounded, { maximumFractionDigits: 0 })} ${rounded === 1 ? "dia" : "dias"}`;
 };
 const nameOf = (value: any) => value?.full_name || value?.name || value?.title || "—";
 
@@ -60,6 +78,7 @@ function resolveField(key: string, context: PrintOrderContext): string {
   const usedItems = context.usedItems || [];
   const requests = context.partRequests || [];
   const history = context.history || [];
+  const formattedZip = address.zip_code ? formatZipCode(String(address.zip_code)) : null;
   const values: Record<string, unknown> = {
     "customer.full_name": customer.full_name,
     "customer.customer_type": customer.customer_type === "PJ" ? "Pessoa jurídica" : "Pessoa física",
@@ -68,13 +87,13 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "customer.legal_name": customer.legal_name,
     "customer.trade_name": customer.trade_name,
     "customer.state_registration": customer.state_registration,
-    "customer.birth_date": customer.birth_date ? new Date(customer.birth_date + "T00:00:00").toLocaleDateString("pt-BR") : null,
-    "customer.foundation_date": customer.foundation_date,
-    "customer.phone": customer.phone,
-    "customer.whatsapp": customer.whatsapp,
+    "customer.birth_date": customer.birth_date ? formatDateOnly(customer.birth_date, "—") : null,
+    "customer.foundation_date": customer.foundation_date ? formatDateOnly(customer.foundation_date, "—") : null,
+    "customer.phone": customer.phone ? formatPhone(customer.phone) : null,
+    "customer.whatsapp": customer.whatsapp ? formatPhone(customer.whatsapp) : null,
     "customer.email": customer.email,
-    "address.full": [address.street, address.number, address.complement, address.neighborhood, address.city, address.state, address.zip_code].filter(Boolean).join(", "),
-    "address.zip_code": address.zip_code,
+    "address.full": [address.street, address.number, address.complement, address.neighborhood, address.city, address.state, formattedZip].filter(Boolean).join(", "),
+    "address.zip_code": formattedZip,
     "address.street": address.street,
     "address.number": address.number,
     "address.complement": address.complement,
@@ -109,26 +128,26 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "responsibility.technician": (order.technician_links || []).map((item: any) => nameOf(item.employee)).join(", ") || nameOf(order.technician),
     "responsibility.completed_by": order.completed_by_profile?.full_name,
     "sla.situation_started_at": date(order.situation_started_at),
-    "sla.situation_hours": order.situation_sla_hours,
-    "sla.service_type_forecast_days": order.service_type?.forecast_days,
+    "sla.situation_hours": order.situation_sla_hours == null ? null : formatDurationHours(order.situation_sla_hours),
+    "sla.service_type_forecast_days": order.service_type?.forecast_days == null ? null : formatForecastDays(order.service_type.forecast_days),
     "sla.solved_at": date(order.solved_at),
     "sla.completed_at": date(order.completed_at),
     "resolution.diagnosis": order.diagnosis,
     "resolution.solution": order.solution,
     "resolution.solved_at": date(order.solved_at),
-    "resolution.solution_images": order.solution_images?.length ? order.solution_images.length + " imagem(ns)" : "—",
+    "resolution.solution_images": order.solution_images?.length ? `${order.solution_images.length} ${order.solution_images.length === 1 ? "imagem" : "imagens"}` : "—",
     "used_parts.items": usedItems.map((item: any) => nameOf(item.inventory_item || item.item)).join("\\n"),
-    "used_parts.quantity": usedItems.map((item: any) => text(item.quantity)).join("\\n"),
+    "used_parts.quantity": usedItems.map((item: any) => formatNumber(item.quantity, { maximumFractionDigits: 2 })).join("\\n"),
     "used_parts.unit_price": usedItems.map((item: any) => money(item.unit_sale_price)).join("\\n"),
     "used_parts.total_price": usedItems.map((item: any) => money(item.total_sale_price || Number(item.unit_sale_price || 0) * Number(item.quantity || 0))).join("\\n"),
-    "part_requests.requests": requests.map((item: any, index: number) => "Solicitação " + (index + 1)).join("\\n"),
+    "part_requests.requests": requests.map((item: any, index: number) => `Solicitação ${index + 1}`).join("\\n"),
     "part_requests.status": requests.map((item: any) => text(item.status)).join("\\n"),
     "part_requests.purpose": requests.map((item: any) => text(item.purpose)).join("\\n"),
     "part_requests.notes": requests.map((item: any) => text(item.notes)).join("\\n"),
     "financial.service_price": money(order.service_price),
     "financial.parts_total": money(order.parts_total),
     "financial.subtotal": money(order.subtotal),
-    "financial.discount_percentage": text(order.discount_percentage) + "%",
+    "financial.discount_percentage": order.discount_percentage == null ? null : `${formatNumber(order.discount_percentage, { maximumFractionDigits: 2 })}%`,
     "financial.discount_amount": money(order.discount_amount),
     "financial.final_total": money(order.final_total),
     "financial.estimated_price": money(order.estimated_price),
@@ -138,7 +157,7 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "signatures.technician": "________________________________",
     "signatures.customer_name": customer.full_name,
     "signatures.customer_document": formatDocument(customer.cnpj || customer.document),
-    "signatures.date": new Date().toLocaleDateString("pt-BR"),
+    "signatures.date": formatDateOnly(todayDateOnly(), "—"),
     "system.printed_at": date(new Date().toISOString()),
     "system.printed_by": context.printedBy,
     "system.page_number": "1",
@@ -206,7 +225,9 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
   const company = context.company || {};
   const companyName = company.name || "Eletrônica Artvideo";
   const companySubtitle = company.subtitle || "Assistência Técnica";
-  const companyDetails = [company.document, company.phone, company.email, company.address].filter(Boolean);
+  const companyDocument = company.document ? formatDocument(company.document) : null;
+  const companyPhone = company.phone ? formatPhone(company.phone) : null;
+  const companyDetails = [companyDocument, companyPhone, company.email, company.address].filter(Boolean);
   const companyLogo = company.logoUrl
     ? "<img class='company-logo' src='" + escapeHtml(company.logoUrl) + "' alt='" + escapeHtml(companyName) + "'>"
     : "<div class='brand-mark'>AV</div>";
