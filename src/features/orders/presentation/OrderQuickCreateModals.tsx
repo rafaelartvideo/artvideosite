@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
-import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FIntegerInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import {
   createEquipmentBrand,
@@ -134,6 +134,10 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
   };
   const save = async () => {
     if (!form.title.trim()) { setErrorMessage("Informe o título do tipo de atendimento."); return; }
+    if (form.forecast_days !== "" && (!Number.isInteger(Number(form.forecast_days)) || Number(form.forecast_days) < 0)) {
+      setErrorMessage("A previsão deve ser informada em dias inteiros, a partir de zero.");
+      return;
+    }
     setSaving(true);
     setErrorMessage("");
     const { data, error } = await createServiceType({ title: form.title.trim(), description: form.description.trim() || null, forecast_days: form.forecast_days ? Number(form.forecast_days) : null, is_active: form.is_active, sort_order: 0 });
@@ -153,7 +157,7 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
         <div className="p-4 space-y-3">
           <FInput label="Título" required autoFocus value={form.title} onChange={(event: any) => setForm({ ...form, title: event.target.value })} />
           <FTextarea label="Descrição" value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} rows={3} />
-          <FInput label="Previsão em dias" type="number" min="0" value={form.forecast_days} onChange={(event: any) => setForm({ ...form, forecast_days: event.target.value })} />
+          <FIntegerInput label="Previsão em dias" value={form.forecast_days} onChange={(event: any) => setForm({ ...form, forecast_days: event.target.value })} />
           <FToggle label="Tipo ativo" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
           {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
         </div>
