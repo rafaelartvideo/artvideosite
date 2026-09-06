@@ -6,7 +6,13 @@ import {
   formatPhone,
   foundationDateFromIso,
   foundationDateToIso,
-  todayDateOnly,
+  isPastOrTodayBrazilianDate,
+  isPastOrTodayIsoDate,
+  isValidBrazilianMobile,
+  isValidBrazilianPhone,
+  isValidCnpj,
+  isValidCpf,
+  isValidEmail,
 } from "@/shared/domain/formatters";
 
 export type CustomerType = "PF" | "PJ";
@@ -65,13 +71,24 @@ export function customerUpdatePayload(form: CustomerForm) {
 }
 
 export function validateCustomerForm(form: CustomerForm) {
-  if (!form.whatsapp.trim() && !form.phone.trim()) return "Telefone ou WhatsApp é obrigatório.";
+  const phone = form.phone.trim();
+  const whatsapp = form.whatsapp.trim();
+  const email = form.email.trim();
+
+  if (!whatsapp && !phone) return "Telefone ou WhatsApp é obrigatório.";
+  if (phone && !isValidBrazilianPhone(phone)) return "Telefone inválido. Informe DDD e número válidos.";
+  if (whatsapp && !isValidBrazilianMobile(whatsapp)) return "WhatsApp inválido. Informe um celular com DDD no formato (99) 9 9999-9999.";
+  if (email && !isValidEmail(email)) return "E-mail inválido. Verifique o endereço informado.";
+
   if (form.customerType === "PF" && !form.full_name.trim()) return "Nome completo é obrigatório.";
-  if (form.customerType === "PF" && form.document.replace(/\D/g, "").length !== 11) return "CPF é obrigatório e deve estar completo.";
+  if (form.customerType === "PF" && !isValidCpf(form.document)) return "CPF inválido. Verifique os números informados.";
   if (form.customerType === "PF" && !form.birth_date) return "Data de nascimento é obrigatória.";
-  if (form.customerType === "PF" && form.birth_date > todayDateOnly()) return "A data de nascimento não pode ser futura.";
+  if (form.customerType === "PF" && !isPastOrTodayIsoDate(form.birth_date)) return "Data de nascimento inválida ou futura.";
+
   if (form.customerType === "PJ" && !form.trade_name.trim()) return "Nome fantasia é obrigatório.";
-  if (form.customerType === "PJ" && form.cnpj.replace(/\D/g, "").length !== 14) return "CNPJ é obrigatório e deve estar completo.";
+  if (form.customerType === "PJ" && !isValidCnpj(form.cnpj)) return "CNPJ inválido. Verifique os números informados.";
+  if (form.customerType === "PJ" && form.foundation_date && !isPastOrTodayBrazilianDate(form.foundation_date)) return "Data de fundação inválida ou futura.";
+
   return null;
 }
 
