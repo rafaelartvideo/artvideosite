@@ -78,7 +78,7 @@ export function OrderEquipmentSection({
               aria-label="Criar equipamento"
               title="Criar equipamento"
             >
-              <Plus size={15} />
+              <Plus size={18} />
               <span className="hidden sm:inline">Criar equipamento</span>
             </BtnPrimary>
           )}
