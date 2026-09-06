@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { AlertCircle, AlertTriangle, CheckCircle, Clock, Package, Plus, X } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { AlertCircle, AlertTriangle, CheckCircle, Package, Plus, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import {
@@ -12,6 +12,36 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/ui/primitives/alert-dialog";
+
+const ADMIN_FEEDBACK_EVENT = "artvideo:admin-feedback";
+
+type FeedbackType = "success" | "error";
+type AdminFeedbackEvent =
+  | { kind: "loading-start"; token: string; text: string }
+  | { kind: "loading-end"; token: string }
+  | { kind: "toast"; message: string; type: FeedbackType };
+
+function dispatchAdminFeedback(detail: AdminFeedbackEvent) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<AdminFeedbackEvent>(ADMIN_FEEDBACK_EVENT, { detail }));
+}
+
+export function beginAdminLoading(text = "Carregando...") {
+  const token = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let finished = false;
+  dispatchAdminFeedback({ kind: "loading-start", token, text });
+  return () => {
+    if (finished) return;
+    finished = true;
+    dispatchAdminFeedback({ kind: "loading-end", token });
+  };
+}
+
+export function notifyAdmin(message: string, type: FeedbackType = "success") {
+  dispatchAdminFeedback({ kind: "toast", message, type });
+}
 
 export function isHexColor(value: string) {
   return /^#[0-9A-Fa-f]{6}$/.test(value.trim());
@@ -37,10 +67,37 @@ export function StatusBadge({ status, color }: { status: string; color?: string 
   );
 }
 
+export function LoadingSpinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+  return <span
+    aria-hidden="true"
+    className={cn(
+      "inline-block animate-spin rounded-full border-solid border-[#0057e7]/20 border-t-[#0057e7]",
+      size === "sm" && "h-4 w-4 border-2",
+      size === "md" && "h-7 w-7 border-[3px]",
+      size === "lg" && "h-9 w-9 border-[3px]",
+    )}
+  />;
+}
+
+export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?: boolean; text?: string }) {
+  if (!show) return null;
+  return <div
+    className="fixed inset-0 z-[260] flex items-center justify-center bg-[#0d1b2e]/40 px-4 backdrop-blur-[3px]"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+  >
+    <div className="flex min-w-[190px] flex-col items-center gap-3 rounded-2xl border border-white/60 bg-white/95 px-6 py-5 text-center shadow-[0_20px_60px_rgba(13,27,46,0.24)]">
+      <LoadingSpinner size="lg" />
+      <p className="text-sm font-semibold text-[#26364d]">{text}</p>
+    </div>
+  </div>;
+}
+
 export function LoadingState({ text = "Carregando..." }: { text?: string }) {
-  return <div className="flex flex-col items-center justify-center py-20 gap-3">
-    <Clock size={28} className="animate-spin text-[#0057e7]" />
-    <p className="text-sm text-[#5a6a82]">{text}</p>
+  return <div className="flex flex-col items-center justify-center gap-3 py-20" role="status" aria-live="polite" aria-busy="true">
+    <LoadingSpinner />
+    <p className="text-sm font-medium text-[#5a6a82]">{text}</p>
   </div>;
 }
 
@@ -65,20 +122,49 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
   </div>;
 }
 
-export function Toast({ message, type = "success", onClose }: { message: string; type?: "success" | "error"; onClose: () => void }) {
+export function Toast({ message, type = "success", onClose }: { message: string; type?: FeedbackType; onClose: () => void }) {
   useEffect(() => {
     const timeout = setTimeout(onClose, 3500);
     return () => clearTimeout(timeout);
-  }, [onClose]);
+  }, [message, type, onClose]);
 
   return <div className={cn(
-    "fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border text-sm font-semibold max-w-sm",
-    type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800",
-  )}>
-    {type === "success" ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-    <span className="flex-1">{message}</span>
-    <button onClick={onClose}><X size={15} /></button>
+    "fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[300] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-3.5 text-left text-sm font-semibold shadow-[0_16px_40px_rgba(13,27,46,0.18)] md:bottom-auto md:left-auto md:right-6 md:top-6 md:w-auto md:min-w-[320px] md:max-w-md md:translate-x-0",
+    type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800",
+  )} role={type === "error" ? "alert" : "status"} aria-live={type === "error" ? "assertive" : "polite"}>
+    {type === "success" ? <CheckCircle size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
+    <span className="min-w-0 flex-1 leading-relaxed">{message}</span>
+    <button type="button" onClick={onClose} className="shrink-0 rounded-md p-0.5 opacity-70 transition hover:opacity-100" aria-label="Fechar mensagem"><X size={15} /></button>
   </div>;
+}
+
+export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: { busy?: boolean; busyText?: string }) {
+  const [loaders, setLoaders] = useState<Array<{ token: string; text: string }>>([]);
+  const [toast, setToast] = useState<{ message: string; type: FeedbackType } | null>(null);
+
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<AdminFeedbackEvent>).detail;
+      if (!detail) return;
+      if (detail.kind === "loading-start") {
+        setLoaders(current => [...current.filter(item => item.token !== detail.token), { token: detail.token, text: detail.text }]);
+        return;
+      }
+      if (detail.kind === "loading-end") {
+        setLoaders(current => current.filter(item => item.token !== detail.token));
+        return;
+      }
+      setToast({ message: detail.message, type: detail.type });
+    };
+    window.addEventListener(ADMIN_FEEDBACK_EVENT, listener);
+    return () => window.removeEventListener(ADMIN_FEEDBACK_EVENT, listener);
+  }, []);
+
+  const activeLoader = loaders[loaders.length - 1];
+  return <>
+    <LoadingOverlay show={busy || loaders.length > 0} text={activeLoader?.text || busyText} />
+    {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+  </>;
 }
 
 export function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
