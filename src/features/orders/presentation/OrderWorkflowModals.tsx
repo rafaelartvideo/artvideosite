@@ -11,9 +11,9 @@ import { OrderResolutionPage } from "./OrderResolutionPage";
 import { OrderCompletionModal } from "./OrderCompletionModal";
 import { QuickEquipmentModal } from "./OrderQuickCreateModals";
 import { QuickCustomerModal } from "./QuickCustomerModal";
+import { PartRequestModal } from "./PartRequestModal";
 import {
   PartCustodyModal,
-  PartRequestModal,
   ReviewPartRequestModal,
   TestResultModal,
 } from "./PartRequestModals";
