@@ -254,7 +254,7 @@ export function TabEmployees({ onBack, routeResourceId, routeSubpage, onRouteCha
         const { data, error } = await invokeEmployeeCommand({ action: "create_employee_user", email: normalizedEmail, password: form.password, full_name: form.full_name.trim(), cpf, phone: normalizeDigits(form.phone) || null, function_name: form.function_name.trim() || "Funcionário", role_id: form.role_id });
         if (error) throw error; if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Não foi possível cadastrar o funcionário."); if (data?.success !== true) throw new Error("Não foi possível cadastrar o funcionário.");
       }
-      setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado." }); await refreshEmployees(); closeUserForm();
+      setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); await refreshEmployees(); closeUserForm();
     } catch (error) { setToast({ msg: getEmployeeErrorMessage(error), type: "error" }); } finally { setSaving(false); }
   };
   const toggleActive = async (employee: any) => { if (!canToggleEmployee) return; const currentlyActive = employee.is_active !== false; const { error } = await setEmployeeActive(employee.id, !currentlyActive); if (error) { setToast({ msg: `Erro ao atualizar funcionário: ${error.message}`, type: "error" }); return; } setToast({ msg: `Funcionário ${currentlyActive ? "desativado" : "ativado"}.`, type: "success" }); await refreshEmployees(); };
