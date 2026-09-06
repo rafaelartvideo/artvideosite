@@ -7,6 +7,7 @@ import { OrderDetailsActions } from "./OrderDetailsActions";
 import { OrderDetailsContent } from "./OrderDetailsContent";
 import { OrderHistoryPage } from "./OrderHistoryPage";
 import { OrderDocumentsPage } from "./OrderDocumentsPage";
+import { OrderSituationRecordsPage } from "./OrderSituationRecordsPage";
 import { OrderPartRequestsSection } from "./OrderPartRequestsSection";
 import { OrderSolutionSummary } from "./OrderSolutionSummary";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
@@ -18,6 +19,7 @@ import { sendOrderDocumentEmail } from "@/features/documents/infrastructure/orde
 import { getSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
 import { getMediaById, getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
 import { useOrderPrintTemplates } from "../application/useOrderPrintTemplates";
+import { useOrderSituationVisits } from "../application/useOrderSituationVisits";
 import type { useOrderDetails } from "../application/useOrderDetails";
 import type { useOrderImages } from "../application/useOrderImages";
 import type { useOrderHistory } from "../application/useOrderHistory";
@@ -68,6 +70,7 @@ export function OrderDetailsPage(props: Props) {
     onEdit: openEdit, onClose,
   } = props;
   const [partRequestsPageOpen, setPartRequestsPageOpen] = useState(false);
+  const [slaRecordsPageOpen, setSlaRecordsPageOpen] = useState(false);
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
   const [printError, setPrintError] = useState("");
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
@@ -76,6 +79,7 @@ export function OrderDetailsPage(props: Props) {
   const {
     detail, detailUsedItems, detailSolutionImages, closeDetail,
   } = details;
+  const slaVisits = useOrderSituationVisits(detail?.id, detail?.situation_id, detail?.situation_started_at);
   const { setViewImage } = images;
   const {
     detailPartRequests, getTestCommittedQuantity, getTestPendingQuantity,
@@ -230,13 +234,21 @@ export function OrderDetailsPage(props: Props) {
         onClose={() => onDocumentsPageOpenChange(false)}
         onView={setViewImage}
       />
+      <OrderSituationRecordsPage
+        open={slaRecordsPageOpen}
+        order={detail}
+        visits={slaVisits.visits}
+        loading={slaVisits.loading}
+        error={slaVisits.error}
+        onClose={() => setSlaRecordsPageOpen(false)}
+      />
       <OrderHistoryPage
         order={detail}
         history={history}
         canCreate={hasPermission("orders.history.create")}
         formatDate={fmtDate}
       />
-{partRequestsPageOpen && detail && !history.pageOpen && !documentsPageOpen && (
+{partRequestsPageOpen && detail && !history.pageOpen && !documentsPageOpen && !slaRecordsPageOpen && (
         <AdminPage open={true} onClose={() => setPartRequestsPageOpen(false)} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Solicitações de peças" subtitle="Acompanhe os pedidos e o fluxo das peças desta OS" maxW="max-w-2xl">
           <div className="p-5">
             <OrderPartRequestsSection
@@ -258,7 +270,7 @@ export function OrderDetailsPage(props: Props) {
           </div>
         </AdminPage>
       )}
-{visible && !history.pageOpen && !documentsPageOpen && !partRequestsPageOpen && (
+{visible && !history.pageOpen && !documentsPageOpen && !partRequestsPageOpen && !slaRecordsPageOpen && (
         <AdminPage open={true} onClose={closePage} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -316,7 +328,7 @@ export function OrderDetailsPage(props: Props) {
                 </div>
               </div>
               {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
-              {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} />}
+              {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} visits={slaVisits.visits} onOpenRecords={() => setSlaRecordsPageOpen(true)} />}
               <OrderDetailsContent
                 detail={detail}
                 formatDate={fmtDate}
