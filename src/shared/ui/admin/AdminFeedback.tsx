@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useIsFetching, useIsMutating } from "@tanstack/react-query";
 import { AlertCircle, AlertTriangle, CheckCircle, Package, Plus, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
@@ -95,7 +96,8 @@ export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?:
 }
 
 export function LoadingState({ text = "Carregando..." }: { text?: string }) {
-  return <LoadingOverlay text={text} />;
+  useEffect(() => beginAdminLoading(text), [text]);
+  return null;
 }
 
 export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLabel = "Adicionar" }: {
@@ -123,7 +125,7 @@ export function Toast({ message, type = "success", onClose }: { message: string;
   useEffect(() => {
     const timeout = setTimeout(onClose, 3500);
     return () => clearTimeout(timeout);
-  }, [message, type, onClose]);
+  }, [message, type]);
 
   return <div className={cn(
     "fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[300] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-3.5 text-left text-sm font-semibold shadow-[0_16px_40px_rgba(13,27,46,0.18)] md:bottom-auto md:left-auto md:right-6 md:top-6 md:w-auto md:min-w-[320px] md:max-w-md md:translate-x-0",
@@ -136,6 +138,8 @@ export function Toast({ message, type = "success", onClose }: { message: string;
 }
 
 export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: { busy?: boolean; busyText?: string }) {
+  const activeQueries = useIsFetching();
+  const activeMutations = useIsMutating();
   const [loaders, setLoaders] = useState<Array<{ token: string; text: string }>>([]);
   const [toast, setToast] = useState<{ message: string; type: FeedbackType } | null>(null);
 
@@ -158,8 +162,9 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
   }, []);
 
   const activeLoader = loaders[loaders.length - 1];
+  const queryBusy = activeQueries > 0 || activeMutations > 0;
   return <>
-    <LoadingOverlay show={busy || loaders.length > 0} text={activeLoader?.text || busyText} />
+    <LoadingOverlay show={busy || queryBusy || loaders.length > 0} text={activeLoader?.text || busyText} />
     {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
   </>;
 }
