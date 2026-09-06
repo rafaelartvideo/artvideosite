@@ -9,6 +9,7 @@ import { AdminHubPage } from "@/features/admin-shell/presentation/AdminNavigatio
 import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 
 const TabDocuments = lazy(() => import("@/features/documents/presentation/TabDocuments").then(({ TabDocuments }) => ({ default: TabDocuments })));
 const TabOrders = lazy(() => import("@/features/orders/presentation/TabOrders").then(({ TabOrders }) => ({ default: TabOrders })));
@@ -39,7 +40,7 @@ type AdminLocationState = {
 };
 
 function AdminRouteLoading() {
-  return <div className="flex min-h-[320px] items-center justify-center"><div className="flex items-center gap-3 text-sm text-[#5a6a82]"><span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-[#0057e7]/20 border-t-[#0057e7]" />Carregando módulo...</div></div>;
+  return <LoadingState text="Carregando módulo..." />;
 }
 
 export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
