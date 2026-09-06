@@ -1,8 +1,30 @@
 import { AlertTriangle, CheckCircle2, Clock3, History } from "lucide-react";
 import { AdminCard, AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
-import { formatElapsedHours } from "./ServiceOrderSlaCards";
 import type { ServiceOrderSituationVisit } from "../infrastructure/order-situation-visits.repository";
+
+function formatElapsedHours(hours: number) {
+  let totalMinutes = Math.max(0, Math.floor(Number(hours) * 60 + 0.000001));
+  if (totalMinutes < 24 * 60) {
+    return `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+  }
+  const units = [
+    { singular: "ano", plural: "anos", minutes: 365 * 24 * 60 },
+    { singular: "mês", plural: "meses", minutes: 30 * 24 * 60 },
+    { singular: "semana", plural: "semanas", minutes: 7 * 24 * 60 },
+    { singular: "dia", plural: "dias", minutes: 24 * 60 },
+  ];
+  const parts: string[] = [];
+  for (const unit of units) {
+    const amount = Math.floor(totalMinutes / unit.minutes);
+    if (!amount) continue;
+    parts.push(`${amount} ${amount === 1 ? unit.singular : unit.plural}`);
+    totalMinutes %= unit.minutes;
+  }
+  parts.push(`${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}h`);
+  parts.push(`${String(totalMinutes % 60).padStart(2, "0")}min`);
+  return parts.join(", ");
+}
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
