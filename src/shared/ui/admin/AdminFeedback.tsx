@@ -139,7 +139,9 @@ export function Toast({ message, type = "success", onClose }: { message: string;
 }
 
 export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: { busy?: boolean; busyText?: string }) {
-  const activeQueries = useIsFetching();
+  const activeQueries = useIsFetching({
+    predicate: query => !(query.queryKey[0] === "public-site" && query.queryKey[1] === "media"),
+  });
   const activeMutations = useIsMutating();
   const [loaders, setLoaders] = useState<Array<{ token: string; text: string }>>([]);
   const [legacyBusyText, setLegacyBusyText] = useState("");
