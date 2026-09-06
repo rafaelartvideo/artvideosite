@@ -107,7 +107,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
 
   return (
     <AdminPageContext.Provider value={{ page, setPage }}>
-      <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader activeTab={activeTab} page={page} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(current => !current)} />}>
+      <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader page={page} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(current => !current)} />}>
         <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${operationModule ? " admin-operation-mobile-labels" : ""}`}>
           <Suspense fallback={<AdminRouteLoading />}>
             <Routes>
