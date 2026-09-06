@@ -34,12 +34,31 @@ const tabDescriptions: Record<AdminTab, string> = {
   contact: "Dados exibidos no site e usados nos contatos",
 };
 
+function normalizeBreadcrumb(breadcrumb: string, title: string) {
+  const parts = String(breadcrumb || "")
+    .split(">")
+    .map(part => part.trim())
+    .filter(Boolean);
+  const normalizedTitle = String(title || "").trim().toLocaleLowerCase("pt-BR");
+
+  while (
+    parts.length > 0
+    && parts[parts.length - 1].toLocaleLowerCase("pt-BR") === normalizedTitle
+  ) {
+    parts.pop();
+  }
+
+  return parts.join(" > ");
+}
+
 export function AdminHeader({
   activeTab,
   page,
   sidebarOpen,
   onToggleSidebar,
 }: AdminHeaderProps) {
+  const parentBreadcrumb = page ? normalizeBreadcrumb(page.breadcrumb, page.title) : "";
+
   return (
     <>
       <header className="relative z-40 shrink-0 border-b border-[#0d1b2e]/8 bg-white pt-[env(safe-area-inset-top)] shadow-sm md:hidden">
@@ -63,27 +82,30 @@ export function AdminHeader({
 
       {page && (
         <header className="hidden md:flex bg-white border-b border-[#0d1b2e]/8 px-6 py-3.5 items-center justify-between sticky top-0 z-50 shadow-sm">
-          <div>
-            <div className="flex items-center gap-1.5 text-[10px] text-[#5a6a82] mb-0.5">
-              <button
-                type="button"
-                onClick={page.onBack}
-                className="font-semibold hover:text-[#0057e7] transition-colors"
-              >
-                {page.breadcrumb}
-              </button>
-              <span aria-hidden="true">&gt;</span>
-              <span className="truncate max-w-[180px]">{page.title}</span>
+          <div className="min-w-0">
+            <div className="mb-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-[#5a6a82]">
+              {parentBreadcrumb && <>
+                <button
+                  type="button"
+                  onClick={page.onBack}
+                  className="min-w-0 truncate font-semibold transition-colors hover:text-[#0057e7]"
+                  title={parentBreadcrumb}
+                >
+                  {parentBreadcrumb}
+                </button>
+                <span aria-hidden="true" className="shrink-0">&gt;</span>
+              </>}
+              <span className="max-w-[180px] truncate" title={page.title}>{page.title}</span>
             </div>
 
-            <h2 className="font-black text-[#0d1b2e] text-[15px]">{page.title}</h2>
-            <p className="text-[#5a6a82] mt-0.5 text-[14px]">
+            <h2 className="text-[15px] font-black text-[#0d1b2e]">{page.title}</h2>
+            <p className="mt-0.5 text-[14px] text-[#5a6a82]">
               {page.subtitle || tabDescriptions[activeTab]}
             </p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-[#5a6a82]">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full inline-block" />
+          <div className="flex shrink-0 items-center gap-2 text-xs text-[#5a6a82]">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
             <span className="font-medium">Supabase conectado</span>
           </div>
         </header>
