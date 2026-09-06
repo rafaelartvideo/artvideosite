@@ -1,37 +1,11 @@
 import { Menu, X } from "lucide-react";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
-import type { AdminPageState, AdminTab } from "../domain/admin.types";
+import type { AdminPageState } from "../domain/admin.types";
 
 type AdminHeaderProps = {
-  activeTab: AdminTab;
   page: AdminPageState;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
-};
-
-const tabDescriptions: Record<AdminTab, string> = {
-  dashboard: "Visão geral do sistema em tempo real",
-  services: "Gerencie os serviços apresentados no site público",
-  categories: "Organize os serviços e produtos por categoria",
-  products: "Controle o catálogo de produtos da loja",
-  brands: "Administre as marcas cadastradas",
-  quotes: "Acompanhe e responda às solicitações recebidas",
-  orders: "Abertura, acompanhamento e conclusão dos atendimentos",
-  agenda: "Visualize e organize os atendimentos agendados",
-  site: "Conteúdo e configurações do site público",
-  operation: "Configurações internas da assistência técnica",
-  equipment: "Cadastro técnico usado nas ordens de serviço",
-  generalServices: "Serviços técnicos internos utilizados na operação",
-  serviceTypes: "Configuração dos tipos de atendimento",
-  inventory: "Controle de itens, movimentações e histórico do estoque atual",
-  documents: "Modelos e configurações de impressão das ordens de serviço",
-  situations: "Etapas de progresso das ordens de serviço",
-  orderStatuses: "Status principais das ordens de serviço",
-  customers: "Consulte clientes e seus dados de atendimento",
-  employees: "Cadastro e gestão dos funcionários da empresa",
-  settings: "Configurações administrativas e dados da empresa",
-  siteSettings: "Identidade visual e conteúdo do site público",
-  contact: "Dados exibidos no site e usados nos contatos",
 };
 
 function normalizeBreadcrumb(breadcrumb: string, title: string) {
@@ -52,7 +26,6 @@ function normalizeBreadcrumb(breadcrumb: string, title: string) {
 }
 
 export function AdminHeader({
-  activeTab,
   page,
   sidebarOpen,
   onToggleSidebar,
@@ -81,7 +54,7 @@ export function AdminHeader({
       </header>
 
       {page && (
-        <header className="hidden md:flex bg-white border-b border-[#0d1b2e]/8 px-6 py-3.5 items-center justify-between sticky top-0 z-50 shadow-sm">
+        <header className="sticky top-0 z-50 hidden min-w-0 border-b border-[#0d1b2e]/8 bg-white px-6 py-3.5 shadow-sm md:block">
           <div className="min-w-0">
             <div className="mb-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-[#5a6a82]">
               {parentBreadcrumb && <>
@@ -95,18 +68,11 @@ export function AdminHeader({
                 </button>
                 <span aria-hidden="true" className="shrink-0">&gt;</span>
               </>}
-              <span className="max-w-[180px] truncate" title={page.title}>{page.title}</span>
+              <span className="max-w-[220px] truncate" title={page.title}>{page.title}</span>
             </div>
 
-            <h2 className="text-[15px] font-black text-[#0d1b2e]">{page.title}</h2>
-            <p className="mt-0.5 text-[14px] text-[#5a6a82]">
-              {page.subtitle || tabDescriptions[activeTab]}
-            </p>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2 text-xs text-[#5a6a82]">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-            <span className="font-medium">Supabase conectado</span>
+            <h2 className="break-words text-[15px] font-black text-[#0d1b2e]">{page.title}</h2>
+            {page.subtitle && <p className="mt-0.5 max-w-4xl break-words text-[14px] text-[#5a6a82]">{page.subtitle}</p>}
           </div>
         </header>
       )}
