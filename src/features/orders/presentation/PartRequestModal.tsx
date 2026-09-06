@@ -2,7 +2,7 @@ import React from "react";
 import { CheckCircle, PackagePlus, Search, X } from "lucide-react";
 import { AdminCard, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { FIntegerInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn } from "@/shared/domain/formatters";
 import { normalizeSearchText } from "../application/order-search";
 import type { PartRequestInventoryItem, SelectedPartRequestItem } from "../domain/part-request.types";
@@ -195,17 +195,17 @@ export function PartRequestModal({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <div className="w-28">
-                  <label className="sr-only" htmlFor={`part-quantity-${item.inventory_item_id}`}>Quantidade de {item.name}</label>
-                  <input
-                    id={`part-quantity-${item.inventory_item_id}`}
-                    type="number"
-                    min="1"
-                    max={item.available_quantity}
-                    step="1"
+                  <FIntegerInput
+                    label=""
+                    aria-label={`Quantidade de ${item.name}`}
                     value={item.quantity}
-                    onChange={event => onQuantityChange(item.inventory_item_id, event.target.value)}
-                    inputMode="numeric"
-                    className={cn(INPUT, "h-9 w-full text-center text-sm font-bold")}
+                    onChange={(event: any) => {
+                      const raw = event.target.value;
+                      if (!raw) { onQuantityChange(item.inventory_item_id, ""); return; }
+                      const quantity = Math.min(item.available_quantity, Math.max(1, Number(raw)));
+                      onQuantityChange(item.inventory_item_id, String(quantity));
+                    }}
+                    className="h-9 w-full text-center text-sm font-bold"
                   />
                 </div>
                 <AdminIconButton ariaLabel={`Remover ${item.name}`} onClick={() => onRemove(item.inventory_item_id)} variant="danger" className="h-9 w-9 shrink-0"><X size={15} /></AdminIconButton>
