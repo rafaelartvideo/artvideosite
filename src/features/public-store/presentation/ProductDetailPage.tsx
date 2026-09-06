@@ -4,6 +4,7 @@ import { publicMediaUrl } from "@/features/public-catalog/infrastructure/public-
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";
 import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
+import { formatCurrency } from "@/shared/domain/formatters";
 
 export function ProductDetailPage({ slug, setPage }: { slug: string | null; setPage: (page: PublicPage) => void }) {
   const { detail, loading, error } = useProductDetailBySlug(slug);
@@ -14,7 +15,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   if (!detail) return <section className="py-20 bg-[#f5f7fa]"><div className="max-w-xl mx-auto px-4 text-center"><Package size={34} className="mx-auto mb-4 text-[#0057e7]" /><H2 className="mb-3">Produto não encontrado</H2><p className="text-sm text-[#5a6a82] mb-6">O produto solicitado não existe ou não está disponível no momento.</p><Btn onClick={() => setPage("loja")}>Ver produtos disponíveis</Btn></div></section>;
 
   const { product, brand } = detail;
-  const priceLabel = product.price != null ? `R$ ${Number(product.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Consulte o valor";
+  const priceLabel = product.price != null ? formatCurrency(product.price) : "Consulte o valor";
 
   return (
     <>
@@ -25,4 +26,3 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
     </>
   );
 }
-
