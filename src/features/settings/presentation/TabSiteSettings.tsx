@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { CheckCircle, Clock } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useSaveSiteSettingsMutation, useSiteSettingsQuery } from "./useSiteSettingsQuery";
 import { BtnPrimary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 
 export function TabSiteSettings({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();
@@ -47,7 +47,7 @@ export function TabSiteSettings({ onBack }: { onBack: () => void }) {
 
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Configurações do Site" subtitle="Controle identidade visual e conteúdo do site público" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{canUpdate && <BtnPrimary onClick={handleSave} disabled={saveSettings.isPending}>{saveSettings.isPending ? <Clock size={15} className="animate-spin" /> : <CheckCircle size={15} />}{saveSettings.isPending ? "Salvando..." : "Salvar tudo"}</BtnPrimary>}</div>} />
+    <PageHeader title="Configurações do Site" subtitle="Controle identidade visual e conteúdo do site público" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{canUpdate && <BtnPrimary onClick={handleSave} disabled={saveSettings.isPending}>{saveSettings.isPending ? <LoadingSpinner size="sm" /> : <CheckCircle size={15} />}{saveSettings.isPending ? "Salvando..." : "Salvar tudo"}</BtnPrimary>}</div>} />
     {canViewDetails && (settingsQuery.isPending ? <LoadingState /> : <div className="max-w-2xl space-y-4">{groups.map(group => <Section key={group.title} title={group.title}><div className="space-y-4">{group.keys.map(field => <FInput key={field.key} label={field.label} type={field.type} value={settings[field.key] || ""} disabled={!canUpdate} onChange={(e: any) => updateSetting(field.key, e.target.value)} placeholder={field.placeholder} />)}</div></Section>)}{Object.keys(settings).length === 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><p className="mb-1 font-bold">Tabela site_settings vazia ou sem dados.</p><p>As configurações serão criadas ao salvar pela primeira vez.</p></div>}</div>)}
   </div>;
 }
