@@ -8,7 +8,7 @@ import { AdminButton, AdminCard, AdminIconButton, AdminPage, BtnPrimary, BtnSeco
 import { BrandAdminLogo, ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { cn } from "@/shared/domain/formatters";
 import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FIntegerInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
@@ -28,15 +28,15 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
   const [editItem, setEditItem] = useState<any>(null);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: 0 });
+  const [form, setForm] = useState({ name: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: "0" });
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
   useEffect(() => { if (brandsQuery.error) setToast({ msg: `Erro ao carregar marcas: ${brandsQuery.error instanceof Error ? brandsQuery.error.message : String(brandsQuery.error)}`, type: "error" }); }, [brandsQuery.error]);
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.brands() })]);
-  const openNew = () => { if (!canCreate) return; setForm({ name: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: 0 }); setEditItem(null); setDrawerOpen(true); };
-  const openEdit = (b: any) => { if (!(canViewDetails && canEdit)) return; setForm({ name: b.name || "", description: b.description || "", logo_media_id: b.logo_media_id || "", website_url: b.website_url || "", is_active: b.is_active ?? true, sort_order: b.sort_order ?? 0 }); setEditItem(b); setDrawerOpen(true); };
+  const openNew = () => { if (!canCreate) return; setForm({ name: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: "0" }); setEditItem(null); setDrawerOpen(true); };
+  const openEdit = (b: any) => { if (!(canViewDetails && canEdit)) return; setForm({ name: b.name || "", description: b.description || "", logo_media_id: b.logo_media_id || "", website_url: b.website_url || "", is_active: b.is_active ?? true, sort_order: String(b.sort_order ?? 0) }); setEditItem(b); setDrawerOpen(true); };
   const closeEditor = () => { setDrawerOpen(false); onRouteChange?.(null, null); };
   const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (item: any) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item));
@@ -51,10 +51,22 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
   const handleSave = async () => {
     if (!(editItem ? canEdit : canCreate)) return;
     if (!form.name.trim()) { setToast({ msg: "Nome da marca é obrigatório.", type: "error" }); return; }
+    const sortOrder = Number(form.sort_order);
+    if (!Number.isInteger(sortOrder) || sortOrder < 0) { setToast({ msg: "A ordem deve ser um número inteiro e não negativo.", type: "error" }); return; }
+    const website = form.website_url.trim();
+    if (website) {
+      try {
+        const url = new URL(website);
+        if (!/^https?:$/.test(url.protocol)) throw new Error();
+      } catch {
+        setToast({ msg: "Informe um site válido começando com http:// ou https://.", type: "error" });
+        return;
+      }
+    }
     setSaving(true);
     try {
       const finalSlug = await generateUniqueSlug("brands", form.name, editItem?.id);
-      await saveBrand({ ...form, name: form.name.trim(), slug: finalSlug, logo_media_id: form.logo_media_id || null, website_url: form.website_url || null, description: form.description || null }, editItem?.id);
+      await saveBrand({ ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug, logo_media_id: form.logo_media_id || null, website_url: website || null, description: form.description.trim() || null }, editItem?.id);
       closeEditor(); setToast({ msg: editItem ? "Marca atualizada!" : "Marca criada!", type: "success" }); await refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar marca: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
     finally { setSaving(false); }
@@ -76,6 +88,6 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
       {canViewTable && <AdminCard>{loading ? <LoadingState /> : brands.length === 0 ? <EmptyState icon={Tag} title="Nenhuma marca cadastrada" onAdd={canCreate ? openNewPage : undefined} addLabel="Nova marca" /> : <><div className="grid grid-cols-1 gap-3 p-3 xs:grid-cols-2 sm:grid-cols-3 md:p-5 lg:grid-cols-4">{pagedBrands.map(b => <AdminCard key={b.id} className={cn("flex min-w-0 flex-col items-center gap-3 p-3 transition-all hover:shadow-md sm:p-4", b.is_active ? "" : "bg-[#f8fafc] opacity-60")}><BrandAdminLogo mediaId={b.logo_media_id} name={b.name} /><div className="min-w-0 text-center"><p className="truncate text-sm font-bold text-[#0d1b2e]">{b.name}</p><StatusBadge status={b.is_active ? "Ativo" : "Inativo"} /></div><div className="flex gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar marca" title="Editar" onClick={() => openEditPage(b)} className="h-9 w-9"><Edit2 size={14} /></AdminIconButton>}{canToggleActive && <AdminIconButton ariaLabel={b.is_active ? "Desativar marca" : "Ativar marca"} title={b.is_active ? "Desativar" : "Ativar"} onClick={() => toggleActive(b)} className="h-9 w-9">{b.is_active ? <CheckCircle size={14} /> : <AlertCircle size={14} />}</AdminIconButton>}{canDelete && <AdminIconButton ariaLabel="Excluir marca" title="Excluir" variant="danger" onClick={() => setDelId(b.id)} className="h-9 w-9"><Trash2 size={14} /></AdminIconButton>}</div></AdminCard>)}</div><PaginationBar page={safePage} pageSize={pageSize} totalItems={brands.length} onPageChange={nextPage => setPage(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }} /></>}</AdminCard>}
     </>}
     {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
-    <AdminPage open={drawerOpen} onClose={closeEditor} breadcrumb="Marcas" title={editItem ? "Editar marca" : "Nova marca"} maxW="max-w-md"><div className="space-y-4 p-3 sm:p-5"><Section title="Informações"><div className="space-y-4"><FInput label="Nome da marca" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Samsung" /><FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={2} /><FInput label="Site" value={form.website_url} onChange={(e: any) => setForm({ ...form, website_url: e.target.value })} /><FToggle label="Marca ativa" checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} /><FInput label="Ordem" type="number" min="0" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: Number(e.target.value) })} /></div></Section><Section title="Logo"><ImageUpload bucket="brand-images" currentMediaId={form.logo_media_id} onUpload={mediaId => setForm({ ...form, logo_media_id: mediaId })} canUpload={editItem ? canEdit : canCreate} label="Logo da marca" /></Section></div><div className="sticky bottom-0 grid grid-cols-2 gap-2 border-t border-[#0d1b2e]/8 bg-white px-3 py-3 sm:flex sm:justify-end sm:gap-3 sm:px-5 sm:py-4"><BtnSecondary onClick={closeEditor} className="w-full sm:w-auto">Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={saving} className="w-full sm:w-auto">{saving ? "Salvando..." : "Salvar marca"}</BtnPrimary>}</div></AdminPage>
+    <AdminPage open={drawerOpen} onClose={closeEditor} breadcrumb="Marcas" title={editItem ? "Editar marca" : "Nova marca"} maxW="max-w-md"><div className="space-y-4 p-3 sm:p-5"><Section title="Informações"><div className="space-y-4"><FInput label="Nome da marca" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Samsung" /><FTextarea label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={2} /><FInput label="Site" type="url" placeholder="https://exemplo.com.br" value={form.website_url} onChange={(e: any) => setForm({ ...form, website_url: e.target.value.trimStart() })} /><FToggle label="Marca ativa" checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} /><FIntegerInput label="Ordem" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: e.target.value })} /></div></Section><Section title="Logo"><ImageUpload bucket="brand-images" currentMediaId={form.logo_media_id} onUpload={mediaId => setForm({ ...form, logo_media_id: mediaId })} canUpload={editItem ? canEdit : canCreate} label="Logo da marca" /></Section></div><div className="sticky bottom-0 grid grid-cols-2 gap-2 border-t border-[#0d1b2e]/8 bg-white px-3 py-3 sm:flex sm:justify-end sm:gap-3 sm:px-5 sm:py-4"><BtnSecondary onClick={closeEditor} className="w-full sm:w-auto">Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={saving} className="w-full sm:w-auto">{saving ? "Salvando..." : "Salvar marca"}</BtnPrimary>}</div></AdminPage>
   </div>;
 }
