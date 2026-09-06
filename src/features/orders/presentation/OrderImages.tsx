@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { Camera, Upload, X } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import type { OrderImage } from "../domain/order-image";
 export type { OrderImage } from "../domain/order-image";
@@ -12,7 +13,7 @@ export function OrderImageThumb({ image, onRemove, onView }: { image: OrderImage
   return (
     <div className="relative group w-24 h-20 rounded-lg overflow-hidden border border-[#0d1b2e]/12 bg-[#f5f7fa]">
       {loading ? (
-        <div className="w-full h-full flex items-center justify-center text-[10px] text-[#5a6a82]">Carregando...</div>
+        <div className="flex h-full w-full items-center justify-center"><LoadingSpinner size="sm" /></div>
       ) : url ? (
         <button type="button" className="w-full h-full" onClick={onView}><img src={url} alt={image.name} className="w-full h-full object-cover" /></button>
       ) : (
