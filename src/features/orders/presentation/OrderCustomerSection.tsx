@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Edit2, Link2, MapPin, MessageCircle, Plus, Search, Users } from "lucide-react";
+import { Edit2, Link2, MapPin, MessageCircle, Plus, RefreshCcw, Search } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -131,7 +131,7 @@ export function OrderCustomerSection({
                       </div>
                       <button type="button" onClick={() => setAddressExpanded(value => !value)} className="text-xs font-bold text-[#0057e7] hover:underline">{addressExpanded ? "Ocultar endereço ▲" : "Mostrar endereço ▼"}</button>
                       {addressExpanded && <div className="border-t border-[#0d1b2e]/8 pt-4"><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Endereço</p><div className="grid sm:grid-cols-3 gap-3">{(() => { const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0]; const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" }; return (["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null); })()}</div></div>}
-                      <div className="flex min-w-0 flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={onClearCustomer} aria-label="Trocar cliente" title="Trocar cliente" className={compactActionClass}><Users size={14} /><span className={mobileHiddenLabel}>Trocar cliente</span></BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)} aria-label="Editar dados" title="Editar dados" className={compactActionClass}><Edit2 size={14} /><span className={mobileHiddenLabel}>Editar dados</span></BtnSecondary>}</div>
+                      <div className="flex min-w-0 flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={onClearCustomer} aria-label="Trocar cliente" title="Trocar cliente" className={compactActionClass}><RefreshCcw size={18} /><span className={mobileHiddenLabel}>Trocar cliente</span></BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)} aria-label="Editar dados" title="Editar dados" className={compactActionClass}><Edit2 size={18} /><span className={mobileHiddenLabel}>Editar dados</span></BtnSecondary>}</div>
                     </>
                   )}
                   {editingCustomer && <button onClick={() => setEditingCustomer(false)} className="text-xs text-[#5a6a82] hover:underline">Cancelar edição</button>}
@@ -140,10 +140,10 @@ export function OrderCustomerSection({
                 <div className="space-y-2">
                   <div className="flex min-w-0 items-end gap-2">
                     <div className="relative min-w-0 flex-1">
-                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-                      <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "min-w-0 pl-9 py-2 text-xs")} />
+                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+                      <input value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "min-w-0 pl-9")} />
                     </div>
-                    {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={15} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
+                    {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={18} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
                   </div>
                   {customerResults.length > 0 && (
                     <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
