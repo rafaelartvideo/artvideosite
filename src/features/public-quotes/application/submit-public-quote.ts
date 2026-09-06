@@ -1,5 +1,11 @@
 import type { Address } from "@/lib/address";
 import {
+  isValidBrazilianMobile,
+  isValidBrazilianPhone,
+  isValidCnpj,
+  isValidEmail,
+} from "@/shared/domain/formatters";
+import {
   generateQuoteProtocol,
   isValidCpf,
   isValidPastOrCurrentDate,
@@ -12,12 +18,20 @@ import { createPublicQuote } from "../infrastructure/public-quotes.repository";
 export async function submitPublicQuote(form: PublicQuoteForm, address: Address): Promise<string> {
   const cpf = normalizeDocument(form.cpf);
   const cnpj = normalizeDocument(form.cnpj);
+  const email = form.email.trim();
+  const phone = form.phone.trim();
+  const whatsapp = form.whatsapp.trim();
+
   if (form.customerType === "PF" && !cpf) throw new Error("Informe o CPF.");
   if (form.customerType === "PF" && !isValidCpf(cpf)) throw new Error("CPF inválido. Verifique o número informado.");
   if (form.customerType === "PJ" && !form.tradeName.trim()) throw new Error("Informe o nome fantasia.");
-  if (form.customerType === "PJ" && cnpj.length !== 14) throw new Error("Informe um CNPJ válido.");
-  if (!form.whatsapp.trim()) throw new Error("Informe o telefone ou WhatsApp principal.");
+  if (form.customerType === "PJ" && !isValidCnpj(cnpj)) throw new Error("CNPJ inválido. Verifique o número informado.");
+  if (!whatsapp && !phone) throw new Error("Informe o telefone ou WhatsApp principal.");
+  if (whatsapp && !isValidBrazilianMobile(whatsapp)) throw new Error("WhatsApp inválido. Informe um celular com DDD no formato (99) 9 9999-9999.");
+  if (phone && !isValidBrazilianPhone(phone)) throw new Error("Telefone inválido. Informe DDD e número válidos.");
+  if (email && !isValidEmail(email)) throw new Error("E-mail inválido. Verifique o endereço informado.");
   if (form.customerType === "PF" && !isValidPastOrCurrentDate(form.birthDate)) throw new Error("Informe uma data de nascimento válida e que não seja futura.");
+  if (form.customerType === "PJ" && form.foundationDate && !isValidPastOrCurrentDate(form.foundationDate)) throw new Error("Informe uma data de fundação válida e que não seja futura.");
 
   const protocol = generateQuoteProtocol();
   const brandNote = form.marca === "Outra marca" && form.outraMarca ? `Marca: ${form.outraMarca}` : null;
@@ -31,7 +45,7 @@ export async function submitPublicQuote(form: PublicQuoteForm, address: Address)
     p_whatsapp: normalizeDocument(form.whatsapp) || null,
     p_phone: normalizeDocument(form.phone) || null,
     p_birth_date: form.customerType === "PF" ? publicDateToIso(form.birthDate) : null,
-    p_email: form.email || null,
+    p_email: email || null,
     p_document: form.customerType === "PF" && cpf.length === 11 ? cpf : null,
     p_trade_name: form.customerType === "PJ" ? form.tradeName.trim() : null,
     p_legal_name: form.customerType === "PJ" ? form.legalName.trim() || null : null,
