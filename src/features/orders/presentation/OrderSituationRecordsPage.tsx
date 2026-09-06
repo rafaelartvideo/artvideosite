@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, History } from "lucide-react";
 import { AdminCard, AdminCardHeader, AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
-import { cn } from "@/shared/domain/formatters";
+import { cn, formatDateTime } from "@/shared/domain/formatters";
 import type { ServiceOrderSituationVisit } from "../infrastructure/order-situation-visits.repository";
 
 function formatElapsedHours(hours: number) {
@@ -27,17 +27,6 @@ function formatElapsedHours(hours: number) {
   return parts.join(", ");
 }
 
-function formatDateTime(value?: string | null) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function elapsedHours(start?: string | null, end?: string | null) {
   if (!start) return 0;
   const startTime = new Date(start).getTime();
@@ -52,6 +41,8 @@ function visitState(visit: ServiceOrderSituationVisit) {
   const validSla = Number.isFinite(slaHours) && slaHours > 0;
   const exceededBy = validSla ? Math.max(0, elapsed - slaHours) : 0;
   if (exceededBy > 0) return { key: "danger", label: `Estourou +${formatElapsedHours(exceededBy)}`, elapsed };
+  if (!validSla && visit.exited_at) return { key: "neutral", label: "Encerrado · sem SLA", elapsed };
+  if (!validSla) return { key: "active", label: "Em andamento · sem SLA", elapsed };
   if (visit.exited_at) return { key: "success", label: "No prazo", elapsed };
   return { key: "active", label: "Em andamento", elapsed };
 }
@@ -108,7 +99,7 @@ export function OrderSituationRecordsPage({
   return <AdminPage
     open
     onClose={onClose}
-    breadcrumb={`Ordens de Serviço > ${order?.os_number || "OS"} > Registros de SLA`}
+    breadcrumb={`Ordens de Serviço > ${order?.os_number || "OS"}`}
     title="Registros de SLA"
     subtitle="Histórico das passagens da ordem de serviço pelas situações"
     maxW="max-w-4xl"
@@ -144,7 +135,9 @@ export function OrderSituationRecordsPage({
                 ? "border-red-200 text-red-700 bg-red-50"
                 : state.key === "active"
                   ? "border-blue-200 text-[#0057e7] bg-[#f7faff]"
-                  : "border-emerald-200 text-emerald-700 bg-emerald-50";
+                  : state.key === "neutral"
+                    ? "border-slate-200 text-slate-600 bg-slate-50"
+                    : "border-emerald-200 text-emerald-700 bg-emerald-50";
 
               return <div key={visit.id} className="min-w-0 rounded-xl border border-[#0d1b2e]/10 bg-white p-3">
                 <div className="flex min-w-0 items-start justify-between gap-3">
