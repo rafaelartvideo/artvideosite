@@ -74,7 +74,7 @@ export function PartRequestModal({
     if (inventoryPage > totalInventoryPages) setInventoryPage(totalInventoryPages);
   }, [inventoryPage, totalInventoryPages]);
 
-  return <CenteredModal onClose={onClose} className="max-w-4xl sm:max-w-4xl" title="Pedir peças">
+  return <CenteredModal onClose={() => { if (!submitting) onClose(); }} className="max-w-4xl sm:max-w-4xl" title="Pedir peças">
     <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-6">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -83,7 +83,7 @@ export function PartRequestModal({
         </div>
         <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">Escolha a finalidade e adicione as peças necessárias.</p>
       </div>
-      <AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost" className="h-10 w-10 shrink-0"><X size={18} /></AdminIconButton>
+      <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={submitting} variant="ghost" className="h-10 w-10 shrink-0"><X size={18} /></AdminIconButton>
     </div>
 
     <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 py-5 sm:px-6">
@@ -95,7 +95,7 @@ export function PartRequestModal({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <AdminCard className={cn("shadow-none transition-colors", purpose === "RESOLUTION" ? "border-[#0057e7] bg-[#f4f8ff]" : "hover:border-[#0057e7]/35")}>
-              <button type="button" onClick={() => onPurposeChange("RESOLUTION")} aria-pressed={purpose === "RESOLUTION"} className="w-full p-4 text-left">
+              <button type="button" disabled={submitting} onClick={() => onPurposeChange("RESOLUTION")} aria-pressed={purpose === "RESOLUTION"} className="w-full p-4 text-left disabled:opacity-60">
                 <span className="flex items-center gap-2 text-sm font-black text-[#0d1b2e]">
                   <span className={cn("flex h-8 w-8 items-center justify-center rounded-lg", purpose === "RESOLUTION" ? "bg-[#0057e7] text-white" : "bg-[#f5f7fa] text-[#5a6a82]")}><CheckCircle size={16} /></span>
                   Para resolução
@@ -104,7 +104,7 @@ export function PartRequestModal({
               </button>
             </AdminCard>
             <AdminCard className={cn("shadow-none transition-colors", purpose === "TEST" ? "border-[#0057e7] bg-[#f4f8ff]" : "hover:border-[#0057e7]/35")}>
-              <button type="button" onClick={() => onPurposeChange("TEST")} aria-pressed={purpose === "TEST"} className="w-full p-4 text-left">
+              <button type="button" disabled={submitting} onClick={() => onPurposeChange("TEST")} aria-pressed={purpose === "TEST"} className="w-full p-4 text-left disabled:opacity-60">
                 <span className="flex items-center gap-2 text-sm font-black text-[#0d1b2e]">
                   <span className={cn("flex h-8 w-8 items-center justify-center rounded-lg", purpose === "TEST" ? "bg-[#0057e7] text-white" : "bg-[#f5f7fa] text-[#5a6a82]")}><PackagePlus size={16} /></span>
                   Para teste
@@ -128,6 +128,7 @@ export function PartRequestModal({
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7c899c]" />
               <input
                 autoFocus
+                disabled={submitting}
                 value={search}
                 onChange={event => onSearchChange(event.target.value)}
                 placeholder="Buscar por nome ou SKU"
@@ -153,7 +154,7 @@ export function PartRequestModal({
                     </div>
                     <button
                       type="button"
-                      disabled={selected || Number(item.quantity) <= 0}
+                      disabled={submitting || selected || Number(item.quantity) <= 0}
                       onClick={() => onSelect(item)}
                       className={cn(
                         "inline-flex h-9 shrink-0 items-center justify-center rounded-lg border px-3 text-xs font-bold transition-colors",
@@ -199,6 +200,7 @@ export function PartRequestModal({
                     label=""
                     aria-label={`Quantidade de ${item.name}`}
                     value={item.quantity}
+                    disabled={submitting}
                     onChange={(event: any) => {
                       const raw = event.target.value;
                       if (!raw) { onQuantityChange(item.inventory_item_id, ""); return; }
@@ -208,20 +210,20 @@ export function PartRequestModal({
                     className="h-9 w-full text-center text-sm font-bold"
                   />
                 </div>
-                <AdminIconButton ariaLabel={`Remover ${item.name}`} onClick={() => onRemove(item.inventory_item_id)} variant="danger" className="h-9 w-9 shrink-0"><X size={15} /></AdminIconButton>
+                <AdminIconButton ariaLabel={`Remover ${item.name}`} onClick={() => onRemove(item.inventory_item_id)} disabled={submitting} variant="danger" className="h-9 w-9 shrink-0"><X size={15} /></AdminIconButton>
               </div>
             </div>)}</div>}
         </section>
 
         <div className="border-t border-[#0d1b2e]/8 pt-5">
-          <FTextarea label="Observações" value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder="Informações importantes para a análise do pedido." />
+          <FTextarea label="Observações" value={notes} disabled={submitting} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder="Informações importantes para a análise do pedido." />
         </div>
       </div>
     </div>
 
     <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-[#0d1b2e]/8 bg-white px-4 py-3 sm:flex sm:justify-end sm:px-6 sm:py-4">
-      <BtnSecondary onClick={onClose} className="w-full sm:w-auto">Cancelar</BtnSecondary>
-      <BtnPrimary onClick={onSubmit} disabled={submitting || selectedItems.length === 0} className="w-full sm:w-auto">{submitting ? "Enviando..." : `Enviar solicitação${selectedItems.length ? ` (${selectedItems.length})` : ""}`}</BtnPrimary>
+      <BtnSecondary onClick={onClose} disabled={submitting} className="w-full sm:w-auto">Cancelar</BtnSecondary>
+      <BtnPrimary onClick={onSubmit} disabled={selectedItems.length === 0} loading={submitting} loadingText="Enviando..." className="w-full sm:w-auto">Enviar solicitação{selectedItems.length ? ` (${selectedItems.length})` : ""}</BtnPrimary>
     </div>
   </CenteredModal>;
 }
