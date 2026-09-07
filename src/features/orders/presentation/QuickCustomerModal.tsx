@@ -99,13 +99,13 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   };
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <DialogContent showClose={false} className="max-w-2xl border-0 bg-transparent p-0 shadow-none">
       <DialogTitle className="sr-only">Criar cliente</DialogTitle>
       <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="sticky top-0 z-10 flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 bg-white px-4 py-3 select-none">
           <div><h3 className="text-sm font-bold text-[#0d1b2e]">Criar cliente</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre o cliente sem sair da Nova OS</p></div>
-          <AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost"><X size={16} /></AdminIconButton>
+          <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost"><X size={16} /></AdminIconButton>
         </div>
         <div className="p-4 space-y-4">
           <div className="grid sm:grid-cols-2 gap-3">
@@ -127,7 +127,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
           </div>
           <Section
             title="Endereço do cliente"
-            actions={<AdminButton variant="secondary" size="sm" onClick={() => setSharedAddressOpen(value => !value)}><Link2 size={13} /> Endereço enviado pelo cliente</AdminButton>}
+            actions={<AdminButton variant="secondary" size="sm" onClick={() => setSharedAddressOpen(value => !value)} disabled={saving}><Link2 size={13} /> Endereço enviado pelo cliente</AdminButton>}
           >
             <div className="space-y-3">
               {(sharedAddressOpen || address.shared_map_url) && <FInput label="Link compartilhado do endereço" type="url" placeholder="Cole o link enviado pelo cliente" value={address.shared_map_url || ""} onChange={(e: any) => setAddress({ ...address, shared_map_url: e.target.value })} />}
@@ -136,7 +136,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
           </Section>
           {errorMessage && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{errorMessage}</p>}
         </div>
-        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-white px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("customers.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Criar cliente"}</BtnPrimary>}</div>
+        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-white px-4 py-3"><BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>{hasPermission("customers.create") && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Criar cliente</BtnPrimary>}</div>
       </div>
       </DialogContent>
     </Dialog>
