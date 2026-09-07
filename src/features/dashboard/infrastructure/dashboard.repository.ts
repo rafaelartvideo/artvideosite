@@ -1,29 +1,70 @@
 import { supabase } from "@/lib/supabase";
+import type { DashboardAccess, DashboardOverview } from "../domain/dashboard";
 
-export const loadDashboardOverview = () =>
-  Promise.all([
-    supabase
-      .from("quote_requests")
-      .select("id, status_id, request_status:request_statuses(name)"),
-    supabase
-      .from("service_orders")
-      .select("id, os_number, tracking_token, status_id, created_at, updated_at, customer_id, order_status:order_statuses(name,color)"),
-    supabase
-      .from("services")
-      .select("id", { count: "exact", head: true })
-      .eq("is_active", true),
-    supabase
-      .from("products")
-      .select("id", { count: "exact", head: true })
-      .eq("is_active", true),
-    supabase
-      .from("quote_requests")
-      .select("id, protocol, created_at, customer_id, service_id, brand_id, request_status:request_statuses(name), customer:customers(full_name), service:services(title), brand:brands(name)")
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("service_orders")
-      .select("id, os_number, service:services(title), created_at, updated_at, status_id, order_status:order_statuses(name,color), customer:customers(full_name)")
-      .order("created_at", { ascending: false })
-      .limit(5),
+type DashboardQueryInput = {
+  periodDays: number;
+  access: DashboardAccess;
+};
+
+const emptyRows = () => Promise.resolve({ data: [], error: null });
+
+function dashboardDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export async function loadDashboardOverview({ periodDays, access }: DashboardQueryInput): Promise<DashboardOverview> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const agendaEnd = new Date(today);
+  agendaEnd.setDate(agendaEnd.getDate() + Math.max(7, periodDays));
+
+  const [ordersResult, customersResult, employeesResult, inventoryResult, appointmentsResult, quotesResult] = await Promise.all([
+    access.orders
+      ? supabase
+          .from("service_orders")
+          .select("id,os_number,customer_id,quote_request_id,technician_id,created_at,updated_at,completed_at,solved_at,final_total,discount_amount,order_status:order_statuses(name,color),situation:os_situations(name,color),customer:customers(full_name),technician:employees!technician_id(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name))")
+          .order("created_at", { ascending: false })
+          .limit(2000)
+      : emptyRows(),
+    access.customers
+      ? supabase.from("customers").select("id,full_name,created_at").order("created_at", { ascending: false }).limit(2000)
+      : emptyRows(),
+    access.employees
+      ? supabase.from("employees").select("id,full_name,function_name,is_active").order("full_name").limit(500)
+      : emptyRows(),
+    access.inventory
+      ? supabase.from("inventory_items").select("id,name,sku,unit,quantity,min_quantity,purchase_price,sale_price,is_active").order("name").limit(2000)
+      : emptyRows(),
+    access.agenda
+      ? supabase
+          .from("appointments")
+          .select("id,appointment_date,period,start_time,is_return,customer:customers(full_name),situation:appointment_situations(name,color)")
+          .gte("appointment_date", dashboardDate(today))
+          .lte("appointment_date", dashboardDate(agendaEnd))
+          .order("appointment_date")
+          .limit(1000)
+      : emptyRows(),
+    access.quotes
+      ? supabase
+          .from("quote_requests")
+          .select("id,protocol,customer_id,created_at,estimated_price,final_price,request_status:request_statuses(name,color),customer:customers(full_name),service:services(title),brand:brands(name)")
+          .order("created_at", { ascending: false })
+          .limit(2000)
+      : emptyRows(),
   ]);
+
+  const error = ordersResult.error || customersResult.error || employeesResult.error || inventoryResult.error || appointmentsResult.error || quotesResult.error;
+  if (error) throw error;
+
+  return {
+    orders: (ordersResult.data ?? []) as unknown as DashboardOverview["orders"],
+    customers: (customersResult.data ?? []) as unknown as DashboardOverview["customers"],
+    employees: (employeesResult.data ?? []) as unknown as DashboardOverview["employees"],
+    inventory: (inventoryResult.data ?? []) as unknown as DashboardOverview["inventory"],
+    appointments: (appointmentsResult.data ?? []) as unknown as DashboardOverview["appointments"],
+    quotes: (quotesResult.data ?? []) as unknown as DashboardOverview["quotes"],
+  };
+}
