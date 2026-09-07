@@ -7,7 +7,7 @@ import {
 } from "@/features/settings/presentation/useSiteSettingsQuery";
 import { BtnPrimary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingSpinner, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 
 export function TabContact() {
   const { user, hasPermission } = useAuth();
@@ -68,12 +68,11 @@ export function TabContact() {
 
       {settingsQuery.isPending ? <LoadingState /> : (
         <form onSubmit={handleSave} className="max-w-xl space-y-5">
-          {groups.map((group) => <Section key={group.title} title={group.title}><div className="space-y-4">{group.fields.map(([key, label, placeholder]) => <FInput key={key} label={label} value={settings[key] || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting(key, event.target.value)} placeholder={placeholder} />)}</div></Section>)}
+          {groups.map((group) => <Section key={group.title} title={group.title}><div className="space-y-4">{group.fields.map(([key, label, placeholder]) => <FInput key={key} label={label} value={settings[key] || ""} disabled={!canUpdate || saveSettings.isPending} onChange={(event: any) => updateSetting(key, event.target.value)} placeholder={placeholder} />)}</div></Section>)}
 
           <div className="flex items-center gap-3">
-            {canUpdate && <BtnPrimary type="submit" disabled={saveSettings.isPending}>
-              {saveSettings.isPending ? <LoadingSpinner size="sm" /> : <CheckCircle size={15} />}
-              {saveSettings.isPending ? "Salvando..." : "Salvar contato"}
+            {canUpdate && <BtnPrimary type="submit" loading={saveSettings.isPending} loadingText="Salvando...">
+              <CheckCircle size={15} /> Salvar contato
             </BtnPrimary>}
             <p className="text-xs text-[#5a6a82]">Essas informações alimentam o site público.</p>
           </div>
