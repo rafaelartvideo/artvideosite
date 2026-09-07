@@ -116,7 +116,7 @@ export function OrderResolutionPage({
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-xs text-[#5a6a82]">{solutionImages.length}/5 imagens</p>
               <div className="flex items-center gap-2 flex-wrap">
-                <AdminButton variant="secondary" size="sm" disabled={solutionImages.length >= 5} onClick={() => {
+                <AdminButton variant="secondary" size="sm" disabled={saving || solutionImages.length >= 5} onClick={() => {
                   const input = document.createElement("input");
                   input.type = "file";
                   input.accept = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
@@ -126,7 +126,7 @@ export function OrderResolutionPage({
                   };
                   input.click();
                 }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Upload size={13} /> Adicionar imagens</AdminButton>
-                <AdminButton variant="secondary" size="sm" disabled={solutionImages.length >= 5} onClick={() => {
+                <AdminButton variant="secondary" size="sm" disabled={saving || solutionImages.length >= 5} onClick={() => {
                   const input = document.createElement("input");
                   input.type = "file";
                   input.accept = "image/*";
@@ -142,8 +142,8 @@ export function OrderResolutionPage({
           </Section>
         </div>
         <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
-          <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={onSubmit} disabled={saving}><CheckCircle size={14} /> Concluir solução</BtnPrimary>
+          <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+          <BtnPrimary onClick={onSubmit} loading={saving} loadingText="Concluindo..."><CheckCircle size={14} /> Concluir solução</BtnPrimary>
         </div>
       </AdminPage>
   );
