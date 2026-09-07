@@ -166,14 +166,19 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
     const syncButtonLoading = () => {
       root.querySelectorAll("button").forEach(button => {
         const text = button.textContent || "";
-        const hasLegacySpinner = Boolean(button.querySelector(".animate-spin"));
+        const hasExistingSpinner = Boolean(button.querySelector(".animate-spin"));
         const busyButton = button.disabled && (
           button.getAttribute("aria-busy") === "true" ||
           BUSY_ACTION_PATTERN.test(text) ||
-          hasLegacySpinner
+          hasExistingSpinner
         );
-        if (busyButton) button.setAttribute("data-admin-loading", "true");
-        else button.removeAttribute("data-admin-loading");
+        if (busyButton) {
+          button.setAttribute("data-admin-loading", "true");
+          button.setAttribute("data-admin-has-spinner", hasExistingSpinner ? "true" : "false");
+        } else {
+          button.removeAttribute("data-admin-loading");
+          button.removeAttribute("data-admin-has-spinner");
+        }
       });
     };
 
@@ -196,7 +201,7 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
       .admin-crm button[data-admin-loading="true"] {
         pointer-events: none;
       }
-      .admin-crm button[data-admin-loading="true"]::before {
+      .admin-crm button[data-admin-loading="true"][data-admin-has-spinner="false"]::before {
         content: "";
         width: 1em;
         height: 1em;
@@ -206,8 +211,7 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
         border-radius: 9999px;
         animation: admin-button-loading-spin .65s linear infinite;
       }
-      .admin-crm button[data-admin-loading="true"] > svg:first-child,
-      .admin-crm button[data-admin-loading="true"] svg.animate-spin {
+      .admin-crm button[data-admin-loading="true"] > svg:not(.animate-spin):first-child {
         display: none !important;
       }
     `}</style>
