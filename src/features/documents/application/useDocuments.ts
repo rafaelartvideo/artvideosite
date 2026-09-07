@@ -129,12 +129,14 @@ export function useDocuments() {
     saving: saveMutation.isPending,
     toggling: activeMutation.isPending,
     savingAttachmentType: attachmentMutation.isPending,
+    togglingAttachmentType: attachmentActiveMutation.isPending,
+    deletingAttachmentType: attachmentDeleteMutation.isPending,
     openNew,
     openEditor: (template: PrintTemplate) => openEditorMutation.mutate(template),
     closeEditor,
     save: (value: PrintTemplateEditorValue) => saveMutation.mutateAsync(value),
     toggleActive: (template: PrintTemplate) =>
-      activeMutation.mutate({ id: template.id, active: !template.is_active }),
+      activeMutation.mutateAsync({ id: template.id, active: !template.is_active }),
     saveAttachmentType: (name: string, id?: string) =>
       attachmentMutation.mutateAsync({ id, name }),
     toggleAttachmentType: (id: string, active: boolean) =>
