@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { authenticateAdmin } from "@/features/auth/infrastructure/auth.repository";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingOverlay, LoadingSpinner, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, Toast } from "@/shared/ui/admin/AdminFeedback";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 
 type AdminLoginProps = {
@@ -36,7 +36,6 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
 
   return (
     <div className="admin-crm min-h-screen bg-gradient-to-br from-[#0d1b2e] via-[#0a1520] to-[#06101a] flex items-center justify-center p-4">
-      <LoadingOverlay show={loading} text="Entrando no painel..." />
       {error && <Toast message={error} type="error" onClose={() => setError("")} />}
 
       <div className="w-full max-w-md">
@@ -92,6 +91,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
             <button
               type="submit"
               disabled={loading}
+              aria-busy={loading}
               className="w-full bg-[#0057e7] text-white font-semibold py-3 px-6 rounded-xl text-sm hover:bg-[#0046c0] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
             >
               {loading ? <LoadingSpinner size="sm" /> : null}
