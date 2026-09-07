@@ -301,12 +301,50 @@ as $$
   );
 $$;
 
+create or replace function private.is_parent_organization(p_organization_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.organizations organization
+    where organization.id = p_organization_id
+      and organization.organization_type = 'parent'
+      and organization.status = 'active'
+  );
+$$;
+
+create or replace function private.is_direct_child_organization(
+  p_parent_organization_id uuid,
+  p_child_organization_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.organizations child
+    where child.id = p_child_organization_id
+      and child.parent_organization_id = p_parent_organization_id
+  );
+$$;
+
 revoke all on function private.is_organization_member(uuid) from public;
 revoke all on function private.has_organization_permission(uuid, text) from public;
 revoke all on function private.can_manage_organization(uuid, text) from public;
+revoke all on function private.is_parent_organization(uuid) from public;
+revoke all on function private.is_direct_child_organization(uuid, uuid) from public;
 grant execute on function private.is_organization_member(uuid) to authenticated;
 grant execute on function private.has_organization_permission(uuid, text) to authenticated;
 grant execute on function private.can_manage_organization(uuid, text) to authenticated;
+grant execute on function private.is_parent_organization(uuid) to authenticated;
+grant execute on function private.is_direct_child_organization(uuid, uuid) to authenticated;
 
 alter table public.organizations enable row level security;
 alter table public.organization_members enable row level security;
@@ -344,13 +382,7 @@ with check (
   organization_type = 'partner'
   and parent_organization_id is not null
   and private.has_organization_permission(parent_organization_id, 'organizations.create')
-  and exists (
-    select 1
-    from public.organizations parent
-    where parent.id = parent_organization_id
-      and parent.organization_type = 'parent'
-      and parent.status = 'active'
-  )
+  and private.is_parent_organization(parent_organization_id)
 );
 
 drop policy if exists organizations_update on public.organizations;
@@ -433,19 +465,17 @@ create policy organization_data_shares_insert
 on public.organization_data_shares for insert to authenticated
 with check (
   private.has_organization_permission(parent_organization_id, 'organizations.data_shares.manage')
-  and exists (
-    select 1
-    from public.organizations child
-    where child.id = child_organization_id
-      and child.parent_organization_id = parent_organization_id
-  )
+  and private.is_direct_child_organization(parent_organization_id, child_organization_id)
 );
 
 drop policy if exists organization_data_shares_update on public.organization_data_shares;
 create policy organization_data_shares_update
 on public.organization_data_shares for update to authenticated
 using (private.has_organization_permission(parent_organization_id, 'organizations.data_shares.manage'))
-with check (private.has_organization_permission(parent_organization_id, 'organizations.data_shares.manage'));
+with check (
+  private.has_organization_permission(parent_organization_id, 'organizations.data_shares.manage')
+  and private.is_direct_child_organization(parent_organization_id, child_organization_id)
+);
 
 drop policy if exists organization_data_shares_delete on public.organization_data_shares;
 create policy organization_data_shares_delete
