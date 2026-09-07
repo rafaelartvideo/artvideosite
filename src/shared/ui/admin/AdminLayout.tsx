@@ -25,6 +25,10 @@ function ButtonLoadingSpinner() {
   return <span aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent" />;
 }
 
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return Boolean(value && typeof (value as PromiseLike<unknown>).then === "function");
+}
+
 export function AdminButton({
   children,
   variant = "primary",
@@ -35,8 +39,11 @@ export function AdminButton({
   loading = false,
   loadingText,
   disabled,
+  onClick,
   ...buttonProps
 }: AdminButtonProps) {
+  const [actionLoading, setActionLoading] = React.useState(false);
+  const resolvedLoading = loading || actionLoading;
   const variants: Record<AdminButtonVariant, string> = {
     primary: "border border-transparent bg-[#0057e7] text-white hover:bg-[#0046c0]",
     secondary: "border border-[#0d1b2e]/15 bg-white text-[#0d1b2e] hover:bg-[#f5f7fa]",
@@ -51,14 +58,26 @@ export function AdminButton({
     lg: "gap-2 px-5 py-3 text-sm",
   };
 
+  const handleClick: React.MouseEventHandler<HTMLButtonElement> = event => {
+    if (!onClick || resolvedLoading) return;
+    const result = (onClick as (event: React.MouseEvent<HTMLButtonElement>) => unknown)(event);
+    if (!isPromiseLike(result)) return;
+    setActionLoading(true);
+    result.then(
+      () => setActionLoading(false),
+      () => setActionLoading(false),
+    );
+  };
+
   return <button
     {...buttonProps}
     type={type}
-    disabled={disabled || loading}
-    aria-busy={loading || buttonProps["aria-busy"] === true ? true : undefined}
+    onClick={handleClick}
+    disabled={disabled || resolvedLoading}
+    aria-busy={resolvedLoading || buttonProps["aria-busy"] === true ? true : undefined}
     aria-label={buttonProps["aria-label"] ?? ariaLabel}
-    data-admin-loading={loading ? "true" : undefined}
-    data-admin-has-spinner={loading ? "true" : undefined}
+    data-admin-loading={resolvedLoading ? "true" : undefined}
+    data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
       "inline-flex min-w-0 max-w-full cursor-default items-center justify-center whitespace-nowrap rounded-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
       variants[variant],
@@ -66,7 +85,7 @@ export function AdminButton({
       className,
     )}
   >
-    {loading ? <><ButtonLoadingSpinner />{loadingText ?? children}</> : children}
+    {resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? children}</> : children}
   </button>;
 }
 
@@ -86,30 +105,45 @@ export function AdminIconButton({
   className = "",
   loading = false,
   disabled,
+  onClick,
   ...buttonProps
 }: AdminIconButtonProps) {
+  const [actionLoading, setActionLoading] = React.useState(false);
+  const resolvedLoading = loading || actionLoading;
   const variants = {
     secondary: "border border-[#0d1b2e]/15 bg-white text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-[#0057e7]",
     danger: "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100",
     ghost: "border border-transparent bg-transparent text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-[#0057e7]",
   };
 
+  const handleClick: React.MouseEventHandler<HTMLButtonElement> = event => {
+    if (!onClick || resolvedLoading) return;
+    const result = (onClick as (event: React.MouseEvent<HTMLButtonElement>) => unknown)(event);
+    if (!isPromiseLike(result)) return;
+    setActionLoading(true);
+    result.then(
+      () => setActionLoading(false),
+      () => setActionLoading(false),
+    );
+  };
+
   return <button
     {...buttonProps}
     type={type}
-    disabled={disabled || loading}
-    aria-busy={loading || buttonProps["aria-busy"] === true ? true : undefined}
+    onClick={handleClick}
+    disabled={disabled || resolvedLoading}
+    aria-busy={resolvedLoading || buttonProps["aria-busy"] === true ? true : undefined}
     aria-label={buttonProps["aria-label"] ?? ariaLabel}
     title={title ?? buttonProps["aria-label"] ?? ariaLabel}
-    data-admin-loading={loading ? "true" : undefined}
-    data-admin-has-spinner={loading ? "true" : undefined}
+    data-admin-loading={resolvedLoading ? "true" : undefined}
+    data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
       "inline-flex h-8 w-8 cursor-default items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-40",
       variants[variant],
       className,
     )}
   >
-    {loading ? <ButtonLoadingSpinner /> : children}
+    {resolvedLoading ? <ButtonLoadingSpinner /> : children}
   </button>;
 }
 
