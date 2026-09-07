@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useIsFetching, useIsMutating } from "@tanstack/react-query";
 import { AlertCircle, AlertTriangle, CheckCircle, Package, Plus, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
@@ -15,7 +14,7 @@ import {
 } from "@/shared/ui/primitives/alert-dialog";
 
 const ADMIN_FEEDBACK_EVENT = "artvideo:admin-feedback";
-const BUSY_ACTION_PATTERN = /\b(carregando|salvando|enviando|atualizando|processando|buscando|consultando|gerando|excluindo|removendo|concluindo|resolvendo|aprovando|rejeitando|convertendo|criando|cadastrando)\b/i;
+const BUSY_ACTION_PATTERN = /\b(carregando|salvando|enviando|atualizando|processando|buscando|consultando|gerando|excluindo|removendo|concluindo|resolvendo|aprovando|rejeitando|convertendo|criando|cadastrando|entrando|anexando|entregando|devolvendo|registrando)\b/i;
 
 type FeedbackType = "success" | "error";
 type AdminFeedbackEvent =
@@ -139,12 +138,7 @@ export function Toast({ message, type = "success", onClose }: { message: string;
 }
 
 export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: { busy?: boolean; busyText?: string }) {
-  const activeQueries = useIsFetching({
-    predicate: query => !(query.queryKey[0] === "public-site" && query.queryKey[1] === "media"),
-  });
-  const activeMutations = useIsMutating();
   const [loaders, setLoaders] = useState<Array<{ token: string; text: string }>>([]);
-  const [legacyBusyText, setLegacyBusyText] = useState("");
   const [toast, setToast] = useState<{ message: string; type: FeedbackType } | null>(null);
 
   useEffect(() => {
@@ -168,23 +162,56 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
   useEffect(() => {
     const root = document.querySelector(".admin-crm");
     if (!root) return;
-    const detectLegacyBusy = () => {
-      const busyButton = Array.from(root.querySelectorAll("button:disabled")).find(button => BUSY_ACTION_PATTERN.test(button.textContent || ""));
-      const text = busyButton?.textContent?.trim() || "";
-      setLegacyBusyText(current => current === text ? current : text);
+
+    const syncButtonLoading = () => {
+      root.querySelectorAll("button").forEach(button => {
+        const text = button.textContent || "";
+        const hasLegacySpinner = Boolean(button.querySelector(".animate-spin"));
+        const busyButton = button.disabled && (
+          button.getAttribute("aria-busy") === "true" ||
+          BUSY_ACTION_PATTERN.test(text) ||
+          hasLegacySpinner
+        );
+        if (busyButton) button.setAttribute("data-admin-loading", "true");
+        else button.removeAttribute("data-admin-loading");
+      });
     };
-    detectLegacyBusy();
-    const observer = new MutationObserver(detectLegacyBusy);
-    observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["disabled", "aria-busy"] });
+
+    syncButtonLoading();
+    const observer = new MutationObserver(syncButtonLoading);
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["disabled", "aria-busy", "class"],
+    });
     return () => observer.disconnect();
   }, []);
 
   const activeLoader = loaders[loaders.length - 1];
-  const queryBusy = activeQueries > 0 || activeMutations > 0;
-  const showLoading = busy || queryBusy || loaders.length > 0 || Boolean(legacyBusyText);
-  const loadingText = activeLoader?.text || legacyBusyText || busyText;
   return <>
-    <LoadingOverlay show={showLoading} text={loadingText} />
+    <style>{`
+      @keyframes admin-button-loading-spin { to { transform: rotate(360deg); } }
+      .admin-crm button[data-admin-loading="true"] {
+        pointer-events: none;
+      }
+      .admin-crm button[data-admin-loading="true"]::before {
+        content: "";
+        width: 1em;
+        height: 1em;
+        flex: 0 0 auto;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 9999px;
+        animation: admin-button-loading-spin .65s linear infinite;
+      }
+      .admin-crm button[data-admin-loading="true"] > svg:first-child,
+      .admin-crm button[data-admin-loading="true"] svg.animate-spin {
+        display: none !important;
+      }
+    `}</style>
+    <LoadingOverlay show={busy || loaders.length > 0} text={activeLoader?.text || busyText} />
     {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
   </>;
 }
