@@ -116,12 +116,12 @@ begin
       continue;
     end if;
 
-    select column.udt_name
+    select column_row.udt_name
       into v_column_type
-    from information_schema.columns column
-    where column.table_schema = 'public'
-      and column.table_name = v_table_name
-      and column.column_name = 'organization_id';
+    from information_schema.columns column_row
+    where column_row.table_schema = 'public'
+      and column_row.table_name = v_table_name
+      and column_row.column_name = 'organization_id';
 
     if v_column_type is not null and v_column_type <> 'uuid' then
       raise exception 'public.%.organization_id existe com tipo %, esperado uuid.',
