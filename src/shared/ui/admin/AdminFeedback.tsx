@@ -220,8 +220,21 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
   </>;
 }
 
-export function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
-  return <AlertDialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+export function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void | Promise<unknown>; onCancel: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+
+  const confirm = () => {
+    if (confirming) return;
+    const result = onConfirm();
+    if (!result || typeof (result as PromiseLike<unknown>).then !== "function") return;
+    setConfirming(true);
+    result.then(
+      () => setConfirming(false),
+      () => setConfirming(false),
+    );
+  };
+
+  return <AlertDialog open onOpenChange={(open) => { if (!open && !confirming) onCancel(); }}>
     <AlertDialogContent className="max-w-sm rounded-2xl border-[#0d1b2e]/10 bg-white">
       <AlertDialogHeader className="flex-row items-start gap-3 text-left">
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100">
@@ -233,8 +246,8 @@ export function ConfirmDialog({ message, onConfirm, onCancel }: { message: strin
         </div>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel className="border-[#0d1b2e]/15 text-[#0d1b2e] hover:bg-[#f5f7fa]">Cancelar</AlertDialogCancel>
-        <AlertDialogAction onClick={onConfirm} className="bg-red-600 text-white hover:bg-red-700">Excluir</AlertDialogAction>
+        <AlertDialogCancel disabled={confirming} className="border-[#0d1b2e]/15 text-[#0d1b2e] hover:bg-[#f5f7fa]">Cancelar</AlertDialogCancel>
+        <AlertDialogAction disabled={confirming} aria-busy={confirming || undefined} onClick={confirm} className="inline-flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">{confirming && <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />}{confirming ? "Excluindo..." : "Excluir"}</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>;
