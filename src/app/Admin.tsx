@@ -114,7 +114,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
         <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
           <Suspense fallback={<AdminRouteLoading />}>
             <Routes>
-              <Route index element={<TabDashboard />} />
+              <Route index element={<TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
               <Route path="site" element={siteHub} />
               <Route path="site/services/*" element={<TabServices onBack={() => backToParent("services")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("services")} />} />
               <Route path="site/categories/*" element={<TabCategories onBack={() => backToParent("categories")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("categories")} />} />
