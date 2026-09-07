@@ -17,7 +17,13 @@ type AdminButtonProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "typ
   size?: AdminButtonSize;
   type?: React.ButtonHTMLAttributes<HTMLButtonElement>["type"];
   ariaLabel?: string;
+  loading?: boolean;
+  loadingText?: React.ReactNode;
 };
+
+function ButtonLoadingSpinner() {
+  return <span aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent" />;
+}
 
 export function AdminButton({
   children,
@@ -26,6 +32,9 @@ export function AdminButton({
   type = "button",
   className = "",
   ariaLabel,
+  loading = false,
+  loadingText,
+  disabled,
   ...buttonProps
 }: AdminButtonProps) {
   const variants: Record<AdminButtonVariant, string> = {
@@ -45,7 +54,11 @@ export function AdminButton({
   return <button
     {...buttonProps}
     type={type}
+    disabled={disabled || loading}
+    aria-busy={loading || buttonProps["aria-busy"] === true ? true : undefined}
     aria-label={buttonProps["aria-label"] ?? ariaLabel}
+    data-admin-loading={loading ? "true" : undefined}
+    data-admin-has-spinner={loading ? "true" : undefined}
     className={cn(
       "inline-flex min-w-0 max-w-full cursor-default items-center justify-center whitespace-nowrap rounded-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
       variants[variant],
@@ -53,7 +66,7 @@ export function AdminButton({
       className,
     )}
   >
-    {children}
+    {loading ? <><ButtonLoadingSpinner />{loadingText ?? children}</> : children}
   </button>;
 }
 
@@ -61,6 +74,7 @@ type AdminIconButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   variant?: "secondary" | "danger" | "ghost";
   ariaLabel?: string;
+  loading?: boolean;
 };
 
 export function AdminIconButton({
@@ -70,6 +84,8 @@ export function AdminIconButton({
   ariaLabel,
   title,
   className = "",
+  loading = false,
+  disabled,
   ...buttonProps
 }: AdminIconButtonProps) {
   const variants = {
@@ -81,15 +97,19 @@ export function AdminIconButton({
   return <button
     {...buttonProps}
     type={type}
+    disabled={disabled || loading}
+    aria-busy={loading || buttonProps["aria-busy"] === true ? true : undefined}
     aria-label={buttonProps["aria-label"] ?? ariaLabel}
     title={title ?? buttonProps["aria-label"] ?? ariaLabel}
+    data-admin-loading={loading ? "true" : undefined}
+    data-admin-has-spinner={loading ? "true" : undefined}
     className={cn(
       "inline-flex h-8 w-8 cursor-default items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-40",
       variants[variant],
       className,
     )}
   >
-    {children}
+    {loading ? <ButtonLoadingSpinner /> : children}
   </button>;
 }
 
@@ -297,18 +317,27 @@ export function PageHeader({ title, subtitle, eyebrow, actions }: { title: strin
   );
 }
 
-export function BtnPrimary({ children, onClick, disabled, type = "button", className = "" }: {
+export function BtnPrimary({ children, onClick, disabled, loading = false, loadingText, type = "button", className = "" }: {
   children: React.ReactNode;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   disabled?: boolean;
+  loading?: boolean;
+  loadingText?: React.ReactNode;
   type?: "button" | "submit";
   className?: string;
 }) {
-  return <AdminButton type={type} onClick={onClick} disabled={disabled} className={className}>{children}</AdminButton>;
+  return <AdminButton type={type} onClick={onClick} disabled={disabled} loading={loading} loadingText={loadingText} className={className}>{children}</AdminButton>;
 }
 
-export function BtnSecondary({ children, onClick, className = "" }: { children: React.ReactNode; onClick?: React.MouseEventHandler<HTMLButtonElement>; className?: string }) {
-  return <AdminButton variant="secondary" onClick={onClick} className={className}>{children}</AdminButton>;
+export function BtnSecondary({ children, onClick, disabled, loading = false, loadingText, className = "" }: {
+  children: React.ReactNode;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
+  disabled?: boolean;
+  loading?: boolean;
+  loadingText?: React.ReactNode;
+  className?: string;
+}) {
+  return <AdminButton variant="secondary" onClick={onClick} disabled={disabled} loading={loading} loadingText={loadingText} className={className}>{children}</AdminButton>;
 }
 
 export function InternalBackButton({ onBack, inHeader = false }: { onBack: () => void; inHeader?: boolean }) {
