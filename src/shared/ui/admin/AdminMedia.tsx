@@ -3,7 +3,7 @@ import { Package, Tag, Upload } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { supabaseErrorMessage, uploadMediaFile, type MediaBucket } from "@/shared/infrastructure/media.repository";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
-import { beginAdminLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
 export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true }: {
   bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; label?: string; canUpload?: boolean;
@@ -23,7 +23,6 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     if (!file) return;
     setPreviewUrl(URL.createObjectURL(file));
     setUploading(true);
-    const endLoading = beginAdminLoading("Enviando imagem...");
     try {
       onUpload(await uploadMediaFile(bucket, file));
       setPreviewUrl(null);
@@ -32,7 +31,6 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
       console.error("[MEDIA] image upload error:", error);
       notifyAdmin(`Erro ao enviar imagem: ${supabaseErrorMessage(error)}`, "error");
     } finally {
-      endLoading();
       setUploading(false);
       event.currentTarget.value = "";
     }
@@ -43,7 +41,7 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-2">{label}</label>
     {displayUrl && <div className="mb-3 w-36 h-28 rounded-xl overflow-hidden border border-[#0d1b2e]/15 bg-[#f5f7fa]"><img src={displayUrl} alt="" className="w-full h-full object-cover" /></div>}
     <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
-    {canUpload && <AdminButton variant="secondary" size="sm" onClick={() => inputRef.current?.click()} disabled={uploading} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Upload size={13} /> {uploading ? "Enviando..." : displayUrl ? "Trocar imagem" : "Selecionar imagem"}</AdminButton>}
+    {canUpload && <AdminButton variant="secondary" size="sm" onClick={() => inputRef.current?.click()} loading={uploading} loadingText="Enviando..." className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Upload size={13} /> {displayUrl ? "Trocar imagem" : "Selecionar imagem"}</AdminButton>}
   </div>;
 }
 
