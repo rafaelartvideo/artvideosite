@@ -68,6 +68,7 @@ export function CreateCustomerPage(props: Props) {
                   variant="secondary"
                   size="sm"
                   onClick={() => setSharedAddressOpen(value => !value)}
+                  disabled={saving}
                   className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"
                 >
                   <Link2 size={13} /> Endereço enviado pelo cliente
@@ -90,8 +91,8 @@ export function CreateCustomerPage(props: Props) {
             </Section>
           </div>
           <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
-            <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
-            {canCreate && <BtnPrimary onClick={onCreate} disabled={saving}>{saving ? "Salvando..." : "Cadastrar Cliente"}</BtnPrimary>}
+            <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+            {canCreate && <BtnPrimary onClick={onCreate} loading={saving} loadingText="Salvando...">Cadastrar Cliente</BtnPrimary>}
           </div>
         </AdminPage>
       )}
