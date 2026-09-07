@@ -87,30 +87,30 @@ export function QuickEquipmentModal({ onClose, onSaved, technicalFields, technic
     } finally { setSaving(false); }
   };
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <DialogContent showClose={false} className="max-w-md border-0 bg-transparent p-0 shadow-none">
       <DialogTitle className="sr-only">Adicionar novo equipamento</DialogTitle>
       <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-md rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10 overflow-hidden">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 px-4 py-3 select-none">
           <div><h3 className="text-sm font-bold text-[#0d1b2e]">Adicionar novo equipamento</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre a hierarquia completa</p></div>
-          <AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost"><X size={16} /></AdminIconButton>
+          <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost"><X size={16} /></AdminIconButton>
         </div>
         <div className="p-4 space-y-3">
-          <FInput label="Tipo de equipamento" required autoFocus value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Ex: Televisão" />
-          <FInput label="Marca" required value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder="Ex: Samsung" />
-          <FInput label="Modelo" required value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder="Ex: UN55CU7700" />
+          <FInput label="Tipo de equipamento" required autoFocus disabled={saving} value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Ex: Televisão" />
+          <FInput label="Marca" required disabled={saving} value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder="Ex: Samsung" />
+          <FInput label="Modelo" required disabled={saving} value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder="Ex: UN55CU7700" />
           {technicalFields.filter(field => field.is_active !== false).length > 0 && <div className="rounded-lg border border-[#0d1b2e]/10 p-3">
             <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#5a6a82]">Campos do equipamento</p>
             <div className="space-y-2">
               {technicalFields.filter(field => field.is_active !== false).map(field => <label key={field.id} className="flex items-center gap-2 text-sm font-medium text-[#0d1b2e]">
-                <Checkbox checked={selectedFieldIds.includes(field.id)} onCheckedChange={checked => setSelectedFieldIds(current => checked === true ? [...current, field.id] : current.filter(id => id !== field.id))} />
+                <Checkbox disabled={saving} checked={selectedFieldIds.includes(field.id)} onCheckedChange={checked => setSelectedFieldIds(current => checked === true ? [...current, field.id] : current.filter(id => id !== field.id))} />
                 {field.label}
               </label>)}
             </div>
           </div>}
           {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("equipment.create") && <BtnPrimary onClick={save} disabled={saving || !typeName.trim() || !brandName.trim() || !modelName.trim()}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
+        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>{hasPermission("equipment.create") && <BtnPrimary onClick={save} disabled={!typeName.trim() || !brandName.trim() || !modelName.trim()} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div>
       </div>
       </DialogContent>
     </Dialog>
@@ -140,28 +140,31 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
     }
     setSaving(true);
     setErrorMessage("");
-    const { data, error } = await createServiceType({ title: form.title.trim(), description: form.description.trim() || null, forecast_days: form.forecast_days ? Number(form.forecast_days) : null, is_active: form.is_active, sort_order: 0 });
-    if (error || !data) setErrorMessage(error?.message || "Tipo de atendimento não foi cadastrado.");
-    else { onSaved(data); onClose(); }
-    setSaving(false);
+    try {
+      const { data, error } = await createServiceType({ title: form.title.trim(), description: form.description.trim() || null, forecast_days: form.forecast_days ? Number(form.forecast_days) : null, is_active: form.is_active, sort_order: 0 });
+      if (error || !data) setErrorMessage(error?.message || "Tipo de atendimento não foi cadastrado.");
+      else { onSaved(data); onClose(); }
+    } finally {
+      setSaving(false);
+    }
   };
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <DialogContent showClose={false} className="max-w-sm border-0 bg-transparent p-0 shadow-none">
       <DialogTitle className="sr-only">Novo tipo de atendimento</DialogTitle>
       <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10 overflow-hidden">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 px-4 py-3 select-none">
           <div><h3 className="text-sm font-bold text-[#0d1b2e]">Novo tipo de atendimento</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre sem sair da OS</p></div>
-          <AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost"><X size={16} /></AdminIconButton>
+          <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost"><X size={16} /></AdminIconButton>
         </div>
         <div className="p-4 space-y-3">
-          <FInput label="Título" required autoFocus value={form.title} onChange={(event: any) => setForm({ ...form, title: event.target.value })} />
-          <FTextarea label="Descrição" value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} rows={3} />
-          <FIntegerInput label="Previsão em dias" value={form.forecast_days} onChange={(event: any) => setForm({ ...form, forecast_days: event.target.value })} />
-          <FToggle label="Tipo ativo" checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
+          <FInput label="Título" required autoFocus disabled={saving} value={form.title} onChange={(event: any) => setForm({ ...form, title: event.target.value })} />
+          <FTextarea label="Descrição" disabled={saving} value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} rows={3} />
+          <FIntegerInput label="Previsão em dias" disabled={saving} value={form.forecast_days} onChange={(event: any) => setForm({ ...form, forecast_days: event.target.value })} />
+          <FToggle label="Tipo ativo" disabled={saving} checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
           {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{hasPermission("service_types.create") && <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>}</div>
+        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>{hasPermission("service_types.create") && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div>
       </div>
       </DialogContent>
     </Dialog>
