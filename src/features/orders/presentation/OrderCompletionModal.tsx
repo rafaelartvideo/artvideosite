@@ -32,7 +32,7 @@ export function OrderCompletionModal({
         <Section title="Desconto"><FDecimalInput label="Desconto (%)" value={completion.discount} decimalPlaces={2} onChange={(event: any) => completion.setDiscount(event.target.value)} hint={`Máximo permitido: ${formatNumber(completion.maxDiscount, { maximumFractionDigits: 2 })}%`} error={completion.discountPercentage > completion.maxDiscount ? "O desconto ultrapassa o máximo permitido." : undefined} /></Section>
         <div className="space-y-2 rounded-xl border border-[#0057e7]/20 bg-[#f0f6ff] p-4"><div className="flex justify-between text-sm text-[#5a6a82]"><span>Desconto</span><span>- {formatCurrency(completion.discountAmount)}</span></div><div className="flex justify-between border-t border-[#0057e7]/15 pt-3"><strong>Valor final</strong><strong className="text-xl text-[#0057e7]">{formatCurrency(completion.finalTotal)}</strong></div></div>
       </div>
-      <div className="flex justify-end gap-3 border-t border-[#0d1b2e]/8 px-5 py-4"><BtnSecondary onClick={() => completion.setOpen(false)}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void completion.submit()} disabled={saving || completion.discountPercentage > completion.maxDiscount}>{saving ? "Concluindo..." : "Confirmar conclusão"}</BtnPrimary></div>
+      <div className="flex justify-end gap-3 border-t border-[#0d1b2e]/8 px-5 py-4"><BtnSecondary onClick={() => completion.setOpen(false)} disabled={saving}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void completion.submit()} disabled={completion.discountPercentage > completion.maxDiscount} loading={saving} loadingText="Concluindo...">Confirmar conclusão</BtnPrimary></div>
     </div>
   </div>;
 }
