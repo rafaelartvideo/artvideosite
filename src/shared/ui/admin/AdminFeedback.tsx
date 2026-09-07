@@ -88,9 +88,9 @@ export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?:
     aria-live="polite"
     aria-busy="true"
   >
-    <div className="flex min-w-[190px] flex-col items-center gap-3 rounded-2xl border border-white/60 bg-white/95 px-6 py-5 text-center shadow-[0_20px_60px_rgba(13,27,46,0.24)]">
+    <div className="flex min-w-[190px] flex-col items-center gap-3 px-6 py-5 text-center">
       <LoadingSpinner size="lg" />
-      <p className="text-sm font-semibold text-[#26364d]">{text}</p>
+      <p className="text-sm font-semibold text-white drop-shadow-sm">{text}</p>
     </div>
   </div>;
 }
