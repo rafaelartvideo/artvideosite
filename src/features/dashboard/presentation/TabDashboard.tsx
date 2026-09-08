@@ -332,9 +332,6 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
           <select id="dashboard-period" value={periodDays} onChange={event => setPeriodDays(Number(event.target.value))} className="h-9 cursor-default rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-xs font-black text-[#0d1b2e] outline-none focus:border-[#0057e7]">
             {periodOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <AdminButton variant="secondary" size="sm" onClick={() => dashboardQuery.refetch()} loading={dashboardQuery.isFetching} loadingText="Atualizando">
-            <RefreshCw size={14} /> <span className="hidden sm:inline">Atualizar</span>
-          </AdminButton>
         </div>
       } />
 
