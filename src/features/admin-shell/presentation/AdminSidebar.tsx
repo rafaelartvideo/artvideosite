@@ -34,8 +34,10 @@ export function AdminSidebar({
   onSignOut,
   onBackToSite,
 }: AdminSidebarProps) {
-  const canAccessTab = (tab: AdminTab) =>
-    hasPermission(`${tab}.view`) && isAdminModuleEnabled(tab, hasModule);
+  const canAccessTab = (tab: AdminTab) => {
+    const permission = tab === "partnerCompanies" ? "organizations.view" : `${tab}.view`;
+    return hasPermission(permission) && isAdminModuleEnabled(tab, hasModule);
+  };
   const selectedTab = parentAdminTab(activeTab) || activeTab;
   const canAccessSite = hasPermission("site.view") && siteItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
