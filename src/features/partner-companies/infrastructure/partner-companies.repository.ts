@@ -38,7 +38,10 @@ export type PartnerUserInput = {
   user_id?: string;
 };
 
+// `manage` permanece somente para leitura de registros legados já existentes.
+// Novas configurações de compartilhamento da ArtVideo são estritamente de consulta.
 export type PartnerShareAccessLevel = "none" | "summary" | "read" | "manage";
+export type PartnerShareConfigLevel = Exclude<PartnerShareAccessLevel, "manage">;
 
 const COMPANY_SELECT = "id,name,legal_name,document,slug,status,settings,created_at,updated_at";
 
@@ -165,7 +168,7 @@ export function listPartnerShares(organizationId?: string | null) {
 export function setPartnerDataShare(
   organizationId: string,
   resourceKey: "customers" | "orders" | "inventory",
-  accessLevel: PartnerShareAccessLevel,
+  accessLevel: PartnerShareConfigLevel,
 ) {
   return supabase.rpc("set_partner_data_share", {
     p_owner_organization_id: organizationId,
