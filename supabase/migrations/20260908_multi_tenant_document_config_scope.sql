@@ -2,11 +2,17 @@
 -- Escopo: modelos de impressão, seções/campos dos modelos e tipos de anexo.
 -- Configurações administrativas são editáveis somente pela empresa proprietária.
 -- Leitura cruzada continua condicionada ao compartilhamento explícito de OS.
+--
+-- A migration é dividida em transações curtas para evitar deadlocks entre
+-- tabelas de configuração enquanto o app/Supabase mantém leituras ativas.
 
+-- ---------------------------------------------------------------------------
+-- 1/6: helpers. Nenhuma policy de tabela é alterada neste bloco.
+-- ---------------------------------------------------------------------------
 begin;
 
 select pg_advisory_xact_lock(
-  hashtextextended('artvideo:multi_tenant_document_config_scope', 0)
+  hashtextextended('artvideo:multi_tenant_document_config_scope:functions', 0)
 );
 
 create or replace function private.can_read_document_config(
@@ -70,59 +76,77 @@ $$;
 
 revoke all on function private.ensure_print_template_section_organization() from public;
 
-alter table public.print_templates enable row level security;
-alter table public.print_template_sections enable row level security;
-alter table public.print_template_fields enable row level security;
-alter table public.attachment_types enable row level security;
+create or replace function private.guard_print_template_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.organization_id is distinct from old.organization_id then
+    raise exception 'A empresa do modelo de impressão não pode ser alterada.'
+      using errcode = '42501';
+  end if;
 
--- organization_id é imutável nos registros raiz de configuração.
+  if private.can_manage_own_operation_config(
+    old.organization_id,
+    'documents',
+    'documents.edit'
+  ) then
+    return new;
+  end if;
+
+  if not private.can_manage_own_operation_config(
+    old.organization_id,
+    'documents',
+    'documents.toggle_active'
+  ) then
+    raise exception 'Você não possui permissão para alterar este documento.'
+      using errcode = '42501';
+  end if;
+
+  if (to_jsonb(new) - 'is_active' - 'updated_at')
+     is distinct from
+     (to_jsonb(old) - 'is_active' - 'updated_at') then
+    raise exception 'Esta permissão permite somente ativar ou desativar o documento.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.guard_print_template_update() from public;
+
+comment on function private.can_read_document_config(uuid, text) is
+  'Valida módulo Documentos, empresa, compartilhamento explícito de OS e permissão efetiva antes de ler configurações documentais.';
+
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 2/6: somente print_templates.
+-- ---------------------------------------------------------------------------
+begin;
+
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:multi_tenant_document_config_scope:templates', 0)
+);
+
+alter table public.print_templates enable row level security;
+
 drop trigger if exists print_templates_prevent_organization_change on public.print_templates;
 create trigger print_templates_prevent_organization_change
 before update of organization_id on public.print_templates
 for each row execute function private.prevent_organization_id_change();
 
-drop trigger if exists attachment_types_prevent_organization_change on public.attachment_types;
-create trigger attachment_types_prevent_organization_change
-before update of organization_id on public.attachment_types
-for each row execute function private.prevent_organization_id_change();
+-- Policies legadas e eventuais policies desta migration em execução parcial.
+drop policy if exists print_templates_select on public.print_templates;
+drop policy if exists print_templates_insert on public.print_templates;
+drop policy if exists print_templates_update on public.print_templates;
+drop policy if exists print_templates_tenant_select on public.print_templates;
+drop policy if exists print_templates_tenant_insert on public.print_templates;
+drop policy if exists print_templates_tenant_update on public.print_templates;
 
-drop trigger if exists print_template_sections_validate_organization on public.print_template_sections;
-create trigger print_template_sections_validate_organization
-before insert or update of template_id, organization_id on public.print_template_sections
-for each row execute function private.ensure_print_template_section_organization();
-
--- Tipos de anexo podem ter o mesmo nome em empresas diferentes.
-drop index if exists public.attachment_types_name_unique;
-create unique index if not exists attachment_types_organization_name_unique
-  on public.attachment_types (organization_id, lower(btrim(name)));
-
--- Remove policies legadas authenticated destas configurações.
-do $$
-declare
-  v_policy record;
-begin
-  for v_policy in
-    select schemaname, tablename, policyname
-    from pg_policies
-    where schemaname = 'public'
-      and tablename in (
-        'print_templates',
-        'print_template_sections',
-        'print_template_fields',
-        'attachment_types'
-      )
-      and 'authenticated' = any (roles)
-  loop
-    execute format(
-      'drop policy if exists %I on public.%I',
-      v_policy.policyname,
-      v_policy.tablename
-    );
-  end loop;
-end
-$$;
-
--- Modelos de impressão.
 create policy print_templates_tenant_select on public.print_templates
 for select to authenticated using (
   private.can_read_document_config(organization_id, 'documents.view')
@@ -163,7 +187,33 @@ for update to authenticated using (
   )
 );
 
--- Seções herdam obrigatoriamente a empresa do modelo.
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 3/6: somente print_template_sections.
+-- ---------------------------------------------------------------------------
+begin;
+
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:multi_tenant_document_config_scope:sections', 0)
+);
+
+alter table public.print_template_sections enable row level security;
+
+drop trigger if exists print_template_sections_validate_organization on public.print_template_sections;
+create trigger print_template_sections_validate_organization
+before insert or update of template_id, organization_id on public.print_template_sections
+for each row execute function private.ensure_print_template_section_organization();
+
+drop policy if exists print_template_sections_select on public.print_template_sections;
+drop policy if exists print_template_sections_insert on public.print_template_sections;
+drop policy if exists print_template_sections_update on public.print_template_sections;
+drop policy if exists print_template_sections_delete on public.print_template_sections;
+drop policy if exists print_template_sections_tenant_select on public.print_template_sections;
+drop policy if exists print_template_sections_tenant_insert on public.print_template_sections;
+drop policy if exists print_template_sections_tenant_update on public.print_template_sections;
+drop policy if exists print_template_sections_tenant_delete on public.print_template_sections;
+
 create policy print_template_sections_tenant_select on public.print_template_sections
 for select to authenticated using (
   private.can_read_document_config(organization_id, 'documents.view')
@@ -203,7 +253,28 @@ for delete to authenticated using (
   )
 );
 
--- Campos herdam o tenant pela seção pai; não duplicamos organization_id aqui.
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 4/6: somente print_template_fields. O tenant é herdado pela seção pai.
+-- ---------------------------------------------------------------------------
+begin;
+
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:multi_tenant_document_config_scope:fields', 0)
+);
+
+alter table public.print_template_fields enable row level security;
+
+drop policy if exists print_template_fields_select on public.print_template_fields;
+drop policy if exists print_template_fields_insert on public.print_template_fields;
+drop policy if exists print_template_fields_update on public.print_template_fields;
+drop policy if exists print_template_fields_delete on public.print_template_fields;
+drop policy if exists print_template_fields_tenant_select on public.print_template_fields;
+drop policy if exists print_template_fields_tenant_insert on public.print_template_fields;
+drop policy if exists print_template_fields_tenant_update on public.print_template_fields;
+drop policy if exists print_template_fields_tenant_delete on public.print_template_fields;
+
 create policy print_template_fields_tenant_select on public.print_template_fields
 for select to authenticated using (
   exists (
@@ -270,7 +341,38 @@ for delete to authenticated using (
   )
 );
 
--- Tipos de anexo.
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 5/6: somente attachment_types.
+-- ---------------------------------------------------------------------------
+begin;
+
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:multi_tenant_document_config_scope:attachment_types', 0)
+);
+
+alter table public.attachment_types enable row level security;
+
+drop trigger if exists attachment_types_prevent_organization_change on public.attachment_types;
+create trigger attachment_types_prevent_organization_change
+before update of organization_id on public.attachment_types
+for each row execute function private.prevent_organization_id_change();
+
+-- Tipos de anexo podem ter o mesmo nome em empresas diferentes.
+drop index if exists public.attachment_types_name_unique;
+create unique index if not exists attachment_types_organization_name_unique
+  on public.attachment_types (organization_id, lower(btrim(name)));
+
+drop policy if exists attachment_types_select on public.attachment_types;
+drop policy if exists attachment_types_insert on public.attachment_types;
+drop policy if exists attachment_types_update on public.attachment_types;
+drop policy if exists attachment_types_delete on public.attachment_types;
+drop policy if exists attachment_types_tenant_select on public.attachment_types;
+drop policy if exists attachment_types_tenant_insert on public.attachment_types;
+drop policy if exists attachment_types_tenant_update on public.attachment_types;
+drop policy if exists attachment_types_tenant_delete on public.attachment_types;
+
 create policy attachment_types_tenant_select on public.attachment_types
 for select to authenticated using (
   (
@@ -333,48 +435,17 @@ for delete to authenticated using (
   )
 );
 
--- Mantém a regra de toggle-only, agora respeitando a empresa do template.
-create or replace function private.guard_print_template_update()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if new.organization_id is distinct from old.organization_id then
-    raise exception 'A empresa do modelo de impressão não pode ser alterada.'
-      using errcode = '42501';
-  end if;
+commit;
 
-  if private.can_manage_own_operation_config(
-    old.organization_id,
-    'documents',
-    'documents.edit'
-  ) then
-    return new;
-  end if;
+-- ---------------------------------------------------------------------------
+-- 6/6: RPCs de anexação. Não altera policies das tabelas de configuração.
+-- ---------------------------------------------------------------------------
+begin;
 
-  if not private.can_manage_own_operation_config(
-    old.organization_id,
-    'documents',
-    'documents.toggle_active'
-  ) then
-    raise exception 'Você não possui permissão para alterar este documento.'
-      using errcode = '42501';
-  end if;
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:multi_tenant_document_config_scope:rpcs', 0)
+);
 
-  if (to_jsonb(new) - 'is_active' - 'updated_at')
-     is distinct from
-     (to_jsonb(old) - 'is_active' - 'updated_at') then
-    raise exception 'Esta permissão permite somente ativar ou desativar o documento.'
-      using errcode = '42501';
-  end if;
-
-  return new;
-end;
-$$;
-
--- Garante que um tipo de anexo usado numa OS pertença à mesma empresa da OS.
 create or replace function public.attach_service_order_attachment(
   p_service_order_id uuid,
   p_media_id uuid,
@@ -526,8 +597,5 @@ $$;
 
 revoke all on function public.attach_service_order_situation_media(uuid, uuid, uuid, uuid) from public;
 grant execute on function public.attach_service_order_situation_media(uuid, uuid, uuid, uuid) to authenticated;
-
-comment on function private.can_read_document_config(uuid, text) is
-  'Valida módulo Documentos, empresa, compartilhamento explícito de OS e permissão efetiva antes de ler configurações documentais.';
 
 commit;
