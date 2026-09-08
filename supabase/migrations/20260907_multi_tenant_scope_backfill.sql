@@ -130,20 +130,31 @@ begin
     end if;
 
     execute format(
-      'alter table public.%I add column if not exists organization_id uuid',
-      v_table_name
+      'alter table public.%I add column if not exists organization_id uuid default %L::uuid',
+      v_table_name,
+      v_root_organization_id::text
     );
-
-    execute format(
-      'update public.%I set organization_id = $1 where organization_id is null',
-      v_table_name
-    ) using v_root_organization_id;
 
     execute format(
       'alter table public.%I alter column organization_id set default %L::uuid',
       v_table_name,
       v_root_organization_id::text
     );
+
+    -- O gatilho de proteção das OS solucionadas permite backfills internos
+    -- somente quando este contexto transacional está ativo.
+    if v_table_name = 'service_orders' then
+      perform set_config('app.resolve_service_order', 'true', true);
+    end if;
+
+    execute format(
+      'update public.%I set organization_id = $1 where organization_id is null',
+      v_table_name
+    ) using v_root_organization_id;
+
+    if v_table_name = 'service_orders' then
+      perform set_config('app.resolve_service_order', 'false', true);
+    end if;
 
     execute format(
       'alter table public.%I alter column organization_id set not null',
