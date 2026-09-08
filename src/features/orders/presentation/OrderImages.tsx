@@ -24,20 +24,47 @@ export function OrderImageThumb({ image, onRemove, onView }: { image: OrderImage
   );
 }
 
-export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = true, embedded = false }: { images: OrderImage[]; onAdd: (files: FileList | null) => void; onRemove: (key: string) => void; onView?: (image: OrderImage) => void; canEdit?: boolean; embedded?: boolean }) {
+type OrderImagesFieldProps = {
+  images: OrderImage[];
+  onAdd: (files: FileList | null) => void;
+  onRemove: (key: string) => void;
+  onView?: (image: OrderImage) => void;
+  canEdit?: boolean;
+  canAdd?: boolean;
+  canRemove?: boolean | ((image: OrderImage) => boolean);
+  embedded?: boolean;
+  totalCount?: number;
+  maxImages?: number;
+};
+
+export function OrderImagesField({
+  images,
+  onAdd,
+  onRemove,
+  onView,
+  canEdit = true,
+  canAdd,
+  canRemove,
+  embedded = false,
+  totalCount,
+  maxImages = 5,
+}: OrderImagesFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const allowAdd = canAdd ?? canEdit;
+  const count = totalCount ?? images.length;
+  const canRemoveImage = (image: OrderImage) => typeof canRemove === "function" ? canRemove(image) : (canRemove ?? canEdit);
 
   const content = (
     <>
       <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
-        <p className="min-w-0 text-xs text-[#5a6a82]">{images.length}/5 imagens</p>
-        {canEdit && (
+        <p className="min-w-0 text-xs text-[#5a6a82]">{count}/{maxImages} imagens</p>
+        {allowAdd && (
           <div className="flex shrink-0 items-center gap-2">
             <AdminButton
               variant="secondary"
               size="sm"
-              disabled={images.length >= 5}
+              disabled={count >= maxImages}
               onClick={() => inputRef.current?.click()}
               aria-label="Adicionar imagens"
               title="Adicionar imagens"
@@ -49,7 +76,7 @@ export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = tr
             <AdminButton
               variant="secondary"
               size="sm"
-              disabled={images.length >= 5}
+              disabled={count >= maxImages}
               onClick={() => cameraInputRef.current?.click()}
               aria-label="Abrir câmera"
               title="Abrir câmera"
@@ -63,7 +90,7 @@ export function OrderImagesField({ images, onAdd, onRemove, onView, canEdit = tr
       </div>
       <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple className="hidden" onChange={event => { onAdd(event.target.files); event.currentTarget.value = ""; }} />
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { onAdd(event.target.files); event.currentTarget.value = ""; }} />
-      {images.length > 0 && <div className="flex flex-wrap gap-3">{images.map(image => <OrderImageThumb key={image.key} image={image} onRemove={canEdit ? () => onRemove(image.key) : undefined} onView={() => onView?.(image)} />)}</div>}
+      {images.length > 0 && <div className="flex flex-wrap gap-3">{images.map(image => <OrderImageThumb key={image.key} image={image} onRemove={canRemoveImage(image) ? () => onRemove(image.key) : undefined} onView={() => onView?.(image)} />)}</div>}
     </>
   );
 
