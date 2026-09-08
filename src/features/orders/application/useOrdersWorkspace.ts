@@ -50,14 +50,21 @@ async function fetchOrdersWorkspace(organizationId: string): Promise<OrdersWorks
   };
 }
 
-export function useOrdersWorkspace({ showToast }: { showToast: (toast: ToastMessage) => void }) {
+export function useOrdersWorkspace({
+  showToast,
+  organizationIdOverride,
+}: {
+  showToast: (toast: ToastMessage) => void;
+  organizationIdOverride?: string | null;
+}) {
   const { activeOrganizationId } = useAuth();
+  const organizationId = organizationIdOverride || activeOrganizationId;
   const queryClient = useQueryClient();
-  const workspaceKey = [...queryKeys.orders.workspace(), activeOrganizationId || "none"] as const;
+  const workspaceKey = [...queryKeys.orders.workspace(), organizationId || "none"] as const;
   const workspaceQuery = useQuery({
     queryKey: workspaceKey,
-    enabled: Boolean(activeOrganizationId),
-    queryFn: () => fetchOrdersWorkspace(activeOrganizationId!),
+    enabled: Boolean(organizationId),
+    queryFn: () => fetchOrdersWorkspace(organizationId!),
   });
   const workspace = workspaceQuery.data ?? EMPTY_WORKSPACE;
 
@@ -68,12 +75,12 @@ export function useOrdersWorkspace({ showToast }: { showToast: (toast: ToastMess
   }, [showToast, workspaceQuery.error]);
 
   const setCollection = useCallback((key: "orders" | "equipmentTypes" | "equipmentBrands" | "equipmentModels", next: SetStateAction<any[]>) => {
-    queryClient.setQueryData<OrdersWorkspace>([...queryKeys.orders.workspace(), activeOrganizationId || "none"], current => {
+    queryClient.setQueryData<OrdersWorkspace>([...queryKeys.orders.workspace(), organizationId || "none"], current => {
       if (!current) return current;
       const value = typeof next === "function" ? next(current[key]) : next;
       return { ...current, [key]: value };
     });
-  }, [queryClient, activeOrganizationId]);
+  }, [queryClient, organizationId]);
 
   const setOrders: Dispatch<SetStateAction<any[]>> = useCallback(next => setCollection("orders", next), [setCollection]);
   const setEquipmentTypes: Dispatch<SetStateAction<any[]>> = useCallback(next => setCollection("equipmentTypes", next), [setCollection]);
@@ -90,5 +97,5 @@ export function useOrdersWorkspace({ showToast }: { showToast: (toast: ToastMess
     ]);
   }, [queryClient]);
 
-  return { ...workspace, setOrders, setEquipmentTypes, setEquipmentBrands, setEquipmentModels, loading: Boolean(activeOrganizationId) && workspaceQuery.isPending, reloadWorkspace };
+  return { ...workspace, organizationId, setOrders, setEquipmentTypes, setEquipmentBrands, setEquipmentModels, loading: Boolean(organizationId) && workspaceQuery.isPending, reloadWorkspace };
 }
