@@ -9,7 +9,7 @@ import {
   listServiceOrderUsedItems,
   listServiceOrderTechnicalValues,
 } from "../infrastructure/orders.repository";
-import type { OrderImage } from "../domain/order-image";
+import { orderImageKindFromSortOrder, type OrderImage } from "../domain/order-image";
 
 export function useOrderDetails({
   loadPartRequests,
@@ -63,6 +63,7 @@ export function useOrderDetails({
           key: item.id,
           mediaId: item.media_id,
           name: item.media?.file_name || "Imagem da OS",
+          kind: orderImageKindFromSortOrder(item.sort_order),
         }));
       const solutionImages = (mediaLinks || [])
         .filter((item: any) => Number(item.sort_order ?? 0) >= 1000)
@@ -70,6 +71,7 @@ export function useOrderDetails({
           key: item.id,
           mediaId: item.media_id,
           name: item.media?.file_name || "Imagem da solução",
+          kind: "solution" as const,
         }));
 
       return { currentOrder, history, usedItems, technicalValues: technicalValues || [], orderImages, solutionImages };
