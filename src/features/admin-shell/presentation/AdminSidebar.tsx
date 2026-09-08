@@ -1,7 +1,7 @@
 import { ArrowLeft, Building2, ChevronsUpDown, Globe, LogOut, Settings, Users } from "lucide-react";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
-import { mainItems, utilityItems } from "../navigation-config";
+import { isAdminModuleEnabled, mainItems, operationItems, siteItems, utilityItems } from "../navigation-config";
 import { parentAdminTab } from "../admin-routes";
 import { SidebarItem } from "./AdminNavigation";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
@@ -14,21 +14,12 @@ type AdminSidebarProps = {
   organizations: OrganizationAccess[];
   activeOrganizationId: string | null;
   hasPermission: (permission: string) => boolean;
+  hasModule: (moduleKey: string) => boolean;
   onNavigate: (tab: AdminTab) => void;
   onOrganizationChange: (organizationId: string) => void | Promise<void>;
   onSignOut: () => void | Promise<void>;
   onBackToSite: () => void;
 };
-
-const operationPermissions = [
-  "orders.view",
-  "customers.view",
-  "employees.view",
-  "equipment.view",
-  "service_types.view",
-  "services.view",
-  "general_services.view",
-];
 
 export function AdminSidebar({
   activeTab,
@@ -37,13 +28,21 @@ export function AdminSidebar({
   organizations,
   activeOrganizationId,
   hasPermission,
+  hasModule,
   onNavigate,
   onOrganizationChange,
   onSignOut,
   onBackToSite,
 }: AdminSidebarProps) {
-  const canAccessTab = (tab: string) => hasPermission(`${tab}.view`);
+  const canAccessTab = (tab: AdminTab) =>
+    hasPermission(`${tab}.view`) && isAdminModuleEnabled(tab, hasModule);
   const selectedTab = parentAdminTab(activeTab) || activeTab;
+  const canAccessSite = hasPermission("site.view") && siteItems.some(item =>
+    hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
+  );
+  const canAccessOperation = operationItems.some(item =>
+    hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
+  );
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -105,7 +104,7 @@ export function AdminSidebar({
       </div>
 
       <nav className="px-3 py-4 space-y-0.5">
-        {mainItems.filter((item) => canAccessTab(item.id)).map((item) => {
+        {mainItems.filter((item) => canAccessTab(item.id as AdminTab)).map((item) => {
           const Icon = item.icon;
           const active = selectedTab === item.id;
 
@@ -127,7 +126,7 @@ export function AdminSidebar({
           );
         })}
 
-        {hasPermission("site.view") && (
+        {canAccessSite && (
           <SidebarItem
             item={{ id: "site", label: "Site", icon: Globe }}
             active={selectedTab === "site"}
@@ -135,7 +134,7 @@ export function AdminSidebar({
           />
         )}
 
-        {operationPermissions.some(hasPermission) && (
+        {canAccessOperation && (
           <SidebarItem
             item={{ id: "operation", label: "Operação", icon: Settings }}
             active={selectedTab === "operation"}
@@ -144,7 +143,7 @@ export function AdminSidebar({
         )}
 
         <div className="pt-3 space-y-0.5">
-          {utilityItems.filter((item) => canAccessTab(item.id)).map((item) => (
+          {utilityItems.filter((item) => canAccessTab(item.id as AdminTab)).map((item) => (
             <SidebarItem
               key={item.id}
               item={item}

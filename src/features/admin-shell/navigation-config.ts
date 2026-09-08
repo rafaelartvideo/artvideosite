@@ -75,3 +75,61 @@ export const permissionForTab: Record<AdminTab, string> = {
   site: "site.view",
   operation: "operation.view",
 };
+
+export const moduleForTab: Record<AdminTab, string | null> = {
+  dashboard: "dashboard",
+  quotes: "quotes",
+  orders: "orders",
+  customers: "customers",
+  agenda: "agenda",
+  inventory: "inventory",
+  equipment: "equipment",
+  generalServices: "services",
+  serviceTypes: "service_types",
+  situations: "order_situations",
+  orderStatuses: "order_statuses",
+  employees: "employees",
+  documents: "documents",
+  settings: "company_settings",
+  contact: "site_settings",
+  products: "site_products",
+  categories: "site_categories",
+  brands: "site_brands",
+  services: "site_services",
+  siteSettings: "site_settings",
+  site: null,
+  operation: null,
+};
+
+export const siteModuleKeys = [
+  "site_products",
+  "site_categories",
+  "site_brands",
+  "site_services",
+  "site_settings",
+] as const;
+
+export const operationModuleKeys = [
+  "customers",
+  "orders",
+  "agenda",
+  "inventory",
+  "equipment",
+  "services",
+  "service_types",
+  "order_situations",
+  "order_statuses",
+  "documents",
+  "quotes",
+  "employees",
+] as const;
+
+export function isAdminModuleEnabled(
+  tab: AdminTab,
+  hasModule: (moduleKey: string) => boolean,
+) {
+  if (tab === "site") return siteModuleKeys.some(hasModule);
+  if (tab === "operation") return operationModuleKeys.some(hasModule);
+  const moduleKey = moduleForTab[tab];
+  return moduleKey ? hasModule(moduleKey) : true;
+}

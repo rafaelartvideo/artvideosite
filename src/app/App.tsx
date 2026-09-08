@@ -45,6 +45,45 @@ function AdminFallback() {
   );
 }
 
+function AdminAccessBlocked({
+  userEmail,
+  onRetry,
+  onSignOut,
+}: {
+  userEmail?: string;
+  onRetry: () => void | Promise<void>;
+  onSignOut: () => void | Promise<void>;
+}) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] p-4">
+      <div className="w-full max-w-md rounded-2xl border border-[#d9e1ec] bg-white p-6 text-center shadow-lg shadow-[#0d1b2e]/5 sm:p-8">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e8eef8] text-2xl font-black text-[#0057e7]">!</div>
+        <h1 className="mt-5 text-xl font-black text-[#0d1b2e]">Acesso à empresa indisponível</h1>
+        <p className="mt-2 text-sm leading-6 text-[#5a6a82]">
+          Sua conta não está vinculada a uma empresa ativa ou o acesso foi bloqueado pelo administrador.
+        </p>
+        {userEmail && <p className="mt-3 truncate rounded-lg bg-[#f5f7fa] px-3 py-2 text-xs font-semibold text-[#5a6a82]">{userEmail}</p>}
+        <div className="mt-6 grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => void onRetry()}
+            className="h-10 rounded-xl bg-[#0057e7] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0046c0]"
+          >
+            Tentar novamente
+          </button>
+          <button
+            type="button"
+            onClick={() => void onSignOut()}
+            className="h-10 rounded-xl border border-[#d9e1ec] bg-white px-4 text-sm font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"
+          >
+            Sair da conta
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo({ top: 0, behavior: "auto" }); }, [pathname]);
@@ -64,7 +103,7 @@ export default function App() {
 }
 
 function AdminEntry() {
-  const { session, loading } = useAuth();
+  const { session, loading, activeOrganization, refreshAccess, signOut } = useAuth();
   const navigate = useNavigate();
 
   if (loading) return <AdminFallback />;
@@ -73,6 +112,12 @@ function AdminEntry() {
     <Suspense fallback={<AdminFallback />}>
       {!session ? (
         <AdminLogin onLoginSuccess={() => undefined} />
+      ) : !activeOrganization ? (
+        <AdminAccessBlocked
+          userEmail={session.user.email}
+          onRetry={refreshAccess}
+          onSignOut={signOut}
+        />
       ) : (
         <AdminDashboard onBackToSite={() => navigate("/")} />
       )}
