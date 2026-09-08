@@ -16,8 +16,7 @@ import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/docum
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import { sendOrderDocumentEmail } from "@/features/documents/infrastructure/order-document-email.repository";
-import { getSiteSettings } from "@/infrastructure/supabase/site-settings.repository";
-import { getMediaById, getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
+import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
 import { useOrderPrintTemplates } from "../application/useOrderPrintTemplates";
 import { useOrderSituationVisits } from "../application/useOrderSituationVisits";
 import type { useOrderDetails } from "../application/useOrderDetails";
@@ -102,52 +101,18 @@ export function OrderDetailsPage(props: Props) {
     }
     setPrintingTemplateId(template.id);
     try {
-      const [configuredTemplate, siteSettings] = await Promise.all([
+      if (!detail?.organization_id) throw new Error("A OS não possui empresa definida.");
+      const [configuredTemplate, company] = await Promise.all([
         loadPrintTemplateEditorValue(template),
-        getSiteSettings(),
+        getCompanyPrintContext(detail.organization_id),
       ]);
-      const settingText = (...keys: string[]) => {
-        for (const key of keys) {
-          const value = siteSettings[key];
-          if (typeof value === "string" && value.trim()) return value.trim();
-          if (typeof value === "number") return String(value);
-        }
-        return "";
-      };
-      let companyLogoUrl = settingText("company_logo_url", "logo_url");
-      const companyLogoMediaId = settingText("company_logo_media_id");
-      if (companyLogoMediaId) {
-        try {
-          const media = await getMediaById(companyLogoMediaId);
-          if (media?.bucket_id && media?.storage_path) {
-            companyLogoUrl = getPublicStorageUrl(media.bucket_id, media.storage_path);
-          }
-        } catch (logoError) {
-          console.warn("[DOCUMENTS] company logo could not be loaded:", logoError);
-        }
-      }
-      const companyAddress = [
-        [settingText("company_street"), settingText("company_number")].filter(Boolean).join(", "),
-        settingText("company_complement"),
-        settingText("company_neighborhood"),
-        [settingText("company_city"), settingText("company_state")].filter(Boolean).join(" - "),
-        settingText("company_zip_code") ? "CEP " + settingText("company_zip_code") : "",
-      ].filter(Boolean).join(" · ");
       renderOrderPrintDocument(popup, configuredTemplate, {
         order: detail,
         usedItems: detailUsedItems,
         partRequests: detailPartRequests,
         history: details.detailHistory,
         printedBy: profileName,
-        company: {
-          name: settingText("company_name") || "Eletrônica Artvideo",
-          subtitle: settingText("company_legal_name") || "Assistência Técnica",
-          logoUrl: companyLogoUrl,
-          document: settingText("company_cnpj"),
-          phone: settingText("company_phone"),
-          email: settingText("company_email"),
-          address: companyAddress,
-        },
+        company,
       });
     } catch (error) {
       popup.close();
@@ -165,50 +130,18 @@ export function OrderDetailsPage(props: Props) {
     setEmailMessage(null);
     setEmailingTemplateId(template.id);
     try {
-      const [configuredTemplate, siteSettings] = await Promise.all([
+      if (!detail?.organization_id) throw new Error("A OS não possui empresa definida.");
+      const [configuredTemplate, company] = await Promise.all([
         loadPrintTemplateEditorValue(template),
-        getSiteSettings(),
+        getCompanyPrintContext(detail.organization_id),
       ]);
-      const settingText = (...keys: string[]) => {
-        for (const key of keys) {
-          const value = siteSettings[key];
-          if (typeof value === "string" && value.trim()) return value.trim();
-          if (typeof value === "number") return String(value);
-        }
-        return "";
-      };
-      let companyLogoUrl = settingText("company_logo_url", "logo_url");
-      const companyLogoMediaId = settingText("company_logo_media_id");
-      if (companyLogoMediaId) {
-        try {
-          const media = await getMediaById(companyLogoMediaId);
-          if (media?.bucket_id && media?.storage_path) companyLogoUrl = getPublicStorageUrl(media.bucket_id, media.storage_path);
-        } catch (logoError) {
-          console.warn("[DOCUMENTS] company logo could not be loaded:", logoError);
-        }
-      }
-      const companyAddress = [
-        [settingText("company_street"), settingText("company_number")].filter(Boolean).join(", "),
-        settingText("company_complement"),
-        settingText("company_neighborhood"),
-        [settingText("company_city"), settingText("company_state")].filter(Boolean).join(" - "),
-        settingText("company_zip_code") ? "CEP " + settingText("company_zip_code") : "",
-      ].filter(Boolean).join(" · ");
       const html = buildOrderPrintDocumentHtml(configuredTemplate, {
         order: detail,
         usedItems: detailUsedItems,
         partRequests: detailPartRequests,
         history: details.detailHistory,
         printedBy: profileName,
-        company: {
-          name: settingText("company_name") || "Eletrônica Artvideo",
-          subtitle: settingText("company_legal_name") || "Assistência Técnica",
-          logoUrl: companyLogoUrl,
-          document: settingText("company_cnpj"),
-          phone: settingText("company_phone"),
-          email: settingText("company_email"),
-          address: companyAddress,
-        },
+        company,
       });
       const result = await sendOrderDocumentEmail({
         orderId: detail.id,
