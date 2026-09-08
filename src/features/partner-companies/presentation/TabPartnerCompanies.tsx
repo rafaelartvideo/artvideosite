@@ -15,6 +15,7 @@ type RouteProps = {
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 };
 
+const LEGACY_AREAS = new Set(["users", "companies", "permissions"]);
 const statusLabel = (value: string) => value === "active" ? "Ativa" : value === "suspended" ? "Suspensa" : "Cancelada";
 const statusClass = (value: string) => value === "active" ? "bg-emerald-50 text-emerald-700" : value === "suspended" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600";
 
@@ -26,10 +27,11 @@ export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RoutePro
   const canCreate = hasPermission("organizations.create");
   const canEdit = hasPermission("organizations.edit");
   const canSuspend = hasPermission("organizations.suspend");
+  const normalizedResourceId = routeResourceId && LEGACY_AREAS.has(routeResourceId) ? null : routeResourceId;
 
-  const isNew = routeResourceId === "new";
-  const editingId = routeResourceId?.startsWith("edit-") ? routeResourceId.slice(5) : null;
-  const detailId = routeResourceId && !isNew && !editingId ? routeResourceId : null;
+  const isNew = normalizedResourceId === "new";
+  const editingId = normalizedResourceId?.startsWith("edit-") ? normalizedResourceId.slice(5) : null;
+  const detailId = normalizedResourceId && !isNew && !editingId ? normalizedResourceId : null;
 
   const companiesQuery = useQuery({
     queryKey: ["partner-companies", "companies"],
