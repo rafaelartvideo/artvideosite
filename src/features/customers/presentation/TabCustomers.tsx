@@ -118,7 +118,7 @@ export function TabCustomers({
     />)}
 
     {canViewDetails && <CustomerDetailsPage
-      detail={details.detail} detailQuotes={details.quotes} detailOrders={details.orders} detailLoading={details.loading}
+      detail={details.detail} detailQuotes={details.quotes} detailOrders={details.orders} detailEquipments={details.equipments} detailLoading={details.loading}
       editForm={details.form} setEditForm={details.setForm} editAddress={details.address} setEditAddress={details.setAddress}
       editingCustomerData={details.editingData} setEditingCustomerData={details.setEditingData}
       onEdit={() => canEdit && onRouteChange?.(details.detail?.id, "edit")} onCancelEdit={() => onRouteChange?.(details.detail?.id, null)}
