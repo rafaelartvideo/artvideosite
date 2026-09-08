@@ -16,11 +16,13 @@ export function useOrderFilters({
   stateOptions,
   getStateLabel,
   getEquipmentSummary,
+  matchOrderNumberOrExternal = false,
 }: {
   orders: any[];
   stateOptions: StateOption[];
   getStateLabel: (value: string) => string;
   getEquipmentSummary: (order: any) => string;
+  matchOrderNumberOrExternal?: boolean;
 }) {
   const [osNumberSearch, setOsNumberSearch] = useState("");
   const [externalOsSearch, setExternalOsSearch] = useState("");
@@ -111,6 +113,7 @@ export function useOrderFilters({
     invalidPeriod,
     getStateLabel,
     getEquipmentSummary,
+    matchOrderNumberOrExternal,
   });
   const sortedOrders = sortServiceOrders(filteredOrders, orderSort);
   const totalPages = Math.max(1, Math.ceil(sortedOrders.length / pageSize));
