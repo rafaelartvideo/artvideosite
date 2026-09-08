@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle, Edit2, Eye, EyeOff, Plus, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { addRolePermission, countRolePermissions, createRole, deleteEmployeeRecord, getEmployees, getRolePermissionIds, invokeEmployeeCommand, listActiveRoles, listEmployeeRoleIds, listPermissions, listRoles, removeRolePermission, setEmployeeActive, updateRole } from "../infrastructure/employees.repository";
+import { addRolePermission, countRolePermissions, createRole, getEmployees, getRolePermissionIds, invokeEmployeeCommand, listActiveRoles, listEmployeeRoleIds, listPermissions, listRoles, removeRolePermission, updateRole } from "../infrastructure/employees.repository";
 import { buildPermissionGroups, permissionDependencies, permissionLabel, type PermissionRecord } from "../domain/permission-taxonomy";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCpf, formatPhone, isValidBrazilianPhone, isValidCpf, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
@@ -31,7 +31,7 @@ type TeamRouteProps = {
 };
 
 function RolePermissionsPanel({ routeResourceId, routeSubpage, onRouteChange }: TeamRouteProps) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, activeOrganizationId } = useAuth();
   const canView = hasPermission("roles.view");
   const canViewTable = hasPermission("roles.table.view");
   const canViewDetails = hasPermission("roles.details.view");
@@ -46,10 +46,10 @@ function RolePermissionsPanel({ routeResourceId, routeSubpage, onRouteChange }: 
   const showActions = hasPermission("roles.table.actions");
   const queryClient = useQueryClient();
   const rolesQuery = useQuery({
-    queryKey: queryKeys.employees.roles(),
-    enabled: canView,
+    queryKey: [...queryKeys.employees.roles(), activeOrganizationId],
+    enabled: canView && Boolean(activeOrganizationId),
     queryFn: async () => {
-      const [{ data: roleData, error: roleError }, { data: permissionData, error: permissionError }, { data: employees, error: employeesError }] = await Promise.all([listRoles(), listPermissions(), listEmployeeRoleIds()]);
+      const [{ data: roleData, error: roleError }, { data: permissionData, error: permissionError }, { data: employees, error: employeesError }] = await Promise.all([listRoles(), listPermissions(), listEmployeeRoleIds(activeOrganizationId!)]);
       const error = roleError || permissionError || employeesError;
       if (error) throw error;
       const roleCounts: Record<string, number> = {};
@@ -181,7 +181,7 @@ function RoleRow({ role, permissionCount, userCount, canOpen, canEdit, showName,
 export function TabEmployees({ onBack, routeResourceId, routeSubpage, onRouteChange }: { onBack: () => void } & TeamRouteProps) {
   const initialArea = routeResourceId === "roles" || routeResourceId === "new-role" || routeSubpage === "role" ? "roles" : "users";
   const [activeArea, setActiveArea] = useState<"users" | "roles">(initialArea);
-  const { hasPermission } = useAuth();
+  const { hasPermission, activeOrganizationId } = useAuth();
   const canViewEmployees = hasPermission("employees.view");
   const canViewEmployeeTable = hasPermission("employees.table.view");
   const canViewEmployeeDetails = hasPermission("employees.details.view");
@@ -197,7 +197,7 @@ export function TabEmployees({ onBack, routeResourceId, routeSubpage, onRouteCha
   const showEmployeeStatus = hasPermission("employees.table.status");
   const showEmployeeActions = hasPermission("employees.table.actions");
   const queryClient = useQueryClient();
-  const employeesQuery = useQuery({ queryKey: queryKeys.employees.lists(), enabled: canViewEmployees, queryFn: async () => { const [{ data, error }, rolesResult] = await Promise.all([getEmployees(), listActiveRoles()]); if (error) throw error; if (rolesResult.error) throw rolesResult.error; return { employees: data || [], roles: rolesResult.data || [] }; } });
+  const employeesQuery = useQuery({ queryKey: [...queryKeys.employees.lists(), activeOrganizationId], enabled: canViewEmployees && Boolean(activeOrganizationId), queryFn: async () => { const [{ data, error }, rolesResult] = await Promise.all([getEmployees(activeOrganizationId!), listActiveRoles()]); if (error) throw error; if (rolesResult.error) throw rolesResult.error; return { employees: data || [], roles: rolesResult.data || [] }; } });
   const employees = employeesQuery.data?.employees ?? [];
   const roles = employeesQuery.data?.roles ?? [];
   const [formOpen, setFormOpen] = useState(false);
@@ -233,6 +233,7 @@ export function TabEmployees({ onBack, routeResourceId, routeSubpage, onRouteCha
 
   const getEmployeeErrorMessage = (error: unknown) => error instanceof Error ? error.message : error && typeof error === "object" && "message" in error ? String((error as any).message) : "Não foi possível atualizar o funcionário.";
   const save = async () => {
+    if (!activeOrganizationId) { setToast({ msg: "Selecione uma empresa ativa antes de salvar o funcionário.", type: "error" }); return; }
     if (!(editItem ? canEditEmployee : canCreateEmployee)) { setToast({ msg: "Você não possui permissão para salvar usuários.", type: "error" }); return; }
     if (!form.full_name.trim()) { setToast({ msg: "Informe o nome completo do funcionário.", type: "error" }); return; }
     const cpf = normalizeDigits(form.cpf);
@@ -247,18 +248,30 @@ export function TabEmployees({ onBack, routeResourceId, routeSubpage, onRouteCha
     setSaving(true);
     try {
       if (editItem) {
-        const payload: Record<string, unknown> = { action: "update_employee_user", employee_id: editItem.id, full_name: form.full_name.trim(), cpf, phone: normalizeDigits(form.phone) || null, function_name: form.function_name.trim() || null, role_id: form.role_id, is_active: form.is_active, password: form.password || undefined };
+        const payload: Record<string, unknown> = { action: "update_employee_user", organization_id: activeOrganizationId, employee_id: editItem.id, full_name: form.full_name.trim(), cpf, phone: normalizeDigits(form.phone) || null, function_name: form.function_name.trim() || null, role_id: form.role_id, is_active: form.is_active, password: form.password || undefined };
         if (normalizedEmail) payload.email = normalizedEmail;
         const { data, error } = await invokeEmployeeCommand(payload); if (error) throw error; if (data?.error) throw new Error(typeof data.error === "string" ? data.error : getEmployeeErrorMessage(data.error)); if (data?.success !== true) throw new Error("Não foi possível atualizar o funcionário.");
       } else {
-        const { data, error } = await invokeEmployeeCommand({ action: "create_employee_user", email: normalizedEmail, password: form.password, full_name: form.full_name.trim(), cpf, phone: normalizeDigits(form.phone) || null, function_name: form.function_name.trim() || "Funcionário", role_id: form.role_id });
+        const { data, error } = await invokeEmployeeCommand({ action: "create_employee_user", organization_id: activeOrganizationId, email: normalizedEmail, password: form.password, full_name: form.full_name.trim(), cpf, phone: normalizeDigits(form.phone) || null, function_name: form.function_name.trim() || "Funcionário", role_id: form.role_id });
         if (error) throw error; if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Não foi possível cadastrar o funcionário."); if (data?.success !== true) throw new Error("Não foi possível cadastrar o funcionário.");
       }
       setToast({ msg: editItem ? "Funcionário atualizado." : "Funcionário cadastrado.", type: "success" }); await refreshEmployees(); closeUserForm();
     } catch (error) { setToast({ msg: getEmployeeErrorMessage(error), type: "error" }); } finally { setSaving(false); }
   };
-  const toggleActive = async (employee: any) => { if (!canToggleEmployee) return; const currentlyActive = employee.is_active !== false; const { error } = await setEmployeeActive(employee.id, !currentlyActive); if (error) { setToast({ msg: `Erro ao atualizar funcionário: ${error.message}`, type: "error" }); return; } setToast({ msg: `Funcionário ${currentlyActive ? "desativado" : "ativado"}.`, type: "success" }); await refreshEmployees(); };
-  const deleteEmployee = async (employeeId: string) => { if (!canDeleteEmployee) return; const { error } = await deleteEmployeeRecord(employeeId); if (error) { setToast({ msg: `Não foi possível excluir o funcionário: ${error.message}`, type: "error" }); setDeleteId(null); return; } setToast({ msg: "Funcionário excluído.", type: "success" }); setDeleteId(null); await refreshEmployees(); };
+  const toggleActive = async (employee: any) => {
+    if (!canToggleEmployee || !activeOrganizationId) return;
+    const currentlyActive = employee.is_active !== false;
+    const { data, error } = await invokeEmployeeCommand({ action: "update_employee_user", organization_id: activeOrganizationId, employee_id: employee.id, full_name: employee.full_name, cpf: normalizeDigits(employee.cpf), phone: normalizeDigits(employee.phone) || null, function_name: employee.function_name || null, role_id: employee.role_id, is_active: !currentlyActive });
+    if (error || data?.error || data?.success !== true) { setToast({ msg: `Erro ao atualizar funcionário: ${error?.message || data?.error || "operação não concluída"}`, type: "error" }); return; }
+    setToast({ msg: `Funcionário ${currentlyActive ? "desativado" : "ativado"}.`, type: "success" });
+    await refreshEmployees();
+  };
+  const deleteEmployee = async (employeeId: string) => {
+    if (!canDeleteEmployee || !activeOrganizationId) return;
+    const { data, error } = await invokeEmployeeCommand({ action: "delete_employee_user", organization_id: activeOrganizationId, employee_id: employeeId });
+    if (error || data?.error || data?.success !== true) { setToast({ msg: `Não foi possível excluir o funcionário: ${error?.message || data?.error || "operação não concluída"}`, type: "error" }); setDeleteId(null); return; }
+    setToast({ msg: "Funcionário excluído e acesso revogado.", type: "success" }); setDeleteId(null); await refreshEmployees();
+  };
   const userEditorRoute = routeResourceId === "new" || (Boolean(routeResourceId) && routeSubpage === "edit");
 
   return <div className="min-w-0 space-y-5">

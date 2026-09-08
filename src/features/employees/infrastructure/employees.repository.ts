@@ -1,13 +1,10 @@
 import { supabase } from "@/lib/supabase";
 
-const employeeColumns = "id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at,role:roles(id,name)";
+const employeeColumns = "id,organization_id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at,role:roles(id,name)";
 const notifyPermissionChange = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("artvideo:permissions-changed")); };
 
-export const getEmployees = () =>
-  supabase.from("employees").select(employeeColumns).order("full_name", { ascending: true });
-
-export const setEmployeeActive = (employeeId: string, isActive: boolean) =>
-  supabase.from("employees").update({ is_active: isActive }).eq("id", employeeId).select(employeeColumns).single();
+export const getEmployees = (organizationId: string) =>
+  supabase.from("employees").select(employeeColumns).eq("organization_id", organizationId).order("full_name", { ascending: true });
 
 export const listRoles = () =>
   supabase.from("roles").select("id,name,description,is_system,is_active,sort_order").order("sort_order").order("name");
@@ -18,7 +15,7 @@ export const listActiveRoles = () =>
 export const listPermissions = () =>
   supabase.from("permissions").select("id,key,label,description,module_name,sort_order").order("sort_order").order("label");
 
-export const listEmployeeRoleIds = () => supabase.from("employees").select("role_id");
+export const listEmployeeRoleIds = (organizationId: string) => supabase.from("employees").select("role_id").eq("organization_id", organizationId);
 export const getRolePermissionIds = (roleId: string) => supabase.from("role_permissions").select("permission_id").eq("role_id", roleId);
 export const countRolePermissions = (roleId: string) => supabase.from("role_permissions").select("permission_id", { count: "exact", head: true }).eq("role_id", roleId);
 export const createRole = (role: Record<string, unknown>) => supabase.from("roles").insert(role);
@@ -37,4 +34,3 @@ export async function removeRolePermission(roleId: string, permissionId: string)
 }
 
 export const invokeEmployeeCommand = (body: Record<string, unknown>) => supabase.functions.invoke("server", { body });
-export const deleteEmployeeRecord = (employeeId: string) => supabase.from("employees").delete().eq("id", employeeId);

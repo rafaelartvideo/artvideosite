@@ -489,7 +489,9 @@ const employeeUserHandler = async (
       body.action !==
         "create_employee_user" &&
       body.action !==
-        "update_employee_user"
+        "update_employee_user" &&
+      body.action !==
+        "delete_employee_user"
     ) {
       return res(
         {
@@ -504,7 +506,144 @@ const employeeUserHandler = async (
       body.action ===
       "create_employee_user"
         ? "employees.create"
-        : "employees.edit";
+        : body.action ===
+          "delete_employee_user"
+          ? "employees.delete"
+          : "employees.edit";
+
+    const organizationId =
+      String(body.organization_id ?? "").trim();
+
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        organizationId
+      )
+    ) {
+      return res(
+        {
+          error:
+            "Empresa não informada ou inválida.",
+        },
+        400
+      );
+    }
+
+    const {
+      data: targetOrganization,
+      error: targetOrganizationError,
+    } = await adminClient
+      .from("organizations")
+      .select("id,parent_organization_id,status")
+      .eq("id", organizationId)
+      .maybeSingle();
+
+    if (
+      targetOrganizationError ||
+      !targetOrganization ||
+      targetOrganization.status !== "active"
+    ) {
+      return res(
+        {
+          error:
+            "A empresa selecionada não está disponível.",
+        },
+        403
+      );
+    }
+
+    const {
+      data: directMembership,
+      error: directMembershipError,
+    } = await adminClient
+      .from("organization_members")
+      .select("role_id")
+      .eq("organization_id", organizationId)
+      .eq("user_id", callerUserId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (directMembershipError) {
+      console.error(
+        "[SERVER] direct membership lookup error:",
+        directMembershipError
+      );
+      return res(
+        {
+          error:
+            "Não foi possível validar o acesso à empresa.",
+        },
+        403
+      );
+    }
+
+    let accessRoleId =
+      directMembership?.role_id ?? null;
+    let isParentManager = false;
+
+    if (
+      !accessRoleId &&
+      targetOrganization.parent_organization_id
+    ) {
+      const {
+        data: parentMembership,
+        error: parentMembershipError,
+      } = await adminClient
+        .from("organization_members")
+        .select("role_id")
+        .eq(
+          "organization_id",
+          targetOrganization.parent_organization_id
+        )
+        .eq("user_id", callerUserId)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (parentMembershipError) {
+        console.error(
+          "[SERVER] parent membership lookup error:",
+          parentMembershipError
+        );
+      }
+
+      accessRoleId =
+        parentMembership?.role_id ?? null;
+      isParentManager =
+        Boolean(accessRoleId);
+    }
+
+    if (!accessRoleId) {
+      return res(
+        {
+          error:
+            "Você não possui acesso à empresa selecionada.",
+        },
+        403
+      );
+    }
+
+    const {
+      data: employeesModule,
+      error: employeesModuleError,
+    } = await adminClient
+      .from("organization_modules")
+      .select("module_key")
+      .eq("organization_id", organizationId)
+      .eq("module_key", "employees")
+      .eq("is_enabled", true)
+      .maybeSingle();
+
+    if (
+      employeesModuleError ||
+      !employeesModule
+    ) {
+      return res(
+        {
+          error:
+            "O módulo de funcionários está bloqueado para esta empresa.",
+        },
+        403
+      );
+    }
 
     console.log(
       "[SERVER] required permission:",
@@ -526,7 +665,7 @@ const employeeUserHandler = async (
         )
         .eq(
           "role_id",
-          callerProfile.role_id
+          accessRoleId
         )
         .eq(
           "permissions.key",
@@ -556,16 +695,171 @@ const employeeUserHandler = async (
             body.action ===
             "create_employee_user"
               ? "Você não possui permissão para criar usuários."
-              : "Você não possui permissão para editar usuários.",
+              : body.action ===
+                "delete_employee_user"
+                ? "Você não possui permissão para excluir usuários."
+                : "Você não possui permissão para editar usuários.",
         },
         403
       );
+    }
+
+    if (isParentManager) {
+      const {
+        data: membershipPermission,
+        error: membershipPermissionError,
+      } = await adminClient
+        .from("role_permissions")
+        .select("permission_id, permissions!inner(key)")
+        .eq("role_id", accessRoleId)
+        .eq(
+          "permissions.key",
+          "organizations.members.manage"
+        )
+        .maybeSingle();
+
+      if (
+        membershipPermissionError ||
+        !membershipPermission
+      ) {
+        return res(
+          {
+            error:
+              "Você não possui permissão para gerenciar membros desta empresa.",
+          },
+          403
+        );
+      }
     }
 
     console.log(
       "[SERVER] permission granted:",
       requiredPermission
     );
+
+    if (
+      body.action ===
+      "delete_employee_user"
+    ) {
+      const employeeId =
+        String(body.employee_id ?? "").trim();
+
+      if (!employeeId) {
+        return res(
+          {
+            error:
+              "Funcionário não informado.",
+          },
+          400
+        );
+      }
+
+      const {
+        data: employeeToDelete,
+        error: employeeToDeleteError,
+      } = await adminClient
+        .from("employees")
+        .select("id,profile_id")
+        .eq("id", employeeId)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+
+      if (
+        employeeToDeleteError ||
+        !employeeToDelete
+      ) {
+        return res(
+          {
+            error:
+              "Funcionário não encontrado nesta empresa.",
+          },
+          404
+        );
+      }
+
+      if (
+        employeeToDelete.profile_id ===
+        callerUserId
+      ) {
+        return res(
+          {
+            error:
+              "Você não pode excluir o próprio acesso.",
+          },
+          400
+        );
+      }
+
+      const {
+        data: membershipToDelete,
+        error: membershipToDeleteError,
+      } = await adminClient
+        .from("organization_members")
+        .select("id,is_owner")
+        .eq("organization_id", organizationId)
+        .eq("user_id", employeeToDelete.profile_id)
+        .maybeSingle();
+
+      if (membershipToDeleteError) {
+        return res(
+          {
+            error:
+              "Não foi possível validar o vínculo do funcionário.",
+          },
+          400
+        );
+      }
+
+      if (membershipToDelete?.is_owner) {
+        return res(
+          {
+            error:
+              "O proprietário da empresa não pode ser excluído.",
+          },
+          400
+        );
+      }
+
+      const {
+        error: membershipDeleteError,
+      } = await adminClient
+        .from("organization_members")
+        .delete()
+        .eq("organization_id", organizationId)
+        .eq("user_id", employeeToDelete.profile_id);
+
+      if (membershipDeleteError) {
+        return res(
+          {
+            error:
+              "Não foi possível revogar o acesso do funcionário.",
+          },
+          400
+        );
+      }
+
+      const {
+        error: employeeDeleteError,
+      } = await adminClient
+        .from("employees")
+        .delete()
+        .eq("id", employeeId)
+        .eq("organization_id", organizationId);
+
+      if (employeeDeleteError) {
+        return res(
+          {
+            error:
+              "O acesso foi revogado, mas não foi possível remover o cadastro do funcionário.",
+          },
+          400
+        );
+      }
+
+      return res({
+        success: true,
+      });
+    }
 
     /* =====================================================
        UPDATE EMPLOYEE
@@ -641,11 +935,15 @@ const employeeUserHandler = async (
         await adminClient
           .from("employees")
           .select(
-            "id,profile_id"
+            "id,profile_id,organization_id"
           )
           .eq(
             "id",
             employee_id
+          )
+          .eq(
+            "organization_id",
+            organizationId
           )
           .maybeSingle();
 
@@ -878,6 +1176,49 @@ const employeeUserHandler = async (
         );
       }
 
+      const {
+        data: updatedMembership,
+        error: membershipUpdateError,
+      } = await adminClient
+        .from("organization_members")
+        .update({
+          role_id,
+          status:
+            is_active !== false
+              ? "active"
+              : "blocked",
+          updated_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "organization_id",
+          organizationId
+        )
+        .eq(
+          "user_id",
+          employee.profile_id
+        )
+        .select("id")
+        .maybeSingle();
+
+      if (
+        membershipUpdateError ||
+        !updatedMembership
+      ) {
+        console.error(
+          "[SERVER] organization membership update error:",
+          membershipUpdateError
+        );
+
+        return res(
+          {
+            error:
+              "Não foi possível atualizar o acesso do funcionário à empresa.",
+          },
+          400
+        );
+      }
+
       /* ---------------------------------------------------
          Atualizar employee
          --------------------------------------------------- */
@@ -919,6 +1260,10 @@ const employeeUserHandler = async (
           .eq(
             "id",
             employee_id
+          )
+          .eq(
+            "organization_id",
+            organizationId
           );
 
       if (employeeUpdateError) {
@@ -1191,6 +1536,9 @@ const employeeUserHandler = async (
       await adminClient
         .from("employees")
         .insert({
+          organization_id:
+            organizationId,
+
           profile_id:
             createdProfile.id,
 
@@ -1239,6 +1587,38 @@ const employeeUserHandler = async (
       );
     }
 
+    const {
+      error: membershipError,
+    } = await adminClient
+      .from("organization_members")
+      .insert({
+        organization_id:
+          organizationId,
+        user_id:
+          createdProfile.id,
+        role_id,
+        status:
+          "active",
+        is_owner:
+          false,
+        joined_at:
+          new Date().toISOString(),
+        created_by:
+          callerUserId,
+      });
+
+    if (membershipError) {
+      console.error(
+        "[SERVER] organization membership creation failed:",
+        membershipError
+      );
+
+      throw new Error(
+        membershipError.message ||
+          "Não foi possível vincular o funcionário à empresa."
+      );
+    }
+
     console.log(
       "[SERVER] employee created successfully:",
       {
@@ -1278,6 +1658,14 @@ const employeeUserHandler = async (
         "[SERVER] rolling back created user:",
         createdUserId
       );
+
+      await adminClient
+        .from("organization_members")
+        .delete()
+        .eq(
+          "user_id",
+          createdUserId
+        );
 
       await adminClient
         .from("employees")
