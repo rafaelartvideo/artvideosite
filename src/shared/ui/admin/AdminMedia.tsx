@@ -5,8 +5,8 @@ import { supabaseErrorMessage, uploadMediaFile, type MediaBucket } from "@/share
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
-export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true }: {
-  bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; label?: string; canUpload?: boolean;
+export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true, organizationId }: {
+  bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; label?: string; canUpload?: boolean; organizationId?: string | null;
 }) {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     setPreviewUrl(URL.createObjectURL(file));
     setUploading(true);
     try {
-      onUpload(await uploadMediaFile(bucket, file));
+      onUpload(await uploadMediaFile(bucket, file, organizationId));
       setPreviewUrl(null);
       notifyAdmin("Imagem enviada com sucesso.", "success");
     } catch (error) {
@@ -52,5 +52,5 @@ export function ProductAdminThumb({ mediaId, name }: { mediaId: string | null; n
 
 export function BrandAdminLogo({ mediaId, name }: { mediaId: string | null; name: string }) {
   const { url } = useMediaUrl(mediaId);
-  return url ? <img src={url} alt={name} className="h-12 w-auto object-contain max-w-full" /> : <div className="w-12 h-12 bg-[#f5f7fa] rounded-lg flex items-center justify-center"><Tag size={20} className="text-[#5a6a82]" /></div>;
+  return url ? <img src={url} alt={name} className="h-12 w-auto object-contain max-w-full" /> : <div className="w-12 h-12 bg-[#f5f7fa] rounded-lg flex-shrink-0 border border-[#0d1b2e]/10 flex items-center justify-center"><Tag size={20} className="text-[#5a6a82]" /></div>;
 }
