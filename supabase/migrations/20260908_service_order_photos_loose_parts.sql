@@ -1,9 +1,10 @@
 -- Complemento aditivo do fluxo de resolução e documentos da OS.
 -- 1) Persiste o texto de peças avulsas no registro da própria OS.
 -- 2) Salva peças avulsas com a permissão específica orders.solve, sem exigir orders.edit.
--- 3) Garante que fotos da solução (sort_order >= 1000) também sejam
+-- 3) Garante gravação atômica das peças avulsas junto da resolução normal.
+-- 4) Garante que fotos da solução (sort_order >= 1000) também sejam
 --    classificadas na situação atual da OS, sem depender de campos legados.
--- 4) Impede que uma foto da solução seja desvinculada isoladamente da situação.
+-- 5) Impede que uma foto da solução seja desvinculada isoladamente da situação.
 
 begin;
 
@@ -53,8 +54,8 @@ on public.service_orders
 for each row
 execute function private.guard_service_order_loose_parts_update();
 
--- RPC dedicada: SECURITY DEFINER contorna a policy genérica de edição,
--- mas exige explicitamente orders.solve na empresa proprietária da OS.
+-- RPC dedicada para fluxos que apenas precisam atualizar o texto antes de
+-- marcar a OS como não solucionável.
 create or replace function public.set_service_order_loose_parts(
   p_service_order_id uuid,
   p_loose_parts text
@@ -106,6 +107,57 @@ $$;
 
 revoke all on function public.set_service_order_loose_parts(uuid, text) from public;
 grant execute on function public.set_service_order_loose_parts(uuid, text) to authenticated;
+
+-- Wrapper atômico da resolução. Se qualquer validação do resolve_service_order
+-- falhar, o UPDATE de loose_parts é revertido na mesma transação.
+create or replace function public.resolve_service_order_with_loose_parts(
+  p_service_order_id uuid,
+  p_diagnosis text,
+  p_solution text,
+  p_used_items jsonb default '[]'::jsonb,
+  p_loose_parts text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_result jsonb;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Usuário não autenticado.' using errcode = '42501';
+  end if;
+
+  perform private.require_service_order_action(
+    p_service_order_id,
+    'orders.solve',
+    'Você não possui permissão para solucionar esta OS nesta empresa.'
+  );
+
+  update public.service_orders
+  set
+    loose_parts = nullif(trim(coalesce(p_loose_parts, '')), ''),
+    updated_at = now()
+  where id = p_service_order_id;
+
+  if not found then
+    raise exception 'OS não encontrada.' using errcode = 'P0002';
+  end if;
+
+  select public.resolve_service_order(
+    p_service_order_id,
+    p_diagnosis,
+    p_solution,
+    coalesce(p_used_items, '[]'::jsonb)
+  ) into v_result;
+
+  return v_result;
+end;
+$$;
+
+revoke all on function public.resolve_service_order_with_loose_parts(uuid, text, text, jsonb, text) from public;
+grant execute on function public.resolve_service_order_with_loose_parts(uuid, text, text, jsonb, text) to authenticated;
 
 create or replace function public.link_solution_media_to_order_situation()
 returns trigger
