@@ -6,7 +6,7 @@ import { CreateCustomerPage } from "./CreateCustomerPage";
 import { CustomerDetailsPage } from "./CustomerDetailsPage";
 import { CustomersList } from "./CustomersList";
 
-type SharedAccessMode = "default" | "read" | "manage";
+type SharedAccessMode = "default" | "read";
 
 type TabCustomersProps = {
   onOpenOrder?: (id: string, customerId?: string) => void;
@@ -26,19 +26,18 @@ export function TabCustomers({
   accessMode = "default",
 }: TabCustomersProps) {
   const { hasPermission, activeOrganizationId } = useAuth();
-  const scoped = accessMode !== "default";
-  const canManageShared = accessMode === "manage";
+  const sharedReadOnly = accessMode === "read";
   const organizationId = organizationIdOverride || activeOrganizationId;
 
   const canViewTable = hasPermission("customers.table.view");
   const canViewDetails = hasPermission("customers.details.view");
-  const canCreate = hasPermission("customers.create") && (!scoped || canManageShared);
-  const canEdit = hasPermission("customers.edit") && (!scoped || canManageShared);
+  const canCreate = !sharedReadOnly && hasPermission("customers.create");
+  const canEdit = !sharedReadOnly && hasPermission("customers.edit");
   const canViewAddress = hasPermission("customers.addresses.view");
-  const canEditAddress = hasPermission("customers.addresses.edit") && (!scoped || canManageShared);
-  const canViewQuotes = !scoped && hasPermission("quotes.view");
-  const canViewOrders = !scoped && hasPermission("orders.view");
-  const canOpenOrders = !scoped && hasPermission("orders.details.view");
+  const canEditAddress = !sharedReadOnly && hasPermission("customers.addresses.edit");
+  const canViewQuotes = !sharedReadOnly && hasPermission("quotes.view");
+  const canViewOrders = !sharedReadOnly && hasPermission("orders.view");
+  const canOpenOrders = !sharedReadOnly && hasPermission("orders.details.view");
 
   const { list, details, creation, toast, setToast } = useCustomersController({
     organizationId,
