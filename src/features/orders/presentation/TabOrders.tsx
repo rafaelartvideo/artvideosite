@@ -35,7 +35,7 @@ import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type OrderType = "internal" | "external";
-type SharedAccessMode = "default" | "read" | "manage";
+type SharedAccessMode = "default" | "read";
 
 type TabOrdersProps = {
   onNavigate?: (tab: AdminTab) => void;
@@ -47,7 +47,7 @@ type TabOrdersProps = {
   accessMode?: SharedAccessMode;
 };
 
-const MUTATION_PERMISSION_MARKERS = [
+const READ_ONLY_PERMISSION_MARKERS = [
   ".create",
   ".edit",
   ".update",
@@ -64,21 +64,15 @@ const MUTATION_PERMISSION_MARKERS = [
   ".upload",
   ".remove",
   ".attach",
+  ".print",
+  ".email",
+  ".send",
+  ".export",
 ];
 
-function isMutationPermission(permission: string) {
-  return MUTATION_PERMISSION_MARKERS.some(marker => permission.includes(marker));
-}
-
-function isUnsafeSharedOrderPermission(permission: string) {
-  if (!permission.startsWith("orders.")) return false;
-  const normalized = permission.toLowerCase();
-  return normalized.includes("part")
-    || normalized.includes("resolve")
-    || normalized.includes("complete")
-    || normalized.includes("document")
-    || normalized.includes("print")
-    || normalized.includes("email");
+function isBlockedReadOnlyPermission(permission: string) {
+  return permission.startsWith("orders.toolbar.")
+    || READ_ONLY_PERMISSION_MARKERS.some(marker => permission.includes(marker));
 }
 
 export function TabOrders({
@@ -91,13 +85,12 @@ export function TabOrders({
   accessMode = "default",
 }: TabOrdersProps) {
   const { user, profile, hasPermission } = useAuth();
-  const scoped = accessMode !== "default";
+  const scopedReadOnly = accessMode === "read";
   const effectiveHasPermission = (permission: string) => {
     if (!hasPermission(permission)) return false;
-    if (!scoped) return true;
+    if (!scopedReadOnly) return true;
     if (permission.startsWith("customers.") || permission.startsWith("equipment.")) return false;
-    if (accessMode === "read") return !isMutationPermission(permission);
-    return !isUnsafeSharedOrderPermission(permission);
+    return !isBlockedReadOnlyPermission(permission);
   };
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -292,6 +285,7 @@ export function TabOrders({
     loadPartRequests,
     replaceOrderImages,
     organizationIdOverride,
+    loadPartRequestsEnabled: !scopedReadOnly,
   });
   const {
     detail,
@@ -410,10 +404,18 @@ export function TabOrders({
       if (formOpen) closeOrderForm();
       return;
     }
-    if (initialOrderId === "new") {
-      if (detail) closeDetail();
-      if (!formOpen || editingOS) openNew();
-      return;
+    if (initialOrderId === "new" || routeSubpage === "edit") {
+      if (scopedReadOnly) {
+        if (detail) closeDetail();
+        if (formOpen) closeOrderForm();
+        onOrderRouteChange?.(null, null);
+        return;
+      }
+      if (initialOrderId === "new") {
+        if (detail) closeDetail();
+        if (!formOpen || editingOS) openNew();
+        return;
+      }
     }
     const order = orders.find(item => item.id === initialOrderId);
     if (!order) return;
@@ -423,7 +425,7 @@ export function TabOrders({
     }
     if (formOpen) closeOrderForm();
     if (detail?.id !== order.id) openDetail(order);
-  }, [initialOrderId, routeSubpage, loading, orders, detail?.id, formOpen, editingOS?.id]);
+  }, [initialOrderId, routeSubpage, loading, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly]);
 
   const openRoutedDetail = (order: any) => {
     if (onOrderRouteChange) {
@@ -530,7 +532,7 @@ export function TabOrders({
   const getSlaForOrder = (serviceTypeId?: string, situationId?: string, relatedSituation?: any) =>
     slaForOrder(serviceTypeId, situationId, relatedSituation, serviceTypeSituations, situations);
 
-  if (subView === "situations" && !scoped) return <OSSituationsView onBack={() => setSubView("list")} />;
+  if (subView === "situations" && !scopedReadOnly) return <OSSituationsView onBack={() => setSubView("list")} />;
 
   const formatCurrency = formatOrderCurrency;
   const detailUsedItemsTotal = usedItemsTotal(detailUsedItems);
@@ -584,7 +586,7 @@ export function TabOrders({
         onClose={closeRoutedPage}
       />
 
-      <OrderEditorPage
+      {!scopedReadOnly && <OrderEditorPage
         visible={formOpen}
         saving={saving}
         workspace={workspace}
@@ -599,8 +601,8 @@ export function TabOrders({
         onSelectCustomer={selectCustomer}
         onSave={saveRoutedOrder}
         onClose={closeRoutedPage}
-      />
-      <OrderWorkflowModals
+      />}
+      {!scopedReadOnly && <OrderWorkflowModals
         detail={detail}
         saving={saving}
         workspace={workspace}
@@ -612,7 +614,7 @@ export function TabOrders({
         onSelectCustomer={selectCustomer}
         setToast={setToast}
         formatCurrency={formatCurrency}
-      />
+      />}
     </div>
   );
 }
