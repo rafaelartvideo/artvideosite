@@ -83,6 +83,13 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     [modulesQuery.data],
   );
 
+  const sortedModules = useMemo(
+    () => [...(modulesQuery.data?.systemModules || [])].sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" })),
+    [modulesQuery.data?.systemModules],
+  );
+
+  const allModulesEnabled = sortedModules.length > 0 && sortedModules.every((module: any) => enabledByKey.get(module.key) === true);
+
   const shareByKey = useMemo(
     () => new Map((sharesQuery.data || []).map((item: any) => [item.resource_key, item.access_level as PartnerShareAccessLevel])),
     [sharesQuery.data],
@@ -100,6 +107,22 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     onError: (error: any) => setToast({ msg: `Não foi possível atualizar o módulo: ${error?.message || "Erro desconhecido"}`, type: "error" }),
   });
 
+  const bulkModulesMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      for (const module of sortedModules) {
+        if ((enabledByKey.get(module.key) === true) === enabled) continue;
+        const { error } = await setOrganizationModuleEnabled(organizationId, module.key, enabled, user?.id);
+        if (error) throw error;
+      }
+      return enabled;
+    },
+    onSuccess: (enabled) => {
+      void queryClient.invalidateQueries({ queryKey: ["partner-companies", "modules", organizationId] });
+      setToast({ msg: enabled ? "Todos os módulos foram marcados." : "Todos os módulos foram desmarcados.", type: "success" });
+    },
+    onError: (error: any) => setToast({ msg: `Não foi possível atualizar todos os módulos: ${error?.message || "Erro desconhecido"}`, type: "error" }),
+  });
+
   const shareMutation = useMutation({
     mutationFn: async ({ resourceKey, accessLevel }: { resourceKey: "customers" | "orders" | "inventory"; accessLevel: PartnerShareAccessLevel }) => {
       const { error } = await setPartnerDataShare(organizationId, resourceKey, accessLevel);
@@ -112,26 +135,44 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     onError: (error: any) => setToast({ msg: `Não foi possível atualizar o compartilhamento: ${error?.message || "Erro desconhecido"}`, type: "error" }),
   });
 
-  const busy = toggleMutation.isPending || shareMutation.isPending;
+  const busy = toggleMutation.isPending || bulkModulesMutation.isPending || shareMutation.isPending;
 
   return <div className="space-y-4">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <AdminCard>
       <AdminCardHeader>
-        <div>
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-black text-[#0d1b2e]">Módulos disponíveis</h3>
           <p className="mt-0.5 text-xs text-[#5a6a82]">Define quais áreas esta empresa pode utilizar.</p>
         </div>
+        {!modulesQuery.isPending && !modulesQuery.isError && sortedModules.length > 0 && (
+          <button
+            type="button"
+            disabled={!canManageModules || busy}
+            onClick={() => bulkModulesMutation.mutate(!allModulesEnabled)}
+            className="shrink-0 rounded-lg border border-[#0057e7]/20 bg-white px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#eef5ff] disabled:cursor-default disabled:opacity-50"
+          >
+            {bulkModulesMutation.isPending ? "Atualizando..." : allModulesEnabled ? "Desmarcar todos" : "Marcar todos"}
+          </button>
+        )}
       </AdminCardHeader>
       <AdminCardContent>
         {modulesQuery.isPending ? <LoadingState /> : modulesQuery.isError ? (
           <p className="text-sm font-semibold text-red-700">{(modulesQuery.error as any)?.message || "Não foi possível carregar os módulos."}</p>
         ) : (
-          <div className="divide-y divide-[#d9e1ec]">
-            {(modulesQuery.data?.systemModules || []).map((module: any) => {
+          <div className="grid sm:grid-cols-2 sm:gap-x-6">
+            {sortedModules.map((module: any, index: number) => {
               const enabled = enabledByKey.get(module.key) === true;
-              return <div key={module.key} className="py-4 first:pt-0 last:pb-0">
+              const isSecondColumn = index % 2 === 1;
+              const isFirstRow = index < 2;
+              const itemClass = [
+                "border-t border-[#d9e1ec] py-4",
+                index === 0 ? "border-t-0 pt-0" : "",
+                isFirstRow && isSecondColumn ? "sm:border-t-0 sm:pt-0" : "",
+                isSecondColumn ? "sm:border-l sm:pl-6" : "sm:pr-6",
+              ].filter(Boolean).join(" ");
+              return <div key={module.key} className={itemClass}>
                 <FToggle
                   label={module.name}
                   description={module.description}
