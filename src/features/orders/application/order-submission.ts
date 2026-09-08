@@ -11,23 +11,12 @@ import {
   updateServiceOrderMediaSortOrder,
 } from "../infrastructure/orders.repository";
 
-type SubmissionImage = {
-  mediaId?: string;
-  file?: File;
-};
-
-type SubmissionFailure = {
-  success: false;
-  stage: "record" | "relations" | "images";
-  error: unknown;
-};
-
-type SubmissionSuccess = {
-  success: true;
-  orderId: string;
-};
+type SubmissionImage = { mediaId?: string; file?: File };
+type SubmissionFailure = { success: false; stage: "record" | "relations" | "images"; error: unknown };
+type SubmissionSuccess = { success: true; orderId: string };
 
 export async function persistServiceOrder({
+  organizationId,
   editingOrder,
   payload,
   selectedTechnicianIds,
@@ -36,6 +25,7 @@ export async function persistServiceOrder({
   uploadImage,
   saveTechnicalValues,
 }: {
+  organizationId: string;
   editingOrder: any;
   payload: Record<string, any>;
   selectedTechnicianIds: string[];
@@ -47,114 +37,67 @@ export async function persistServiceOrder({
   let savedOrderId = editingOrder?.id as string | undefined;
 
   if (editingOrder) {
-    const { error } = await updateServiceOrder(editingOrder.id, payload);
+    const { error } = await updateServiceOrder(organizationId, editingOrder.id, payload);
     if (error) return { success: false, stage: "record", error };
   } else {
-    const { data, error } = await createServiceOrder(payload);
+    const { data, error } = await createServiceOrder(organizationId, payload);
     if (error) return { success: false, stage: "record", error };
     savedOrderId = data?.id;
   }
 
-  if (!savedOrderId) {
-    return {
-      success: false,
-      stage: "record",
-      error: new Error("A OS foi salva, mas não foi possível obter seu ID."),
-    };
-  }
+  if (!savedOrderId) return { success: false, stage: "record", error: new Error("A OS foi salva, mas não foi possível obter seu ID.") };
 
   const technicalValuesResult = await saveTechnicalValues(savedOrderId);
   if (technicalValuesResult?.error) return { success: false, stage: "record", error: technicalValuesResult.error };
 
   const uniqueTechnicianIds = Array.from(new Set(selectedTechnicianIds));
   const uniqueSellerIds = Array.from(new Set(selectedSellerIds));
-  const previousTechnicianIds = Array.from(new Set(
-    (editingOrder?.technician_links || [])
-      .map((link: any) => link.employee_id)
-      .filter(Boolean)
-      .concat(editingOrder?.technician_id ? [editingOrder.technician_id] : []),
-  )) as string[];
-  const previousSellerIds = Array.from(new Set(
-    (editingOrder?.seller_links || [])
-      .map((link: any) => link.employee_id)
-      .filter(Boolean)
-      .concat(editingOrder?.seller_id ? [editingOrder.seller_id] : []),
-  )) as string[];
+  const previousTechnicianIds = Array.from(new Set((editingOrder?.technician_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOrder?.technician_id ? [editingOrder.technician_id] : []))) as string[];
+  const previousSellerIds = Array.from(new Set((editingOrder?.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOrder?.seller_id ? [editingOrder.seller_id] : []))) as string[];
 
   try {
     if (editingOrder) {
-      const { error: technicianClearError } =
-        await clearServiceOrderTechnicians(savedOrderId);
+      const { error: technicianClearError } = await clearServiceOrderTechnicians(savedOrderId);
       if (technicianClearError) throw technicianClearError;
-      const { error: sellerClearError } =
-        await clearServiceOrderSellers(savedOrderId);
+      const { error: sellerClearError } = await clearServiceOrderSellers(savedOrderId);
       if (sellerClearError) throw sellerClearError;
     }
     if (uniqueTechnicianIds.length) {
-      const { error } = await insertServiceOrderTechnicians(
-        savedOrderId,
-        uniqueTechnicianIds,
-      );
+      const { error } = await insertServiceOrderTechnicians(savedOrderId, uniqueTechnicianIds);
       if (error) throw error;
     }
     if (uniqueSellerIds.length) {
-      const { error } = await insertServiceOrderSellers(
-        savedOrderId,
-        uniqueSellerIds,
-      );
+      const { error } = await insertServiceOrderSellers(savedOrderId, uniqueSellerIds);
       if (error) throw error;
     }
   } catch (error) {
     if (editingOrder) {
       await clearServiceOrderTechnicians(savedOrderId);
       await clearServiceOrderSellers(savedOrderId);
-      if (previousTechnicianIds.length) {
-        await insertServiceOrderTechnicians(
-          savedOrderId,
-          previousTechnicianIds,
-        );
-      }
-      if (previousSellerIds.length) {
-        await insertServiceOrderSellers(savedOrderId, previousSellerIds);
-      }
+      if (previousTechnicianIds.length) await insertServiceOrderTechnicians(savedOrderId, previousTechnicianIds);
+      if (previousSellerIds.length) await insertServiceOrderSellers(savedOrderId, previousSellerIds);
     }
     return { success: false, stage: "relations", error };
   }
 
   try {
-    const { data: existingLinks, error: linksError } =
-      await listServiceOrderMediaLinks(savedOrderId);
+    const { data: existingLinks, error: linksError } = await listServiceOrderMediaLinks(savedOrderId);
     if (linksError) throw linksError;
-
-    const retainedMediaIds = new Set(
-      orderImages
-        .filter(image => image.mediaId)
-        .map(image => image.mediaId as string),
-    );
+    const retainedMediaIds = new Set(orderImages.filter(image => image.mediaId).map(image => image.mediaId as string));
     for (const link of existingLinks || []) {
       if (retainedMediaIds.has(link.media_id)) continue;
       const { error } = await deleteServiceOrderMediaLink(link.id);
       if (error) throw error;
     }
-
     for (const [sortOrder, image] of orderImages.entries()) {
       if (image.mediaId) {
-        const link = (existingLinks || []).find(
-          (item: any) => item.media_id === image.mediaId,
-        );
+        const link = (existingLinks || []).find((item: any) => item.media_id === image.mediaId);
         if (!link) continue;
-        const { error } = await updateServiceOrderMediaSortOrder(
-          link.id,
-          sortOrder,
-        );
+        const { error } = await updateServiceOrderMediaSortOrder(link.id, sortOrder);
         if (error) throw error;
       } else if (image.file) {
         const mediaId = await uploadImage(image.file);
-        const { error } = await insertServiceOrderMedia(
-          savedOrderId,
-          mediaId,
-          sortOrder,
-        );
+        const { error } = await insertServiceOrderMedia(savedOrderId, mediaId, sortOrder);
         if (error) throw error;
       }
     }

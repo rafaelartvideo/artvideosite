@@ -12,6 +12,7 @@ import type { useOrderImages } from "./useOrderImages";
 import type { useOrdersWorkspace } from "./useOrdersWorkspace";
 import type { useOrderServiceAddress } from "./useOrderServiceAddress";
 import { beginAdminLoading } from "@/shared/ui/admin/AdminFeedback";
+import { useAuth } from "@/lib/auth";
 
 type PermissionCheck = (permission: string) => boolean;
 type Toast = { msg: string; type: "success" | "error" };
@@ -35,6 +36,8 @@ export function useOrderEditorWorkflow({
   userId, workspace, formState, images, customers, address,
   customerPersistence, details, hasPermission, showToast, setSaving, formatError,
 }: Options) {
+  const { activeOrganizationId } = useAuth();
+
   const selectCustomer = (customer: any) => {
     const customerAddress = customers.selectCustomer(customer);
     formState.updateField("customer_id", customer.id);
@@ -51,6 +54,10 @@ export function useOrderEditorWorkflow({
   };
 
   const openNew = () => {
+    if (!activeOrganizationId) {
+      showToast({ msg: "Selecione uma empresa antes de criar uma OS.", type: "error" });
+      return;
+    }
     formState.openNewForm();
     address.resetServiceAddressState();
     images.clearOrderImages();
@@ -59,6 +66,10 @@ export function useOrderEditorWorkflow({
   };
 
   const openEdit = async (order: any) => {
+    if (!activeOrganizationId || order.organization_id !== activeOrganizationId) {
+      showToast({ msg: "Esta OS não pertence à empresa ativa.", type: "error" });
+      return;
+    }
     const endLoading = beginAdminLoading("Carregando edição da OS...");
     try {
       const { data: currentOrder, error } = await getOrderEditState(order.id);
@@ -89,7 +100,15 @@ export function useOrderEditorWorkflow({
   };
 
   const save = async () => {
+    if (!activeOrganizationId) {
+      showToast({ msg: "Selecione uma empresa antes de salvar a OS.", type: "error" });
+      return false;
+    }
     const editingOrder = formState.editingOS;
+    if (editingOrder?.organization_id && editingOrder.organization_id !== activeOrganizationId) {
+      showToast({ msg: "A empresa da OS não pode ser alterada.", type: "error" });
+      return false;
+    }
     if (editingOrder ? !hasPermission("orders.edit") : !hasPermission("orders.create")) {
       showToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" });
       return false;
@@ -113,6 +132,7 @@ export function useOrderEditorWorkflow({
       return false;
     }
     const { status, error: statusError } = await getOrderSubmissionStatus({
+      organizationId: activeOrganizationId,
       editingOrder,
       statusId: formState.form.status_id,
     });
@@ -136,6 +156,7 @@ export function useOrderEditorWorkflow({
       serviceUseCustomerAddress: address.serviceUseCustomerAddress,
     });
     const submission = await persistServiceOrder({
+      organizationId: activeOrganizationId,
       editingOrder,
       payload,
       selectedTechnicianIds: formState.selectedTechnicianIds,

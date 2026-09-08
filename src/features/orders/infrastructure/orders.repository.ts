@@ -50,27 +50,28 @@ export const listServiceOrderUsedItems = (serviceOrderId: string) =>
     .eq("service_order_id", serviceOrderId)
     .order("created_at", { ascending: false });
 
-export const loadOrdersWorkspace = () =>
+export const loadOrdersWorkspace = (organizationId: string) =>
   Promise.all([
     supabase
       .from("service_orders")
       .select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,max_discount_percentage), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)")
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false }),
-    supabase.from("order_statuses").select("id,name,color,sort_order").order("sort_order"),
-    supabase.from("os_situations").select("id,name,color,hours,sort_order").eq("is_active", true).order("sort_order"),
+    supabase.from("order_statuses").select("id,name,color,sort_order").eq("organization_id", organizationId).order("sort_order"),
+    supabase.from("os_situations").select("id,name,color,hours,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order"),
     supabase.from("profiles").select("id,full_name").order("full_name"),
     supabase.from("services").select("id,title").eq("is_active", true).order("title"),
     supabase.from("brands").select("id,name").eq("is_active", true).order("name"),
     supabase.from("products").select("id,name").eq("is_active", true).order("name"),
-    supabase.from("equipment_types").select("id,name").eq("is_active", true).order("sort_order").order("name"),
-    supabase.from("equipment_brands").select("id,name,equipment_type_id").eq("is_active", true).order("sort_order").order("name"),
-    supabase.from("equipment_models").select("id,name,equipment_brand_id").eq("is_active", true).order("sort_order").order("name"),
-    supabase.from("technical_fields").select("id,field_key,label,field_type,is_active,sort_order").order("sort_order").order("label"),
-    supabase.from("equipment_type_technical_fields").select("equipment_type_id,technical_field_id,required,sort_order,technical_field:technical_fields(id,field_key,label,field_type,is_active,sort_order)").order("sort_order"),
-    supabase.from("employees").select("id,full_name,is_active").eq("is_active", true).order("full_name"),
-    supabase.from("general_services").select("id,name,price,max_discount_percentage,is_active,sort_order").eq("is_active", true).order("sort_order").order("name"),
-    supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order").eq("is_active", true).order("sort_order").order("title"),
-    supabase.from("service_type_situations").select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order,situation:os_situations(id,name,color,hours,is_active)").order("sort_order"),
+    supabase.from("equipment_types").select("id,name").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
+    supabase.from("equipment_brands").select("id,name,equipment_type_id").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
+    supabase.from("equipment_models").select("id,name,equipment_brand_id").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
+    supabase.from("technical_fields").select("id,field_key,label,field_type,is_active,sort_order").eq("organization_id", organizationId).order("sort_order").order("label"),
+    supabase.from("equipment_type_technical_fields").select("equipment_type_id,technical_field_id,required,sort_order,technical_field:technical_fields(id,field_key,label,field_type,is_active,sort_order)").eq("organization_id", organizationId).order("sort_order"),
+    supabase.from("employees").select("id,full_name,is_active").eq("organization_id", organizationId).eq("is_active", true).order("full_name"),
+    supabase.from("general_services").select("id,name,price,max_discount_percentage,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
+    supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("title"),
+    supabase.from("service_type_situations").select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order,situation:os_situations(id,name,color,hours,is_active)").eq("organization_id", organizationId).order("sort_order"),
   ]);
 
 export const getServiceOrderResolutionState = (serviceOrderId: string) =>
@@ -95,15 +96,15 @@ export const markServiceOrderUnsolvable = (
     .update({ cannot_be_solved: true, cannot_be_solved_reason: reason })
     .eq("id", serviceOrderId);
 
-export const listOrderStatusOptions = () =>
-  supabase.from("order_statuses").select("id,name,sort_order").order("sort_order");
-
+export const listOrderStatusOptions = (organizationId: string) =>
+  supabase.from("order_statuses").select("id,name,sort_order").eq("organization_id", organizationId).order("sort_order");
 
 export const updateServiceOrderStatus = (
+  organizationId: string,
   serviceOrderId: string,
   statusId: string,
 ) =>
-  supabase.from("service_orders").update({ status_id: statusId }).eq("id", serviceOrderId);
+  supabase.from("service_orders").update({ status_id: statusId }).eq("organization_id", organizationId).eq("id", serviceOrderId);
 
 export const insertServiceOrderStatusHistory = (
   serviceOrderId: string,
@@ -119,20 +120,22 @@ export const insertServiceOrderStatusHistory = (
   });
 
 export const updateServiceOrderSituation = (
+  organizationId: string,
   serviceOrderId: string,
   situationId: string | null,
 ) =>
   supabase
     .from("service_orders")
     .update({ situation_id: situationId })
+    .eq("organization_id", organizationId)
     .eq("id", serviceOrderId)
     .select("situation_id")
     .maybeSingle();
 
-export const createServiceOrder = (payload: Record<string, unknown>) =>
+export const createServiceOrder = (organizationId: string, payload: Record<string, unknown>) =>
   supabase
     .from("service_orders")
-    .insert(payload)
+    .insert({ ...payload, organization_id: organizationId })
     .select("id,os_number,external_os_number")
     .single();
 
@@ -161,9 +164,10 @@ export const saveServiceOrderTechnicalValues = (
   : Promise.resolve({ data: null, error: null });
 
 export const updateServiceOrder = (
+  organizationId: string,
   serviceOrderId: string,
   payload: Record<string, unknown>,
-) => supabase.from("service_orders").update(payload).eq("id", serviceOrderId);
+) => supabase.from("service_orders").update(payload).eq("organization_id", organizationId).eq("id", serviceOrderId);
 
 export const clearServiceOrderTechnicians = (serviceOrderId: string) =>
   supabase
