@@ -14,7 +14,7 @@ export async function listCustomers(organizationId: string) {
 export async function listCustomerEquipments(organizationId: string, customerId: string) {
   const { data, error } = await supabase
     .from("customer_equipments")
-    .select("id,organization_id,customer_id,equipment_type_id,equipment_brand_id,equipment_model_id,serial_number,technical_values,created_at,updated_at,equipment_type:equipment_types(id,name),equipment_brand:equipment_brands(id,name),equipment_model:equipment_models(id,name)")
+    .select("id,organization_id,customer_id,equipment_type_id,equipment_brand_id,equipment_model_id,equipment_type_name,equipment_brand_name,equipment_model_name,serial_number,technical_values,created_at,updated_at")
     .eq("organization_id", organizationId)
     .eq("customer_id", customerId)
     .order("updated_at", { ascending: false });
