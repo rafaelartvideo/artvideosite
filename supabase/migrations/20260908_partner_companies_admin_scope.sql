@@ -3,11 +3,16 @@
 -- Diferencia administração cadastral da empresa (que precisa continuar possível
 -- mesmo quando a empresa está suspensa/cancelada) do acesso aos dados operacionais,
 -- que permanece dependente das regras multiempresa e dos compartilhamentos explícitos.
+--
+-- A migration é dividida em transações curtas para evitar deadlock entre
+-- organizations e organization_members enquanto o app/Supabase mantém leituras ativas.
 
+-- 1/3: helper administrativo. Não segura lock de policy enquanto outras tabelas
+-- são alteradas.
 begin;
 
 select pg_advisory_xact_lock(
-  hashtextextended('artvideo:partner_companies_admin_scope', 0)
+  hashtextextended('artvideo:partner_companies_admin_scope:function', 0)
 );
 
 create or replace function private.can_administer_organization(
@@ -39,6 +44,19 @@ $$;
 
 revoke all on function private.can_administer_organization(uuid, text) from public;
 grant execute on function private.can_administer_organization(uuid, text) to authenticated;
+
+comment on function private.can_administer_organization(uuid, text) is
+  'Autoriza administração cadastral de uma organização pela própria empresa ativa ou pela organização operadora, inclusive quando o tenant alvo está suspenso/cancelado. Não concede acesso a dados operacionais.';
+
+commit;
+
+-- 2/3: policies somente de organizations. O commit libera o lock desta tabela
+-- antes da migration tocar organization_members.
+begin;
+
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:partner_companies_admin_scope:organizations', 0)
+);
 
 -- A plataforma precisa continuar enxergando uma empresa suspensa/cancelada para
 -- poder corrigir dados cadastrais e reativá-la. Isso não concede acesso aos dados
@@ -84,6 +102,15 @@ with check (
   )
 );
 
+commit;
+
+-- 3/3: policy somente de organization_members.
+begin;
+
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:partner_companies_admin_scope:members', 0)
+);
+
 -- Permite ao operador consultar os membros de empresas suspensas/canceladas para
 -- diagnóstico e administração. A escrita continua nas policies já existentes e
 -- portanto segue mais restrita.
@@ -103,8 +130,5 @@ using (
     'organizations.members.manage'
   )
 );
-
-comment on function private.can_administer_organization(uuid, text) is
-  'Autoriza administração cadastral de uma organização pela própria empresa ativa ou pela organização operadora, inclusive quando o tenant alvo está suspenso/cancelado. Não concede acesso a dados operacionais.';
 
 commit;
