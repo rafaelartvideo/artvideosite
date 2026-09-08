@@ -10,6 +10,10 @@ import { BtnPrimary, InternalBackButton, PageHeader, Section } from "@/shared/ui
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 
+function SectionIcon({ children }: { children: React.ReactNode }) {
+  return <span className="flex items-center justify-center text-[#0057e7]">{children}</span>;
+}
+
 export function TabContact() {
   const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
@@ -53,7 +57,6 @@ export function TabContact() {
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader
-      eyebrow="Site"
       title="Informações de Contato"
       subtitle="Configure os canais, endereço e horários exibidos no site público."
       actions={<div className="flex items-center gap-2">
@@ -63,7 +66,7 @@ export function TabContact() {
     />
 
     {settingsQuery.isPending ? <LoadingState /> : <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-      <Section title="Canais de contato" actions={<Phone size={16} className="text-[#0057e7]" />}>
+      <Section title="Canais de contato" actions={<SectionIcon><Phone size={14} /></SectionIcon>}>
         <div className="grid gap-4 sm:grid-cols-2">
           <FPhoneInput label="Telefone" value={settings.phone || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("phone", event.target.value)} />
           <FPhoneInput label="WhatsApp" mobile value={settings.whatsapp || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("whatsapp", event.target.value)} />
@@ -71,7 +74,7 @@ export function TabContact() {
         </div>
       </Section>
 
-      <Section title="Redes sociais" actions={<Share2 size={16} className="text-[#0057e7]" />}>
+      <Section title="Redes sociais" actions={<SectionIcon><Share2 size={14} /></SectionIcon>}>
         <div className="space-y-4">
           <FInput label="Instagram" value={settings.instagram || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("instagram", event.target.value)} placeholder="@empresa" />
           <p className="flex items-center gap-2 text-xs leading-5 text-[#5a6a82]"><MessageCircle size={14} /> Use o identificador ou link público da rede social.</p>
@@ -79,7 +82,7 @@ export function TabContact() {
       </Section>
 
       <div className="xl:col-span-2">
-        <Section title="Endereço" actions={<MapPin size={16} className="text-[#0057e7]" />}>
+        <Section title="Endereço" actions={<SectionIcon><MapPin size={14} /></SectionIcon>}>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <FInput label="CEP" value={settings.zip_code || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("zip_code", event.target.value)} placeholder="00000-000" />
             <div className="sm:col-span-2"><FInput label="Rua" value={settings.street || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("street", event.target.value)} placeholder="Rua da empresa" /></div>
@@ -92,11 +95,11 @@ export function TabContact() {
         </Section>
       </div>
 
-      <Section title="Horário de funcionamento" actions={<Clock3 size={16} className="text-[#0057e7]" />}>
+      <Section title="Horário de funcionamento" actions={<SectionIcon><Clock3 size={14} /></SectionIcon>}>
         <FInput label="Horário" value={settings.business_hours || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("business_hours", event.target.value)} placeholder="Seg a Sex: 8h às 18h" />
       </Section>
 
-      <Section title="Identificação pública" actions={<Mail size={16} className="text-[#0057e7]" />}>
+      <Section title="Identificação pública" actions={<SectionIcon><Mail size={14} /></SectionIcon>}>
         <FInput label="Nome da empresa" value={settings.company_name || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("company_name", event.target.value)} placeholder="Eletrônica ArtVideo" />
       </Section>
     </div>}
