@@ -165,7 +165,7 @@ export function useOrderEditorWorkflow({
       selectedTechnicianIds: formState.selectedTechnicianIds,
       selectedSellerIds: formState.selectedSellerIds,
       orderImages: images.orderImages,
-      uploadImage: uploadOrderImage,
+      uploadImage: file => uploadOrderImage(file, organizationId),
       saveTechnicalValues: async orderId => saveServiceOrderTechnicalValues(orderId, buildTechnicalValuesPayload({ serviceOrderId: orderId, technicalFields: workspace.technicalFieldLinks.filter((link: any) => link.equipment_type_id === formState.form.equipment_type_id).map((link: any) => ({ ...link, technical_field: link.technical_field || workspace.technicalFields.find((field: any) => field.id === link.technical_field_id) })), technicalValues: formState.form.technicalValues })),
     });
     if (!submission.success) {
