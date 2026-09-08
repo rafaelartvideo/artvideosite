@@ -7,20 +7,23 @@ export function OrdersHeader({
   canCreate,
   onDisplayModeChange,
   onCreate,
+  showViewToggle = true,
 }: {
   total: number;
   displayMode: "list" | "kanban";
   canCreate: boolean;
   onDisplayModeChange: (mode: "list" | "kanban") => void;
   onCreate: () => void;
+  showViewToggle?: boolean;
 }) {
+  const hasActions = showViewToggle || canCreate;
   return (
     <PageHeader
       title="Ordens de Serviço"
       subtitle={`${total} OS encontrada${total !== 1 ? "s" : ""}`}
-      actions={
+      actions={hasActions ? (
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
-          <div className="flex items-center rounded-lg border border-[#0d1b2e]/15 bg-white p-1">
+          {showViewToggle && <div className="flex items-center rounded-lg border border-[#0d1b2e]/15 bg-white p-1">
             <button
               type="button"
               onClick={() => onDisplayModeChange("list")}
@@ -41,7 +44,7 @@ export function OrdersHeader({
               <LayoutDashboard size={17} />
               <span className="ml-2 hidden sm:inline text-xs font-bold">Kanban</span>
             </button>
-          </div>
+          </div>}
 
           {canCreate && (
             <AdminButton onClick={onCreate} aria-label="Nova OS" title="Nova OS" className="h-11 min-w-11 px-3 sm:px-4">
@@ -50,7 +53,7 @@ export function OrdersHeader({
             </AdminButton>
           )}
         </div>
-      }
+      ) : undefined}
     />
   );
 }
