@@ -10,6 +10,19 @@ async function resolveOrganizationId(organizationIdOverride?: string | null) {
   return organizationIdOverride || await getActiveOrganizationId();
 }
 
+export async function getServiceOrderOrganizationId(serviceOrderId: string) {
+  const { data, error } = await supabase
+    .from("service_orders")
+    .select("organization_id")
+    .eq("id", serviceOrderId)
+    .maybeSingle();
+
+  if (error) throw error;
+  const organizationId = (data as any)?.organization_id as string | null | undefined;
+  if (!organizationId) throw new Error("Não foi possível identificar a empresa proprietária desta OS.");
+  return organizationId;
+}
+
 export async function listAttachmentTypes(activeOnly = true, organizationIdOverride?: string | null) {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   let query = (supabase as any)
@@ -22,7 +35,7 @@ export async function listAttachmentTypes(activeOnly = true, organizationIdOverr
 }
 
 export async function listOrderSituationDocuments(serviceOrderId: string, organizationIdOverride?: string | null) {
-  const organizationId = await resolveOrganizationId(organizationIdOverride);
+  const organizationId = organizationIdOverride || await getServiceOrderOrganizationId(serviceOrderId);
   return supabase
     .from("service_order_situation_media")
     .select("id,service_order_id,situation_id,media_id,attachment_type_id,created_at,media:media(id,file_name,mime_type),attachment_type:attachment_types(id,name,is_active)")
@@ -47,7 +60,7 @@ export async function attachOrderSituationDocument({
   attachmentTypeId?: string | null;
   file: File;
 }) {
-  const organizationId = await resolveOrganizationId(organizationIdOverride);
+  const organizationId = organizationIdOverride || await getServiceOrderOrganizationId(serviceOrderId);
   const { data: order, error: orderError } = await supabase
     .from("service_orders")
     .select("id")
