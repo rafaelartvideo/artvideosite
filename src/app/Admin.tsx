@@ -44,7 +44,7 @@ function AdminRouteLoading() {
 }
 
 export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
-  const { user, profile, role, loading, signOut, hasPermission } = useAuth();
+  const { user, profile, role, loading, signOut, hasPermission, organizations, activeOrganizationId, setActiveOrganization } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const route = resolveAdminRoute(location.pathname);
@@ -106,7 +106,12 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const backToParent = (tab: AdminTab) => navigateAdmin(parentAdminTab(tab) || "dashboard");
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey))} onSelect={id => navigateAdmin(id as AdminTab)} />;
-  const sidebar = <AdminSidebar activeTab={activeMenuTab} userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"} roleName={roleName} hasPermission={hasPermission} onNavigate={tab => navigateAdmin(tab)} onSignOut={() => signOut()} onBackToSite={onBackToSite} />;
+  const handleOrganizationChange = async (organizationId: string) => {
+    if (!organizationId || organizationId === activeOrganizationId) return;
+    await setActiveOrganization(organizationId);
+    navigateAdmin("dashboard", null, null, { replace: true });
+  };
+  const sidebar = <AdminSidebar activeTab={activeMenuTab} userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"} roleName={roleName} organizations={organizations} activeOrganizationId={activeOrganizationId} hasPermission={hasPermission} onNavigate={tab => navigateAdmin(tab)} onOrganizationChange={handleOrganizationChange} onSignOut={() => signOut()} onBackToSite={onBackToSite} />;
 
   return (
     <AdminPageContext.Provider value={{ page, setPage }}>
