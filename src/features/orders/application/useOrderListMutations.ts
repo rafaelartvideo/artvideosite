@@ -4,25 +4,27 @@ import { insertServiceOrderStatusHistory, updateServiceOrderSituation, updateSer
 
 type ToastMessage = { msg: string; type: "success" | "error" };
 
-export function useOrderListMutations({ orders, setOrders, statuses, situations, detail, setDetail, userId, hasPermission, showToast, formatError, syncRelatedCaches }: {
+export function useOrderListMutations({ orders, setOrders, statuses, situations, detail, setDetail, userId, hasPermission, showToast, formatError, syncRelatedCaches, organizationIdOverride }: {
   orders: any[]; setOrders: Dispatch<SetStateAction<any[]>>; statuses: any[]; situations: any[]; detail: any; setDetail: Dispatch<SetStateAction<any>>;
   userId?: string; hasPermission: (permission: string) => boolean; showToast: (toast: ToastMessage) => void; formatError: (error: unknown) => string; syncRelatedCaches: () => Promise<void>;
+  organizationIdOverride?: string | null;
 }) {
   const { activeOrganizationId } = useAuth();
+  const targetOrganizationId = organizationIdOverride || activeOrganizationId;
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
   const dragOriginRef = useRef<any[] | null>(null);
   const suppressCardClickRef = useRef(false);
 
-  const requireActiveOrganization = () => {
-    if (activeOrganizationId) return activeOrganizationId;
+  const requireTargetOrganization = () => {
+    if (targetOrganizationId) return targetOrganizationId;
     showToast({ msg: "Selecione uma empresa antes de alterar a OS.", type: "error" });
     return null;
   };
 
   const updateOrderStatus = async (order: any, statusId: string) => {
     if (!hasPermission("orders.status.change")) { showToast({ msg: "Você não possui permissão para alterar o status.", type: "error" }); return; }
-    const organizationId = requireActiveOrganization();
+    const organizationId = requireTargetOrganization();
     if (!organizationId || order.organization_id !== organizationId) return;
     const previousOrders = orders; const previousDetail = detail; const nextStatus = statuses.find(status => status.id === statusId);
     setOrders(current => current.map(item => item.id === order.id ? { ...item, status_id: statusId, order_status: nextStatus || item.order_status } : item));
@@ -36,7 +38,7 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
 
   const updateOrderSituation = async (order: any, situationId: string) => {
     if (!hasPermission("orders.situation.change")) { showToast({ msg: "Você não possui permissão para alterar a situação.", type: "error" }); return; }
-    const organizationId = requireActiveOrganization();
+    const organizationId = requireTargetOrganization();
     if (!organizationId || order.organization_id !== organizationId) return;
     const previousOrders = orders; const previousDetail = detail; const optimisticSituation = situations.find(item => item.id === situationId);
     setOrders(current => current.map(item => item.id === order.id ? { ...item, situation_id: situationId || null, situation: optimisticSituation || null } : item));
@@ -51,7 +53,7 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
 
   const handleKanbanDrop = async (statusId: string) => {
     if (!hasPermission("orders.status.change")) return;
-    const organizationId = requireActiveOrganization();
+    const organizationId = requireTargetOrganization();
     if (!organizationId) return;
     const order = orders.find(item => item.id === draggingId); const previousOrders = dragOriginRef.current;
     setDraggingId(null); setDragOverStatusId(null);
@@ -73,5 +75,5 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
   const shouldSuppressCardOpen = () => { if (!suppressCardClickRef.current) return false; suppressCardClickRef.current = false; return true; };
   const handleDragLeave = (statusId: string) => { setDragOverStatusId(current => current === statusId ? null : current); };
 
-  return { draggingId, dragOverStatusId, setDragOverStatusId, updateOrderStatus, updateOrderSituation, handleKanbanDrop, handleCardDragStart, handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave };
+  return { organizationId: targetOrganizationId, draggingId, dragOverStatusId, setDragOverStatusId, updateOrderStatus, updateOrderSituation, handleKanbanDrop, handleCardDragStart, handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave };
 }
