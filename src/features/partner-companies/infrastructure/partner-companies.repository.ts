@@ -24,6 +24,8 @@ export type PartnerUserInput = {
   user_id?: string;
 };
 
+export type PartnerShareAccessLevel = "none" | "summary" | "read" | "manage";
+
 export function listPartnerCompanies() {
   return supabase
     .from("organizations")
@@ -124,4 +126,16 @@ export function listPartnerShares(organizationId?: string | null) {
     .order("resource_key");
   if (organizationId) query = query.eq("child_organization_id", organizationId);
   return query;
+}
+
+export function setPartnerDataShare(
+  organizationId: string,
+  resourceKey: "customers" | "orders" | "inventory",
+  accessLevel: PartnerShareAccessLevel,
+) {
+  return supabase.rpc("set_partner_data_share", {
+    p_owner_organization_id: organizationId,
+    p_resource_key: resourceKey,
+    p_access_level: accessLevel,
+  });
 }
