@@ -1,7 +1,8 @@
 import { supabase } from "@/lib/supabase";
+import { getActiveOrganizationId } from "@/lib/active-organization";
 import type { GeneralService } from "@/lib/database.types";
 
-const generalServiceColumns = "id,name,price,max_discount_percentage,is_active,sort_order,created_at,updated_at";
+const generalServiceColumns = "id,name,price,max_discount_percentage,is_active,sort_order,created_at,updated_at,organization_id";
 
 type GeneralServiceWrite = Pick<
   GeneralService,
@@ -9,9 +10,11 @@ type GeneralServiceWrite = Pick<
 >;
 
 export async function listGeneralServices(): Promise<GeneralService[]> {
+  const organizationId = await getActiveOrganizationId();
   const { data, error } = await supabase
     .from("general_services")
     .select(generalServiceColumns)
+    .eq("organization_id", organizationId)
     .order("sort_order")
     .order("name");
 
@@ -20,7 +23,8 @@ export async function listGeneralServices(): Promise<GeneralService[]> {
 }
 
 export async function createGeneralService(service: GeneralServiceWrite): Promise<void> {
-  const { error } = await supabase.from("general_services").insert(service);
+  const organizationId = await getActiveOrganizationId();
+  const { error } = await supabase.from("general_services").insert({ ...service, organization_id: organizationId });
   if (error) throw error;
 }
 
@@ -28,7 +32,12 @@ export async function updateGeneralService(
   id: string,
   service: Partial<GeneralServiceWrite>,
 ): Promise<void> {
-  const { error } = await supabase.from("general_services").update(service).eq("id", id);
+  const organizationId = await getActiveOrganizationId();
+  const { error } = await supabase
+    .from("general_services")
+    .update(service)
+    .eq("id", id)
+    .eq("organization_id", organizationId);
   if (error) throw error;
 }
 
@@ -36,10 +45,12 @@ export async function setGeneralServiceActive(
   id: string,
   isActive: boolean,
 ): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
   const { error } = await supabase
     .from("general_services")
     .update({ is_active: isActive })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("organization_id", organizationId);
 
   if (error) throw error;
 }
