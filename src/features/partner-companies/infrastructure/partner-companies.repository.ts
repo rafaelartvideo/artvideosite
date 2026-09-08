@@ -4,6 +4,7 @@ import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
 export type PartnerCompanySettings = {
   person_type?: "PF" | "PJ";
   phone?: string;
+  whatsapp?: string;
   email?: string;
   zip_code?: string;
   street?: string;
