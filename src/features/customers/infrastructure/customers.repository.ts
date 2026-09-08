@@ -83,16 +83,6 @@ export async function createCustomerAddress(
   if (error) throw error;
 }
 
-export async function deleteCustomer(organizationId: string, customerId: string): Promise<void> {
-  const { error } = await supabase
-    .from("customers")
-    .delete()
-    .eq("organization_id", organizationId)
-    .eq("id", customerId);
-
-  if (error) throw error;
-}
-
 export async function fetchCnpjData(cnpj: string) {
   const digits = cnpj.replace(/\D/g, "");
   const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
