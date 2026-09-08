@@ -36,7 +36,7 @@ export function OrdersListWorkspace(props: Props) {
     getSituations: getSituationsForType, formatDate: fmtDate, equipmentSummary,
   } = props;
   const {
-    statuses, situations, serviceTypes, loading, reloadWorkspace,
+    statuses, situations, serviceTypes, loading,
   } = workspace;
   const {
     osNumberSearch, setOsNumberSearch, externalOsSearch, setExternalOsSearch,
@@ -64,7 +64,6 @@ export function OrdersListWorkspace(props: Props) {
         canCreate={hasPermission("orders.create")}
         onDisplayModeChange={setViewMode}
         onCreate={openNew}
-        onRefresh={() => { void reloadWorkspace(); }}
       />
 
       <OrdersFilters
