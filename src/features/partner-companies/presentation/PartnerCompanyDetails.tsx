@@ -1,9 +1,20 @@
+import { useState } from "react";
 import { Edit2, MapPin, MessageCircle, Phone } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
-import { normalizeDigits } from "@/shared/domain/formatters";
+import { cn, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminCard, AdminCardContent, AdminCardHeader, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { PartnerCompanyUsersSection } from "./PartnerCompanyUsersSection";
 import { PartnerCompanyPermissionsSection } from "./PartnerCompanyPermissionsSection";
+import { PartnerCompanySharedDataSection } from "./PartnerCompanySharedDataSection";
+
+type CompanySection = "general" | "users" | "access" | "data";
+
+const COMPANY_SECTIONS: Array<{ key: CompanySection; label: string }> = [
+  { key: "general", label: "GERAL" },
+  { key: "users", label: "USUÁRIOS" },
+  { key: "access", label: "ACESSOS" },
+  { key: "data", label: "DADOS" },
+];
 
 function statusLabel(value: string) {
   return value === "active" ? "Ativa" : value === "suspended" ? "Suspensa" : "Cancelada";
@@ -16,6 +27,7 @@ function brazilPhoneDigits(value?: string | null) {
 }
 
 export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { company: any; canEdit: boolean; onBack: () => void; onEdit: () => void }) {
+  const [activeSection, setActiveSection] = useState<CompanySection>("general");
   const settings = company.settings || {};
   const phone = brazilPhoneDigits(settings.phone || settings.whatsapp);
   const whatsapp = brazilPhoneDigits(settings.whatsapp || settings.phone);
@@ -40,7 +52,21 @@ export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { co
       actions={<InternalBackButton onBack={onBack} />}
     />
 
-    <AdminCard>
+    <div className="overflow-x-auto border-b border-[#0d1b2e]/10">
+      <nav className="flex min-w-max items-center gap-6" aria-label="Seções da empresa parceira">
+        {COMPANY_SECTIONS.map(section => <button
+          key={section.key}
+          type="button"
+          onClick={() => setActiveSection(section.key)}
+          className={cn(
+            "border-b-2 px-1 py-3 text-xs font-black transition-colors",
+            activeSection === section.key ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]",
+          )}
+        >{section.label}</button>)}
+      </nav>
+    </div>
+
+    {activeSection === "general" && <AdminCard>
       <AdminCardHeader>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-black text-[#0d1b2e]">Dados da empresa</h3>
@@ -64,9 +90,10 @@ export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { co
         <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">E-mail</p><p className="mt-1 text-sm text-[#0d1b2e]">{settings.email || "—"}</p></div>
         <div className="sm:col-span-2 lg:col-span-3"><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Endereço</p><p className="mt-1 text-sm text-[#0d1b2e]">{[settings.street, settings.number, settings.neighborhood, settings.city, settings.state, settings.zip_code].filter(Boolean).join(", ") || "—"}</p></div>
       </div></AdminCardContent>
-    </AdminCard>
+    </AdminCard>}
 
-    <PartnerCompanyUsersSection organizationId={company.id} companyStatus={company.status} />
-    <PartnerCompanyPermissionsSection organizationId={company.id} />
+    {activeSection === "users" && <PartnerCompanyUsersSection organizationId={company.id} companyStatus={company.status} />}
+    {activeSection === "access" && <PartnerCompanyPermissionsSection organizationId={company.id} />}
+    {activeSection === "data" && <PartnerCompanySharedDataSection organizationId={company.id} />}
   </div>;
 }
