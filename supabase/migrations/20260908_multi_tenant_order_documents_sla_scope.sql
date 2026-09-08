@@ -98,15 +98,9 @@ using (
     'orders',
     'read'
   )
-  and (
-    private.has_effective_organization_permission(
-      organization_id,
-      'orders.section.images'
-    )
-    or private.has_effective_organization_permission(
-      organization_id,
-      'orders.documents.view'
-    )
+  and private.has_effective_organization_permission(
+    organization_id,
+    'orders.section.images'
   )
 );
 
