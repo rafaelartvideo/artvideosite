@@ -6,8 +6,12 @@ import type {
   OrderSituationDocument,
 } from "../domain/order-situation-document";
 
-export async function listAttachmentTypes(activeOnly = true) {
-  const organizationId = await getActiveOrganizationId();
+async function resolveOrganizationId(organizationIdOverride?: string | null) {
+  return organizationIdOverride || await getActiveOrganizationId();
+}
+
+export async function listAttachmentTypes(activeOnly = true, organizationIdOverride?: string | null) {
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
   let query = (supabase as any)
     .from("attachment_types")
     .select("id,name,is_active")
@@ -17,8 +21,8 @@ export async function listAttachmentTypes(activeOnly = true) {
   return query as Promise<{ data: AttachmentType[] | null; error: any }>;
 }
 
-export async function listOrderSituationDocuments(serviceOrderId: string) {
-  const organizationId = await getActiveOrganizationId();
+export async function listOrderSituationDocuments(serviceOrderId: string, organizationIdOverride?: string | null) {
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
   return supabase
     .from("service_order_situation_media")
     .select("id,service_order_id,situation_id,media_id,attachment_type_id,created_at,media:media(id,file_name,mime_type),attachment_type:attachment_types(id,name,is_active)")
@@ -31,16 +35,28 @@ export async function listOrderSituationDocuments(serviceOrderId: string) {
 }
 
 export async function attachOrderSituationDocument({
+  organizationId: organizationIdOverride,
   serviceOrderId,
   situationId,
   attachmentTypeId,
   file,
 }: {
+  organizationId?: string | null;
   serviceOrderId: string;
   situationId?: string | null;
   attachmentTypeId?: string | null;
   file: File;
 }) {
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
+  const { data: order, error: orderError } = await supabase
+    .from("service_orders")
+    .select("id")
+    .eq("id", serviceOrderId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (orderError) throw orderError;
+  if (!order) throw new Error("A OS não pertence à empresa informada ou não está disponível para este acesso.");
+
   const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
   const scope = situationId ? `situations/${situationId}` : "attachments";
   const path = `orders/${serviceOrderId}/${scope}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
@@ -50,7 +66,7 @@ export async function attachOrderSituationDocument({
   if (storageError) throw storageError;
 
   try {
-    const mediaId = await createMediaRecord({ bucket: "service-images", path, file });
+    const mediaId = await createMediaRecord({ bucket: "service-images", path, file, organizationId });
     const { error } = situationId
       ? await (supabase as any).rpc("attach_service_order_situation_media", {
           p_service_order_id: serviceOrderId,
