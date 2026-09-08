@@ -11,6 +11,7 @@ import {
   setOrganizationModuleEnabled,
   setPartnerDataShare,
   type PartnerShareAccessLevel,
+  type PartnerShareConfigLevel,
 } from "../infrastructure/partner-companies.repository";
 
 const SAFE_PARTNER_MODULES = new Set([
@@ -37,15 +38,17 @@ const ACCESS_OPTIONS = [
   { value: "none", label: "Nenhum acesso" },
   { value: "summary", label: "Somente resumo" },
   { value: "read", label: "Leitura" },
-  { value: "manage", label: "Gerenciar" },
 ];
 
-const ACCESS_HELP: Record<PartnerShareAccessLevel, string> = {
+const ACCESS_HELP: Record<PartnerShareConfigLevel, string> = {
   none: "A ArtVideo não recebe acesso a este recurso.",
   summary: "Somente indicadores e resumos compatíveis; registros detalhados continuam bloqueados.",
-  read: "Consulta dos registros detalhados, sem alterações operacionais.",
-  manage: "Consulta e ações permitidas também pelas permissões efetivas da ArtVideo.",
+  read: "Consulta dos registros detalhados, sempre sem alterações na empresa parceira.",
 };
+
+function normalizeShareLevel(level?: PartnerShareAccessLevel): PartnerShareConfigLevel {
+  return level === "manage" ? "read" : level || "none";
+}
 
 export function PartnerCompanyPermissionsSection({ organizationId }: { organizationId: string }) {
   const { user, hasPermission } = useAuth();
@@ -96,7 +99,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
   const allModulesEnabled = sortedModules.length > 0 && sortedModules.every((module: any) => enabledByKey.get(module.key) === true);
 
   const shareByKey = useMemo(
-    () => new Map((sharesQuery.data || []).map((item: any) => [item.resource_key, item.access_level as PartnerShareAccessLevel])),
+    () => new Map((sharesQuery.data || []).map((item: any) => [item.resource_key, normalizeShareLevel(item.access_level as PartnerShareAccessLevel)])),
     [sharesQuery.data],
   );
 
@@ -129,12 +132,13 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
   });
 
   const shareMutation = useMutation({
-    mutationFn: async ({ resourceKey, accessLevel }: { resourceKey: "customers" | "orders" | "inventory"; accessLevel: PartnerShareAccessLevel }) => {
+    mutationFn: async ({ resourceKey, accessLevel }: { resourceKey: "customers" | "orders" | "inventory"; accessLevel: PartnerShareConfigLevel }) => {
       const { error } = await setPartnerDataShare(organizationId, resourceKey, accessLevel);
       if (error) throw error;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["partner-companies", "shares", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["partner-companies", "shared-data", organizationId] });
       setToast({ msg: "Compartilhamento atualizado.", type: "success" });
     },
     onError: (error: any) => setToast({ msg: `Não foi possível atualizar o compartilhamento: ${error?.message || "Erro desconhecido"}`, type: "error" }),
@@ -197,7 +201,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       <AdminCardHeader>
         <div>
           <h3 className="text-sm font-black text-[#0d1b2e]">Dados compartilhados com a ArtVideo</h3>
-          <p className="mt-0.5 text-xs text-[#5a6a82]">Configuração independente dos módulos liberados para a empresa.</p>
+          <p className="mt-0.5 text-xs text-[#5a6a82]">Define somente o nível de visualização concedido à ArtVideo.</p>
         </div>
       </AdminCardHeader>
       <AdminCardContent>
@@ -218,7 +222,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
                   value={level}
                   options={ACCESS_OPTIONS}
                   disabled={!canManageShares || busy}
-                  onChange={(event: any) => shareMutation.mutate({ resourceKey: resource.key, accessLevel: event.target.value as PartnerShareAccessLevel })}
+                  onChange={(event: any) => shareMutation.mutate({ resourceKey: resource.key, accessLevel: event.target.value as PartnerShareConfigLevel })}
                 />
               </div>;
             })}
