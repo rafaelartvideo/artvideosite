@@ -22,7 +22,7 @@ import {
 } from "@/shared/ui/admin/AdminLayout";
 import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
-import type { OrderImage } from "./OrderImages";
+import { OrderImageThumb, type OrderImage } from "./OrderImages";
 import type { useOrderSituationDocuments } from "../application/useOrderSituationDocuments";
 import {
   situationDocumentMedia,
@@ -223,7 +223,7 @@ function SituationQuickUploads({ situation, controller, onSuccess, onError }: { 
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={event => void upload(event.target.files)} />
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void upload(event.target.files)} />
       <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Upload size={14} /> Adicionar</button>
-      <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Camera size={14} /> Tirar foto</button>
+      <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#f7faff] disabled:opacity-50"><Camera size={14} /> Tirar foto</button>
     </div>
   );
 }
@@ -233,6 +233,7 @@ export function OrderDocumentsPage({
   order,
   currentSituationId,
   controller,
+  solutionImages,
   onClose,
   onView,
 }: {
@@ -240,10 +241,11 @@ export function OrderDocumentsPage({
   order: any;
   currentSituationId?: string | null;
   controller: Controller;
+  solutionImages: OrderImage[];
   onClose: () => void;
   onView: (image: OrderImage) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"situations" | "attachments">("situations");
+  const [activeTab, setActiveTab] = useState<"situations" | "solution" | "attachments">("situations");
   const [newAttachmentOpen, setNewAttachmentOpen] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [browserBottomInset, setBrowserBottomInset] = useState(0);
@@ -279,44 +281,58 @@ export function OrderDocumentsPage({
     }
   };
 
-  const typedAttachments = controller.documents.filter(item => Boolean(item.attachment_type_id));
+  const solutionMediaIds = new Set(solutionImages.map(image => image.mediaId).filter(Boolean));
+  const visibleDocuments = controller.documents.filter(item => !solutionMediaIds.has(item.media_id));
+  const typedAttachments = visibleDocuments.filter(item => Boolean(item.attachment_type_id));
 
   return (
     <>
       <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos e imagens da ordem de serviço" maxW="max-w-4xl">
         <div className="border-b border-[#0d1b2e]/10 px-5 pt-2">
-          <nav className="flex items-center gap-6" aria-label="Seções de documentos">
-            <button type="button" onClick={() => setActiveTab("situations")} className={cn("border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>SITUAÇÕES</button>
-            <button type="button" onClick={() => setActiveTab("attachments")} className={cn("border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>ANEXOS</button>
+          <nav className="flex items-center gap-6 overflow-x-auto" aria-label="Seções de documentos">
+            <button type="button" onClick={() => setActiveTab("situations")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>SITUAÇÕES</button>
+            <button type="button" onClick={() => setActiveTab("solution")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "solution" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>SOLUÇÃO</button>
+            <button type="button" onClick={() => setActiveTab("attachments")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>ANEXOS</button>
           </nav>
         </div>
 
         <div className="min-w-0 max-w-full space-y-4 overflow-hidden p-5">
           {message && <div className={cn("flex min-w-0 items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}</span><span className="min-w-0 break-words">{message.text}</span></span><button type="button" onClick={() => setMessage(null)} className="shrink-0"><X size={13} /></button></div>}
 
-          {controller.loading ? (
+          {activeTab !== "solution" && controller.loading ? (
             <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando documentos...</p>
           ) : activeTab === "situations" ? (
             controller.flowSituations.length === 0 ? (
               <p className="py-8 text-center text-sm text-[#5a6a82]">Este tipo de atendimento não possui situações configuradas.</p>
             ) : controller.flowSituations.map(situation => {
-              const images = controller.documents.filter(item => item.situation_id === situation.id && !item.attachment_type_id);
+              const situationImages = visibleDocuments.filter(item => item.situation_id === situation.id && !item.attachment_type_id);
               const canUpload = controller.canUpload(situation.id);
               const current = situation.id === currentSituationId;
               return (
                 <AdminCard key={situation.id} className={cn("min-w-0 max-w-full shadow-none", current && "border-[#0057e7]/30 bg-[#f7faff]")}>
                   <AdminCardHeader className={current ? "bg-[#f7faff]" : undefined}>
-                    <div className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div className="min-w-0"><p className="truncate text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"} · {images.length} {images.length === 1 ? "imagem" : "imagens"}</p></div></div>
+                    <div className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div className="min-w-0"><p className="truncate text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"} · {situationImages.length} {situationImages.length === 1 ? "imagem" : "imagens"}</p></div></div>
                     {canUpload && <SituationQuickUploads situation={situation} controller={controller} onSuccess={text => setMessage({ text, type: "success" })} onError={text => setMessage({ text, type: "error" })} />}
                   </AdminCardHeader>
-                  {images.length > 0 ? (
-                    <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{images.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
+                  {situationImages.length > 0 ? (
+                    <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{situationImages.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
                   ) : (
                     <div className="px-4 py-6 text-center text-xs text-[#7c899c]">Nenhuma imagem registrada nesta situação.</div>
                   )}
                 </AdminCard>
               );
             })
+          ) : activeTab === "solution" ? (
+            <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
+              <div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Solução</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Imagens registradas no momento da resolução da OS.</p></div>
+              {solutionImages.length === 0 ? (
+                <div className="max-w-full rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhuma imagem da solução registrada nesta OS.</div>
+              ) : (
+                <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4">
+                  <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onView(image)} />)}</div>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm"><Plus size={14} /> Novo anexo</AdminButton>}</div>
