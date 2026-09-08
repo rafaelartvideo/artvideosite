@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database, KeyRound, ShieldCheck } from "lucide-react";
+import { Building2, Database, KeyRound, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FSelect } from "@/shared/ui/admin/AdminFormControls";
 import {
   listOrganizationModules,
@@ -64,6 +64,14 @@ const companyOptions = (companies: any[]) => [
   { value: "", label: "Selecione" },
   ...companies.map(company => ({ value: company.id, label: company.name })),
 ];
+
+function QueryError({ message }: { message: string }) {
+  return (
+    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+      {message}
+    </div>
+  );
+}
 
 export function PartnerPermissionsArea() {
   const { user, hasPermission } = useAuth();
@@ -149,17 +157,24 @@ export function PartnerPermissionsArea() {
 
   const selectedCompany = (companiesQuery.data || []).find((company: any) => company.id === organizationId);
   const busy = toggleModuleMutation.isPending || shareMutation.isPending;
+  const hasCompanies = (companiesQuery.data || []).length > 0;
 
   return <div className="space-y-4">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <AdminCard className="p-4">
-      <FSelect
-        label="Empresa"
-        value={organizationId}
-        options={companyOptions(companiesQuery.data || [])}
-        onChange={(event: any) => setOrganizationId(event.target.value)}
-      />
+      {companiesQuery.isPending ? <LoadingState /> : companiesQuery.isError ? (
+        <QueryError message={`Não foi possível carregar as empresas: ${(companiesQuery.error as any)?.message || "Erro desconhecido"}`} />
+      ) : !hasCompanies ? (
+        <EmptyState icon={Building2} title="Nenhuma empresa parceira" message="Cadastre uma empresa em Empresas antes de configurar módulos e compartilhamentos." />
+      ) : (
+        <FSelect
+          label="Empresa"
+          value={organizationId}
+          options={companyOptions(companiesQuery.data || [])}
+          onChange={(event: any) => setOrganizationId(event.target.value)}
+        />
+      )}
       {selectedCompany && selectedCompany.status !== "active" && (
         <p className="mt-2 text-xs font-semibold text-amber-700">
           A empresa está {selectedCompany.status === "suspended" ? "suspensa" : "cancelada"}. As configurações permanecem visíveis, mas o tenant não opera enquanto estiver inativo.
@@ -178,7 +193,11 @@ export function PartnerPermissionsArea() {
         </div>
       </div>
 
-      {modulesQuery.isPending ? <LoadingState /> : (
+      {!organizationId ? (
+        <p className="rounded-xl bg-[#f6f8fb] p-4 text-sm text-[#5a6a82]">Selecione ou cadastre uma empresa para configurar os módulos.</p>
+      ) : modulesQuery.isFetching && !modulesQuery.data ? <LoadingState /> : modulesQuery.isError ? (
+        <QueryError message={`Não foi possível carregar os módulos: ${(modulesQuery.error as any)?.message || "Erro desconhecido"}`} />
+      ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           {(modulesQuery.data?.systemModules || []).map((module: any) => {
             const enabled = enabledByKey.get(module.key) === true;
@@ -213,7 +232,11 @@ export function PartnerPermissionsArea() {
         </div>
       </div>
 
-      {sharesQuery.isPending ? <LoadingState /> : (
+      {!organizationId ? (
+        <p className="rounded-xl bg-[#f6f8fb] p-4 text-sm text-[#5a6a82]">Selecione ou cadastre uma empresa para configurar os compartilhamentos.</p>
+      ) : sharesQuery.isFetching && !sharesQuery.data ? <LoadingState /> : sharesQuery.isError ? (
+        <QueryError message={`Não foi possível carregar os compartilhamentos: ${(sharesQuery.error as any)?.message || "Erro desconhecido"}`} />
+      ) : (
         <div className="space-y-3">
           {SHARE_RESOURCES.map(resource => {
             const currentLevel = shareByKey.get(resource.key) || "none";
