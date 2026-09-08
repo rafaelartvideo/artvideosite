@@ -16,13 +16,18 @@ import {
   markServiceOrderUnsolvable,
   resolveServiceOrder,
 } from "../infrastructure/orders.repository";
-import type { OrderImage } from "../domain/order-image";
+import {
+  getServiceOrderLooseParts,
+  saveServiceOrderLooseParts,
+} from "../infrastructure/order-resolution-extra.repository";
+import { orderImageKindFromSortOrder, type OrderImage } from "../domain/order-image";
 import { uploadServiceOrderMediaFile } from "@/shared/infrastructure/media.repository";
 
 type ToastMessage = { msg: string; type: "success" | "error" };
 type SolveDraft = {
   diagnosis: string;
   solution: string;
+  looseParts: string;
   usedItems: any[];
   cannotSolve: boolean;
   cannotSolveReason: string;
@@ -31,12 +36,14 @@ type SolveDraft = {
 const emptySolveDraft: SolveDraft = {
   diagnosis: "",
   solution: "",
+  looseParts: "",
   usedItems: [],
   cannotSolve: false,
   cannotSolveReason: "",
 };
 
 export function useOrderResolution({
+  organizationId,
   detail,
   setDetail,
   setOrders,
@@ -53,6 +60,7 @@ export function useOrderResolution({
   formatError,
   setSaving,
 }: {
+  organizationId?: string | null;
   detail: any;
   setDetail: Dispatch<SetStateAction<any>>;
   setOrders: Dispatch<SetStateAction<any[]>>;
@@ -89,6 +97,13 @@ export function useOrderResolution({
       });
       return;
     }
+    if (!organizationId || order?.organization_id !== organizationId) {
+      showToast({
+        msg: "A OS não pertence à empresa ativa deste atendimento.",
+        type: "error",
+      });
+      return;
+    }
 
     const { data: currentOrder, error: currentOrderError } =
       await getServiceOrderResolutionState(order.id);
@@ -116,6 +131,17 @@ export function useOrderResolution({
     if (hasPendingTestParts()) {
       showToast({
         msg: "Existem peças de teste aguardando devolução, dano ou solicitação para resolução.",
+        type: "error",
+      });
+      return;
+    }
+
+    let looseParts = "";
+    try {
+      looseParts = await getServiceOrderLooseParts(organizationId, order.id) || "";
+    } catch (error) {
+      showToast({
+        msg: `Não foi possível carregar as peças avulsas da OS: ${formatError(error)}`,
         type: "error",
       });
       return;
@@ -168,6 +194,7 @@ export function useOrderResolution({
           key: item.id,
           mediaId: item.media_id,
           name: item.media?.file_name || "Imagem da OS",
+          kind: orderImageKindFromSortOrder(item.sort_order),
         })),
     );
     replaceSolutionImages(
@@ -177,11 +204,13 @@ export function useOrderResolution({
           key: item.id,
           mediaId: item.media_id,
           name: item.media?.file_name || "Imagem da solução",
+          kind: "solution" as const,
         })),
     );
     setSolveDraft({
       diagnosis: currentOrder?.diagnosis || order.diagnosis || "",
       solution: currentOrder?.solution || order.solution || "",
+      looseParts,
       usedItems: approvedItems.map((item: any) => ({
         id: item.id,
         inventory_item_id: item.inventory_item_id,
@@ -205,6 +234,13 @@ export function useOrderResolution({
     if (!hasPermission("orders.solve")) {
       showToast({
         msg: "Você não possui permissão para resolver ordens de serviço.",
+        type: "error",
+      });
+      return;
+    }
+    if (!organizationId || detail?.organization_id !== organizationId) {
+      showToast({
+        msg: "A OS não pertence à empresa ativa deste atendimento.",
         type: "error",
       });
       return;
@@ -257,10 +293,12 @@ export function useOrderResolution({
 
       setSaving(true);
       try {
+        await saveServiceOrderLooseParts(organizationId, orderId, solveDraft.looseParts);
         const { error } = await markServiceOrderUnsolvable(orderId, reason);
         if (error) throw error;
         setDetail((current: any) => ({
           ...current,
+          loose_parts: solveDraft.looseParts.trim() || null,
           cannot_be_solved: true,
           cannot_be_solved_reason: reason,
         }));
@@ -268,6 +306,7 @@ export function useOrderResolution({
           order.id === orderId
             ? {
                 ...order,
+                loose_parts: solveDraft.looseParts.trim() || null,
                 cannot_be_solved: true,
                 cannot_be_solved_reason: reason,
               }
@@ -315,6 +354,7 @@ export function useOrderResolution({
 
     setSaving(true);
     try {
+      await saveServiceOrderLooseParts(organizationId, orderId, solveDraft.looseParts);
       const { error: resolveError } = await resolveServiceOrder({
         serviceOrderId: orderId,
         diagnosis,
@@ -330,7 +370,7 @@ export function useOrderResolution({
       try {
         for (const [sortOrder, image] of solutionImages.entries()) {
           if (!image.file) continue;
-          const mediaId = await uploadServiceOrderMediaFile(orderId, "solution", image.file);
+          const mediaId = await uploadServiceOrderMediaFile(orderId, "solution", image.file, organizationId);
           const { error: insertError } = await insertServiceOrderMedia(
             orderId,
             mediaId,
@@ -357,6 +397,7 @@ export function useOrderResolution({
             key: item.id,
             mediaId: item.media_id,
             name: item.media?.file_name || "Imagem da OS",
+            kind: orderImageKindFromSortOrder(item.sort_order),
           })),
       );
       setDetailSolutionImages(
@@ -366,6 +407,7 @@ export function useOrderResolution({
             key: item.id,
             mediaId: item.media_id,
             name: item.media?.file_name || "Imagem da solução",
+            kind: "solution" as const,
           })),
       );
       setSolveOpen(false);
