@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { PLATFORM_ORGANIZATION_ID } from "./organization.constants";
 import type { Profile } from "./database.types";
 import type { OrganizationAccess, OrganizationStatus, OrganizationType } from "./organization.types";
 
@@ -194,15 +193,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const normalizedOrganizations = (organizationsResult.data || [])
+    const availableOrganizations = (organizationsResult.data || [])
       .map(normalizeOrganizationAccess)
       .filter((organization): organization is OrganizationAccess => organization !== null);
-    const isPlatformMember = normalizedOrganizations.some(organization =>
-      organization.organization_id === PLATFORM_ORGANIZATION_ID && organization.is_direct_member,
-    );
-    const availableOrganizations = normalizedOrganizations.filter(organization =>
-      organization.is_direct_member && (!isPlatformMember || organization.organization_id === PLATFORM_ORGANIZATION_ID),
-    );
     const selectedOrganization = selectOrganization(
       userId,
       availableOrganizations,
