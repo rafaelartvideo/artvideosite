@@ -30,13 +30,16 @@ type Options = {
   showToast: Dispatch<SetStateAction<Toast | null>>;
   setSaving: Dispatch<SetStateAction<boolean>>;
   formatError: (error: unknown) => string;
+  organizationIdOverride?: string | null;
 };
 
 export function useOrderEditorWorkflow({
   userId, workspace, formState, images, customers, address,
   customerPersistence, details, hasPermission, showToast, setSaving, formatError,
+  organizationIdOverride,
 }: Options) {
   const { activeOrganizationId } = useAuth();
+  const organizationId = organizationIdOverride || activeOrganizationId;
 
   const selectCustomer = (customer: any) => {
     const customerAddress = customers.selectCustomer(customer);
@@ -54,7 +57,7 @@ export function useOrderEditorWorkflow({
   };
 
   const openNew = () => {
-    if (!activeOrganizationId) {
+    if (!organizationId) {
       showToast({ msg: "Selecione uma empresa antes de criar uma OS.", type: "error" });
       return;
     }
@@ -66,8 +69,8 @@ export function useOrderEditorWorkflow({
   };
 
   const openEdit = async (order: any) => {
-    if (!activeOrganizationId || order.organization_id !== activeOrganizationId) {
-      showToast({ msg: "Esta OS não pertence à empresa ativa.", type: "error" });
+    if (!organizationId || order.organization_id !== organizationId) {
+      showToast({ msg: "Esta OS não pertence à empresa selecionada.", type: "error" });
       return;
     }
     const endLoading = beginAdminLoading("Carregando edição da OS...");
@@ -100,12 +103,12 @@ export function useOrderEditorWorkflow({
   };
 
   const save = async () => {
-    if (!activeOrganizationId) {
+    if (!organizationId) {
       showToast({ msg: "Selecione uma empresa antes de salvar a OS.", type: "error" });
       return false;
     }
     const editingOrder = formState.editingOS;
-    if (editingOrder?.organization_id && editingOrder.organization_id !== activeOrganizationId) {
+    if (editingOrder?.organization_id && editingOrder.organization_id !== organizationId) {
       showToast({ msg: "A empresa da OS não pode ser alterada.", type: "error" });
       return false;
     }
@@ -132,7 +135,7 @@ export function useOrderEditorWorkflow({
       return false;
     }
     const { status, error: statusError } = await getOrderSubmissionStatus({
-      organizationId: activeOrganizationId,
+      organizationId,
       editingOrder,
       statusId: formState.form.status_id,
     });
@@ -156,7 +159,7 @@ export function useOrderEditorWorkflow({
       serviceUseCustomerAddress: address.serviceUseCustomerAddress,
     });
     const submission = await persistServiceOrder({
-      organizationId: activeOrganizationId,
+      organizationId,
       editingOrder,
       payload,
       selectedTechnicianIds: formState.selectedTechnicianIds,
@@ -183,5 +186,5 @@ export function useOrderEditorWorkflow({
     return true;
   };
 
-  return { selectCustomer, openNew, openEdit, save };
+  return { organizationId, selectCustomer, openNew, openEdit, save };
 }
