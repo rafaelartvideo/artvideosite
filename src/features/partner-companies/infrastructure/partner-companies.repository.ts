@@ -21,11 +21,7 @@ export function listPartnerCompanies() {
 export function createPartnerCompany(payload: PartnerCompanyInput) {
   return supabase
     .from("organizations")
-    .insert({
-      ...payload,
-      organization_type: "partner",
-      parent_organization_id: null,
-    })
+    .insert({ ...payload, organization_type: "partner", parent_organization_id: null })
     .select("id,name,legal_name,document,slug,status,created_at,updated_at")
     .single();
 }
@@ -42,7 +38,7 @@ export function updatePartnerCompany(id: string, payload: PartnerCompanyInput) {
 export function listPartnerMembers(organizationId?: string | null) {
   let query = supabase
     .from("organization_members")
-    .select("id,organization_id,user_id,role_id,status,is_owner,joined_at,created_at,organization:organizations(id,name),profile:profiles!user_id(id,full_name),role:roles(id,name)")
+    .select("id,organization_id,user_id,role_id,status,is_owner,joined_at,created_at,organization:organizations(id,name),profile:profiles!organization_members_user_id_fkey(id,full_name),role:roles(id,name)")
     .neq("organization_id", PLATFORM_ORGANIZATION_ID)
     .order("created_at", { ascending: false });
   if (organizationId) query = query.eq("organization_id", organizationId);
@@ -81,7 +77,7 @@ export function setOrganizationModuleEnabled(organizationId: string, moduleKey: 
 export function listPartnerShares(organizationId?: string | null) {
   let query = supabase
     .from("organization_data_shares")
-    .select("id,parent_organization_id,child_organization_id,resource_key,access_level,updated_at,owner:organizations!child_organization_id(id,name)")
+    .select("id,parent_organization_id,child_organization_id,resource_key,access_level,updated_at,owner:organizations!organization_data_shares_child_organization_id_fkey(id,name)")
     .eq("parent_organization_id", PLATFORM_ORGANIZATION_ID)
     .order("resource_key");
   if (organizationId) query = query.eq("child_organization_id", organizationId);
