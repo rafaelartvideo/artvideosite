@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown, Eraser, Plus, RefreshCw, Search, Trash2, Users } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown, Eraser, Plus, Search, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatDateOnly, formatPhone, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -25,7 +25,6 @@ type Props = {
   filtered: any[];
   pagedCustomers: any[];
   loading: boolean;
-  isFetching: boolean;
   nameSearch: string;
   documentSearch: string;
   selectedStates: string[];
@@ -49,7 +48,6 @@ type Props = {
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onCreate: () => void;
-  onRefresh: () => void;
   onOpenDetail: (customer: any) => void;
   onDelete: (customerId: string | null) => void;
 };
@@ -70,11 +68,11 @@ export function CustomersList(props: Props) {
   const showCreatedAt = hasPermission("customers.table.created_at");
   const showActions = hasPermission("customers.table.actions");
   const {
-    customers, filtered, pagedCustomers, loading, isFetching,
+    customers, filtered, pagedCustomers, loading,
     nameSearch, documentSearch, selectedStates, selectedCities, orderSort, stateOptions, cityOptions, hasFilters,
     safePage, pageSize, totalPages, canCreate, canDelete,
     onNameSearchChange, onDocumentSearchChange, onStateToggle, onCityToggle, onOrderSortChange, onClearFilters,
-    onPageChange, onPageSizeChange, onCreate, onRefresh, onOpenDetail, onDelete,
+    onPageChange, onPageSizeChange, onCreate, onOpenDetail, onDelete,
   } = props;
   const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Nome";
   const sortLabel = orderSort === "asc" ? "Nome crescente" : orderSort === "desc" ? "Nome decrescente" : "Ordenação padrão";
@@ -102,7 +100,7 @@ export function CustomersList(props: Props) {
     <PageHeader
       title="Clientes"
       subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`}
-      actions={<div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">{canCreate && <AdminButton onClick={onCreate} className="w-full sm:w-auto"><Plus size={13} /> Cadastrar</AdminButton>}<AdminButton variant="secondary" onClick={onRefresh} disabled={isFetching} className="w-full border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5 sm:w-auto"><RefreshCw size={13} className={isFetching ? "animate-spin" : ""} /> Atualizar</AdminButton></div>}
+      actions={canCreate ? <AdminButton onClick={onCreate}><Plus size={13} /> Cadastrar</AdminButton> : undefined}
     />
 
     <AdminSearchPanel title="Buscar clientes">
