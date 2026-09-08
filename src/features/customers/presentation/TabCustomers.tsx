@@ -44,6 +44,7 @@ export function TabCustomers({
     canCreate,
     canEdit,
     canEditAddress,
+    loadRelatedHistory: !sharedReadOnly,
   });
 
   useEffect(() => {
