@@ -97,9 +97,11 @@ export function useOrderResolution({
       });
       return;
     }
-    if (!organizationId || order?.organization_id !== organizationId) {
+
+    const targetOrganizationId = organizationId || order?.organization_id;
+    if (!targetOrganizationId || order?.organization_id !== targetOrganizationId) {
       showToast({
-        msg: "A OS não pertence à empresa ativa deste atendimento.",
+        msg: "A OS não pertence à empresa deste atendimento.",
         type: "error",
       });
       return;
@@ -138,7 +140,7 @@ export function useOrderResolution({
 
     let looseParts = "";
     try {
-      looseParts = await getServiceOrderLooseParts(organizationId, order.id) || "";
+      looseParts = await getServiceOrderLooseParts(targetOrganizationId, order.id) || "";
     } catch (error) {
       showToast({
         msg: `Não foi possível carregar as peças avulsas da OS: ${formatError(error)}`,
@@ -238,9 +240,11 @@ export function useOrderResolution({
       });
       return;
     }
-    if (!organizationId || detail?.organization_id !== organizationId) {
+
+    const targetOrganizationId = organizationId || detail?.organization_id;
+    if (!targetOrganizationId || detail?.organization_id !== targetOrganizationId) {
       showToast({
-        msg: "A OS não pertence à empresa ativa deste atendimento.",
+        msg: "A OS não pertence à empresa deste atendimento.",
         type: "error",
       });
       return;
@@ -293,7 +297,7 @@ export function useOrderResolution({
 
       setSaving(true);
       try {
-        await saveServiceOrderLooseParts(organizationId, orderId, solveDraft.looseParts);
+        await saveServiceOrderLooseParts(targetOrganizationId, orderId, solveDraft.looseParts);
         const { error } = await markServiceOrderUnsolvable(orderId, reason);
         if (error) throw error;
         setDetail((current: any) => ({
@@ -354,7 +358,7 @@ export function useOrderResolution({
 
     setSaving(true);
     try {
-      await saveServiceOrderLooseParts(organizationId, orderId, solveDraft.looseParts);
+      await saveServiceOrderLooseParts(targetOrganizationId, orderId, solveDraft.looseParts);
       const { error: resolveError } = await resolveServiceOrder({
         serviceOrderId: orderId,
         diagnosis,
@@ -370,7 +374,12 @@ export function useOrderResolution({
       try {
         for (const [sortOrder, image] of solutionImages.entries()) {
           if (!image.file) continue;
-          const mediaId = await uploadServiceOrderMediaFile(orderId, "solution", image.file, organizationId);
+          const mediaId = await uploadServiceOrderMediaFile(
+            orderId,
+            "solution",
+            image.file,
+            targetOrganizationId,
+          );
           const { error: insertError } = await insertServiceOrderMedia(
             orderId,
             mediaId,
