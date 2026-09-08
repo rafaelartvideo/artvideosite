@@ -1,3 +1,4 @@
+import { getActiveOrganizationId } from "@/lib/active-organization";
 import { supabase } from "@/lib/supabase";
 
 const factorOf = (item: any) => Math.max(1, Number(item?.conversion_factor ?? 1) || 1);
@@ -31,9 +32,11 @@ function toBasePayload(payload: Record<string, unknown>) {
 }
 
 export async function listInventoryItems() {
+  const organizationId = await getActiveOrganizationId();
   const { data, error } = await supabase
     .from("inventory_items")
     .select("*")
+    .eq("organization_id", organizationId)
     .order("name");
 
   if (error) throw error;
@@ -44,10 +47,17 @@ export async function saveInventoryItem(
   payload: Record<string, unknown>,
   itemId?: string,
 ): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
   const basePayload = toBasePayload(payload);
   const { error } = itemId
-    ? await supabase.from("inventory_items").update(basePayload).eq("id", itemId)
-    : await supabase.from("inventory_items").insert(basePayload);
+    ? await supabase
+        .from("inventory_items")
+        .update(basePayload)
+        .eq("id", itemId)
+        .eq("organization_id", organizationId)
+    : await supabase
+        .from("inventory_items")
+        .insert({ ...basePayload, organization_id: organizationId });
 
   if (error) throw error;
 }
@@ -56,39 +66,47 @@ export async function setInventoryItemActive(
   itemId: string,
   isActive: boolean,
 ): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
   const { error } = await supabase
     .from("inventory_items")
     .update({ is_active: isActive })
-    .eq("id", itemId);
+    .eq("id", itemId)
+    .eq("organization_id", organizationId);
 
   if (error) throw error;
 }
 
 export async function deleteInventoryItem(itemId: string): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
   const { error } = await supabase
     .from("inventory_items")
     .delete()
-    .eq("id", itemId);
+    .eq("id", itemId)
+    .eq("organization_id", organizationId);
 
   if (error) throw error;
 }
 
 export async function listInventoryMovements(itemId: string) {
+  const organizationId = await getActiveOrganizationId();
   const [movementsResult, usedItemsResult, itemResult] = await Promise.all([
     supabase
       .from("inventory_movements")
       .select("*, created_by_profile:profiles(full_name), service_order:service_orders(os_number)")
       .eq("inventory_item_id", itemId)
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false }),
     supabase
       .from("service_order_used_items")
       .select("id,inventory_item_id,service_order_id,quantity,created_by,created_at,created_by_profile:profiles(full_name),service_order:service_orders(os_number)")
       .eq("inventory_item_id", itemId)
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false }),
     supabase
       .from("inventory_items")
       .select("id,unit,conversion_factor")
       .eq("id", itemId)
+      .eq("organization_id", organizationId)
       .maybeSingle(),
   ]);
 
@@ -135,10 +153,12 @@ export async function listInventoryMovements(itemId: string) {
 }
 
 export async function getInventoryItem(itemId: string) {
+  const organizationId = await getActiveOrganizationId();
   const { data, error } = await supabase
     .from("inventory_items")
     .select("id,name,unit,conversion_factor,quantity,is_active")
     .eq("id", itemId)
+    .eq("organization_id", organizationId)
     .maybeSingle();
 
   if (error) throw error;
@@ -150,14 +170,16 @@ export async function recordInventoryMovement(
   itemId: string,
   nextQuantity: number,
 ): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
   const { data: item, error: itemLoadError } = await supabase
     .from("inventory_items")
     .select("id,unit,conversion_factor")
     .eq("id", itemId)
+    .eq("organization_id", organizationId)
     .maybeSingle();
 
   if (itemLoadError) throw itemLoadError;
-  if (!item) throw new Error("Item do estoque não encontrado.");
+  if (!item) throw new Error("Item do estoque não encontrado nesta empresa.");
 
   const factor = factorOf(item);
   const inputQuantity = Number(movement.quantity || 0);
@@ -165,6 +187,7 @@ export async function recordInventoryMovement(
   const baseNextQuantity = isBox(item) ? Number(nextQuantity) * factor : Number(nextQuantity);
   const movementPayload = {
     ...movement,
+    organization_id: organizationId,
     quantity: baseQuantity,
     input_unit: isBox(item) ? "cx" : "un",
     input_quantity: inputQuantity,
@@ -180,7 +203,8 @@ export async function recordInventoryMovement(
   const { error: itemError } = await supabase
     .from("inventory_items")
     .update({ quantity: baseNextQuantity })
-    .eq("id", itemId);
+    .eq("id", itemId)
+    .eq("organization_id", organizationId);
 
   if (itemError) throw itemError;
 }
