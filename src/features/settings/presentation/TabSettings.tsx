@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Building2, CheckCircle, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useSaveSiteSettingsMutation, useSiteSettingsQuery } from "./useSiteSettingsQuery";
+import { useCompanySettingsQuery, useSaveCompanySettingsMutation } from "./useCompanySettingsQuery";
 import { lookupCompanyByCnpj } from "../infrastructure/company-registry.gateway";
 import { AdminButton, AdminCard, AdminPage, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
@@ -38,13 +38,13 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
   routeResourceId?: string | null;
   onRouteChange?: (resourceId: string | null) => void;
 }) {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, activeOrganizationId } = useAuth();
   const canView = hasPermission("settings.view");
   const canViewDetails = hasPermission("settings.details.view");
   const canUpdate = hasPermission("settings.update");
   const canLookupCnpj = hasPermission("settings.lookup_cnpj");
-  const query = useSiteSettingsQuery();
-  const saveSettings = useSaveSiteSettingsMutation();
+  const query = useCompanySettingsQuery(activeOrganizationId);
+  const saveSettings = useSaveCompanySettingsMutation();
   const [form, setForm] = useState<CompanyForm>(EMPTY_COMPANY);
   const [lookingUp, setLookingUp] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -101,7 +101,7 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
   };
 
   const save = async () => {
-    if (!canUpdate || busy) return;
+    if (!canUpdate || busy || !activeOrganizationId) return;
     if (!form.company_name.trim()) {
       setToast({ msg: "Informe o nome da empresa.", type: "error" });
       return;
@@ -123,7 +123,7 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       return;
     }
     try {
-      await saveSettings.mutateAsync({ settings: form, updatedBy: user?.id ?? null });
+      await saveSettings.mutateAsync({ organizationId: activeOrganizationId, settings: form, updatedBy: user?.id ?? null });
       setToast({ msg: "Dados da empresa salvos com sucesso.", type: "success" });
     } catch (error) {
       setToast({ msg: error instanceof Error ? error.message : "Não foi possível salvar os dados.", type: "error" });
@@ -135,28 +135,28 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Configurações" subtitle="Gerencie as informações institucionais e configurações do site." />
+    <PageHeader title="Configurações" subtitle="Gerencie as informações institucionais da empresa ativa." />
     <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {canViewDetails && <AdminCard className="group min-w-0 transition-all hover:border-[#0057e7]/40 hover:shadow-md">
         <AdminButton variant="ghost" type="button" onClick={() => onRouteChange?.("company")} className="h-auto w-full min-w-0 flex-col items-stretch whitespace-normal rounded-none p-0 text-left hover:bg-transparent">
           <div className="min-w-0 px-4 py-4 sm:px-5 sm:py-5">
             <div className="flex min-w-0 items-start justify-between gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e8eef8] text-[#0057e7] transition-colors group-hover:bg-[#0057e7] group-hover:text-white"><Building2 size={18} /></div><ArrowLeft size={15} className="shrink-0 rotate-180 text-[#5a6a82] transition-colors group-hover:text-[#0057e7]" /></div>
             <h3 className="mt-4 min-w-0 whitespace-normal break-words text-base font-black leading-tight text-[#0d1b2e]">Dados da empresa</h3>
-            <p className="mt-1.5 min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-normal leading-5 text-[#5a6a82]">Nome, CNPJ, contatos, endereço e logo usados no site e nos documentos.</p>
+            <p className="mt-1.5 min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-normal leading-5 text-[#5a6a82]">Nome, CNPJ, contatos, endereço e logo usados nos documentos desta empresa.</p>
             <span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span>
           </div>
         </AdminButton>
       </AdminCard>}
     </div>
 
-    <AdminPage open={companyOpen} onClose={() => { if (!busy) onRouteChange?.(null); }} breadcrumb="Configurações" title="Dados da empresa" subtitle="Informações oficiais utilizadas no site e nos documentos impressos." maxW="max-w-6xl">
+    <AdminPage open={companyOpen} onClose={() => { if (!busy) onRouteChange?.(null); }} breadcrumb="Configurações" title="Dados da empresa" subtitle="Informações oficiais utilizadas nos documentos da empresa ativa." maxW="max-w-6xl">
       <div className="min-w-0 space-y-5 p-4 sm:p-5">
         <Section title="Identificação"><div className="grid min-w-0 gap-4 md:grid-cols-2">
           <div className="min-w-0 md:col-span-2"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ</label><div className="flex min-w-0 flex-col gap-2 sm:flex-row"><FInput label="" inputMode="numeric" maxLength={18} value={form.company_cnpj} disabled={!canUpdate || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" className="min-w-0 flex-1" />{canUpdate && canLookupCnpj && <AdminButton variant="secondary" onClick={lookupCnpj} loading={lookingUp} loadingText="Consultando..." disabled={saveSettings.isPending}><Search size={15} /> Consultar CNPJ</AdminButton>}</div><p className="mt-2 break-words text-xs leading-relaxed text-[#718096]">A consulta preenche automaticamente os dados públicos disponíveis. Revise antes de salvar.</p></div>
           <FInput label="Nome da empresa / Nome fantasia" value={form.company_name} required disabled={!canUpdate || busy} onChange={(event: any) => update("company_name", event.target.value)} /><FInput label="Razão social" value={form.company_legal_name} disabled={!canUpdate || busy} onChange={(event: any) => update("company_legal_name", event.target.value)} /><FInput label="Telefone" inputMode="tel" maxLength={16} placeholder="(79) 9 9999-9999" value={form.company_phone} disabled={!canUpdate || busy} onChange={(event: any) => update("company_phone", formatPhone(event.target.value))} /><FInput label="E-mail" type="email" autoComplete="email" value={form.company_email} disabled={!canUpdate || busy} onChange={(event: any) => update("company_email", event.target.value.trimStart())} />
         </div></Section>
         <Section title="Endereço"><div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-4"><FInput label="CEP" inputMode="numeric" maxLength={9} placeholder="00000-000" value={form.company_zip_code} disabled={!canUpdate || busy} onChange={(event: any) => update("company_zip_code", formatZipCode(event.target.value))} /><div className="min-w-0 lg:col-span-2"><FInput label="Rua / Logradouro" value={form.company_street} disabled={!canUpdate || busy} onChange={(event: any) => update("company_street", event.target.value)} /></div><FInput label="Número" inputMode="numeric" value={form.company_number} disabled={!canUpdate || busy} onChange={(event: any) => update("company_number", event.target.value.replace(/[^0-9A-Za-z/-]/g, ""))} /><div className="min-w-0 lg:col-span-2"><FInput label="Complemento" value={form.company_complement} disabled={!canUpdate || busy} onChange={(event: any) => update("company_complement", event.target.value)} /></div><div className="min-w-0 lg:col-span-2"><FInput label="Bairro" value={form.company_neighborhood} disabled={!canUpdate || busy} onChange={(event: any) => update("company_neighborhood", event.target.value)} /></div><div className="min-w-0 lg:col-span-2"><FInput label="Cidade" value={form.company_city} disabled={!canUpdate || busy} onChange={(event: any) => update("company_city", event.target.value)} /></div><FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canUpdate || busy} onChange={(event: any) => update("company_state", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2))} /></div></Section>
-        <Section title="Logo da empresa"><ImageUpload bucket="public-assets" currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={canUpdate && !busy} label="Logo utilizada nos documentos" /></Section>
+        <Section title="Logo da empresa"><ImageUpload bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={canUpdate && !busy} label="Logo utilizada nos documentos" /></Section>
       </div>
       <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => onRouteChange?.(null)} disabled={busy}>Voltar</BtnSecondary>{canUpdate && <BtnPrimary onClick={save} loading={saveSettings.isPending} loadingText="Salvando..." disabled={lookingUp}><CheckCircle size={15} /> Salvar dados</BtnPrimary>}</div>
     </AdminPage>
