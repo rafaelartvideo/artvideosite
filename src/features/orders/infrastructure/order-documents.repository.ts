@@ -1,3 +1,4 @@
+import { getActiveOrganizationId } from "@/lib/active-organization";
 import { supabase } from "@/lib/supabase";
 import { createMediaRecord } from "@/shared/infrastructure/media.repository";
 import type {
@@ -15,9 +16,11 @@ export async function listAttachmentTypes(activeOnly = true) {
 }
 
 export async function listOrderSituationDocuments(serviceOrderId: string) {
+  const organizationId = await getActiveOrganizationId();
   return supabase
     .from("service_order_situation_media")
     .select("id,service_order_id,situation_id,media_id,attachment_type_id,created_at,media:media(id,file_name,mime_type),attachment_type:attachment_types(id,name,is_active)")
+    .eq("organization_id", organizationId)
     .eq("service_order_id", serviceOrderId)
     .order("created_at", { ascending: true }) as unknown as Promise<{
       data: OrderSituationDocument[] | null;
