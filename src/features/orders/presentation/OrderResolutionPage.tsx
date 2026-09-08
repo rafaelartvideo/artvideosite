@@ -46,6 +46,10 @@ export function OrderResolutionPage({
 }) {
   if (!open || !detail) return null;
   const technicalValues = Array.isArray(detail.technical_values) ? detail.technical_values : [];
+  const diagnosis = String(solveDraft.diagnosis || "");
+  const solution = String(solveDraft.solution || "");
+  const looseParts = String(solveDraft.looseParts || "");
+
   return (
 <AdminPage open={true} onClose={onClose} breadcrumb="Ordens de Serviço" title="Resolver OS" subtitle="Diagnóstico, solução e produtos utilizados" maxW="max-w-2xl">
         <div className="p-5 space-y-5">
@@ -67,22 +71,24 @@ export function OrderResolutionPage({
           </Section>
 
           <Section title="Diagnóstico">
-            <FTextarea label="Diagnóstico" value={solveDraft.diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: e.target.value }))} rows={5} />
+            <FTextarea aria-label="Diagnóstico" value={diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: e.target.value }))} rows={5} />
+            <p className="mt-1 text-right text-[10px] font-semibold text-[#7c899c]">{diagnosis.length} caracteres</p>
           </Section>
 
           <Section title="Solução">
-            <FTextarea label="Solução" value={solveDraft.solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: e.target.value }))} rows={5} />
+            <FTextarea aria-label="Solução" value={solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: e.target.value }))} rows={5} />
+            <p className="mt-1 text-right text-[10px] font-semibold text-[#7c899c]">{solution.length} caracteres</p>
           </Section>
 
           <Section title="Peças avulsas">
             <FTextarea
-              label="Peças avulsas"
-              value={solveDraft.looseParts || ""}
+              aria-label="Peças avulsas"
+              value={looseParts}
               onChange={(e: any) => setSolveDraft(current => ({ ...current, looseParts: e.target.value }))}
               rows={4}
-              hint="Descreva peças, materiais ou componentes utilizados que não estão cadastrados no estoque."
               placeholder="Ex.: conector HDMI, cabo, parafuso, componente reaproveitado..."
             />
+            <p className="mt-1 text-right text-[10px] font-semibold text-[#7c899c]">{looseParts.length} caracteres</p>
           </Section>
 
           <Section title="Resultado do atendimento">
@@ -124,9 +130,6 @@ export function OrderResolutionPage({
           </Section>
 
           <Section title="Imagens da solução">
-            <div className="mb-3 rounded-lg border border-[#0057e7]/15 bg-[#f7faff] px-3 py-2 text-xs leading-5 text-[#5a6a82]">
-              As fotos anexadas aqui serão vinculadas automaticamente à situação atual da OS e ficarão disponíveis em Documentos → Situações.
-            </div>
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-xs text-[#5a6a82]">{solutionImages.length}/5 imagens</p>
               <div className="flex items-center gap-2 flex-wrap">
