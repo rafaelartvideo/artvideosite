@@ -1,6 +1,18 @@
 import { supabase } from "@/lib/supabase";
+import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
 
-export const PLATFORM_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
+export type PartnerCompanySettings = {
+  person_type?: "PF" | "PJ";
+  phone?: string;
+  email?: string;
+  zip_code?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+};
 
 export type PartnerCompanyInput = {
   name: string;
@@ -8,6 +20,7 @@ export type PartnerCompanyInput = {
   document: string | null;
   slug: string;
   status: "active" | "suspended" | "cancelled";
+  settings?: PartnerCompanySettings;
 };
 
 export type PartnerUserInput = {
@@ -26,19 +39,30 @@ export type PartnerUserInput = {
 
 export type PartnerShareAccessLevel = "none" | "summary" | "read" | "manage";
 
+const COMPANY_SELECT = "id,name,legal_name,document,slug,status,settings,created_at,updated_at";
+
 export function listPartnerCompanies() {
   return supabase
     .from("organizations")
-    .select("id,name,legal_name,document,slug,status,created_at,updated_at")
+    .select(COMPANY_SELECT)
     .neq("id", PLATFORM_ORGANIZATION_ID)
     .order("name");
+}
+
+export function getPartnerCompany(id: string) {
+  return supabase
+    .from("organizations")
+    .select(COMPANY_SELECT)
+    .eq("id", id)
+    .neq("id", PLATFORM_ORGANIZATION_ID)
+    .single();
 }
 
 export function createPartnerCompany(payload: PartnerCompanyInput) {
   return supabase
     .from("organizations")
     .insert({ ...payload, organization_type: "partner", parent_organization_id: null })
-    .select("id,name,legal_name,document,slug,status,created_at,updated_at")
+    .select(COMPANY_SELECT)
     .single();
 }
 
@@ -47,7 +71,16 @@ export function updatePartnerCompany(id: string, payload: PartnerCompanyInput) {
     .from("organizations")
     .update({ ...payload, parent_organization_id: null, organization_type: "partner" })
     .eq("id", id)
-    .select("id,name,legal_name,document,slug,status,created_at,updated_at")
+    .select(COMPANY_SELECT)
+    .single();
+}
+
+export function setPartnerCompanyStatus(id: string, status: "active" | "suspended") {
+  return supabase
+    .from("organizations")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select(COMPANY_SELECT)
     .single();
 }
 
