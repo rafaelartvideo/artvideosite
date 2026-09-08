@@ -1,9 +1,19 @@
-import { useEffect, useState } from "react";
-import { Building2, CheckCircle2, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Building2, CheckCircle2 } from "lucide-react";
 import { lookupCompanyByCnpj } from "@/features/settings/infrastructure/company-registry.gateway";
+import { type Address } from "@/lib/address";
+import {
+  isValidBrazilianMobile,
+  isValidBrazilianPhone,
+  isValidCnpj,
+  isValidCpf,
+  isValidEmail,
+  normalizeDigits,
+} from "@/shared/domain/formatters";
+import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { AdminCard, AdminCardContent, AdminCardHeader, AdminPage, AdminSegmentedControl, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
-import { FCnpjInput, FCpfInput, FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
+import { FCnpjInput, FCpfInput, FEmailInput, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import {
   createPartnerCompany,
   updatePartnerCompany,
@@ -19,6 +29,7 @@ type CompanyDraft = {
   legalName: string;
   document: string;
   phone: string;
+  whatsapp: string;
   email: string;
   zipCode: string;
   street: string;
@@ -29,12 +40,15 @@ type CompanyDraft = {
   state: string;
 };
 
+type FormErrors = Partial<Record<keyof CompanyDraft | "address", string>>;
+
 const emptyDraft: CompanyDraft = {
   personType: "PJ",
   name: "",
   legalName: "",
   document: "",
   phone: "",
+  whatsapp: "",
   email: "",
   zipCode: "",
   street: "",
@@ -59,7 +73,7 @@ function internalSlug(name: string) {
 }
 
 function toDraft(company?: any | null): CompanyDraft {
-  if (!company) return emptyDraft;
+  if (!company) return { ...emptyDraft };
   const settings = (company.settings || {}) as PartnerCompanySettings;
   return {
     personType: settings.person_type === "PF" ? "PF" : "PJ",
@@ -67,6 +81,7 @@ function toDraft(company?: any | null): CompanyDraft {
     legalName: company.legal_name || "",
     document: company.document || "",
     phone: settings.phone || "",
+    whatsapp: settings.whatsapp || "",
     email: settings.email || "",
     zipCode: settings.zip_code || "",
     street: settings.street || "",
@@ -76,6 +91,37 @@ function toDraft(company?: any | null): CompanyDraft {
     city: settings.city || "",
     state: settings.state || "",
   };
+}
+
+function validateCompany(form: CompanyDraft): FormErrors {
+  const errors: FormErrors = {};
+  const documentDigits = normalizeDigits(form.document);
+  const zipDigits = normalizeDigits(form.zipCode);
+  const hasAddress = Boolean(zipDigits || form.street.trim() || form.number.trim() || form.neighborhood.trim() || form.city.trim() || form.state.trim());
+
+  if (!form.name.trim()) {
+    errors.name = form.personType === "PJ" ? "Informe o nome fantasia ou nome da empresa." : "Informe o nome completo.";
+  }
+
+  if (form.personType === "PF") {
+    if (!isValidCpf(documentDigits)) errors.document = "Informe um CPF válido.";
+  } else {
+    if (!isValidCnpj(documentDigits)) errors.document = "Informe um CNPJ válido.";
+    if (!form.legalName.trim()) errors.legalName = "Informe a razão social.";
+  }
+
+  if (form.phone && !isValidBrazilianPhone(form.phone)) errors.phone = "Informe um telefone brasileiro válido.";
+  if (form.whatsapp && !isValidBrazilianMobile(form.whatsapp)) errors.whatsapp = "Informe um WhatsApp celular válido com DDD.";
+  if (form.email && !isValidEmail(form.email)) errors.email = "Informe um e-mail válido.";
+
+  if (zipDigits && zipDigits.length !== 8) errors.address = "O CEP deve conter 8 dígitos.";
+  if (hasAddress && zipDigits.length === 8) {
+    if (!form.street.trim()) errors.address = "Informe o logradouro do endereço.";
+    else if (!form.city.trim()) errors.address = "Informe a cidade do endereço.";
+    else if (!/^[A-Za-z]{2}$/.test(form.state.trim())) errors.address = "Informe uma UF válida com 2 letras.";
+  }
+
+  return errors;
 }
 
 export function PartnerCompanyEditorPage({
@@ -93,54 +139,116 @@ export function PartnerCompanyEditorPage({
 }) {
   const editing = Boolean(company?.id);
   const [form, setForm] = useState<CompanyDraft>(() => toDraft(company));
+  const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
-  const [consulting, setConsulting] = useState(false);
+  const [consultingCnpj, setConsultingCnpj] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const lastCnpjLookupRef = useRef("");
 
   useEffect(() => {
-    if (open) setForm(toDraft(company));
+    if (!open) return;
+    const draft = toDraft(company);
+    setForm(draft);
+    setErrors({});
+    setToast(null);
+    lastCnpjLookupRef.current = normalizeDigits(draft.document);
   }, [open, company]);
+
+  useEffect(() => {
+    if (!open || form.personType !== "PJ") return;
+    const digits = normalizeDigits(form.document);
+    if (digits.length !== 14 || digits === lastCnpjLookupRef.current) return;
+
+    if (!isValidCnpj(digits)) {
+      lastCnpjLookupRef.current = digits;
+      setErrors(current => ({ ...current, document: "Informe um CNPJ válido." }));
+      return;
+    }
+
+    lastCnpjLookupRef.current = digits;
+    let active = true;
+    setConsultingCnpj(true);
+    setErrors(current => ({ ...current, document: undefined }));
+
+    lookupCompanyByCnpj(digits)
+      .then(data => {
+        if (!active) return;
+        setForm(current => {
+          if (current.personType !== "PJ" || normalizeDigits(current.document) !== digits) return current;
+          return {
+            ...current,
+            document: data.cnpj,
+            name: data.tradeName || data.legalName || current.name,
+            legalName: data.legalName || current.legalName,
+            phone: data.phone || current.phone,
+            email: data.email || current.email,
+            zipCode: data.zipCode || current.zipCode,
+            street: data.street || current.street,
+            number: data.number || current.number,
+            complement: data.complement || current.complement,
+            neighborhood: data.neighborhood || current.neighborhood,
+            city: data.city || current.city,
+            state: data.state || current.state,
+          };
+        });
+        setToast({ msg: "CNPJ consultado e dados preenchidos automaticamente.", type: "success" });
+      })
+      .catch(error => {
+        if (!active) return;
+        setToast({ msg: error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.", type: "error" });
+      })
+      .finally(() => {
+        if (active) setConsultingCnpj(false);
+      });
+
+    return () => { active = false; };
+  }, [open, form.personType, form.document]);
 
   if (!open) return null;
 
-  const setField = (key: keyof CompanyDraft, value: string) => setForm(current => ({ ...current, [key]: value }));
+  const setField = (key: keyof CompanyDraft, value: string) => {
+    setForm(current => ({ ...current, [key]: value }));
+    setErrors(current => ({ ...current, [key]: undefined }));
+  };
 
-  const consultCnpj = async () => {
-    if (form.personType !== "PJ") return;
-    setConsulting(true);
-    try {
-      const data = await lookupCompanyByCnpj(form.document);
-      setForm(current => ({
-        ...current,
-        document: data.cnpj,
-        name: data.tradeName || data.legalName || current.name,
-        legalName: data.legalName || current.legalName,
-        phone: data.phone || current.phone,
-        email: data.email || current.email,
-        zipCode: data.zipCode || current.zipCode,
-        street: data.street || current.street,
-        number: data.number || current.number,
-        complement: data.complement || current.complement,
-        neighborhood: data.neighborhood || current.neighborhood,
-        city: data.city || current.city,
-        state: data.state || current.state,
-      }));
-      setToast({ msg: "Dados do CNPJ preenchidos.", type: "success" });
-    } catch (error) {
-      setToast({ msg: error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.", type: "error" });
-    } finally {
-      setConsulting(false);
-    }
+  const changePersonType = (value: PersonType) => {
+    if (value === form.personType) return;
+    lastCnpjLookupRef.current = "";
+    setErrors({});
+    setForm({ ...emptyDraft, personType: value });
+  };
+
+  const addressValue: Address = {
+    zip_code: form.zipCode,
+    street: form.street,
+    number: form.number,
+    complement: form.complement,
+    neighborhood: form.neighborhood,
+    city: form.city,
+    state: form.state,
+    shared_map_url: "",
+  };
+
+  const setAddress = (address: Address) => {
+    setForm(current => ({
+      ...current,
+      zipCode: address.zip_code,
+      street: address.street,
+      number: address.number,
+      complement: address.complement,
+      neighborhood: address.neighborhood,
+      city: address.city,
+      state: String(address.state || "").toUpperCase().slice(0, 2),
+    }));
+    setErrors(current => ({ ...current, address: undefined }));
   };
 
   const save = async () => {
-    const digits = form.document.replace(/\D/g, "");
-    if (!form.name.trim()) {
-      setToast({ msg: form.personType === "PJ" ? "Informe o nome fantasia ou nome da empresa." : "Informe o nome da pessoa.", type: "error" });
-      return;
-    }
-    if ((form.personType === "PF" && digits.length !== 11) || (form.personType === "PJ" && digits.length !== 14)) {
-      setToast({ msg: `Informe um ${form.personType === "PF" ? "CPF" : "CNPJ"} válido.`, type: "error" });
+    const validationErrors = validateCompany(form);
+    setErrors(validationErrors);
+    const firstError = Object.values(validationErrors).find(Boolean);
+    if (firstError) {
+      setToast({ msg: String(firstError), type: "error" });
       return;
     }
     if (!canSave) return;
@@ -148,6 +256,7 @@ export function PartnerCompanyEditorPage({
     const settings: PartnerCompanySettings = {
       person_type: form.personType,
       phone: form.phone.trim(),
+      whatsapp: form.whatsapp.trim(),
       email: form.email.trim(),
       zip_code: form.zipCode.trim(),
       street: form.street.trim(),
@@ -159,7 +268,7 @@ export function PartnerCompanyEditorPage({
     };
     const payload: PartnerCompanyInput = {
       name: form.name.trim(),
-      legal_name: form.personType === "PJ" ? form.legalName.trim() || null : null,
+      legal_name: form.personType === "PJ" ? form.legalName.trim() : null,
       document: form.document,
       slug: editing ? company.slug : internalSlug(form.name),
       status: company?.status || "active",
@@ -187,10 +296,10 @@ export function PartnerCompanyEditorPage({
     title={editing ? "Editar empresa" : "Nova empresa"}
     subtitle={editing ? "Atualize os dados cadastrais da empresa parceira." : "Cadastre uma nova empresa parceira independente."}
     maxW="max-w-2xl"
-    fullPage={editing}
+    fullPage
   >
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <div className="space-y-5 p-5">
+    <div className="space-y-5 p-4 sm:p-5">
       <AdminCard>
         <AdminCardHeader>
           <div className="flex min-w-0 items-center gap-2">
@@ -208,31 +317,36 @@ export function PartnerCompanyEditorPage({
               <AdminSegmentedControl
                 value={form.personType}
                 options={[{ value: "PF", label: "CPF — Pessoa Física" }, { value: "PJ", label: "CNPJ — Pessoa Jurídica" }]}
-                onChange={(value) => setForm(current => ({ ...current, personType: value, document: "", legalName: value === "PF" ? "" : current.legalName }))}
+                onChange={changePersonType}
                 className="grid-cols-2"
               />
+              <p className="mt-1.5 text-[10px] leading-relaxed text-[#5a6a82]">Ao trocar o tipo, os campos do formulário são limpos para evitar mistura de dados.</p>
             </div>
 
             {form.personType === "PF" ? (
-              <FCpfInput label="CPF" required value={form.document} onChange={(event: any) => setField("document", event.target.value)} />
+              <FCpfInput label="CPF" required error={errors.document} value={form.document} onChange={(event: any) => setField("document", event.target.value)} />
             ) : (
-              <div className="min-w-0">
-                <FCnpjInput label="CNPJ" required value={form.document} onChange={(event: any) => setField("document", event.target.value)} />
-                <BtnSecondary className="mt-2" onClick={() => void consultCnpj()} disabled={consulting}>
-                  <Search size={14} /> {consulting ? "Consultando..." : "Consultar CNPJ"}
-                </BtnSecondary>
-              </div>
+              <FCnpjInput
+                label="CNPJ"
+                required
+                error={errors.document}
+                hint={consultingCnpj ? "Consultando CNPJ..." : "A consulta é feita automaticamente ao completar o CNPJ."}
+                value={form.document}
+                onChange={(event: any) => setField("document", event.target.value)}
+              />
             )}
 
             <FInput
               label={form.personType === "PJ" ? "Nome fantasia" : "Nome completo"}
               required
+              error={errors.name}
               value={form.name}
               onChange={(event: any) => setField("name", event.target.value)}
             />
-            {form.personType === "PJ" && <FInput label="Razão social" value={form.legalName} onChange={(event: any) => setField("legalName", event.target.value)} />}
-            <FPhoneInput label="Telefone" mobile value={form.phone} onChange={(event: any) => setField("phone", event.target.value)} />
-            <FEmailInput label="E-mail" value={form.email} onChange={(event: any) => setField("email", event.target.value)} />
+            {form.personType === "PJ" && <FInput label="Razão social" required error={errors.legalName} value={form.legalName} onChange={(event: any) => setField("legalName", event.target.value)} />}
+            <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(event: any) => setField("phone", event.target.value)} />
+            <FPhoneInput label="WhatsApp" mobile error={errors.whatsapp} value={form.whatsapp} onChange={(event: any) => setField("whatsapp", event.target.value)} />
+            <div className="sm:col-span-2"><FEmailInput label="E-mail" error={errors.email} value={form.email} onChange={(event: any) => setField("email", event.target.value)} /></div>
           </div>
         </AdminCardContent>
       </AdminCard>
@@ -241,26 +355,19 @@ export function PartnerCompanyEditorPage({
         <AdminCardHeader>
           <div>
             <h3 className="text-sm font-black text-[#0d1b2e]">Endereço</h3>
-            <p className="mt-0.5 text-xs text-[#5a6a82]">Dados cadastrais da sede ou do responsável.</p>
+            <p className="mt-0.5 text-xs text-[#5a6a82]">O CEP é consultado automaticamente pelo mesmo BuscaCEP utilizado no restante do sistema.</p>
           </div>
         </AdminCardHeader>
         <AdminCardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FInput label="CEP" value={form.zipCode} onChange={(event: any) => setField("zipCode", event.target.value)} />
-            <FInput label="UF" maxLength={2} value={form.state} onChange={(event: any) => setField("state", event.target.value.toUpperCase())} />
-            <FInput label="Cidade" value={form.city} onChange={(event: any) => setField("city", event.target.value)} />
-            <FInput label="Bairro" value={form.neighborhood} onChange={(event: any) => setField("neighborhood", event.target.value)} />
-            <FInput label="Rua / Logradouro" value={form.street} onChange={(event: any) => setField("street", event.target.value)} />
-            <FInput label="Número" value={form.number} onChange={(event: any) => setField("number", event.target.value)} />
-            <div className="sm:col-span-2"><FInput label="Complemento" value={form.complement} onChange={(event: any) => setField("complement", event.target.value)} /></div>
-          </div>
+          <AddressFields value={addressValue} onChange={setAddress} inputClassName={INPUT} />
+          {errors.address && <p className="mt-2 text-[10px] font-semibold text-red-600">{errors.address}</p>}
         </AdminCardContent>
       </AdminCard>
     </div>
 
-    <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-5 py-4 backdrop-blur">
+    <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-      <BtnPrimary onClick={() => void save()} disabled={!canSave || saving}>
+      <BtnPrimary onClick={() => void save()} disabled={!canSave || saving || consultingCnpj}>
         <CheckCircle2 size={15} /> {saving ? "Salvando..." : editing ? "Salvar alterações" : "Cadastrar empresa"}
       </BtnPrimary>
     </div>
