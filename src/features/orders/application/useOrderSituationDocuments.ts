@@ -15,35 +15,37 @@ import {
 
 export function useOrderSituationDocuments({
   orderId,
+  organizationId,
   serviceTypeId,
   situations,
   serviceTypeSituations,
   hasPermission,
 }: {
   orderId?: string;
+  organizationId?: string | null;
   serviceTypeId?: string | null;
   situations: OrderSituation[];
   serviceTypeSituations: ServiceTypeSituationLink[];
   hasPermission: (permission: string) => boolean;
 }) {
   const queryClient = useQueryClient();
-  const queryKey = ["orders", orderId || "", "situation-documents"];
+  const queryKey = ["orders", organizationId || "none", orderId || "", "situation-documents"];
 
   const documentsQuery = useQuery({
     queryKey,
-    enabled: Boolean(orderId && hasPermission("orders.section.images")),
+    enabled: Boolean(orderId && organizationId && hasPermission("orders.section.images")),
     queryFn: async () => {
-      const { data, error } = await listOrderSituationDocuments(orderId!);
+      const { data, error } = await listOrderSituationDocuments(orderId!, organizationId);
       if (error) throw error;
       return data || [];
     },
   });
 
   const attachmentTypesQuery = useQuery({
-    queryKey: ["documents", "attachment-types", "active"],
-    enabled: Boolean(orderId && hasPermission("orders.section.images")),
+    queryKey: ["documents", organizationId || "none", "attachment-types", "active"],
+    enabled: Boolean(orderId && organizationId && hasPermission("orders.section.images")),
     queryFn: async () => {
-      const { data, error } = await listAttachmentTypes(true);
+      const { data, error } = await listAttachmentTypes(true, organizationId);
       if (error) throw error;
       return data || [];
     },
@@ -59,7 +61,7 @@ export function useOrderSituationDocuments({
       attachmentTypeId?: string | null;
       files: File[];
     }) => {
-      if (!orderId) throw new Error("OS não informada.");
+      if (!orderId || !organizationId) throw new Error("OS ou empresa não informada.");
       if (situation && !hasPermission(orderSituationUploadPermission(situation.id))) {
         throw new Error(`Você não possui permissão para anexar arquivos em ${situation.name}.`);
       }
@@ -70,6 +72,7 @@ export function useOrderSituationDocuments({
       if (!files.length) throw new Error("Selecione um arquivo ou utilize a câmera.");
       for (const file of files) {
         await attachOrderSituationDocument({
+          organizationId,
           serviceOrderId: orderId,
           situationId: situation?.id || null,
           attachmentTypeId: attachmentTypeId || null,
