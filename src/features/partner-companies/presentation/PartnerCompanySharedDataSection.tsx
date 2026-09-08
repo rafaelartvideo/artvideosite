@@ -1,22 +1,22 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ClipboardList, LayoutDashboard, Package, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { listPartnerShares, type PartnerShareAccessLevel } from "../infrastructure/partner-companies.repository";
 
 type SharedDataTab = "summary" | "customers" | "orders" | "inventory";
 
-const DATA_TABS: Array<{ key: SharedDataTab; label: string }> = [
-  { key: "summary", label: "RESUMO" },
-  { key: "customers", label: "CLIENTES" },
-  { key: "orders", label: "ORDENS DE SERVIÇO" },
-  { key: "inventory", label: "ESTOQUE" },
+const DATA_TABS: Array<{ key: SharedDataTab; label: string; icon: LucideIcon }> = [
+  { key: "summary", label: "Resumo", icon: LayoutDashboard },
+  { key: "customers", label: "Clientes", icon: Users },
+  { key: "orders", label: "Ordens de serviço", icon: ClipboardList },
+  { key: "inventory", label: "Estoque", icon: Package },
 ];
 
 const RESOURCE_META: Record<Exclude<SharedDataTab, "summary">, { title: string; description: string }> = {
   customers: { title: "Clientes", description: "Cadastros, contatos e endereços compartilhados com a ArtVideo." },
-  orders: { title: "Ordens de Serviço", description: "Ordens, histórico, documentos, SLA e operação compartilhada." },
+  orders: { title: "Ordens de serviço", description: "Ordens, histórico, documentos, SLA e operação compartilhada." },
   inventory: { title: "Estoque", description: "Itens, saldos, movimentações e fluxo de peças compartilhados." },
 };
 
@@ -53,29 +53,28 @@ export function PartnerCompanySharedDataSection({ organizationId }: { organizati
   if (sharesQuery.isPending) return <LoadingState text="Carregando dados compartilhados..." />;
   if (sharesQuery.isError) return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Não foi possível carregar os acessos aos dados: {(sharesQuery.error as any)?.message || "Erro desconhecido"}</div>;
 
-  return <AdminCard>
-    <AdminCardHeader>
-      <div>
-        <h3 className="text-sm font-black text-[#0d1b2e]">Dados da empresa</h3>
-        <p className="mt-0.5 text-xs text-[#5a6a82]">Consulte os dados compartilhados sem alterar a empresa ativa da ArtVideo.</p>
-      </div>
-    </AdminCardHeader>
-
-    <div className="overflow-x-auto border-b border-[#0d1b2e]/10 px-4 sm:px-5">
-      <nav className="flex min-w-max items-center gap-5" aria-label="Seções dos dados compartilhados">
-        {DATA_TABS.map(tab => <button
+  return <div className="min-w-0 space-y-4">
+    <nav className="flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-[#0d1b2e]/8 bg-white p-1.5 shadow-sm" aria-label="Seções dos dados compartilhados">
+      {DATA_TABS.map(tab => {
+        const Icon = tab.icon;
+        const selected = activeTab === tab.key;
+        return <button
           key={tab.key}
           type="button"
+          aria-current={selected ? "page" : undefined}
           onClick={() => setActiveTab(tab.key)}
           className={cn(
-            "border-b-2 px-1 py-3 text-[11px] font-black transition-colors sm:text-xs",
-            activeTab === tab.key ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]",
+            "inline-flex min-h-10 shrink-0 cursor-default items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40",
+            selected ? "bg-[#0057e7] text-white shadow-sm" : "text-[#5a6a82] hover:bg-[#0057e7]/5 hover:text-[#0057e7]",
           )}
-        >{tab.label}</button>)}
-      </nav>
-    </div>
+        >
+          <Icon size={15} />
+          {tab.label}
+        </button>;
+      })}
+    </nav>
 
-    <AdminCardContent>
+    <div className="min-w-0">
       {activeTab === "summary" ? (
         <div className="divide-y divide-[#d9e1ec]">
           {(Object.keys(RESOURCE_META) as Array<Exclude<SharedDataTab, "summary">>).map(resourceKey => {
@@ -103,10 +102,10 @@ export function PartnerCompanySharedDataSection({ organizationId }: { organizati
           </div>
           <div className="mt-5 border-t border-[#d9e1ec] pt-5">
             <p className="text-sm font-semibold text-[#0d1b2e]">{ACCESS_DESCRIPTION[access]}</p>
-            <p className="mt-2 text-xs leading-relaxed text-[#5a6a82]">Esta é a nova área de acesso da ArtVideo. A listagem, os indicadores e as ações deste recurso serão carregados aqui usando o ID desta empresa, sem trocar o contexto da empresa ativa.</p>
+            <p className="mt-2 text-xs leading-relaxed text-[#5a6a82]">Os dados deste recurso serão carregados aqui usando o ID desta empresa. A configuração de compartilhamento continua definindo se a ArtVideo terá resumo, leitura ou gerenciamento.</p>
           </div>
         </div>;
       })()}
-    </AdminCardContent>
-  </AdminCard>;
+    </div>
+  </div>;
 }
