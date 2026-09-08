@@ -1,3 +1,4 @@
+import { getActiveOrganizationId } from "@/lib/active-organization";
 import { supabase } from "@/lib/supabase";
 
 export type ServiceOrderSituationVisit = {
@@ -18,9 +19,12 @@ export type ServiceOrderSituationVisit = {
   updated_at: string;
 };
 
-export const listServiceOrderSituationVisits = (serviceOrderId: string) =>
-  supabase
+export async function listServiceOrderSituationVisits(serviceOrderId: string) {
+  const organizationId = await getActiveOrganizationId();
+  return supabase
     .from("service_order_situation_visits")
     .select("id,service_order_id,situation_id,service_type_id_snapshot,visit_number,situation_name_snapshot,situation_color_snapshot,entered_at,exited_at,sla_hours_snapshot,sla_due_at,entered_by,exited_by,created_at,updated_at")
+    .eq("organization_id", organizationId)
     .eq("service_order_id", serviceOrderId)
     .order("entered_at", { ascending: false });
+}
