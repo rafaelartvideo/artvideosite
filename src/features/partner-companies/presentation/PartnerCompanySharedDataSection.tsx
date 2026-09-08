@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardList, LayoutDashboard, Package, Users, type LucideIcon } from "lucide-react";
+import { TabCustomers } from "@/features/customers/presentation/TabCustomers";
+import { TabOrders } from "@/features/orders/presentation/TabOrders";
 import { cn } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
@@ -8,6 +10,7 @@ import {
   type PartnerShareAccessLevel,
   type PartnerShareConfigLevel,
 } from "../infrastructure/partner-companies.repository";
+import { PartnerInventoryData } from "./PartnerInventoryData";
 
 type SharedDataTab = "summary" | "customers" | "orders" | "inventory";
 
@@ -20,8 +23,8 @@ const DATA_TABS: Array<{ key: SharedDataTab; label: string; icon: LucideIcon }> 
 
 const RESOURCE_META: Record<Exclude<SharedDataTab, "summary">, { title: string; description: string }> = {
   customers: { title: "Clientes", description: "Cadastros, contatos e endereços compartilhados com a ArtVideo." },
-  orders: { title: "Ordens de serviço", description: "Ordens, histórico, documentos, SLA e operação compartilhada." },
-  inventory: { title: "Estoque", description: "Itens, saldos, movimentações e fluxo de peças compartilhados." },
+  orders: { title: "Ordens de serviço", description: "Ordens e informações operacionais compartilhadas em modo somente leitura." },
+  inventory: { title: "Estoque", description: "Itens, saldos e histórico de movimentações compartilhados em modo somente leitura." },
 };
 
 const ACCESS_LABEL: Record<PartnerShareConfigLevel, string> = {
@@ -30,18 +33,22 @@ const ACCESS_LABEL: Record<PartnerShareConfigLevel, string> = {
   read: "Leitura",
 };
 
-const ACCESS_DESCRIPTION: Record<PartnerShareConfigLevel, string> = {
-  none: "Esta empresa não compartilhou este recurso com a ArtVideo.",
-  summary: "A ArtVideo verá somente indicadores e informações agregadas, sem acesso aos registros individuais.",
-  read: "A ArtVideo poderá consultar os registros individuais e seus detalhes, sempre sem alterar os dados da empresa parceira.",
-};
-
 function normalizeShareLevel(level?: PartnerShareAccessLevel): PartnerShareConfigLevel {
   return level === "manage" ? "read" : level || "none";
 }
 
+function ResourceAccessMessage({ access, title }: { access: PartnerShareConfigLevel; title: string }) {
+  if (access === "none") return <div className="rounded-xl border border-[#0d1b2e]/8 bg-white p-5 text-sm text-[#5a6a82] shadow-sm"><span className="font-bold text-[#0d1b2e]">{title}:</span> esta empresa não compartilha este recurso com a ArtVideo.</div>;
+  return <div className="rounded-xl border border-[#0d1b2e]/8 bg-white p-5 shadow-sm"><p className="text-sm font-bold text-[#0d1b2e]">{title} está disponível somente em resumo.</p><p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">Os registros individuais não podem ser abertos neste nível de compartilhamento.</p></div>;
+}
+
 export function PartnerCompanySharedDataSection({ organizationId }: { organizationId: string }) {
   const [activeTab, setActiveTab] = useState<SharedDataTab>("summary");
+  const [customerRouteId, setCustomerRouteId] = useState<string | null>(null);
+  const [customerRouteSubpage, setCustomerRouteSubpage] = useState<string | null>(null);
+  const [orderRouteId, setOrderRouteId] = useState<string | null>(null);
+  const [orderRouteSubpage, setOrderRouteSubpage] = useState<string | null>(null);
+
   const sharesQuery = useQuery({
     queryKey: ["partner-companies", "shared-data", organizationId],
     queryFn: async () => {
@@ -56,8 +63,19 @@ export function PartnerCompanySharedDataSection({ organizationId }: { organizati
     [sharesQuery.data],
   );
 
+  useEffect(() => {
+    setCustomerRouteId(null);
+    setCustomerRouteSubpage(null);
+    setOrderRouteId(null);
+    setOrderRouteSubpage(null);
+  }, [organizationId, activeTab]);
+
   if (sharesQuery.isPending) return <LoadingState text="Carregando dados compartilhados..." />;
   if (sharesQuery.isError) return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Não foi possível carregar os acessos aos dados: {(sharesQuery.error as any)?.message || "Erro desconhecido"}</div>;
+
+  const customersAccess = shareByKey.get("customers") || "none";
+  const ordersAccess = shareByKey.get("orders") || "none";
+  const inventoryAccess = shareByKey.get("inventory") || "none";
 
   return <div className="min-w-0 space-y-4">
     <nav className="flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-[#0d1b2e]/8 bg-white p-1.5 shadow-sm" aria-label="Seções dos dados compartilhados">
@@ -81,36 +99,47 @@ export function PartnerCompanySharedDataSection({ organizationId }: { organizati
     </nav>
 
     <div className="min-w-0">
-      {activeTab === "summary" ? (
-        <div className="divide-y divide-[#d9e1ec]">
-          {(Object.keys(RESOURCE_META) as Array<Exclude<SharedDataTab, "summary">>).map(resourceKey => {
-            const access = shareByKey.get(resourceKey) || "none";
-            const meta = RESOURCE_META[resourceKey];
-            return <div key={resourceKey} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
-              <div className="min-w-0">
-                <p className="text-sm font-black text-[#0d1b2e]">{meta.title}</p>
-                <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">{meta.description}</p>
-              </div>
-              <span className="shrink-0 text-xs font-bold text-[#0057e7]">{ACCESS_LABEL[access]}</span>
-            </div>;
-          })}
-        </div>
-      ) : (() => {
-        const access = shareByKey.get(activeTab) || "none";
-        const meta = RESOURCE_META[activeTab];
-        return <div className="min-w-0 py-1">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      {activeTab === "summary" && <div className="divide-y divide-[#d9e1ec]">
+        {(Object.keys(RESOURCE_META) as Array<Exclude<SharedDataTab, "summary">>).map(resourceKey => {
+          const access = shareByKey.get(resourceKey) || "none";
+          const meta = RESOURCE_META[resourceKey];
+          return <div key={resourceKey} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
             <div className="min-w-0">
-              <h4 className="text-base font-black text-[#0d1b2e]">{meta.title}</h4>
-              <p className="mt-1 text-sm leading-relaxed text-[#5a6a82]">{meta.description}</p>
+              <p className="text-sm font-black text-[#0d1b2e]">{meta.title}</p>
+              <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">{meta.description}</p>
             </div>
             <span className="shrink-0 text-xs font-bold text-[#0057e7]">{ACCESS_LABEL[access]}</span>
-          </div>
-          <div className="mt-5 border-t border-[#d9e1ec] pt-5">
-            <p className="text-sm font-semibold text-[#0d1b2e]">{ACCESS_DESCRIPTION[access]}</p>
-          </div>
-        </div>;
-      })()}
+          </div>;
+        })}
+      </div>}
+
+      {activeTab === "customers" && (customersAccess === "read" ? <TabCustomers
+        organizationIdOverride={organizationId}
+        accessMode="read"
+        routeResourceId={customerRouteId}
+        routeSubpage={customerRouteSubpage}
+        onRouteChange={(resourceId, subpage) => {
+          setCustomerRouteId(resourceId || null);
+          setCustomerRouteSubpage(subpage || null);
+        }}
+      /> : <ResourceAccessMessage access={customersAccess} title="Clientes" />)}
+
+      {activeTab === "orders" && (ordersAccess === "read" ? <TabOrders
+        organizationIdOverride={organizationId}
+        accessMode="read"
+        initialOrderId={orderRouteId}
+        routeSubpage={orderRouteSubpage}
+        onOrderRouteChange={(resourceId, subpage) => {
+          setOrderRouteId(resourceId || null);
+          setOrderRouteSubpage(subpage || null);
+        }}
+        onOrderRouteClose={() => {
+          setOrderRouteId(null);
+          setOrderRouteSubpage(null);
+        }}
+      /> : <ResourceAccessMessage access={ordersAccess} title="Ordens de serviço" />)}
+
+      {activeTab === "inventory" && (inventoryAccess === "read" ? <PartnerInventoryData organizationId={organizationId} /> : <ResourceAccessMessage access={inventoryAccess} title="Estoque" />)}
     </div>
   </div>;
 }
