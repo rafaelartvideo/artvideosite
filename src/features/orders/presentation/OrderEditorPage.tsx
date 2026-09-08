@@ -120,6 +120,10 @@ export function OrderEditorPage({
     loadIbgeCities,
   } = address;
 
+  const canAddEquipmentImages = editingOS ? hasPermission("orders.edit") : hasPermission("orders.create");
+  const canRemoveEquipmentImage = (image: (typeof orderImages)[number]) =>
+    canAddEquipmentImages && (!editingOS || !image.mediaId);
+
   return (
     <AdminPage
       open
@@ -174,7 +178,8 @@ export function OrderEditorPage({
           onRemoveImage={removeOrderImage}
           onViewImage={setViewImage}
           showImages={hasPermission("orders.section.images")}
-          canEditImages={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
+          canAddImages={canAddEquipmentImages}
+          canRemoveImages={canRemoveEquipmentImage}
         />
 
         <OrderServiceLocationSection
