@@ -4,8 +4,9 @@ import { emptyAddress, type Address } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
 import { searchOrderCustomers } from "../infrastructure/orders-customer.repository";
 
-export function useOrderCustomerSelection() {
+export function useOrderCustomerSelection(organizationIdOverride?: string | null) {
   const { activeOrganizationId } = useAuth();
+  const organizationId = organizationIdOverride || activeOrganizationId;
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -20,11 +21,11 @@ export function useOrderCustomerSelection() {
 
   const searchCustomers = async (query: string) => {
     setCustomerSearch(query);
-    if (query.length < 2 || !activeOrganizationId) {
+    if (query.length < 2 || !organizationId) {
       setCustomerResults([]);
       return;
     }
-    const { data } = await searchOrderCustomers(activeOrganizationId, query);
+    const { data } = await searchOrderCustomers(organizationId, query);
     setCustomerResults(data || []);
   };
 
@@ -60,6 +61,7 @@ export function useOrderCustomerSelection() {
   };
 
   return {
+    organizationId,
     customerSearch,
     setCustomerSearch,
     customerResults,
