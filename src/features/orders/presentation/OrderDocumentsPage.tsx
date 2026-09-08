@@ -5,13 +5,22 @@ import {
   Download,
   File,
   FileText,
+  Image as ImageIcon,
   Paperclip,
   Plus,
   Upload,
   X,
 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { AdminButton, AdminCard, AdminCardHeader, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import {
+  AdminButton,
+  AdminCard,
+  AdminCardHeader,
+  AdminPage,
+  BtnPrimary,
+  BtnSecondary,
+} from "@/shared/ui/admin/AdminLayout";
+import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import type { OrderImage } from "./OrderImages";
 import type { useOrderSituationDocuments } from "../application/useOrderSituationDocuments";
@@ -24,7 +33,13 @@ import {
 
 type Controller = ReturnType<typeof useOrderSituationDocuments>;
 
-function AttachmentCard({ document, canRemove, removing, onView, onRemove }: {
+function AttachmentCard({
+  document,
+  canRemove,
+  removing,
+  onView,
+  onRemove,
+}: {
   document: OrderSituationDocument;
   canRemove: boolean;
   removing: boolean;
@@ -36,6 +51,7 @@ function AttachmentCard({ document, canRemove, removing, onView, onRemove }: {
   const type = situationDocumentType(document);
   const name = media?.file_name || "Arquivo anexado";
   const isImage = Boolean(media?.mime_type?.startsWith("image/"));
+  const classification = type?.name || (document.situation_id ? "Imagem da situação" : "Sem tipo");
 
   const openAttachment = () => {
     if (!url) return;
@@ -44,16 +60,77 @@ function AttachmentCard({ document, canRemove, removing, onView, onRemove }: {
   };
 
   return (
-    <AdminCard className="group relative flex min-h-28 min-w-0 max-w-full flex-col justify-between p-3 transition-shadow hover:shadow-md">
-      <button type="button" onClick={openAttachment} disabled={loading || !url} className="flex w-full min-w-0 max-w-full items-start gap-3 overflow-hidden text-left disabled:cursor-not-allowed">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#edf3ff] text-[#0057e7]">{isImage ? <FileText size={19} /> : <File size={19} />}</span>
-        <span className="min-w-0 flex-1 overflow-hidden"><span className="block max-w-full truncate text-xs font-black text-[#0d1b2e]" title={name}>{name}</span><span className="mt-1 block max-w-full truncate text-[10px] font-bold uppercase tracking-wide text-[#0057e7]">{type?.name || "Sem tipo"}</span><span className="mt-1 block max-w-full truncate text-[10px] text-[#7c899c]">{loading ? "Carregando..." : error ? "Arquivo indisponível" : "Clique para abrir"}</span></span>
-      </button>
-      <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-[#0d1b2e]/7 pt-2">
-        {url ? <a href={url} target="_blank" rel="noreferrer" download={name} className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7]"><Download size={12} className="shrink-0" /><span>Baixar</span></a> : <span />}
-        {canRemove && <button type="button" disabled={removing} onClick={() => onRemove(document)} className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-red-600 disabled:opacity-50"><X size={12} className="shrink-0" /><span>Remover</span></button>}
+    <AdminCard className="group relative min-w-0 max-w-full overflow-hidden p-0 transition-shadow hover:shadow-md">
+      {isImage ? (
+        <button
+          type="button"
+          onClick={openAttachment}
+          disabled={loading || !url}
+          className="relative block h-40 w-full overflow-hidden bg-[#eef2f7] text-left disabled:cursor-not-allowed"
+          aria-label={`Visualizar ${name}`}
+        >
+          {loading ? (
+            <span className="flex h-full w-full items-center justify-center"><LoadingSpinner size="sm" /></span>
+          ) : url ? (
+            <img src={url} alt={name} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]" />
+          ) : (
+            <span className="flex h-full w-full flex-col items-center justify-center gap-2 text-xs text-[#7c899c]"><ImageIcon size={22} />{error ? "Imagem indisponível" : "Sem preview"}</span>
+          )}
+          {url && <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#07111f]/65 to-transparent px-3 pb-2 pt-8 text-[10px] font-bold text-white">Clique para ampliar</span>}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={openAttachment}
+          disabled={loading || !url}
+          className="flex min-h-28 w-full items-center justify-center gap-3 bg-[#f8fafc] px-4 py-5 text-left disabled:cursor-not-allowed"
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0057e7]"><File size={21} /></span>
+          <span className="min-w-0"><span className="block truncate text-xs font-black text-[#0d1b2e]">{name}</span><span className="mt-1 block text-[10px] text-[#7c899c]">{loading ? "Carregando..." : error ? "Arquivo indisponível" : "Clique para abrir"}</span></span>
+        </button>
+      )}
+
+      <div className="min-w-0 p-3">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-black text-[#0d1b2e]" title={name}>{name}</p>
+          <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide text-[#0057e7]">{classification}</p>
+        </div>
+        <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-[#0d1b2e]/7 pt-2">
+          {url ? <a href={url} target="_blank" rel="noreferrer" download={name} className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7]"><Download size={12} className="shrink-0" /><span>Baixar</span></a> : <span />}
+          {canRemove && <button type="button" disabled={removing} onClick={() => onRemove(document)} className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-red-600 disabled:opacity-50"><X size={12} className="shrink-0" /><span>Remover</span></button>}
+        </div>
       </div>
     </AdminCard>
+  );
+}
+
+function SelectedFilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const isImage = file.type.startsWith("image/");
+
+  useEffect(() => {
+    if (!isImage) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file, isImage]);
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
+      {isImage && previewUrl ? (
+        <img src={previewUrl} alt={file.name} className="h-28 w-full object-cover" />
+      ) : (
+        <div className="flex h-20 items-center justify-center bg-[#f8fafc] text-[#0057e7]"><FileText size={22} /></div>
+      )}
+      <div className="min-w-0 px-2.5 py-2 pr-9">
+        <p className="truncate text-[11px] font-bold text-[#0d1b2e]" title={file.name}>{file.name}</p>
+        <p className="mt-0.5 text-[10px] text-[#7c899c]">{isImage ? "Preview da imagem" : "Arquivo selecionado"}</p>
+      </div>
+      <button type="button" onClick={onRemove} className="absolute right-2 top-2 rounded-full bg-[#07111f]/75 p-1.5 text-white hover:bg-[#07111f]" aria-label={`Remover ${file.name}`}><X size={12} /></button>
+    </div>
   );
 }
 
@@ -64,7 +141,16 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
   const uploading = controller.uploadingAttachment;
-  const chooseFiles = (list: FileList | null) => { setFiles(Array.from(list || [])); setError(""); };
+
+  const chooseFiles = (list: FileList | null) => {
+    setFiles(Array.from(list || []));
+    setError("");
+  };
+
+  const removeSelectedFile = (index: number) => {
+    setFiles(current => current.filter((_, currentIndex) => currentIndex !== index));
+  };
+
   const submit = async () => {
     setError("");
     if (!attachmentTypeId) { setError("Selecione o tipo de anexo."); return; }
@@ -73,20 +159,41 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
       const result = await controller.uploadAttachment(attachmentTypeId, files);
       onSuccess(`${result.count} ${result.count === 1 ? "arquivo anexado" : "arquivos anexados"} à OS.`);
       onClose();
-    } catch (uploadError) { setError(uploadError instanceof Error ? uploadError.message : "Não foi possível anexar."); }
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Não foi possível anexar.");
+    }
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label="Novo anexo">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Novo anexo</h2></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]" aria-label="Fechar"><X size={18} /></button></div>
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl">
+        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[#0d1b2e]/10 bg-white px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Novo anexo</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Confira o preview antes de anexar.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]" aria-label="Fechar"><X size={18} /></button></div>
         <div className="space-y-4 p-5">
           <label className="block"><span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Tipo de anexo</span><select value={attachmentTypeId} onChange={event => setAttachmentTypeId(event.target.value)} className="w-full rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2.5 text-sm text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15"><option value="">Selecione o tipo</option>{controller.attachmentTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
-          <div><span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Arquivo</span><input ref={fileRef} type="file" multiple className="hidden" onChange={event => chooseFiles(event.target.files)} /><input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => chooseFiles(event.target.files)} /><div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => fileRef.current?.click()} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#0057e7]/35 bg-[#f7faff] px-4 py-4 text-xs font-black text-[#0057e7] hover:bg-[#edf3ff]"><Upload size={17} /> Adicionar arquivo</button><button type="button" onClick={() => cameraRef.current?.click()} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#0057e7]/35 bg-white px-4 py-4 text-xs font-black text-[#0057e7] hover:bg-[#f7faff]"><Camera size={17} /> Abrir câmera</button></div>{files.length > 0 && <div className="mt-3 max-w-full overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] px-3 py-2 text-xs text-[#0d1b2e]"><Paperclip size={13} className="mr-1.5 inline" /><span className="break-words">{files.length === 1 ? files[0].name : `${files.length} arquivos selecionados`}</span></div>}</div>
+
+          <div>
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Arquivo</span>
+            <input ref={fileRef} type="file" multiple className="hidden" onChange={event => { chooseFiles(event.target.files); event.currentTarget.value = ""; }} />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { chooseFiles(event.target.files); event.currentTarget.value = ""; }} />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button type="button" onClick={() => fileRef.current?.click()} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#0057e7]/35 bg-[#f7faff] px-4 py-4 text-xs font-black text-[#0057e7] hover:bg-[#edf3ff]"><Upload size={17} /> Adicionar arquivo</button>
+              <button type="button" onClick={() => cameraRef.current?.click()} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#0057e7]/35 bg-white px-4 py-4 text-xs font-black text-[#0057e7] hover:bg-[#f7faff]"><Camera size={17} /> Abrir câmera</button>
+            </div>
+
+            {files.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#0d1b2e]"><Paperclip size={13} />{files.length} {files.length === 1 ? "arquivo selecionado" : "arquivos selecionados"}</div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {files.map((file, index) => <SelectedFilePreview key={`${file.name}-${file.lastModified}-${index}`} file={file} onRemove={() => removeSelectedFile(index)} />)}
+                </div>
+              </div>
+            )}
+          </div>
+
           {controller.attachmentTypes.length === 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Cadastre pelo menos um tipo em Operação → Documentos → Anexos.</p>}
           {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-[#f8fafc] px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary></div>
+        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-[#f8fafc] px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary></div>
       </div>
     </div>
   );
@@ -96,17 +203,46 @@ function SituationQuickUploads({ situation, controller, onSuccess, onError }: { 
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
   const uploading = controller.uploadingSituationId === situation.id;
+
   const upload = async (list: FileList | null) => {
     const files = Array.from(list || []);
     if (!files.length) return;
-    try { const result = await controller.uploadQuick(situation, files); onSuccess(`${result.count} ${result.count === 1 ? "imagem adicionada" : "imagens adicionadas"} em ${result.situation}.`); }
-    catch (uploadError) { onError(uploadError instanceof Error ? uploadError.message : "Não foi possível adicionar a imagem."); }
-    finally { if (fileRef.current) fileRef.current.value = ""; if (cameraRef.current) cameraRef.current.value = ""; }
+    try {
+      const result = await controller.uploadQuick(situation, files);
+      onSuccess(`${result.count} ${result.count === 1 ? "imagem adicionada" : "imagens adicionadas"} em ${result.situation}.`);
+    } catch (uploadError) {
+      onError(uploadError instanceof Error ? uploadError.message : "Não foi possível adicionar a imagem.");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+      if (cameraRef.current) cameraRef.current.value = "";
+    }
   };
-  return <div className="flex min-w-0 flex-wrap items-center gap-2"><input ref={fileRef} type="file" multiple className="hidden" onChange={event => void upload(event.target.files)} /><input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void upload(event.target.files)} /><button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Upload size={14} /> Adicionar</button><button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Camera size={14} /> Tirar foto</button></div>;
+
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={event => void upload(event.target.files)} />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void upload(event.target.files)} />
+      <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Upload size={14} /> Adicionar</button>
+      <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Camera size={14} /> Tirar foto</button>
+    </div>
+  );
 }
 
-export function OrderDocumentsPage({ open, order, currentSituationId, controller, onClose, onView }: { open: boolean; order: any; currentSituationId?: string | null; controller: Controller; onClose: () => void; onView: (image: OrderImage) => void }) {
+export function OrderDocumentsPage({
+  open,
+  order,
+  currentSituationId,
+  controller,
+  onClose,
+  onView,
+}: {
+  open: boolean;
+  order: any;
+  currentSituationId?: string | null;
+  controller: Controller;
+  onClose: () => void;
+  onView: (image: OrderImage) => void;
+}) {
   const [activeTab, setActiveTab] = useState<"situations" | "attachments">("situations");
   const [newAttachmentOpen, setNewAttachmentOpen] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -116,41 +252,88 @@ export function OrderDocumentsPage({ open, order, currentSituationId, controller
     if (!open) { setBrowserBottomInset(0); return; }
     const viewport = window.visualViewport;
     if (!viewport) return;
-    const updateBottomInset = () => { const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop); setBrowserBottomInset(Math.min(110, Math.round(inset))); };
-    updateBottomInset(); viewport.addEventListener("resize", updateBottomInset); viewport.addEventListener("scroll", updateBottomInset); window.addEventListener("resize", updateBottomInset);
-    return () => { viewport.removeEventListener("resize", updateBottomInset); viewport.removeEventListener("scroll", updateBottomInset); window.removeEventListener("resize", updateBottomInset); };
+    const updateBottomInset = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setBrowserBottomInset(Math.min(110, Math.round(inset)));
+    };
+    updateBottomInset();
+    viewport.addEventListener("resize", updateBottomInset);
+    viewport.addEventListener("scroll", updateBottomInset);
+    window.addEventListener("resize", updateBottomInset);
+    return () => {
+      viewport.removeEventListener("resize", updateBottomInset);
+      viewport.removeEventListener("scroll", updateBottomInset);
+      window.removeEventListener("resize", updateBottomInset);
+    };
   }, [open]);
 
   if (!open) return null;
+
   const remove = async (document: OrderSituationDocument) => {
     if (!window.confirm("Remover este anexo da OS?")) return;
-    try { await controller.remove(document); setMessage({ text: "Anexo removido.", type: "success" }); }
-    catch (error) { setMessage({ text: error instanceof Error ? error.message : "Não foi possível remover.", type: "error" }); }
+    try {
+      await controller.remove(document);
+      setMessage({ text: "Anexo removido.", type: "success" });
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : "Não foi possível remover.", type: "error" });
+    }
   };
+
   const typedAttachments = controller.documents.filter(item => Boolean(item.attachment_type_id));
 
-  return <>
-    <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos e imagens da ordem de serviço" maxW="max-w-4xl">
-      <div className="border-b border-[#0d1b2e]/10 px-5 pt-2"><nav className="flex items-center gap-6" aria-label="Seções de documentos"><button type="button" onClick={() => setActiveTab("situations")} className={cn("border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>SITUAÇÕES</button><button type="button" onClick={() => setActiveTab("attachments")} className={cn("border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>ANEXOS</button></nav></div>
-      <div className="min-w-0 max-w-full space-y-4 overflow-hidden p-5">
-        {message && <div className={cn("flex min-w-0 items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}</span><span className="min-w-0 break-words">{message.text}</span></span><button type="button" onClick={() => setMessage(null)} className="shrink-0"><X size={13} /></button></div>}
-        {controller.loading ? <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando documentos...</p> : activeTab === "situations" ? (
-          controller.flowSituations.length === 0 ? <p className="py-8 text-center text-sm text-[#5a6a82]">Este tipo de atendimento não possui situações configuradas.</p> : controller.flowSituations.map(situation => {
-            const images = controller.documents.filter(item => item.situation_id === situation.id && !item.attachment_type_id);
-            const canUpload = controller.canUpload(situation.id);
-            const current = situation.id === currentSituationId;
-            return <AdminCard key={situation.id} className={cn("min-w-0 max-w-full shadow-none", current && "border-[#0057e7]/30 bg-[#f7faff]")}>
-              <AdminCardHeader className={current ? "bg-[#f7faff]" : undefined}><div className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div className="min-w-0"><p className="truncate text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"} · {images.length} {images.length === 1 ? "imagem" : "imagens"}</p></div></div>{canUpload && <SituationQuickUploads situation={situation} controller={controller} onSuccess={text => setMessage({ text, type: "success" })} onError={text => setMessage({ text, type: "error" })} />}</AdminCardHeader>
-              {images.length > 0 && <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 p-4 sm:grid-cols-2">{images.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>}
-            </AdminCard>;
-          })
-        ) : (
-          <div className="min-w-0 max-w-full space-y-4 overflow-hidden"><div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm"><Plus size={14} /> Novo anexo</AdminButton>}</div>{typedAttachments.length === 0 ? <div className="max-w-full rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div> : <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">{typedAttachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>}</div>
-        )}
-      </div>
-      <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
-      <div className="fixed inset-x-0 z-[70] border-t border-[#0d1b2e]/10 bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}><div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div></div>
-    </AdminPage>
-    {newAttachmentOpen && <NewAttachmentModal controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
-  </>;
+  return (
+    <>
+      <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos e imagens da ordem de serviço" maxW="max-w-4xl">
+        <div className="border-b border-[#0d1b2e]/10 px-5 pt-2">
+          <nav className="flex items-center gap-6" aria-label="Seções de documentos">
+            <button type="button" onClick={() => setActiveTab("situations")} className={cn("border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>SITUAÇÕES</button>
+            <button type="button" onClick={() => setActiveTab("attachments")} className={cn("border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>ANEXOS</button>
+          </nav>
+        </div>
+
+        <div className="min-w-0 max-w-full space-y-4 overflow-hidden p-5">
+          {message && <div className={cn("flex min-w-0 items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}</span><span className="min-w-0 break-words">{message.text}</span></span><button type="button" onClick={() => setMessage(null)} className="shrink-0"><X size={13} /></button></div>}
+
+          {controller.loading ? (
+            <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando documentos...</p>
+          ) : activeTab === "situations" ? (
+            controller.flowSituations.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[#5a6a82]">Este tipo de atendimento não possui situações configuradas.</p>
+            ) : controller.flowSituations.map(situation => {
+              const images = controller.documents.filter(item => item.situation_id === situation.id && !item.attachment_type_id);
+              const canUpload = controller.canUpload(situation.id);
+              const current = situation.id === currentSituationId;
+              return (
+                <AdminCard key={situation.id} className={cn("min-w-0 max-w-full shadow-none", current && "border-[#0057e7]/30 bg-[#f7faff]")}>
+                  <AdminCardHeader className={current ? "bg-[#f7faff]" : undefined}>
+                    <div className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><div className="min-w-0"><p className="truncate text-xs font-black text-[#0d1b2e]">{situation.name}</p><p className="text-[10px] text-[#5a6a82]">{current ? "Situação atual" : "Situação da OS"} · {images.length} {images.length === 1 ? "imagem" : "imagens"}</p></div></div>
+                    {canUpload && <SituationQuickUploads situation={situation} controller={controller} onSuccess={text => setMessage({ text, type: "success" })} onError={text => setMessage({ text, type: "error" })} />}
+                  </AdminCardHeader>
+                  {images.length > 0 ? (
+                    <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{images.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
+                  ) : (
+                    <div className="px-4 py-6 text-center text-xs text-[#7c899c]">Nenhuma imagem registrada nesta situação.</div>
+                  )}
+                </AdminCard>
+              );
+            })
+          ) : (
+            <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm"><Plus size={14} /> Novo anexo</AdminButton>}</div>
+              {typedAttachments.length === 0 ? (
+                <div className="max-w-full rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
+              ) : (
+                <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{typedAttachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
+        <div className="fixed inset-x-0 z-[70] border-t border-[#0d1b2e]/10 bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}><div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div></div>
+      </AdminPage>
+
+      {newAttachmentOpen && <NewAttachmentModal controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
+    </>
+  );
 }
