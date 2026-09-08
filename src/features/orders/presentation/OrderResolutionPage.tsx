@@ -74,6 +74,17 @@ export function OrderResolutionPage({
             <FTextarea label="Solução" value={solveDraft.solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: e.target.value }))} rows={5} />
           </Section>
 
+          <Section title="Peças avulsas">
+            <FTextarea
+              label="Peças avulsas"
+              value={solveDraft.looseParts || ""}
+              onChange={(e: any) => setSolveDraft(current => ({ ...current, looseParts: e.target.value }))}
+              rows={4}
+              hint="Descreva peças, materiais ou componentes utilizados que não estão cadastrados no estoque."
+              placeholder="Ex.: conector HDMI, cabo, parafuso, componente reaproveitado..."
+            />
+          </Section>
+
           <Section title="Resultado do atendimento">
             <label className="flex items-start gap-2 text-sm font-bold text-[#0d1b2e]">
               <Checkbox checked={solveDraft.cannotSolve} onCheckedChange={checked => setSolveDraft(current => ({ ...current, cannotSolve: checked === true }))} />
@@ -113,6 +124,9 @@ export function OrderResolutionPage({
           </Section>
 
           <Section title="Imagens da solução">
+            <div className="mb-3 rounded-lg border border-[#0057e7]/15 bg-[#f7faff] px-3 py-2 text-xs leading-5 text-[#5a6a82]">
+              As fotos anexadas aqui serão vinculadas automaticamente à situação atual da OS e ficarão disponíveis em Documentos → Situações.
+            </div>
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-xs text-[#5a6a82]">{solutionImages.length}/5 imagens</p>
               <div className="flex items-center gap-2 flex-wrap">
