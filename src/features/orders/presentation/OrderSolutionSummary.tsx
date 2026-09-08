@@ -30,7 +30,7 @@ export function OrderSolutionSummary({
   const setViewImage = onViewImage;
   return (
     <>
-{(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && (
+{(detail.is_solved || detail.cannot_be_solved || detail.diagnosis || detail.solution || detail.loose_parts || detailUsedItems.length > 0 || detailSolutionImages.length > 0) && (
                 <Section title="Solução da OS">
                   <div className="space-y-4">
                     {detail.is_solved && <div className="flex items-center gap-2 flex-wrap"><span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2.5 py-1 text-[10px] font-bold uppercase">✓ OS solucionada</span>{detail.solved_at && <span className="text-xs text-[#5a6a82]">Solucionada em {formatSolvedAt(detail.solved_at)} por: {profile?.full_name || "Nome não informado"}</span>}</div>}
@@ -38,6 +38,7 @@ export function OrderSolutionSummary({
                     {detail.customer_notes && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Descrição do problema</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></div>}
                     {detail.diagnosis && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Diagnóstico</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.diagnosis}</p></div>}
                     {detail.solution && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Solução</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.solution}</p></div>}
+                    {detail.loose_parts && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Peças avulsas</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.loose_parts}</p></div>}
                     {detailUsedItems.length > 0 && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Produtos utilizados</p><div className="space-y-2">{detailUsedItems.map((item: any) => {
                       const unitSalePrice = item.unit_sale_price == null ? null : Number(item.unit_sale_price);
                       const totalSalePrice = item.total_sale_price == null ? null : Number(item.total_sale_price);
