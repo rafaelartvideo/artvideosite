@@ -15,10 +15,12 @@ export function useOrderDetails({
   loadPartRequests,
   replaceOrderImages,
   organizationIdOverride,
+  loadPartRequestsEnabled = true,
 }: {
   loadPartRequests: (orderId: string) => Promise<void>;
   replaceOrderImages: (images: OrderImage[]) => void;
   organizationIdOverride?: string | null;
+  loadPartRequestsEnabled?: boolean;
 }) {
   const { activeOrganizationId } = useAuth();
   const organizationId = organizationIdOverride || activeOrganizationId;
@@ -92,8 +94,8 @@ export function useOrderDetails({
     setDetailSolutionImages(solutionImages);
     replaceOrderImages(orderImages);
     setDetail({ ...selectedOrder, ...(currentOrder || {}), technical_values: technicalValues });
-    void loadPartRequests(selectedOrder.id);
-  }, [detailQuery.data, selectedOrderBelongsToOrganization]);
+    if (loadPartRequestsEnabled) void loadPartRequests(selectedOrder.id);
+  }, [detailQuery.data, selectedOrderBelongsToOrganization, loadPartRequestsEnabled, loadPartRequests]);
 
   const openDetail = (order: any) => {
     if (!organizationId || order?.organization_id !== organizationId) return;
