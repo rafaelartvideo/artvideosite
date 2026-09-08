@@ -5,6 +5,7 @@ import { useCustomersController } from "../application/useCustomersController";
 import { CreateCustomerPage } from "./CreateCustomerPage";
 import { CustomerDetailsPage } from "./CustomerDetailsPage";
 import { CustomersList } from "./CustomersList";
+import { PartnerCustomersList } from "./PartnerCustomersList";
 
 type SharedAccessMode = "default" | "read";
 
@@ -57,9 +58,34 @@ export function TabCustomers({
   }, [routeResourceId, routeSubpage, list.customers, details.detail?.id, canCreate, canViewDetails, canEdit, organizationId]);
 
   const closeRoute = () => onRouteChange?.(null, null);
+  const openCustomerDetail = (customer: any) => {
+    if (!canViewDetails) return;
+    if (onRouteChange) onRouteChange(customer.id, null);
+    else void details.open(customer);
+  };
+
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {!routeResourceId && canViewTable && <CustomersList
+
+    {!routeResourceId && canViewTable && (sharedReadOnly ? <PartnerCustomersList
+      customers={list.customers}
+      filtered={list.filtered}
+      pagedCustomers={list.pagedCustomers}
+      loading={list.loading}
+      nameSearch={list.nameSearch}
+      documentSearch={list.documentSearch}
+      orderSort={list.orderSort}
+      safePage={list.safePage}
+      pageSize={list.pageSize}
+      totalPages={list.totalPages}
+      onNameSearchChange={list.setNameSearch}
+      onDocumentSearchChange={list.setDocumentSearch}
+      onOrderSortChange={list.setOrderSort}
+      onClearFilters={list.clearFilters}
+      onPageChange={list.setPage}
+      onPageSizeChange={list.setPageSize}
+      onOpenDetail={openCustomerDetail}
+    /> : <CustomersList
       customers={list.customers}
       filtered={list.filtered}
       pagedCustomers={list.pagedCustomers}
@@ -87,9 +113,10 @@ export function TabCustomers({
       onPageChange={list.setPage}
       onPageSizeChange={list.setPageSize}
       onCreate={() => canCreate && (onRouteChange ? onRouteChange("new", null) : creation.openPage())}
-      onOpenDetail={customer => { if (!canViewDetails) return; if (onRouteChange) onRouteChange(customer.id, null); else void details.open(customer); }}
+      onOpenDetail={openCustomerDetail}
       onDelete={() => undefined}
-    />}
+    />)}
+
     {canViewDetails && <CustomerDetailsPage
       detail={details.detail} detailQuotes={details.quotes} detailOrders={details.orders} detailLoading={details.loading}
       editForm={details.form} setEditForm={details.setForm} editAddress={details.address} setEditAddress={details.setAddress}
@@ -102,6 +129,7 @@ export function TabCustomers({
       onOpenOrder={(orderId, customerId) => canOpenOrders && onOpenOrder?.(orderId, customerId || details.detail?.id)}
       onClose={() => { details.close(); closeRoute(); }}
     />}
+
     <CreateCustomerPage open={creation.open && canCreate} form={creation.form} setForm={creation.setForm} address={creation.address} setAddress={creation.setAddress} saving={creation.saving} canCreate={canCreate} cpfError={creation.cpfError} setCpfError={creation.setCpfError} cpfInputRef={creation.cpfInputRef} cnpjLoading={creation.cnpjLoading} cnpjMessage={creation.cnpjMessage} setCnpjMessage={creation.setCnpjMessage} onLookupCnpj={creation.lookupCnpj} onCreate={() => { if (canCreate) void creation.create().then(created => { if (created) closeRoute(); }); }} onClose={() => { creation.closePage(); closeRoute(); }} />
   </div>;
 }
