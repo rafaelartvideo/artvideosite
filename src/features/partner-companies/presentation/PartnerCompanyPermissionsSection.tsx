@@ -7,7 +7,7 @@ import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { listOrganizationModules, listPartnerShares, listSystemModules, setOrganizationModuleEnabled, setPartnerDataShare, type PartnerShareAccessLevel } from "../infrastructure/partner-companies.repository";
 
-const SAFE_PARTNER_MODULES = new Set(["customers","orders","inventory","equipment","services","service_types","order_situations","order_statuses","documents","employees"]);
+const SAFE_PARTNER_MODULES = new Set(["customers","orders","inventory","equipment","services","service_types","order_situations","order_statuses","documents","employees","company_settings"]);
 const SHARE_RESOURCES = [
   { key:"customers" as const, label:"Clientes", description:"Cadastros, contatos e endereços dos clientes." },
   { key:"orders" as const, label:"Ordens de Serviço e Operação", description:"OS, histórico, documentos, SLA e fluxo operacional." },
