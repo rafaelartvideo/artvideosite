@@ -22,6 +22,7 @@ export function useOrderCustomerPersistence({
   setSaving,
   hasPermission,
   showToast,
+  organizationIdOverride,
 }: {
   selectedCustomer: any;
   setSelectedCustomer: Dispatch<SetStateAction<any>>;
@@ -32,14 +33,17 @@ export function useOrderCustomerPersistence({
   setSaving: Dispatch<SetStateAction<boolean>>;
   hasPermission: (permission: string) => boolean;
   showToast: (toast: ToastMessage) => void;
+  organizationIdOverride?: string | null;
 }) {
   const { activeOrganizationId } = useAuth();
+  const organizationId = organizationIdOverride || activeOrganizationId;
+
   const persistCustomer = async ({
     standalone,
   }: {
     standalone: boolean;
   }) => {
-    if (!selectedCustomer?.id || !activeOrganizationId) return false;
+    if (!selectedCustomer?.id || !organizationId) return false;
 
     const validationError = validateCustomerForm(customerDraft);
     if (validationError) {
@@ -51,7 +55,7 @@ export function useOrderCustomerPersistence({
     setSaving(true);
     const payload = customerUpdatePayload(customerDraft);
     const { error: customerError } = await updateOrderCustomer(
-      activeOrganizationId,
+      organizationId,
       selectedCustomer.id,
       payload,
     );
@@ -81,7 +85,7 @@ export function useOrderCustomerPersistence({
       is_default: true,
     };
     const addressResult = await saveOrderCustomerAddress(
-      activeOrganizationId,
+      organizationId,
       address?.id || null,
       addressPayload,
     );
@@ -127,6 +131,7 @@ export function useOrderCustomerPersistence({
     persistCustomer({ standalone: false });
 
   return {
+    organizationId,
     saveCustomer,
     saveCustomerBeforeOrder,
   };
