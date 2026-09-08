@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../../../infrastructure/query/query-keys";
+import { useAuth } from "@/lib/auth";
 import {
   getServiceOrderDetail,
   listServiceOrderMedia,
@@ -17,15 +18,24 @@ export function useOrderDetails({
   loadPartRequests: (orderId: string) => Promise<void>;
   replaceOrderImages: (images: OrderImage[]) => void;
 }) {
+  const { activeOrganizationId } = useAuth();
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
   const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const selectedOrderBelongsToActiveOrganization = Boolean(
+    selectedOrder?.id &&
+    activeOrganizationId &&
+    selectedOrder?.organization_id === activeOrganizationId,
+  );
 
   const detailQuery = useQuery({
-    queryKey: queryKeys.orders.detail(selectedOrder?.id || ""),
-    enabled: Boolean(selectedOrder?.id),
+    queryKey: [
+      ...queryKeys.orders.detail(selectedOrder?.id || ""),
+      activeOrganizationId || "none",
+    ],
+    enabled: selectedOrderBelongsToActiveOrganization,
     staleTime: 30_000,
     queryFn: async () => {
       const [
@@ -62,7 +72,17 @@ export function useOrderDetails({
   });
 
   useEffect(() => {
-    if (!detailQuery.data || !selectedOrder) return;
+    if (!selectedOrder || selectedOrder.organization_id === activeOrganizationId) return;
+    setDetail(null);
+    setSelectedOrder(null);
+    setDetailHistory([]);
+    setDetailUsedItems([]);
+    setDetailSolutionImages([]);
+    replaceOrderImages([]);
+  }, [activeOrganizationId, replaceOrderImages, selectedOrder]);
+
+  useEffect(() => {
+    if (!detailQuery.data || !selectedOrderBelongsToActiveOrganization || !selectedOrder) return;
     const { currentOrder, history, usedItems, technicalValues, orderImages, solutionImages } = detailQuery.data;
     setDetailHistory(history || []);
     setDetailUsedItems(usedItems || []);
@@ -70,9 +90,10 @@ export function useOrderDetails({
     replaceOrderImages(orderImages);
     setDetail({ ...selectedOrder, ...(currentOrder || {}), technical_values: technicalValues });
     void loadPartRequests(selectedOrder.id);
-  }, [detailQuery.data]);
+  }, [detailQuery.data, selectedOrderBelongsToActiveOrganization]);
 
   const openDetail = (order: any) => {
+    if (!activeOrganizationId || order?.organization_id !== activeOrganizationId) return;
     setSelectedOrder(order);
     setDetail(order);
   };
