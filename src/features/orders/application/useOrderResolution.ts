@@ -14,10 +14,10 @@ import {
   listServiceOrderUsedItems,
   markServiceOrderSolvable,
   markServiceOrderUnsolvable,
-  resolveServiceOrder,
 } from "../infrastructure/orders.repository";
 import {
   getServiceOrderLooseParts,
+  resolveServiceOrderWithLooseParts,
   saveServiceOrderLooseParts,
 } from "../infrastructure/order-resolution-extra.repository";
 import { orderImageKindFromSortOrder, type OrderImage } from "../domain/order-image";
@@ -358,11 +358,12 @@ export function useOrderResolution({
 
     setSaving(true);
     try {
-      await saveServiceOrderLooseParts(targetOrganizationId, orderId, solveDraft.looseParts);
-      const { error: resolveError } = await resolveServiceOrder({
+      const { error: resolveError } = await resolveServiceOrderWithLooseParts({
+        organizationId: targetOrganizationId,
         serviceOrderId: orderId,
         diagnosis,
         solution,
+        looseParts: solveDraft.looseParts,
         usedItems: solveDraft.usedItems.map(item => ({
           inventory_item_id: item.inventory_item_id,
           quantity: Number(item.quantity),
