@@ -30,7 +30,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   employees: "/admin/operation/employees",
   siteSettings: "/admin/site/settings",
   settings: "/admin/settings",
-  contact: "/admin/site/contact",
+  contact: "/admin/contact",
 };
 
 const ROUTES_BY_SPECIFICITY = (Object.entries(ADMIN_TAB_PATHS) as Array<[AdminTab, string]>)
