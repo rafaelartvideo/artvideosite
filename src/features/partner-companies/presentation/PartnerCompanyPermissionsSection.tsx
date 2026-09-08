@@ -166,13 +166,15 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
         {modulesQuery.isPending ? <LoadingState /> : modulesQuery.isError ? (
           <p className="text-sm font-semibold text-red-700">{(modulesQuery.error as any)?.message || "Não foi possível carregar os módulos."}</p>
         ) : (
-          <div className="grid sm:grid-cols-2">
+          <div className="grid gap-6 sm:grid-cols-2 sm:gap-0">
             {moduleColumns.map((column, columnIndex) => (
               <div
                 key={columnIndex}
-                className={columnIndex === 0 ? "divide-y divide-[#d9e1ec] sm:pr-6" : "divide-y divide-[#d9e1ec] border-t border-[#d9e1ec] pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0"}
+                className={columnIndex === 0
+                  ? "divide-y divide-[#d9e1ec] sm:pr-8"
+                  : "divide-y divide-[#d9e1ec] border-t border-[#d9e1ec] pt-4 sm:ml-4 sm:border-l sm:border-t-0 sm:pl-8 sm:pt-0"}
               >
-                {column.map((module: any, itemIndex: number) => {
+                {column.map((module: any) => {
                   const enabled = enabledByKey.get(module.key) === true;
                   return <div key={module.key} className="py-4 first:pt-0 last:pb-0">
                     <FToggle
