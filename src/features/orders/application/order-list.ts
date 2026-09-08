@@ -24,6 +24,7 @@ export const filterServiceOrders = ({
   invalidPeriod,
   getStateLabel,
   getEquipmentSummary,
+  matchOrderNumberOrExternal = false,
 }: {
   orders: any[];
   osNumberSearch: string;
@@ -41,6 +42,7 @@ export const filterServiceOrders = ({
   invalidPeriod: boolean;
   getStateLabel: (state: unknown) => string;
   getEquipmentSummary: (order: any) => string;
+  matchOrderNumberOrExternal?: boolean;
 }) =>
   orders.filter((order) => {
     const normalizedOsSearch = normalizeIdentifier(osNumberSearch);
@@ -52,10 +54,12 @@ export const filterServiceOrders = ({
     const normalizedExternalNumber = normalizeIdentifier(order.external_os_number);
     const customerIdentifiers = [customer.document, customer.cnpj].map(normalizeDigits);
 
-    const matchesOsNumber =
-      !normalizedOsSearch || normalizedOrderNumber.includes(normalizedOsSearch);
-    const matchesExternalOs =
-      !normalizedExternalSearch || normalizedExternalNumber.includes(normalizedExternalSearch);
+    const matchesOsNumber = matchOrderNumberOrExternal
+      ? !normalizedOsSearch || normalizedOrderNumber.includes(normalizedOsSearch) || normalizedExternalNumber.includes(normalizedOsSearch)
+      : !normalizedOsSearch || normalizedOrderNumber.includes(normalizedOsSearch);
+    const matchesExternalOs = matchOrderNumberOrExternal
+      ? true
+      : !normalizedExternalSearch || normalizedExternalNumber.includes(normalizedExternalSearch);
     const matchesDocument =
       !normalizedDocumentSearch ||
       customerIdentifiers.some(value => value.includes(normalizedDocumentSearch));
