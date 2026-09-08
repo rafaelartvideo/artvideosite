@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { ClipboardList, LayoutDashboard, Package, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { listPartnerShares, type PartnerShareAccessLevel } from "../infrastructure/partner-companies.repository";
+import {
+  listPartnerShares,
+  type PartnerShareAccessLevel,
+  type PartnerShareConfigLevel,
+} from "../infrastructure/partner-companies.repository";
 
 type SharedDataTab = "summary" | "customers" | "orders" | "inventory";
 
@@ -20,19 +24,21 @@ const RESOURCE_META: Record<Exclude<SharedDataTab, "summary">, { title: string; 
   inventory: { title: "Estoque", description: "Itens, saldos, movimentações e fluxo de peças compartilhados." },
 };
 
-const ACCESS_LABEL: Record<PartnerShareAccessLevel, string> = {
+const ACCESS_LABEL: Record<PartnerShareConfigLevel, string> = {
   none: "Sem acesso",
   summary: "Somente resumo",
   read: "Leitura",
-  manage: "Gerenciamento",
 };
 
-const ACCESS_DESCRIPTION: Record<PartnerShareAccessLevel, string> = {
+const ACCESS_DESCRIPTION: Record<PartnerShareConfigLevel, string> = {
   none: "Esta empresa não compartilhou este recurso com a ArtVideo.",
   summary: "A ArtVideo verá somente indicadores e informações agregadas, sem acesso aos registros individuais.",
-  read: "A ArtVideo poderá consultar os registros individuais, sem alterar os dados da empresa.",
-  manage: "A ArtVideo poderá consultar e executar as ações permitidas pelas permissões efetivas do usuário.",
+  read: "A ArtVideo poderá consultar os registros individuais e seus detalhes, sempre sem alterar os dados da empresa parceira.",
 };
+
+function normalizeShareLevel(level?: PartnerShareAccessLevel): PartnerShareConfigLevel {
+  return level === "manage" ? "read" : level || "none";
+}
 
 export function PartnerCompanySharedDataSection({ organizationId }: { organizationId: string }) {
   const [activeTab, setActiveTab] = useState<SharedDataTab>("summary");
@@ -46,7 +52,7 @@ export function PartnerCompanySharedDataSection({ organizationId }: { organizati
   });
 
   const shareByKey = useMemo(
-    () => new Map((sharesQuery.data || []).map((item: any) => [item.resource_key, item.access_level as PartnerShareAccessLevel])),
+    () => new Map((sharesQuery.data || []).map((item: any) => [item.resource_key, normalizeShareLevel(item.access_level as PartnerShareAccessLevel)])),
     [sharesQuery.data],
   );
 
@@ -102,7 +108,6 @@ export function PartnerCompanySharedDataSection({ organizationId }: { organizati
           </div>
           <div className="mt-5 border-t border-[#d9e1ec] pt-5">
             <p className="text-sm font-semibold text-[#0d1b2e]">{ACCESS_DESCRIPTION[access]}</p>
-            <p className="mt-2 text-xs leading-relaxed text-[#5a6a82]">Os dados deste recurso serão carregados aqui usando o ID desta empresa. A configuração de compartilhamento continua definindo se a ArtVideo terá resumo, leitura ou gerenciamento.</p>
           </div>
         </div>;
       })()}
