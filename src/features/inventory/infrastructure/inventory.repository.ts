@@ -4,6 +4,10 @@ import { supabase } from "@/lib/supabase";
 const factorOf = (item: any) => Math.max(1, Number(item?.conversion_factor ?? 1) || 1);
 const isBox = (item: any) => String(item?.unit || "un").toLowerCase() === "cx";
 
+async function resolveOrganizationId(organizationIdOverride?: string | null) {
+  return organizationIdOverride || await getActiveOrganizationId();
+}
+
 function toDisplayItem(item: any) {
   if (!item) return item;
   const factor = factorOf(item);
@@ -31,8 +35,8 @@ function toBasePayload(payload: Record<string, unknown>) {
   return base;
 }
 
-export async function listInventoryItems() {
-  const organizationId = await getActiveOrganizationId();
+export async function listInventoryItems(organizationIdOverride?: string | null) {
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data, error } = await supabase
     .from("inventory_items")
     .select("*")
@@ -46,8 +50,9 @@ export async function listInventoryItems() {
 export async function saveInventoryItem(
   payload: Record<string, unknown>,
   itemId?: string,
+  organizationIdOverride?: string | null,
 ): Promise<void> {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
   const basePayload = toBasePayload(payload);
   const { error } = itemId
     ? await supabase
@@ -65,8 +70,9 @@ export async function saveInventoryItem(
 export async function setInventoryItemActive(
   itemId: string,
   isActive: boolean,
+  organizationIdOverride?: string | null,
 ): Promise<void> {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { error } = await supabase
     .from("inventory_items")
     .update({ is_active: isActive })
@@ -76,8 +82,8 @@ export async function setInventoryItemActive(
   if (error) throw error;
 }
 
-export async function deleteInventoryItem(itemId: string): Promise<void> {
-  const organizationId = await getActiveOrganizationId();
+export async function deleteInventoryItem(itemId: string, organizationIdOverride?: string | null): Promise<void> {
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { error } = await supabase
     .from("inventory_items")
     .delete()
@@ -87,8 +93,8 @@ export async function deleteInventoryItem(itemId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function listInventoryMovements(itemId: string) {
-  const organizationId = await getActiveOrganizationId();
+export async function listInventoryMovements(itemId: string, organizationIdOverride?: string | null) {
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
   const [movementsResult, usedItemsResult, itemResult] = await Promise.all([
     supabase
       .from("inventory_movements")
@@ -152,8 +158,8 @@ export async function listInventoryMovements(itemId: string) {
   );
 }
 
-export async function getInventoryItem(itemId: string) {
-  const organizationId = await getActiveOrganizationId();
+export async function getInventoryItem(itemId: string, organizationIdOverride?: string | null) {
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data, error } = await supabase
     .from("inventory_items")
     .select("id,name,unit,conversion_factor,quantity,is_active")
@@ -169,8 +175,9 @@ export async function recordInventoryMovement(
   movement: Record<string, unknown>,
   itemId: string,
   nextQuantity: number,
+  organizationIdOverride?: string | null,
 ): Promise<void> {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data: item, error: itemLoadError } = await supabase
     .from("inventory_items")
     .select("id,unit,conversion_factor")
