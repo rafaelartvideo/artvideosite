@@ -4,6 +4,16 @@
 
 begin;
 
+-- Serializa execuções simultâneas desta migration. Isso evita deadlock quando o
+-- botão Run é acionado novamente enquanto a primeira execução ainda está ativa.
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:multi_tenant_employees_scope', 0)
+);
+
+-- Obtém primeiro o lock mais forte usado por esta migration. Consultas normais
+-- aguardam a conclusão sem criar uma espera circular entre tabelas dependentes.
+lock table public.employees in access exclusive mode;
+
 alter table public.employees enable row level security;
 
 create or replace function private.prevent_organization_id_change()
