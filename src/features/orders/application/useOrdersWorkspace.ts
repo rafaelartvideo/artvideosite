@@ -97,5 +97,15 @@ export function useOrdersWorkspace({
     ]);
   }, [queryClient]);
 
-  return { ...workspace, organizationId, setOrders, setEquipmentTypes, setEquipmentBrands, setEquipmentModels, loading: Boolean(organizationId) && workspaceQuery.isPending, reloadWorkspace };
+  return {
+    ...workspace,
+    organizationId,
+    isOrganizationOverride: Boolean(organizationIdOverride),
+    setOrders,
+    setEquipmentTypes,
+    setEquipmentBrands,
+    setEquipmentModels,
+    loading: Boolean(organizationId) && workspaceQuery.isPending,
+    reloadWorkspace,
+  };
 }
