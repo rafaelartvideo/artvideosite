@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { deleteCustomer, listCustomers } from "../infrastructure/customers.repository";
+import { listCustomers } from "../infrastructure/customers.repository";
 
 type Options = {
   organizationId: string | null;
-  canDelete: boolean;
   onToast: (message: string, type: "success" | "error") => void;
 };
 
@@ -14,7 +13,7 @@ export type CustomerSort = "" | "asc" | "desc";
 const normalizeDocument = (value: string) => value.replace(/\D/g, "");
 const normalizeText = (value: unknown) => String(value ?? "").trim().toLocaleLowerCase("pt-BR");
 
-export function useCustomersList({ organizationId, canDelete, onToast }: Options) {
+export function useCustomersList({ organizationId, onToast }: Options) {
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: [...queryKeys.customers.lists(), organizationId],
@@ -29,12 +28,20 @@ export function useCustomersList({ organizationId, canDelete, onToast }: Options
   const [orderSort, setOrderSort] = useState<CustomerSort>("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!query.error) return;
     onToast(`Erro ao carregar clientes: ${query.error instanceof Error ? query.error.message : String(query.error)}`, "error");
   }, [query.error]);
+
+  useEffect(() => {
+    setNameSearch("");
+    setDocumentSearch("");
+    setSelectedStates([]);
+    setSelectedCities([]);
+    setOrderSort("");
+    setPage(1);
+  }, [organizationId]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
 
@@ -99,21 +106,6 @@ export function useCustomersList({ organizationId, canDelete, onToast }: Options
   useEffect(() => setPage(1), [nameSearch, documentSearch, selectedStates, selectedCities, orderSort]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
-  const remove = async (id: string) => {
-    if (!canDelete || !organizationId) return false;
-    try {
-      await deleteCustomer(organizationId, id);
-      onToast("Cliente excluído.", "success");
-      await refresh();
-      return true;
-    } catch (error) {
-      onToast(`Não foi possível excluir o cliente: ${error instanceof Error ? error.message : String(error)}`, "error");
-      return false;
-    } finally {
-      setDeleteId(null);
-    }
-  };
-
   return {
     customers,
     loading: query.isPending,
@@ -142,8 +134,5 @@ export function useCustomersList({ organizationId, canDelete, onToast }: Options
     totalPages,
     safePage,
     pagedCustomers,
-    deleteId,
-    setDeleteId,
-    remove,
   };
 }
