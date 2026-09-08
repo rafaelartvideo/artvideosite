@@ -19,10 +19,8 @@ export async function createMediaRecord({ bucket, path, file }: { bucket: MediaB
   return media.id as string;
 }
 
-export async function uploadMediaFile(bucket: MediaBucket, file: File) {
-  const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File) {
+  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false });
   if (error) throw error;
   try {
     return await createMediaRecord({ bucket, path, file });
@@ -31,6 +29,23 @@ export async function uploadMediaFile(bucket: MediaBucket, file: File) {
     if (cleanupError) console.warn("[MEDIA] orphan cleanup failed:", cleanupError);
     throw recordError;
   }
+}
+
+export async function uploadMediaFile(bucket: MediaBucket, file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  return uploadMediaAtPath(bucket, path, file);
+}
+
+export async function uploadServiceOrderMediaFile(
+  serviceOrderId: string,
+  scope: string,
+  file: File,
+) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
+  const safeScope = scope.replace(/[^a-z0-9/_-]/gi, "-").replace(/^\/+|\/+$/g, "") || "files";
+  const path = `orders/${serviceOrderId}/${safeScope}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  return uploadMediaAtPath("service-images", path, file);
 }
 
 export function supabaseErrorMessage(error: unknown) {
