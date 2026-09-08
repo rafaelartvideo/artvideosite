@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
 import {
   customerFormFromCustomer,
@@ -16,11 +16,12 @@ import {
 type Options = {
   organizationId: string | null;
   canEdit: boolean;
+  canEditAddress: boolean;
   onRefresh: () => Promise<unknown>;
   onToast: (message: string, type: "success" | "error") => void;
 };
 
-export function useCustomerDetails({ organizationId, canEdit, onRefresh, onToast }: Options) {
+export function useCustomerDetails({ organizationId, canEdit, canEditAddress, onRefresh, onToast }: Options) {
   const [detail, setDetail] = useState<any>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -32,7 +33,26 @@ export function useCustomerDetails({ organizationId, canEdit, onRefresh, onToast
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [address, setAddress] = useState<Address>({ ...emptyAddress });
 
-  const close = () => setDetail(null);
+  useEffect(() => {
+    setDetail(null);
+    setQuotes([]);
+    setOrders([]);
+    setLoading(false);
+    setEditingData(false);
+    setSavingCustomer(false);
+    setEditingAddress(false);
+    setSavingAddress(false);
+    setForm({ ...emptyCustomerForm });
+    setAddress({ ...emptyAddress });
+  }, [organizationId]);
+
+  const close = () => {
+    setDetail(null);
+    setQuotes([]);
+    setOrders([]);
+    setEditingData(false);
+    setEditingAddress(false);
+  };
 
   const open = async (customer: any) => {
     if (!organizationId) return;
@@ -95,8 +115,8 @@ export function useCustomerDetails({ organizationId, canEdit, onRefresh, onToast
       onToast("Selecione uma empresa ativa antes de editar o endereço.", "error");
       return;
     }
-    if (!canEdit) {
-      onToast("Você não possui permissão para editar clientes.", "error");
+    if (!canEditAddress) {
+      onToast("Você não possui permissão para editar endereços de clientes.", "error");
       return;
     }
     setSavingAddress(true);
