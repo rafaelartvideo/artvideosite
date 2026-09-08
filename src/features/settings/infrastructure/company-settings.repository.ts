@@ -1,5 +1,6 @@
 import { getActiveOrganizationId } from "@/lib/active-organization";
 import { supabase } from "@/lib/supabase";
+import { getMediaById, getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
 
 export type CompanySettings = {
   company_name: string;
@@ -98,4 +99,37 @@ export async function saveCompanySettings(
     .single();
   if (error) throw error;
   return fromRow(data);
+}
+
+export async function getCompanyPrintContext(organizationId: string) {
+  const settings = await getCompanySettings(organizationId);
+  let logoUrl = "";
+  if (settings.company_logo_media_id) {
+    try {
+      const media = await getMediaById(settings.company_logo_media_id);
+      if (media?.bucket_id && media?.storage_path) {
+        logoUrl = getPublicStorageUrl(media.bucket_id, media.storage_path);
+      }
+    } catch (error) {
+      console.warn("[DOCUMENTS] company logo could not be loaded:", error);
+    }
+  }
+
+  const address = [
+    [settings.company_street, settings.company_number].filter(Boolean).join(", "),
+    settings.company_complement,
+    settings.company_neighborhood,
+    [settings.company_city, settings.company_state].filter(Boolean).join(" - "),
+    settings.company_zip_code ? `CEP ${settings.company_zip_code}` : "",
+  ].filter(Boolean).join(" · ");
+
+  return {
+    name: settings.company_name || "Empresa",
+    subtitle: settings.company_legal_name || "Assistência Técnica",
+    logoUrl,
+    document: settings.company_cnpj,
+    phone: settings.company_phone,
+    email: settings.company_email,
+    address,
+  };
 }
