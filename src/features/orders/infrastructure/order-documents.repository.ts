@@ -7,9 +7,11 @@ import type {
 } from "../domain/order-situation-document";
 
 export async function listAttachmentTypes(activeOnly = true) {
+  const organizationId = await getActiveOrganizationId();
   let query = (supabase as any)
     .from("attachment_types")
     .select("id,name,is_active")
+    .eq("organization_id", organizationId)
     .order("name", { ascending: true });
   if (activeOnly) query = query.eq("is_active", true);
   return query as Promise<{ data: AttachmentType[] | null; error: any }>;
