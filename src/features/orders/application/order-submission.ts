@@ -2,7 +2,6 @@ import {
   clearServiceOrderSellers,
   clearServiceOrderTechnicians,
   createServiceOrder,
-  deleteServiceOrderMediaLink,
   insertServiceOrderMedia,
   insertServiceOrderSellers,
   insertServiceOrderTechnicians,
@@ -10,8 +9,9 @@ import {
   updateServiceOrder,
   updateServiceOrderMediaSortOrder,
 } from "../infrastructure/orders.repository";
+import { orderImageSortOrder, type OrderImageKind } from "../domain/order-image";
 
-type SubmissionImage = { mediaId?: string; file?: File };
+type SubmissionImage = { mediaId?: string; file?: File; kind?: OrderImageKind };
 type SubmissionFailure = { success: false; stage: "record" | "relations" | "images"; error: unknown };
 type SubmissionSuccess = { success: true; orderId: string };
 
@@ -83,13 +83,11 @@ export async function persistServiceOrder({
   try {
     const { data: existingLinks, error: linksError } = await listServiceOrderMediaLinks(savedOrderId);
     if (linksError) throw linksError;
-    const retainedMediaIds = new Set(orderImages.filter(image => image.mediaId).map(image => image.mediaId as string));
-    for (const link of existingLinks || []) {
-      if (retainedMediaIds.has(link.media_id)) continue;
-      const { error } = await deleteServiceOrderMediaLink(link.id);
-      if (error) throw error;
-    }
-    for (const [sortOrder, image] of orderImages.entries()) {
+
+    const counters: Record<"equipment" | "label", number> = { equipment: 0, label: 0 };
+    for (const image of orderImages) {
+      const kind = image.kind === "label" ? "label" : "equipment";
+      const sortOrder = orderImageSortOrder(kind, counters[kind]++);
       if (image.mediaId) {
         const link = (existingLinks || []).find((item: any) => item.media_id === image.mediaId);
         if (!link) continue;
