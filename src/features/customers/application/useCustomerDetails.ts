@@ -17,11 +17,12 @@ type Options = {
   organizationId: string | null;
   canEdit: boolean;
   canEditAddress: boolean;
+  loadRelatedHistory?: boolean;
   onRefresh: () => Promise<unknown>;
   onToast: (message: string, type: "success" | "error") => void;
 };
 
-export function useCustomerDetails({ organizationId, canEdit, canEditAddress, onRefresh, onToast }: Options) {
+export function useCustomerDetails({ organizationId, canEdit, canEditAddress, loadRelatedHistory = true, onRefresh, onToast }: Options) {
   const [detail, setDetail] = useState<any>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -64,6 +65,12 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, on
     });
     setEditingData(false);
     setEditingAddress(false);
+    setQuotes([]);
+    setOrders([]);
+    if (!loadRelatedHistory) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const history = await getCustomerHistory(organizationId, customer.id);
