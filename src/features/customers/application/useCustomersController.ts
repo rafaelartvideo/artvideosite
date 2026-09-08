@@ -8,9 +8,10 @@ type Options = {
   canCreate: boolean;
   canEdit: boolean;
   canEditAddress: boolean;
+  loadRelatedHistory?: boolean;
 };
 
-export function useCustomersController({ organizationId, canCreate, canEdit, canEditAddress }: Options) {
+export function useCustomersController({ organizationId, canCreate, canEdit, canEditAddress, loadRelatedHistory = true }: Options) {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const notify = (msg: string, type: "success" | "error") => setToast({ msg, type });
 
@@ -19,6 +20,7 @@ export function useCustomersController({ organizationId, canCreate, canEdit, can
     organizationId,
     canEdit,
     canEditAddress,
+    loadRelatedHistory,
     onRefresh: list.refresh,
     onToast: notify,
   });
