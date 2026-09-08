@@ -79,7 +79,9 @@ export function OrderDetailsPage(props: Props) {
     detail, detailUsedItems, detailSolutionImages, closeDetail,
   } = details;
   const slaVisits = useOrderSituationVisits(detail?.id, detail?.situation_id, detail?.situation_started_at);
-  const { setViewImage } = images;
+  const { setViewImage, orderImages } = images;
+  const solutionMediaIds = new Set(detailSolutionImages.map(image => image.mediaId).filter(Boolean));
+  const visibleDocumentCount = documents.documents.filter(document => !solutionMediaIds.has(document.media_id)).length + detailSolutionImages.length;
   const {
     detailPartRequests, getTestCommittedQuantity, getTestPendingQuantity,
     openPartApproval, openPartRejection, openDeliveryRequest, openTestResult,
@@ -164,6 +166,7 @@ export function OrderDetailsPage(props: Props) {
         order={detail}
         currentSituationId={detail?.situation_id}
         controller={documents}
+        solutionImages={detailSolutionImages}
         onClose={() => onDocumentsPageOpenChange(false)}
         onView={setViewImage}
       />
@@ -256,7 +259,7 @@ export function OrderDetailsPage(props: Props) {
                     </DropdownMenuContent>
                   </DropdownMenu>}
                   {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button>}
-                  {hasPermission("orders.section.images") && <button type="button" onClick={() => onDocumentsPageOpenChange(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos{documents.documents.length > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{documents.documents.length}</span>}</button>}
+                  {hasPermission("orders.section.images") && <button type="button" onClick={() => onDocumentsPageOpenChange(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos{visibleDocumentCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{visibleDocumentCount}</span>}</button>}
                   {hasPermission("orders.section.history") && <button type="button" onClick={() => history.setPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button>}
                 </div>
               </div>
@@ -268,6 +271,8 @@ export function OrderDetailsPage(props: Props) {
                 formatState={stateLabel}
                 getSla={getSlaForOrder}
                 hasPermission={hasPermission}
+                orderImages={orderImages}
+                onViewImage={setViewImage}
               />
               <OrderFinancialSummary detail={detail} formatCurrency={formatCurrency} />
               <OrderSolutionSummary
