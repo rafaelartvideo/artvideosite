@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
 import { listPrintTemplates } from "@/features/documents/infrastructure/documents.repository";
 
-const ACTIVE_ORDER_PRINT_TEMPLATES_KEY = ["documents", "print-templates", "active"] as const;
-
 export function useOrderPrintTemplates(enabled: boolean) {
+  const { activeOrganizationId } = useAuth();
   const query = useQuery({
-    queryKey: ACTIVE_ORDER_PRINT_TEMPLATES_KEY,
-    enabled,
+    queryKey: ["documents", activeOrganizationId || "none", "print-templates", "active"],
+    enabled: enabled && Boolean(activeOrganizationId),
     staleTime: 30_000,
     queryFn: async () => {
       const { data, error } = await listPrintTemplates();
