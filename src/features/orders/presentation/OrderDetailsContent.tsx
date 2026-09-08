@@ -8,6 +8,7 @@ import {
   getResponsibleName,
   type ServiceOrderWithRelations,
 } from "./OrderFormControls";
+import { OrderImageThumb, type OrderImage } from "./OrderImages";
 
 export function InfoRow({
   label,
@@ -30,6 +31,8 @@ export function OrderDetailsContent({
   formatState,
   getSla,
   hasPermission,
+  orderImages,
+  onViewImage,
 }: {
   detail: any;
   formatDate: (value?: string | null, time?: boolean) => string;
@@ -40,6 +43,8 @@ export function OrderDetailsContent({
     relatedSituation?: any,
   ) => { hours: number; isDefault: boolean } | null;
   hasPermission: (permission: string) => boolean;
+  orderImages: OrderImage[];
+  onViewImage: (image: OrderImage) => void;
 }) {
   const fmtDate = formatDate;
   const stateLabel = formatState;
@@ -47,6 +52,8 @@ export function OrderDetailsContent({
   void getSlaForOrder;
   const customer = detail.customer as any;
   const technicalValues = Array.isArray(detail.technical_values) ? detail.technical_values : [];
+  const labelImages = orderImages.filter(image => image.kind === "label");
+  const equipmentImages = orderImages.filter(image => image.kind !== "label" && image.kind !== "solution");
   const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
   const whatsappContact = phoneContactLinks(customer?.whatsapp || customer?.phone);
   const customerAddress = (customer?.addresses || []).find((item: Address) => item.is_default) || customer?.addresses?.[0];
@@ -134,6 +141,18 @@ export function OrderDetailsContent({
                   <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || undefined} />
                   {technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.field_type_snapshot === "number" ? (value.value_number == null ? undefined : String(value.value_number)) : value.value_text} />)}
                 </div>
+                {hasPermission("orders.section.images") && (
+                  <div className="mt-4 space-y-4 border-t border-[#0d1b2e]/8 pt-4">
+                    <div>
+                      <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#0057e7]">Etiqueta</p>
+                      {labelImages.length > 0 ? <div className="flex flex-wrap gap-3">{labelImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#7c899c]">Nenhuma foto da etiqueta cadastrada.</p>}
+                    </div>
+                    <div>
+                      <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Fotos do equipamento</p>
+                      {equipmentImages.length > 0 ? <div className="flex flex-wrap gap-3">{equipmentImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#7c899c]">Nenhuma foto do equipamento cadastrada.</p>}
+                    </div>
+                  </div>
+                )}
               </Section>)}
               {hasPermission("orders.section.service_location") && (<Section title="Local do atendimento">
                 <div className="grid sm:grid-cols-2 gap-3">
