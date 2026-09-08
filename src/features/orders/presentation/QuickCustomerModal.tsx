@@ -33,7 +33,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   onClose: () => void;
   onSaved: (customer: any) => void;
 }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, activeOrganizationId } = useAuth();
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [address, setAddress] = useState<Address>({ ...emptyAddress });
   const [saving, setSaving] = useState(false);
@@ -54,15 +54,16 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   };
   const endDrag = () => { dragRef.current = null; };
   const save = async () => {
+    if (!activeOrganizationId) { setErrorMessage("Selecione uma empresa ativa antes de cadastrar o cliente."); return; }
     const validationError = validateCustomerForm(form);
     if (validationError) { setErrorMessage(validationError); return; }
     setSaving(true);
     setErrorMessage("");
     try {
-      const { data: customer, error } = await createQuickCustomer(customerPayload(form));
+      const { data: customer, error } = await createQuickCustomer(activeOrganizationId, customerPayload(form));
       if (error || !customer) throw error || new Error("Cliente não foi cadastrado.");
       if (Object.values(address).some(Boolean)) {
-        const addressResult = await createQuickCustomerAddress({
+        const addressResult = await createQuickCustomerAddress(activeOrganizationId, {
           customer_id: customer.id,
           zip_code: address.zip_code || null,
           street: address.street || null,

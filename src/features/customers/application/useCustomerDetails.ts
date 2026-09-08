@@ -14,12 +14,13 @@ import {
 } from "../infrastructure/customers.repository";
 
 type Options = {
+  organizationId: string | null;
   canEdit: boolean;
   onRefresh: () => Promise<unknown>;
   onToast: (message: string, type: "success" | "error") => void;
 };
 
-export function useCustomerDetails({ canEdit, onRefresh, onToast }: Options) {
+export function useCustomerDetails({ organizationId, canEdit, onRefresh, onToast }: Options) {
   const [detail, setDetail] = useState<any>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -34,6 +35,7 @@ export function useCustomerDetails({ canEdit, onRefresh, onToast }: Options) {
   const close = () => setDetail(null);
 
   const open = async (customer: any) => {
+    if (!organizationId) return;
     setDetail(customer);
     setForm(customerFormFromCustomer(customer));
     setAddress({
@@ -44,7 +46,7 @@ export function useCustomerDetails({ canEdit, onRefresh, onToast }: Options) {
     setEditingAddress(false);
     setLoading(true);
     try {
-      const history = await getCustomerHistory(customer.id);
+      const history = await getCustomerHistory(organizationId, customer.id);
       setQuotes(history.quotes);
       setOrders(history.orders);
     } catch (error) {
@@ -60,6 +62,10 @@ export function useCustomerDetails({ canEdit, onRefresh, onToast }: Options) {
   };
 
   const saveCustomer = async () => {
+    if (!organizationId) {
+      onToast("Selecione uma empresa ativa antes de editar o cliente.", "error");
+      return;
+    }
     if (!canEdit) {
       onToast("Você não possui permissão para editar clientes.", "error");
       return;
@@ -72,7 +78,7 @@ export function useCustomerDetails({ canEdit, onRefresh, onToast }: Options) {
     setSavingCustomer(true);
     try {
       const payload = customerUpdatePayload(form);
-      await updateCustomer(detail.id, payload);
+      await updateCustomer(organizationId, detail.id, payload);
       setDetail({ ...detail, ...payload });
       setEditingData(false);
       onToast("Dados do cliente atualizados.", "success");
@@ -85,6 +91,10 @@ export function useCustomerDetails({ canEdit, onRefresh, onToast }: Options) {
   };
 
   const saveAddress = async () => {
+    if (!organizationId) {
+      onToast("Selecione uma empresa ativa antes de editar o endereço.", "error");
+      return;
+    }
     if (!canEdit) {
       onToast("Você não possui permissão para editar clientes.", "error");
       return;
@@ -104,7 +114,7 @@ export function useCustomerDetails({ canEdit, onRefresh, onToast }: Options) {
         is_default: true,
       };
       const existing = (detail.addresses || []).find((item: Address) => item.is_default) || detail.addresses?.[0];
-      const saved = await saveCustomerAddress(payload, existing?.id);
+      const saved = await saveCustomerAddress(organizationId, payload, existing?.id);
       setDetail({ ...detail, addresses: [saved || address] });
       setEditingAddress(false);
       onToast("Endereço atualizado.", "success");

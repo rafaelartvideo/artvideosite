@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { customerFormFromCustomer, emptyCustomerForm, type CustomerForm } from "@/features/customers/domain/customer-form";
 import { emptyAddress, type Address } from "@/lib/address";
+import { useAuth } from "@/lib/auth";
 import { searchOrderCustomers } from "../infrastructure/orders-customer.repository";
 
 export function useOrderCustomerSelection() {
+  const { activeOrganizationId } = useAuth();
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -18,11 +20,11 @@ export function useOrderCustomerSelection() {
 
   const searchCustomers = async (query: string) => {
     setCustomerSearch(query);
-    if (query.length < 2) {
+    if (query.length < 2 || !activeOrganizationId) {
       setCustomerResults([]);
       return;
     }
-    const { data } = await searchOrderCustomers(query);
+    const { data } = await searchOrderCustomers(activeOrganizationId, query);
     setCustomerResults(data || []);
   };
 

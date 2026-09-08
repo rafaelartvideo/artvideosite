@@ -4,6 +4,7 @@ import {
 } from "react";
 import { customerUpdatePayload, validateCustomerForm, type CustomerForm } from "@/features/customers/domain/customer-form";
 import { normalizeSharedMapUrl, type Address } from "@/lib/address";
+import { useAuth } from "@/lib/auth";
 import {
   saveOrderCustomerAddress,
   updateOrderCustomer,
@@ -32,12 +33,13 @@ export function useOrderCustomerPersistence({
   hasPermission: (permission: string) => boolean;
   showToast: (toast: ToastMessage) => void;
 }) {
+  const { activeOrganizationId } = useAuth();
   const persistCustomer = async ({
     standalone,
   }: {
     standalone: boolean;
   }) => {
-    if (!selectedCustomer?.id) return false;
+    if (!selectedCustomer?.id || !activeOrganizationId) return false;
 
     const validationError = validateCustomerForm(customerDraft);
     if (validationError) {
@@ -49,6 +51,7 @@ export function useOrderCustomerPersistence({
     setSaving(true);
     const payload = customerUpdatePayload(customerDraft);
     const { error: customerError } = await updateOrderCustomer(
+      activeOrganizationId,
       selectedCustomer.id,
       payload,
     );
@@ -78,6 +81,7 @@ export function useOrderCustomerPersistence({
       is_default: true,
     };
     const addressResult = await saveOrderCustomerAddress(
+      activeOrganizationId,
       address?.id || null,
       addressPayload,
     );

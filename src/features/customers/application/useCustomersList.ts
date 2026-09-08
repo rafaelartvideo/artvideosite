@@ -4,6 +4,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { deleteCustomer, listCustomers } from "../infrastructure/customers.repository";
 
 type Options = {
+  organizationId: string | null;
   canDelete: boolean;
   onToast: (message: string, type: "success" | "error") => void;
 };
@@ -13,9 +14,13 @@ export type CustomerSort = "" | "asc" | "desc";
 const normalizeDocument = (value: string) => value.replace(/\D/g, "");
 const normalizeText = (value: unknown) => String(value ?? "").trim().toLocaleLowerCase("pt-BR");
 
-export function useCustomersList({ canDelete, onToast }: Options) {
+export function useCustomersList({ organizationId, canDelete, onToast }: Options) {
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: queryKeys.customers.lists(), queryFn: listCustomers });
+  const query = useQuery({
+    queryKey: [...queryKeys.customers.lists(), organizationId],
+    enabled: Boolean(organizationId),
+    queryFn: () => listCustomers(organizationId!),
+  });
   const customers = query.data ?? [];
   const [nameSearch, setNameSearch] = useState("");
   const [documentSearch, setDocumentSearch] = useState("");
@@ -95,9 +100,9 @@ export function useCustomersList({ canDelete, onToast }: Options) {
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const remove = async (id: string) => {
-    if (!canDelete) return false;
+    if (!canDelete || !organizationId) return false;
     try {
-      await deleteCustomer(id);
+      await deleteCustomer(organizationId, id);
       onToast("Cliente excluído.", "success");
       await refresh();
       return true;

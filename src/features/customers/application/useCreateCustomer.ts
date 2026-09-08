@@ -15,12 +15,13 @@ import {
 } from "../infrastructure/customers.repository";
 
 type Options = {
+  organizationId: string | null;
   canCreate: boolean;
   onRefresh: () => Promise<unknown>;
   onToast: (message: string, type: "success" | "error") => void;
 };
 
-export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
+export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToast }: Options) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [address, setAddress] = useState<Address>({ ...emptyAddress });
@@ -57,6 +58,10 @@ export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
   };
 
   const create = async () => {
+    if (!organizationId) {
+      onToast("Selecione uma empresa ativa antes de cadastrar o cliente.", "error");
+      return false;
+    }
     if (!canCreate) {
       onToast("Você não possui permissão para cadastrar clientes.", "error");
       return false;
@@ -75,7 +80,7 @@ export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
     setSaving(true);
     let customer;
     try {
-      customer = await createCustomer(customerPayload(form));
+      customer = await createCustomer(organizationId, customerPayload(form));
     } catch (error) {
       onToast(`Erro ao cadastrar: ${error instanceof Error ? error.message : "Cliente não criado."}`, "error");
       setSaving(false);
@@ -84,7 +89,7 @@ export function useCreateCustomer({ canCreate, onRefresh, onToast }: Options) {
 
     if (Object.values(address).some(Boolean)) {
       try {
-        await createCustomerAddress({
+        await createCustomerAddress(organizationId, {
           customer_id: customer.id,
           zip_code: address.zip_code || null,
           street: address.street || null,

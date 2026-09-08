@@ -14,7 +14,7 @@ type TabCustomersProps = {
 };
 
 export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRouteChange }: TabCustomersProps) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, activeOrganizationId } = useAuth();
   const canViewTable = hasPermission("customers.table.view");
   const canViewDetails = hasPermission("customers.details.view");
   const canCreate = hasPermission("customers.create");
@@ -25,7 +25,7 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
   const canViewQuotes = hasPermission("quotes.view");
   const canViewOrders = hasPermission("orders.view");
   const canOpenOrders = hasPermission("orders.details.view");
-  const { list, details, creation, toast, setToast } = useCustomersController({ canCreate, canEdit, canDelete: false });
+  const { list, details, creation, toast, setToast } = useCustomersController({ organizationId: activeOrganizationId, canCreate, canEdit, canDelete: false });
 
   useEffect(() => {
     if (!routeResourceId) { if (creation.open) creation.closePage(); if (details.detail) details.close(); return; }
