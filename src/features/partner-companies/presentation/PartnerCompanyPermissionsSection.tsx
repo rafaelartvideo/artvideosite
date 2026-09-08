@@ -88,6 +88,11 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     [modulesQuery.data?.systemModules],
   );
 
+  const moduleColumns = useMemo(() => {
+    const splitAt = Math.ceil(sortedModules.length / 2);
+    return [sortedModules.slice(0, splitAt), sortedModules.slice(splitAt)];
+  }, [sortedModules]);
+
   const allModulesEnabled = sortedModules.length > 0 && sortedModules.every((module: any) => enabledByKey.get(module.key) === true);
 
   const shareByKey = useMemo(
@@ -161,27 +166,26 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
         {modulesQuery.isPending ? <LoadingState /> : modulesQuery.isError ? (
           <p className="text-sm font-semibold text-red-700">{(modulesQuery.error as any)?.message || "Não foi possível carregar os módulos."}</p>
         ) : (
-          <div className="grid sm:grid-cols-2 sm:gap-x-6">
-            {sortedModules.map((module: any, index: number) => {
-              const enabled = enabledByKey.get(module.key) === true;
-              const isSecondColumn = index % 2 === 1;
-              const isFirstRow = index < 2;
-              const itemClass = [
-                "border-t border-[#d9e1ec] py-4",
-                index === 0 ? "border-t-0 pt-0" : "",
-                isFirstRow && isSecondColumn ? "sm:border-t-0 sm:pt-0" : "",
-                isSecondColumn ? "sm:border-l sm:pl-6" : "sm:pr-6",
-              ].filter(Boolean).join(" ");
-              return <div key={module.key} className={itemClass}>
-                <FToggle
-                  label={module.name}
-                  description={module.description}
-                  checked={enabled}
-                  disabled={!canManageModules || busy}
-                  onChange={(nextEnabled) => toggleMutation.mutate({ key: module.key, enabled: nextEnabled })}
-                />
-              </div>;
-            })}
+          <div className="grid sm:grid-cols-2">
+            {moduleColumns.map((column, columnIndex) => (
+              <div
+                key={columnIndex}
+                className={columnIndex === 0 ? "divide-y divide-[#d9e1ec] sm:pr-6" : "divide-y divide-[#d9e1ec] border-t border-[#d9e1ec] pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0"}
+              >
+                {column.map((module: any, itemIndex: number) => {
+                  const enabled = enabledByKey.get(module.key) === true;
+                  return <div key={module.key} className="py-4 first:pt-0 last:pb-0">
+                    <FToggle
+                      label={module.name}
+                      description={module.description}
+                      checked={enabled}
+                      disabled={!canManageModules || busy}
+                      onChange={(nextEnabled) => toggleMutation.mutate({ key: module.key, enabled: nextEnabled })}
+                    />
+                  </div>;
+                })}
+              </div>
+            ))}
           </div>
         )}
       </AdminCardContent>
