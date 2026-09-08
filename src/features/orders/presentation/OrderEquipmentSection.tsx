@@ -1,8 +1,9 @@
-import { Plus } from "lucide-react";
+import { Plus, Tag } from "lucide-react";
 import { BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import type { EquipmentTypeTechnicalField, ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
 import { OrderImagesField, type OrderImage } from "./OrderImages";
+import type { OrderImageKind } from "../domain/order-image";
 
 export function OrderEquipmentSection({
   form,
@@ -21,7 +22,8 @@ export function OrderEquipmentSection({
   onAddImages,
   onRemoveImage,
   onViewImage,
-  canEditImages,
+  canAddImages,
+  canRemoveImages,
   showImages,
 }: {
   form: any;
@@ -37,10 +39,11 @@ export function OrderEquipmentSection({
   technicalHistory: ServiceOrderTechnicalValue[];
   onTechnicalValueChange: (fieldId: string, value: string) => void;
   images: OrderImage[];
-  onAddImages: (files: FileList | null) => void;
+  onAddImages: (files: FileList | null, kind?: Exclude<OrderImageKind, "solution">) => void;
   onRemoveImage: (key: string) => void;
   onViewImage?: (image: OrderImage) => void;
-  canEditImages: boolean;
+  canAddImages: boolean;
+  canRemoveImages: boolean | ((image: OrderImage) => boolean);
   showImages: boolean;
 }) {
   const editingOS = editing;
@@ -54,6 +57,9 @@ export function OrderEquipmentSection({
     .filter(value => !technicalFields.some(field => field.technical_field_id === value.technical_field_id))
     .map(value => ({ technical_field_id: value.technical_field_id, required: false, sort_order: 0, technical_field: { id: value.technical_field_id, field_key: value.field_key_snapshot, label: value.label_snapshot, field_type: value.field_type_snapshot, is_active: false, sort_order: 0 } }));
   const displayedTechnicalFields = [...technicalFields, ...historicalFields].sort((first, second) => first.sort_order - second.sort_order);
+  const labelImages = images.filter(image => image.kind === "label");
+  const otherImages = images.filter(image => image.kind !== "label");
+
   return (
     <Section title="Equipamento">
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
@@ -128,14 +134,45 @@ export function OrderEquipmentSection({
         {showImages && (
           <div className="min-w-0 border-t border-[#0d1b2e]/8 pt-4 sm:col-span-2">
             <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Fotos do equipamento</p>
-            <OrderImagesField
-              embedded
-              images={images}
-              onAdd={onAddImages}
-              onRemove={onRemoveImage}
-              onView={onViewImage}
-              canEdit={canEditImages}
-            />
+
+            <div className="space-y-3">
+              <div className="rounded-xl border border-[#0057e7]/30 bg-[#eef5ff]/70 p-3 shadow-sm shadow-[#0057e7]/5">
+                <div className="mb-3 flex items-start gap-2">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7] text-white"><Tag size={16} /></span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-[#0057e7]">Etiqueta</p>
+                    <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">Priorize uma foto nítida da etiqueta de identificação do equipamento.</p>
+                  </div>
+                </div>
+                <OrderImagesField
+                  embedded
+                  images={labelImages}
+                  totalCount={images.length}
+                  onAdd={files => onAddImages(files, "label")}
+                  onRemove={onRemoveImage}
+                  onView={onViewImage}
+                  canAdd={canAddImages}
+                  canRemove={canRemoveImages}
+                />
+              </div>
+
+              <div className="rounded-xl border border-[#0d1b2e]/10 bg-white p-3">
+                <div className="mb-3">
+                  <p className="text-sm font-black text-[#0d1b2e]">Outras fotos</p>
+                  <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">Registre o estado geral, detalhes, avarias e outros pontos importantes do equipamento.</p>
+                </div>
+                <OrderImagesField
+                  embedded
+                  images={otherImages}
+                  totalCount={images.length}
+                  onAdd={files => onAddImages(files, "equipment")}
+                  onRemove={onRemoveImage}
+                  onView={onViewImage}
+                  canAdd={canAddImages}
+                  canRemove={canRemoveImages}
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>
