@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { AdminCard, AdminIconButton, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCpfInput, FEmailInput, FInput, FPhoneInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { PartnerPermissionsArea } from "./PartnerPermissionsArea";
 import {
   createPartnerCompany,
   createPartnerUser,
@@ -193,5 +194,5 @@ export function TabPartnerCompanies({ onBack, routeResourceId, onRouteChange }: 
   if (!area) return <div className="space-y-5"><InternalBackButton onBack={onBack} /><PageHeader title="Empresas Parceiras" subtitle="Administre empresas independentes, usuários e permissões da plataforma." /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{visibleItems.map(item => { const Icon = item.icon; return <AdminCard key={item.id} className="group p-0 transition-all hover:border-[#0057e7]/40 hover:shadow-md"><button type="button" onClick={() => openArea(item.id)} className="w-full p-5 text-left"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e8eef8] text-[#0057e7] group-hover:bg-[#0057e7] group-hover:text-white"><Icon size={19} /></div><h3 className="mt-4 text-base font-black text-[#0d1b2e]">{item.label}</h3><p className="mt-1.5 text-sm leading-5 text-[#5a6a82]">{item.description}</p><span className="mt-4 inline-block text-xs font-bold text-[#0057e7]">Acessar módulo</span></button></AdminCard>; })}</div></div>;
 
   const item = AREA_ITEMS.find(current => current.id === area)!;
-  return <div className="space-y-5"><AreaHeader title={item.label} description={item.description} onBack={closeArea} />{area === "companies" && <CompaniesArea />}{area === "users" && <UsersArea />}{area === "permissions" && <PermissionsArea />}</div>;
+  return <div className="space-y-5"><AreaHeader title={item.label} description={item.description} onBack={closeArea} />{area === "companies" && <CompaniesArea />}{area === "users" && <UsersArea />}{area === "permissions" && <PartnerPermissionsArea />}</div>;
 }
