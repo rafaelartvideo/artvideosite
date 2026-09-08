@@ -1,194 +1,44 @@
 -- Multiempresa: isolamento completo do estoque por empresa.
 -- Protege itens, movimentações e vínculos de peças usados pelas OS.
+--
+-- Esta migration é dividida em transações curtas. Assim, cada bloco mantém lock
+-- forte em apenas uma tabela por vez e evita o ciclo de locks que ocorria quando
+-- inventory_items, inventory_movements e tabelas-filhas eram alteradas juntas.
 
+-- ---------------------------------------------------------------------------
+-- 1. inventory_items
+-- ---------------------------------------------------------------------------
 begin;
 
 select pg_advisory_xact_lock(
-  hashtextextended('artvideo:multi_tenant_inventory_scope', 0)
+  hashtextextended('artvideo:multi_tenant_inventory_scope:items', 0)
 );
 
 lock table public.inventory_items in access exclusive mode;
-lock table public.inventory_movements in access exclusive mode;
 
 alter table public.inventory_items enable row level security;
-alter table public.inventory_movements enable row level security;
 
--- A empresa de um item de estoque não pode ser alterada depois do cadastro.
 drop trigger if exists inventory_items_prevent_organization_change on public.inventory_items;
 create trigger inventory_items_prevent_organization_change
 before update of organization_id on public.inventory_items
 for each row
 execute function private.prevent_organization_id_change();
 
-create or replace function private.ensure_inventory_movement_organization()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_inventory_organization_id uuid;
-  v_order_organization_id uuid;
-  v_request_item_organization_id uuid;
-begin
-  select item.organization_id
-    into v_inventory_organization_id
-  from public.inventory_items item
-  where item.id = new.inventory_item_id;
-
-  if v_inventory_organization_id is null then
-    raise exception 'Item do estoque não encontrado para a movimentação.'
-      using errcode = '23503';
-  end if;
-
-  new.organization_id := v_inventory_organization_id;
-
-  if new.service_order_id is not null then
-    select service_order.organization_id
-      into v_order_organization_id
-    from public.service_orders service_order
-    where service_order.id = new.service_order_id;
-
-    if v_order_organization_id is null then
-      raise exception 'OS não encontrada para a movimentação de estoque.'
-        using errcode = '23503';
-    end if;
-
-    if v_order_organization_id is distinct from v_inventory_organization_id then
-      raise exception 'A movimentação, o item do estoque e a OS devem pertencer à mesma empresa.'
-        using errcode = '42501';
-    end if;
-  end if;
-
-  if new.request_item_id is not null then
-    select request_item.organization_id
-      into v_request_item_organization_id
-    from public.service_order_part_request_items request_item
-    where request_item.id = new.request_item_id;
-
-    if v_request_item_organization_id is null then
-      raise exception 'Item da solicitação de peças não encontrado.'
-        using errcode = '23503';
-    end if;
-
-    if v_request_item_organization_id is distinct from v_inventory_organization_id then
-      raise exception 'A movimentação e a solicitação de peças devem pertencer à mesma empresa.'
-        using errcode = '42501';
-    end if;
-  end if;
-
-  return new;
-end;
-$$;
-
-revoke all on function private.ensure_inventory_movement_organization() from public;
-
-drop trigger if exists inventory_movements_validate_organization on public.inventory_movements;
-create trigger inventory_movements_validate_organization
-before insert or update of inventory_item_id, service_order_id, request_item_id, organization_id
-on public.inventory_movements
-for each row
-execute function private.ensure_inventory_movement_organization();
-
-create or replace function private.ensure_order_inventory_item_organization()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_inventory_organization_id uuid;
-  v_owner_organization_id uuid;
-begin
-  if new.inventory_item_id is null then
-    return new;
-  end if;
-
-  select item.organization_id
-    into v_inventory_organization_id
-  from public.inventory_items item
-  where item.id = new.inventory_item_id;
-
-  if v_inventory_organization_id is null then
-    raise exception 'Item do estoque não encontrado.'
-      using errcode = '23503';
-  end if;
-
-  if tg_table_name = 'service_order_part_request_items' then
-    select request.organization_id
-      into v_owner_organization_id
-    from public.service_order_part_requests request
-    where request.id = new.request_id;
-  elsif tg_table_name = 'service_order_used_items' then
-    select service_order.organization_id
-      into v_owner_organization_id
-    from public.service_orders service_order
-    where service_order.id = new.service_order_id;
-  else
-    raise exception 'Tabela não suportada pela validação de estoque.';
-  end if;
-
-  if v_owner_organization_id is null then
-    raise exception 'Registro pai não encontrado para validar o item do estoque.'
-      using errcode = '23503';
-  end if;
-
-  if new.organization_id is distinct from v_owner_organization_id then
-    new.organization_id := v_owner_organization_id;
-  end if;
-
-  if v_inventory_organization_id is distinct from v_owner_organization_id then
-    raise exception 'O item do estoque e a OS/solicitação devem pertencer à mesma empresa.'
-      using errcode = '42501';
-  end if;
-
-  return new;
-end;
-$$;
-
-revoke all on function private.ensure_order_inventory_item_organization() from public;
-
-do $$
-begin
-  if to_regclass('public.service_order_part_request_items') is not null then
-    drop trigger if exists part_request_items_validate_inventory_organization
-      on public.service_order_part_request_items;
-    create trigger part_request_items_validate_inventory_organization
-    before insert or update of inventory_item_id, request_id, organization_id
-    on public.service_order_part_request_items
-    for each row
-    execute function private.ensure_order_inventory_item_organization();
-  end if;
-
-  if to_regclass('public.service_order_used_items') is not null then
-    drop trigger if exists used_items_validate_inventory_organization
-      on public.service_order_used_items;
-    create trigger used_items_validate_inventory_organization
-    before insert or update of inventory_item_id, service_order_id, organization_id
-    on public.service_order_used_items
-    for each row
-    execute function private.ensure_order_inventory_item_organization();
-  end if;
-end
-$$;
-
--- Remove policies authenticated antigas do estoque. Elas usavam permissões globais
--- e podiam expor registros de mais de uma empresa para o mesmo usuário.
+-- Remove somente policies authenticated antigas de inventory_items.
 do $$
 declare
   v_policy record;
 begin
   for v_policy in
-    select policyname, tablename
+    select policyname
     from pg_policies
     where schemaname = 'public'
-      and tablename in ('inventory_items', 'inventory_movements')
+      and tablename = 'inventory_items'
       and 'authenticated' = any (roles)
   loop
     execute format(
-      'drop policy if exists %I on public.%I',
-      v_policy.policyname,
-      v_policy.tablename
+      'drop policy if exists %I on public.inventory_items',
+      v_policy.policyname
     );
   end loop;
 end
@@ -295,6 +145,116 @@ using (
   )
 );
 
+create index if not exists inventory_items_organization_name_idx
+  on public.inventory_items (organization_id, name);
+create index if not exists inventory_items_organization_active_idx
+  on public.inventory_items (organization_id, is_active, name);
+
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 2. inventory_movements
+-- ---------------------------------------------------------------------------
+begin;
+
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:multi_tenant_inventory_scope:movements', 0)
+);
+
+lock table public.inventory_movements in access exclusive mode;
+
+alter table public.inventory_movements enable row level security;
+
+create or replace function private.ensure_inventory_movement_organization()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_inventory_organization_id uuid;
+  v_order_organization_id uuid;
+  v_request_item_organization_id uuid;
+begin
+  select item.organization_id
+    into v_inventory_organization_id
+  from public.inventory_items item
+  where item.id = new.inventory_item_id;
+
+  if v_inventory_organization_id is null then
+    raise exception 'Item do estoque não encontrado para a movimentação.'
+      using errcode = '23503';
+  end if;
+
+  new.organization_id := v_inventory_organization_id;
+
+  if new.service_order_id is not null then
+    select service_order.organization_id
+      into v_order_organization_id
+    from public.service_orders service_order
+    where service_order.id = new.service_order_id;
+
+    if v_order_organization_id is null then
+      raise exception 'OS não encontrada para a movimentação de estoque.'
+        using errcode = '23503';
+    end if;
+
+    if v_order_organization_id is distinct from v_inventory_organization_id then
+      raise exception 'A movimentação, o item do estoque e a OS devem pertencer à mesma empresa.'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  if new.request_item_id is not null then
+    select request_item.organization_id
+      into v_request_item_organization_id
+    from public.service_order_part_request_items request_item
+    where request_item.id = new.request_item_id;
+
+    if v_request_item_organization_id is null then
+      raise exception 'Item da solicitação de peças não encontrado.'
+        using errcode = '23503';
+    end if;
+
+    if v_request_item_organization_id is distinct from v_inventory_organization_id then
+      raise exception 'A movimentação e a solicitação de peças devem pertencer à mesma empresa.'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.ensure_inventory_movement_organization() from public;
+
+drop trigger if exists inventory_movements_validate_organization on public.inventory_movements;
+create trigger inventory_movements_validate_organization
+before insert or update of inventory_item_id, service_order_id, request_item_id, organization_id
+on public.inventory_movements
+for each row
+execute function private.ensure_inventory_movement_organization();
+
+-- Remove somente policies authenticated antigas de inventory_movements.
+do $$
+declare
+  v_policy record;
+begin
+  for v_policy in
+    select policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'inventory_movements'
+      and 'authenticated' = any (roles)
+  loop
+    execute format(
+      'drop policy if exists %I on public.inventory_movements',
+      v_policy.policyname
+    );
+  end loop;
+end
+$$;
+
 create policy inventory_movements_tenant_select
 on public.inventory_movements
 for select
@@ -333,18 +293,115 @@ with check (
   )
 );
 
--- Movimentações são histórico contábil de estoque: não são editáveis nem excluíveis
--- diretamente por usuários autenticados.
+-- Movimentações são histórico contábil de estoque: não são editáveis nem
+-- excluíveis diretamente por usuários autenticados.
 
-create index if not exists inventory_items_organization_name_idx
-  on public.inventory_items (organization_id, name);
-create index if not exists inventory_items_organization_active_idx
-  on public.inventory_items (organization_id, is_active, name);
 create index if not exists inventory_movements_organization_item_date_idx
   on public.inventory_movements (organization_id, inventory_item_id, created_at desc);
 
 comment on function private.ensure_inventory_movement_organization() is
   'Faz a movimentação herdar a empresa do item e bloqueia vínculos com OS/solicitação de outra empresa.';
+
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 3. Validação do vínculo pedido de peças -> item de estoque
+-- ---------------------------------------------------------------------------
+begin;
+
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:multi_tenant_inventory_scope:part-request-items', 0)
+);
+
+create or replace function private.ensure_order_inventory_item_organization()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_inventory_organization_id uuid;
+  v_owner_organization_id uuid;
+begin
+  if new.inventory_item_id is null then
+    return new;
+  end if;
+
+  select item.organization_id
+    into v_inventory_organization_id
+  from public.inventory_items item
+  where item.id = new.inventory_item_id;
+
+  if v_inventory_organization_id is null then
+    raise exception 'Item do estoque não encontrado.'
+      using errcode = '23503';
+  end if;
+
+  if tg_table_name = 'service_order_part_request_items' then
+    select request.organization_id
+      into v_owner_organization_id
+    from public.service_order_part_requests request
+    where request.id = new.request_id;
+  elsif tg_table_name = 'service_order_used_items' then
+    select service_order.organization_id
+      into v_owner_organization_id
+    from public.service_orders service_order
+    where service_order.id = new.service_order_id;
+  else
+    raise exception 'Tabela não suportada pela validação de estoque.';
+  end if;
+
+  if v_owner_organization_id is null then
+    raise exception 'Registro pai não encontrado para validar o item do estoque.'
+      using errcode = '23503';
+  end if;
+
+  if new.organization_id is distinct from v_owner_organization_id then
+    new.organization_id := v_owner_organization_id;
+  end if;
+
+  if v_inventory_organization_id is distinct from v_owner_organization_id then
+    raise exception 'O item do estoque e a OS/solicitação devem pertencer à mesma empresa.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.ensure_order_inventory_item_organization() from public;
+
+lock table public.service_order_part_request_items in access exclusive mode;
+
+drop trigger if exists part_request_items_validate_inventory_organization
+  on public.service_order_part_request_items;
+create trigger part_request_items_validate_inventory_organization
+before insert or update of inventory_item_id, request_id, organization_id
+on public.service_order_part_request_items
+for each row
+execute function private.ensure_order_inventory_item_organization();
+
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 4. Validação do vínculo peça utilizada -> item de estoque
+-- ---------------------------------------------------------------------------
+begin;
+
+select pg_advisory_xact_lock(
+  hashtextextended('artvideo:multi_tenant_inventory_scope:used-items', 0)
+);
+
+lock table public.service_order_used_items in access exclusive mode;
+
+drop trigger if exists used_items_validate_inventory_organization
+  on public.service_order_used_items;
+create trigger used_items_validate_inventory_organization
+before insert or update of inventory_item_id, service_order_id, organization_id
+on public.service_order_used_items
+for each row
+execute function private.ensure_order_inventory_item_organization();
+
 comment on function private.ensure_order_inventory_item_organization() is
   'Bloqueia uso ou solicitação de item de estoque pertencente a outra empresa.';
 
