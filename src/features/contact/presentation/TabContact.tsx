@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { CheckCircle, Clock3, Mail, MapPin, MessageCircle, Phone, Share2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -9,7 +10,8 @@ import { BtnPrimary, InternalBackButton, PageHeader, Section } from "@/shared/ui
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 
-export function TabContact({ onBack }: { onBack?: () => void }) {
+export function TabContact() {
+  const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
   const canView = hasPermission("contact.view");
   const canViewDetails = hasPermission("contact.details.view");
@@ -21,9 +23,7 @@ export function TabContact({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     if (!settingsQuery.data) return;
-    setSettings(Object.fromEntries(
-      Object.entries(settingsQuery.data).map(([key, value]) => [key, String(value ?? "")]),
-    ));
+    setSettings(Object.fromEntries(Object.entries(settingsQuery.data).map(([key, value]) => [key, String(value ?? "")] )));
   }, [settingsQuery.data]);
 
   useEffect(() => {
@@ -52,16 +52,13 @@ export function TabContact({ onBack }: { onBack?: () => void }) {
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-
     <PageHeader
       eyebrow="Site"
       title="Informações de Contato"
       subtitle="Configure os canais, endereço e horários exibidos no site público."
       actions={<div className="flex items-center gap-2">
-        {onBack && <InternalBackButton onBack={onBack} />}
-        {canUpdate && <BtnPrimary onClick={() => void handleSave()} loading={saveSettings.isPending} loadingText="Salvando...">
-          <CheckCircle size={15} /> Salvar
-        </BtnPrimary>}
+        <InternalBackButton onBack={() => navigate("/admin/site")} />
+        {canUpdate && <BtnPrimary onClick={() => void handleSave()} loading={saveSettings.isPending} loadingText="Salvando..."><CheckCircle size={15} /> Salvar</BtnPrimary>}
       </div>}
     />
 
