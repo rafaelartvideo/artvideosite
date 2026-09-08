@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown, ClipboardList, Eraser, FileText, RefreshCw, Search } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown, ClipboardList, Eraser, FileText, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { createServiceOrderFromQuote, findServiceOrderByQuote, insertQuoteStatusHistory, listOrderStatuses, listQuotes, listRequestStatuses, updateQuoteStatus } from "../infrastructure/quotes.repository";
@@ -44,7 +44,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const canViewDetails = hasPermission("quotes.details.view");
   const canChangeStatus = hasPermission("quotes.status.change");
   const canConvertToOrder = hasPermission("quotes.convert_to_order");
-  const canRefresh = hasPermission("quotes.refresh");
   const showProtocol = hasPermission("quotes.table.protocol");
   const showCustomer = hasPermission("quotes.table.customer");
   const showDocument = hasPermission("quotes.table.document");
@@ -154,7 +153,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!routeResourceId && <>
-      <PageHeader title="Orçamentos" subtitle={`${quotes.length} solicitaç${quotes.length !== 1 ? "ões" : "ão"} recebida${quotes.length !== 1 ? "s" : ""}`} actions={canRefresh ? <AdminButton variant="secondary" onClick={() => void quotesQuery.refetch()} disabled={quotesQuery.isFetching} className="w-full border-[#0057e7]/30 text-xs text-[#0057e7] hover:bg-[#0057e7]/5 sm:w-auto"><RefreshCw size={13} className={quotesQuery.isFetching ? "animate-spin" : ""} /> Atualizar</AdminButton> : null} />
+      <PageHeader title="Orçamentos" subtitle={`${quotes.length} solicitaç${quotes.length !== 1 ? "ões" : "ão"} recebida${quotes.length !== 1 ? "s" : ""}`} />
       {canViewTable && <AdminSearchPanel title="Buscar orçamentos">
         <div className="space-y-3 md:hidden">
           <div className="flex items-center gap-2">
