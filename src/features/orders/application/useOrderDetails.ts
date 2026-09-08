@@ -14,28 +14,31 @@ import type { OrderImage } from "../domain/order-image";
 export function useOrderDetails({
   loadPartRequests,
   replaceOrderImages,
+  organizationIdOverride,
 }: {
   loadPartRequests: (orderId: string) => Promise<void>;
   replaceOrderImages: (images: OrderImage[]) => void;
+  organizationIdOverride?: string | null;
 }) {
   const { activeOrganizationId } = useAuth();
+  const organizationId = organizationIdOverride || activeOrganizationId;
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
   const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const selectedOrderBelongsToActiveOrganization = Boolean(
+  const selectedOrderBelongsToOrganization = Boolean(
     selectedOrder?.id &&
-    activeOrganizationId &&
-    selectedOrder?.organization_id === activeOrganizationId,
+    organizationId &&
+    selectedOrder?.organization_id === organizationId,
   );
 
   const detailQuery = useQuery({
     queryKey: [
       ...queryKeys.orders.detail(selectedOrder?.id || ""),
-      activeOrganizationId || "none",
+      organizationId || "none",
     ],
-    enabled: selectedOrderBelongsToActiveOrganization,
+    enabled: selectedOrderBelongsToOrganization,
     staleTime: 30_000,
     queryFn: async () => {
       const [
@@ -72,17 +75,17 @@ export function useOrderDetails({
   });
 
   useEffect(() => {
-    if (!selectedOrder || selectedOrder.organization_id === activeOrganizationId) return;
+    if (!selectedOrder || selectedOrder.organization_id === organizationId) return;
     setDetail(null);
     setSelectedOrder(null);
     setDetailHistory([]);
     setDetailUsedItems([]);
     setDetailSolutionImages([]);
     replaceOrderImages([]);
-  }, [activeOrganizationId, replaceOrderImages, selectedOrder]);
+  }, [organizationId, replaceOrderImages, selectedOrder]);
 
   useEffect(() => {
-    if (!detailQuery.data || !selectedOrderBelongsToActiveOrganization || !selectedOrder) return;
+    if (!detailQuery.data || !selectedOrderBelongsToOrganization || !selectedOrder) return;
     const { currentOrder, history, usedItems, technicalValues, orderImages, solutionImages } = detailQuery.data;
     setDetailHistory(history || []);
     setDetailUsedItems(usedItems || []);
@@ -90,10 +93,10 @@ export function useOrderDetails({
     replaceOrderImages(orderImages);
     setDetail({ ...selectedOrder, ...(currentOrder || {}), technical_values: technicalValues });
     void loadPartRequests(selectedOrder.id);
-  }, [detailQuery.data, selectedOrderBelongsToActiveOrganization]);
+  }, [detailQuery.data, selectedOrderBelongsToOrganization]);
 
   const openDetail = (order: any) => {
-    if (!activeOrganizationId || order?.organization_id !== activeOrganizationId) return;
+    if (!organizationId || order?.organization_id !== organizationId) return;
     setSelectedOrder(order);
     setDetail(order);
   };
@@ -104,6 +107,7 @@ export function useOrderDetails({
   };
 
   return {
+    organizationId,
     detail,
     setDetail,
     detailHistory,
