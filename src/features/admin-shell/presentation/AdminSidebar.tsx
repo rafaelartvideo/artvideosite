@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, ChevronsUpDown, Globe, LogOut, Settings, Users } from "lucide-react";
+import { ArrowLeft, Globe, LogOut, Settings, Users } from "lucide-react";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { isAdminModuleEnabled, mainItems, operationItems, siteItems, utilityItems } from "../navigation-config";
@@ -26,12 +26,12 @@ export function AdminSidebar({
   activeTab,
   userName,
   roleName,
-  organizations,
+  organizations: _organizations,
   activeOrganizationId,
   hasPermission,
   hasModule,
   onNavigate,
-  onOrganizationChange,
+  onOrganizationChange: _onOrganizationChange,
   onSignOut,
   onBackToSite,
 }: AdminSidebarProps) {
@@ -60,33 +60,6 @@ export function AdminSidebar({
             <span className="text-[8px] font-bold tracking-[0.3em] uppercase text-[#00b4ff] block">Eletrônica</span>
             <span className="text-base font-black text-white block leading-none" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>ARTVIDEO</span>
           </div>
-        </div>
-      </div>
-
-      <div className="border-b border-white/8 px-3 py-3">
-        <label htmlFor="active-organization" className="mb-1.5 block px-1 text-[9px] font-bold uppercase tracking-[0.16em] text-white/40">
-          Empresa ativa
-        </label>
-        <div className="relative">
-          <Building2 size={15} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[#00b4ff]" />
-          <select
-            id="active-organization"
-            value={activeOrganizationId ?? ""}
-            onChange={event => void onOrganizationChange(event.target.value)}
-            disabled={organizations.length <= 1}
-            className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-white/7 py-0 pl-9 pr-9 text-xs font-bold text-white outline-none transition-colors hover:bg-white/10 focus:border-[#00b4ff]/60 disabled:cursor-default disabled:opacity-100"
-            title={organizations.length > 1 ? "Trocar empresa" : "Empresa vinculada ao usuário"}
-          >
-            {organizations.length === 0 && <option value="">Nenhuma empresa disponível</option>}
-            {organizations.map(organization => (
-              <option key={organization.organization_id} value={organization.organization_id} className="bg-[#0d1b2e] text-white">
-                {organization.organization_name}
-                {organization.organization_status === "suspended" ? " — Suspensa" : ""}
-                {organization.organization_status === "cancelled" ? " — Cancelada" : ""}
-              </option>
-            ))}
-          </select>
-          <ChevronsUpDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40" />
         </div>
       </div>
 
