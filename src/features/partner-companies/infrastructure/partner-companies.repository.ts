@@ -10,6 +10,20 @@ export type PartnerCompanyInput = {
   status: "active" | "suspended" | "cancelled";
 };
 
+export type PartnerUserInput = {
+  organization_id: string;
+  full_name: string;
+  cpf: string;
+  phone: string | null;
+  email?: string;
+  password?: string;
+  function_name: string | null;
+  role_id: string;
+  is_owner: boolean;
+  is_active: boolean;
+  user_id?: string;
+};
+
 export function listPartnerCompanies() {
   return supabase
     .from("organizations")
@@ -43,6 +57,34 @@ export function listPartnerMembers(organizationId?: string | null) {
     .order("created_at", { ascending: false });
   if (organizationId) query = query.eq("organization_id", organizationId);
   return query;
+}
+
+export async function listPartnerUsers(organizationId: string) {
+  const result = await supabase.functions.invoke("partner-users", {
+    body: { action: "list_partner_users", organization_id: organizationId },
+  });
+  return { data: result.data?.users ?? [], error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
+}
+
+export async function listPartnerRoles() {
+  const result = await supabase.functions.invoke("partner-users", {
+    body: { action: "list_partner_roles" },
+  });
+  return { data: result.data?.roles ?? [], error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
+}
+
+export async function createPartnerUser(payload: PartnerUserInput) {
+  const result = await supabase.functions.invoke("partner-users", {
+    body: { action: "create_partner_user", ...payload },
+  });
+  return { data: result.data, error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
+}
+
+export async function updatePartnerUser(payload: PartnerUserInput & { user_id: string }) {
+  const result = await supabase.functions.invoke("partner-users", {
+    body: { action: "update_partner_user", ...payload },
+  });
+  return { data: result.data, error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
 }
 
 export function listSystemModules() {
