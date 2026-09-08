@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   attachOrderSituationDocument,
+  getServiceOrderOrganizationId,
   listAttachmentTypes,
   listOrderSituationDocuments,
   removeOrderSituationDocument,
@@ -29,23 +30,31 @@ export function useOrderSituationDocuments({
   hasPermission: (permission: string) => boolean;
 }) {
   const queryClient = useQueryClient();
-  const queryKey = ["orders", organizationId || "none", orderId || "", "situation-documents"];
+
+  const organizationQuery = useQuery({
+    queryKey: ["orders", orderId || "", "organization"],
+    enabled: Boolean(orderId && !organizationId),
+    queryFn: () => getServiceOrderOrganizationId(orderId!),
+    staleTime: 60_000,
+  });
+  const effectiveOrganizationId = organizationId || organizationQuery.data || null;
+  const queryKey = ["orders", effectiveOrganizationId || "none", orderId || "", "situation-documents"];
 
   const documentsQuery = useQuery({
     queryKey,
-    enabled: Boolean(orderId && organizationId && hasPermission("orders.section.images")),
+    enabled: Boolean(orderId && effectiveOrganizationId && hasPermission("orders.section.images")),
     queryFn: async () => {
-      const { data, error } = await listOrderSituationDocuments(orderId!, organizationId);
+      const { data, error } = await listOrderSituationDocuments(orderId!, effectiveOrganizationId);
       if (error) throw error;
       return data || [];
     },
   });
 
   const attachmentTypesQuery = useQuery({
-    queryKey: ["documents", organizationId || "none", "attachment-types", "active"],
-    enabled: Boolean(orderId && organizationId && hasPermission("orders.section.images")),
+    queryKey: ["documents", effectiveOrganizationId || "none", "attachment-types", "active"],
+    enabled: Boolean(orderId && effectiveOrganizationId && hasPermission("orders.section.images")),
     queryFn: async () => {
-      const { data, error } = await listAttachmentTypes(true, organizationId);
+      const { data, error } = await listAttachmentTypes(true, effectiveOrganizationId);
       if (error) throw error;
       return data || [];
     },
@@ -61,7 +70,7 @@ export function useOrderSituationDocuments({
       attachmentTypeId?: string | null;
       files: File[];
     }) => {
-      if (!orderId || !organizationId) throw new Error("OS ou empresa não informada.");
+      if (!orderId || !effectiveOrganizationId) throw new Error("OS ou empresa não informada.");
       if (situation && !hasPermission(orderSituationUploadPermission(situation.id))) {
         throw new Error(`Você não possui permissão para anexar arquivos em ${situation.name}.`);
       }
@@ -72,7 +81,7 @@ export function useOrderSituationDocuments({
       if (!files.length) throw new Error("Selecione um arquivo ou utilize a câmera.");
       for (const file of files) {
         await attachOrderSituationDocument({
-          organizationId,
+          organizationId: effectiveOrganizationId,
           serviceOrderId: orderId,
           situationId: situation?.id || null,
           attachmentTypeId: attachmentTypeId || null,
@@ -111,11 +120,12 @@ export function useOrderSituationDocuments({
   }, [serviceTypeId, serviceTypeSituations, situations]);
 
   return {
+    organizationId: effectiveOrganizationId,
     documents: documentsQuery.data || [],
     attachmentTypes: attachmentTypesQuery.data || [],
     flowSituations,
-    loading: documentsQuery.isLoading || attachmentTypesQuery.isLoading,
-    error: documentsQuery.error || attachmentTypesQuery.error || uploadMutation.error || removeMutation.error,
+    loading: organizationQuery.isLoading || documentsQuery.isLoading || attachmentTypesQuery.isLoading,
+    error: organizationQuery.error || documentsQuery.error || attachmentTypesQuery.error || uploadMutation.error || removeMutation.error,
     uploading: uploadMutation.isPending,
     uploadingAttachment: uploadMutation.isPending && !uploadMutation.variables?.situation,
     uploadingSituationId: uploadMutation.variables?.situation?.id || null,
