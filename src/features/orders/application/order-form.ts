@@ -198,9 +198,9 @@ export function buildOrderPayload({
     product_id: form.product_id || null,
     model: form.model || null,
     ...(!editingOrder ? {
-      serial_number: form.serial_number || null,
-      external_os_number: form.external_os_number.trim() || null,
+      serial_number: String(form.serial_number || "").trim() || null,
     } : {}),
+    external_os_number: String(form.external_os_number || "").trim() || null,
     accessories: form.accessories || null,
     equipment_condition: form.equipment_condition || null,
     priority: form.priority || "normal",
