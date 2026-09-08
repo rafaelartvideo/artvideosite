@@ -9,6 +9,7 @@ import {
 } from "../domain/customer-form";
 import {
   getCustomerHistory,
+  listCustomerEquipments,
   saveCustomerAddress,
   updateCustomer,
 } from "../infrastructure/customers.repository";
@@ -26,6 +27,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
   const [detail, setDetail] = useState<any>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [equipments, setEquipments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingData, setEditingData] = useState(false);
   const [savingCustomer, setSavingCustomer] = useState(false);
@@ -38,6 +40,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
     setDetail(null);
     setQuotes([]);
     setOrders([]);
+    setEquipments([]);
     setLoading(false);
     setEditingData(false);
     setSavingCustomer(false);
@@ -51,6 +54,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
     setDetail(null);
     setQuotes([]);
     setOrders([]);
+    setEquipments([]);
     setEditingData(false);
     setEditingAddress(false);
   };
@@ -67,25 +71,42 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
     setEditingAddress(false);
     setQuotes([]);
     setOrders([]);
-    if (!loadRelatedHistory) {
-      setLoading(false);
-      return;
-    }
+    setEquipments([]);
     setLoading(true);
-    try {
-      const history = await getCustomerHistory(organizationId, customer.id);
-      setQuotes(history.quotes);
-      setOrders(history.orders);
-    } catch (error) {
+
+    const equipmentPromise = listCustomerEquipments(organizationId, customer.id);
+    const historyPromise = loadRelatedHistory
+      ? getCustomerHistory(organizationId, customer.id)
+      : Promise.resolve({ quotes: [] as any[], orders: [] as any[] });
+
+    const [equipmentResult, historyResult] = await Promise.allSettled([
+      equipmentPromise,
+      historyPromise,
+    ]);
+
+    if (equipmentResult.status === "fulfilled") {
+      setEquipments(equipmentResult.value);
+    } else {
+      setEquipments([]);
       onToast(
-        `Erro ao carregar histórico do cliente: ${error instanceof Error ? error.message : String(error)}`,
+        `Erro ao carregar equipamentos do cliente: ${equipmentResult.reason instanceof Error ? equipmentResult.reason.message : String(equipmentResult.reason)}`,
         "error",
       );
+    }
+
+    if (historyResult.status === "fulfilled") {
+      setQuotes(historyResult.value.quotes);
+      setOrders(historyResult.value.orders);
+    } else {
       setQuotes([]);
       setOrders([]);
-    } finally {
-      setLoading(false);
+      onToast(
+        `Erro ao carregar histórico do cliente: ${historyResult.reason instanceof Error ? historyResult.reason.message : String(historyResult.reason)}`,
+        "error",
+      );
     }
+
+    setLoading(false);
   };
 
   const saveCustomer = async () => {
@@ -161,6 +182,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
     setDetail,
     quotes,
     orders,
+    equipments,
     loading,
     editingData,
     setEditingData,
