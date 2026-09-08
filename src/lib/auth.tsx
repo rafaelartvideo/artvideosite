@@ -22,6 +22,7 @@ interface AuthContextValue {
   activeOrganization: OrganizationAccess | null;
   activeOrganizationId: string | null;
   enabledModules: string[];
+  accessError: string | null;
   hasPermission: (permissionKey: string) => boolean;
   hasModule: (moduleKey: string) => boolean;
   setActiveOrganization: (organizationId: string) => Promise<void>;
@@ -41,6 +42,7 @@ const AuthContext = createContext<AuthContextValue>({
   activeOrganization: null,
   activeOrganizationId: null,
   enabledModules: [],
+  accessError: null,
   hasPermission: () => false,
   hasModule: () => false,
   setActiveOrganization: async () => {},
@@ -57,11 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<PermissionEntry[]>([]);
   const [organizations, setOrganizations] = useState<OrganizationAccess[]>([]);
   const [activeOrganization, setActiveOrganizationState] = useState<OrganizationAccess | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const accessRequestRef = useRef(0);
   const accessLoadingKeyRef = useRef<string | null>(null);
   const signedInUserRef = useRef<string | null>(null);
   const activeOrganizationIdRef = useRef<string | null>(null);
+  const deferredAccessTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,17 +97,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(newSession);
         if (newSession.user.id === activeUserId) {
           if (!activeOrganizationIdRef.current && !accessLoadingKeyRef.current) {
-            void loadAccess(newSession.user.id);
+            scheduleAccessLoad(newSession.user.id);
           }
           return;
         }
 
         signedInUserRef.current = newSession.user.id;
-        void loadAccess(newSession.user.id);
+        scheduleAccessLoad(newSession.user.id);
         return;
       }
 
       if (event === "SIGNED_OUT") {
+        cancelScheduledAccessLoad();
         signedInUserRef.current = null;
         resetAccessState(true);
         setSession(null);
@@ -124,10 +129,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      cancelScheduledAccessLoad();
       listener.subscription.unsubscribe();
       window.removeEventListener("artvideo:permissions-changed", handlePermissionChange);
     };
   }, []);
+
+  function cancelScheduledAccessLoad() {
+    if (deferredAccessTimerRef.current === null) return;
+    window.clearTimeout(deferredAccessTimerRef.current);
+    deferredAccessTimerRef.current = null;
+  }
+
+  function scheduleAccessLoad(userId: string, preferredOrganizationId?: string | null) {
+    cancelScheduledAccessLoad();
+    setLoading(true);
+    setAccessError(null);
+    deferredAccessTimerRef.current = window.setTimeout(() => {
+      deferredAccessTimerRef.current = null;
+      if (signedInUserRef.current !== userId) return;
+      void loadAccess(userId, preferredOrganizationId);
+    }, 0);
+  }
 
   function resetAccessState(notifyOrganizationChange = false) {
     const previousOrganizationId = activeOrganizationIdRef.current;
@@ -140,12 +163,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions([]);
     setOrganizations([]);
     setActiveOrganizationState(null);
+    setAccessError(null);
 
     if (notifyOrganizationChange && previousOrganizationId) {
       window.dispatchEvent(new CustomEvent(ORGANIZATION_CHANGED_EVENT, {
         detail: { previousOrganizationId, organizationId: null },
       }));
     }
+  }
+
+  function clearResolvedAccess() {
+    activeOrganizationIdRef.current = null;
+    setEmployee(null);
+    setRole(null);
+    setPermissions([]);
+    setOrganizations([]);
+    setActiveOrganizationState(null);
   }
 
   async function loadAccess(userId: string, preferredOrganizationId?: string | null) {
@@ -165,6 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadAccessData(userId: string, preferredOrganizationId?: string | null) {
     const requestId = ++accessRequestRef.current;
     setLoading(true);
+    setAccessError(null);
 
     const [profileResult, organizationsResult] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
@@ -173,22 +207,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (requestId !== accessRequestRef.current) return;
 
-    if (profileResult.error || !profileResult.data) {
+    if (profileResult.error) {
       console.error("Auth profile load error:", profileResult.error);
-      resetAccessState();
+      clearResolvedAccess();
+      setProfile(null);
+      setAccessError("Não foi possível carregar seu perfil de acesso. Tente novamente.");
+      setLoading(false);
+      return;
+    }
+
+    if (!profileResult.data) {
+      clearResolvedAccess();
+      setProfile(null);
       setLoading(false);
       return;
     }
 
     if (organizationsResult.error) {
       console.error("Auth organizations load error:", organizationsResult.error);
+      clearResolvedAccess();
       setProfile(profileResult.data);
-      setEmployee(null);
-      setRole(null);
-      setPermissions([]);
-      setOrganizations([]);
-      setActiveOrganizationState(null);
-      activeOrganizationIdRef.current = null;
+      setAccessError("Não foi possível carregar as empresas vinculadas à sua conta. Tente novamente.");
       setLoading(false);
       return;
     }
@@ -235,7 +274,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (employeeResult.error) console.error("Auth employee load error:", employeeResult.error);
     if (roleResult.error) console.error("Auth role load error:", roleResult.error);
-    if (permissionResult.error) console.error("Auth permissions load error:", permissionResult.error);
+    if (permissionResult.error) {
+      console.error("Auth permissions load error:", permissionResult.error);
+      activeOrganizationIdRef.current = selectedOrganization.organization_id;
+      setActiveOrganizationState(selectedOrganization);
+      setEmployee(employeeResult.data ?? null);
+      setRole(!roleResult.error ? roleResult.data ?? null : null);
+      setPermissions([]);
+      setAccessError("Não foi possível carregar suas permissões. Tente novamente.");
+      setLoading(false);
+      return;
+    }
 
     const permissionKeys = (permissionResult.data || [])
       .map((permission: any) => typeof permission === "string" ? permission : permission?.permission_key)
@@ -248,7 +297,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setActiveOrganizationState(selectedOrganization);
     setEmployee(employeeResult.data ?? null);
     setRole(!roleResult.error ? roleResult.data ?? null : null);
-    setPermissions(permissionResult.error ? [] : permissionKeys.map(key => ({ key })));
+    setPermissions(permissionKeys.map(key => ({ key })));
+    setAccessError(null);
     persistActiveOrganization(userId, selectedOrganization.organization_id);
     setLoading(false);
 
@@ -275,11 +325,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function refreshAccess() {
     const userId = signedInUserRef.current;
     if (!userId) return;
+    cancelScheduledAccessLoad();
     accessLoadingKeyRef.current = null;
     await loadAccess(userId, activeOrganizationIdRef.current);
   }
 
   async function signOut() {
+    cancelScheduledAccessLoad();
     await supabase.auth.signOut();
     signedInUserRef.current = null;
     resetAccessState(true);
@@ -303,6 +355,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activeOrganization,
       activeOrganizationId: activeOrganization?.organization_id ?? null,
       enabledModules: activeOrganization?.enabled_modules ?? [],
+      accessError,
       hasPermission,
       hasModule,
       setActiveOrganization,
