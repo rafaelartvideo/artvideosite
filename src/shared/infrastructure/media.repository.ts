@@ -48,11 +48,12 @@ export async function uploadServiceOrderMediaFile(
   serviceOrderId: string,
   scope: string,
   file: File,
+  organizationId?: string | null,
 ) {
   const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
   const safeScope = scope.replace(/[^a-z0-9/_-]/gi, "-").replace(/^\/+|\/+$/g, "") || "files";
   const path = `orders/${serviceOrderId}/${safeScope}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-  return uploadMediaAtPath("service-images", path, file);
+  return uploadMediaAtPath("service-images", path, file, organizationId);
 }
 
 export function supabaseErrorMessage(error: unknown) {
