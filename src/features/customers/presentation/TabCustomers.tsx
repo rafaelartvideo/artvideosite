@@ -19,7 +19,6 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
   const canViewDetails = hasPermission("customers.details.view");
   const canCreate = hasPermission("customers.create");
   const canEdit = hasPermission("customers.edit");
-  const canRefresh = hasPermission("customers.refresh");
   const canViewAddress = hasPermission("customers.addresses.view");
   const canEditAddress = hasPermission("customers.addresses.edit");
   const canViewQuotes = hasPermission("quotes.view");
@@ -49,7 +48,6 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
       filtered={list.filtered}
       pagedCustomers={list.pagedCustomers}
       loading={list.loading}
-      isFetching={list.isFetching}
       nameSearch={list.nameSearch}
       documentSearch={list.documentSearch}
       selectedStates={list.selectedStates}
@@ -73,7 +71,6 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
       onPageChange={list.setPage}
       onPageSizeChange={list.setPageSize}
       onCreate={() => canCreate && (onRouteChange ? onRouteChange("new", null) : creation.openPage())}
-      onRefresh={() => { if (canRefresh) void list.refetch(); }}
       onOpenDetail={customer => { if (!canViewDetails) return; if (onRouteChange) onRouteChange(customer.id, null); else void details.open(customer); }}
       onDelete={() => undefined}
     />}
