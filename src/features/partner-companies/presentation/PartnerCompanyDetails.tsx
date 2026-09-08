@@ -1,27 +1,115 @@
-import { Building2, Edit2 } from "lucide-react";
-import { AdminCard, AdminCardContent, AdminCardHeader, BtnSecondary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { Building2, Edit2, MapPin, MessageCircle, Phone } from "lucide-react";
+import { getAddressMapUrl } from "@/lib/address";
+import { normalizeDigits } from "@/shared/domain/formatters";
+import { AdminCard, AdminCardContent, AdminCardHeader, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { PartnerCompanyUsersSection } from "./PartnerCompanyUsersSection";
 import { PartnerCompanyPermissionsSection } from "./PartnerCompanyPermissionsSection";
 
-function statusLabel(value:string){return value==="active"?"Ativa":value==="suspended"?"Suspensa":"Cancelada";}
+function statusLabel(value: string) {
+  return value === "active" ? "Ativa" : value === "suspended" ? "Suspensa" : "Cancelada";
+}
 
-export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { company:any; canEdit:boolean; onBack:()=>void; onEdit:()=>void }) {
-  const settings=company.settings||{};
+function brazilPhoneDigits(value?: string | null) {
+  const digits = normalizeDigits(value);
+  if (!digits) return "";
+  return (digits.length === 10 || digits.length === 11) && !digits.startsWith("55") ? `55${digits}` : digits;
+}
+
+export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { company: any; canEdit: boolean; onBack: () => void; onEdit: () => void }) {
+  const settings = company.settings || {};
+  const phone = brazilPhoneDigits(settings.phone);
+  const telUrl = phone ? `tel:+${phone}` : "";
+  const whatsappUrl = phone ? `https://wa.me/${phone}` : "";
+  const mapUrl = getAddressMapUrl({
+    street: settings.street || "",
+    number: settings.number || "",
+    complement: settings.complement || "",
+    neighborhood: settings.neighborhood || "",
+    city: settings.city || "",
+    state: settings.state || "",
+    zip_code: settings.zip_code || "",
+  });
+  const actionClass = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[11px] font-bold normal-case tracking-normal transition-colors sm:h-auto sm:w-auto sm:gap-1.5 sm:px-2.5 sm:py-1.5";
+  const actionLabelClass = "hidden sm:inline";
+
   return <div className="min-w-0 space-y-5">
-    <PageHeader title={company.name} subtitle="Detalhes e configurações da empresa parceira." actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack}/>{canEdit&&<BtnSecondary onClick={onEdit}><Edit2 size={14}/> Editar</BtnSecondary>}</div>}/>
+    <PageHeader
+      title={company.name}
+      subtitle="Detalhes e configurações da empresa parceira."
+      actions={<InternalBackButton onBack={onBack} />}
+    />
+
     <AdminCard>
-      <AdminCardHeader><div className="flex items-center gap-2"><Building2 size={17} className="text-[#0057e7]"/><div><h3 className="text-sm font-black text-[#0d1b2e]">Dados da empresa</h3><p className="mt-0.5 text-xs text-[#5a6a82]">Informações cadastrais principais.</p></div></div></AdminCardHeader>
+      <AdminCardHeader>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <Building2 size={17} className="shrink-0 text-[#0057e7]" />
+          <div className="min-w-0">
+            <h3 className="text-sm font-black text-[#0d1b2e]">Dados da empresa</h3>
+            <p className="mt-0.5 truncate text-xs text-[#5a6a82]">Informações cadastrais principais.</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {mapUrl ? <a
+            href={mapUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Abrir endereço da empresa no mapa"
+            title="Abrir endereço no mapa"
+            className={`${actionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}
+          >
+            <MapPin size={14} /><span className={actionLabelClass}>Mapa</span>
+          </a> : <button type="button" disabled aria-label="Endereço não disponível" title="Endereço não disponível" className={`${actionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
+            <MapPin size={14} /><span className={actionLabelClass}>Mapa</span>
+          </button>}
+
+          {telUrl ? <a
+            href={telUrl}
+            aria-label="Ligar para a empresa"
+            title="Abrir no telefone ou aplicativo de telefonia"
+            className={`${actionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}
+          >
+            <Phone size={14} /><span className={actionLabelClass}>Ligar</span>
+          </a> : <button type="button" disabled aria-label="Telefone não disponível" title="Telefone não disponível" className={`${actionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
+            <Phone size={14} /><span className={actionLabelClass}>Ligar</span>
+          </button>}
+
+          {whatsappUrl ? <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Abrir WhatsApp da empresa"
+            title="Abrir conversa no WhatsApp"
+            className={`${actionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
+          >
+            <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
+          </a> : <button type="button" disabled aria-label="WhatsApp não disponível" title="WhatsApp não disponível" className={`${actionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
+            <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
+          </button>}
+
+          {canEdit && <button
+            type="button"
+            onClick={onEdit}
+            aria-label="Editar dados da empresa"
+            title="Editar dados da empresa"
+            className={`${actionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}
+          >
+            <Edit2 size={14} /><span className={actionLabelClass}>Editar</span>
+          </button>}
+        </div>
+      </AdminCardHeader>
+
       <AdminCardContent><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo</p><p className="mt-1 text-sm font-bold text-[#0d1b2e]">{settings.person_type==="PF"?"Pessoa Física":"Pessoa Jurídica"}</p></div>
-        <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF/CNPJ</p><p className="mt-1 text-sm font-bold text-[#0d1b2e]">{company.document||"—"}</p></div>
+        <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo</p><p className="mt-1 text-sm font-bold text-[#0d1b2e]">{settings.person_type === "PF" ? "Pessoa Física" : "Pessoa Jurídica"}</p></div>
+        <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF/CNPJ</p><p className="mt-1 text-sm font-bold text-[#0d1b2e]">{company.document || "—"}</p></div>
         <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</p><p className="mt-1 text-sm font-bold text-[#0d1b2e]">{statusLabel(company.status)}</p></div>
-        {company.legal_name&&<div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Razão social</p><p className="mt-1 text-sm font-bold text-[#0d1b2e]">{company.legal_name}</p></div>}
-        <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Telefone</p><p className="mt-1 text-sm text-[#0d1b2e]">{settings.phone||"—"}</p></div>
-        <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">E-mail</p><p className="mt-1 text-sm text-[#0d1b2e]">{settings.email||"—"}</p></div>
-        <div className="sm:col-span-2 lg:col-span-3"><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Endereço</p><p className="mt-1 text-sm text-[#0d1b2e]">{[settings.street,settings.number,settings.neighborhood,settings.city,settings.state,settings.zip_code].filter(Boolean).join(", ")||"—"}</p></div>
+        {company.legal_name && <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Razão social</p><p className="mt-1 text-sm font-bold text-[#0d1b2e]">{company.legal_name}</p></div>}
+        <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Telefone</p><p className="mt-1 text-sm text-[#0d1b2e]">{settings.phone || "—"}</p></div>
+        <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">E-mail</p><p className="mt-1 text-sm text-[#0d1b2e]">{settings.email || "—"}</p></div>
+        <div className="sm:col-span-2 lg:col-span-3"><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Endereço</p><p className="mt-1 text-sm text-[#0d1b2e]">{[settings.street, settings.number, settings.neighborhood, settings.city, settings.state, settings.zip_code].filter(Boolean).join(", ") || "—"}</p></div>
       </div></AdminCardContent>
     </AdminCard>
-    <PartnerCompanyUsersSection organizationId={company.id} companyStatus={company.status}/>
-    <PartnerCompanyPermissionsSection organizationId={company.id}/>
+
+    <PartnerCompanyUsersSection organizationId={company.id} companyStatus={company.status} />
+    <PartnerCompanyPermissionsSection organizationId={company.id} />
   </div>;
 }
