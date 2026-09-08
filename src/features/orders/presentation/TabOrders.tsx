@@ -35,6 +35,7 @@ import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type OrderType = "internal" | "external";
+type SharedAccessMode = "default" | "read" | "manage";
 
 type TabOrdersProps = {
   onNavigate?: (tab: AdminTab) => void;
@@ -42,17 +43,70 @@ type TabOrdersProps = {
   routeSubpage?: string | null;
   onOrderRouteChange?: (id: string | null, subpage?: string | null) => void;
   onOrderRouteClose?: () => void;
+  organizationIdOverride?: string | null;
+  accessMode?: SharedAccessMode;
 };
 
-export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRouteChange, onOrderRouteClose }: TabOrdersProps) {
+const MUTATION_PERMISSION_MARKERS = [
+  ".create",
+  ".edit",
+  ".update",
+  ".delete",
+  ".change",
+  ".manage",
+  ".request",
+  ".dispatch",
+  ".confirm",
+  ".register",
+  ".receive",
+  ".resolve",
+  ".complete",
+  ".upload",
+  ".remove",
+  ".attach",
+];
+
+function isMutationPermission(permission: string) {
+  return MUTATION_PERMISSION_MARKERS.some(marker => permission.includes(marker));
+}
+
+function isUnsafeSharedOrderPermission(permission: string) {
+  if (!permission.startsWith("orders.")) return false;
+  const normalized = permission.toLowerCase();
+  return normalized.includes("part")
+    || normalized.includes("resolve")
+    || normalized.includes("complete")
+    || normalized.includes("document")
+    || normalized.includes("print")
+    || normalized.includes("email");
+}
+
+export function TabOrders({
+  onNavigate,
+  initialOrderId,
+  routeSubpage,
+  onOrderRouteChange,
+  onOrderRouteClose,
+  organizationIdOverride,
+  accessMode = "default",
+}: TabOrdersProps) {
   const { user, profile, hasPermission } = useAuth();
+  const scoped = accessMode !== "default";
+  const effectiveHasPermission = (permission: string) => {
+    if (!hasPermission(permission)) return false;
+    if (!scoped) return true;
+    if (permission.startsWith("customers.") || permission.startsWith("equipment.")) return false;
+    if (accessMode === "read") return !isMutationPermission(permission);
+    return !isUnsafeSharedOrderPermission(permission);
+  };
+
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [subView, setSubView] = useState<"list" | "situations">("list");
   const [displayMode, setDisplayMode] = useState<"list" | "kanban">(() => {
     if (typeof window === "undefined") return "list";
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
-  const workspace = useOrdersWorkspace({ showToast: setToast });
+  const workspace = useOrdersWorkspace({ showToast: setToast, organizationIdOverride });
   const {
     orders,
     setOrders,
@@ -115,7 +169,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
     removeSolutionImage,
   } = imagesController;
 
-  const customerSelection = useOrderCustomerSelection();
+  const customerSelection = useOrderCustomerSelection(organizationIdOverride);
   const {
     customerSearch,
     customerResults,
@@ -168,9 +222,10 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
     customerAddressDraft,
     setAddressExpanded,
     setSaving,
-    hasPermission,
+    hasPermission: effectiveHasPermission,
     showToast: setToast,
-  })
+    organizationIdOverride,
+  });
   const {
     saveCustomer,
     saveCustomerBeforeOrder,
@@ -178,7 +233,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
 
   const partRequests = useOrderPartRequests({
     reloadOrders: reloadWorkspace,
-    hasPermission,
+    hasPermission: effectiveHasPermission,
     showToast: setToast,
     formatError: supabaseErrorMessage,
   });
@@ -236,6 +291,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
   const detailsController = useOrderDetails({
     loadPartRequests,
     replaceOrderImages,
+    organizationIdOverride,
   });
   const {
     detail,
@@ -262,7 +318,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
     serviceTypeId: detail?.service_type_id,
     situations,
     serviceTypeSituations,
-    hasPermission,
+    hasPermission: effectiveHasPermission,
   });
 
   const resolutionController = useOrderResolution({
@@ -277,7 +333,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
     setDetailUsedItems,
     setDetailSolutionImages,
     reloadOrders: reloadWorkspace,
-    hasPermission,
+    hasPermission: effectiveHasPermission,
     showToast: setToast,
     formatError: supabaseErrorMessage,
     setSaving,
@@ -297,12 +353,11 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
     setDetail,
     setOrders,
     reloadOrders: reloadWorkspace,
-    hasPermission,
+    hasPermission: effectiveHasPermission,
     showToast: setToast,
     formatError: supabaseErrorMessage,
     setSaving,
   });
-
 
   const orderEditor = useOrderEditorWorkflow({
     userId: user?.id,
@@ -313,10 +368,11 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
     address: serviceAddress,
     customerPersistence,
     details: detailsController,
-    hasPermission,
+    hasPermission: effectiveHasPermission,
     showToast: setToast,
     setSaving,
     formatError: supabaseErrorMessage,
+    organizationIdOverride,
   });
   const { selectCustomer, openNew, openEdit, save: saveOS } = orderEditor;
 
@@ -328,10 +384,11 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
     detail,
     setDetail,
     userId: user?.id,
-    hasPermission,
+    hasPermission: effectiveHasPermission,
     showToast: setToast,
     formatError: supabaseErrorMessage,
     syncRelatedCaches: reloadWorkspace,
+    organizationIdOverride,
   });
   const {
     draggingId,
@@ -377,6 +434,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
   };
 
   const openRoutedNew = () => {
+    if (!effectiveHasPermission("orders.create")) return;
     if (onOrderRouteChange) {
       onOrderRouteChange("new", null);
       return;
@@ -385,6 +443,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
   };
 
   const openRoutedEdit = async (order: any) => {
+    if (!effectiveHasPermission("orders.edit")) return;
     if (onOrderRouteChange) {
       onOrderRouteChange(order.id, "edit");
       return;
@@ -417,13 +476,8 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
   };
 
   const fmtDate = formatOrderDate;
-
-
   const getEquipmentSummary = equipmentSummary;
-
-
   const getStateLabel = (value: unknown) => stateLabel(value, ibgeStates);
-
 
   const filters = useOrderFilters({
     orders,
@@ -473,12 +527,10 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
   const getSituationsForType = (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) =>
     situationsForType(serviceTypeId, serviceTypeSituations, situations, currentSituationId, currentSituation);
 
-
   const getSlaForOrder = (serviceTypeId?: string, situationId?: string, relatedSituation?: any) =>
     slaForOrder(serviceTypeId, situationId, relatedSituation, serviceTypeSituations, situations);
 
-
-  if (subView === "situations") return <OSSituationsView onBack={() => setSubView("list")} />;
+  if (subView === "situations" && !scoped) return <OSSituationsView onBack={() => setSubView("list")} />;
 
   const formatCurrency = formatOrderCurrency;
   const detailUsedItemsTotal = usedItemsTotal(detailUsedItems);
@@ -494,8 +546,8 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
         filters={filters}
         mutations={listMutations}
         serviceAddress={serviceAddress}
-        canCreate={hasPermission("orders.create")}
-        hasPermission={hasPermission}
+        canCreate={effectiveHasPermission("orders.create")}
+        hasPermission={effectiveHasPermission}
         onDisplayModeChange={setViewMode}
         onCreate={openRoutedNew}
         onOpenDetail={openRoutedDetail}
@@ -520,7 +572,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
         resolution={resolutionController}
         completion={completionController}
         mutations={listMutations}
-        hasPermission={hasPermission}
+        hasPermission={effectiveHasPermission}
         usedItemsTotal={detailUsedItemsTotal}
         formatDate={fmtDate}
         formatState={getStateLabel}
@@ -541,7 +593,7 @@ export function TabOrders({ onNavigate, initialOrderId, routeSubpage, onOrderRou
         customers={customerSelection}
         address={serviceAddress}
         customerPersistence={customerPersistence}
-        hasPermission={hasPermission}
+        hasPermission={effectiveHasPermission}
         getSituations={getSituationsForType}
         getSla={getSlaForOrder}
         onSelectCustomer={selectCustomer}
