@@ -25,6 +25,21 @@ const tableQueryKeys: Array<{ table: string; keys: QueryKey[] }> = [
   { table: "profiles", keys: [queryKeys.employees.all, queryKeys.orders.all] },
 ];
 
+const organizationScopedQueryKeys: QueryKey[] = [
+  queryKeys.admin.all,
+  queryKeys.customers.all,
+  queryKeys.equipment.all,
+  queryKeys.generalServices.all,
+  queryKeys.serviceTypes.all,
+  queryKeys.inventory.all,
+  queryKeys.appointments.all,
+  queryKeys.quotes.all,
+  queryKeys.employees.all,
+  queryKeys.orderSituations.all,
+  queryKeys.orderStatuses.all,
+  queryKeys.orders.all,
+];
+
 export function QueryRealtimeSync() {
   const queryClient = useQueryClient();
 
@@ -53,9 +68,17 @@ export function QueryRealtimeSync() {
       );
     }
 
+    const handleOrganizationChange = () => {
+      for (const queryKey of organizationScopedQueryKeys) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
+    };
+
+    window.addEventListener("artvideo:organization-changed", handleOrganizationChange);
     channel.subscribe();
 
     return () => {
+      window.removeEventListener("artvideo:organization-changed", handleOrganizationChange);
       for (const timeout of pending.values()) window.clearTimeout(timeout);
       void supabase.removeChannel(channel);
     };
