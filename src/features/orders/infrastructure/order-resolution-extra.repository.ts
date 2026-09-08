@@ -18,15 +18,21 @@ export async function saveServiceOrderLooseParts(
   serviceOrderId: string,
   looseParts: string,
 ) {
-  const { data, error } = await supabase
+  const { data: scopedOrder, error: scopeError } = await supabase
     .from("service_orders")
-    .update({ loose_parts: looseParts.trim() || null } as any)
+    .select("id")
     .eq("organization_id", organizationId)
     .eq("id", serviceOrderId)
-    .select("id,loose_parts")
     .maybeSingle();
 
+  if (scopeError) throw scopeError;
+  if (!scopedOrder) throw new Error("OS não encontrada nesta empresa ou sem acesso.");
+
+  const { data, error } = await (supabase as any).rpc("set_service_order_loose_parts", {
+    p_service_order_id: serviceOrderId,
+    p_loose_parts: looseParts,
+  });
+
   if (error) throw error;
-  if (!data) throw new Error("OS não encontrada nesta empresa ou sem permissão para alteração.");
-  return data;
+  return data as string | null;
 }
