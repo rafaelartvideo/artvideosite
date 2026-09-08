@@ -3,6 +3,7 @@ import { OrdersHeader } from "./OrdersHeader";
 import { OrdersKanban } from "./OrdersKanban";
 import { OrdersTable } from "./OrdersTable";
 import { PartnerOrdersFilters } from "./PartnerOrdersFilters";
+import { sortServiceOrders } from "../application/order-list";
 import type { useOrderFilters } from "../application/useOrderFilters";
 import type { useOrderListMutations } from "../application/useOrderListMutations";
 import type { useOrdersWorkspace } from "../application/useOrdersWorkspace";
@@ -30,6 +31,9 @@ type Props = {
   compactSharedView?: boolean;
 };
 
+const normalizeIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+const normalizeDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
+
 export function OrdersListWorkspace(props: Props) {
   const {
     visible, displayMode, workspace, filters, mutations, serviceAddress,
@@ -39,7 +43,7 @@ export function OrdersListWorkspace(props: Props) {
     compactSharedView = false,
   } = props;
   const {
-    statuses, situations, serviceTypes, loading,
+    orders, statuses, situations, serviceTypes, loading, isOrganizationOverride,
   } = workspace;
   const {
     osNumberSearch, setOsNumberSearch, externalOsSearch, setExternalOsSearch,
@@ -48,7 +52,7 @@ export function OrdersListWorkspace(props: Props) {
     selectedServiceTypeId, setSelectedServiceTypeId, orderSort, setOrderSort,
     selectedStates, setSelectedStates, selectedCities, setSelectedCities,
     cityFilterOptions, cityFiltersLoading, dateFrom, setDateFrom, dateTo,
-    setDateTo, setPage, pageSize, setPageSize, invalidPeriod,
+    setDateTo, page, setPage, pageSize, setPageSize, invalidPeriod,
     filteredOrders: filtered, pagedOrders, totalPages, safePage, clearFilters,
   } = filters;
   const {
@@ -57,27 +61,53 @@ export function OrdersListWorkspace(props: Props) {
     handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave,
   } = mutations;
   const { ibgeStates, ibgeStatesLoading } = serviceAddress;
-  const resolvedDisplayMode: "list" | "kanban" = compactSharedView ? "list" : displayMode;
+  const sharedView = compactSharedView || isOrganizationOverride;
+  const resolvedDisplayMode: "list" | "kanban" = sharedView ? "list" : displayMode;
+
+  const sharedFiltered = sharedView ? sortServiceOrders(orders.filter((order: any) => {
+    const numberSearch = normalizeIdentifier(osNumberSearch);
+    const document = normalizeDigits(documentSearch);
+    const orderNumber = normalizeIdentifier(order.os_number);
+    const externalNumber = normalizeIdentifier(order.external_os_number);
+    const customer = order.customer || {};
+    const customerDocuments = [customer.document, customer.cnpj].map(normalizeDigits);
+    const matchesNumber = !numberSearch || orderNumber.includes(numberSearch) || externalNumber.includes(numberSearch);
+    const matchesDocument = !document || customerDocuments.some(value => value.includes(document));
+    return matchesNumber && matchesDocument;
+  }), orderSort) : filtered;
+
+  const sharedTotalPages = Math.max(1, Math.ceil(sharedFiltered.length / pageSize));
+  const sharedSafePage = Math.min(page, sharedTotalPages);
+  const sharedPaged = sharedFiltered.slice((sharedSafePage - 1) * pageSize, sharedSafePage * pageSize);
+  const resolvedFiltered = sharedView ? sharedFiltered : filtered;
+  const resolvedPaged = sharedView ? sharedPaged : pagedOrders;
+  const resolvedTotalPages = sharedView ? sharedTotalPages : totalPages;
+  const resolvedSafePage = sharedView ? sharedSafePage : safePage;
 
   if (!visible) return null;
   return <>
     <OrdersHeader
-      total={filtered.length}
+      total={resolvedFiltered.length}
       displayMode={resolvedDisplayMode}
       canCreate={canCreate}
       onDisplayModeChange={setViewMode}
       onCreate={openNew}
-      showViewToggle={!compactSharedView}
+      showViewToggle={!sharedView}
     />
 
-    {compactSharedView ? <PartnerOrdersFilters
+    {sharedView ? <PartnerOrdersFilters
       numberSearch={osNumberSearch}
       documentSearch={documentSearch}
       orderSort={orderSort}
       onNumberSearchChange={(value) => { setOsNumberSearch(value); setPage(1); }}
       onDocumentSearchChange={(value) => { setDocumentSearch(value); setPage(1); }}
       onOrderSortChange={(value) => { setOrderSort(value); setPage(1); }}
-      onClear={clearFilters}
+      onClear={() => {
+        setOsNumberSearch("");
+        setDocumentSearch("");
+        setOrderSort("");
+        setPage(1);
+      }}
     /> : <OrdersFilters
       osNumberSearch={osNumberSearch}
       externalOsSearch={externalOsSearch}
@@ -124,10 +154,10 @@ export function OrdersListWorkspace(props: Props) {
 
     {resolvedDisplayMode === "list" ? <OrdersTable
       loading={loading}
-      filteredOrders={filtered}
-      pagedOrders={pagedOrders}
+      filteredOrders={resolvedFiltered}
+      pagedOrders={resolvedPaged}
       statuses={statuses}
-      hasActiveFilters={compactSharedView
+      hasActiveFilters={sharedView
         ? Boolean(osNumberSearch || documentSearch || orderSort)
         : Boolean(osNumberSearch || externalOsSearch || documentSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo)}
       hasPermission={hasPermission}
@@ -138,14 +168,14 @@ export function OrdersListWorkspace(props: Props) {
       onEdit={(order) => { void openEdit(order); }}
       formatDate={fmtDate}
       equipmentSummary={equipmentSummary}
-      page={safePage}
+      page={resolvedSafePage}
       pageSize={pageSize}
-      totalPages={totalPages}
-      onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
+      totalPages={resolvedTotalPages}
+      onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, resolvedTotalPages)))}
       onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
     /> : <OrdersKanban
       statuses={statuses}
-      filteredOrders={filtered}
+      filteredOrders={resolvedFiltered}
       situations={situations}
       draggingId={draggingId}
       dragOverStatusId={dragOverStatusId}
