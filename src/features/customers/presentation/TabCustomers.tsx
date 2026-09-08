@@ -6,26 +6,42 @@ import { CreateCustomerPage } from "./CreateCustomerPage";
 import { CustomerDetailsPage } from "./CustomerDetailsPage";
 import { CustomersList } from "./CustomersList";
 
+type SharedAccessMode = "default" | "read" | "manage";
+
 type TabCustomersProps = {
   onOpenOrder?: (id: string, customerId?: string) => void;
   routeResourceId?: string | null;
   routeSubpage?: string | null;
   onRouteChange?: (resourceId?: string | null, subpage?: string | null) => void;
+  organizationIdOverride?: string | null;
+  accessMode?: SharedAccessMode;
 };
 
-export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRouteChange }: TabCustomersProps) {
+export function TabCustomers({
+  onOpenOrder,
+  routeResourceId,
+  routeSubpage,
+  onRouteChange,
+  organizationIdOverride,
+  accessMode = "default",
+}: TabCustomersProps) {
   const { hasPermission, activeOrganizationId } = useAuth();
+  const scoped = accessMode !== "default";
+  const canManageShared = accessMode === "manage";
+  const organizationId = organizationIdOverride || activeOrganizationId;
+
   const canViewTable = hasPermission("customers.table.view");
   const canViewDetails = hasPermission("customers.details.view");
-  const canCreate = hasPermission("customers.create");
-  const canEdit = hasPermission("customers.edit");
+  const canCreate = hasPermission("customers.create") && (!scoped || canManageShared);
+  const canEdit = hasPermission("customers.edit") && (!scoped || canManageShared);
   const canViewAddress = hasPermission("customers.addresses.view");
-  const canEditAddress = hasPermission("customers.addresses.edit");
-  const canViewQuotes = hasPermission("quotes.view");
-  const canViewOrders = hasPermission("orders.view");
-  const canOpenOrders = hasPermission("orders.details.view");
+  const canEditAddress = hasPermission("customers.addresses.edit") && (!scoped || canManageShared);
+  const canViewQuotes = !scoped && hasPermission("quotes.view");
+  const canViewOrders = !scoped && hasPermission("orders.view");
+  const canOpenOrders = !scoped && hasPermission("orders.details.view");
+
   const { list, details, creation, toast, setToast } = useCustomersController({
-    organizationId: activeOrganizationId,
+    organizationId,
     canCreate,
     canEdit,
     canEditAddress,
@@ -38,7 +54,7 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
     const customer = list.customers.find((item: any) => item.id === routeResourceId);
     if (!customer || details.detail?.id === customer.id) { if (details.detail && routeSubpage === "edit" && canEdit && !details.editingData) details.setEditingData(true); return; }
     void details.open(customer).then(() => { if (routeSubpage === "edit" && canEdit) details.setEditingData(true); });
-  }, [routeResourceId, routeSubpage, list.customers, details.detail?.id, canCreate, canViewDetails, canEdit, activeOrganizationId]);
+  }, [routeResourceId, routeSubpage, list.customers, details.detail?.id, canCreate, canViewDetails, canEdit, organizationId]);
 
   const closeRoute = () => onRouteChange?.(null, null);
   return <div className="space-y-5">
