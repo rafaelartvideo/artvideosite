@@ -101,10 +101,13 @@ export function isHexColor(value: string) {
 export function LifecycleStatusBadge({ status }: { status: string }) {
   const tone = lifecycleStatusTone(status) || "inactive";
   const presentation = lifecyclePresentation(tone);
-  return <span className={cn(
-    "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold leading-none tracking-normal",
-    presentation.badge,
-  )}>
+  return <span
+    data-lifecycle-status-badge="true"
+    className={cn(
+      "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold leading-none tracking-normal",
+      presentation.badge,
+    )}
+  >
     <span
       aria-hidden="true"
       className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -230,7 +233,7 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
     const root = document.querySelector(".admin-crm");
     if (!root) return;
 
-    const syncButtonLoading = () => {
+    const syncAdminUi = () => {
       root.querySelectorAll("button").forEach(button => {
         const text = button.textContent || "";
         const hasExistingSpinner = Boolean(button.querySelector(".animate-spin"));
@@ -247,10 +250,17 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
           button.removeAttribute("data-admin-has-spinner");
         }
       });
+
+      root.querySelectorAll<HTMLSpanElement>("span.rounded-full").forEach(badge => {
+        if (badge.closest("[data-lifecycle-status-badge='true']")) return;
+        const tone = lifecycleStatusTone(badge.textContent || "");
+        if (tone) badge.setAttribute("data-lifecycle-status", tone);
+        else badge.removeAttribute("data-lifecycle-status");
+      });
     };
 
-    syncButtonLoading();
-    const observer = new MutationObserver(syncButtonLoading);
+    syncAdminUi();
+    const observer = new MutationObserver(syncAdminUi);
     observer.observe(root, {
       childList: true,
       subtree: true,
@@ -280,6 +290,57 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
       }
       .admin-crm button[data-admin-loading="true"] > svg:not(.animate-spin):first-child {
         display: none !important;
+      }
+      .admin-crm span[data-lifecycle-status] {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: .375rem !important;
+        padding: .25rem .625rem !important;
+        border-radius: 9999px !important;
+        border: 1px solid !important;
+        font-size: 11px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+        letter-spacing: 0 !important;
+        text-transform: none !important;
+        white-space: nowrap !important;
+      }
+      .admin-crm span[data-lifecycle-status]::before {
+        content: "";
+        width: .625rem;
+        height: .625rem;
+        flex: 0 0 .625rem;
+        border-radius: 9999px;
+      }
+      .admin-crm span[data-lifecycle-status="active"] {
+        color: #065f46 !important;
+        background: rgba(236,253,245,.82) !important;
+        border-color: rgba(167,243,208,.9) !important;
+        box-shadow: 0 1px 3px rgba(5,150,105,.08) !important;
+      }
+      .admin-crm span[data-lifecycle-status="active"]::before {
+        background: radial-gradient(circle at 32% 28%, #ecfdf5 0%, #6ee7b7 24%, #10b981 54%, #047857 78%, #064e3b 100%);
+        box-shadow: inset 1px 1px 1.5px rgba(255,255,255,.9), inset -1px -1px 2px rgba(6,78,59,.45), 0 1px 3px rgba(5,150,105,.38);
+      }
+      .admin-crm span[data-lifecycle-status="disabled"] {
+        color: #991b1b !important;
+        background: rgba(254,242,242,.84) !important;
+        border-color: rgba(254,202,202,.95) !important;
+        box-shadow: 0 1px 3px rgba(220,38,38,.08) !important;
+      }
+      .admin-crm span[data-lifecycle-status="disabled"]::before {
+        background: radial-gradient(circle at 32% 28%, #fff1f2 0%, #fda4af 24%, #ef4444 54%, #b91c1c 78%, #7f1d1d 100%);
+        box-shadow: inset 1px 1px 1.5px rgba(255,255,255,.9), inset -1px -1px 2px rgba(127,29,29,.45), 0 1px 3px rgba(220,38,38,.38);
+      }
+      .admin-crm span[data-lifecycle-status="inactive"] {
+        color: #92400e !important;
+        background: rgba(255,251,235,.86) !important;
+        border-color: rgba(253,230,138,.95) !important;
+        box-shadow: 0 1px 3px rgba(217,119,6,.08) !important;
+      }
+      .admin-crm span[data-lifecycle-status="inactive"]::before {
+        background: radial-gradient(circle at 32% 28%, #fffbeb 0%, #fde68a 24%, #f59e0b 54%, #b45309 78%, #78350f 100%);
+        box-shadow: inset 1px 1px 1.5px rgba(255,255,255,.9), inset -1px -1px 2px rgba(120,53,15,.42), 0 1px 3px rgba(217,119,6,.34);
       }
     `}</style>
     <LoadingOverlay show={busy || loaders.length > 0} text={activeLoader?.text || busyText} />
