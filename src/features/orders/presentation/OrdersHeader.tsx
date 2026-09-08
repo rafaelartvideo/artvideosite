@@ -1,4 +1,4 @@
-import { LayoutDashboard, List, Plus, RefreshCw } from "lucide-react";
+import { LayoutDashboard, List, Plus } from "lucide-react";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 
 export function OrdersHeader({
@@ -7,14 +7,12 @@ export function OrdersHeader({
   canCreate,
   onDisplayModeChange,
   onCreate,
-  onRefresh,
 }: {
   total: number;
   displayMode: "list" | "kanban";
   canCreate: boolean;
   onDisplayModeChange: (mode: "list" | "kanban") => void;
   onCreate: () => void;
-  onRefresh: () => void;
 }) {
   return (
     <PageHeader
@@ -51,17 +49,6 @@ export function OrdersHeader({
               <span className="hidden sm:inline">Nova OS</span>
             </AdminButton>
           )}
-
-          <AdminButton
-            variant="secondary"
-            onClick={onRefresh}
-            aria-label="Atualizar ordens de serviço"
-            title="Atualizar"
-            className="h-11 min-w-11 border-[#0057e7]/30 px-3 text-[#0057e7] hover:bg-[#0057e7]/5 sm:px-4"
-          >
-            <RefreshCw size={17} />
-            <span className="hidden sm:inline">Atualizar</span>
-          </AdminButton>
         </div>
       }
     />
