@@ -1,4 +1,4 @@
-import { Building2, Edit2, MapPin, MessageCircle, Phone } from "lucide-react";
+import { Edit2, MapPin, MessageCircle, Phone } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
 import { normalizeDigits } from "@/shared/domain/formatters";
 import { AdminCard, AdminCardContent, AdminCardHeader, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -42,12 +42,9 @@ export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { co
 
     <AdminCard>
       <AdminCardHeader>
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <Building2 size={17} className="shrink-0 text-[#0057e7]" />
-          <div className="min-w-0">
-            <h3 className="text-sm font-black text-[#0d1b2e]">Dados da empresa</h3>
-            <p className="mt-0.5 truncate text-xs text-[#5a6a82]">Informações cadastrais principais.</p>
-          </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-black text-[#0d1b2e]">Dados da empresa</h3>
+          <p className="mt-0.5 truncate text-xs text-[#5a6a82]">Informações cadastrais principais.</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {mapUrl ? <a href={mapUrl} target="_blank" rel="noreferrer" aria-label="Abrir endereço da empresa no mapa" title="Abrir endereço no mapa" className={`${actionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}><MapPin size={14} /><span className={actionLabelClass}>Mapa</span></a> : <button type="button" disabled aria-label="Endereço não disponível" title="Endereço não disponível" className={`${actionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}><MapPin size={14} /><span className={actionLabelClass}>Mapa</span></button>}
