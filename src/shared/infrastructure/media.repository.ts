@@ -9,21 +9,28 @@ export async function getAuthenticatedSession() {
   return session;
 }
 
-export async function createMediaRecord({ bucket, path, file }: { bucket: MediaBucket; path: string; file: File }) {
+export async function createMediaRecord({ bucket, path, file, organizationId }: { bucket: MediaBucket; path: string; file: File; organizationId?: string | null }) {
   const session = await getAuthenticatedSession();
-  const { data: media, error } = await supabase.from("media").insert({
-    bucket_id: bucket, storage_path: path, file_name: file.name, file_size: file.size || null,
-    mime_type: file.type || null, alt_text: file.name, uploaded_by: session.user.id,
-  }).select("id").single();
+  const payload: Record<string, unknown> = {
+    bucket_id: bucket,
+    storage_path: path,
+    file_name: file.name,
+    file_size: file.size || null,
+    mime_type: file.type || null,
+    alt_text: file.name,
+    uploaded_by: session.user.id,
+  };
+  if (organizationId) payload.organization_id = organizationId;
+  const { data: media, error } = await supabase.from("media").insert(payload as any).select("id").single();
   if (error || !media?.id) throw new Error(error?.message || "Não foi possível registrar a imagem.");
   return media.id as string;
 }
 
-async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File) {
+async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File, organizationId?: string | null) {
   const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false });
   if (error) throw error;
   try {
-    return await createMediaRecord({ bucket, path, file });
+    return await createMediaRecord({ bucket, path, file, organizationId });
   } catch (recordError) {
     const { error: cleanupError } = await supabase.storage.from(bucket).remove([path]);
     if (cleanupError) console.warn("[MEDIA] orphan cleanup failed:", cleanupError);
@@ -31,10 +38,10 @@ async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File) 
   }
 }
 
-export async function uploadMediaFile(bucket: MediaBucket, file: File) {
+export async function uploadMediaFile(bucket: MediaBucket, file: File, organizationId?: string | null) {
   const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
   const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-  return uploadMediaAtPath(bucket, path, file);
+  return uploadMediaAtPath(bucket, path, file, organizationId);
 }
 
 export async function uploadServiceOrderMediaFile(
