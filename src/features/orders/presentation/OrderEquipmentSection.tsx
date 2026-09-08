@@ -113,6 +113,17 @@ export function OrderEquipmentSection({
           />
         </div>
 
+        <div className="min-w-0 sm:col-span-2">
+          <FInput
+            label="Número de série"
+            type="text"
+            value={form.serial_number || ""}
+            disabled={editingOS}
+            onChange={(e: any) => upF("serial_number", e.target.value)}
+            placeholder="Digite o número de série do equipamento"
+          />
+        </div>
+
         {displayedTechnicalFields.map(relation => {
           const field = relation.technical_field;
           if (!field) return null;
