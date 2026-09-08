@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listServiceOrderMedia } from "../infrastructure/orders.repository";
-import type { OrderImage } from "../domain/order-image";
+import {
+  orderImageKindFromSortOrder,
+  type OrderImage,
+  type OrderImageKind,
+} from "../domain/order-image";
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGES = 5;
@@ -45,23 +49,27 @@ export function useOrderImages() {
       return;
     }
 
-    replaceOrderImages((data || []).map((item: any) => ({
-      key: item.id,
-      mediaId: item.media_id,
-      name: item.media?.file_name || "Imagem da OS",
-    })));
+    replaceOrderImages((data || [])
+      .filter((item: any) => Number(item.sort_order ?? 0) < 1000)
+      .map((item: any) => ({
+        key: item.id,
+        mediaId: item.media_id,
+        name: item.media?.file_name || "Imagem da OS",
+        kind: orderImageKindFromSortOrder(item.sort_order),
+      })));
   }, [replaceOrderImages]);
 
-  const addOrderImages = useCallback((files: FileList | null) => {
+  const addOrderImages = useCallback((files: FileList | null, kind: Exclude<OrderImageKind, "solution"> = "equipment") => {
     setOrderImages(current => {
       const selected = Array.from(files || [])
         .filter(file => ACCEPTED_IMAGE_TYPES.has(file.type))
         .slice(0, Math.max(0, MAX_IMAGES - current.length));
       return [...current, ...selected.map(file => ({
-        key: `new-${Date.now()}-${Math.random()}`,
+        key: `new-${kind}-${Date.now()}-${Math.random()}`,
         file,
         url: URL.createObjectURL(file),
         name: file.name,
+        kind,
       }))];
     });
   }, []);
@@ -77,7 +85,7 @@ export function useOrderImages() {
   const replaceSolutionImages = useCallback((images: OrderImage[]) => {
     setSolutionImages(current => {
       revokeTemporaryUrls(current);
-      return images;
+      return images.map(image => ({ ...image, kind: "solution" }));
     });
   }, []);
 
@@ -91,6 +99,7 @@ export function useOrderImages() {
         file,
         url: URL.createObjectURL(file),
         name: file.name,
+        kind: "solution" as const,
       }))];
     });
   }, []);
