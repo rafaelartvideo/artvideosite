@@ -7,17 +7,18 @@ type Options = {
   organizationId: string | null;
   canCreate: boolean;
   canEdit: boolean;
-  canDelete: boolean;
+  canEditAddress: boolean;
 };
 
-export function useCustomersController({ organizationId, canCreate, canEdit, canDelete }: Options) {
+export function useCustomersController({ organizationId, canCreate, canEdit, canEditAddress }: Options) {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const notify = (msg: string, type: "success" | "error") => setToast({ msg, type });
 
-  const list = useCustomersList({ organizationId, canDelete, onToast: notify });
+  const list = useCustomersList({ organizationId, onToast: notify });
   const details = useCustomerDetails({
     organizationId,
     canEdit,
+    canEditAddress,
     onRefresh: list.refresh,
     onToast: notify,
   });
