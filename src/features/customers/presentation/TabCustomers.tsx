@@ -25,7 +25,12 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
   const canViewQuotes = hasPermission("quotes.view");
   const canViewOrders = hasPermission("orders.view");
   const canOpenOrders = hasPermission("orders.details.view");
-  const { list, details, creation, toast, setToast } = useCustomersController({ organizationId: activeOrganizationId, canCreate, canEdit, canDelete: false });
+  const { list, details, creation, toast, setToast } = useCustomersController({
+    organizationId: activeOrganizationId,
+    canCreate,
+    canEdit,
+    canEditAddress,
+  });
 
   useEffect(() => {
     if (!routeResourceId) { if (creation.open) creation.closePage(); if (details.detail) details.close(); return; }
@@ -34,7 +39,7 @@ export function TabCustomers({ onOpenOrder, routeResourceId, routeSubpage, onRou
     const customer = list.customers.find((item: any) => item.id === routeResourceId);
     if (!customer || details.detail?.id === customer.id) { if (details.detail && routeSubpage === "edit" && canEdit && !details.editingData) details.setEditingData(true); return; }
     void details.open(customer).then(() => { if (routeSubpage === "edit" && canEdit) details.setEditingData(true); });
-  }, [routeResourceId, routeSubpage, list.customers, details.detail?.id, canCreate, canViewDetails, canEdit]);
+  }, [routeResourceId, routeSubpage, list.customers, details.detail?.id, canCreate, canViewDetails, canEdit, activeOrganizationId]);
 
   const closeRoute = () => onRouteChange?.(null, null);
   return <div className="space-y-5">
