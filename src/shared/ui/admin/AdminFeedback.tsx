@@ -166,8 +166,15 @@ export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?:
 }
 
 export function LoadingState({ text = "Carregando..." }: { text?: string }) {
-  useEffect(() => beginAdminLoading(text), [text]);
-  return null;
+  return <div
+    className="flex min-h-[180px] w-full flex-col items-center justify-center gap-3 px-4 py-10 text-center"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+  >
+    <LoadingSpinner size="lg" />
+    <p className="text-sm font-semibold text-[#5a6a82]">{text}</p>
+  </div>;
 }
 
 export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLabel = "Adicionar" }: {
