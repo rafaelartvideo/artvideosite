@@ -6,8 +6,8 @@ import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { PriorityBadge } from "./OrderFormControls";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 
-export function OrdersTable({ loading, filteredOrders, pagedOrders, statuses, hasActiveFilters, hasPermission, onOpen, onStatusChange, onSituationChange, getSituations, onEdit, formatDate, equipmentSummary, page, pageSize, totalPages, onPageChange, onPageSizeChange }: {
-  loading: boolean; filteredOrders: any[]; pagedOrders: any[]; statuses: any[]; hasActiveFilters: boolean;
+export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, statuses, hasActiveFilters, hasPermission, onOpen, onStatusChange, onSituationChange, getSituations, onEdit, formatDate, equipmentSummary, page, pageSize, totalPages, onPageChange, onPageSizeChange }: {
+  loading: boolean; filteredOrders: any[]; pagedOrders: any[]; totalItems: number; statuses: any[]; hasActiveFilters: boolean;
   hasPermission: (permission: string) => boolean; onOpen: (order: any) => void; onStatusChange: (order: any, statusId: string) => void;
   onSituationChange: (order: any, situationId: string) => void; getSituations: (serviceTypeId: string, situationId?: string, situation?: any) => any[];
   onEdit: (order: any) => void; formatDate: (value?: string | null, time?: boolean) => string; equipmentSummary: (order: any) => string;
@@ -45,6 +45,6 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, statuses, ha
         {hasPermission("orders.table.actions") && <td><div className="flex items-center justify-end gap-2">{canChangeStatus && <div onClick={event => event.stopPropagation()} className="w-40"><AdminSelect value={o.status_id || ""} onValueChange={value => onStatusChange(o, value)} options={statusOptions} className="min-h-9 py-1.5 text-[11px] font-bold" ariaLabel={`Status da OS ${o.os_number || ""}`} /></div>}{canChangeSituation && <div onClick={event => event.stopPropagation()} className="w-40"><AdminSelect value={o.situation_id || ""} onValueChange={value => void onSituationChange(o, value)} options={situationOptions(o)} className="min-h-9 py-1.5 text-[11px] font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div>}{canEditOrder && !o.is_solved && <AdminButton variant="secondary" size="sm" onClick={event => { event.stopPropagation(); void onEdit(o); }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={14} /> Editar</AdminButton>}</div></td>}
       </tr>)}</tbody></table></div>
     </>}
-    <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={onPageSizeChange} />
+    <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={onPageSizeChange} />
   </AdminCard>;
 }
