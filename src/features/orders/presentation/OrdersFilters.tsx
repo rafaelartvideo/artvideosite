@@ -175,7 +175,7 @@ export function OrdersFilters({
   const ibgeStatesLoading = statesLoading;
   const cityFiltersLoading = citiesLoading;
   const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenação padrão";
-  const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
+  const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownNarrowWide : ArrowUpDown;
   const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
     osNumberSearch ||
@@ -269,9 +269,9 @@ export function OrdersFilters({
           <Search size={16} className="shrink-0" />
           <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
         </div>
-        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
-          {hasActiveFilters && <button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-default disabled:opacity-60">
-            <Eraser size={14} /><span>Limpar filtros</span>
+        <div className="ml-auto flex max-w-full items-center justify-end">
+          {hasActiveFilters && <button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
+            Limpar filtros
           </button>}
         </div>
       </div>
