@@ -38,6 +38,16 @@ export type PartnerUserInput = {
   user_id?: string;
 };
 
+export type PartnerCompanyPageInput = {
+  page: number;
+  pageSize: number;
+};
+
+export type PartnerCompanyPage = {
+  items: any[];
+  total: number;
+};
+
 // `manage` permanece somente para leitura de registros legados já existentes.
 // Novas configurações de compartilhamento da ArtVideo são estritamente de consulta.
 export type PartnerShareAccessLevel = "none" | "summary" | "read" | "manage";
@@ -45,12 +55,19 @@ export type PartnerShareConfigLevel = Exclude<PartnerShareAccessLevel, "manage">
 
 const COMPANY_SELECT = "id,name,legal_name,document,slug,status,settings,created_at,updated_at";
 
-export function listPartnerCompanies() {
-  return supabase
+export async function listPartnerCompanies({ page, pageSize }: PartnerCompanyPageInput): Promise<PartnerCompanyPage> {
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.max(1, pageSize);
+  const from = (safePage - 1) * safePageSize;
+  const to = from + safePageSize - 1;
+  const { data, error, count } = await supabase
     .from("organizations")
-    .select(COMPANY_SELECT)
+    .select(COMPANY_SELECT, { count: "exact" })
     .neq("id", PLATFORM_ORGANIZATION_ID)
-    .order("name");
+    .order("name")
+    .range(from, to);
+  if (error) throw error;
+  return { items: data ?? [], total: count ?? 0 };
 }
 
 export function getPartnerCompany(id: string) {
