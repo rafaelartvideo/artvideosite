@@ -156,12 +156,12 @@ export function OrdersFilters({
           aria-label={`Ordenação atual: ${orderLabel}`}
           title={`Ordenação: ${orderLabel}`}
           className={cn(
-            "inline-flex h-8 items-center justify-center rounded-lg border bg-white text-xs font-bold shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
-            iconOnly ? "w-8 shrink-0 px-0" : "max-w-full justify-between gap-1.5 px-3",
+            "inline-flex h-[42px] items-center justify-center rounded-lg border bg-white text-xs font-bold shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
+            iconOnly ? "w-[42px] shrink-0 px-0" : "w-full min-w-0 justify-between gap-1.5 px-3",
             orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]",
           )}
         >
-          <OrderSortIcon size={14} className="text-[#0057e7]" />
+          <OrderSortIcon size={20} className="h-5 w-5 shrink-0 text-[#0057e7]" />
           {!iconOnly && <><span>{orderLabel}</span><ChevronDown size={14} className="text-[#5a6a82]" /></>}
         </button>
       </DropdownMenuTrigger>
@@ -208,7 +208,6 @@ export function OrdersFilters({
           <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
         </div>
         <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
-          <div className="hidden md:block">{sortMenu(false)}</div>
           {hasActiveFilters && <button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-default disabled:opacity-60">
             <Eraser size={14} /><span>Limpar filtros</span>
           </button>}
@@ -236,9 +235,8 @@ export function OrdersFilters({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            {sortMenu(true)}
           </div>
-          <div className="min-w-0">{renderMobileFilter()}</div>
+          <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1">{renderMobileFilter()}</div>{sortMenu(true)}</div>
         </div>
 
         <div className="hidden space-y-3 md:block">
@@ -254,6 +252,7 @@ export function OrdersFilters({
             <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} /></div>
             <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />{invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>
             <div className="space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>
+            <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Ordenação</label>{sortMenu(false)}</div>
           </div>
         </div>
       </div>
