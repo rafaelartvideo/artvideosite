@@ -85,7 +85,7 @@ export function PartnerCustomersList({
       </button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="min-w-[200px]">
-      {([["", "Ordenação padrão", ArrowUpDown], ["asc", "Nome crescente", ArrowUpNarrowWide], ["desc", "Nome decrescente", ArrowDownNarrowWide]] as const).map(([value, label, Icon]) => (
+      {([["", "Ordenação padrão", ArrowUpDown], ["asc", "Nome crescente", ArrowUpNarrowWide], ["desc", "Nome decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => (
         <DropdownMenuItem key={value || "default"} onSelect={() => onOrderSortChange(value)} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] font-bold text-[#0057e7]")}>
           <Icon size={15} />
           <span>{label}</span>
