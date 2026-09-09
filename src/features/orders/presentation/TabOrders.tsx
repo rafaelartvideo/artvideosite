@@ -101,6 +101,7 @@ export function TabOrders({
   });
   const [saving, setSaving] = useState(false);
   const closingRouteRef = useRef<string | null>(null);
+  const openingEditRouteRef = useRef<string | null>(null);
 
   const workspaceBase = useOrdersWorkspace({ showToast: setToast, organizationIdOverride });
   const {
@@ -283,6 +284,8 @@ export function TabOrders({
       closingRouteRef.current = null;
     }
 
+    if (routeSubpage !== "edit") openingEditRouteRef.current = null;
+
     if (workspaceLoading) return () => { cancelled = true; };
 
     if (!initialOrderId) {
@@ -309,6 +312,7 @@ export function TabOrders({
       return () => { cancelled = true; };
     }
     if (routeSubpage === "edit" && formOpen && editingOS?.id === initialOrderId) {
+      openingEditRouteRef.current = null;
       if (detail?.id === initialOrderId) closeDetail();
       return () => { cancelled = true; };
     }
@@ -316,11 +320,17 @@ export function TabOrders({
     const openRoutedOrder = (order: any) => {
       if (cancelled) return;
       if (routeSubpage === "edit") {
-        if (!formOpen || editingOS?.id !== order.id) {
-          void openEdit(order).then(() => {
-            if (!cancelled) closeDetail();
-          });
+        if (formOpen && editingOS?.id === order.id) {
+          openingEditRouteRef.current = null;
+          if (detail?.id === order.id) closeDetail();
+          return;
         }
+        if (openingEditRouteRef.current === order.id) return;
+        openingEditRouteRef.current = order.id;
+        if (detail?.id === order.id) closeDetail();
+        void openEdit(order).finally(() => {
+          if (openingEditRouteRef.current === order.id) openingEditRouteRef.current = null;
+        });
         return;
       }
       if (formOpen) closeOrderForm();
@@ -353,6 +363,7 @@ export function TabOrders({
 
   const openRoutedDetail = (order: any) => {
     closingRouteRef.current = null;
+    openingEditRouteRef.current = null;
     if (onOrderRouteChange) {
       onOrderRouteChange(order.id, null);
       return;
@@ -363,6 +374,7 @@ export function TabOrders({
   const openRoutedNew = () => {
     if (!effectiveHasPermission("orders.create")) return;
     closingRouteRef.current = null;
+    openingEditRouteRef.current = null;
     if (onOrderRouteChange) {
       onOrderRouteChange("new", null);
       return;
@@ -373,6 +385,7 @@ export function TabOrders({
   const openRoutedEdit = async (order: any) => {
     if (!effectiveHasPermission("orders.edit")) return;
     closingRouteRef.current = null;
+    openingEditRouteRef.current = null;
     if (onOrderRouteChange) {
       onOrderRouteChange(order.id, "edit");
       return;
@@ -384,6 +397,7 @@ export function TabOrders({
   const closeRoutedPage = () => {
     const routedId = initialOrderId || detail?.id || null;
     if (routedId) closingRouteRef.current = routedId;
+    openingEditRouteRef.current = null;
 
     if (initialOrderId && onOrderRouteClose) {
       onOrderRouteClose();
@@ -401,6 +415,7 @@ export function TabOrders({
     const saved = await saveOS();
     if (saved) {
       if (initialOrderId) closingRouteRef.current = initialOrderId;
+      openingEditRouteRef.current = null;
       onOrderRouteChange?.(null, null);
     }
   };
@@ -421,13 +436,14 @@ export function TabOrders({
 
   const formatCurrency = formatOrderCurrency;
   const detailUsedItemsTotal = usedItemsTotal(detailUsedItems);
+  const editingRouteActive = routeSubpage === "edit" && Boolean(initialOrderId && initialOrderId !== "new");
 
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <OrdersListWorkspace
-        visible={!detail && !formOpen && !solveOpen}
+        visible={!editingRouteActive && !detail && !formOpen && !solveOpen}
         displayMode={displayMode}
         workspace={workspace}
         filters={filters}
@@ -445,7 +461,7 @@ export function TabOrders({
       />
 
       <OrderDetailsPage
-        visible={Boolean(detail && !solveOpen)}
+        visible={Boolean(detail && !solveOpen && !editingRouteActive)}
         userId={user?.id}
         profileName={profile?.full_name}
         workspace={workspace}
