@@ -33,8 +33,9 @@ function safeFilterValue(value: string) {
   return value.trim().replace(/[%(),]/g, "");
 }
 
-function looseIdentifierPattern(value: string) {
-  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+function looseIdentifierPattern(value: string, stripOsPrefix = false) {
+  let normalized = value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (stripOsPrefix) normalized = normalized.replace(/^os(?=\d)/, "");
   return normalized ? `%${normalized.split("").join("%")} %`.replace("% ", "%") : "%";
 }
 
@@ -75,7 +76,7 @@ export async function listServiceOrdersPage({
       .select("id")
       .eq("organization_id", organizationId)
       .or(`document.ilike.${pattern},cnpj.ilike.${pattern}`)
-      .limit(500);
+      .limit(5000);
     if (error) throw error;
     customerIds = (data ?? []).map(customer => customer.id);
     if (customerIds.length === 0) return { items: [], total: 0 };
@@ -87,7 +88,7 @@ export async function listServiceOrdersPage({
     .eq("organization_id", organizationId);
 
   if (osNumberSearch.trim()) {
-    const pattern = looseIdentifierPattern(osNumberSearch);
+    const pattern = looseIdentifierPattern(osNumberSearch, true);
     query = matchOrderNumberOrExternal
       ? query.or(`os_number.ilike.${pattern},external_os_number.ilike.${pattern}`)
       : query.ilike("os_number", pattern);
@@ -108,7 +109,9 @@ export async function listServiceOrdersPage({
   }
   if (cities.length) {
     const cityNames = [...new Set(cities.map(city => safeFilterValue(city.name)).filter(Boolean))];
-    if (cityNames.length) query = query.in("service_city", cityNames);
+    if (cityNames.length) {
+      query = query.or(cityNames.map(value => `service_city.ilike.${value}`).join(","));
+    }
   }
 
   if (dateFrom) query = query.gte("created_at", `${dateFrom}T00:00:00`);
@@ -118,7 +121,9 @@ export async function listServiceOrdersPage({
     query = query.lt("created_at", end.toISOString());
   }
 
-  query = query.order("created_at", { ascending: sort === "asc" });
+  if (sort) query = query.order("os_number", { ascending: sort === "asc" }).order("created_at", { ascending: false });
+  else query = query.order("created_at", { ascending: false });
+
   const { data, error, count } = await query.range(from, to);
   if (error) throw error;
   return { items: data ?? [], total: count ?? 0 };
