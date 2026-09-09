@@ -12,21 +12,25 @@ const normalizeStatus = (value?: string | null) => String(value || "")
 
 function dotPresentation(status?: string | null, color?: string | null) {
   const normalized = normalizeStatus(status);
+
   if (normalized === "aberta") return {
-    background: "radial-gradient(circle at 32% 28%, #ecfdf5 0%, #6ee7b7 24%, #10b981 54%, #047857 78%, #064e3b 100%)",
-    boxShadow: "inset 1px 1px 1.5px rgba(255,255,255,.9), inset -1px -1px 2px rgba(6,78,59,.45), 0 1px 3px rgba(5,150,105,.38)",
+    background: "linear-gradient(180deg, #22a861 0%, #16824c 100%)",
+    boxShadow: "inset 0 0 0 1px rgba(6,78,59,.18), 0 1px 2px rgba(6,78,59,.16)",
   };
+
   if (normalized === "fechada") return {
-    background: "radial-gradient(circle at 32% 28%, #eff6ff 0%, #93c5fd 24%, #3b82f6 54%, #1d4ed8 78%, #1e3a8a 100%)",
-    boxShadow: "inset 1px 1px 1.5px rgba(255,255,255,.9), inset -1px -1px 2px rgba(30,58,138,.45), 0 1px 3px rgba(37,99,235,.38)",
+    background: "linear-gradient(180deg, #3b82f6 0%, #2563c7 100%)",
+    boxShadow: "inset 0 0 0 1px rgba(30,58,138,.16), 0 1px 2px rgba(37,99,235,.15)",
   };
+
   if (normalized === "cancelada") return {
-    background: "radial-gradient(circle at 32% 28%, #fff1f2 0%, #fda4af 24%, #ef4444 54%, #b91c1c 78%, #7f1d1d 100%)",
-    boxShadow: "inset 1px 1px 1.5px rgba(255,255,255,.9), inset -1px -1px 2px rgba(127,29,29,.45), 0 1px 3px rgba(220,38,38,.38)",
+    background: "linear-gradient(180deg, #e05252 0%, #c93636 100%)",
+    boxShadow: "inset 0 0 0 1px rgba(127,29,29,.16), 0 1px 2px rgba(185,28,28,.14)",
   };
+
   return {
     background: color || "#94a3b8",
-    boxShadow: "inset 1px 1px 1.5px rgba(255,255,255,.75), inset -1px -1px 2px rgba(15,23,42,.25), 0 1px 3px rgba(15,23,42,.2)",
+    boxShadow: "inset 0 0 0 1px rgba(15,23,42,.10), 0 1px 2px rgba(15,23,42,.10)",
   };
 }
 
