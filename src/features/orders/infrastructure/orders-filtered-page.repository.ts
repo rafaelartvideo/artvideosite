@@ -47,7 +47,13 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
   const externalNeedle = normalizeIdentifier(externalOsSearch);
   const documentNeedle = normalizeDigits(documentSearch);
   const selectedStates = new Set([...states, ...stateNames].map(normalizeText).filter(Boolean));
-  const cityKeys = new Set(cities.map(city => `${normalizeText(city.state)}:${normalizeText(city.name)}`));
+  const cityFilters = cities.map(city => {
+    const stateIndex = states.findIndex(state => normalizeText(state) === normalizeText(city.state));
+    return {
+      name: normalizeText(city.name),
+      stateAliases: new Set([normalizeText(city.state), normalizeText(stateNames[stateIndex] || "")].filter(Boolean)),
+    };
+  });
   const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
   const toDate = dateTo ? new Date(`${dateTo}T00:00:00`) : null;
   if (toDate) toDate.setDate(toDate.getDate() + 1);
@@ -60,8 +66,9 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
     const customer = order.customer || {};
     const matchesDocument = !documentNeedle || [customer.document, customer.cnpj].some(value => normalizeDigits(value).includes(documentNeedle));
     const orderState = normalizeText(order.service_state);
+    const orderCity = normalizeText(order.service_city);
     const matchesState = selectedStates.size === 0 || selectedStates.has(orderState);
-    const matchesCity = cityKeys.size === 0 || cityKeys.has(`${orderState}:${normalizeText(order.service_city)}`);
+    const matchesCity = cityFilters.length === 0 || cityFilters.some(city => city.name === orderCity && city.stateAliases.has(orderState));
     const createdAt = order.created_at ? new Date(order.created_at) : null;
     const matchesPeriod = !fromDate && !toDate ? true : !!createdAt && (!fromDate || createdAt >= fromDate) && (!toDate || createdAt < toDate);
     return matchesNumber && matchesExternal && matchesDocument && (!statusId || order.status_id === statusId) && (!situationId || order.situation_id === situationId) && (!orderType || order.order_type === orderType) && (!serviceTypeId || order.service_type_id === serviceTypeId) && matchesState && matchesCity && matchesPeriod;
