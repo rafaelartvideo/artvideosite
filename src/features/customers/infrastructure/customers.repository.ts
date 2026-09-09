@@ -1,14 +1,91 @@
 import { supabase } from "@/lib/supabase";
 
-export async function listCustomers(organizationId: string) {
+export type CustomerListPageInput = {
+  organizationId: string;
+  page: number;
+  pageSize: number;
+  nameSearch?: string;
+  documentSearch?: string;
+  states?: string[];
+  cities?: string[];
+  sort?: "" | "asc" | "desc";
+};
+
+export type CustomerListPage = {
+  items: any[];
+  total: number;
+};
+
+function textPattern(value: string) {
+  const normalized = value.trim().replace(/[%(),]/g, " ").split(/\s+/).filter(Boolean).join("%");
+  return normalized ? `%${normalized}%` : "%";
+}
+
+function documentPattern(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits ? `%${digits.split("").join("%")} %`.replace("% ", "%") : "%";
+}
+
+export async function listCustomers({
+  organizationId,
+  page,
+  pageSize,
+  nameSearch = "",
+  documentSearch = "",
+  states = [],
+  cities = [],
+  sort = "",
+}: CustomerListPageInput): Promise<CustomerListPage> {
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.max(1, pageSize);
+  const from = (safePage - 1) * safePageSize;
+  const to = from + safePageSize - 1;
+  const hasAddressFilters = states.length > 0 || cities.length > 0;
+  const select = hasAddressFilters
+    ? "*, addresses:customer_addresses!inner(*)"
+    : "*, addresses:customer_addresses(*)";
+
+  let query = supabase
+    .from("customers")
+    .select(select, { count: "exact" })
+    .eq("organization_id", organizationId);
+
+  if (nameSearch.trim()) {
+    const pattern = textPattern(nameSearch);
+    query = query.or(`full_name.ilike.${pattern},trade_name.ilike.${pattern},legal_name.ilike.${pattern}`);
+  }
+
+  if (documentSearch.trim()) {
+    const pattern = documentPattern(documentSearch);
+    query = query.or(`document.ilike.${pattern},cnpj.ilike.${pattern}`);
+  }
+
+  if (states.length) query = query.in("addresses.state", states);
+  if (cities.length) {
+    const cityNames = [...new Set(cities.map(value => value.includes(":") ? value.slice(value.indexOf(":") + 1) : value).filter(Boolean))];
+    if (cityNames.length) query = query.in("addresses.city", cityNames);
+  }
+
+  if (sort) {
+    query = query.order("full_name", { ascending: sort === "asc" }).order("created_at", { ascending: false });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+
+  const { data, error, count } = await query.range(from, to);
+  if (error) throw error;
+  return { items: data ?? [], total: count ?? 0 };
+}
+
+export async function getCustomer(organizationId: string, customerId: string) {
   const { data, error } = await supabase
     .from("customers")
     .select("*, addresses:customer_addresses(*)")
     .eq("organization_id", organizationId)
-    .order("created_at", { ascending: false });
-
+    .eq("id", customerId)
+    .maybeSingle();
   if (error) throw error;
-  return data ?? [];
+  return data;
 }
 
 export async function listCustomerEquipments(organizationId: string, customerId: string) {
