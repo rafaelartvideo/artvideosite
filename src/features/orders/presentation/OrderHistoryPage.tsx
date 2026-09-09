@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import type { useOrderHistory } from "../application/useOrderHistory";
 
@@ -40,7 +41,7 @@ export function OrderHistoryPage({
             {(history.userFilter || history.dateFilter) && <button type="button" onClick={history.clearFilters} className="h-10 self-end rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50">Limpar</button>}
           </div>
         </AdminCard>
-        {history.loading ? <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando histórico...</p> : history.entries.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/15 p-8 text-center text-sm text-[#5a6a82]">Nenhum registro encontrado.</div> : <div className="space-y-3">{history.entries.map((item) => <AdminCard key={item.id} className={cn("min-w-0 p-4 shadow-none", item.type === "note" ? "border-[#0057e7]/15" : "bg-[#f8fafc]")}>
+        {history.loading ? <LoadingState text="Carregando histórico..." /> : history.entries.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/15 p-8 text-center text-sm text-[#5a6a82]">Nenhum registro encontrado.</div> : <div className="space-y-3">{history.entries.map((item) => <AdminCard key={item.id} className={cn("min-w-0 p-4 shadow-none", item.type === "note" ? "border-[#0057e7]/15" : "bg-[#f8fafc]")}>
           <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-2"><div className="min-w-0"><p className="truncate text-xs font-black text-[#0d1b2e]">{item.author}</p><p className="mt-0.5 break-words text-[10px] font-bold uppercase text-[#5a6a82]">{item.title}</p></div><span className="shrink-0 text-[10px] text-[#5a6a82]">{formatDate(item.createdAt, true)}</span></div>
           <p className="mt-3 break-words whitespace-pre-line text-sm leading-relaxed text-[#0d1b2e]">{item.content}</p>
         </AdminCard>)}</div>}
