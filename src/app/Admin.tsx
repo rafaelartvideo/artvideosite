@@ -166,7 +166,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
             {!canAccessTab(activeTab) ? (
               fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />
             ) : (
-              <Routes>
+              <Routes key={activeTab}>
                 <Route index element={<TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
                 <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("dashboard")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
                 <Route path="site" element={siteHub} />
