@@ -98,6 +98,9 @@ export function useOrderEditorWorkflow({
       });
       customers.hydrateCustomer(order.customer || null);
       return true;
+    } catch (error) {
+      showToast({ msg: `Não foi possível abrir a edição da OS: ${formatError(error)}`, type: "error" });
+      return false;
     } finally {
       endLoading();
     }
