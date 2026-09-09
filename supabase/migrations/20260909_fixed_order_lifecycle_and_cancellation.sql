@@ -158,29 +158,73 @@ set status_id = case
 end
 where so.organization_id is not null;
 
-update public.service_order_status_history history
-set status_id = case
-  when lower(old_status.name) like '%cancel%' then (
-    select id from public.order_statuses
-    where organization_id = so.organization_id and name = 'Cancelada'
-    order by sort_order, id limit 1
-  )
-  when lower(old_status.name) ~ '(fech|conclu|finaliz|encerr)' then (
-    select id from public.order_statuses
-    where organization_id = so.organization_id and name = 'Fechada'
-    order by sort_order, id limit 1
-  )
-  else (
-    select id from public.order_statuses
-    where organization_id = so.organization_id and name = 'Aberta'
-    order by sort_order, id limit 1
-  )
+-- O histórico usa from_status_id/to_status_id no schema atual. Atualizamos ambos
+-- de forma defensiva para manter compatibilidade com bancos em versões diferentes.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'service_order_status_history'
+      and column_name = 'to_status_id'
+  ) then
+    update public.service_order_status_history history
+    set to_status_id = case
+      when lower(old_status.name) like '%cancel%' then (
+        select id from public.order_statuses
+        where organization_id = so.organization_id and name = 'Cancelada'
+        order by sort_order, id limit 1
+      )
+      when lower(old_status.name) ~ '(fech|conclu|finaliz|encerr)' then (
+        select id from public.order_statuses
+        where organization_id = so.organization_id and name = 'Fechada'
+        order by sort_order, id limit 1
+      )
+      else (
+        select id from public.order_statuses
+        where organization_id = so.organization_id and name = 'Aberta'
+        order by sort_order, id limit 1
+      )
+    end
+    from public.order_statuses old_status,
+         public.service_orders so
+    where history.to_status_id = old_status.id
+      and history.service_order_id = so.id
+      and so.organization_id is not null;
+  end if;
+
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'service_order_status_history'
+      and column_name = 'from_status_id'
+  ) then
+    update public.service_order_status_history history
+    set from_status_id = case
+      when lower(old_status.name) like '%cancel%' then (
+        select id from public.order_statuses
+        where organization_id = so.organization_id and name = 'Cancelada'
+        order by sort_order, id limit 1
+      )
+      when lower(old_status.name) ~ '(fech|conclu|finaliz|encerr)' then (
+        select id from public.order_statuses
+        where organization_id = so.organization_id and name = 'Fechada'
+        order by sort_order, id limit 1
+      )
+      else (
+        select id from public.order_statuses
+        where organization_id = so.organization_id and name = 'Aberta'
+        order by sort_order, id limit 1
+      )
+    end
+    from public.order_statuses old_status,
+         public.service_orders so
+    where history.from_status_id = old_status.id
+      and history.service_order_id = so.id
+      and so.organization_id is not null;
+  end if;
 end
-from public.order_statuses old_status,
-     public.service_orders so
-where history.status_id = old_status.id
-  and history.service_order_id = so.id
-  and so.organization_id is not null;
+$$;
 
 delete from public.order_statuses st
 where st.name not in ('Aberta', 'Fechada', 'Cancelada')
