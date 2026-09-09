@@ -158,6 +158,7 @@ set status_id = case
     where organization_id = so.organization_id and name = 'Aberta'
     order by sort_order, id limit 1
   )
+end
 where so.organization_id is not null;
 
 update public.service_order_status_history history
@@ -177,6 +178,7 @@ set status_id = case
     where organization_id = so.organization_id and name = 'Aberta'
     order by sort_order, id limit 1
   )
+end
 from public.order_statuses old_status,
      public.service_orders so
 where history.status_id = old_status.id
