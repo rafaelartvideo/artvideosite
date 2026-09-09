@@ -15,14 +15,14 @@ const MODULE_LABELS: Record<string, string> = {
   customers: "Clientes", agenda: "Agenda", inventory: "Estoque", products: "Produtos", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
-  situations: "Situações da OS", order_statuses: "Status da OS", employees: "Usuários", roles: "Funções e Permissões", documents: "Documentos",
+  situations: "Situações da OS", employees: "Usuários", roles: "Funções e Permissões", documents: "Documentos",
 };
 
-const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Clientes", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Status da OS", "Usuários", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
+const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Clientes", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Usuários", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
 const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
-const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.update", "orders.delete", "orders.view_all", "orders.status", "orders.status.change", "orders.situation.change", "orders.solve", "orders.complete"]);
+const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.update", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
 const ACTION_SUFFIXES = [".create", ".edit", ".update", ".delete", ".toggle_active", ".toggle_featured", ".status.change", ".refresh", ".convert_to_order", ".lookup_cnpj"];
 
 export function permissionModuleName(permission: PermissionRecord) {
@@ -67,7 +67,9 @@ export function permissionSectionName(permission: PermissionRecord) {
 
 export function buildPermissionGroups(permissions: PermissionRecord[]) {
   const modules = new Map<string, PermissionRecord[]>();
-  permissions.forEach(permission => { const moduleName = permissionModuleName(permission); modules.set(moduleName, [...(modules.get(moduleName) || []), permission]); });
+  permissions
+    .filter(permission => !String(permission.key || "").startsWith("order_statuses.") && permission.key !== "orders.status.change")
+    .forEach(permission => { const moduleName = permissionModuleName(permission); modules.set(moduleName, [...(modules.get(moduleName) || []), permission]); });
   return Array.from(modules.entries()).map(([name, modulePermissions]): PermissionModuleGroup => {
     const sections = new Map<string, PermissionRecord[]>();
     modulePermissions.forEach(permission => { const sectionName = permissionSectionName(permission); sections.set(sectionName, [...(sections.get(sectionName) || []), permission]); });
@@ -77,7 +79,7 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "orders.view_all": ["orders.view"], "orders.table.view": ["orders.view"], "orders.kanban.view": ["orders.view"], "orders.details.view": ["orders.view"],
-  "orders.status.change": ["orders.edit", "orders.view"], "orders.situation.change": ["orders.edit", "orders.view"],
+  "orders.situation.change": ["orders.edit", "orders.view"], "orders.cancel": ["orders.edit", "orders.view"],
   "orders.request_parts": ["orders.section.parts", "orders.view"], "orders.manage_part_requests": ["orders.section.parts", "orders.view_all", "orders.view"],
   "orders.dispatch_parts": ["orders.section.parts", "orders.view"], "orders.confirm_part_delivery": ["orders.section.parts", "orders.view"],
   "orders.register_part_return": ["orders.section.parts", "orders.view"], "orders.receive_returned_parts": ["orders.section.parts", "orders.view"],
@@ -90,7 +92,6 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "quotes.status.change": ["quotes.edit", "quotes.view"], "quotes.convert_to_order": ["quotes.view", "orders.create"],
   "agenda.create": ["agenda.view"], "agenda.reschedule": ["agenda.view"], "agenda.view_others": ["agenda.view"],
   "situations.table.view": ["situations.view"], "situations.create": ["situations.view"], "situations.edit": ["situations.view"], "situations.delete": ["situations.view"],
-  "order_statuses.table.view": ["order_statuses.view"], "order_statuses.create": ["order_statuses.view"], "order_statuses.edit": ["order_statuses.view"], "order_statuses.delete": ["order_statuses.view"],
   "site_settings.update": ["site_settings.view"],
   "services.info.manage": ["services.update", "services.details.view", "services.view"], "services.price.manage": ["services.update", "services.details.view", "services.view"],
   "services.media.manage": ["services.update", "services.details.view", "services.view"], "services.variants.manage": ["services.update", "services.details.view", "services.view"],
@@ -107,8 +108,6 @@ export function permissionDependencies(key: string) {
   const module = key.split(".")[0];
   const isModuleView = key === `${module}.view`;
 
-  // Colunas não reativam a tabela. Assim é possível manter a configuração das
-  // colunas e desligar apenas a visualização da tabela inteira.
   const isTableColumn = key.includes(".table.") && key !== `${module}.table.view`;
   if (key.includes(".details.") && key !== `${module}.details.view`) dependencies.add(`${module}.details.view`);
   if (!isModuleView && !isTableColumn && (key.endsWith(".create") || key.endsWith(".delete") || key.endsWith(".toggle_active") || key.endsWith(".toggle_featured") || key.endsWith(".refresh"))) { dependencies.add(`${module}.view`); dependencies.add(`${module}.table.view`); }
