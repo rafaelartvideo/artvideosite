@@ -33,77 +33,23 @@ type Props = {
 
 export function OrdersListWorkspace(props: Props) {
   const {
-    visible,
-    displayMode,
-    workspace,
-    filters,
-    mutations,
-    serviceAddress,
-    canCreate,
-    hasPermission,
-    onDisplayModeChange: setViewMode,
-    onCreate: openNew,
-    onOpenDetail: openDetail,
-    onOpenEdit: openEdit,
-    getSituations: getSituationsForType,
-    formatDate: fmtDate,
-    equipmentSummary,
-    compactSharedView = false,
+    visible, displayMode, workspace, filters, mutations, serviceAddress, canCreate, hasPermission,
+    onDisplayModeChange: setViewMode, onCreate: openNew, onOpenDetail: openDetail, onOpenEdit: openEdit,
+    getSituations: getSituationsForType, formatDate: fmtDate, equipmentSummary, compactSharedView = false,
   } = props;
 
   const { statuses, situations, serviceTypes, isOrganizationOverride } = workspace;
   const {
-    osNumberSearch,
-    setOsNumberSearch,
-    externalOsSearch,
-    documentSearch,
-    setDocumentSearch,
-    serialNumberSearch,
-    setSerialNumberSearch,
-    filterStatus,
-    setFilterStatus,
-    filterSituation,
-    setFilterSituation,
-    filterOrderType,
-    setFilterOrderType,
-    selectedServiceTypeId,
-    setSelectedServiceTypeId,
-    orderSort,
-    setOrderSort,
-    selectedStates,
-    setSelectedStates,
-    selectedCities,
-    setSelectedCities,
-    cityFilterOptions,
-    cityFiltersLoading,
-    dateFrom,
-    setDateFrom,
-    dateTo,
-    setDateTo,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    invalidPeriod,
-    filteredOrders,
-    pagedOrders,
-    totalItems,
-    totalPages,
-    safePage,
-    clearFilters,
-    loading: listLoading,
+    osNumberSearch, setOsNumberSearch, externalOsSearch, documentSearch, setDocumentSearch, serialNumberSearch, setSerialNumberSearch,
+    filterStatus, setFilterStatus, filterSituation, setFilterSituation, filterOrderType, setFilterOrderType,
+    selectedServiceTypeId, setSelectedServiceTypeId, orderSort, setOrderSort, selectedStates, setSelectedStates,
+    selectedCities, setSelectedCities, cityFilterOptions, cityFiltersLoading, dateFrom, setDateFrom, dateTo, setDateTo,
+    page, setPage, pageSize, setPageSize, invalidPeriod, filteredOrders, pagedOrders, totalItems, totalPages, safePage,
+    clearFilters, loading: listLoading,
   } = filters;
   const {
-    draggingId,
-    dragOverStatusId,
-    setDragOverStatusId,
-    updateOrderStatus,
-    updateOrderSituation,
-    handleKanbanDrop,
-    handleCardDragStart,
-    handleCardDragEnd,
-    shouldSuppressCardOpen,
-    handleDragLeave,
+    draggingId, dragOverStatusId, cancellingId, setDragOverStatusId, cancelOrder, updateOrderSituation,
+    handleKanbanDrop, handleCardDragStart, handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave,
   } = mutations;
   const { ibgeStates, ibgeStatesLoading } = serviceAddress;
   const sharedView = compactSharedView || isOrganizationOverride;
@@ -113,14 +59,7 @@ export function OrdersListWorkspace(props: Props) {
   if (!visible) return null;
 
   return <>
-    <OrdersHeader
-      total={totalItems}
-      displayMode={resolvedDisplayMode}
-      canCreate={canCreate}
-      onDisplayModeChange={setViewMode}
-      onCreate={openNew}
-      showViewToggle={!sharedView}
-    />
+    <OrdersHeader total={totalItems} displayMode={resolvedDisplayMode} canCreate={canCreate} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
 
     {sharedView ? <PartnerOrdersFilters
       numberSearch={osNumberSearch}
@@ -129,12 +68,7 @@ export function OrdersListWorkspace(props: Props) {
       onNumberSearchChange={(value) => { setOsNumberSearch(value); setPage(1); }}
       onDocumentSearchChange={(value) => { setDocumentSearch(value); setPage(1); }}
       onOrderSortChange={(value) => { setOrderSort(value); setPage(1); }}
-      onClear={() => {
-        setOsNumberSearch("");
-        setDocumentSearch("");
-        setOrderSort("");
-        setPage(1);
-      }}
+      onClear={() => { setOsNumberSearch(""); setDocumentSearch(""); setOrderSort(""); setPage(1); }}
     /> : <OrdersFilters
       osNumberSearch={osNumberSearch}
       documentSearch={documentSearch}
@@ -168,9 +102,7 @@ export function OrdersListWorkspace(props: Props) {
       onStatesClear={() => setSelectedStates([])}
       onCitySelect={(value) => {
         const option = cityFilterOptions.find(city => `${city.state}:${city.name}` === value);
-        if (option && !selectedCities.some(city => city.name === option.name && city.state === option.state)) {
-          setSelectedCities(current => [...current, option]);
-        }
+        if (option && !selectedCities.some(city => city.name === option.name && city.state === option.state)) setSelectedCities(current => [...current, option]);
       }}
       onCityRemove={(value) => setSelectedCities(current => current.filter(city => `${city.state}:${city.name}` !== value))}
       onDateFromChange={setDateFrom}
@@ -184,16 +116,16 @@ export function OrdersListWorkspace(props: Props) {
       filteredOrders={filteredOrders}
       pagedOrders={pagedOrders}
       totalItems={totalItems}
-      statuses={statuses}
       hasActiveFilters={sharedView
         ? Boolean(osNumberSearch || documentSearch || orderSort)
         : Boolean(osNumberSearch || externalOsSearch || documentSearch || serialNumberSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo)}
       hasPermission={hasPermission}
       onOpen={openDetail}
-      onStatusChange={updateOrderStatus}
       onSituationChange={updateOrderSituation}
       getSituations={getSituationsForType}
       onEdit={(order) => { void openEdit(order); }}
+      onCancel={cancelOrder}
+      cancellingId={cancellingId}
       formatDate={fmtDate}
       equipmentSummary={equipmentSummary}
       page={safePage}
@@ -214,20 +146,12 @@ export function OrdersListWorkspace(props: Props) {
         onDrop={(statusId) => { void handleKanbanDrop(statusId); }}
         onCardDragStart={handleCardDragStart}
         onCardDragEnd={handleCardDragEnd}
-        onOpen={(order) => {
-          if (!shouldSuppressCardOpen()) openDetail(order);
-        }}
+        onOpen={(order) => { if (!shouldSuppressCardOpen()) openDetail(order); }}
         onSituationChange={(order, situationId) => { void updateOrderSituation(order, situationId); }}
         onEdit={(order) => { void openEdit(order); }}
         formatDate={fmtDate}
       />
-      <PaginationBar
-        page={safePage}
-        pageSize={pageSize}
-        totalItems={totalItems}
-        onPageChange={setPage}
-        onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
-      />
+      <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
     </>}
   </>;
 }
