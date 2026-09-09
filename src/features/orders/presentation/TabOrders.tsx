@@ -309,6 +309,7 @@ export function TabOrders({
       return () => { cancelled = true; };
     }
     if (routeSubpage === "edit" && formOpen && editingOS?.id === initialOrderId) {
+      if (detail?.id === initialOrderId) closeDetail();
       return () => { cancelled = true; };
     }
 
