@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 const ORDER_LIST_SELECT = "*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,max_discount_percentage), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)";
-const FILTER_SELECT = "id,os_number,external_os_number,serial_number,status_id,situation_id,order_type,service_type_id,service_state,service_city,created_at,customer:customers(id,document,cnpj)";
+const FILTER_SELECT = "id,os_number,external_os_number,serial_number,status_id,situation_id,order_type,service_type_id,service_state,service_city,created_at,order_status:order_statuses(id,name),customer:customers(id,document,cnpj)";
 
 export type FilterCity = { name: string; state: string };
 export type ExactOrderPageInput = {
@@ -29,6 +29,14 @@ export type ExactOrderPage = { items: any[]; total: number };
 const normalizeIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const normalizeText = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
+
+const orderStatusPriority = (order: any) => {
+  const statusName = normalizeText(order.order_status?.name);
+  if (statusName === "aberta") return 0;
+  if (statusName === "fechada") return 1;
+  if (statusName === "cancelada") return 2;
+  return 3;
+};
 
 export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Promise<ExactOrderPage> {
   const {
@@ -84,7 +92,11 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
     if (numberComparison !== 0) return sort === "asc" ? numberComparison : -numberComparison;
     const dateComparison = String(left.created_at ?? "").localeCompare(String(right.created_at ?? ""));
     return sort === "asc" ? dateComparison : -dateComparison;
-  }) : [...filtered].sort((left: any, right: any) => String(right.created_at ?? "").localeCompare(String(left.created_at ?? "")));
+  }) : [...filtered].sort((left: any, right: any) => {
+    const statusComparison = orderStatusPriority(left) - orderStatusPriority(right);
+    if (statusComparison !== 0) return statusComparison;
+    return String(right.created_at ?? "").localeCompare(String(left.created_at ?? ""));
+  });
 
   const safeSize = Math.max(1, pageSize);
   const start = (Math.max(1, page) - 1) * safeSize;
