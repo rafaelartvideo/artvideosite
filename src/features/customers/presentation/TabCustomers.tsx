@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { useCustomersController } from "../application/useCustomersController";
+import { getCustomer } from "../infrastructure/customers.repository";
 import { CreateCustomerPage } from "./CreateCustomerPage";
 import { CustomerDetailsPage } from "./CustomerDetailsPage";
 import { CustomersList } from "./CustomersList";
@@ -49,13 +50,34 @@ export function TabCustomers({
   });
 
   useEffect(() => {
-    if (!routeResourceId) { if (creation.open) creation.closePage(); if (details.detail) details.close(); return; }
-    if (routeResourceId === "new") { if (canCreate && !creation.open) creation.openPage(); if (details.detail) details.close(); return; }
-    if (!canViewDetails) return;
-    const customer = list.customers.find((item: any) => item.id === routeResourceId);
-    if (!customer || details.detail?.id === customer.id) { if (details.detail && routeSubpage === "edit" && canEdit && !details.editingData) details.setEditingData(true); return; }
-    void details.open(customer).then(() => { if (routeSubpage === "edit" && canEdit) details.setEditingData(true); });
-  }, [routeResourceId, routeSubpage, list.customers, details.detail?.id, canCreate, canViewDetails, canEdit, organizationId]);
+    let cancelled = false;
+    if (!routeResourceId) {
+      if (creation.open) creation.closePage();
+      if (details.detail) details.close();
+      return () => { cancelled = true; };
+    }
+    if (routeResourceId === "new") {
+      if (canCreate && !creation.open) creation.openPage();
+      if (details.detail) details.close();
+      return () => { cancelled = true; };
+    }
+    if (!canViewDetails || !organizationId) return () => { cancelled = true; };
+    if (details.detail?.id === routeResourceId) {
+      if (routeSubpage === "edit" && canEdit && !details.editingData) details.setEditingData(true);
+      return () => { cancelled = true; };
+    }
+
+    void getCustomer(organizationId, routeResourceId).then(customer => {
+      if (cancelled || !customer) return;
+      void details.open(customer).then(() => {
+        if (!cancelled && routeSubpage === "edit" && canEdit) details.setEditingData(true);
+      });
+    }).catch(error => {
+      if (!cancelled) setToast({ msg: `Erro ao carregar cliente: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+    });
+
+    return () => { cancelled = true; };
+  }, [routeResourceId, routeSubpage, details.detail?.id, canCreate, canViewDetails, canEdit, organizationId]);
 
   const closeRoute = () => onRouteChange?.(null, null);
   const openCustomerDetail = (customer: any) => {
@@ -71,6 +93,7 @@ export function TabCustomers({
       customers={list.customers}
       filtered={list.filtered}
       pagedCustomers={list.pagedCustomers}
+      totalItems={list.totalItems}
       loading={list.loading}
       nameSearch={list.nameSearch}
       documentSearch={list.documentSearch}
@@ -89,6 +112,7 @@ export function TabCustomers({
       customers={list.customers}
       filtered={list.filtered}
       pagedCustomers={list.pagedCustomers}
+      totalItems={list.totalItems}
       loading={list.loading}
       nameSearch={list.nameSearch}
       documentSearch={list.documentSearch}
