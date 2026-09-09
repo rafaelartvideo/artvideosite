@@ -163,8 +163,8 @@ export function OrderEquipmentSection({
             onChange={(e: any) => upF("serial_number", e.target.value)}
             placeholder="Digite o número de série do equipamento"
           /></div>
-          {!editingOS && <AdminButton variant="secondary" onClick={() => scannerInput.current?.click()} aria-label="Escanear número de série" title="Escanear número de série" className="h-[42px] w-[42px] shrink-0 p-0 sm:w-auto sm:px-3">
-            <ScanLine size={20} /><span className="hidden sm:inline">Escanear</span>
+          {!editingOS && <AdminButton variant="secondary" onClick={() => scannerInput.current?.click()} aria-label="Escanear número de série" title="Escanear número de série" className="h-[42px] w-[42px] shrink-0 p-0 md:hidden">
+            <ScanLine size={22} className="!h-[22px] !w-[22px] shrink-0" />
           </AdminButton>}
           <input ref={scannerInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void readSerialCode(file); }} />
           <AdminDialog open={scanOpen} onClose={closeScanner} title="Escanear número de série" description="Confira se o código corresponde à série, e não ao modelo ou a um endereço da etiqueta.">
@@ -226,7 +226,7 @@ export function OrderEquipmentSection({
               <div className="rounded-xl border border-[#0d1b2e]/10 bg-white p-3">
                 <div className="mb-3">
                   <p className="text-sm font-black text-[#0d1b2e]">Outras fotos</p>
-                  <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">Registre o estado geral, detalhes, avarias e outros pontos importantes do equipamento.</p>
+                  <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">Registre o estado geral, detalhes, avarias e outros pontos importantes.</p>
                 </div>
                 <OrderImagesField
                   embedded
