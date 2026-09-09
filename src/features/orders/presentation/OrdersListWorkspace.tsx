@@ -59,6 +59,8 @@ export function OrdersListWorkspace(props: Props) {
     setExternalOsSearch,
     documentSearch,
     setDocumentSearch,
+    serialNumberSearch,
+    setSerialNumberSearch,
     filterStatus,
     setFilterStatus,
     filterSituation,
@@ -138,6 +140,7 @@ export function OrdersListWorkspace(props: Props) {
       osNumberSearch={osNumberSearch}
       externalOsSearch={externalOsSearch}
       documentSearch={documentSearch}
+      serialNumberSearch={serialNumberSearch}
       statusId={filterStatus}
       situationId={filterSituation}
       orderType={filterOrderType}
@@ -158,6 +161,7 @@ export function OrdersListWorkspace(props: Props) {
       onOsNumberSearchChange={(value) => { setOsNumberSearch(value); setPage(1); }}
       onExternalOsSearchChange={(value) => { setExternalOsSearch(value); setPage(1); }}
       onDocumentSearchChange={(value) => { setDocumentSearch(value); setPage(1); }}
+      onSerialNumberSearchChange={(value) => { setSerialNumberSearch(value); setPage(1); }}
       onStatusChange={(value) => { setFilterStatus(value); setPage(1); }}
       onSituationChange={(value) => { setFilterSituation(value); setPage(1); }}
       onOrderTypeChange={(value) => { setFilterOrderType(value as OrderType | ""); setPage(1); }}
@@ -186,7 +190,7 @@ export function OrdersListWorkspace(props: Props) {
       statuses={statuses}
       hasActiveFilters={sharedView
         ? Boolean(osNumberSearch || documentSearch || orderSort)
-        : Boolean(osNumberSearch || externalOsSearch || documentSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo)}
+        : Boolean(osNumberSearch || externalOsSearch || documentSearch || serialNumberSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo)}
       hasPermission={hasPermission}
       onOpen={openDetail}
       onStatusChange={updateOrderStatus}
