@@ -26,6 +26,7 @@ type MobileFilterKey =
   | "osNumber"
   | "externalOs"
   | "document"
+  | "serialNumber"
   | "status"
   | "situation"
   | "orderType"
@@ -38,6 +39,7 @@ const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
   { value: "osNumber", label: "Número da OS" },
   { value: "externalOs", label: "OS externa" },
   { value: "document", label: "CPF ou CNPJ" },
+  { value: "serialNumber", label: "Número de série" },
   { value: "status", label: "Status" },
   { value: "situation", label: "Situação" },
   { value: "orderType", label: "Tipo da OS" },
@@ -51,6 +53,7 @@ export function OrdersFilters({
   osNumberSearch,
   externalOsSearch,
   documentSearch,
+  serialNumberSearch,
   statusId,
   situationId,
   orderType,
@@ -71,6 +74,7 @@ export function OrdersFilters({
   onOsNumberSearchChange,
   onExternalOsSearchChange,
   onDocumentSearchChange,
+  onSerialNumberSearchChange,
   onStatusChange,
   onSituationChange,
   onOrderTypeChange,
@@ -88,6 +92,7 @@ export function OrdersFilters({
   osNumberSearch: string;
   externalOsSearch: string;
   documentSearch: string;
+  serialNumberSearch: string;
   statusId: string;
   situationId: string;
   orderType: string;
@@ -108,6 +113,7 @@ export function OrdersFilters({
   onOsNumberSearchChange: (value: string) => void;
   onExternalOsSearchChange: (value: string) => void;
   onDocumentSearchChange: (value: string) => void;
+  onSerialNumberSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onSituationChange: (value: string) => void;
   onOrderTypeChange: (value: string) => void;
@@ -139,6 +145,7 @@ export function OrdersFilters({
     osNumberSearch ||
     externalOsSearch ||
     documentSearch ||
+    serialNumberSearch ||
     filterStatus ||
     filterSituation ||
     filterOrderType ||
@@ -187,6 +194,7 @@ export function OrdersFilters({
       case "osNumber": return <MobileSearchField value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS" ariaLabel="Buscar por número da OS" />;
       case "externalOs": return <MobileSearchField value={externalOsSearch} onChange={onExternalOsSearchChange} placeholder="Digite a OS externa" ariaLabel="Buscar por OS externa" />;
       case "document": return <MobileSearchField value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
+      case "serialNumber": return <MobileSearchField value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" ariaLabel="Buscar por número de série" />;
       case "status": return <AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />;
       case "situation": return <AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por situação" />;
       case "orderType": return <AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo da OS" />;
@@ -240,6 +248,7 @@ export function OrdersFilters({
             <SearchField label="Número da OS" value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS" />
             <SearchField label="OS externa" value={externalOsSearch} onChange={onExternalOsSearchChange} placeholder="Digite a OS externa" />
             <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
+            <SearchField label="Número de série" value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" />
             <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="text-xs" ariaLabel="Filtrar por status" /></div>
             <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Situação</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="text-xs" ariaLabel="Filtrar por situação" /></div>
             <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo</label><AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="text-xs" ariaLabel="Filtrar por tipo da OS" /></div>
