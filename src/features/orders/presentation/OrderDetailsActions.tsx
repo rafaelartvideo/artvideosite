@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import type React from "react";
-import { CheckCircle, Edit2, PackagePlus, X } from "lucide-react";
+import { Ban, CheckCircle, Edit2, PackagePlus, X } from "lucide-react";
 import { AdminButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { OrderCancelDialog } from "./OrderCancelDialog";
 
-export function OrderDetailsActions({ detail, statuses, situations, hasPermission, onClose, onStatusChange, onSituationChange, onRequestParts, onResolve, onComplete, onEdit }: {
-  detail: any; statuses: any[]; situations: any[]; hasPermission: (permission: string) => boolean; onClose: () => void;
-  onStatusChange: (statusId: string) => void; onSituationChange: (situationId: string) => void; onRequestParts: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  onResolve: () => void; onComplete: () => void; onEdit: () => void;
+export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onEdit, onCancel, cancelling }: {
+  detail: any; situations: any[]; hasPermission: (permission: string) => boolean; onClose: () => void;
+  onSituationChange: (situationId: string) => void; onRequestParts: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onResolve: () => void; onComplete: () => void; onEdit: () => void; onCancel: (reason: string) => Promise<boolean>; cancelling: boolean;
 }) {
   const [browserBottomInset, setBrowserBottomInset] = useState(0);
+  const [cancelOpen, setCancelOpen] = useState(false);
   useEffect(() => {
     const viewport = window.visualViewport; if (!viewport) return;
     const updateBottomInset = () => { const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop); setBrowserBottomInset(Math.min(110, Math.round(inset))); };
@@ -17,13 +19,14 @@ export function OrderDetailsActions({ detail, statuses, situations, hasPermissio
     return () => { viewport.removeEventListener("resize", updateBottomInset); viewport.removeEventListener("scroll", updateBottomInset); window.removeEventListener("resize", updateBottomInset); };
   }, []);
 
-  const canChangeStatus = hasPermission("orders.status.change");
-  const canChangeSituation = hasPermission("orders.situation.change");
+  const cancelled = Boolean(detail.cancelled_at) || String(detail.order_status?.name || "").toLowerCase() === "cancelada";
+  const canChangeSituation = hasPermission("orders.situation.change") && !cancelled;
   const canEdit = hasPermission("orders.edit");
-  const canRequestParts = hasPermission("orders.request_parts") && detail.is_solved !== true;
-  const canResolve = hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved;
-  const canComplete = hasPermission("orders.complete") && detail.is_solved && !detail.completed_at;
-  const canEditOrder = canEdit && !detail.is_solved;
+  const canRequestParts = hasPermission("orders.request_parts") && detail.is_solved !== true && !cancelled;
+  const canResolve = hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
+  const canComplete = hasPermission("orders.complete") && detail.is_solved && !detail.completed_at && !cancelled;
+  const canEditOrder = canEdit && !detail.is_solved && !cancelled;
+  const canCancel = hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
 
   return <>
     <div aria-hidden="true" className="h-[9.5rem] md:hidden" />
@@ -32,16 +35,23 @@ export function OrderDetailsActions({ detail, statuses, situations, hasPermissio
         <div className="flex min-w-0 items-center gap-2 md:flex-wrap">
           <button type="button" onClick={onClose} aria-label="Fechar detalhes da OS" title="Fechar" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] transition-colors hover:bg-[#f5f7fa] hover:text-[#0d1b2e] md:hidden"><X size={17} /></button>
           <div className="hidden md:block"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>
-          {canChangeStatus && <div className="min-w-0 flex-1 md:min-w-40 md:flex-none"><AdminSelect value={detail.status_id || ""} onValueChange={onStatusChange} options={[{ value: "", label: "Status: selecionar" }, ...statuses.map(status => ({ value: status.id, label: `Status: ${status.name}` }))]} className="min-h-10 w-full min-w-0 py-1.5 text-xs font-bold" ariaLabel="Alterar status da OS" /></div>}
           {canChangeSituation && <div className="min-w-0 flex-1 md:min-w-40 md:flex-none"><AdminSelect value={detail.situation_id || ""} onValueChange={onSituationChange} options={[{ value: "", label: "Situação: selecionar" }, ...situations.map(situation => ({ value: situation.id, label: `Situação: ${situation.name}` }))]} className="min-h-10 w-full min-w-0 py-1.5 text-xs font-bold" ariaLabel="Alterar situação da OS" /></div>}
         </div>
-        {(canRequestParts || canResolve || canComplete || canEditOrder) && <div className="grid min-w-0 auto-cols-fr grid-flow-col gap-2 md:flex md:flex-wrap md:justify-end">
+        {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel) && <div className="grid min-w-0 auto-cols-fr grid-flow-col gap-2 md:flex md:flex-wrap md:justify-end">
           {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 min-w-0 px-2 md:px-4"><PackagePlus size={15} /><span className="hidden md:inline">Pedir peças</span></AdminButton>}
           {canResolve && <BtnPrimary onClick={onResolve} className="h-10 min-w-0 px-2.5 md:px-4"><CheckCircle size={15} /><span className="md:hidden">Resolver</span><span className="hidden md:inline">Resolver OS</span></BtnPrimary>}
           {canComplete && <BtnPrimary onClick={onComplete} className="h-10 min-w-0 px-2.5 md:px-4"><CheckCircle size={15} /><span className="md:hidden">Concluir</span><span className="hidden md:inline">Concluir OS</span></BtnPrimary>}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-10 min-w-0 px-2 md:px-4" aria-label="Editar OS" title="Editar"><Edit2 size={15} /><span className="hidden md:inline">Editar</span></BtnPrimary>}
+          {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-10 min-w-0 border-red-200 px-2 text-red-600 hover:bg-red-50 md:px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban size={15} /><span className="hidden md:inline">Cancelar</span></AdminButton>}
         </div>}
       </div>
     </div>
+    <OrderCancelDialog
+      order={detail}
+      open={cancelOpen}
+      loading={cancelling}
+      onClose={() => setCancelOpen(false)}
+      onConfirm={async reason => { if (await onCancel(reason)) setCancelOpen(false); }}
+    />
   </>;
 }
