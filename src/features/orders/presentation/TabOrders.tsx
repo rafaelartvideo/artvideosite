@@ -100,6 +100,8 @@ export function TabOrders({
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
   const [saving, setSaving] = useState(false);
+  const editOriginRef = useRef<"details" | "list">("details");
+  const cancellingEditRef = useRef(false);
   const closingRouteRef = useRef<string | null>(null);
   const openingEditRouteRef = useRef<string | null>(null);
 
@@ -134,7 +136,7 @@ export function TabOrders({
   const filters = useOrderFilters({
     organizationId: workspaceBase.organizationId,
     stateOptions: ibgeStates,
-    matchOrderNumberOrExternal: scopedReadOnly,
+    matchOrderNumberOrExternal: true,
   });
   const {
     orders,
@@ -277,6 +279,11 @@ export function TabOrders({
   useEffect(() => {
     let cancelled = false;
 
+    if (cancellingEditRef.current) {
+      if (routeSubpage === "edit") return;
+      cancellingEditRef.current = false;
+    }
+
     if (closingRouteRef.current) {
       if (initialOrderId === closingRouteRef.current) {
         return () => { cancelled = true; };
@@ -390,6 +397,7 @@ export function TabOrders({
 
   const openRoutedEdit = async (order: any) => {
     if (!effectiveHasPermission("orders.edit")) return;
+    editOriginRef.current = detail?.id === order.id ? "details" : "list";
     closingRouteRef.current = null;
 
     if (onOrderRouteChange) {
@@ -424,6 +432,27 @@ export function TabOrders({
     closeOrderForm();
     setDocumentsPageOpen(false);
     orderHistory.closePage();
+  };
+
+  const cancelOrderEditor = () => {
+    if (!editingOS) {
+      closeRoutedPage();
+      return;
+    }
+    const order = editingOS;
+    openingEditRouteRef.current = null;
+    closeOrderForm();
+    if (editOriginRef.current === "list") {
+      closeRoutedPage();
+      return;
+    }
+    closingRouteRef.current = null;
+    if (onOrderRouteChange) {
+      cancellingEditRef.current = true;
+      onOrderRouteChange(order.id, null);
+    } else {
+      openDetail(order);
+    }
   };
 
   const saveRoutedOrder = async () => {
@@ -516,7 +545,7 @@ export function TabOrders({
         getSla={getSlaForOrder}
         onSelectCustomer={selectCustomer}
         onSave={saveRoutedOrder}
-        onClose={closeRoutedPage}
+        onClose={cancelOrderEditor}
       />}
 
       {!scopedReadOnly && <OrderWorkflowModals
