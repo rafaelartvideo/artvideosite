@@ -3,7 +3,7 @@ import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { authenticateAdmin } from "@/features/auth/infrastructure/auth.repository";
 import { LoadingSpinner, Toast } from "@/shared/ui/admin/AdminFeedback";
 import logo from "@/imports/Logo1Semfundo.png";
-import { loginHero } from "./loginHero";
+import loginHero from "./assets/login-hero/login-hero.png";
 
 type AdminLoginProps = {
   onLoginSuccess: () => void;
