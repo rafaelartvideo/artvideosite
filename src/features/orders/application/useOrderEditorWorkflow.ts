@@ -71,24 +71,24 @@ export function useOrderEditorWorkflow({
   const openEdit = async (order: any) => {
     if (!organizationId || order.organization_id !== organizationId) {
       showToast({ msg: "Esta OS não pertence à empresa selecionada.", type: "error" });
-      return;
+      return false;
     }
     const endLoading = beginAdminLoading("Carregando edição da OS...");
     try {
       const { data: currentOrder, error } = await getOrderEditState(order.id);
       if (error) {
         showToast({ msg: `Não foi possível verificar o estado da OS: ${formatError(error)}`, type: "error" });
-        return;
+        return false;
       }
       if (currentOrder?.is_solved || order.is_solved) {
         showToast({ msg: "Esta OS está solucionada e é somente leitura.", type: "error" });
-        return;
+        return false;
       }
       await images.loadOrderImages(order.id);
       const { data: technicalValues, error: technicalValuesError } = await listServiceOrderTechnicalValues(order.id);
       if (technicalValuesError) {
         showToast({ msg: `Não foi possível carregar os campos técnicos: ${formatError(technicalValuesError)}`, type: "error" });
-        return;
+        return false;
       }
       formState.hydrateOrderForm(order, technicalValues || []);
       address.hydrateServiceAddress({
@@ -97,6 +97,7 @@ export function useOrderEditorWorkflow({
         city: order.order_type === "external" ? order.service_city : undefined,
       });
       customers.hydrateCustomer(order.customer || null);
+      return true;
     } finally {
       endLoading();
     }
