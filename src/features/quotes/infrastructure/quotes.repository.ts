@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 const QUOTE_SELECT = "id, protocol, created_at, updated_at, requested_at, assigned_to, status_id, customer_id, service_id, brand_id, product_id, customer_message, estimated_price, final_price, request_status:request_statuses(id,name,color), customer:customers(id,customer_type,full_name,whatsapp,email,document,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(title), brand:brands(name), product:products(name)";
+const QUOTE_FILTER_SELECT = "id,protocol,created_at,status_id,customer_id,customer:customers(id,full_name,trade_name,document,cnpj,whatsapp)";
 
 export type QuotePageInput = {
   page: number;
@@ -16,94 +17,74 @@ export type QuotePageInput = {
 
 export type QuotePage = { items: any[]; total: number };
 
-function clean(value: string) {
-  return value.trim().replace(/[%(),]/g, " ").replace(/\s+/g, " ");
-}
-
-function textPattern(value: string) {
-  const normalized = clean(value);
-  return normalized ? `%${normalized.split(/\s+/).join("%")} %`.replace("% ", "%") : "%";
-}
-
-function digitsPattern(value: string) {
-  const digits = value.replace(/\D/g, "");
-  return digits ? `%${digits.split("").join("%")} %`.replace("% ", "%") : "%";
-}
-
-async function findCustomerIds({ search = "", customerSearch = "", documentSearch = "", whatsappSearch = "" }: Pick<QuotePageInput, "search" | "customerSearch" | "documentSearch" | "whatsappSearch">) {
-  const hasSpecific = Boolean(customerSearch.trim() || documentSearch.trim() || whatsappSearch.trim());
-  const hasGeneric = Boolean(search.trim());
-  if (!hasSpecific && !hasGeneric) return { specific: null as string[] | null, generic: null as string[] | null };
-
-  const runSpecific = async () => {
-    if (!hasSpecific) return null;
-    let query = supabase.from("customers").select("id");
-    if (customerSearch.trim()) {
-      const pattern = textPattern(customerSearch);
-      query = query.or(`full_name.ilike.${pattern},trade_name.ilike.${pattern},legal_name.ilike.${pattern}`);
-    }
-    if (documentSearch.trim()) {
-      const pattern = digitsPattern(documentSearch);
-      query = query.or(`document.ilike.${pattern},cnpj.ilike.${pattern}`);
-    }
-    if (whatsappSearch.trim()) {
-      const pattern = digitsPattern(whatsappSearch);
-      query = query.or(`whatsapp.ilike.${pattern},phone.ilike.${pattern}`);
-    }
-    const { data, error } = await query.limit(1000);
-    if (error) throw error;
-    return (data ?? []).map(row => row.id);
-  };
-
-  const runGeneric = async () => {
-    if (!hasGeneric) return null;
-    const text = textPattern(search);
-    const digits = digitsPattern(search);
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id")
-      .or(`full_name.ilike.${text},trade_name.ilike.${text},legal_name.ilike.${text},document.ilike.${digits},cnpj.ilike.${digits},whatsapp.ilike.${digits},phone.ilike.${digits}`)
-      .limit(1000);
-    if (error) throw error;
-    return (data ?? []).map(row => row.id);
-  };
-
-  const [specific, generic] = await Promise.all([runSpecific(), runGeneric()]);
-  return { specific, generic };
-}
+const normalizeDocument = (value: unknown) => String(value ?? "").replace(/\D/g, "");
+const normalizeText = (value: unknown) => String(value ?? "").trim().toLocaleLowerCase("pt-BR");
 
 export async function listQuotesPage(input: QuotePageInput): Promise<QuotePage> {
-  const { page, pageSize, search = "", customerSearch = "", documentSearch = "", whatsappSearch = "", protocolSearch = "", statusId = "", sort = "" } = input;
-  const safePage = Math.max(1, page);
-  const safePageSize = Math.max(1, pageSize);
-  const from = (safePage - 1) * safePageSize;
-  const to = from + safePageSize - 1;
-  const customerIds = await findCustomerIds({ search, customerSearch, documentSearch, whatsappSearch });
-  if (customerIds.specific && customerIds.specific.length === 0) return { items: [], total: 0 };
+  const {
+    page,
+    pageSize,
+    search = "",
+    customerSearch = "",
+    documentSearch = "",
+    whatsappSearch = "",
+    protocolSearch = "",
+    statusId = "",
+    sort = "",
+  } = input;
 
-  let query = supabase.from("quote_requests").select(QUOTE_SELECT, { count: "exact" });
-  if (customerIds.specific) query = query.in("customer_id", customerIds.specific);
-  if (statusId) query = query.eq("status_id", statusId);
-  if (protocolSearch.trim()) query = query.ilike("protocol", textPattern(protocolSearch));
+  const { data: index, error: indexError } = await supabase
+    .from("quote_requests")
+    .select(QUOTE_FILTER_SELECT);
+  if (indexError) throw indexError;
 
-  if (search.trim()) {
-    const protocolPattern = textPattern(search);
-    if (customerIds.generic?.length) {
-      query = query.or(`protocol.ilike.${protocolPattern},customer_id.in.(${customerIds.generic.join(",")})`);
-    } else {
-      query = query.ilike("protocol", protocolPattern);
-    }
-  }
+  const desktopNeedle = normalizeText(search);
+  const desktopDigits = normalizeDocument(search);
+  const customerNeedle = normalizeText(customerSearch);
+  const documentNeedle = normalizeDocument(documentSearch);
+  const whatsappNeedle = normalizeDocument(whatsappSearch);
+  const protocolNeedle = normalizeText(protocolSearch);
 
-  if (sort) query = query.order("protocol", { ascending: sort === "asc" }).order("created_at", { ascending: false });
-  else query = query.order("created_at", { ascending: false });
+  const filtered = (index ?? []).filter((quote: any) => {
+    const customer = quote.customer || {};
+    const customerName = String(customer.full_name || "");
+    const customerTradeName = String(customer.trade_name || "");
+    const customerWa = String(customer.whatsapp || "");
+    const customerDocument = customer.document || customer.cnpj || "";
+    const protocol = String(quote.protocol || "");
 
-  const { data, error, count } = await query.range(from, to);
+    const desktopMatch = !desktopNeedle
+      || normalizeText(customerName).includes(desktopNeedle)
+      || normalizeText(customerTradeName).includes(desktopNeedle)
+      || customerWa.includes(search)
+      || (desktopDigits && normalizeDocument(customerDocument).includes(desktopDigits))
+      || normalizeText(protocol).includes(desktopNeedle);
+    const matchCustomer = !customerNeedle
+      || normalizeText(customerName).includes(customerNeedle)
+      || normalizeText(customerTradeName).includes(customerNeedle);
+    const matchDocument = !documentNeedle || normalizeDocument(customerDocument).includes(documentNeedle);
+    const matchWhatsapp = !whatsappNeedle || normalizeDocument(customerWa).includes(whatsappNeedle);
+    const matchProtocol = !protocolNeedle || normalizeText(protocol).includes(protocolNeedle);
+
+    return desktopMatch && matchCustomer && matchDocument && matchWhatsapp && matchProtocol && (!statusId || quote.status_id === statusId);
+  });
+
+  const sorted = sort ? [...filtered].sort((left: any, right: any) => {
+    const leftProtocol = String(left.protocol || left.id || "");
+    const rightProtocol = String(right.protocol || right.id || "");
+    const comparison = leftProtocol.localeCompare(rightProtocol, "pt-BR", { numeric: true, sensitivity: "base" });
+    return sort === "asc" ? comparison : -comparison;
+  }) : [...filtered].sort((left: any, right: any) => String(right.created_at ?? "").localeCompare(String(left.created_at ?? "")));
+
+  const safeSize = Math.max(1, pageSize);
+  const start = (Math.max(1, page) - 1) * safeSize;
+  const ids = sorted.slice(start, start + safeSize).map((quote: any) => quote.id);
+  if (ids.length === 0) return { items: [], total: sorted.length };
+
+  const { data, error } = await supabase.from("quote_requests").select(QUOTE_SELECT).in("id", ids);
   if (error) throw error;
-  return {
-    items: (data ?? []).map((quote: any) => ({ ...quote, statusName: quote.request_status?.name || "Sem status" })),
-    total: count ?? 0,
-  };
+  const byId = new Map((data ?? []).map((quote: any) => [quote.id, { ...quote, statusName: quote.request_status?.name || "Sem status" }]));
+  return { items: ids.map(id => byId.get(id)).filter(Boolean), total: sorted.length };
 }
 
 export async function getQuote(quoteId: string) {
