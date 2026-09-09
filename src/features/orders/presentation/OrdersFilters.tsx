@@ -156,12 +156,12 @@ export function OrdersFilters({
           aria-label={`Ordenação atual: ${orderLabel}`}
           title={`Ordenação: ${orderLabel}`}
           className={cn(
-            "inline-flex h-[42px] items-center justify-center rounded-lg border bg-white text-xs font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
-            iconOnly ? "w-[42px] shrink-0 px-0" : "max-w-full justify-between gap-2 px-3",
+            "inline-flex h-8 items-center justify-center rounded-lg border bg-white text-xs font-bold shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
+            iconOnly ? "w-8 shrink-0 px-0" : "max-w-full justify-between gap-1.5 px-3",
             orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]",
           )}
         >
-          <OrderSortIcon size={17} className="text-[#0057e7]" />
+          <OrderSortIcon size={14} className="text-[#0057e7]" />
           {!iconOnly && <><span>{orderLabel}</span><ChevronDown size={14} className="text-[#5a6a82]" /></>}
         </button>
       </DropdownMenuTrigger>
@@ -208,10 +208,10 @@ export function OrdersFilters({
           <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
         </div>
         <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
-          {sortMenu(false)}
-          <button type="button" onClick={onClear} disabled={!hasActiveFilters} className="inline-flex h-[42px] items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-default disabled:opacity-60">
+          <div className="hidden md:block">{sortMenu(false)}</div>
+          {hasActiveFilters && <button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-default disabled:opacity-60">
             <Eraser size={14} /><span>Limpar filtros</span>
-          </button>
+          </button>}
         </div>
       </div>
       <div className="p-4">
@@ -236,6 +236,7 @@ export function OrdersFilters({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            {sortMenu(true)}
           </div>
           <div className="min-w-0">{renderMobileFilter()}</div>
         </div>
