@@ -57,10 +57,10 @@ export function OrderImagesField({
 
   const content = (
     <>
-      <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+      <div className="mb-3 flex min-w-0 flex-col gap-2">
         <p className="min-w-0 text-xs text-[#5a6a82]">{count}/{maxImages} imagens</p>
         {allowAdd && (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="grid w-full min-w-0 grid-cols-2 gap-2">
             <AdminButton
               variant="secondary"
               size="sm"
@@ -68,10 +68,10 @@ export function OrderImagesField({
               onClick={() => inputRef.current?.click()}
               aria-label="Adicionar imagens"
               title="Adicionar imagens"
-              className="h-[42px] w-[42px] shrink-0 justify-center border-[#0057e7]/30 p-0 text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:px-3 sm:py-2"
+              className="min-h-[52px] w-full min-w-0 flex-col justify-center gap-1 border-[#0057e7]/30 px-1 py-2 text-[#0057e7] hover:bg-[#0057e7]/5 lg:flex-row lg:px-3"
             >
               <Upload size={14} />
-              <span className="hidden sm:inline">Adicionar imagens</span>
+              <span className="text-[10px] leading-tight sm:text-xs">Adicionar</span>
             </AdminButton>
             <AdminButton
               variant="secondary"
@@ -80,10 +80,10 @@ export function OrderImagesField({
               onClick={() => cameraInputRef.current?.click()}
               aria-label="Abrir câmera"
               title="Abrir câmera"
-              className="h-[42px] w-[42px] shrink-0 justify-center border-[#0057e7]/30 p-0 text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:px-3 sm:py-2"
+              className="min-h-[52px] w-full min-w-0 flex-col justify-center gap-1 border-[#0057e7]/30 px-1 py-2 text-[#0057e7] hover:bg-[#0057e7]/5 lg:flex-row lg:px-3"
             >
               <Camera size={14} />
-              <span className="hidden sm:inline">Abrir câmera</span>
+              <span className="text-[10px] leading-tight sm:text-xs">Câmera</span>
             </AdminButton>
           </div>
         )}
