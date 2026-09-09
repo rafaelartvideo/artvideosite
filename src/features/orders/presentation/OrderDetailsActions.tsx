@@ -1,17 +1,35 @@
 import { useEffect, useState } from "react";
 import type React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Ban, CheckCircle, Edit2, PackagePlus, X } from "lucide-react";
 import { AdminButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { queryKeys } from "@/infrastructure/query/query-keys";
+import { cancelServiceOrder } from "../infrastructure/order-cancellation.repository";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 
-export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onEdit, onCancel, cancelling }: {
-  detail: any; situations: any[]; hasPermission: (permission: string) => boolean; onClose: () => void;
-  onSituationChange: (situationId: string) => void; onRequestParts: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  onResolve: () => void; onComplete: () => void; onEdit: () => void; onCancel: (reason: string) => Promise<boolean>; cancelling: boolean;
+export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onEdit, onCancel, cancelling = false }: {
+  detail: any;
+  statuses?: any[];
+  situations: any[];
+  hasPermission: (permission: string) => boolean;
+  onClose: () => void;
+  onStatusChange?: (statusId: string) => void;
+  onSituationChange: (situationId: string) => void;
+  onRequestParts: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onResolve: () => void;
+  onComplete: () => void;
+  onEdit: () => void;
+  onCancel?: (reason: string) => Promise<boolean>;
+  cancelling?: boolean;
 }) {
+  const queryClient = useQueryClient();
   const [browserBottomInset, setBrowserBottomInset] = useState(0);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [localCancelling, setLocalCancelling] = useState(false);
+  const [cancelledLocally, setCancelledLocally] = useState(false);
+
   useEffect(() => {
     const viewport = window.visualViewport; if (!viewport) return;
     const updateBottomInset = () => { const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop); setBrowserBottomInset(Math.min(110, Math.round(inset))); };
@@ -19,7 +37,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
     return () => { viewport.removeEventListener("resize", updateBottomInset); viewport.removeEventListener("scroll", updateBottomInset); window.removeEventListener("resize", updateBottomInset); };
   }, []);
 
-  const cancelled = Boolean(detail.cancelled_at) || String(detail.order_status?.name || "").toLowerCase() === "cancelada";
+  const cancelled = cancelledLocally || Boolean(detail.cancelled_at) || String(detail.order_status?.name || "").toLowerCase() === "cancelada";
   const canChangeSituation = hasPermission("orders.situation.change") && !cancelled;
   const canEdit = hasPermission("orders.edit");
   const canRequestParts = hasPermission("orders.request_parts") && detail.is_solved !== true && !cancelled;
@@ -27,6 +45,30 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   const canComplete = hasPermission("orders.complete") && detail.is_solved && !detail.completed_at && !cancelled;
   const canEditOrder = canEdit && !detail.is_solved && !cancelled;
   const canCancel = hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
+  const busyCancelling = cancelling || localCancelling;
+
+  const confirmCancellation = async (reason: string) => {
+    if (onCancel) return onCancel(reason);
+    setLocalCancelling(true);
+    try {
+      const { error } = await cancelServiceOrder(detail.id, reason);
+      if (error) throw error;
+      setCancelledLocally(true);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.all }),
+      ]);
+      notifyAdmin(`OS ${detail.os_number || ""} cancelada.`, "success");
+      setCancelOpen(false);
+      onClose();
+      return true;
+    } catch (error) {
+      notifyAdmin(`Não foi possível cancelar a OS: ${error instanceof Error ? error.message : String(error)}`, "error");
+      return false;
+    } finally {
+      setLocalCancelling(false);
+    }
+  };
 
   return <>
     <div aria-hidden="true" className="h-[9.5rem] md:hidden" />
@@ -49,9 +91,9 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
     <OrderCancelDialog
       order={detail}
       open={cancelOpen}
-      loading={cancelling}
+      loading={busyCancelling}
       onClose={() => setCancelOpen(false)}
-      onConfirm={async reason => { if (await onCancel(reason)) setCancelOpen(false); }}
+      onConfirm={async reason => { if (await confirmCancellation(reason)) setCancelOpen(false); }}
     />
   </>;
 }
