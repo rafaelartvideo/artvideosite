@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { listServiceOrdersPage, type ServiceOrderPage } from "../infrastructure/orders-list.repository";
 
@@ -9,7 +9,7 @@ type OrderType = "internal" | "external";
 type StateOption = { sigla: string; nome: string };
 type CityResponse = { nome: string };
 
-function useDebouncedValue<T>(value: T, delay = 300) {
+function useDebouncedValue<T>(value: T, delay = 450) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebounced(value), delay);
@@ -94,6 +94,7 @@ export function useOrderFilters({
   const ordersQuery = useQuery({
     queryKey: listKey,
     enabled: Boolean(organizationId) && !invalidPeriod,
+    placeholderData: keepPreviousData,
     queryFn: () => listServiceOrdersPage({
       organizationId: organizationId!,
       page,
@@ -184,7 +185,7 @@ export function useOrderFilters({
     selectedCities,
     setSelectedCities,
     cityFilterOptions,
-    cityFiltersLoading: citiesQuery.isPending,
+    cityFiltersLoading: selectedStates.length > 0 && citiesQuery.isFetching,
     dateFrom,
     setDateFrom,
     dateTo,
