@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../../infrastructure/query/query-keys";
 import type {
@@ -61,7 +61,7 @@ export function useOrderPartRequests({
   const [testResultRows, setTestResultRows] = useState<TestResultRow[]>([]);
   const [testResultSubmitting, setTestResultSubmitting] = useState(false);
 
-  const normalize = (data: any[] | null | undefined): PartRequestForReview[] =>
+  const normalize = useCallback((data: any[] | null | undefined): PartRequestForReview[] =>
     (data || []).map((request: any) => ({
       ...request,
       requester: request.requested_by_profile || null,
@@ -69,7 +69,7 @@ export function useOrderPartRequests({
         ...item,
         request_status: request.status,
       })),
-    }));
+    })), []);
 
   const partRequestsQuery = useQuery({
     queryKey: queryKeys.orders.partRequests(activeOrderId),
@@ -105,7 +105,7 @@ export function useOrderPartRequests({
     showToast({ msg: formatError(inventoryQuery.error), type: "error" });
   }, [inventoryQuery.error, formatError, showToast]);
 
-  const loadPartRequests = async (serviceOrderId: string) => {
+  const loadPartRequests = useCallback(async (serviceOrderId: string) => {
     setActiveOrderId(serviceOrderId);
     try {
       return await queryClient.fetchQuery({
@@ -121,7 +121,7 @@ export function useOrderPartRequests({
       console.error("[ADMIN] part requests load error:", error);
       return [];
     }
-  };
+  }, [queryClient, normalize]);
 
   const resetPartRequestForm = () => {
     setPartRequestSearch("");
