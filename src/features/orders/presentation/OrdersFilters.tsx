@@ -24,7 +24,6 @@ type StateOption = { sigla: string; nome: string };
 type OrderSort = "" | "asc" | "desc";
 type MobileFilterKey =
   | "osNumber"
-  | "externalOs"
   | "document"
   | "serialNumber"
   | "status"
@@ -36,8 +35,7 @@ type MobileFilterKey =
   | "period";
 
 const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
-  { value: "osNumber", label: "Número da OS" },
-  { value: "externalOs", label: "OS externa" },
+  { value: "osNumber", label: "Número da OS / Externa" },
   { value: "document", label: "CPF ou CNPJ" },
   { value: "serialNumber", label: "Número de série" },
   { value: "status", label: "Status" },
@@ -51,7 +49,6 @@ const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
 
 export function OrdersFilters({
   osNumberSearch,
-  externalOsSearch,
   documentSearch,
   serialNumberSearch,
   statusId,
@@ -72,7 +69,6 @@ export function OrdersFilters({
   citiesLoading,
   invalidPeriod,
   onOsNumberSearchChange,
-  onExternalOsSearchChange,
   onDocumentSearchChange,
   onSerialNumberSearchChange,
   onStatusChange,
@@ -90,7 +86,6 @@ export function OrdersFilters({
   onClear,
 }: {
   osNumberSearch: string;
-  externalOsSearch: string;
   documentSearch: string;
   serialNumberSearch: string;
   statusId: string;
@@ -111,7 +106,6 @@ export function OrdersFilters({
   citiesLoading: boolean;
   invalidPeriod: boolean;
   onOsNumberSearchChange: (value: string) => void;
-  onExternalOsSearchChange: (value: string) => void;
   onDocumentSearchChange: (value: string) => void;
   onSerialNumberSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
@@ -137,13 +131,11 @@ export function OrdersFilters({
   const cityFilterOptions = cityOptions;
   const ibgeStatesLoading = statesLoading;
   const cityFiltersLoading = citiesLoading;
-  const clearFilters = onClear;
   const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenação padrão";
   const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
-  const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS";
+  const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
     osNumberSearch ||
-    externalOsSearch ||
     documentSearch ||
     serialNumberSearch ||
     filterStatus ||
@@ -153,7 +145,7 @@ export function OrdersFilters({
     selectedStates.length > 0 ||
     selectedCities.length > 0 ||
     dateFrom ||
-    dateTo
+    dateTo || orderSort
   );
 
   const sortMenu = (iconOnly = false) => (
@@ -165,7 +157,7 @@ export function OrdersFilters({
           title={`Ordenação: ${orderLabel}`}
           className={cn(
             "inline-flex h-[42px] items-center justify-center rounded-lg border bg-white text-xs font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
-            iconOnly ? "w-[42px] shrink-0 px-0" : "w-full justify-between gap-2 px-3",
+            iconOnly ? "w-[42px] shrink-0 px-0" : "max-w-full justify-between gap-2 px-3",
             orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]",
           )}
         >
@@ -191,8 +183,7 @@ export function OrdersFilters({
 
   const renderMobileFilter = () => {
     switch (mobileFilter) {
-      case "osNumber": return <MobileSearchField value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS" ariaLabel="Buscar por número da OS" />;
-      case "externalOs": return <MobileSearchField value={externalOsSearch} onChange={onExternalOsSearchChange} placeholder="Digite a OS externa" ariaLabel="Buscar por OS externa" />;
+      case "osNumber": return <MobileSearchField value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" ariaLabel="Buscar por número da OS ou externa" />;
       case "document": return <MobileSearchField value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
       case "serialNumber": return <MobileSearchField value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" ariaLabel="Buscar por número de série" />;
       case "status": return <AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />;
@@ -211,9 +202,17 @@ export function OrdersFilters({
 
   return (
     <AdminCard className="overflow-hidden p-0">
-      <div className="flex items-center gap-2 bg-[#0057e7] px-4 py-3 text-white">
-        <Search size={16} className="shrink-0" />
-        <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0057e7] px-4 py-3 text-white">
+        <div className="flex items-center gap-2">
+          <Search size={16} className="shrink-0" />
+          <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
+        </div>
+        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+          {sortMenu(false)}
+          <button type="button" onClick={onClear} disabled={!hasActiveFilters} className="inline-flex h-[42px] items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-default disabled:opacity-60">
+            <Eraser size={14} /><span>Limpar filtros</span>
+          </button>
+        </div>
       </div>
       <div className="p-4">
         <div className="space-y-3 md:hidden">
@@ -237,16 +236,13 @@ export function OrdersFilters({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            {sortMenu(true)}
           </div>
           <div className="min-w-0">{renderMobileFilter()}</div>
-          {hasActiveFilters && <div className="flex justify-end"><button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition-colors hover:bg-red-50"><Eraser size={15} /></button></div>}
         </div>
 
         <div className="hidden space-y-3 md:block">
           <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <SearchField label="Número da OS" value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS" />
-            <SearchField label="OS externa" value={externalOsSearch} onChange={onExternalOsSearchChange} placeholder="Digite a OS externa" />
+            <SearchField label="Número da OS / Externa" value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" />
             <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
             <SearchField label="Número de série" value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" />
             <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="text-xs" ariaLabel="Filtrar por status" /></div>
@@ -257,9 +253,7 @@ export function OrdersFilters({
             <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} /></div>
             <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />{invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>
             <div className="space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>
-            <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Ordenação</label>{sortMenu(false)}</div>
           </div>
-          {hasActiveFilters && <div className="flex justify-end"><AdminButton variant="danger" size="sm" onClick={clearFilters} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} />Limpar filtros</AdminButton></div>}
         </div>
       </div>
     </AdminCard>
