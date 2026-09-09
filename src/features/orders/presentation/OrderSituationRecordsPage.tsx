@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, History } from "lucide-react";
 import { AdminCard, AdminCardHeader, AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { cn, formatDateTime } from "@/shared/domain/formatters";
 import type { ServiceOrderSituationVisit } from "../infrastructure/order-situation-visits.repository";
 
@@ -105,7 +106,7 @@ export function OrderSituationRecordsPage({
     maxW="max-w-4xl"
   >
     <div className="min-w-0 max-w-full space-y-4 overflow-hidden p-5">
-      {loading && <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando registros...</p>}
+      {loading && <LoadingState text="Carregando registros..." />}
       {!loading && error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-xs font-semibold text-red-700">{error}</div>}
       {!loading && !error && visits.length === 0 && <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">
         <History className="mx-auto mb-2 text-[#8b98aa]" size={22} />
