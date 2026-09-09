@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { listServiceOrdersPage, type ServiceOrderPage } from "../infrastructure/orders-list.repository";
+import { listExactServiceOrdersPage, type ExactOrderPage } from "../infrastructure/orders-filtered-page.repository";
 
 export type CityFilterOption = { name: string; state: string };
 
@@ -95,7 +95,7 @@ export function useOrderFilters({
     queryKey: listKey,
     enabled: Boolean(organizationId) && !invalidPeriod,
     placeholderData: keepPreviousData,
-    queryFn: () => listServiceOrdersPage({
+    queryFn: () => listExactServiceOrdersPage({
       organizationId: organizationId!,
       page,
       pageSize,
@@ -121,7 +121,7 @@ export function useOrderFilters({
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(page, totalPages);
   const setOrders: Dispatch<SetStateAction<any[]>> = useCallback(next => {
-    queryClient.setQueryData<ServiceOrderPage>(listKey, current => {
+    queryClient.setQueryData<ExactOrderPage>(listKey, current => {
       if (!current) return current;
       const items = typeof next === "function" ? next(current.items) : next;
       return { ...current, items };
