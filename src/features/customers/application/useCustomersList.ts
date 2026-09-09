@@ -140,7 +140,7 @@ export function useCustomersList({ organizationId, onToast }: Options) {
   return {
     customers,
     totalItems,
-    loading: query.isPending,
+    loading: Boolean(organizationId) && query.isFetching,
     isFetching: query.isFetching,
     refetch: query.refetch,
     refresh,
