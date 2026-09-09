@@ -70,6 +70,38 @@ function firstText(payload: unknown, paths: string[]) {
   return null;
 }
 
+function firstNumber(payload: unknown, paths: string[]) {
+  for (const path of paths) {
+    const value = readPath(payload, path);
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  }
+  return null;
+}
+
+function firstBoolean(payload: unknown, paths: string[]) {
+  for (const path of paths) {
+    const value = readPath(payload, path);
+    if (typeof value === "boolean") return value;
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+  return null;
+}
+
+function epochMillisecondsToIso(value: number | null) {
+  if (!value || value <= 0) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function normalizeRemotePhone(remoteUri: string | null) {
+  if (!remoteUri) return { phone: null, digits: null };
+  const phone = remoteUri.replace(/^tel:/i, "").trim() || null;
+  const digits = phone?.replace(/\D/g, "") || null;
+  return { phone, digits };
+}
+
 function parsePayload(rawBody: string, contentType: string) {
   if (!rawBody.trim()) return null;
   try {
@@ -80,6 +112,66 @@ function parsePayload(rawBody: string, contentType: string) {
     }
     return { raw: rawBody };
   }
+}
+
+async function normalizeCallEvent(payload: unknown, eventId: string) {
+  const eventKey = firstText(payload, ["type", "event", "eventType", "event_type"]);
+  const callId = firstText(payload, [
+    "payload.call",
+    "callId",
+    "call_id",
+    "call.id",
+    "call.uuid",
+    "data.callId",
+    "data.call_id",
+    "data.call.id",
+    "data.id",
+    "uuid",
+  ]);
+
+  if (eventKey !== "CALL-EVENT" || !callId) return { normalized: false, callId };
+
+  const remoteUri = firstText(payload, ["payload.remote"]);
+  const { phone: remotePhone, digits: remotePhoneDigits } = normalizeRemotePhone(remoteUri);
+  const setup = firstNumber(payload, ["payload.setup"]);
+  const start = firstNumber(payload, ["payload.start"]);
+  const stop = firstNumber(payload, ["payload.stop"]);
+  const duration = firstNumber(payload, ["payload.duration"]);
+  const releaseCause = firstNumber(payload, ["payload.releaseCause"]);
+  const callPayload = asRecord(readPath(payload, "payload"));
+
+  const { error } = await adminClient
+    .from("uniq_calls")
+    .upsert({
+      organization_id: PLATFORM_ORGANIZATION_ID,
+      uniq_call_id: callId,
+      uniq_event_id: firstText(payload, ["payload.id"]),
+      uniq_room_id: firstText(payload, ["payload.room"]),
+      uniq_subscriber_id: firstText(payload, ["payload.subscriber"]),
+      uniq_organization_id: firstText(payload, ["payload.organization", "organization"]),
+      event_type: firstText(payload, ["payload.eventType"]),
+      media_type: firstText(payload, ["payload.type"]),
+      direction: firstText(payload, ["payload.direction"]),
+      state: firstText(payload, ["payload.state"]),
+      remote_uri: remoteUri,
+      remote_phone: remotePhone,
+      remote_phone_digits: remotePhoneDigits,
+      setup_at: epochMillisecondsToIso(setup),
+      answered_at: epochMillisecondsToIso(start),
+      ended_at: epochMillisecondsToIso(stop),
+      duration_seconds: Math.max(0, Math.trunc(duration ?? 0)),
+      release_cause: releaseCause === null ? null : Math.trunc(releaseCause),
+      recording_audit: firstBoolean(payload, ["payload.recAudit"]),
+      recording_on_demand: firstBoolean(payload, ["payload.recOnDemand"]),
+      last_event_id: eventId,
+      raw_last_payload: callPayload,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: "organization_id,uniq_call_id",
+    });
+
+  if (error) throw error;
+  return { normalized: true, callId };
 }
 
 Deno.serve(async (request) => {
@@ -118,10 +210,10 @@ Deno.serve(async (request) => {
   const contentType = request.headers.get("content-type") ?? "";
   const payload = parsePayload(rawBody, contentType);
   const eventKey = firstText(payload, [
+    "type",
     "event",
     "eventType",
     "event_type",
-    "type",
     "name",
     "action",
     "status",
@@ -132,6 +224,7 @@ Deno.serve(async (request) => {
     "data.status",
   ]);
   const callId = firstText(payload, [
+    "payload.call",
     "callId",
     "call_id",
     "call.id",
@@ -143,6 +236,7 @@ Deno.serve(async (request) => {
     "uuid",
   ]);
   const direction = firstText(payload, [
+    "payload.direction",
     "direction",
     "call.direction",
     "data.direction",
@@ -169,5 +263,25 @@ Deno.serve(async (request) => {
     return json({ error: "Could not persist event" }, 500);
   }
 
-  return json({ ok: true, event_id: data.id });
+  try {
+    const normalized = await normalizeCallEvent(payload, data.id);
+    await adminClient
+      .from("uniq_webhook_events")
+      .update({ processed_at: new Date().toISOString(), processing_error: null })
+      .eq("id", data.id);
+    return json({ ok: true, event_id: data.id, ...normalized });
+  } catch (normalizationError) {
+    const message = normalizationError instanceof Error
+      ? normalizationError.message
+      : String(normalizationError);
+    console.error("Failed to normalize Uniq call event", normalizationError);
+    await adminClient
+      .from("uniq_webhook_events")
+      .update({ processing_error: message })
+      .eq("id", data.id);
+
+    // O evento bruto já foi preservado. Retornamos 200 para evitar que a Uniq
+    // repita indefinidamente o mesmo webhook enquanto ajustamos o normalizador.
+    return json({ ok: true, event_id: data.id, normalized: false });
+  }
 });
