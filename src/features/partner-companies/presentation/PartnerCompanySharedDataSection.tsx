@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardList, LayoutDashboard, Package, Users, type LucideIcon } from "lucide-react";
-import { TabCustomers } from "@/features/customers/presentation/TabCustomers";
-import { TabOrders } from "@/features/orders/presentation/TabOrders";
 import { cn } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
@@ -10,7 +8,10 @@ import {
   type PartnerShareAccessLevel,
   type PartnerShareConfigLevel,
 } from "../infrastructure/partner-companies.repository";
-import { PartnerInventoryData } from "./PartnerInventoryData";
+
+const TabCustomers = lazy(() => import("@/features/customers/presentation/TabCustomers").then(module => ({ default: module.TabCustomers })));
+const TabOrders = lazy(() => import("@/features/orders/presentation/TabOrders").then(module => ({ default: module.TabOrders })));
+const PartnerInventoryData = lazy(() => import("./PartnerInventoryData").then(module => ({ default: module.PartnerInventoryData })));
 
 type SharedDataTab = "summary" | "customers" | "orders" | "inventory";
 
@@ -40,6 +41,10 @@ function normalizeShareLevel(level?: PartnerShareAccessLevel): PartnerShareConfi
 function ResourceAccessMessage({ access, title }: { access: PartnerShareConfigLevel; title: string }) {
   if (access === "none") return <div className="rounded-xl border border-[#0d1b2e]/8 bg-white p-5 text-sm text-[#5a6a82] shadow-sm"><span className="font-bold text-[#0d1b2e]">{title}:</span> esta empresa não compartilha este recurso com a ArtVideo.</div>;
   return <div className="rounded-xl border border-[#0d1b2e]/8 bg-white p-5 shadow-sm"><p className="text-sm font-bold text-[#0d1b2e]">{title} está disponível somente em resumo.</p><p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">Os registros individuais não podem ser abertos neste nível de compartilhamento.</p></div>;
+}
+
+function SharedTabFallback() {
+  return <div className="rounded-xl border border-[#0d1b2e]/8 bg-white p-8 shadow-sm"><LoadingState text="Carregando módulo compartilhado..." /></div>;
 }
 
 export function PartnerCompanySharedDataSection({ organizationId }: { organizationId: string }) {
@@ -113,33 +118,35 @@ export function PartnerCompanySharedDataSection({ organizationId }: { organizati
         })}
       </div>}
 
-      {activeTab === "customers" && (customersAccess === "read" ? <TabCustomers
-        organizationIdOverride={organizationId}
-        accessMode="read"
-        routeResourceId={customerRouteId}
-        routeSubpage={customerRouteSubpage}
-        onRouteChange={(resourceId, subpage) => {
-          setCustomerRouteId(resourceId || null);
-          setCustomerRouteSubpage(subpage || null);
-        }}
-      /> : <ResourceAccessMessage access={customersAccess} title="Clientes" />)}
+      <Suspense fallback={<SharedTabFallback />}>
+        {activeTab === "customers" && (customersAccess === "read" ? <TabCustomers
+          organizationIdOverride={organizationId}
+          accessMode="read"
+          routeResourceId={customerRouteId}
+          routeSubpage={customerRouteSubpage}
+          onRouteChange={(resourceId, subpage) => {
+            setCustomerRouteId(resourceId || null);
+            setCustomerRouteSubpage(subpage || null);
+          }}
+        /> : <ResourceAccessMessage access={customersAccess} title="Clientes" />)}
 
-      {activeTab === "orders" && (ordersAccess === "read" ? <TabOrders
-        organizationIdOverride={organizationId}
-        accessMode="read"
-        initialOrderId={orderRouteId}
-        routeSubpage={orderRouteSubpage}
-        onOrderRouteChange={(resourceId, subpage) => {
-          setOrderRouteId(resourceId || null);
-          setOrderRouteSubpage(subpage || null);
-        }}
-        onOrderRouteClose={() => {
-          setOrderRouteId(null);
-          setOrderRouteSubpage(null);
-        }}
-      /> : <ResourceAccessMessage access={ordersAccess} title="Ordens de serviço" />)}
+        {activeTab === "orders" && (ordersAccess === "read" ? <TabOrders
+          organizationIdOverride={organizationId}
+          accessMode="read"
+          initialOrderId={orderRouteId}
+          routeSubpage={orderRouteSubpage}
+          onOrderRouteChange={(resourceId, subpage) => {
+            setOrderRouteId(resourceId || null);
+            setOrderRouteSubpage(subpage || null);
+          }}
+          onOrderRouteClose={() => {
+            setOrderRouteId(null);
+            setOrderRouteSubpage(null);
+          }}
+        /> : <ResourceAccessMessage access={ordersAccess} title="Ordens de serviço" />)}
 
-      {activeTab === "inventory" && (inventoryAccess === "read" ? <PartnerInventoryData organizationId={organizationId} /> : <ResourceAccessMessage access={inventoryAccess} title="Estoque" />)}
+        {activeTab === "inventory" && (inventoryAccess === "read" ? <PartnerInventoryData organizationId={organizationId} /> : <ResourceAccessMessage access={inventoryAccess} title="Estoque" />)}
+      </Suspense>
     </div>
   </div>;
 }
