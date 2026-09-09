@@ -158,7 +158,10 @@ export function OrderDetailsPage(props: Props) {
     }
   };
 
-  const closePage = () => { if (onClose) onClose(); else closeDetail(); };
+  const closePage = () => {
+    closeDetail();
+    if (onClose) onClose();
+  };
 
   return <>
       <OrderDocumentsPage
