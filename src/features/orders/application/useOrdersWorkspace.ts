@@ -7,7 +7,8 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
-import { loadOrdersWorkspace } from "../infrastructure/orders.repository";
+import { loadOrdersReferenceData } from "../infrastructure/orders-workspace.repository";
+import type { ServiceOrderPage } from "../infrastructure/orders-list.repository";
 
 type ToastMessage = { msg: string; type: "success" | "error" };
 
@@ -36,17 +37,27 @@ const EMPTY_WORKSPACE: OrdersWorkspace = {
 };
 
 async function fetchOrdersWorkspace(organizationId: string): Promise<OrdersWorkspace> {
-  const [ordersResult, statusesResult, situationsResult, profilesResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult] = await loadOrdersWorkspace(organizationId);
-  if (ordersResult.error) throw ordersResult.error;
-  [statusesResult, situationsResult, profilesResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult].forEach((result, index) => {
-    if (result.error) console.error("[ADMIN] OS related query error:", index, result.error);
-  });
+  const [statusesResult, situationsResult, profilesResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult] = await loadOrdersReferenceData(organizationId);
+  const results = [statusesResult, situationsResult, profilesResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult];
+  const failed = results.find(result => result.error);
+  if (failed?.error) throw failed.error;
   return {
-    orders: ordersResult.data ?? [], statuses: statusesResult.data ?? [], situations: situationsResult.data ?? [], profiles: profilesResult.data ?? [],
-    services: servicesResult.data ?? [], brands: brandsResult.data ?? [], products: productsResult.data ?? [], equipmentTypes: equipmentTypesResult.data ?? [],
-    equipmentBrands: equipmentBrandsResult.data ?? [], equipmentModels: equipmentModelsResult.data ?? [], technicalFields: technicalFieldsResult.data ?? [],
-    technicalFieldLinks: technicalFieldLinksResult.data ?? [], employees: employeesResult.data ?? [], generalServices: generalServicesResult.data ?? [],
-    serviceTypes: serviceTypesResult.data ?? [], serviceTypeSituations: serviceTypeSituationsResult.data ?? [],
+    orders: [],
+    statuses: statusesResult.data ?? [],
+    situations: situationsResult.data ?? [],
+    profiles: profilesResult.data ?? [],
+    services: servicesResult.data ?? [],
+    brands: brandsResult.data ?? [],
+    products: productsResult.data ?? [],
+    equipmentTypes: equipmentTypesResult.data ?? [],
+    equipmentBrands: equipmentBrandsResult.data ?? [],
+    equipmentModels: equipmentModelsResult.data ?? [],
+    technicalFields: technicalFieldsResult.data ?? [],
+    technicalFieldLinks: technicalFieldLinksResult.data ?? [],
+    employees: employeesResult.data ?? [],
+    generalServices: generalServicesResult.data ?? [],
+    serviceTypes: serviceTypesResult.data ?? [],
+    serviceTypeSituations: serviceTypeSituationsResult.data ?? [],
   };
 }
 
@@ -70,19 +81,25 @@ export function useOrdersWorkspace({
 
   useEffect(() => {
     if (!workspaceQuery.error) return;
-    console.error("[ADMIN] service_orders load error:", workspaceQuery.error);
-    showToast({ msg: `Erro ao carregar OS: ${workspaceQuery.error instanceof Error ? workspaceQuery.error.message : String(workspaceQuery.error)}`, type: "error" });
+    console.error("[ADMIN] OS reference data load error:", workspaceQuery.error);
+    showToast({ msg: `Erro ao carregar dados da OS: ${workspaceQuery.error instanceof Error ? workspaceQuery.error.message : String(workspaceQuery.error)}`, type: "error" });
   }, [showToast, workspaceQuery.error]);
 
-  const setCollection = useCallback((key: "orders" | "equipmentTypes" | "equipmentBrands" | "equipmentModels", next: SetStateAction<any[]>) => {
-    queryClient.setQueryData<OrdersWorkspace>([...queryKeys.orders.workspace(), organizationId || "none"], current => {
+  const setCollection = useCallback((key: "equipmentTypes" | "equipmentBrands" | "equipmentModels", next: SetStateAction<any[]>) => {
+    queryClient.setQueryData<OrdersWorkspace>(workspaceKey, current => {
       if (!current) return current;
       const value = typeof next === "function" ? next(current[key]) : next;
       return { ...current, [key]: value };
     });
-  }, [queryClient, organizationId]);
+  }, [queryClient, workspaceKey]);
 
-  const setOrders: Dispatch<SetStateAction<any[]>> = useCallback(next => setCollection("orders", next), [setCollection]);
+  const setOrders: Dispatch<SetStateAction<any[]>> = useCallback(next => {
+    queryClient.setQueriesData<ServiceOrderPage>({ queryKey: queryKeys.orders.lists() }, current => {
+      if (!current) return current;
+      const items = typeof next === "function" ? next(current.items) : next;
+      return { ...current, items };
+    });
+  }, [queryClient]);
   const setEquipmentTypes: Dispatch<SetStateAction<any[]>> = useCallback(next => setCollection("equipmentTypes", next), [setCollection]);
   const setEquipmentBrands: Dispatch<SetStateAction<any[]>> = useCallback(next => setCollection("equipmentBrands", next), [setCollection]);
   const setEquipmentModels: Dispatch<SetStateAction<any[]>> = useCallback(next => setCollection("equipmentModels", next), [setCollection]);
