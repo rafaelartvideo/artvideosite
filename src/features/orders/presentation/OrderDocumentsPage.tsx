@@ -20,7 +20,7 @@ import {
   BtnPrimary,
   BtnSecondary,
 } from "@/shared/ui/admin/AdminLayout";
-import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { OrderImageThumb, type OrderImage } from "./OrderImages";
 import type { useOrderSituationDocuments } from "../application/useOrderSituationDocuments";
@@ -300,7 +300,7 @@ export function OrderDocumentsPage({
           {message && <div className={cn("flex min-w-0 items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}</span><span className="min-w-0 break-words">{message.text}</span></span><button type="button" onClick={() => setMessage(null)} className="shrink-0"><X size={13} /></button></div>}
 
           {activeTab !== "solution" && controller.loading ? (
-            <p className="py-8 text-center text-sm text-[#5a6a82]">Carregando documentos...</p>
+            <LoadingState text="Carregando documentos..." />
           ) : activeTab === "situations" ? (
             controller.flowSituations.length === 0 ? (
               <p className="py-8 text-center text-sm text-[#5a6a82]">Este tipo de atendimento não possui situações configuradas.</p>
