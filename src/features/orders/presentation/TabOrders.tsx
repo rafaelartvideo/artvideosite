@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { OSSituationsView } from "@/features/order-situations/presentation/OSSituationsView";
@@ -100,6 +100,7 @@ export function TabOrders({
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
   const [saving, setSaving] = useState(false);
+  const closingRouteRef = useRef<string | null>(null);
 
   const workspaceBase = useOrdersWorkspace({ showToast: setToast, organizationIdOverride });
   const {
@@ -274,6 +275,14 @@ export function TabOrders({
 
   useEffect(() => {
     let cancelled = false;
+
+    if (closingRouteRef.current) {
+      if (initialOrderId === closingRouteRef.current) {
+        return () => { cancelled = true; };
+      }
+      closingRouteRef.current = null;
+    }
+
     if (workspaceLoading) return () => { cancelled = true; };
 
     if (!initialOrderId) {
@@ -342,6 +351,7 @@ export function TabOrders({
   }, [initialOrderId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly]);
 
   const openRoutedDetail = (order: any) => {
+    closingRouteRef.current = null;
     if (onOrderRouteChange) {
       onOrderRouteChange(order.id, null);
       return;
@@ -351,6 +361,7 @@ export function TabOrders({
 
   const openRoutedNew = () => {
     if (!effectiveHasPermission("orders.create")) return;
+    closingRouteRef.current = null;
     if (onOrderRouteChange) {
       onOrderRouteChange("new", null);
       return;
@@ -360,6 +371,7 @@ export function TabOrders({
 
   const openRoutedEdit = async (order: any) => {
     if (!effectiveHasPermission("orders.edit")) return;
+    closingRouteRef.current = null;
     if (onOrderRouteChange) {
       onOrderRouteChange(order.id, "edit");
       return;
@@ -369,20 +381,27 @@ export function TabOrders({
   };
 
   const closeRoutedPage = () => {
+    const routedId = initialOrderId || detail?.id || null;
+    if (routedId) closingRouteRef.current = routedId;
+
+    if (initialOrderId && onOrderRouteClose) {
+      onOrderRouteClose();
+    } else if (onOrderRouteChange) {
+      onOrderRouteChange(null, null);
+    }
+
     closeDetail();
     closeOrderForm();
     setDocumentsPageOpen(false);
     orderHistory.closePage();
-    if (initialOrderId && onOrderRouteClose) {
-      onOrderRouteClose();
-      return;
-    }
-    if (onOrderRouteChange) onOrderRouteChange(null, null);
   };
 
   const saveRoutedOrder = async () => {
     const saved = await saveOS();
-    if (saved) onOrderRouteChange?.(null, null);
+    if (saved) {
+      if (initialOrderId) closingRouteRef.current = initialOrderId;
+      onOrderRouteChange?.(null, null);
+    }
   };
 
   const setViewMode = (mode: "list" | "kanban") => {
