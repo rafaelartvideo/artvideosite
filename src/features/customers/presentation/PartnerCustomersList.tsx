@@ -13,6 +13,7 @@ type Props = {
   customers: any[];
   filtered: any[];
   pagedCustomers: any[];
+  totalItems: number;
   loading: boolean;
   nameSearch: string;
   documentSearch: string;
@@ -42,6 +43,7 @@ export function PartnerCustomersList({
   customers,
   filtered,
   pagedCustomers,
+  totalItems,
   loading,
   nameSearch,
   documentSearch,
@@ -83,7 +85,7 @@ export function PartnerCustomersList({
       </button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="min-w-[200px]">
-      {([["", "Ordenação padrão", ArrowUpDown], ["asc", "Nome crescente", ArrowUpNarrowWide], ["desc", "Nome decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => (
+      {([["", "Ordenação padrão", ArrowUpDown], ["asc", "Nome crescente", ArrowUpNarrowWide], ["desc", "Nome decrescente", ArrowDownNarrowWide]] as const).map(([value, label, Icon]) => (
         <DropdownMenuItem key={value || "default"} onSelect={() => onOrderSortChange(value)} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] font-bold text-[#0057e7]")}>
           <Icon size={15} />
           <span>{label}</span>
@@ -96,7 +98,7 @@ export function PartnerCustomersList({
   return <>
     <PageHeader
       title="Clientes"
-      subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`}
+      subtitle={`${totalItems} cliente${totalItems !== 1 ? "s" : ""} cadastrado${totalItems !== 1 ? "s" : ""}`}
     />
 
     <AdminSearchPanel title="Buscar clientes">
@@ -193,7 +195,7 @@ export function PartnerCustomersList({
       <PaginationBar
         page={safePage}
         pageSize={pageSize}
-        totalItems={filtered.length}
+        totalItems={totalItems}
         onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))}
         onPageSizeChange={nextPageSize => { onPageSizeChange(nextPageSize); onPageChange(1); }}
       />
