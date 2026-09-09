@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowUpDown,
@@ -7,10 +7,11 @@ import {
   ChevronDown,
   Eraser,
   Search,
+  ScanLine,
 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
+import { AdminSelect, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,6 +124,48 @@ export function OrdersFilters({
   onClear: () => void;
 }) {
   const [mobileFilter, setMobileFilter] = useState<MobileFilterKey>("osNumber");
+  const serialScannerInput = useRef<HTMLInputElement>(null);
+  const [serialScanOpen, setSerialScanOpen] = useState(false);
+  const [serialScanBusy, setSerialScanBusy] = useState(false);
+  const [serialScanError, setSerialScanError] = useState("");
+  const [serialScanValues, setSerialScanValues] = useState<string[]>([]);
+  const [serialScanValue, setSerialScanValue] = useState("");
+  const serialScanGeneration = useRef(0);
+
+  const closeSerialScanner = () => {
+    serialScanGeneration.current += 1;
+    setSerialScanOpen(false);
+    setSerialScanBusy(false);
+  };
+
+  const readSerialCode = async (file?: File) => {
+    if (!file) return;
+    const generation = ++serialScanGeneration.current;
+    setSerialScanOpen(true);
+    setSerialScanBusy(true);
+    setSerialScanError("");
+    setSerialScanValues([]);
+    setSerialScanValue("");
+    let bitmap: ImageBitmap | undefined;
+    try {
+      const Detector = (window as unknown as {
+        BarcodeDetector?: new () => { detect: (image: ImageBitmap) => Promise<Array<{ rawValue: string }>> };
+      }).BarcodeDetector;
+      if (!Detector) throw new Error("Este navegador não oferece leitura de códigos. Use um aplicativo de scanner e digite o número no filtro.");
+      bitmap = await createImageBitmap(file);
+      const codes = await new Detector().detect(bitmap);
+      if (generation !== serialScanGeneration.current) return;
+      const values = [...new Set(codes.map(code => code.rawValue.trim()).filter(Boolean))];
+      if (!values.length) throw new Error("Código não encontrado. Tire uma foto mais próxima e nítida do código de barras ou QR da série.");
+      setSerialScanValues(values);
+      setSerialScanValue(values[0]);
+    } catch (error) {
+      if (generation === serialScanGeneration.current) setSerialScanError(error instanceof Error ? error.message : "Não foi possível ler o código.");
+    } finally {
+      bitmap?.close();
+      if (generation === serialScanGeneration.current) setSerialScanBusy(false);
+    }
+  };
   const filterStatus = statusId;
   const filterSituation = situationId;
   const filterOrderType = orderType;
@@ -185,7 +228,26 @@ export function OrdersFilters({
     switch (mobileFilter) {
       case "osNumber": return <MobileSearchField value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" ariaLabel="Buscar por número da OS ou externa" />;
       case "document": return <MobileSearchField value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
-      case "serialNumber": return <MobileSearchField value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" ariaLabel="Buscar por número de série" />;
+      case "serialNumber": return <>
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="min-w-0 flex-1"><MobileSearchField value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" ariaLabel="Buscar por número de série" /></div>
+          <AdminButton variant="secondary" onClick={() => serialScannerInput.current?.click()} aria-label="Escanear número de série" title="Escanear número de série" className="h-[42px] w-[42px] shrink-0 p-0">
+            <ScanLine size={22} className="!h-[22px] !w-[22px] shrink-0" />
+          </AdminButton>
+        </div>
+        <input ref={serialScannerInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void readSerialCode(file); }} />
+        <AdminDialog open={serialScanOpen} onClose={closeSerialScanner} title="Escanear número de série" description="Confira se o código corresponde à série, e não ao modelo ou a um endereço da etiqueta.">
+          {serialScanBusy && <p role="status">Lendo código da foto...</p>}
+          {serialScanError && <p role="alert" className="text-sm text-red-700">{serialScanError}</p>}
+          {!serialScanBusy && serialScanValues.length > 1 && <AdminSelect value={serialScanValue} onValueChange={setSerialScanValue} options={serialScanValues.map(value => ({ value, label: value }))} ariaLabel="Selecionar código encontrado" />}
+          {!serialScanBusy && serialScanValues.length > 0 && <FInput label="Número de série lido" value={serialScanValue} onChange={(event: any) => setSerialScanValue(event.target.value)} />}
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <AdminButton variant="secondary" onClick={closeSerialScanner}>Cancelar</AdminButton>
+            <AdminButton variant="secondary" disabled={serialScanBusy} onClick={() => serialScannerInput.current?.click()}>Outra foto</AdminButton>
+            <AdminButton disabled={serialScanBusy || !serialScanValue.trim()} onClick={() => { onSerialNumberSearchChange(serialScanValue.trim()); closeSerialScanner(); }}>Usar número</AdminButton>
+          </div>
+        </AdminDialog>
+      </>;
       case "status": return <AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />;
       case "situation": return <AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por situação" />;
       case "orderType": return <AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo da OS" />;
