@@ -149,6 +149,8 @@ export function OrdersListWorkspace(props: Props) {
         onOpen={(order) => { if (!shouldSuppressCardOpen()) openDetail(order); }}
         onSituationChange={(order, situationId) => { void updateOrderSituation(order, situationId); }}
         onEdit={(order) => { void openEdit(order); }}
+        onCancel={cancelOrder}
+        cancellingId={cancellingId}
         formatDate={fmtDate}
       />
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
