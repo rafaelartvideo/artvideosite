@@ -43,22 +43,28 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
         .admin-login-password::-ms-clear {
           display: none;
         }
+
+        .admin-login-input:-webkit-autofill,
+        .admin-login-input:-webkit-autofill:hover,
+        .admin-login-input:-webkit-autofill:focus {
+          -webkit-text-fill-color: #ffffff;
+          -webkit-box-shadow: 0 0 0 1000px #14181e inset;
+          transition: background-color 9999s ease-in-out 0s;
+        }
       `}</style>
 
-      <section className="relative z-10 flex min-h-[100dvh] items-center justify-center bg-[radial-gradient(circle_at_15%_15%,rgba(0,87,231,0.08),transparent_32%),linear-gradient(145deg,#23272f_0%,#1d222a_52%,#171c24_100%)] px-5 py-8 sm:px-8 lg:px-10 xl:px-16">
-        <div className="w-full max-w-[430px]">
-          <div className="mb-8 flex justify-center sm:mb-10">
+      <section className="relative z-10 flex min-h-[100dvh] items-center justify-center bg-[radial-gradient(circle_at_18%_12%,rgba(47,128,237,0.09),transparent_30%),linear-gradient(145deg,#23272f_0%,#1c2129_52%,#171c24_100%)] px-5 py-8 sm:px-8 lg:px-10 xl:px-16">
+        <div className="w-full max-w-[410px]">
+          <div className="mb-7 text-center sm:mb-8">
             <img
               src={logo}
               alt="Eletrônica ArtVideo"
-              className="h-auto w-full max-w-[310px] object-contain sm:max-w-[350px]"
+              className="mx-auto h-auto w-full max-w-[210px] object-contain sm:max-w-[225px]"
             />
-          </div>
-
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-[34px]">
+            <h1 className="mt-4 text-[30px] font-extrabold tracking-tight text-white sm:text-[34px]">
               Bem-vindo
             </h1>
+            <p className="mt-2 text-sm text-[#aeb7c5]">Acesse sua conta para continuar.</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -81,7 +87,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
                   autoComplete="email"
                   inputMode="email"
                   placeholder="seu@email.com"
-                  className="h-12 w-full rounded-lg border border-white/[0.09] bg-[#15191f] pl-12 pr-4 text-sm text-white outline-none transition placeholder:text-[#697587] hover:border-white/[0.16] focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
+                  className="admin-login-input h-[50px] w-full rounded-lg border border-white/[0.11] bg-[#14181e] pl-12 pr-4 text-sm text-white outline-none transition placeholder:text-[#697587] hover:border-white/[0.2] focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
                 />
               </div>
             </div>
@@ -104,7 +110,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
                   required
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="admin-login-password h-12 w-full appearance-none rounded-lg border border-white/[0.09] bg-[#15191f] pl-12 pr-12 text-sm text-white outline-none transition placeholder:text-[#697587] hover:border-white/[0.16] focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
+                  className="admin-login-input admin-login-password h-[50px] w-full appearance-none rounded-lg border border-white/[0.11] bg-[#14181e] pl-12 pr-12 text-sm text-white outline-none transition placeholder:text-[#697587] hover:border-white/[0.2] focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
                 />
                 <button
                   type="button"
@@ -122,7 +128,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
               type="submit"
               disabled={loading}
               aria-busy={loading}
-              className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#2f80ed] px-6 text-sm font-bold text-white shadow-[0_8px_24px_rgba(47,128,237,0.22)] transition-all hover:bg-[#2474dd] focus:outline-none focus:ring-2 focus:ring-[#5d9cff] focus:ring-offset-2 focus:ring-offset-[#1d222a] disabled:cursor-wait disabled:opacity-60"
+              className="mt-2 flex h-[50px] w-full items-center justify-center gap-2 rounded-lg bg-[#2f80ed] px-6 text-sm font-bold text-white shadow-[0_10px_28px_rgba(47,128,237,0.2)] transition-all hover:bg-[#2474dd] focus:outline-none focus:ring-2 focus:ring-[#5d9cff] focus:ring-offset-2 focus:ring-offset-[#1c2129] disabled:cursor-wait disabled:opacity-60"
             >
               {loading ? <LoadingSpinner size="sm" /> : null}
               {loading ? "Entrando..." : "Entrar"}
@@ -135,11 +141,11 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
         <img
           src={loginHero}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover object-center"
+          className="absolute inset-0 h-full w-full object-cover object-[center_44%]"
           draggable={false}
         />
-        <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#171c24]/45 to-transparent" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,11,20,0.04)_0%,rgba(0,11,20,0.02)_65%,rgba(0,11,20,0.14)_100%)]" />
+        <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-[#171c24]/35 to-transparent" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,11,20,0.02)_0%,rgba(0,11,20,0.01)_70%,rgba(0,11,20,0.1)_100%)]" />
       </aside>
     </main>
   );
