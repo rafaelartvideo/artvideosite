@@ -33,15 +33,97 @@ function safeFilterValue(value: string) {
   return value.trim().replace(/[%(),]/g, "");
 }
 
+function normalizeIdentifier(value: unknown) {
+  return String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeOrderSearch(value: string) {
+  return normalizeIdentifier(value).replace(/^os(?=\d)/, "");
+}
+
+function normalizeDigits(value: unknown) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
 function looseIdentifierPattern(value: string, stripOsPrefix = false) {
-  let normalized = value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  let normalized = normalizeIdentifier(value);
   if (stripOsPrefix) normalized = normalized.replace(/^os(?=\d)/, "");
   return normalized ? `%${normalized.split("").join("%")} %`.replace("% ", "%") : "%";
 }
 
 function looseDigitsPattern(value: string) {
-  const digits = value.replace(/\D/g, "");
+  const digits = normalizeDigits(value);
   return digits ? `%${digits.split("").join("%")} %`.replace("% ", "%") : "%";
+}
+
+function intersectIds(current: string[] | null, next: string[]) {
+  if (current == null) return next;
+  const nextSet = new Set(next);
+  return current.filter(id => nextSet.has(id));
+}
+
+async function findMatchingCustomerIds(organizationId: string, search: string) {
+  const normalizedSearch = normalizeDigits(search);
+  if (!normalizedSearch) return null;
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id,document,cnpj")
+    .eq("organization_id", organizationId)
+    .or(`document.ilike.${looseDigitsPattern(search)},cnpj.ilike.${looseDigitsPattern(search)}`)
+    .limit(5000);
+
+  if (error) throw error;
+  return (data ?? [])
+    .filter(customer =>
+      normalizeDigits(customer.document).includes(normalizedSearch)
+      || normalizeDigits(customer.cnpj).includes(normalizedSearch),
+    )
+    .map(customer => customer.id);
+}
+
+async function findMatchingOrderIds({
+  organizationId,
+  search,
+  field,
+  includeExternal,
+}: {
+  organizationId: string;
+  search: string;
+  field: "os" | "external";
+  includeExternal?: boolean;
+}) {
+  const normalizedSearch = field === "os"
+    ? normalizeOrderSearch(search)
+    : normalizeIdentifier(search);
+  if (!normalizedSearch) return null;
+
+  const pattern = looseIdentifierPattern(search, field === "os");
+  let query = supabase
+    .from("service_orders")
+    .select("id,os_number,external_os_number")
+    .eq("organization_id", organizationId);
+
+  if (field === "external") {
+    query = query.ilike("external_os_number", pattern);
+  } else if (includeExternal) {
+    query = query.or(`os_number.ilike.${pattern},external_os_number.ilike.${pattern}`);
+  } else {
+    query = query.ilike("os_number", pattern);
+  }
+
+  const { data, error } = await query.limit(5000);
+  if (error) throw error;
+
+  return (data ?? [])
+    .filter(order => {
+      const osNumber = normalizeIdentifier(order.os_number);
+      const externalNumber = normalizeIdentifier(order.external_os_number);
+      if (field === "external") return externalNumber.includes(normalizedSearch);
+      const matchesInternal = osNumber.includes(normalizedSearch);
+      return includeExternal ? matchesInternal || externalNumber.includes(normalizedSearch) : matchesInternal;
+    })
+    .map(order => order.id);
 }
 
 export async function listServiceOrdersPage({
@@ -68,35 +150,40 @@ export async function listServiceOrdersPage({
   const from = (safePage - 1) * safePageSize;
   const to = from + safePageSize - 1;
 
-  let customerIds: string[] | null = null;
-  if (documentSearch.trim()) {
-    const pattern = looseDigitsPattern(documentSearch);
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .or(`document.ilike.${pattern},cnpj.ilike.${pattern}`)
-      .limit(5000);
-    if (error) throw error;
-    customerIds = (data ?? []).map(customer => customer.id);
-    if (customerIds.length === 0) return { items: [], total: 0 };
+  let matchingOrderIds: string[] | null = null;
+
+  if (osNumberSearch.trim()) {
+    const ids = await findMatchingOrderIds({
+      organizationId,
+      search: osNumberSearch,
+      field: "os",
+      includeExternal: matchOrderNumberOrExternal,
+    });
+    matchingOrderIds = intersectIds(matchingOrderIds, ids ?? []);
+    if (matchingOrderIds.length === 0) return { items: [], total: 0 };
   }
+
+  if (!matchOrderNumberOrExternal && externalOsSearch.trim()) {
+    const ids = await findMatchingOrderIds({
+      organizationId,
+      search: externalOsSearch,
+      field: "external",
+    });
+    matchingOrderIds = intersectIds(matchingOrderIds, ids ?? []);
+    if (matchingOrderIds.length === 0) return { items: [], total: 0 };
+  }
+
+  const customerIds = documentSearch.trim()
+    ? await findMatchingCustomerIds(organizationId, documentSearch)
+    : null;
+  if (customerIds && customerIds.length === 0) return { items: [], total: 0 };
 
   let query = supabase
     .from("service_orders")
     .select(ORDER_LIST_SELECT, { count: "exact" })
     .eq("organization_id", organizationId);
 
-  if (osNumberSearch.trim()) {
-    const pattern = looseIdentifierPattern(osNumberSearch, true);
-    query = matchOrderNumberOrExternal
-      ? query.or(`os_number.ilike.${pattern},external_os_number.ilike.${pattern}`)
-      : query.ilike("os_number", pattern);
-  }
-
-  if (!matchOrderNumberOrExternal && externalOsSearch.trim()) {
-    query = query.ilike("external_os_number", looseIdentifierPattern(externalOsSearch));
-  }
+  if (matchingOrderIds) query = query.in("id", matchingOrderIds);
   if (customerIds) query = query.in("customer_id", customerIds);
   if (statusId) query = query.eq("status_id", statusId);
   if (situationId) query = query.eq("situation_id", situationId);
