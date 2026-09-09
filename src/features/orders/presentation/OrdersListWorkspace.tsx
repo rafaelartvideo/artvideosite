@@ -56,7 +56,6 @@ export function OrdersListWorkspace(props: Props) {
     osNumberSearch,
     setOsNumberSearch,
     externalOsSearch,
-    setExternalOsSearch,
     documentSearch,
     setDocumentSearch,
     serialNumberSearch,
@@ -138,7 +137,6 @@ export function OrdersListWorkspace(props: Props) {
       }}
     /> : <OrdersFilters
       osNumberSearch={osNumberSearch}
-      externalOsSearch={externalOsSearch}
       documentSearch={documentSearch}
       serialNumberSearch={serialNumberSearch}
       statusId={filterStatus}
@@ -159,7 +157,6 @@ export function OrdersListWorkspace(props: Props) {
       citiesLoading={cityFiltersLoading}
       invalidPeriod={invalidPeriod}
       onOsNumberSearchChange={(value) => { setOsNumberSearch(value); setPage(1); }}
-      onExternalOsSearchChange={(value) => { setExternalOsSearch(value); setPage(1); }}
       onDocumentSearchChange={(value) => { setDocumentSearch(value); setPage(1); }}
       onSerialNumberSearchChange={(value) => { setSerialNumberSearch(value); setPage(1); }}
       onStatusChange={(value) => { setFilterStatus(value); setPage(1); }}
