@@ -1,5 +1,6 @@
-import { Plus, Tag } from "lucide-react";
-import { BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
+import { useRef, useState } from "react";
+import { Plus, Tag, ScanLine } from "lucide-react";
+import { AdminButton, AdminDialog, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import type { EquipmentTypeTechnicalField, ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
 import { OrderImagesField, type OrderImage } from "./OrderImages";
@@ -46,6 +47,46 @@ export function OrderEquipmentSection({
   canRemoveImages: boolean | ((image: OrderImage) => boolean);
   showImages: boolean;
 }) {
+  const scannerInput = useRef<HTMLInputElement>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanError, setScanError] = useState("");
+  const [scanValues, setScanValues] = useState<string[]>([]);
+  const [scanValue, setScanValue] = useState("");
+  const scanGeneration = useRef(0);
+  const closeScanner = () => {
+    scanGeneration.current += 1;
+    setScanOpen(false);
+    setScanBusy(false);
+  };
+  const readSerialCode = async (file?: File) => {
+    if (!file || editing) return;
+    const generation = ++scanGeneration.current;
+    setScanOpen(true);
+    setScanBusy(true);
+    setScanError("");
+    setScanValues([]);
+    setScanValue("");
+    let bitmap: ImageBitmap | undefined;
+    try {
+      const Detector = (window as unknown as {
+        BarcodeDetector?: new () => { detect: (image: ImageBitmap) => Promise<Array<{ rawValue: string }>> };
+      }).BarcodeDetector;
+      if (!Detector) throw new Error("Este navegador não oferece leitura de códigos. Use um aplicativo de scanner e cole o número no campo de série.");
+      bitmap = await createImageBitmap(file);
+      const codes = await new Detector().detect(bitmap);
+      if (generation !== scanGeneration.current) return;
+      const values = [...new Set(codes.map(code => code.rawValue.trim()).filter(Boolean))];
+      if (!values.length) throw new Error("Código não encontrado. Tire uma foto mais próxima e nítida do código de barras ou QR da série. Texto sem código deve ser digitado.");
+      setScanValues(values);
+      setScanValue(values[0]);
+    } catch (error) {
+      if (generation === scanGeneration.current) setScanError(error instanceof Error ? error.message : "Não foi possível ler o código.");
+    } finally {
+      bitmap?.close();
+      if (generation === scanGeneration.current) setScanBusy(false);
+    }
+  };
   const editingOS = editing;
   const hasPermission = (permission: string) =>
     permission === "equipment.create" && canCreate;
@@ -113,15 +154,30 @@ export function OrderEquipmentSection({
           />
         </div>
 
-        <div className="min-w-0 sm:col-span-2">
-          <FInput
+        <div className="flex min-w-0 items-end gap-2 sm:col-span-2">
+          <div className="min-w-0 flex-1"><FInput
             label="Número de série"
             type="text"
             value={form.serial_number || ""}
             disabled={editingOS}
             onChange={(e: any) => upF("serial_number", e.target.value)}
             placeholder="Digite o número de série do equipamento"
-          />
+          /></div>
+          {!editingOS && <AdminButton variant="secondary" onClick={() => scannerInput.current?.click()} aria-label="Escanear número de série" title="Escanear número de série" className="h-[42px] w-[42px] shrink-0 p-0 sm:w-auto sm:px-3">
+            <ScanLine size={20} /><span className="hidden sm:inline">Escanear</span>
+          </AdminButton>}
+          <input ref={scannerInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void readSerialCode(file); }} />
+          <AdminDialog open={scanOpen} onClose={closeScanner} title="Escanear número de série" description="Confira se o código corresponde à série, e não ao modelo ou a um endereço da etiqueta.">
+            {scanBusy && <p role="status">Lendo código da foto...</p>}
+            {scanError && <p role="alert" className="text-sm text-red-700">{scanError}</p>}
+            {!scanBusy && scanValues.length > 1 && <FSelect label="Códigos encontrados" value={scanValue} onChange={(event: any) => setScanValue(event.target.value)} options={scanValues.map(value => ({ value, label: value }))} />}
+            {!scanBusy && scanValues.length > 0 && <FInput label="Número de série lido" value={scanValue} onChange={(event: any) => setScanValue(event.target.value)} />}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <AdminButton variant="secondary" onClick={closeScanner}>Cancelar</AdminButton>
+              <AdminButton variant="secondary" disabled={scanBusy} onClick={() => scannerInput.current?.click()}>Outra foto</AdminButton>
+              <AdminButton disabled={scanBusy || !scanValue.trim() || editingOS} onClick={() => { upF("serial_number", scanValue.trim()); closeScanner(); }}>Usar número</AdminButton>
+            </div>
+          </AdminDialog>
         </div>
 
         {displayedTechnicalFields.map(relation => {
@@ -146,8 +202,8 @@ export function OrderEquipmentSection({
           <div className="min-w-0 border-t border-[#0d1b2e]/8 pt-4 sm:col-span-2">
             <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Fotos do equipamento</p>
 
-            <div className="space-y-3">
-              <div className="rounded-xl border border-[#0057e7]/30 bg-[#eef5ff]/70 p-3 shadow-sm shadow-[#0057e7]/5">
+            <div className="grid min-w-0 grid-cols-2 items-start gap-2 sm:gap-3">
+              <div className="min-w-0 overflow-hidden rounded-xl border border-[#0057e7]/30 bg-[#eef5ff]/70 p-3 shadow-sm shadow-[#0057e7]/5">
                 <div className="mb-3 flex items-start gap-2">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7] text-white"><Tag size={16} /></span>
                   <div className="min-w-0">
