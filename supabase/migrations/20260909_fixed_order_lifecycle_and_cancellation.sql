@@ -1,13 +1,25 @@
 begin;
 
--- Status de OS passam a ser estados fixos do ciclo de vida:
--- Aberta (verde), Fechada (azul) e Cancelada (vermelha).
--- O status deixa de ser configurável/manualmente editável.
+-- Ciclo fixo das ordens de serviço:
+-- Aberta = verde, Fechada = azul, Cancelada = vermelha.
+-- O status passa a ser derivado automaticamente do estado da OS.
 
 alter table public.service_orders
   add column if not exists cancelled_at timestamptz,
   add column if not exists cancelled_by uuid,
   add column if not exists cancellation_reason text;
+
+alter table public.service_orders
+  drop constraint if exists service_orders_cancellation_reason_check;
+alter table public.service_orders
+  add constraint service_orders_cancellation_reason_check
+  check (cancelled_at is null or nullif(trim(cancellation_reason), '') is not null);
+
+alter table public.service_orders
+  drop constraint if exists service_orders_completed_or_cancelled_check;
+alter table public.service_orders
+  add constraint service_orders_completed_or_cancelled_check
+  check (not (completed_at is not null and cancelled_at is not null));
 
 insert into public.permissions (key, label, description, module_name, sort_order)
 values (
@@ -23,12 +35,12 @@ on conflict (key) do update set
   module_name = excluded.module_name,
   sort_order = excluded.sort_order;
 
--- Mantém o acesso atual para funções que já podiam editar OS; a permissão pode
--- ser retirada individualmente depois na matriz de Funções e Permissões.
 insert into public.role_permissions (role_id, permission_id)
 select rp.role_id, child.id
 from public.role_permissions rp
-join public.permissions parent on parent.id = rp.permission_id and parent.key = 'orders.edit'
+join public.permissions parent
+  on parent.id = rp.permission_id
+ and parent.key = 'orders.edit'
 cross join public.permissions child
 where child.key = 'orders.cancel'
 on conflict do nothing;
@@ -40,7 +52,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_status record;
+  v_status_id uuid;
 begin
   if p_organization_id is null then
     raise exception 'A empresa da OS não foi informada.' using errcode = '23502';
@@ -48,49 +60,63 @@ begin
 
   perform set_config('app.manage_fixed_order_statuses', 'true', true);
 
-  select id into v_status
+  select id into v_status_id
   from public.order_statuses
-  where organization_id = p_organization_id and lower(trim(name)) = 'aberta'
-  order by sort_order, id limit 1;
-  if v_status.id is null then
+  where organization_id = p_organization_id
+    and lower(trim(name)) = 'aberta'
+  order by sort_order, id
+  limit 1;
+  if v_status_id is null then
     insert into public.order_statuses (organization_id, name, color, sort_order)
-    values (p_organization_id, 'Aberta', '#16a34a', 1);
+    values (p_organization_id, 'Aberta', '#16a34a', 1)
+    returning id into v_status_id;
   else
-    update public.order_statuses set name = 'Aberta', color = '#16a34a', sort_order = 1
-    where id = v_status.id;
+    update public.order_statuses
+    set name = 'Aberta', color = '#16a34a', sort_order = 1
+    where id = v_status_id
+      and (name, color, sort_order) is distinct from ('Aberta', '#16a34a', 1);
   end if;
 
-  v_status := null;
-  select id into v_status
+  v_status_id := null;
+  select id into v_status_id
   from public.order_statuses
-  where organization_id = p_organization_id and lower(trim(name)) = 'fechada'
-  order by sort_order, id limit 1;
-  if v_status.id is null then
+  where organization_id = p_organization_id
+    and lower(trim(name)) = 'fechada'
+  order by sort_order, id
+  limit 1;
+  if v_status_id is null then
     insert into public.order_statuses (organization_id, name, color, sort_order)
-    values (p_organization_id, 'Fechada', '#0057e7', 2);
+    values (p_organization_id, 'Fechada', '#0057e7', 2)
+    returning id into v_status_id;
   else
-    update public.order_statuses set name = 'Fechada', color = '#0057e7', sort_order = 2
-    where id = v_status.id;
+    update public.order_statuses
+    set name = 'Fechada', color = '#0057e7', sort_order = 2
+    where id = v_status_id
+      and (name, color, sort_order) is distinct from ('Fechada', '#0057e7', 2);
   end if;
 
-  v_status := null;
-  select id into v_status
+  v_status_id := null;
+  select id into v_status_id
   from public.order_statuses
-  where organization_id = p_organization_id and lower(trim(name)) = 'cancelada'
-  order by sort_order, id limit 1;
-  if v_status.id is null then
+  where organization_id = p_organization_id
+    and lower(trim(name)) = 'cancelada'
+  order by sort_order, id
+  limit 1;
+  if v_status_id is null then
     insert into public.order_statuses (organization_id, name, color, sort_order)
-    values (p_organization_id, 'Cancelada', '#dc2626', 3);
+    values (p_organization_id, 'Cancelada', '#dc2626', 3)
+    returning id into v_status_id;
   else
-    update public.order_statuses set name = 'Cancelada', color = '#dc2626', sort_order = 3
-    where id = v_status.id;
+    update public.order_statuses
+    set name = 'Cancelada', color = '#dc2626', sort_order = 3
+    where id = v_status_id
+      and (name, color, sort_order) is distinct from ('Cancelada', '#dc2626', 3);
   end if;
 end;
 $$;
 
 revoke all on function private.ensure_fixed_order_statuses(uuid) from public;
 
--- Provisiona os três status para todas as empresas já existentes no fluxo de OS.
 do $$
 declare
   v_org uuid;
@@ -105,50 +131,69 @@ begin
 end
 $$;
 
--- Preserva OS que já estavam em algum status de cancelamento antes da migração.
 update public.service_orders so
 set
   cancelled_at = coalesce(so.cancelled_at, so.updated_at, now()),
   cancellation_reason = coalesce(nullif(trim(so.cancellation_reason), ''), 'Cancelamento migrado do status anterior.')
 from public.order_statuses st
 where st.id = so.status_id
+  and so.completed_at is null
   and so.cancelled_at is null
   and lower(st.name) like '%cancel%';
 
--- Recria o histórico apenas com o ciclo de vida novo para liberar a exclusão
--- dos status antigos sem deixar referências residuais.
-delete from public.service_order_status_history;
-
--- Normaliza o status atual de todas as OS.
 update public.service_orders so
 set status_id = case
   when so.cancelled_at is not null then (
     select id from public.order_statuses
     where organization_id = so.organization_id and name = 'Cancelada'
-    order by sort_order limit 1
+    order by sort_order, id limit 1
   )
   when so.completed_at is not null then (
     select id from public.order_statuses
     where organization_id = so.organization_id and name = 'Fechada'
-    order by sort_order limit 1
+    order by sort_order, id limit 1
   )
   else (
     select id from public.order_statuses
     where organization_id = so.organization_id and name = 'Aberta'
-    order by sort_order limit 1
+    order by sort_order, id limit 1
   )
 where so.organization_id is not null;
 
--- Remove todos os status configuráveis antigos.
+update public.service_order_status_history history
+set status_id = case
+  when lower(old_status.name) like '%cancel%' then (
+    select id from public.order_statuses
+    where organization_id = so.organization_id and name = 'Cancelada'
+    order by sort_order, id limit 1
+  )
+  when lower(old_status.name) ~ '(fech|conclu|finaliz|encerr)' then (
+    select id from public.order_statuses
+    where organization_id = so.organization_id and name = 'Fechada'
+    order by sort_order, id limit 1
+  )
+  else (
+    select id from public.order_statuses
+    where organization_id = so.organization_id and name = 'Aberta'
+    order by sort_order, id limit 1
+  )
+from public.order_statuses old_status,
+     public.service_orders so
+where history.status_id = old_status.id
+  and history.service_order_id = so.id
+  and so.organization_id is not null;
+
 delete from public.order_statuses st
 where st.name not in ('Aberta', 'Fechada', 'Cancelada')
-   or st.color is distinct from case st.name
-        when 'Aberta' then '#16a34a'
-        when 'Fechada' then '#0057e7'
-        when 'Cancelada' then '#dc2626'
-      end;
+   or st.id is distinct from (
+      select keep.id
+      from public.order_statuses keep
+      where keep.organization_id = st.organization_id
+        and keep.name = st.name
+      order by keep.sort_order, keep.id
+      limit 1
+   );
 
--- Garante novamente os valores canônicos após a limpeza.
 do $$
 declare
   v_org uuid;
@@ -183,8 +228,10 @@ begin
 
   select id into v_status_id
   from public.order_statuses
-  where organization_id = new.organization_id and name = v_status_name
-  order by sort_order limit 1;
+  where organization_id = new.organization_id
+    and name = v_status_name
+  order by sort_order, id
+  limit 1;
 
   if v_status_id is null then
     raise exception 'Status automático % não encontrado para a empresa da OS.', v_status_name using errcode = '23503';
@@ -203,7 +250,6 @@ before insert or update on public.service_orders
 for each row
 execute function private.set_service_order_lifecycle_status();
 
--- Status fixos não podem mais ser configurados pelo aplicativo.
 create or replace function private.guard_fixed_order_statuses()
 returns trigger
 language plpgsql
@@ -227,8 +273,6 @@ create trigger order_statuses_fixed_guard
 before insert or update or delete on public.order_statuses
 for each row execute function private.guard_fixed_order_statuses();
 
--- Permissões específicas: status automático não exige orders.status.change;
--- cancelamento exige orders.cancel e conclusão continua exigindo orders.complete.
 create or replace function private.guard_service_order_sensitive_update()
 returns trigger
 language plpgsql
@@ -271,7 +315,6 @@ begin
 end;
 $$;
 
--- Compatibiliza o bloqueio de OS solucionada com o novo cancelamento/status automático.
 create or replace function public.prevent_direct_service_order_resolution()
 returns trigger
 language plpgsql
@@ -280,6 +323,9 @@ declare
   changed_outside_workflow boolean;
 begin
   if current_setting('app.resolve_service_order', true) = 'true' then
+    if old.cancelled_at is not null then
+      raise exception 'Uma OS cancelada não pode ser resolvida.' using errcode = '42501';
+    end if;
     if old.cannot_be_solved = true and new.is_solved = true then
       raise exception 'Esta OS está marcada como não solucionável e não pode ser concluída como solucionada.' using errcode = '42501';
     end if;
@@ -291,6 +337,9 @@ begin
   end if;
 
   if current_setting('app.complete_service_order', true) = 'true' then
+    if old.cancelled_at is not null then
+      raise exception 'Uma OS cancelada não pode ser concluída.' using errcode = '42501';
+    end if;
     if old.is_solved is not true then
       raise exception 'Resolva a OS antes de concluir.' using errcode = '42501';
     end if;
@@ -307,6 +356,13 @@ begin
         - 'subtotal' - 'discount_percentage' - 'discount_amount' - 'final_total' - 'updated_at'
     ) then
       raise exception 'A conclusão só pode alterar os campos financeiros da OS.' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  if old.cancelled_at is not null then
+    if (to_jsonb(new) - 'status_id') is distinct from (to_jsonb(old) - 'status_id') then
+      raise exception 'Esta OS está cancelada e não pode mais ser alterada.' using errcode = '42501';
     end if;
     return new;
   end if;
@@ -362,7 +418,7 @@ begin
   if (select auth.uid()) is null then
     raise exception 'Autenticação necessária.' using errcode = '42501';
   end if;
-  if nullif(trim(p_reason), '') is null then
+  if length(trim(coalesce(p_reason, ''))) < 3 then
     raise exception 'Informe a justificativa do cancelamento.' using errcode = '23514';
   end if;
 
@@ -401,13 +457,5 @@ $$;
 
 revoke all on function public.cancel_service_order(uuid, text) from public;
 grant execute on function public.cancel_service_order(uuid, text) to authenticated;
-
--- Registra o estado inicial do ciclo de vida após a migração.
-insert into public.service_order_status_history (
-  service_order_id, status_id, notes, is_visible_to_customer, created_by, created_at
-)
-select so.id, so.status_id, 'Status migrado para o ciclo automático.', false, null, now()
-from public.service_orders so
-where so.status_id is not null;
 
 commit;
