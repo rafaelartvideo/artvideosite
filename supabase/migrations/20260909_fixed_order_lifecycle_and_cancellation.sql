@@ -63,54 +63,51 @@ begin
   select id into v_status_id
   from public.order_statuses
   where organization_id = p_organization_id
-    and lower(trim(name)) = 'aberta'
+    and (lower(trim(name)) = 'aberta' or lower(trim(slug)) = 'aberta')
   order by sort_order, id
   limit 1;
   if v_status_id is null then
-    insert into public.order_statuses (organization_id, name, color, sort_order)
-    values (p_organization_id, 'Aberta', '#16a34a', 1)
+    insert into public.order_statuses (organization_id, name, slug, color, sort_order)
+    values (p_organization_id, 'Aberta', 'aberta', '#16a34a', 1)
     returning id into v_status_id;
   else
     update public.order_statuses
-    set name = 'Aberta', color = '#16a34a', sort_order = 1
-    where id = v_status_id
-      and (name, color, sort_order) is distinct from ('Aberta', '#16a34a', 1);
+    set name = 'Aberta', slug = 'aberta', color = '#16a34a', sort_order = 1
+    where id = v_status_id;
   end if;
 
   v_status_id := null;
   select id into v_status_id
   from public.order_statuses
   where organization_id = p_organization_id
-    and lower(trim(name)) = 'fechada'
+    and (lower(trim(name)) = 'fechada' or lower(trim(slug)) = 'fechada')
   order by sort_order, id
   limit 1;
   if v_status_id is null then
-    insert into public.order_statuses (organization_id, name, color, sort_order)
-    values (p_organization_id, 'Fechada', '#0057e7', 2)
+    insert into public.order_statuses (organization_id, name, slug, color, sort_order)
+    values (p_organization_id, 'Fechada', 'fechada', '#0057e7', 2)
     returning id into v_status_id;
   else
     update public.order_statuses
-    set name = 'Fechada', color = '#0057e7', sort_order = 2
-    where id = v_status_id
-      and (name, color, sort_order) is distinct from ('Fechada', '#0057e7', 2);
+    set name = 'Fechada', slug = 'fechada', color = '#0057e7', sort_order = 2
+    where id = v_status_id;
   end if;
 
   v_status_id := null;
   select id into v_status_id
   from public.order_statuses
   where organization_id = p_organization_id
-    and lower(trim(name)) = 'cancelada'
+    and (lower(trim(name)) = 'cancelada' or lower(trim(slug)) = 'cancelada')
   order by sort_order, id
   limit 1;
   if v_status_id is null then
-    insert into public.order_statuses (organization_id, name, color, sort_order)
-    values (p_organization_id, 'Cancelada', '#dc2626', 3)
+    insert into public.order_statuses (organization_id, name, slug, color, sort_order)
+    values (p_organization_id, 'Cancelada', 'cancelada', '#dc2626', 3)
     returning id into v_status_id;
   else
     update public.order_statuses
-    set name = 'Cancelada', color = '#dc2626', sort_order = 3
-    where id = v_status_id
-      and (name, color, sort_order) is distinct from ('Cancelada', '#dc2626', 3);
+    set name = 'Cancelada', slug = 'cancelada', color = '#dc2626', sort_order = 3
+    where id = v_status_id;
   end if;
 end;
 $$;
