@@ -68,10 +68,10 @@ export function OrderImagesField({
               onClick={() => inputRef.current?.click()}
               aria-label="Adicionar imagens"
               title="Adicionar imagens"
-              className="min-h-[52px] w-full min-w-0 flex-col justify-center gap-1 border-[#0057e7]/30 px-1 py-2 text-[#0057e7] hover:bg-[#0057e7]/5 lg:flex-row lg:px-3"
+              className="h-[42px] w-full min-w-0 justify-center gap-1.5 border-[#0057e7]/30 px-2 py-0 text-[#0057e7] hover:bg-[#0057e7]/5 md:px-3"
             >
-              <Upload size={14} />
-              <span className="text-[10px] leading-tight sm:text-xs">Adicionar</span>
+              <Upload size={18} className="shrink-0" />
+              <span className="hidden text-xs md:inline">Adicionar</span>
             </AdminButton>
             <AdminButton
               variant="secondary"
@@ -80,10 +80,10 @@ export function OrderImagesField({
               onClick={() => cameraInputRef.current?.click()}
               aria-label="Abrir câmera"
               title="Abrir câmera"
-              className="min-h-[52px] w-full min-w-0 flex-col justify-center gap-1 border-[#0057e7]/30 px-1 py-2 text-[#0057e7] hover:bg-[#0057e7]/5 lg:flex-row lg:px-3"
+              className="h-[42px] w-full min-w-0 justify-center gap-1.5 border-[#0057e7]/30 px-2 py-0 text-[#0057e7] hover:bg-[#0057e7]/5 md:px-3"
             >
-              <Camera size={14} />
-              <span className="text-[10px] leading-tight sm:text-xs">Câmera</span>
+              <Camera size={18} className="shrink-0" />
+              <span className="hidden text-xs md:inline">Câmera</span>
             </AdminButton>
           </div>
         )}
