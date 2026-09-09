@@ -24,6 +24,7 @@ type Props = {
   customers: any[];
   filtered: any[];
   pagedCustomers: any[];
+  totalItems: number;
   loading: boolean;
   nameSearch: string;
   documentSearch: string;
@@ -68,7 +69,7 @@ export function CustomersList(props: Props) {
   const showCreatedAt = hasPermission("customers.table.created_at");
   const showActions = hasPermission("customers.table.actions");
   const {
-    customers, filtered, pagedCustomers, loading,
+    customers, filtered, pagedCustomers, totalItems, loading,
     nameSearch, documentSearch, selectedStates, selectedCities, orderSort, stateOptions, cityOptions, hasFilters,
     safePage, pageSize, totalPages, canCreate, canDelete,
     onNameSearchChange, onDocumentSearchChange, onStateToggle, onCityToggle, onOrderSortChange, onClearFilters,
@@ -99,7 +100,7 @@ export function CustomersList(props: Props) {
   return <>
     <PageHeader
       title="Clientes"
-      subtitle={`${customers.length} cliente${customers.length !== 1 ? "s" : ""} cadastrado${customers.length !== 1 ? "s" : ""}`}
+      subtitle={`${totalItems} cliente${totalItems !== 1 ? "s" : ""} cadastrado${totalItems !== 1 ? "s" : ""}`}
       actions={canCreate ? <AdminButton onClick={onCreate}><Plus size={13} /> Cadastrar</AdminButton> : undefined}
     />
 
@@ -124,13 +125,13 @@ export function CustomersList(props: Props) {
         <SearchField label="Nome" value={nameSearch} onChange={value => { onNameSearchChange(value); onPageChange(1); }} placeholder="Digite o nome do cliente" />
         <SearchField label="CPF / CNPJ" value={documentSearch} onChange={value => { onDocumentSearchChange(formatDocumentSearch(value)); onPageChange(1); }} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
         <AdminFilterMultiSelect label="Estado" options={stateOptions} selectedValues={selectedStates} onToggle={value => { onStateToggle(value); onPageChange(1); }} placeholder="Selecionar Estado" />
-        <AdminFilterMultiSelect label="Cidade" options={cityOptions} selectedValues={selectedCities} onToggle={value => { onCityToggle(value); onPageChange(1); }} placeholder="Selecionar Cidade" disabled={stateOptions.length === 0} />
+        <AdminFilterMultiSelect label="Cidade" options={cityOptions} selectedValues={selectedCities} onToggle={value => { onCityToggle(value); onPageChange(1); }} placeholder="Selecionar Cidade" disabled={selectedStates.length === 0} />
       </div>
       <div className="mt-3 hidden items-center justify-between md:flex"><div className="w-[220px]"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" className={cn("flex h-[42px] w-full items-center justify-between rounded-lg border bg-white px-3 text-xs", orderSort ? "border-[#0057e7] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82]")}><span className="flex items-center gap-2"><SortIcon size={15} />{sortLabel}</span><ChevronDown size={14} /></button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[220px]">{([["", "Ordenação padrão", ArrowUpDown], ["asc", "Nome crescente", ArrowUpNarrowWide], ["desc", "Nome decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => onOrderSortChange(value)}><Icon size={15} />{label}{orderSort === value && <Check size={14} className="ml-auto" />}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div>{hasFilters && <AdminButton variant="danger" size="sm" onClick={onClearFilters} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} /> Limpar filtros</AdminButton>}</div>
     </AdminSearchPanel>
 
     <AdminCard>
-      {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cliente encontrado" message="Ajuste os filtros para localizar o cliente desejado." onAdd={canCreate && customers.length === 0 ? onCreate : undefined} addLabel="Cadastrar Cliente" /> : <>
+      {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cliente encontrado" message="Ajuste os filtros para localizar o cliente desejado." onAdd={canCreate && totalItems === 0 ? onCreate : undefined} addLabel="Cadastrar Cliente" /> : <>
         <div className="divide-y divide-[#0d1b2e]/8 md:hidden">{pagedCustomers.map(customer => <article key={customer.id} role="button" tabIndex={0} onClick={() => onOpenDetail(customer)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenDetail(customer); } }} className="min-w-0 p-4 transition-colors active:bg-[#f5f7fa]">
           <div className="flex min-w-0 items-start justify-between gap-3"><div className="min-w-0 flex-1">{showName && <p className="truncate text-sm font-bold text-[#0d1b2e]">{customer.full_name || "—"}</p>}{showDocument && <p className="mt-1 font-mono text-[11px] text-[#5a6a82]"><span className="font-bold text-[#0057e7]">{customer.customer_type === "PJ" ? "PJ" : "PF"}</span> · {customerDocument(customer)}</p>}</div>{showCreatedAt && <span className="shrink-0 text-[10px] font-medium text-[#8a96a8]">{formatDateOnly(customer.created_at, "—")}</span>}</div>
           <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 text-xs xs:grid-cols-2">{showWhatsapp && <Info label="WhatsApp" value={formatPhone(customer.whatsapp) || "—"} />}{showEmail && <Info label="E-mail" value={customer.email || "—"} />}</div>
@@ -138,7 +139,7 @@ export function CustomersList(props: Props) {
         </article>)}</div>
         <div className="hidden overflow-x-auto md:block"><table className="min-w-[700px]"><thead><tr>{showName && <th className="text-left">Nome</th>}{showDocument && <th className="text-left">Tipo / documento</th>}{showWhatsapp && <th className="text-left">WhatsApp</th>}{showEmail && <th className="text-left">E-mail</th>}{showCreatedAt && <th className="text-left">Cadastrado em</th>}{showActions && <th className="text-right">Ação</th>}</tr></thead><tbody>{pagedCustomers.map(c => <tr key={c.id} onClick={() => onOpenDetail(c)} className="cursor-default">{showName && <td className="font-bold text-[#0d1b2e]">{c.full_name}</td>}{showDocument && <td className="font-mono text-xs text-[#5a6a82]"><span className="font-bold text-[#0057e7]">{c.customer_type === "PJ" ? "PJ" : "PF"}</span> · {customerDocument(c)}</td>}{showWhatsapp && <td className="text-xs text-[#5a6a82]">{formatPhone(c.whatsapp) || "—"}</td>}{showEmail && <td className="max-w-[160px] truncate text-xs text-[#5a6a82]">{c.email || "—"}</td>}{showCreatedAt && <td className="text-xs text-[#5a6a82]">{formatDateOnly(c.created_at, "—")}</td>}{showActions && <td onClick={event => event.stopPropagation()}><div className="flex items-center justify-end gap-2"><AdminButton variant="ghost" size="sm" onClick={() => onOpenDetail(c)} className="ml-auto px-0 py-1 hover:bg-transparent hover:underline">Ver detalhes</AdminButton>{canDelete && <AdminIconButton ariaLabel="Excluir cliente" title="Excluir cliente" variant="danger" onClick={() => onDelete(c.id)} className="h-7 w-7"><Trash2 size={14} /></AdminIconButton>}</div></td>}</tr>)}</tbody></table></div>
       </>}
-      <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={nextPageSize => { onPageSizeChange(nextPageSize); onPageChange(1); }} />
+      <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={nextPageSize => { onPageSizeChange(nextPageSize); onPageChange(1); }} />
     </AdminCard>
   </>;
 }
