@@ -1,6 +1,7 @@
 import { useRef, useState, type Dispatch, type DragEvent, type SetStateAction } from "react";
 import { useAuth } from "@/lib/auth";
 import { insertServiceOrderStatusHistory, updateServiceOrderSituation, updateServiceOrderStatus } from "../infrastructure/orders.repository";
+import { cancelServiceOrder } from "../infrastructure/order-cancellation.repository";
 
 type ToastMessage = { msg: string; type: "success" | "error" };
 
@@ -13,6 +14,7 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
   const targetOrganizationId = organizationIdOverride || activeOrganizationId;
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const dragOriginRef = useRef<any[] | null>(null);
   const suppressCardClickRef = useRef(false);
 
@@ -22,8 +24,10 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
     return null;
   };
 
+  // Mantido apenas por compatibilidade interna durante a transição. A UI não oferece
+  // mais alteração manual de status e o banco força o status pelo ciclo da OS.
   const updateOrderStatus = async (order: any, statusId: string) => {
-    if (!hasPermission("orders.status.change")) { showToast({ msg: "Você não possui permissão para alterar o status.", type: "error" }); return; }
+    if (!hasPermission("orders.status.change")) { showToast({ msg: "O status da OS é automático.", type: "error" }); return; }
     const organizationId = requireTargetOrganization();
     if (!organizationId || order.organization_id !== organizationId) return;
     const previousOrders = orders; const previousDetail = detail; const nextStatus = statuses.find(status => status.id === statusId);
@@ -32,8 +36,59 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
     const { error } = await updateServiceOrderStatus(organizationId, order.id, statusId);
     if (error) { setOrders(previousOrders); setDetail(previousDetail); showToast({ msg: `Erro: ${error.message}`, type: "error" }); return; }
     await insertServiceOrderStatusHistory(order.id, statusId, userId || null);
-    showToast({ msg: "Status atualizado!", type: "success" });
     await syncRelatedCaches();
+  };
+
+  const cancelOrder = async (order: any, reason: string) => {
+    if (!hasPermission("orders.cancel")) {
+      showToast({ msg: "Você não possui permissão para cancelar esta OS.", type: "error" });
+      return false;
+    }
+    const organizationId = requireTargetOrganization();
+    if (!organizationId || order.organization_id !== organizationId) return false;
+    if (order.completed_at) {
+      showToast({ msg: "Uma OS concluída não pode ser cancelada.", type: "error" });
+      return false;
+    }
+    if (order.cancelled_at || String(order.order_status?.name || "").toLowerCase() === "cancelada") {
+      showToast({ msg: "Esta OS já está cancelada.", type: "error" });
+      return false;
+    }
+    if (reason.trim().length < 3) {
+      showToast({ msg: "Informe a justificativa do cancelamento.", type: "error" });
+      return false;
+    }
+
+    const previousOrders = orders;
+    const previousDetail = detail;
+    const cancelledStatus = statuses.find(status => String(status.name || "").toLowerCase() === "cancelada");
+    const cancelledAt = new Date().toISOString();
+    const optimistic = (item: any) => ({
+      ...item,
+      status_id: cancelledStatus?.id || item.status_id,
+      order_status: cancelledStatus || item.order_status,
+      cancelled_at: cancelledAt,
+      cancelled_by: userId || null,
+      cancellation_reason: reason.trim(),
+    });
+
+    setCancellingId(order.id);
+    setOrders(current => current.map(item => item.id === order.id ? optimistic(item) : item));
+    setDetail((current: any) => current?.id === order.id ? optimistic(current) : current);
+    try {
+      const { error } = await cancelServiceOrder(order.id, reason);
+      if (error) throw error;
+      showToast({ msg: `OS ${order.os_number || ""} cancelada.`, type: "success" });
+      await syncRelatedCaches();
+      return true;
+    } catch (error) {
+      setOrders(previousOrders);
+      setDetail(previousDetail);
+      showToast({ msg: `Não foi possível cancelar a OS: ${formatError(error)}`, type: "error" });
+      return false;
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   const updateOrderSituation = async (order: any, situationId: string) => {
@@ -52,28 +107,21 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
   };
 
   const handleKanbanDrop = async (statusId: string) => {
-    if (!hasPermission("orders.status.change")) return;
-    const organizationId = requireTargetOrganization();
-    if (!organizationId) return;
-    const order = orders.find(item => item.id === draggingId); const previousOrders = dragOriginRef.current;
-    setDraggingId(null); setDragOverStatusId(null);
-    if (!order || order.organization_id !== organizationId || order.status_id === statusId || !previousOrders) return;
-    const nextStatus = statuses.find(status => status.id === statusId);
-    setOrders(current => current.map(item => item.id === order.id ? { ...item, status_id: statusId, order_status: nextStatus || item.order_status } : item));
-    try {
-      const { error } = await updateServiceOrderStatus(organizationId, order.id, statusId); if (error) throw error;
-      const { error: historyError } = await insertServiceOrderStatusHistory(order.id, statusId, userId || null);
-      if (historyError) console.warn("[ADMIN] OS status history warning:", historyError.message);
-      showToast({ msg: `OS ${order.os_number || order.id.slice(0, 8)} movida para ${nextStatus?.name || "o novo status"}.`, type: "success" });
-      await syncRelatedCaches();
-    } catch (error) { setOrders(previousOrders); showToast({ msg: `Não foi possível alterar o status: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
-    finally { dragOriginRef.current = null; }
+    // Status de OS não é mais alterável por drag-and-drop. Mantido para não quebrar
+    // assinaturas antigas enquanto o Kanban passa a ser somente visual.
+    setDraggingId(null);
+    setDragOverStatusId(null);
+    dragOriginRef.current = null;
+    void statusId;
   };
 
-  const handleCardDragStart = (event: DragEvent<HTMLElement>, order: any) => { if (!hasPermission("orders.status.change")) return; dragOriginRef.current = orders; suppressCardClickRef.current = true; setDraggingId(order.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", order.id); };
-  const handleCardDragEnd = () => { setDraggingId(null); setDragOverStatusId(null); window.setTimeout(() => { suppressCardClickRef.current = false; }, 0); };
+  const handleCardDragStart = (event: DragEvent<HTMLElement>, order: any) => {
+    event.preventDefault();
+    void order;
+  };
+  const handleCardDragEnd = () => { setDraggingId(null); setDragOverStatusId(null); };
   const shouldSuppressCardOpen = () => { if (!suppressCardClickRef.current) return false; suppressCardClickRef.current = false; return true; };
   const handleDragLeave = (statusId: string) => { setDragOverStatusId(current => current === statusId ? null : current); };
 
-  return { organizationId: targetOrganizationId, draggingId, dragOverStatusId, setDragOverStatusId, updateOrderStatus, updateOrderSituation, handleKanbanDrop, handleCardDragStart, handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave };
+  return { organizationId: targetOrganizationId, draggingId, dragOverStatusId, cancellingId, setDragOverStatusId, updateOrderStatus, cancelOrder, updateOrderSituation, handleKanbanDrop, handleCardDragStart, handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave };
 }
