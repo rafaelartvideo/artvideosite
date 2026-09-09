@@ -1,0 +1,6 @@
+project_id = "artvideosite"
+
+# Webhooks externos da Uniq não carregam um JWT do Supabase. A função valida
+# um token próprio (UNIQ_WEBHOOK_TOKEN) antes de aceitar qualquer evento.
+[functions.uniq-webhook]
+verify_jwt = false
