@@ -330,7 +330,9 @@ export function TabOrders({
         if (detail?.id === order.id) closeDetail();
         void openEdit(order)
           .then(opened => {
-            if (!opened && !cancelled) onOrderRouteChange?.(order.id, null);
+            if (!opened && openingEditRouteRef.current === order.id) {
+              onOrderRouteChange?.(order.id, null);
+            }
           })
           .finally(() => {
             if (openingEditRouteRef.current === order.id) openingEditRouteRef.current = null;
