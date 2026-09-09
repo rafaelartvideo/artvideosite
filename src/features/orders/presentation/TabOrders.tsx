@@ -1,25 +1,22 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
-import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPage";
-import { useOrderEditorWorkflow } from "@/features/orders/application/useOrderEditorWorkflow";
-import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
-import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage";
+import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { OSSituationsView } from "@/features/order-situations/presentation/OSSituationsView";
-import { useOrderImages } from "@/features/orders/application/useOrderImages";
-import { useOrderPartRequests } from "@/features/orders/application/useOrderPartRequests";
-import { useOrdersWorkspace } from "@/features/orders/application/useOrdersWorkspace";
-import { useOrderFilters } from "@/features/orders/application/useOrderFilters";
-import { useOrderListMutations } from "@/features/orders/application/useOrderListMutations";
-import { useOrderCustomerSelection } from "@/features/orders/application/useOrderCustomerSelection";
-import { useOrderServiceAddress } from "@/features/orders/application/useOrderServiceAddress";
-import { useOrderResolution } from "@/features/orders/application/useOrderResolution";
 import { useOrderCompletion } from "@/features/orders/application/useOrderCompletion";
-import { useOrderDetails } from "@/features/orders/application/useOrderDetails";
-import { useOrderHistory } from "@/features/orders/application/useOrderHistory";
-import { useOrderSituationDocuments } from "@/features/orders/application/useOrderSituationDocuments";
-import { useOrderFormState } from "@/features/orders/application/useOrderFormState";
 import { useOrderCustomerPersistence } from "@/features/orders/application/useOrderCustomerPersistence";
+import { useOrderCustomerSelection } from "@/features/orders/application/useOrderCustomerSelection";
+import { useOrderDetails } from "@/features/orders/application/useOrderDetails";
+import { useOrderEditorWorkflow } from "@/features/orders/application/useOrderEditorWorkflow";
+import { useOrderFilters } from "@/features/orders/application/useOrderFilters";
+import { useOrderFormState } from "@/features/orders/application/useOrderFormState";
+import { useOrderHistory } from "@/features/orders/application/useOrderHistory";
+import { useOrderImages } from "@/features/orders/application/useOrderImages";
+import { useOrderListMutations } from "@/features/orders/application/useOrderListMutations";
+import { useOrderPartRequests } from "@/features/orders/application/useOrderPartRequests";
+import { useOrderResolution } from "@/features/orders/application/useOrderResolution";
+import { useOrderServiceAddress } from "@/features/orders/application/useOrderServiceAddress";
+import { useOrderSituationDocuments } from "@/features/orders/application/useOrderSituationDocuments";
+import { useOrdersWorkspace } from "@/features/orders/application/useOrdersWorkspace";
 import {
   equipmentSummary,
   formatOrderCurrency,
@@ -30,11 +27,14 @@ import {
   situationsForType,
   usedItemsTotal,
 } from "@/features/orders/application/order-display-rules";
-import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
+import { getServiceOrderForRoute } from "@/features/orders/infrastructure/orders-list.repository";
+import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPage";
+import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage";
+import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
+import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
-type OrderType = "internal" | "external";
 type SharedAccessMode = "default" | "read";
 
 type TabOrdersProps = {
@@ -99,113 +99,57 @@ export function TabOrders({
     if (typeof window === "undefined") return "list";
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
-  const workspace = useOrdersWorkspace({ showToast: setToast, organizationIdOverride });
+  const [saving, setSaving] = useState(false);
+
+  const workspaceBase = useOrdersWorkspace({ showToast: setToast, organizationIdOverride });
   const {
-    orders,
-    setOrders,
     statuses,
     situations,
     serviceTypeSituations,
     profiles,
-    services,
-    brands,
-    products,
-    equipmentTypes,
-    setEquipmentTypes,
-    equipmentBrands,
-    setEquipmentBrands,
-    equipmentModels,
-    setEquipmentModels,
-    employees,
     serviceTypes,
     generalServices,
-    loading,
+    loading: workspaceLoading,
     reloadWorkspace,
-  } = workspace;
-  const [saving, setSaving] = useState(false);
+  } = workspaceBase;
 
   const formState = useOrderFormState();
-  const {
-    formOpen,
-    editingOS,
-    selectedTechnicianIds,
-    setSelectedTechnicianIds,
-    selectedSellerIds,
-    setSelectedSellerIds,
-    quickEquipment,
-    setQuickEquipment,
-    quickCustomer,
-    setQuickCustomer,
-    form,
-    setForm,
-    needsScheduling,
-    setNeedsScheduling,
-    updateField: upF,
-    openNewForm,
-    hydrateOrderForm,
-    closeOrderForm,
-  } = formState;
+  const { formOpen, editingOS, form, setForm, closeOrderForm } = formState;
 
   const imagesController = useOrderImages();
-  const {
-    orderImages,
-    solutionImages,
-    viewImage,
-    setViewImage,
-    loadOrderImages,
-    replaceOrderImages,
-    clearOrderImages,
-    addOrderImages,
-    removeOrderImage,
-    replaceSolutionImages,
-    addSolutionImages,
-    removeSolutionImage,
-  } = imagesController;
+  const { solutionImages, replaceOrderImages, replaceSolutionImages } = imagesController;
 
   const customerSelection = useOrderCustomerSelection(organizationIdOverride);
-  const {
-    customerSearch,
-    customerResults,
-    selectedCustomer,
-    setSelectedCustomer,
-    editingCustomer,
-    setEditingCustomer,
-    customerDraft,
-    setCustomerDraft,
-    customerAddressDraft,
-    setCustomerAddressDraft,
-    addressExpanded,
-    setAddressExpanded,
-    searchCustomers,
-    selectCustomer: selectCustomerState,
-    hydrateCustomer,
-    clearCustomer,
-  } = customerSelection;
+  const { selectedCustomer, setSelectedCustomer, setEditingCustomer, customerDraft, customerAddressDraft, setAddressExpanded } = customerSelection;
 
   const serviceAddress = useOrderServiceAddress({
     form,
     setForm,
     selectedCustomer,
   });
+  const { ibgeStates } = serviceAddress;
+
+  const filters = useOrderFilters({
+    organizationId: workspaceBase.organizationId,
+    stateOptions: ibgeStates,
+    matchOrderNumberOrExternal: scopedReadOnly,
+  });
   const {
-    serviceUseCustomerAddress,
-    setServiceUseCustomerAddress,
-    serviceCustomerAddressOverride,
-    setServiceCustomerAddressOverride,
-    serviceAddressMessage,
-    setServiceAddressMessage,
-    ibgeStates,
-    ibgeStatesLoading,
-    ibgeCities,
-    ibgeCitiesLoading,
-    selectedServiceAddress,
-    serviceAddressPreview,
-    clearServiceAddress,
-    copyCustomerAddressToForm,
-    loadIbgeCities,
-    resetServiceAddressState,
-    hydrateServiceAddress,
-  } = serviceAddress;
+    orders,
+    setOrders,
+    loading: ordersLoading,
+    error: ordersError,
+  } = filters;
+  const loading = workspaceLoading || ordersLoading;
+  const workspace = { ...workspaceBase, orders, setOrders, loading };
+
+  useEffect(() => {
+    if (!ordersError) return;
+    setToast({
+      msg: `Erro ao carregar OS: ${ordersError instanceof Error ? ordersError.message : String(ordersError)}`,
+      type: "error",
+    });
+  }, [ordersError]);
 
   const customerPersistence = useOrderCustomerPersistence({
     selectedCustomer,
@@ -219,10 +163,6 @@ export function TabOrders({
     showToast: setToast,
     organizationIdOverride,
   });
-  const {
-    saveCustomer,
-    saveCustomerBeforeOrder,
-  } = customerPersistence;
 
   const partRequests = useOrderPartRequests({
     reloadOrders: reloadWorkspace,
@@ -232,52 +172,7 @@ export function TabOrders({
   });
   const {
     detailPartRequests,
-    selectedPartRequest,
-    partApprovalOpen,
-    partRejectionOpen,
-    approvalQuantities,
-    partReviewNotes,
-    setPartReviewNotes,
-    partReviewSubmitting,
-    partRequestOpen,
-    partRequestInventory,
-    partRequestInventoryLoading,
-    partRequestSearch,
-    setPartRequestSearch,
-    selectedPartRequestItems,
-    partRequestNotes,
-    setPartRequestNotes,
-    partRequestSubmitting,
-    partRequestInventoryError,
-    partRequestPurpose,
-    setPartRequestPurpose,
-    selectedDeliveryRequest,
-    deliveryOpen,
-    deliverySubmitting,
-    selectedTestRequest,
-    testResultOpen,
-    testResultRows,
-    setTestResultRows,
-    testResultSubmitting,
     loadPartRequests,
-    openPartRequestModal,
-    closePartRequestModal,
-    selectPartRequestItem,
-    updatePartRequestQuantity,
-    removePartRequestItem,
-    openPartApproval,
-    openPartRejection,
-    closePartReview,
-    updateApprovalQuantity,
-    approvePartRequest,
-    rejectPartRequest,
-    openDeliveryRequest,
-    closeDeliveryRequest,
-    deliverTestRequest,
-    openTestResult,
-    closeTestResult,
-    submitTestResults,
-    getTestCommittedQuantity,
     getTestPendingQuantity,
   } = partRequests;
 
@@ -293,7 +188,6 @@ export function TabOrders({
     detailHistory,
     detailUsedItems,
     setDetailUsedItems,
-    detailSolutionImages,
     setDetailSolutionImages,
     openDetail,
     closeDetail,
@@ -332,15 +226,8 @@ export function TabOrders({
     formatError: supabaseErrorMessage,
     setSaving,
   });
-  const {
-    inventoryItems,
-    solveOpen,
-    setSolveOpen,
-    solveDraft,
-    setSolveDraft,
-    openSolveOrder,
-    saveOrderSolution,
-  } = resolutionController;
+  const { solveOpen } = resolutionController;
+
   const completionController = useOrderCompletion({
     detail,
     usedItems: detailUsedItems,
@@ -384,48 +271,75 @@ export function TabOrders({
     syncRelatedCaches: reloadWorkspace,
     organizationIdOverride,
   });
-  const {
-    draggingId,
-    dragOverStatusId,
-    setDragOverStatusId,
-    updateOrderStatus,
-    updateOrderSituation,
-    handleKanbanDrop,
-    handleCardDragStart,
-    handleCardDragEnd,
-    shouldSuppressCardOpen,
-    handleDragLeave,
-  } = listMutations;
 
   useEffect(() => {
-    if (loading) return;
+    let cancelled = false;
+    if (workspaceLoading) return () => { cancelled = true; };
+
     if (!initialOrderId) {
       if (detail) closeDetail();
       if (formOpen) closeOrderForm();
-      return;
+      return () => { cancelled = true; };
     }
+
     if (initialOrderId === "new" || routeSubpage === "edit") {
       if (scopedReadOnly) {
         if (detail) closeDetail();
         if (formOpen) closeOrderForm();
         onOrderRouteChange?.(null, null);
-        return;
+        return () => { cancelled = true; };
       }
       if (initialOrderId === "new") {
         if (detail) closeDetail();
         if (!formOpen || editingOS) openNew();
-        return;
+        return () => { cancelled = true; };
       }
     }
-    const order = orders.find(item => item.id === initialOrderId);
-    if (!order) return;
-    if (routeSubpage === "edit") {
-      if (!formOpen || editingOS?.id !== order.id) void openEdit(order).then(() => closeDetail());
-      return;
+
+    if (routeSubpage !== "edit" && detail?.id === initialOrderId) {
+      return () => { cancelled = true; };
     }
-    if (formOpen) closeOrderForm();
-    if (detail?.id !== order.id) openDetail(order);
-  }, [initialOrderId, routeSubpage, loading, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly]);
+    if (routeSubpage === "edit" && formOpen && editingOS?.id === initialOrderId) {
+      return () => { cancelled = true; };
+    }
+
+    const openRoutedOrder = (order: any) => {
+      if (cancelled) return;
+      if (routeSubpage === "edit") {
+        if (!formOpen || editingOS?.id !== order.id) {
+          void openEdit(order).then(() => {
+            if (!cancelled) closeDetail();
+          });
+        }
+        return;
+      }
+      if (formOpen) closeOrderForm();
+      if (detail?.id !== order.id) openDetail(order);
+    };
+
+    const orderOnPage = orders.find(item => item.id === initialOrderId);
+    if (orderOnPage) {
+      openRoutedOrder(orderOnPage);
+      return () => { cancelled = true; };
+    }
+
+    if (!workspaceBase.organizationId) return () => { cancelled = true; };
+    void getServiceOrderForRoute(workspaceBase.organizationId, initialOrderId)
+      .then(order => {
+        if (!order) {
+          if (!cancelled) setToast({ msg: "A OS solicitada não foi encontrada.", type: "error" });
+          return;
+        }
+        openRoutedOrder(order);
+      })
+      .catch(error => {
+        if (!cancelled) {
+          setToast({ msg: `Erro ao carregar OS: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [initialOrderId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly]);
 
   const openRoutedDetail = (order: any) => {
     if (onOrderRouteChange) {
@@ -455,16 +369,15 @@ export function TabOrders({
   };
 
   const closeRoutedPage = () => {
+    closeDetail();
+    closeOrderForm();
+    setDocumentsPageOpen(false);
+    orderHistory.closePage();
     if (initialOrderId && onOrderRouteClose) {
       onOrderRouteClose();
       return;
     }
-    if (onOrderRouteChange) {
-      onOrderRouteChange(null, null);
-      return;
-    }
-    closeDetail();
-    closeOrderForm();
+    if (onOrderRouteChange) onOrderRouteChange(null, null);
   };
 
   const saveRoutedOrder = async () => {
@@ -478,57 +391,9 @@ export function TabOrders({
   };
 
   const fmtDate = formatOrderDate;
-  const getEquipmentSummary = equipmentSummary;
   const getStateLabel = (value: unknown) => stateLabel(value, ibgeStates);
-
-  const filters = useOrderFilters({
-    orders,
-    stateOptions: ibgeStates,
-    getStateLabel,
-    getEquipmentSummary,
-  });
-  const {
-    osNumberSearch,
-    setOsNumberSearch,
-    externalOsSearch,
-    setExternalOsSearch,
-    documentSearch,
-    setDocumentSearch,
-    filterStatus,
-    setFilterStatus,
-    filterSituation,
-    setFilterSituation,
-    filterOrderType,
-    setFilterOrderType,
-    selectedServiceTypeId,
-    setSelectedServiceTypeId,
-    orderSort,
-    setOrderSort,
-    selectedStates,
-    setSelectedStates,
-    selectedCities,
-    setSelectedCities,
-    cityFilterOptions,
-    cityFiltersLoading,
-    dateFrom,
-    setDateFrom,
-    dateTo,
-    setDateTo,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    invalidPeriod,
-    filteredOrders: filtered,
-    pagedOrders,
-    totalPages,
-    safePage,
-    orderLabel,
-    clearFilters,
-  } = filters;
   const getSituationsForType = (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) =>
     situationsForType(serviceTypeId, serviceTypeSituations, situations, currentSituationId, currentSituation);
-
   const getSlaForOrder = (serviceTypeId?: string, situationId?: string, relatedSituation?: any) =>
     slaForOrder(serviceTypeId, situationId, relatedSituation, serviceTypeSituations, situations);
 
@@ -602,6 +467,7 @@ export function TabOrders({
         onSave={saveRoutedOrder}
         onClose={closeRoutedPage}
       />}
+
       {!scopedReadOnly && <OrderWorkflowModals
         detail={detail}
         saving={saving}
