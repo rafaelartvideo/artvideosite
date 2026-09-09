@@ -1,4 +1,4 @@
-import { ArrowLeft, Globe, LogOut, Settings, Users } from "lucide-react";
+import { ArrowLeft, ExternalLink, Globe, LogOut, Settings, Users } from "lucide-react";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { isAdminModuleEnabled, mainItems, operationItems, siteItems, utilityItems } from "../navigation-config";
@@ -132,6 +132,25 @@ export function AdminSidebar({
             />
           ))}
         </div>
+        <section className="mt-4 border-t border-white/8 pt-4" aria-label="Sites externos">
+          <h2 className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-white/40">SITES EXTERNOS</h2>
+          {[
+            { label: "SAC DIGITAL", href: "https://monitor.sac.digital/login" },
+            { label: "UNIQ", href: "https://web.uniq.app/login" },
+          ].map(link => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${link.label} (abre em nova aba)`}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white/60 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b4ff]"
+            >
+              <ExternalLink size={17} className="shrink-0" />
+              <span>{link.label}</span>
+            </a>
+          ))}
+        </section>
       </nav>
 
       {isPlatformOrganization && (
