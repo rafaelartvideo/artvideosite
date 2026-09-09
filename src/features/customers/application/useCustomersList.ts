@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { listCustomers } from "../infrastructure/customers.repository";
+import { listExactCustomersPage } from "../infrastructure/customers-filtered-page.repository";
 
 type Options = {
   organizationId: string | null;
@@ -13,7 +13,7 @@ type IbgeCity = { nome: string };
 
 export type CustomerSort = "" | "asc" | "desc";
 
-function useDebouncedValue<T>(value: T, delay = 300) {
+function useDebouncedValue<T>(value: T, delay = 450) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebounced(value), delay);
@@ -74,7 +74,8 @@ export function useCustomersList({ organizationId, onToast }: Options) {
   const query = useQuery({
     queryKey: [...queryKeys.customers.lists(), queryFilters],
     enabled: Boolean(organizationId),
-    queryFn: () => listCustomers({
+    placeholderData: keepPreviousData,
+    queryFn: () => listExactCustomersPage({
       organizationId: organizationId!,
       page,
       pageSize,
@@ -156,7 +157,7 @@ export function useCustomersList({ organizationId, onToast }: Options) {
     stateOptions,
     cityOptions,
     statesLoading: statesQuery.isPending,
-    citiesLoading: citiesQuery.isPending,
+    citiesLoading: selectedStates.length > 0 && citiesQuery.isFetching,
     hasFilters,
     clearFilters,
     page,
