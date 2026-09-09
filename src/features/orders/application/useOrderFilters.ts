@@ -166,7 +166,7 @@ export function useOrderFilters({
     orders,
     setOrders,
     totalItems,
-    loading: Boolean(organizationId) && ordersQuery.isPending,
+    loading: Boolean(organizationId) && (ordersQuery.isPending || ordersQuery.isPlaceholderData),
     isFetching: ordersQuery.isFetching,
     error: ordersQuery.error,
     osNumberSearch,
