@@ -328,9 +328,13 @@ export function TabOrders({
         if (openingEditRouteRef.current === order.id) return;
         openingEditRouteRef.current = order.id;
         if (detail?.id === order.id) closeDetail();
-        void openEdit(order).finally(() => {
-          if (openingEditRouteRef.current === order.id) openingEditRouteRef.current = null;
-        });
+        void openEdit(order)
+          .then(opened => {
+            if (!opened && !cancelled) onOrderRouteChange?.(order.id, null);
+          })
+          .finally(() => {
+            if (openingEditRouteRef.current === order.id) openingEditRouteRef.current = null;
+          });
         return;
       }
       if (formOpen) closeOrderForm();
@@ -385,13 +389,22 @@ export function TabOrders({
   const openRoutedEdit = async (order: any) => {
     if (!effectiveHasPermission("orders.edit")) return;
     closingRouteRef.current = null;
-    openingEditRouteRef.current = null;
+
     if (onOrderRouteChange) {
+      openingEditRouteRef.current = order.id;
       onOrderRouteChange(order.id, "edit");
+      const opened = await openEdit(order);
+      if (openingEditRouteRef.current === order.id) openingEditRouteRef.current = null;
+      if (opened) {
+        closeDetail();
+      } else {
+        onOrderRouteChange(order.id, null);
+      }
       return;
     }
-    await openEdit(order);
-    closeDetail();
+
+    const opened = await openEdit(order);
+    if (opened) closeDetail();
   };
 
   const closeRoutedPage = () => {
