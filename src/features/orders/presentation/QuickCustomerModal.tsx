@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Link2, X } from "lucide-react";
+import { Link2, Search, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
@@ -22,7 +22,8 @@ import {
   INPUT,
 } from "@/shared/ui/admin/AdminFormControls";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
-import { todayDateOnly } from "@/shared/domain/formatters";
+import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
+import { isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
 import {
   createQuickCustomer,
   createQuickCustomerAddress,
@@ -39,6 +40,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [sharedAddressOpen, setSharedAddressOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [cpfLoading, setCpfLoading] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMessage, setCnpjMessage] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -86,6 +88,26 @@ export function QuickCustomerModal({ onClose, onSaved }: {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     } finally { setSaving(false); }
   };
+  const lookupCpfName = async () => {
+    if (form.customerType !== "PF" || !isValidCpf(form.document)) {
+      setErrorMessage("Informe um CPF válido antes de consultar.");
+      return;
+    }
+    const requestedCpf = form.document.replace(/\D/g, "");
+    setCpfLoading(true);
+    setErrorMessage("");
+    try {
+      const result = await lookupCpf(requestedCpf);
+      setForm(current => {
+        if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
+        return { ...current, full_name: result.name };
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Não foi possível consultar o CPF.");
+    } finally {
+      setCpfLoading(false);
+    }
+  };
   const lookupCnpj = async (value: string, baseForm = form) => {
     const digits = value.replace(/\D/g, "");
     if (digits.length !== 14 || form.customerType !== "PJ") return;
@@ -110,10 +132,15 @@ export function QuickCustomerModal({ onClose, onSaved }: {
         </div>
         <div className="p-4 space-y-4">
           <div className="grid sm:grid-cols-2 gap-3">
-            <CustomerTypeToggle value={form.customerType} onChange={customerType => setForm({ ...form, customerType })} />
+            <CustomerTypeToggle value={form.customerType} onChange={customerType => { setErrorMessage(""); setForm({ ...form, customerType }); }} />
             {form.customerType === "PF" ? <>
+              <div className="space-y-2">
+                <FCpfInput label="CPF" required value={form.document} onChange={(e: any) => { setErrorMessage(""); setForm({ ...form, document: e.target.value }); }} />
+                <AdminButton variant="secondary" size="sm" onClick={() => void lookupCpfName()} disabled={saving || cpfLoading || !isValidCpf(form.document)} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5" aria-label="Consultar CPF" title="Consultar CPF">
+                  <Search size={14} /> {cpfLoading ? "Consultando..." : "Consultar CPF"}
+                </AdminButton>
+              </div>
               <FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} />
-              <FCpfInput label="CPF" required value={form.document} onChange={(e: any) => setForm({ ...form, document: e.target.value })} />
               <div><FInput label="Data de nascimento" type="date" required value={form.birth_date} max={todayDateOnly()} onChange={(e: any) => setForm({ ...form, birth_date: e.target.value })} />{!form.birth_date && <p className="mt-1 text-xs text-red-600">Informe a data de nascimento.</p>}</div>
             </> : <>
               <FInput label="Nome fantasia" required value={form.trade_name} onChange={(e: any) => setForm({ ...form, trade_name: e.target.value })} />
