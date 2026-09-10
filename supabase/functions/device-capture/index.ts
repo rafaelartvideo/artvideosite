@@ -13,6 +13,7 @@ const json = (body: Record<string, unknown>, status = 200) =>
   });
 
 const SESSION_MINUTES = 20;
+const PAIRING_CODE_DIGITS = 8;
 const MAX_PHOTOS = 5;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -24,11 +25,14 @@ type CaptureSession = {
   organization_id: string;
   created_by: string;
   token_hash: string;
+  pairing_code_hash: string | null;
   status: "active" | "closed" | "expired";
   expires_at: string;
   connected_at: string | null;
   last_seen_at: string | null;
 };
+
+const SESSION_SELECT = "id,organization_id,created_by,token_hash,pairing_code_hash,status,expires_at,connected_at,last_seen_at";
 
 function randomToken() {
   const bytes = new Uint8Array(32);
@@ -39,9 +43,24 @@ function randomToken() {
     .replace(/=+$/g, "");
 }
 
+function randomPairingCode() {
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return String(values[0] % (10 ** PAIRING_CODE_DIGITS)).padStart(PAIRING_CODE_DIGITS, "0");
+}
+
+function normalizePairingCode(value: unknown) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, PAIRING_CODE_DIGITS);
+  return digits.length === PAIRING_CODE_DIGITS ? digits : "";
+}
+
 async function sha256(value: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function pairingCodeHash(code: string) {
+  return sha256(`pairing:${code}`);
 }
 
 function cleanSerial(value: unknown) {
@@ -104,13 +123,17 @@ async function memberCanCreateOrders(admin: AdminClient, organizationId: string,
 
 async function sessionByToken(admin: AdminClient, sessionId: string, token: string) {
   if (!sessionId || !token) return null;
-  const tokenHash = await sha256(token);
-  const { data, error } = await admin
-    .from("device_capture_sessions")
-    .select("id,organization_id,created_by,token_hash,status,expires_at,connected_at,last_seen_at")
-    .eq("id", sessionId)
-    .eq("token_hash", tokenHash)
-    .maybeSingle();
+
+  let query = admin.from("device_capture_sessions").select(SESSION_SELECT).eq("id", sessionId);
+  if (token.startsWith("code:")) {
+    const code = normalizePairingCode(token.slice(5));
+    if (!code) return null;
+    query = query.eq("pairing_code_hash", await pairingCodeHash(code));
+  } else {
+    query = query.eq("token_hash", await sha256(token));
+  }
+
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const session = data as CaptureSession;
@@ -125,7 +148,7 @@ async function sessionByToken(admin: AdminClient, sessionId: string, token: stri
 async function ownedSession(admin: AdminClient, sessionId: string, userId: string) {
   const { data, error } = await admin
     .from("device_capture_sessions")
-    .select("id,organization_id,created_by,token_hash,status,expires_at,connected_at,last_seen_at")
+    .select(SESSION_SELECT)
     .eq("id", sessionId)
     .eq("created_by", userId)
     .maybeSingle();
@@ -187,19 +210,75 @@ Deno.serve(async (request) => {
         .lt("expires_at", now.toISOString());
 
       const token = randomToken();
+      const tokenHash = await sha256(token);
       const expiresAt = new Date(now.getTime() + SESSION_MINUTES * 60_000).toISOString();
+      let createdSession: { id: string; expires_at: string } | null = null;
+      let pairingCode = "";
+
+      for (let attempt = 0; attempt < 5 && !createdSession; attempt += 1) {
+        pairingCode = randomPairingCode();
+        const { data, error } = await admin
+          .from("device_capture_sessions")
+          .insert({
+            organization_id: organizationId,
+            created_by: user.id,
+            token_hash: tokenHash,
+            pairing_code_hash: await pairingCodeHash(pairingCode),
+            expires_at: expiresAt,
+          })
+          .select("id,expires_at")
+          .single();
+
+        if (!error && data) {
+          createdSession = data;
+          break;
+        }
+        if (error?.code !== "23505") throw error;
+      }
+
+      if (!createdSession || !pairingCode) {
+        throw new Error("Não foi possível gerar um código de conexão único.");
+      }
+
+      return json({
+        success: true,
+        session: {
+          id: createdSession.id,
+          token,
+          pairing_code: pairingCode,
+          expires_at: createdSession.expires_at,
+        },
+      });
+    }
+
+    if (action === "pair_code") {
+      const code = normalizePairingCode(input.code);
+      if (!code) {
+        return json({ success: false, error: "Digite os 8 números do código de conexão." });
+      }
+
+      const now = new Date().toISOString();
       const { data, error } = await admin
         .from("device_capture_sessions")
-        .insert({
-          organization_id: organizationId,
-          created_by: user.id,
-          token_hash: await sha256(token),
-          expires_at: expiresAt,
-        })
-        .select("id,expires_at")
-        .single();
+        .select(SESSION_SELECT)
+        .eq("pairing_code_hash", await pairingCodeHash(code))
+        .eq("status", "active")
+        .gt("expires_at", now)
+        .maybeSingle();
       if (error) throw error;
-      return json({ success: true, session: { id: data.id, token, expires_at: data.expires_at } });
+      if (!data) {
+        return json({ success: false, error: "Código inválido ou expirado. Confira o código exibido no computador." });
+      }
+
+      const session = data as CaptureSession;
+      return json({
+        success: true,
+        session: {
+          id: session.id,
+          token: `code:${code}`,
+          expires_at: session.expires_at,
+        },
+      });
     }
 
     if (action === "poll") {
@@ -282,7 +361,7 @@ Deno.serve(async (request) => {
       const sessionId = String(input.session_id || "").trim();
       const token = String(input.token || "").trim();
       const session = await sessionByToken(admin, sessionId, token);
-      if (!session) return json({ success: false, error: "Este QR expirou ou a conexão foi encerrada." });
+      if (!session) return json({ success: false, error: "A conexão expirou ou foi encerrada." });
       const now = new Date().toISOString();
       await admin
         .from("device_capture_sessions")
@@ -300,7 +379,7 @@ Deno.serve(async (request) => {
       const sessionId = String(input.session_id || "").trim();
       const token = String(input.token || "").trim();
       const session = await sessionByToken(admin, sessionId, token);
-      if (!session) return json({ success: false, error: "Este QR expirou ou a conexão foi encerrada." });
+      if (!session) return json({ success: false, error: "A conexão expirou ou foi encerrada." });
       const serial = cleanSerial(input.serial);
       if (!serial) return json({ success: false, error: "Número de série vazio." });
       const { error } = await admin.from("device_capture_events").insert({
@@ -319,7 +398,7 @@ Deno.serve(async (request) => {
       const kind = String(input.kind || "").trim();
       const file = input.file;
       const session = await sessionByToken(admin, sessionId, token);
-      if (!session) return json({ success: false, error: "Este QR expirou ou a conexão foi encerrada." });
+      if (!session) return json({ success: false, error: "A conexão expirou ou foi encerrada." });
       if (kind !== "label" && kind !== "equipment") {
         return json({ success: false, error: "Tipo de foto inválido." });
       }
