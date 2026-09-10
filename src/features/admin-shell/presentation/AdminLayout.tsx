@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AdminFeedbackHost } from "@/shared/ui/admin/AdminFeedback";
+import { UniqCallOverlay } from "@/features/telephony/presentation/UniqCallOverlay";
 
 type AdminLayoutProps = {
   sidebar: ReactNode;
@@ -19,6 +20,7 @@ export function AdminLayout({
   return (
     <div className="admin-crm h-screen overflow-hidden bg-[#f8fafc] flex">
       <AdminFeedbackHost />
+      <UniqCallOverlay />
 
       <aside className="hidden md:flex w-60 flex-shrink-0 bg-[#0d1b2e] flex-col fixed left-0 top-0 h-full z-40">
         {sidebar}
