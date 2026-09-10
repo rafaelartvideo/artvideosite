@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { Link2 } from "lucide-react";
+import { Link2, Search } from "lucide-react";
 import type { Address } from "@/lib/address";
 import type { CustomerForm } from "../domain/customer-form";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
@@ -15,9 +15,11 @@ type Props = {
   setAddress: Dispatch<SetStateAction<Address>>;
   saving: boolean;
   canCreate: boolean;
+  cpfLoading: boolean;
   cpfError: string;
   setCpfError: Dispatch<SetStateAction<string>>;
   cpfInputRef: RefObject<HTMLInputElement | null>;
+  onLookupCpf: (value?: string) => Promise<void>;
   cnpjLoading: boolean;
   cnpjMessage: string;
   setCnpjMessage: Dispatch<SetStateAction<string>>;
@@ -31,8 +33,9 @@ export function CreateCustomerPage(props: Props) {
   const {
     open: createOpen, form: createForm, setForm: setCreateForm,
     address: createAddress, setAddress: setCreateAddress, saving, canCreate,
-    cpfError, setCpfError, cpfInputRef, cnpjLoading, cnpjMessage,
-    setCnpjMessage, onLookupCnpj: lookupCreateCnpj, onCreate, onClose,
+    cpfLoading, cpfError, setCpfError, cpfInputRef, onLookupCpf: lookupCreateCpf,
+    cnpjLoading, cnpjMessage, setCnpjMessage,
+    onLookupCnpj: lookupCreateCnpj, onCreate, onClose,
   } = props;
   return <>
 {createOpen && (
@@ -42,12 +45,17 @@ export function CreateCustomerPage(props: Props) {
               <div className="grid sm:grid-cols-2 gap-4">
                 <CustomerTypeToggle value={createForm.customerType} onChange={customerType => { setCpfError(""); setCreateForm({ ...createForm, customerType }); }} />
                 {createForm.customerType === "PF" ? <>
-                  <FInput label="Nome completo" required value={createForm.full_name} onChange={(e: any) => setCreateForm({ ...createForm, full_name: e.target.value })} />
                   <div>
                     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">CPF<span className="text-red-400">*</span></label>
-                    <input ref={cpfInputRef} inputMode="numeric" maxLength={14} autoComplete="off" aria-invalid={Boolean(cpfError)} aria-describedby={cpfError ? "create-cpf-error" : undefined} required value={formatCpf(createForm.document)} placeholder="000.000.000-00" onBlur={() => { if (createForm.document.trim() && !isValidCpf(createForm.document)) setCpfError("CPF inválido. Verifique os números informados."); }} onChange={e => { const nextValue = formatCpf(e.target.value); setCreateForm({ ...createForm, document: nextValue }); if (!nextValue || isValidCpf(nextValue)) setCpfError(""); }} className={cn(INPUT, cpfError && "border-red-500 focus:border-red-500 focus:ring-red-500/50")} />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <input ref={cpfInputRef} inputMode="numeric" maxLength={14} autoComplete="off" aria-invalid={Boolean(cpfError)} aria-describedby={cpfError ? "create-cpf-error" : undefined} required value={formatCpf(createForm.document)} placeholder="000.000.000-00" onBlur={() => { if (createForm.document.trim() && !isValidCpf(createForm.document)) setCpfError("CPF inválido. Verifique os números informados."); }} onChange={e => { const nextValue = formatCpf(e.target.value); setCreateForm({ ...createForm, document: nextValue }); if (!nextValue || isValidCpf(nextValue)) setCpfError(""); }} className={cn(INPUT, "min-w-0 flex-1", cpfError && "border-red-500 focus:border-red-500 focus:ring-red-500/50")} />
+                      <AdminButton variant="secondary" size="sm" onClick={() => void lookupCreateCpf(createForm.document)} disabled={saving || cpfLoading || !isValidCpf(createForm.document)} className="h-10 shrink-0 border-[#0057e7]/30 px-3 text-[#0057e7] hover:bg-[#0057e7]/5" aria-label="Consultar CPF" title="Consultar CPF">
+                        <Search size={14} /><span className="hidden sm:inline">{cpfLoading ? "Consultando..." : "Consultar"}</span>
+                      </AdminButton>
+                    </div>
                     {cpfError && <p id="create-cpf-error" className="mt-1 text-xs text-red-600">{cpfError}</p>}
                   </div>
+                  <FInput label="Nome completo" required value={createForm.full_name} onChange={(e: any) => setCreateForm({ ...createForm, full_name: e.target.value })} />
                   <FInput label="Data de nascimento" type="date" required value={createForm.birth_date} max={todayDateOnly()} onChange={(e: any) => setCreateForm({ ...createForm, birth_date: e.target.value })} />
                 </> : <>
                   <FInput label="Nome fantasia" required value={createForm.trade_name} onChange={(e: any) => setCreateForm({ ...createForm, trade_name: e.target.value })} />
