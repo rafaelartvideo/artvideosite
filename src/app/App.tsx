@@ -39,7 +39,7 @@ function PublicPageFallback() {
 }
 
 function CaptureFallback() {
-  return <div className="min-h-dvh bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">Conectando captura...</div>;
+  return <div className="min-h-dvh bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">Carregando captura...</div>;
 }
 
 function AdminFallback() {
@@ -102,6 +102,7 @@ export default function App() {
     <AuthProvider>
       <ScrollToTop />
       <Routes>
+        <Route path="/captura" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
         <Route path="/captura/:sessionId" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
         <Route path="/admin/*" element={<AdminEntry />} />
         <Route path="/*" element={<PublicRoutes />} />
