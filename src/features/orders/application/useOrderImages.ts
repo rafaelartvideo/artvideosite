@@ -59,7 +59,7 @@ export function useOrderImages() {
       })));
   }, [replaceOrderImages]);
 
-  const addOrderImages = useCallback((files: FileList | null, kind: Exclude<OrderImageKind, "solution"> = "equipment") => {
+  const addOrderImages = useCallback((files: FileList | File[] | null, kind: Exclude<OrderImageKind, "solution"> = "equipment") => {
     setOrderImages(current => {
       const selected = Array.from(files || [])
         .filter(file => ACCEPTED_IMAGE_TYPES.has(file.type))
