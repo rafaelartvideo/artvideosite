@@ -185,10 +185,9 @@ export function DeviceCaptureBridge({
               <QRCodeSVG value={captureUrl} size={220} level="M" marginSize={2} />
             </div>
 
-            <div className="rounded-2xl border border-[#0057e7]/20 bg-[#eef5ff] px-4 py-4 text-center">
-              <p className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#0057e7]"><Hash size={13} /> Código de conexão</p>
-              <p className="mt-2 font-mono text-3xl font-black tracking-[0.18em] text-[#0d1b2e] sm:text-4xl">{formatPairingCode(session.pairingCode)}</p>
-              <p className="mt-2 text-xs leading-5 text-[#5a6a82]">Em <strong>{fixedCaptureUrl}</strong>, digite os 8 números se preferir não usar o QR.</p>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#0057e7]/20 bg-[#eef5ff] px-3 py-2">
+              <p className="flex shrink-0 items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-[#0057e7]"><Hash size={12} /> Código</p>
+              <p className="font-mono text-xl font-black tracking-[0.14em] text-[#0d1b2e] sm:text-2xl">{formatPairingCode(session.pairingCode)}</p>
             </div>
 
             <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${connected ? "border-emerald-200 bg-emerald-50" : "border-[#0057e7]/20 bg-[#eef5ff]"}`}>
