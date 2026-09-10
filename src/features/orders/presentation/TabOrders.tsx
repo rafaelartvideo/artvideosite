@@ -384,6 +384,12 @@ export function TabOrders({
     openDetail(order);
   };
 
+  const openCompletionFromList = (order: any) => {
+    if (!effectiveHasPermission("orders.complete")) return;
+    openRoutedDetail(order);
+    completionController.openCompletion(order);
+  };
+
   const openRoutedNew = () => {
     if (!effectiveHasPermission("orders.create")) return;
     closingRouteRef.current = null;
@@ -499,6 +505,7 @@ export function TabOrders({
         onCreate={openRoutedNew}
         onOpenDetail={openRoutedDetail}
         onOpenEdit={openRoutedEdit}
+        onComplete={openCompletionFromList}
         getSituations={getSituationsForType}
         formatDate={fmtDate}
         equipmentSummary={equipmentSummary}
