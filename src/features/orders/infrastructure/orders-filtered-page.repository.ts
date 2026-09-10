@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 const ORDER_LIST_SELECT = "*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,max_discount_percentage), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)";
-const FILTER_SELECT = "id,os_number,external_os_number,serial_number,status_id,situation_id,order_type,service_type_id,service_state,service_city,created_at,order_status:order_statuses(id,name),customer:customers(id,document,cnpj)";
+const FILTER_SELECT = "id,os_number,external_os_number,serial_number,status_id,situation_id,order_type,service_type_id,service_state,service_city,created_at,is_solved,completed_at,order_status:order_statuses(id,name),customer:customers(id,document,cnpj)";
 
 export type FilterCity = { name: string; state: string };
 export type ExactOrderPageInput = {
@@ -45,6 +45,8 @@ const orderStatusPriority = (order: any) => {
   if (statusName === "cancelada") return 2;
   return 3;
 };
+
+const solvedPriority = (order: any) => order.is_solved === true && !order.completed_at ? 0 : 1;
 
 export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Promise<ExactOrderPage> {
   const {
@@ -109,6 +111,8 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
   }) : [...filtered].sort((left: any, right: any) => {
     const statusComparison = orderStatusPriority(left) - orderStatusPriority(right);
     if (statusComparison !== 0) return statusComparison;
+    const solvedComparison = solvedPriority(left) - solvedPriority(right);
+    if (solvedComparison !== 0) return solvedComparison;
     return String(right.created_at ?? "").localeCompare(String(left.created_at ?? ""));
   });
 
