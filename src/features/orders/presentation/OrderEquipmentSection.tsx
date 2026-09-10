@@ -3,6 +3,7 @@ import { Plus, Tag, ScanLine } from "lucide-react";
 import { AdminButton, AdminDialog, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import type { EquipmentTypeTechnicalField, ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
+import { DeviceCaptureBridge } from "./DeviceCaptureBridge";
 import { OrderImagesField, type OrderImage } from "./OrderImages";
 import type { OrderImageKind } from "../domain/order-image";
 
@@ -40,7 +41,7 @@ export function OrderEquipmentSection({
   technicalHistory: ServiceOrderTechnicalValue[];
   onTechnicalValueChange: (fieldId: string, value: string) => void;
   images: OrderImage[];
-  onAddImages: (files: FileList | null, kind?: Exclude<OrderImageKind, "solution">) => void;
+  onAddImages: (files: FileList | File[] | null, kind?: Exclude<OrderImageKind, "solution">) => void;
   onRemoveImage: (key: string) => void;
   onViewImage?: (image: OrderImage) => void;
   canAddImages: boolean;
@@ -102,7 +103,15 @@ export function OrderEquipmentSection({
   const otherImages = images.filter(image => image.kind !== "label");
 
   return (
-    <Section title="Equipamento">
+    <Section
+      title="Equipamento"
+      actions={!editingOS && showImages && canAddImages ? (
+        <DeviceCaptureBridge
+          onSerial={value => upF("serial_number", value)}
+          onPhoto={(file, kind) => onAddImages([file], kind)}
+        />
+      ) : undefined}
+    >
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex min-w-0 items-end gap-2 sm:col-span-2">
           <div className="min-w-0 flex-1">
