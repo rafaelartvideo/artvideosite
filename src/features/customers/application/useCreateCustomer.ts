@@ -44,6 +44,10 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
 
   const lookupCpfName = async (value = form.document) => {
     if (form.customerType !== "PF") return;
+    if (!organizationId) {
+      onToast("Selecione uma empresa ativa antes de consultar o CPF.", "error");
+      return;
+    }
     if (!isValidCpf(value)) {
       setCpfError("CPF inválido. Verifique os números informados.");
       cpfInputRef.current?.focus();
@@ -54,7 +58,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
     setCpfError("");
     setCpfLoading(true);
     try {
-      const result = await lookupCpf(requestedCpf);
+      const result = await lookupCpf(requestedCpf, organizationId);
       setForm(current => {
         if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
         return {
