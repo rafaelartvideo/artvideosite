@@ -24,6 +24,11 @@ function isValidCpfDigits(cpf: string) {
   return calculateDigit(9) === Number(cpf[9]) && calculateDigit(10) === Number(cpf[10]);
 }
 
+function normalizeBirthDate(value: unknown) {
+  const birthDate = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? birthDate : "";
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ success: false, error: "Método não permitido." }, 405);
@@ -84,12 +89,13 @@ Deno.serve(async (request) => {
     }
 
     const name = String(payload?.data?.nome || "").trim();
+    const birthDate = normalizeBirthDate(payload?.data?.data_nascimento);
     if (!name) {
       console.error("[CPF LOOKUP] provider response without name", payload);
       return json({ success: false, error: "A consulta foi concluída, mas não retornou o nome da pessoa." });
     }
 
-    return json({ success: true, name });
+    return json({ success: true, name, birth_date: birthDate || null });
   } catch (error) {
     console.error("[CPF LOOKUP]", error);
     return json({
