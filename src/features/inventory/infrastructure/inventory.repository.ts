@@ -5,7 +5,11 @@ const factorOf = (item: any) => Math.max(1, Number(item?.conversion_factor ?? 1)
 const isBox = (item: any) => String(item?.unit || "un").toLowerCase() === "cx";
 
 async function resolveOrganizationId(organizationIdOverride?: string | null) {
-  return organizationIdOverride || await getActiveOrganizationId();
+  const normalizedOverride = typeof organizationIdOverride === "string"
+    ? organizationIdOverride.trim()
+    : "";
+
+  return normalizedOverride || await getActiveOrganizationId();
 }
 
 function toDisplayItem(item: any) {
