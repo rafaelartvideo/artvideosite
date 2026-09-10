@@ -1,0 +1,80 @@
+import { supabase } from "@/lib/supabase";
+
+export type DeviceCapturePhotoKind = "label" | "equipment";
+
+export type DeviceCaptureSession = {
+  id: string;
+  token: string;
+  expiresAt: string;
+};
+
+export type DeviceCaptureEvent =
+  | { id: number; type: "serial"; value: string; createdAt?: string }
+  | { id: number; type: "photo"; kind: DeviceCapturePhotoKind; signedUrl: string; fileName: string; mimeType: string; createdAt?: string };
+
+async function invoke(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke("device-capture", { body });
+  if (error) throw new Error("Não foi possível acessar a captura por celular.");
+  if (!data?.success) throw new Error(data?.error || "Falha na captura por celular.");
+  return data;
+}
+
+export async function createDeviceCaptureSession(organizationId: string): Promise<DeviceCaptureSession> {
+  const data = await invoke({ action: "create", organization_id: organizationId });
+  return {
+    id: String(data.session.id),
+    token: String(data.session.token),
+    expiresAt: String(data.session.expires_at),
+  };
+}
+
+export async function pollDeviceCaptureSession(sessionId: string, lastEventId: number) {
+  const data = await invoke({ action: "poll", session_id: sessionId, last_event_id: lastEventId });
+  const events: DeviceCaptureEvent[] = (data.events || []).map((event: any) => event.type === "serial"
+    ? { id: Number(event.id), type: "serial" as const, value: String(event.value || ""), createdAt: event.created_at }
+    : {
+        id: Number(event.id),
+        type: "photo" as const,
+        kind: event.kind === "label" ? "label" as const : "equipment" as const,
+        signedUrl: String(event.signed_url || ""),
+        fileName: String(event.file_name || "foto.jpg"),
+        mimeType: String(event.mime_type || "image/jpeg"),
+        createdAt: event.created_at,
+      });
+  return {
+    connected: Boolean(data.connected),
+    status: String(data.status || "active") as "active" | "closed" | "expired",
+    expiresAt: String(data.expires_at || ""),
+    events,
+  };
+}
+
+export async function closeDeviceCaptureSession(sessionId: string) {
+  await invoke({ action: "close", session_id: sessionId });
+}
+
+export async function connectDeviceCaptureSession(sessionId: string, token: string) {
+  return invoke({ action: "status", session_id: sessionId, token });
+}
+
+export async function sendDeviceCaptureSerial(sessionId: string, token: string, serial: string) {
+  return invoke({ action: "send_serial", session_id: sessionId, token, serial });
+}
+
+export async function uploadDeviceCapturePhoto(
+  sessionId: string,
+  token: string,
+  kind: DeviceCapturePhotoKind,
+  file: File,
+) {
+  const body = new FormData();
+  body.append("action", "upload_photo");
+  body.append("session_id", sessionId);
+  body.append("token", token);
+  body.append("kind", kind);
+  body.append("file", file, file.name);
+  const { data, error } = await supabase.functions.invoke("device-capture", { body });
+  if (error) throw new Error("Não foi possível enviar a foto.");
+  if (!data?.success) throw new Error(data?.error || "Não foi possível enviar a foto.");
+  return { photoCount: Number(data.photo_count || 0) };
+}
