@@ -111,16 +111,18 @@ export function MobileDeviceCapturePage() {
     setNotice(null);
     setScanning(true);
     try {
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const video = videoRef.current;
+      if (!video) throw new Error("Não foi possível preparar a câmera.");
       const reader = new BrowserMultiFormatReader();
-      if (!videoRef.current) throw new Error("Câmera indisponível.");
       const controls = await reader.decodeFromConstraints(
         { audio: false, video: { facingMode: { ideal: "environment" } } },
-        videoRef.current,
-        (result) => {
+        video,
+        (result, _error, callbackControls) => {
           if (!result) return;
           const value = result.getText().trim();
           if (!value) return;
-          controls.stop();
+          callbackControls.stop();
           scannerControlsRef.current = null;
           setScanning(false);
           setSerial(value);
@@ -129,6 +131,8 @@ export function MobileDeviceCapturePage() {
       );
       scannerControlsRef.current = controls;
     } catch (error) {
+      scannerControlsRef.current?.stop();
+      scannerControlsRef.current = null;
       setScanning(false);
       setNotice({ text: error instanceof Error ? error.message : "Não foi possível abrir a câmera para leitura.", type: "error" });
     }
