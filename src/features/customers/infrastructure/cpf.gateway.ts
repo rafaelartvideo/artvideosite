@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 
 export type CpfLookupResult = {
   name: string;
+  birthDate: string | null;
 };
 
 export async function lookupCpf(cpf: string): Promise<CpfLookupResult> {
@@ -19,5 +20,8 @@ export async function lookupCpf(cpf: string): Promise<CpfLookupResult> {
 
   const name = String(data.name || "").trim();
   if (!name) throw new Error("A consulta não retornou o nome da pessoa.");
-  return { name };
+
+  const rawBirthDate = String(data.birth_date || "").trim();
+  const birthDate = /^\d{4}-\d{2}-\d{2}$/.test(rawBirthDate) ? rawBirthDate : null;
+  return { name, birthDate };
 }
