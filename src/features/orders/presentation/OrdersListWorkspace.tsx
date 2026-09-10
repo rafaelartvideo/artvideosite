@@ -25,6 +25,7 @@ type Props = {
   onCreate: () => void;
   onOpenDetail: (order: any) => void;
   onOpenEdit: (order: any) => void;
+  onComplete: (order: any) => void;
   getSituations: (serviceTypeId: string, currentSituationId?: string, currentSituation?: any) => any[];
   formatDate: (value?: string | null, time?: boolean) => string;
   equipmentSummary: (order: any) => string;
@@ -34,7 +35,7 @@ type Props = {
 export function OrdersListWorkspace(props: Props) {
   const {
     visible, displayMode, workspace, filters, mutations, serviceAddress, canCreate, hasPermission,
-    onDisplayModeChange: setViewMode, onCreate: openNew, onOpenDetail: openDetail, onOpenEdit: openEdit,
+    onDisplayModeChange: setViewMode, onCreate: openNew, onOpenDetail: openDetail, onOpenEdit: openEdit, onComplete: completeOrder,
     getSituations: getSituationsForType, formatDate: fmtDate, equipmentSummary, compactSharedView = false,
   } = props;
 
@@ -124,6 +125,7 @@ export function OrdersListWorkspace(props: Props) {
       onSituationChange={updateOrderSituation}
       getSituations={getSituationsForType}
       onEdit={(order) => { void openEdit(order); }}
+      onComplete={completeOrder}
       onCancel={cancelOrder}
       cancellingId={cancellingId}
       formatDate={fmtDate}
