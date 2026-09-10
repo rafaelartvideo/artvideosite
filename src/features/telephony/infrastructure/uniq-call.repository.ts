@@ -22,13 +22,27 @@ const ACTIVE_CALL_SELECT = [
   "service_order:service_orders(id,os_number)",
 ].join(",");
 
-export async function getActiveUniqCall() {
-  const { data, error } = await supabase
+export async function getActiveUniqCall(options?: {
+  subscriberId?: string | null;
+  canMonitorAll?: boolean;
+}) {
+  const subscriberId = options?.subscriberId?.trim() || null;
+  if (!subscriberId && !options?.canMonitorAll) {
+    return { data: null as UniqCall | null, error: null };
+  }
+
+  let query = supabase
     .from("uniq_calls")
     .select(ACTIVE_CALL_SELECT)
     .eq("organization_id", ARTVIDEO_ORGANIZATION_ID)
     .eq("state", "ESTABLISHED")
-    .is("ended_at", null)
+    .is("ended_at", null);
+
+  if (subscriberId) {
+    query = query.eq("answered_subscriber_id", subscriberId);
+  }
+
+  const { data, error } = await query
     .order("answered_at", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
