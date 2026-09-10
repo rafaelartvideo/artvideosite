@@ -35,16 +35,17 @@ export function useOrderCompletion({
   const discountAmount = subtotal * discountPercentage / 100;
   const finalTotal = Math.max(0, subtotal - discountAmount);
 
-  const openCompletion = () => {
+  const openCompletion = (orderOverride?: any) => {
+    const target = orderOverride || detail;
     if (!hasPermission("orders.complete")) {
       showToast({ msg: "Você não possui permissão para concluir a OS.", type: "error" });
       return;
     }
-    if (!detail?.is_solved) {
+    if (!target?.is_solved) {
       showToast({ msg: "Resolva a OS antes de concluir.", type: "error" });
       return;
     }
-    if (detail?.completed_at) {
+    if (target?.completed_at) {
       showToast({ msg: "Esta OS já foi concluída.", type: "error" });
       return;
     }
