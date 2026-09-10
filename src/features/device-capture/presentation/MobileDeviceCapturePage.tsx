@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Camera, CheckCircle2, ImagePlus, Loader2, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
+import { Camera, CheckCircle2, Hash, ImagePlus, Loader2, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
 import { useLocation, useParams } from "react-router";
 import {
+  connectDeviceCaptureByCode,
   connectDeviceCaptureSession,
   sendDeviceCaptureSerial,
   uploadDeviceCapturePhoto,
@@ -37,6 +38,15 @@ function parsePairingPayload(value: string): Pairing | null {
   } catch {
     return null;
   }
+}
+
+function pairingCodeDigits(value: string) {
+  return value.replace(/\D/g, "").slice(0, 8);
+}
+
+function formatPairingCode(value: string) {
+  const digits = pairingCodeDigits(value);
+  return digits.length > 4 ? `${digits.slice(0, 4)} ${digits.slice(4)}` : digits;
 }
 
 async function normalizeCameraImage(file: File) {
@@ -82,6 +92,8 @@ export function MobileDeviceCapturePage() {
   const [photoCount, setPhotoCount] = useState(0);
   const [serial, setSerial] = useState("");
   const [serialSending, setSerialSending] = useState(false);
+  const [pairingCode, setPairingCode] = useState("");
+  const [pairingCodeBusy, setPairingCodeBusy] = useState(false);
   const [uploadingKind, setUploadingKind] = useState<DeviceCapturePhotoKind | null>(null);
   const [scannerMode, setScannerMode] = useState<ScannerMode>(null);
   const [notice, setNotice] = useState<Notice>(null);
@@ -109,6 +121,7 @@ export function MobileDeviceCapturePage() {
     setExpiresAt("");
     setPhotoCount(0);
     setSerial("");
+    setPairingCode("");
     setNotice(null);
     keepFixedCaptureUrl();
   };
@@ -149,6 +162,26 @@ export function MobileDeviceCapturePage() {
       window.clearInterval(timer);
     };
   }, [pairing?.sessionId, pairing?.token]);
+
+  const connectByCode = async () => {
+    const code = pairingCodeDigits(pairingCode);
+    if (code.length !== 8 || pairingCodeBusy) return;
+    stopScanner();
+    setPairingCodeBusy(true);
+    setNotice(null);
+    try {
+      const result = await connectDeviceCaptureByCode(code);
+      setPairing({ sessionId: result.sessionId, token: result.token });
+      setConnectionState("checking");
+      setExpiresAt(result.expiresAt);
+      setPhotoCount(0);
+      setSerial("");
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : "Não foi possível conectar com esse código.", type: "error" });
+    } finally {
+      setPairingCodeBusy(false);
+    }
+  };
 
   const sendSerial = async (value = serial) => {
     const nextSerial = value.trim();
@@ -264,7 +297,7 @@ export function MobileDeviceCapturePage() {
             <div className="p-5 text-center">
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e8eef8] text-[#0057e7]"><ScanLine size={28} /></span>
               <h2 className="mt-4 text-xl font-black text-[#0d1b2e]">Conectar a uma OS</h2>
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#5a6a82]">No computador, abra a Nova OS e gere o QR em <strong>Usar celular</strong>. Depois escaneie o código aqui.</p>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#5a6a82]">No computador, abra a Nova OS e gere a conexão em <strong>Usar celular</strong>. Depois use o QR ou o código exibido.</p>
             </div>
 
             <div className="border-t border-[#0d1b2e]/8 p-4">
@@ -283,12 +316,43 @@ export function MobileDeviceCapturePage() {
               ) : (
                 <button type="button" onClick={stopScanner} className="min-h-12 w-full rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]">Cancelar leitura</button>
               )}
+
+              <div className="my-4 flex items-center gap-3"><span className="h-px flex-1 bg-[#0d1b2e]/10" /><span className="text-[10px] font-black uppercase tracking-widest text-[#8a97a8]">ou</span><span className="h-px flex-1 bg-[#0d1b2e]/10" /></div>
+
+              <div className="rounded-2xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
+                <label htmlFor="capture-pair-code" className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#5a6a82]"><Hash size={13} /> Código de conexão</label>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    id="capture-pair-code"
+                    value={formatPairingCode(pairingCode)}
+                    onChange={event => setPairingCode(pairingCodeDigits(event.target.value))}
+                    onKeyDown={event => { if (event.key === "Enter") void connectByCode(); }}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9 ]*"
+                    maxLength={9}
+                    placeholder="0000 0000"
+                    aria-label="Código de conexão de 8 dígitos"
+                    className="min-w-0 flex-1 rounded-xl border border-[#0d1b2e]/15 bg-white px-3 py-3 text-center font-mono text-lg font-black tracking-[0.16em] text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15"
+                  />
+                  <button
+                    type="button"
+                    disabled={pairingCodeDigits(pairingCode).length !== 8 || pairingCodeBusy}
+                    onClick={() => void connectByCode()}
+                    className="flex min-w-24 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#0d1b2e] px-4 text-sm font-black text-white disabled:opacity-40"
+                  >
+                    {pairingCodeBusy ? <Loader2 size={17} className="animate-spin" /> : <Wifi size={17} />}
+                    Conectar
+                  </button>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-[#5a6a82]">Digite os 8 números mostrados abaixo do QR no computador.</p>
+              </div>
             </div>
           </section>
 
           <div className="rounded-2xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-xs leading-5 text-[#5a6a82]">
             <p className="font-black text-[#0057e7]">Endereço fixo</p>
-            <p className="mt-1">Salve esta página na tela inicial do celular. Você poderá reutilizá-la para todas as próximas OS e apenas escanear um novo QR.</p>
+            <p className="mt-1">Salve esta página na tela inicial do celular. Você poderá reutilizá-la para todas as próximas OS e apenas escanear um novo QR ou digitar o novo código.</p>
           </div>
         </main>
       </div>
@@ -341,8 +405,8 @@ export function MobileDeviceCapturePage() {
           <input ref={equipmentInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("equipment", file); }} />
         </section>
 
-        <button type="button" onClick={disconnectDevice} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]"><Unplug size={17} /> Desconectar e escanear outra OS</button>
-        <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#5a6a82]"><WifiOff size={12} /> A conexão também encerra automaticamente quando o QR expirar ou o PC fechar a sessão.</div>
+        <button type="button" onClick={disconnectDevice} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]"><Unplug size={17} /> Desconectar e conectar outra OS</button>
+        <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#5a6a82]"><WifiOff size={12} /> A conexão também encerra automaticamente quando o QR/código expirar ou o PC fechar a sessão.</div>
       </main>
     </div>
   );
