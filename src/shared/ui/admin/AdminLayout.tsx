@@ -344,7 +344,11 @@ export function PageHeader({ title, subtitle, eyebrow, actions }: { title: strin
       {(actions || onBack) && (
         <div className="flex min-w-0 flex-shrink-0 flex-wrap items-center gap-2">
           {onBack && <InternalBackButton onBack={onBack} inHeader />}
-          {actions}
+          {actions && (
+            <div className="flex min-w-0 flex-wrap items-center gap-2 [&_button]:h-11 [&_button]:min-w-11 [&_button]:px-3 [&_button_svg]:h-[17px] [&_button_svg]:w-[17px] sm:[&_button]:px-4">
+              {actions}
+            </div>
+          )}
         </div>
       )}
     </header>
