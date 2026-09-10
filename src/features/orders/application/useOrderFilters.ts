@@ -67,11 +67,14 @@ export function useOrderFilters({
   const cityFilterOptions = citiesQuery.data ?? [];
 
   useEffect(() => {
-    setSelectedCities(current => current.filter(city => selectedStates.includes(city.state)));
+    setSelectedCities(current => current.filter(city => selectedStates.some(state => state.trim().toUpperCase() === city.state.trim().toUpperCase())));
   }, [selectedStates]);
 
   const invalidPeriod = Boolean(dateFrom && dateTo && dateFrom > dateTo);
-  const stateNames = useMemo(() => selectedStates.map(state => stateOptions.find(option => option.sigla === state)?.nome || "").filter(Boolean), [selectedStates, stateOptions]);
+  const stateNames = useMemo(() => selectedStates.map(state => {
+    const normalizedState = state.trim().toUpperCase();
+    return stateOptions.find(option => option.sigla.trim().toUpperCase() === normalizedState)?.nome || "";
+  }), [selectedStates, stateOptions]);
   const queryFilters = useMemo(() => ({
     organizationId: organizationId || "none",
     page,
