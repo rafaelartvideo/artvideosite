@@ -7,13 +7,50 @@ on:
 
   workflow_dispatch:
 
-concurrency:
-  group: deploy-hostgator-production
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
-  deploy:
+  gate:
+    name: Select latest commit
     runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.latest.outputs.deploy }}
+
+    steps:
+      - name: Debounce rapid pushes
+        if: github.event_name == 'push'
+        run: sleep 45
+
+      - name: Check latest main commit
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest_sha="$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/main" \
+            | jq -r '.sha')"
+
+          if [ "${latest_sha}" = "${GITHUB_SHA}" ]; then
+            echo "deploy=true" >> "${GITHUB_OUTPUT}"
+            echo "Este é o commit mais recente da main. O deploy será executado."
+          else
+            echo "deploy=false" >> "${GITHUB_OUTPUT}"
+            echo "Commit mais novo detectado (${latest_sha}). Este deploy intermediário será ignorado com sucesso."
+          fi
+
+  deploy:
+    name: deploy
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: deploy-hostgator-production
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -30,7 +67,27 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Confirm commit is still current
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest_sha="$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/main" \
+            | jq -r '.sha')"
+
+          if [ "${latest_sha}" = "${GITHUB_SHA}" ]; then
+            echo "deploy=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "deploy=false" >> "${GITHUB_OUTPUT}"
+            echo "Um commit mais novo chegou durante o build. O FTPS desta versão será ignorado."
+          fi
+
       - name: Deploy via FTPS
+        if: steps.current.outputs.deploy == 'true'
         id: ftp_deploy
         continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
@@ -45,7 +102,7 @@ jobs:
           timeout: 120000
 
       - name: Retry FTPS deploy after transient failure
-        if: steps.ftp_deploy.outcome == 'failure'
+        if: steps.current.outputs.deploy == 'true' && steps.ftp_deploy.outcome == 'failure'
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_SERVER }}
