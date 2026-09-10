@@ -20,6 +20,7 @@ const ContactPage = lazy(() => import("@/features/contact-public/presentation/Co
 const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistance/presentation/TechnicalAssistancePage").then(module => ({ default: module.TechnicalAssistancePage })));
 const ServiceTrackingSection = lazy(() => import("@/features/service-tracking/presentation/ServiceTrackingSection").then(module => ({ default: module.ServiceTrackingSection })));
 const PublicQuotePage = lazy(() => import("@/features/public-quotes/presentation/PublicQuotePage").then(module => ({ default: module.PublicQuotePage })));
+const MobileDeviceCapturePage = lazy(() => import("@/features/device-capture/presentation/MobileDeviceCapturePage").then(module => ({ default: module.MobileDeviceCapturePage })));
 
 const PUBLIC_PAGE_PATHS: Record<Page, string> = {
   home: "/",
@@ -35,6 +36,10 @@ const PUBLIC_PAGE_PATHS: Record<Page, string> = {
 
 function PublicPageFallback() {
   return <div className="min-h-[55vh] bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">Carregando página...</div>;
+}
+
+function CaptureFallback() {
+  return <div className="min-h-dvh bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">Conectando captura...</div>;
 }
 
 function AdminFallback() {
@@ -97,6 +102,7 @@ export default function App() {
     <AuthProvider>
       <ScrollToTop />
       <Routes>
+        <Route path="/captura/:sessionId" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
         <Route path="/admin/*" element={<AdminEntry />} />
         <Route path="/*" element={<PublicRoutes />} />
       </Routes>
