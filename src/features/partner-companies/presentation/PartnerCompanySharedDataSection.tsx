@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, LayoutDashboard, Package, Users, type LucideIcon } from "lucide-react";
+import { ClipboardList, Package, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
@@ -13,26 +13,13 @@ const TabCustomers = lazy(() => import("@/features/customers/presentation/TabCus
 const TabOrders = lazy(() => import("@/features/orders/presentation/TabOrders").then(module => ({ default: module.TabOrders })));
 const PartnerInventoryData = lazy(() => import("./PartnerInventoryData").then(module => ({ default: module.PartnerInventoryData })));
 
-type SharedDataTab = "summary" | "customers" | "orders" | "inventory";
+type SharedDataTab = "customers" | "orders" | "inventory";
 
 const DATA_TABS: Array<{ key: SharedDataTab; label: string; icon: LucideIcon }> = [
-  { key: "summary", label: "Resumo", icon: LayoutDashboard },
   { key: "customers", label: "Clientes", icon: Users },
   { key: "orders", label: "Ordens de serviço", icon: ClipboardList },
   { key: "inventory", label: "Estoque", icon: Package },
 ];
-
-const RESOURCE_META: Record<Exclude<SharedDataTab, "summary">, { title: string; description: string }> = {
-  customers: { title: "Clientes", description: "Cadastros, contatos e endereços compartilhados com a ArtVideo." },
-  orders: { title: "Ordens de serviço", description: "Ordens e informações operacionais compartilhadas em modo somente leitura." },
-  inventory: { title: "Estoque", description: "Itens, saldos e histórico de movimentações compartilhados em modo somente leitura." },
-};
-
-const ACCESS_LABEL: Record<PartnerShareConfigLevel, string> = {
-  none: "Sem acesso",
-  summary: "Somente resumo",
-  read: "Leitura",
-};
 
 function normalizeShareLevel(level?: PartnerShareAccessLevel): PartnerShareConfigLevel {
   return level === "manage" ? "read" : level || "none";
@@ -48,7 +35,7 @@ function SharedTabFallback() {
 }
 
 export function PartnerCompanySharedDataSection({ organizationId }: { organizationId: string }) {
-  const [activeTab, setActiveTab] = useState<SharedDataTab>("summary");
+  const [activeTab, setActiveTab] = useState<SharedDataTab>("customers");
   const [customerRouteId, setCustomerRouteId] = useState<string | null>(null);
   const [customerRouteSubpage, setCustomerRouteSubpage] = useState<string | null>(null);
   const [orderRouteId, setOrderRouteId] = useState<string | null>(null);
@@ -104,20 +91,6 @@ export function PartnerCompanySharedDataSection({ organizationId }: { organizati
     </nav>
 
     <div className="min-w-0">
-      {activeTab === "summary" && <div className="divide-y divide-[#d9e1ec]">
-        {(Object.keys(RESOURCE_META) as Array<Exclude<SharedDataTab, "summary">>).map(resourceKey => {
-          const access = shareByKey.get(resourceKey) || "none";
-          const meta = RESOURCE_META[resourceKey];
-          return <div key={resourceKey} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
-            <div className="min-w-0">
-              <p className="text-sm font-black text-[#0d1b2e]">{meta.title}</p>
-              <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">{meta.description}</p>
-            </div>
-            <span className="shrink-0 text-xs font-bold text-[#0057e7]">{ACCESS_LABEL[access]}</span>
-          </div>;
-        })}
-      </div>}
-
       <Suspense fallback={<SharedTabFallback />}>
         {activeTab === "customers" && (customersAccess === "read" ? <TabCustomers
           organizationIdOverride={organizationId}
