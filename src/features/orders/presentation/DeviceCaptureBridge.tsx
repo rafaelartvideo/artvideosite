@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Clock3, Loader2, RefreshCw, Smartphone, Wifi, WifiOff } from "lucide-react";
+import { CheckCircle2, Clock3, Hash, Loader2, RefreshCw, Smartphone, Wifi, WifiOff } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -10,6 +10,11 @@ import {
   type DeviceCapturePhotoKind,
   type DeviceCaptureSession,
 } from "../infrastructure/device-capture.gateway";
+
+function formatPairingCode(code: string) {
+  const digits = code.replace(/\D/g, "").slice(0, 8);
+  return digits.length > 4 ? `${digits.slice(0, 4)} ${digits.slice(4)}` : digits;
+}
 
 export function DeviceCaptureBridge({
   disabled = false,
@@ -167,7 +172,7 @@ export function DeviceCaptureBridge({
         open={open}
         onClose={() => setOpen(false)}
         title="Conectar celular à Nova OS"
-        description="No celular, abra a página fixa de captura e escaneie este QR. O mesmo celular pode ser reutilizado em todas as próximas OS."
+        description="No celular, abra a página fixa de captura. Conecte escaneando o QR ou digitando o código exibido abaixo."
         className="max-w-md"
       >
         <div className="space-y-4">
@@ -179,24 +184,31 @@ export function DeviceCaptureBridge({
             <div className="flex justify-center rounded-2xl border border-[#0d1b2e]/8 bg-white p-5">
               <QRCodeSVG value={captureUrl} size={220} level="M" marginSize={2} />
             </div>
+
+            <div className="rounded-2xl border border-[#0057e7]/20 bg-[#eef5ff] px-4 py-4 text-center">
+              <p className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#0057e7]"><Hash size={13} /> Código de conexão</p>
+              <p className="mt-2 font-mono text-3xl font-black tracking-[0.18em] text-[#0d1b2e] sm:text-4xl">{formatPairingCode(session.pairingCode)}</p>
+              <p className="mt-2 text-xs leading-5 text-[#5a6a82]">Em <strong>{fixedCaptureUrl}</strong>, digite os 8 números se preferir não usar o QR.</p>
+            </div>
+
             <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${connected ? "border-emerald-200 bg-emerald-50" : "border-[#0057e7]/20 bg-[#eef5ff]"}`}>
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${connected ? "bg-emerald-600 text-white" : "bg-[#0057e7] text-white"}`}>{connected ? <Wifi size={17} /> : <Smartphone size={17} />}</span>
-              <div className="min-w-0 flex-1"><p className={`text-sm font-black ${connected ? "text-emerald-700" : "text-[#0d1b2e]"}`}>{connected ? "Celular conectado" : "Aguardando o celular"}</p><p className="mt-0.5 text-xs text-[#5a6a82]">{connected ? "As capturas aparecerão automaticamente nesta OS." : <>Abra <strong>{fixedCaptureUrl}</strong> no celular e toque em <strong>Escanear QR da OS</strong>.</>}</p></div>
+              <div className="min-w-0 flex-1"><p className={`text-sm font-black ${connected ? "text-emerald-700" : "text-[#0d1b2e]"}`}>{connected ? "Celular conectado" : "Aguardando o celular"}</p><p className="mt-0.5 text-xs text-[#5a6a82]">{connected ? "As capturas aparecerão automaticamente nesta OS." : <>Abra <strong>{fixedCaptureUrl}</strong> no celular e use o QR ou o código.</>}</p></div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-3"><p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#5a6a82]"><Clock3 size={12} /> Expira</p><p className="mt-1 text-sm font-black text-[#0d1b2e]">{expiryLabel}</p></div>
               <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-3"><p className="text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Recebido</p><p className="mt-1 text-sm font-black text-[#0d1b2e]">{receivedPhotos} foto{receivedPhotos === 1 ? "" : "s"}</p></div>
             </div>
             {lastSerial && <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={15} /> Série recebida: <span className="min-w-0 truncate font-black">{lastSerial}</span></div>}
-            <p className="text-center text-[11px] leading-5 text-[#5a6a82]">Somente o QR muda a cada sessão. A página <strong>/captura</strong> permanece fixa no celular. O QR é temporário e não dá acesso ao painel administrativo.</p>
+            <p className="text-center text-[11px] leading-5 text-[#5a6a82]">QR e código são temporários e pertencem somente a esta sessão. Eles não dão acesso ao painel administrativo.</p>
             <div className="flex flex-wrap justify-end gap-2">
               <AdminButton variant="secondary" onClick={() => void endSession()}><WifiOff size={14} /> Encerrar conexão</AdminButton>
             </div>
           </>}
 
-          {!creating && expired && <div className="space-y-4 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><Clock3 size={22} /></div><div><p className="text-base font-black text-[#0d1b2e]">O QR expirou</p><p className="mt-1 text-sm text-[#5a6a82]">Gere uma nova conexão e escaneie o novo QR pela página fixa do celular.</p></div><AdminButton onClick={() => void startSession()}><RefreshCw size={14} /> Gerar novo QR</AdminButton></div>}
+          {!creating && expired && <div className="space-y-4 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><Clock3 size={22} /></div><div><p className="text-base font-black text-[#0d1b2e]">A conexão expirou</p><p className="mt-1 text-sm text-[#5a6a82]">Gere uma nova conexão para receber um novo QR e um novo código.</p></div><AdminButton onClick={() => void startSession()}><RefreshCw size={14} /> Gerar nova conexão</AdminButton></div>}
 
-          {!creating && !session && !error && <AdminButton onClick={() => void startSession()} className="w-full"><Smartphone size={15} /> Gerar QR de conexão</AdminButton>}
+          {!creating && !session && !error && <AdminButton onClick={() => void startSession()} className="w-full"><Smartphone size={15} /> Gerar conexão</AdminButton>}
           {!creating && !session && error && <div className="flex justify-end"><AdminButton onClick={() => void startSession()}><RefreshCw size={14} /> Tentar novamente</AdminButton></div>}
         </div>
       </AdminDialog>
