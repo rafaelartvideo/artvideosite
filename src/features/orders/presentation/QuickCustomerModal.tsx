@@ -92,6 +92,10 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   };
 
   const lookupCpfName = async () => {
+    if (!activeOrganizationId) {
+      setErrorMessage("Selecione uma empresa ativa antes de consultar o CPF.");
+      return;
+    }
     if (form.customerType !== "PF" || !isValidCpf(form.document)) {
       setErrorMessage("Informe um CPF válido antes de consultar.");
       return;
@@ -100,7 +104,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
     setCpfLoading(true);
     setErrorMessage("");
     try {
-      const result = await lookupCpf(requestedCpf);
+      const result = await lookupCpf(requestedCpf, activeOrganizationId);
       setForm(current => {
         if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
         return {
