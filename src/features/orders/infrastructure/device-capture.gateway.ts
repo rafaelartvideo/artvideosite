@@ -5,6 +5,7 @@ export type DeviceCapturePhotoKind = "label" | "equipment";
 export type DeviceCaptureSession = {
   id: string;
   token: string;
+  pairingCode: string;
   expiresAt: string;
 };
 
@@ -24,7 +25,17 @@ export async function createDeviceCaptureSession(organizationId: string): Promis
   return {
     id: String(data.session.id),
     token: String(data.session.token),
+    pairingCode: String(data.session.pairing_code || ""),
     expiresAt: String(data.session.expires_at),
+  };
+}
+
+export async function connectDeviceCaptureByCode(code: string) {
+  const data = await invoke({ action: "pair_code", code });
+  return {
+    sessionId: String(data.session.id),
+    token: String(data.session.token),
+    expiresAt: String(data.session.expires_at || ""),
   };
 }
 
