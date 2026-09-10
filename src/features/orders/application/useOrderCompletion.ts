@@ -3,6 +3,16 @@ import { completeServiceOrder } from "../infrastructure/orders.repository";
 
 type Toast = { msg: string; type: "success" | "error" };
 
+function isOrderOverride(value: unknown): value is Record<string, any> {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, any>;
+  return typeof candidate.id === "string" && (
+    "is_solved" in candidate
+    || "completed_at" in candidate
+    || "os_number" in candidate
+  );
+}
+
 export function useOrderCompletion({
   detail,
   usedItems,
@@ -35,8 +45,10 @@ export function useOrderCompletion({
   const discountAmount = subtotal * discountPercentage / 100;
   const finalTotal = Math.max(0, subtotal - discountAmount);
 
-  const openCompletion = (orderOverride?: any) => {
-    const target = orderOverride || detail;
+  const openCompletion = (orderOverride?: unknown) => {
+    // React passes the click event to onClick callbacks. Only treat an explicit
+    // service-order object as an override; otherwise always use the loaded detail.
+    const target = isOrderOverride(orderOverride) ? orderOverride : detail;
     if (!hasPermission("orders.complete")) {
       showToast({ msg: "Você não possui permissão para concluir a OS.", type: "error" });
       return;
