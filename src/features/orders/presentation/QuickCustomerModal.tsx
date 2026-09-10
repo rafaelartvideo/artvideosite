@@ -100,7 +100,11 @@ export function QuickCustomerModal({ onClose, onSaved }: {
       const result = await lookupCpf(requestedCpf);
       setForm(current => {
         if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
-        return { ...current, full_name: result.name };
+        return {
+          ...current,
+          full_name: result.name,
+          birth_date: result.birthDate || current.birth_date,
+        };
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Não foi possível consultar o CPF.");
