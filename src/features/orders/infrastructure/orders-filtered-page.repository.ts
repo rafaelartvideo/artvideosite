@@ -29,6 +29,14 @@ export type ExactOrderPage = { items: any[]; total: number };
 const normalizeIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const normalizeText = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
+const normalizeStateText = (value: unknown) => normalizeText(value).replace(/[^a-z]/g, " ").replace(/\s+/g, " ").trim();
+
+function matchesStateAlias(value: unknown, aliases: Set<string>) {
+  if (aliases.size === 0) return true;
+  const normalized = normalizeStateText(value);
+  if (!normalized) return false;
+  return [...aliases].some(alias => normalized === alias || normalized.startsWith(`${alias} `) || normalized.endsWith(` ${alias}`));
+}
 
 const orderStatusPriority = (order: any) => {
   const statusName = normalizeText(order.order_status?.name);
@@ -56,14 +64,20 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
   const externalNeedle = normalizeIdentifier(externalOsSearch);
   const documentNeedle = normalizeDigits(documentSearch);
   const serialNeedle = normalizeIdentifier(serialNumberSearch);
-  const selectedStates = new Set([...states, ...stateNames].map(normalizeText).filter(Boolean));
+
+  const stateAliasGroups = states.map((state, index) => new Set(
+    [state, stateNames[index]].map(normalizeStateText).filter(Boolean),
+  ));
+  const selectedStateAliases = new Set(stateAliasGroups.flatMap(group => [...group]));
   const cityFilters = cities.map(city => {
-    const stateIndex = states.findIndex(state => normalizeText(state) === normalizeText(city.state));
+    const cityState = normalizeStateText(city.state);
+    const matchingStateGroup = stateAliasGroups.find(group => group.has(cityState));
     return {
       name: normalizeText(city.name),
-      stateAliases: new Set([normalizeText(city.state), normalizeText(stateNames[stateIndex] || "")].filter(Boolean)),
+      stateAliases: matchingStateGroup || new Set([cityState].filter(Boolean)),
     };
   });
+
   const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
   const toDate = dateTo ? new Date(`${dateTo}T00:00:00`) : null;
   if (toDate) toDate.setDate(toDate.getDate() + 1);
@@ -76,10 +90,10 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
     const matchesSerial = !serialNeedle || normalizeIdentifier(order.serial_number).includes(serialNeedle);
     const customer = order.customer || {};
     const matchesDocument = !documentNeedle || [customer.document, customer.cnpj].some(value => normalizeDigits(value).includes(documentNeedle));
-    const orderState = normalizeText(order.service_state);
+    const orderState = order.service_state;
     const orderCity = normalizeText(order.service_city);
-    const matchesState = selectedStates.size === 0 || selectedStates.has(orderState);
-    const matchesCity = cityFilters.length === 0 || cityFilters.some(city => city.name === orderCity && city.stateAliases.has(orderState));
+    const matchesState = selectedStateAliases.size === 0 || matchesStateAlias(orderState, selectedStateAliases);
+    const matchesCity = cityFilters.length === 0 || cityFilters.some(city => city.name === orderCity && matchesStateAlias(orderState, city.stateAliases));
     const createdAt = order.created_at ? new Date(order.created_at) : null;
     const matchesPeriod = !fromDate && !toDate ? true : !!createdAt && (!fromDate || createdAt >= fromDate) && (!toDate || createdAt < toDate);
     return matchesNumber && matchesExternal && matchesSerial && matchesDocument && (!statusId || order.status_id === statusId) && (!situationId || order.situation_id === situationId) && (!orderType || order.order_type === orderType) && (!serviceTypeId || order.service_type_id === serviceTypeId) && matchesState && matchesCity && matchesPeriod;
