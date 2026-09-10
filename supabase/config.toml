@@ -4,3 +4,8 @@ project_id = "artvideosite"
 # um token próprio (UNIQ_WEBHOOK_TOKEN) antes de aceitar qualquer evento.
 [functions.uniq-webhook]
 verify_jwt = false
+
+# O celular pareado não precisa estar logado no painel. Esta função valida
+# manualmente o JWT nas ações do PC e o token temporário do QR nas ações móveis.
+[functions.device-capture]
+verify_jwt = false
