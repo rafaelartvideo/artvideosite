@@ -141,7 +141,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
       </aside>
     </div>
 
-    <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-2 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:flex-row sm:justify-end sm:px-5">
+    <div className="sticky bottom-0 z-20 flex w-full flex-col-reverse gap-2 border border-[#0d1b2e]/8 bg-white px-4 py-4 sm:ml-auto sm:w-1/2 sm:flex-row sm:justify-end sm:rounded-tl-xl sm:border-b-0 sm:border-r-0 sm:px-5">
       <BtnSecondary className="w-full sm:w-auto" onClick={onCancel} disabled={saving}>Cancelar</BtnSecondary>
       <BtnPrimary className="w-full sm:w-auto" onClick={() => { void save(); }} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>
     </div>
