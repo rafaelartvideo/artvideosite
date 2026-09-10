@@ -57,9 +57,13 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
       const result = await lookupCpf(requestedCpf);
       setForm(current => {
         if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
-        return { ...current, full_name: result.name };
+        return {
+          ...current,
+          full_name: result.name,
+          birth_date: result.birthDate || current.birth_date,
+        };
       });
-      onToast("Nome preenchido pela consulta de CPF.", "success");
+      onToast(result.birthDate ? "Nome e data de nascimento preenchidos pela consulta de CPF." : "Nome preenchido pela consulta de CPF.", "success");
     } catch (error) {
       onToast(error instanceof Error ? error.message : "Não foi possível consultar o CPF.", "error");
     } finally {
