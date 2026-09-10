@@ -13,6 +13,7 @@ import {
   createCustomerAddress,
   fetchCnpjData,
 } from "../infrastructure/customers.repository";
+import { lookupCpf } from "../infrastructure/cpf.gateway";
 
 type Options = {
   organizationId: string | null;
@@ -28,6 +29,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
   const [saving, setSaving] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMessage, setCnpjMessage] = useState("");
+  const [cpfLoading, setCpfLoading] = useState(false);
   const [cpfError, setCpfError] = useState("");
   const cpfInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,6 +40,31 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
   const closePage = () => {
     setCpfError("");
     setOpen(false);
+  };
+
+  const lookupCpfName = async (value = form.document) => {
+    if (form.customerType !== "PF") return;
+    if (!isValidCpf(value)) {
+      setCpfError("CPF inválido. Verifique os números informados.");
+      cpfInputRef.current?.focus();
+      return;
+    }
+
+    const requestedCpf = value.replace(/\D/g, "");
+    setCpfError("");
+    setCpfLoading(true);
+    try {
+      const result = await lookupCpf(requestedCpf);
+      setForm(current => {
+        if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
+        return { ...current, full_name: result.name };
+      });
+      onToast("Nome preenchido pela consulta de CPF.", "success");
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "Não foi possível consultar o CPF.", "error");
+    } finally {
+      setCpfLoading(false);
+    }
   };
 
   const lookupCnpj = async (value: string, baseForm = form) => {
@@ -132,11 +159,13 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
     cnpjLoading,
     cnpjMessage,
     setCnpjMessage,
+    cpfLoading,
     cpfError,
     setCpfError,
     cpfInputRef,
     openPage,
     closePage,
+    lookupCpfName,
     lookupCnpj,
     create,
   };
