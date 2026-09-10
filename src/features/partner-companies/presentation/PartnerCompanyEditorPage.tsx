@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Building2, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { lookupCompanyByCnpj } from "@/features/settings/infrastructure/company-registry.gateway";
 import { type Address } from "@/lib/address";
 import {
@@ -302,12 +302,9 @@ export function PartnerCompanyEditorPage({
     <div className="space-y-5 p-4 sm:p-5">
       <AdminCard>
         <AdminCardHeader>
-          <div className="flex min-w-0 items-center gap-2">
-            <Building2 size={17} className="shrink-0 text-[#0057e7]" />
-            <div className="min-w-0">
-              <h3 className="text-sm font-black text-[#0d1b2e]">Dados cadastrais</h3>
-              <p className="mt-0.5 text-xs text-[#5a6a82]">Identifique a pessoa física ou jurídica responsável pela empresa.</p>
-            </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-black text-[#0d1b2e]">Dados cadastrais</h3>
+            <p className="mt-0.5 text-xs text-[#5a6a82]">Identifique a pessoa física ou jurídica responsável pela empresa.</p>
           </div>
         </AdminCardHeader>
         <AdminCardContent>
@@ -320,7 +317,6 @@ export function PartnerCompanyEditorPage({
                 onChange={changePersonType}
                 className="grid-cols-2"
               />
-              <p className="mt-1.5 text-[10px] leading-relaxed text-[#5a6a82]">Ao trocar o tipo, os campos do formulário são limpos para evitar mistura de dados.</p>
             </div>
 
             {form.personType === "PF" ? (
@@ -355,7 +351,7 @@ export function PartnerCompanyEditorPage({
         <AdminCardHeader>
           <div>
             <h3 className="text-sm font-black text-[#0d1b2e]">Endereço</h3>
-            <p className="mt-0.5 text-xs text-[#5a6a82]">O CEP é consultado automaticamente pelo mesmo BuscaCEP utilizado no restante do sistema.</p>
+            <p className="mt-0.5 text-xs text-[#5a6a82]">Informe o endereço principal da empresa parceira para identificação e atendimento.</p>
           </div>
         </AdminCardHeader>
         <AdminCardContent>
