@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useRef, type Dispatch, type SetStateAction } from "react";
 import { buildOrderPayload, buildTechnicalValuesPayload, prepareOrderForm } from "./order-form";
 import { getOrderEditState, getOrderSubmissionStatus } from "./order-management";
 import { persistServiceOrder } from "./order-submission";
@@ -40,6 +40,7 @@ export function useOrderEditorWorkflow({
 }: Options) {
   const { activeOrganizationId } = useAuth();
   const organizationId = organizationIdOverride || activeOrganizationId;
+  const saveInFlightRef = useRef(false);
 
   const selectCustomer = (customer: any) => {
     const customerAddress = customers.selectCustomer(customer);
@@ -107,87 +108,111 @@ export function useOrderEditorWorkflow({
   };
 
   const save = async () => {
-    if (!organizationId) {
-      showToast({ msg: "Selecione uma empresa antes de salvar a OS.", type: "error" });
-      return false;
-    }
-    const editingOrder = formState.editingOS;
-    if (editingOrder?.organization_id && editingOrder.organization_id !== organizationId) {
-      showToast({ msg: "A empresa da OS não pode ser alterada.", type: "error" });
-      return false;
-    }
-    if (editingOrder ? !hasPermission("orders.edit") : !hasPermission("orders.create")) {
-      showToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" });
-      return false;
-    }
-    const preparation = prepareOrderForm({
-      form: formState.form,
-      editingOrder,
-      userId,
-      selectedCustomerId: customers.selectedCustomer?.id,
-      serviceUseCustomerAddress: address.serviceUseCustomerAddress,
-      serviceCustomerAddressOverride: address.serviceCustomerAddressOverride,
-      selectedServiceAddress: address.selectedServiceAddress,
-      needsScheduling: formState.needsScheduling,
-      equipmentBrands: workspace.equipmentBrands,
-      equipmentModels: workspace.equipmentModels,
-      technicalFields: workspace.technicalFieldLinks.filter((link: any) => link.equipment_type_id === formState.form.equipment_type_id).map((link: any) => ({ ...link, technical_field: link.technical_field || workspace.technicalFields.find((field: any) => field.id === link.technical_field_id) })),
-      technicalValues: formState.form.technicalValues,
-    });
-    if ("error" in preparation) {
-      showToast({ msg: preparation.error, type: "error" });
-      return false;
-    }
-    const { status, error: statusError } = await getOrderSubmissionStatus({
-      organizationId,
-      editingOrder,
-      statusId: formState.form.status_id,
-    });
-    if (statusError || !status?.id) {
-      showToast({ msg: "Não foi possível identificar um status válido para a OS.", type: "error" });
-      return false;
-    }
+    if (saveInFlightRef.current) return false;
+    saveInFlightRef.current = true;
 
-    setSaving(true);
-    if (customers.editingCustomer && customers.selectedCustomer?.id && !(await customerPersistence.saveCustomerBeforeOrder())) return false;
+    try {
+      if (!organizationId) {
+        showToast({ msg: "Selecione uma empresa antes de salvar a OS.", type: "error" });
+        return false;
+      }
+      const editingOrder = formState.editingOS;
+      if (editingOrder?.organization_id && editingOrder.organization_id !== organizationId) {
+        showToast({ msg: "A empresa da OS não pode ser alterada.", type: "error" });
+        return false;
+      }
+      if (editingOrder ? !hasPermission("orders.edit") : !hasPermission("orders.create")) {
+        showToast({ msg: "Você não possui permissão para esta ação na OS.", type: "error" });
+        return false;
+      }
+      const technicalFields = workspace.technicalFieldLinks
+        .filter((link: any) => link.equipment_type_id === formState.form.equipment_type_id)
+        .map((link: any) => ({
+          ...link,
+          technical_field: link.technical_field || workspace.technicalFields.find((field: any) => field.id === link.technical_field_id),
+        }));
+      const preparation = prepareOrderForm({
+        form: formState.form,
+        editingOrder,
+        userId,
+        selectedCustomerId: customers.selectedCustomer?.id,
+        serviceUseCustomerAddress: address.serviceUseCustomerAddress,
+        serviceCustomerAddressOverride: address.serviceCustomerAddressOverride,
+        selectedServiceAddress: address.selectedServiceAddress,
+        needsScheduling: formState.needsScheduling,
+        equipmentBrands: workspace.equipmentBrands,
+        equipmentModels: workspace.equipmentModels,
+        technicalFields,
+        technicalValues: formState.form.technicalValues,
+      });
+      if ("error" in preparation) {
+        showToast({ msg: preparation.error, type: "error" });
+        return false;
+      }
 
-    const payload = buildOrderPayload({
-      form: formState.form,
-      editingOrder,
-      userId,
-      statusId: status.id,
-      prepared: preparation.prepared,
-      selectedTechnicianIds: formState.selectedTechnicianIds,
-      selectedSellerIds: formState.selectedSellerIds,
-      needsScheduling: formState.needsScheduling,
-      serviceUseCustomerAddress: address.serviceUseCustomerAddress,
-    });
-    const submission = await persistServiceOrder({
-      organizationId,
-      editingOrder,
-      payload,
-      selectedTechnicianIds: formState.selectedTechnicianIds,
-      selectedSellerIds: formState.selectedSellerIds,
-      orderImages: images.orderImages,
-      uploadImage: file => uploadOrderImage(file, organizationId),
-      saveTechnicalValues: async orderId => saveServiceOrderTechnicalValues(orderId, buildTechnicalValuesPayload({ serviceOrderId: orderId, technicalFields: workspace.technicalFieldLinks.filter((link: any) => link.equipment_type_id === formState.form.equipment_type_id).map((link: any) => ({ ...link, technical_field: link.technical_field || workspace.technicalFields.find((field: any) => field.id === link.technical_field_id) })), technicalValues: formState.form.technicalValues })),
-    });
-    if (!submission.success) {
+      setSaving(true);
+      const { status, error: statusError } = await getOrderSubmissionStatus({
+        organizationId,
+        editingOrder,
+        statusId: formState.form.status_id,
+      });
+      if (statusError || !status?.id) {
+        showToast({ msg: "Não foi possível identificar um status válido para a OS.", type: "error" });
+        return false;
+      }
+
+      if (customers.editingCustomer && customers.selectedCustomer?.id && !(await customerPersistence.saveCustomerBeforeOrder())) return false;
+
+      const payload = buildOrderPayload({
+        form: formState.form,
+        editingOrder,
+        userId,
+        statusId: status.id,
+        prepared: preparation.prepared,
+        selectedTechnicianIds: formState.selectedTechnicianIds,
+        selectedSellerIds: formState.selectedSellerIds,
+        needsScheduling: formState.needsScheduling,
+        serviceUseCustomerAddress: address.serviceUseCustomerAddress,
+      });
+      const submission = await persistServiceOrder({
+        organizationId,
+        editingOrder,
+        pendingOrderId: formState.pendingCreatedOrderId,
+        payload,
+        selectedTechnicianIds: formState.selectedTechnicianIds,
+        selectedSellerIds: formState.selectedSellerIds,
+        orderImages: images.orderImages,
+        uploadImage: file => uploadOrderImage(file, organizationId),
+        onImageUploaded: images.markOrderImageUploaded,
+        saveTechnicalValues: async orderId => saveServiceOrderTechnicalValues(orderId, buildTechnicalValuesPayload({
+          serviceOrderId: orderId,
+          technicalFields,
+          technicalValues: formState.form.technicalValues,
+        })),
+      });
+      if (!submission.success) {
+        if (!editingOrder && submission.orderId) formState.setPendingCreatedOrderId(submission.orderId);
+        const message = submission.stage === "record"
+          ? `Erro ao salvar OS: ${formatError(submission.error)}`
+          : submission.stage === "technical"
+            ? `A OS não foi finalizada por erro nos campos técnicos: ${formatError(submission.error)}`
+            : submission.stage === "relations"
+              ? `A OS não foi finalizada por erro nos técnicos/vendedores: ${formatError(submission.error)}`
+              : `A OS não foi finalizada por erro nas imagens: ${formatError(submission.error)}`;
+        showToast({ msg: message, type: "error" });
+        return false;
+      }
+
+      formState.setPendingCreatedOrderId(null);
+      showToast({ msg: `OS ${editingOrder ? "atualizada" : "criada"} com sucesso!`, type: "success" });
+      formState.closeOrderForm();
+      details.closeDetail();
+      await workspace.reloadWorkspace();
+      return true;
+    } finally {
       setSaving(false);
-      const message = submission.stage === "record"
-        ? `Erro ao salvar OS: ${formatError(submission.error)}`
-        : submission.stage === "relations"
-          ? `OS salva, mas não foi possível atualizar técnicos/vendedores: ${formatError(submission.error)}`
-          : `OS salva, mas houve erro nas imagens: ${formatError(submission.error)}`;
-      showToast({ msg: message, type: "error" });
-      return false;
+      saveInFlightRef.current = false;
     }
-    setSaving(false);
-    showToast({ msg: `OS ${editingOrder ? "atualizada" : "criada"} com sucesso!`, type: "success" });
-    formState.closeOrderForm();
-    details.closeDetail();
-    await workspace.reloadWorkspace();
-    return true;
   };
 
   return { organizationId, selectCustomer, openNew, openEdit, save };
