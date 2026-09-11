@@ -35,7 +35,7 @@ function CustomerQuickActions({ customer, orderId }: { customer: any; orderId: s
         href={callContact.tel}
         data-phone-number={`+${callContact.phone}`}
         data-service-order-id={orderId}
-        onClick={() => notifyPhoneCallIntegration(callContact.phone, orderId)}
+        onClick={event => { if (notifyPhoneCallIntegration(callContact.phone, orderId)) event.preventDefault(); }}
         aria-label="Ligar para o cliente"
         title="Ligar para o cliente"
         className={`${actionClass} border-[#0057e7]/25 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}
