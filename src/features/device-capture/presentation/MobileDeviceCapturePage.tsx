@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Camera, CheckCircle2, Flashlight, Hash, ImagePlus, Loader2, Minus, Plus, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
+import { Camera, CheckCircle2, Hash, ImagePlus, Loader2, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
 import { useLocation, useParams } from "react-router";
 import {
   connectDeviceCaptureByCode,
@@ -26,23 +26,8 @@ const SERIAL_BARCODE_FORMATS = [
 ] as const;
 
 type ScannerControls = { stop: () => void };
-type ScannerMode = "pair" | "serial" | null;
 type Notice = { text: string; type: "success" | "error" } | null;
 type Pairing = { sessionId: string; token: string };
-type ZoomRange = { min: number; max: number; step: number };
-type ScannerEngine = "native" | "zxing" | null;
-type ScannerTrackCapabilities = MediaTrackCapabilities & {
-  zoom?: { min?: number; max?: number; step?: number };
-  torch?: boolean;
-  focusMode?: string[];
-};
-
-type ScannerAdvancedConstraint = MediaTrackConstraintSet & {
-  zoom?: number;
-  torch?: boolean;
-  focusMode?: string;
-};
-
 type NativeBarcode = { rawValue?: string | null };
 type NativeBarcodeDetector = { detect: (source: unknown) => Promise<NativeBarcode[]> };
 type NativeBarcodeDetectorConstructor = {
@@ -82,19 +67,6 @@ function formatPairingCode(value: string) {
   return digits.length > 4 ? `${digits.slice(0, 4)} ${digits.slice(4)}` : digits;
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-async function applyAdvancedCameraConstraint(track: MediaStreamTrack, constraint: ScannerAdvancedConstraint) {
-  try {
-    await track.applyConstraints({ advanced: [constraint] } as MediaTrackConstraints);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function normalizeCameraImage(file: File) {
   if (ACCEPTED_IMAGE_TYPES.has(file.type) && file.size <= 8 * 1024 * 1024) return file;
 
@@ -120,6 +92,43 @@ async function normalizeCameraImage(file: File) {
   }
 }
 
+async function decodeSerialFromPhoto(file: File) {
+  const Detector = (globalThis as typeof globalThis & { BarcodeDetector?: NativeBarcodeDetectorConstructor }).BarcodeDetector;
+
+  if (Detector && typeof createImageBitmap === "function") {
+    let bitmap: ImageBitmap | null = null;
+    try {
+      let formats: string[] | undefined;
+      if (typeof Detector.getSupportedFormats === "function") {
+        const supported = await Detector.getSupportedFormats();
+        const supportedSet = new Set(supported);
+        formats = SERIAL_BARCODE_FORMATS.filter(format => supportedSet.has(format));
+      }
+      const detector = formats?.length ? new Detector({ formats }) : new Detector();
+      bitmap = await createImageBitmap(file);
+      const results = await detector.detect(bitmap);
+      const value = results.find(item => item.rawValue?.trim())?.rawValue?.trim();
+      if (value) return value;
+    } catch {
+      // ZXing abaixo continua como fallback para fotos e navegadores sem BarcodeDetector completo.
+    } finally {
+      bitmap?.close();
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const reader = new BrowserMultiFormatReader();
+    const result = await reader.decodeFromImageUrl(objectUrl);
+    const value = result.getText().trim();
+    if (value) return value;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  throw new Error("Não foi possível identificar um código nessa foto.");
+}
+
 export function MobileDeviceCapturePage() {
   const { sessionId: routeSessionId = "" } = useParams();
   const location = useLocation();
@@ -138,37 +147,22 @@ export function MobileDeviceCapturePage() {
   const [photoCount, setPhotoCount] = useState(0);
   const [serial, setSerial] = useState("");
   const [serialSending, setSerialSending] = useState(false);
+  const [serialPhotoReading, setSerialPhotoReading] = useState(false);
   const [pairingCode, setPairingCode] = useState("");
   const [pairingCodeBusy, setPairingCodeBusy] = useState(false);
   const [uploadingKind, setUploadingKind] = useState<DeviceCapturePhotoKind | null>(null);
-  const [scannerMode, setScannerMode] = useState<ScannerMode>(null);
+  const [pairScannerOpen, setPairScannerOpen] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
-  const [scannerZoom, setScannerZoom] = useState(1);
-  const [scannerZoomRange, setScannerZoomRange] = useState<ZoomRange | null>(null);
-  const [torchSupported, setTorchSupported] = useState(false);
-  const [torchOn, setTorchOn] = useState(false);
-  const [scannerEngine, setScannerEngine] = useState<ScannerEngine>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<ScannerControls | null>(null);
-  const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
+  const serialCaptureInputRef = useRef<HTMLInputElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
   const equipmentInputRef = useRef<HTMLInputElement>(null);
 
-  const resetCameraControls = () => {
-    cameraTrackRef.current = null;
-    setScannerZoom(1);
-    setScannerZoomRange(null);
-    setTorchSupported(false);
-    setTorchOn(false);
-    setScannerEngine(null);
-  };
-
-  const stopScanner = () => {
+  const stopPairScanner = () => {
     scannerControlsRef.current?.stop();
     scannerControlsRef.current = null;
-    cameraTrackRef.current?.stop();
-    resetCameraControls();
-    setScannerMode(null);
+    setPairScannerOpen(false);
   };
 
   const keepFixedCaptureUrl = () => {
@@ -178,7 +172,7 @@ export function MobileDeviceCapturePage() {
   };
 
   const disconnectDevice = () => {
-    stopScanner();
+    stopPairScanner();
     setPairing(null);
     setConnectionState("idle");
     setExpiresAt("");
@@ -193,7 +187,6 @@ export function MobileDeviceCapturePage() {
     document.title = "ArtVideo Captura";
     return () => {
       scannerControlsRef.current?.stop();
-      cameraTrackRef.current?.stop();
     };
   }, []);
 
@@ -211,7 +204,7 @@ export function MobileDeviceCapturePage() {
         keepFixedCaptureUrl();
       } catch (error) {
         if (cancelled) return;
-        stopScanner();
+        stopPairScanner();
         setConnectionState("expired");
         setNotice({ text: error instanceof Error ? error.message : "A conexão expirou.", type: "error" });
         keepFixedCaptureUrl();
@@ -230,7 +223,7 @@ export function MobileDeviceCapturePage() {
   const connectByCode = async () => {
     const code = pairingCodeDigits(pairingCode);
     if (code.length !== 8 || pairingCodeBusy) return;
-    stopScanner();
+    stopPairScanner();
     setPairingCodeBusy(true);
     setNotice(null);
     try {
@@ -263,251 +256,64 @@ export function MobileDeviceCapturePage() {
     }
   };
 
-  const configureScannerCamera = async (video: HTMLVideoElement, mode: Exclude<ScannerMode, null>) => {
-    const stream = video.srcObject instanceof MediaStream ? video.srcObject : null;
-    const track = stream?.getVideoTracks()[0];
-    if (!track) return;
-
-    cameraTrackRef.current = track;
-    const capabilities = typeof track.getCapabilities === "function"
-      ? track.getCapabilities() as ScannerTrackCapabilities
-      : {} as ScannerTrackCapabilities;
-
-    if (Array.isArray(capabilities.focusMode) && capabilities.focusMode.includes("continuous")) {
-      await applyAdvancedCameraConstraint(track, { focusMode: "continuous" });
-    }
-
-    if (mode !== "serial") return;
-
-    const rawZoom = capabilities.zoom;
-    const minZoom = Number(rawZoom?.min);
-    const maxZoom = Number(rawZoom?.max);
-    if (Number.isFinite(minZoom) && Number.isFinite(maxZoom) && maxZoom > minZoom) {
-      const range: ZoomRange = {
-        min: minZoom,
-        max: maxZoom,
-        step: Math.max(Number(rawZoom?.step) || 0.1, 0.1),
-      };
-      setScannerZoomRange(range);
-      const preferredZoom = clamp(Math.max(1, range.min), range.min, range.max);
-      if (await applyAdvancedCameraConstraint(track, { zoom: preferredZoom })) {
-        setScannerZoom(preferredZoom);
-      } else {
-        const currentZoom = Number((track.getSettings() as MediaTrackSettings & { zoom?: number }).zoom);
-        setScannerZoom(Number.isFinite(currentZoom) ? currentZoom : range.min);
-      }
-    }
-
-    setTorchSupported(capabilities.torch === true);
-  };
-
-  const changeScannerZoom = async (direction: -1 | 1) => {
-    const track = cameraTrackRef.current;
-    const range = scannerZoomRange;
-    if (!track || !range) return;
-    const currentZoom = Number((track.getSettings() as MediaTrackSettings & { zoom?: number }).zoom);
-    const baseZoom = Number.isFinite(currentZoom) ? currentZoom : scannerZoom;
-    const change = Math.max(range.step, 0.5) * direction;
-    const nextZoom = Math.round(clamp(baseZoom + change, range.min, range.max) * 10) / 10;
-    if (nextZoom === baseZoom) return;
-    if (await applyAdvancedCameraConstraint(track, { zoom: nextZoom })) setScannerZoom(nextZoom);
-  };
-
-  const toggleTorch = async () => {
-    const track = cameraTrackRef.current;
-    if (!track || !torchSupported) return;
-    const next = !torchOn;
-    if (await applyAdvancedCameraConstraint(track, { torch: next })) setTorchOn(next);
-  };
-
-  const acceptScannerValue = (mode: Exclude<ScannerMode, null>, rawValue: string) => {
-    const value = rawValue.trim();
-    if (!value) return;
-    stopScanner();
-
-    if (mode === "pair") {
-      const nextPairing = parsePairingPayload(value);
-      if (!nextPairing) {
-        setNotice({ text: "Esse QR não é uma conexão válida da ArtVideo.", type: "error" });
-        return;
-      }
-      setPairing(nextPairing);
-      setConnectionState("checking");
-      setPhotoCount(0);
-      setSerial("");
-      setExpiresAt("");
-      return;
-    }
-
-    setSerial(value);
-    void sendSerial(value);
-  };
-
-  const startNativeSerialScanner = async (video: HTMLVideoElement) => {
-    const Detector = (globalThis as typeof globalThis & { BarcodeDetector?: NativeBarcodeDetectorConstructor }).BarcodeDetector;
-    if (!Detector || !navigator.mediaDevices?.getUserMedia || typeof createImageBitmap !== "function") return false;
-
-    let stream: MediaStream | null = null;
-    try {
-      let formats: string[] | undefined;
-      if (typeof Detector.getSupportedFormats === "function") {
-        const supported = await Detector.getSupportedFormats();
-        const supportedSet = new Set(supported);
-        formats = SERIAL_BARCODE_FORMATS.filter(format => supportedSet.has(format));
-      }
-      const detector = formats?.length ? new Detector({ formats }) : new Detector();
-
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, max: 60 },
-        },
-      });
-      video.srcObject = stream;
-      video.muted = true;
-      video.playsInline = true;
-      await video.play();
-      await configureScannerCamera(video, "serial");
-
-      const createCentralFrame = async () => {
-        const width = video.videoWidth;
-        const height = video.videoHeight;
-        if (!width || !height) return createImageBitmap(video);
-        const cropWidth = Math.max(1, Math.round(width * 0.92));
-        const cropHeight = Math.max(1, Math.round(height * 0.58));
-        const x = Math.max(0, Math.round((width - cropWidth) / 2));
-        const y = Math.max(0, Math.round((height - cropHeight) / 2));
-        return createImageBitmap(video, x, y, cropWidth, cropHeight);
-      };
-
-      const firstFrame = await createCentralFrame();
-      try {
-        await detector.detect(firstFrame);
-      } finally {
-        firstFrame.close();
-      }
-
-      let stopped = false;
-      let timer = 0;
-      let missesSinceZoom = 0;
-      const activeStream = stream;
-      const controls: ScannerControls = {
-        stop: () => {
-          if (stopped) return;
-          stopped = true;
-          window.clearTimeout(timer);
-          activeStream.getTracks().forEach(track => track.stop());
-          if (video.srcObject === activeStream) video.srcObject = null;
-        },
-      };
-      scannerControlsRef.current = controls;
-      setScannerEngine("native");
-
-      const adaptiveZoom = async () => {
-        const track = activeStream.getVideoTracks()[0];
-        if (!track || track.readyState !== "live" || typeof track.getCapabilities !== "function") return;
-        const capabilities = track.getCapabilities() as ScannerTrackCapabilities;
-        const rawZoom = capabilities.zoom;
-        const min = Number(rawZoom?.min);
-        const max = Number(rawZoom?.max);
-        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return;
-        const current = Number((track.getSettings() as MediaTrackSettings & { zoom?: number }).zoom);
-        const base = Number.isFinite(current) ? current : Math.max(1, min);
-        const autoMax = Math.min(max, 3.5);
-        if (base >= autoMax) return;
-        const next = Math.round(clamp(base + 0.45, min, autoMax) * 10) / 10;
-        if (next > base && await applyAdvancedCameraConstraint(track, { zoom: next })) setScannerZoom(next);
-      };
-
-      const scanFrame = async () => {
-        if (stopped) return;
-        let frame: ImageBitmap | null = null;
-        try {
-          if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-            frame = await createCentralFrame();
-            const results = await detector.detect(frame);
-            const value = results.find(item => item.rawValue?.trim())?.rawValue?.trim();
-            if (value) {
-              acceptScannerValue("serial", value);
-              return;
-            }
-            missesSinceZoom += 1;
-            if (missesSinceZoom >= 7) {
-              missesSinceZoom = 0;
-              await adaptiveZoom();
-            }
-          }
-        } catch {
-          // Keep the camera alive. ZXing remains the fallback when native setup itself fails.
-        } finally {
-          frame?.close();
-        }
-        if (!stopped) timer = window.setTimeout(() => void scanFrame(), 120);
-      };
-
-      void scanFrame();
-      return true;
-    } catch {
-      stream?.getTracks().forEach(track => track.stop());
-      if (video.srcObject === stream) video.srcObject = null;
-      cameraTrackRef.current = null;
-      setScannerZoomRange(null);
-      setTorchSupported(false);
-      setTorchOn(false);
-      setScannerEngine(null);
-      return false;
-    }
-  };
-
-  const startZxingScanner = async (video: HTMLVideoElement, mode: Exclude<ScannerMode, null>) => {
-    const reader = new BrowserMultiFormatReader();
-    const controls = await reader.decodeFromConstraints(
-      {
-        audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, max: 60 },
-        },
-      },
-      video,
-      (result, _error, callbackControls) => {
-        if (!result) return;
-        const value = result.getText().trim();
-        if (!value) return;
-        callbackControls.stop();
-        scannerControlsRef.current = null;
-        acceptScannerValue(mode, value);
-      },
-    );
-    scannerControlsRef.current = controls;
-    setScannerEngine("zxing");
-    await configureScannerCamera(video, mode);
-  };
-
-  const startScanner = async (mode: Exclude<ScannerMode, null>) => {
-    if (scannerMode || (mode === "serial" && connectionState !== "connected")) return;
+  const startPairScanner = async () => {
+    if (pairScannerOpen) return;
     setNotice(null);
-    resetCameraControls();
-    setScannerMode(mode);
+    setPairScannerOpen(true);
     try {
       await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       const video = videoRef.current;
       if (!video) throw new Error("Não foi possível preparar a câmera.");
+      const reader = new BrowserMultiFormatReader();
+      const controls = await reader.decodeFromConstraints(
+        { audio: false, video: { facingMode: { ideal: "environment" } } },
+        video,
+        (result, _error, callbackControls) => {
+          if (!result) return;
+          const value = result.getText().trim();
+          if (!value) return;
+          callbackControls.stop();
+          scannerControlsRef.current = null;
+          setPairScannerOpen(false);
 
-      if (mode === "serial" && await startNativeSerialScanner(video)) return;
-      await startZxingScanner(video, mode);
+          const nextPairing = parsePairingPayload(value);
+          if (!nextPairing) {
+            setNotice({ text: "Esse QR não é uma conexão válida da ArtVideo.", type: "error" });
+            return;
+          }
+          setPairing(nextPairing);
+          setConnectionState("checking");
+          setPhotoCount(0);
+          setSerial("");
+          setExpiresAt("");
+        },
+      );
+      scannerControlsRef.current = controls;
     } catch (error) {
       scannerControlsRef.current?.stop();
       scannerControlsRef.current = null;
-      cameraTrackRef.current?.stop();
-      resetCameraControls();
-      setScannerMode(null);
+      setPairScannerOpen(false);
       setNotice({ text: error instanceof Error ? error.message : "Não foi possível abrir a câmera.", type: "error" });
+    }
+  };
+
+  const readSerialPhoto = async (file?: File) => {
+    if (!file || connectionState !== "connected" || !pairing || serialPhotoReading) return;
+    setSerialPhotoReading(true);
+    setNotice(null);
+    try {
+      const value = await decodeSerialFromPhoto(file);
+      setSerial(value);
+      await sendSerial(value);
+    } catch (error) {
+      setNotice({
+        text: error instanceof Error
+          ? `${error.message} Tire outra foto aproximando a etiqueta e garantindo que o código esteja nítido.`
+          : "Não foi possível ler o código da foto. Tire outra foto da etiqueta.",
+        type: "error",
+      });
+    } finally {
+      setSerialPhotoReading(false);
     }
   };
 
@@ -566,7 +372,7 @@ export function MobileDeviceCapturePage() {
             </div>
 
             <div className="border-t border-[#0d1b2e]/8 p-4">
-              {scannerMode === "pair" && (
+              {pairScannerOpen && (
                 <div className="mb-3 overflow-hidden rounded-2xl bg-black">
                   <div className="relative">
                     <video ref={videoRef} muted playsInline className="aspect-[4/3] w-full object-cover" />
@@ -576,10 +382,10 @@ export function MobileDeviceCapturePage() {
                 </div>
               )}
 
-              {scannerMode !== "pair" ? (
-                <button type="button" onClick={() => void startScanner("pair")} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white active:bg-[#0046c0]"><ScanLine size={20} /> Escanear QR da OS</button>
+              {!pairScannerOpen ? (
+                <button type="button" onClick={() => void startPairScanner()} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white active:bg-[#0046c0]"><ScanLine size={20} /> Escanear QR da OS</button>
               ) : (
-                <button type="button" onClick={stopScanner} className="min-h-12 w-full rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]">Cancelar leitura</button>
+                <button type="button" onClick={stopPairScanner} className="min-h-12 w-full rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]">Cancelar leitura</button>
               )}
 
               <div className="my-4 flex items-center gap-3"><span className="h-px flex-1 bg-[#0d1b2e]/10" /><span className="text-[10px] font-black uppercase tracking-widest text-[#8a97a8]">ou</span><span className="h-px flex-1 bg-[#0d1b2e]/10" /></div>
@@ -647,35 +453,38 @@ export function MobileDeviceCapturePage() {
         {notice && <div role={notice.type === "error" ? "alert" : "status"} className={`rounded-xl border px-4 py-3 text-sm font-bold ${notice.type === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>{notice.text}</div>}
 
         <section className="overflow-hidden rounded-2xl border border-[#0d1b2e]/8 bg-white shadow-sm">
-          <div className="border-b border-[#0d1b2e]/8 p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e8eef8] text-[#0057e7]"><ScanLine size={18} /></span><div><h2 className="text-sm font-black text-[#0d1b2e]">Número de série</h2><p className="text-xs text-[#5a6a82]">Leia o código de barras ou QR da etiqueta.</p></div></div></div>
+          <div className="border-b border-[#0d1b2e]/8 p-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e8eef8] text-[#0057e7]"><ScanLine size={18} /></span>
+              <div><h2 className="text-sm font-black text-[#0d1b2e]">Número de série</h2><p className="text-xs text-[#5a6a82]">Fotografe o código de barras ou QR da etiqueta.</p></div>
+            </div>
+          </div>
           <div className="space-y-3 p-4">
-            {scannerMode === "serial" && (
-              <div className="overflow-hidden rounded-2xl bg-black">
-                <div className="relative">
-                  <video ref={videoRef} muted playsInline className="aspect-video w-full object-cover" />
-                  <div className="pointer-events-none absolute left-[7%] right-[7%] top-1/2 h-24 -translate-y-1/2 rounded-xl border-2 border-white/80 shadow-[0_0_0_999px_rgba(0,0,0,.28)]" />
-                  <div className="pointer-events-none absolute inset-x-[10%] top-1/2 h-px bg-red-500 shadow-[0_0_10px_rgba(239,68,68,.9)]" />
-                  {scannerZoomRange && <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-black text-white">{scannerZoom.toFixed(1)}×</span>}
-                  {scannerEngine === "native" && <span className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-emerald-500/85 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">Auto zoom</span>}
-                </div>
-                {(scannerZoomRange || torchSupported) && (
-                  <div className="flex items-center justify-between gap-2 border-t border-white/10 bg-[#0d1b2e] p-2.5 text-white">
-                    {scannerZoomRange ? <div className="flex items-center gap-2">
-                      <button type="button" disabled={scannerZoom <= scannerZoomRange.min} onClick={() => void changeScannerZoom(-1)} aria-label="Diminuir zoom" className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 disabled:opacity-30"><Minus size={18} /></button>
-                      <span className="min-w-12 text-center text-xs font-black">{scannerZoom.toFixed(1)}×</span>
-                      <button type="button" disabled={scannerZoom >= scannerZoomRange.max} onClick={() => void changeScannerZoom(1)} aria-label="Aumentar zoom" className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 disabled:opacity-30"><Plus size={18} /></button>
-                    </div> : <span />}
-                    {torchSupported && <button type="button" onClick={() => void toggleTorch()} aria-pressed={torchOn} className={`flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-black ${torchOn ? "bg-amber-400 text-[#0d1b2e]" : "bg-white/10 text-white"}`}><Flashlight size={17} /> {torchOn ? "Ligada" : "Lanterna"}</button>}
-                  </div>
-                )}
-                <p className="bg-[#0d1b2e] px-3 pb-3 text-center text-[11px] leading-4 text-white/70">Centralize o código na faixa. O zoom aumenta sozinho se a etiqueta estiver pequena; aproxime fisicamente só se necessário.</p>
-              </div>
-            )}
-            {scannerMode !== "serial" && <button type="button" onClick={() => void startScanner("serial")} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white active:bg-[#0046c0]"><ScanLine size={20} /> Escanear número de série</button>}
-            {scannerMode === "serial" && <button type="button" onClick={stopScanner} className="min-h-12 w-full rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]">Cancelar leitura</button>}
+            <button
+              type="button"
+              disabled={serialPhotoReading || serialSending}
+              onClick={() => serialCaptureInputRef.current?.click()}
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white active:bg-[#0046c0] disabled:opacity-50"
+            >
+              {serialPhotoReading ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
+              {serialPhotoReading ? "Lendo foto..." : "Fotografar código de série"}
+            </button>
+            <p className="rounded-xl bg-[#f8fafc] px-3 py-2.5 text-center text-[11px] leading-4 text-[#5a6a82]">A câmera padrão do celular será aberta. Foque a etiqueta, tire a foto e confirme; a leitura será feita depois que você voltar para esta tela.</p>
+            <input
+              ref={serialCaptureInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={event => {
+                const file = event.target.files?.[0];
+                event.currentTarget.value = "";
+                void readSerialPhoto(file);
+              }}
+            />
             <div className="flex gap-2">
               <input value={serial} onChange={event => setSerial(event.target.value)} placeholder="Ou digite a série" autoCapitalize="characters" className="min-w-0 flex-1 rounded-xl border border-[#0d1b2e]/15 bg-white px-3 py-3 text-sm font-bold text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15" />
-              <button type="button" disabled={!serial.trim() || serialSending} onClick={() => void sendSerial()} aria-label="Enviar série para o computador" className="flex w-12 shrink-0 items-center justify-center rounded-xl bg-[#0d1b2e] text-white disabled:opacity-40">{serialSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}</button>
+              <button type="button" disabled={!serial.trim() || serialSending || serialPhotoReading} onClick={() => void sendSerial()} aria-label="Enviar série para o computador" className="flex w-12 shrink-0 items-center justify-center rounded-xl bg-[#0d1b2e] text-white disabled:opacity-40">{serialSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}</button>
             </div>
           </div>
         </section>
