@@ -304,7 +304,7 @@ export function MobileDeviceCapturePage() {
     try {
       const value = await decodeSerialFromPhoto(file);
       setSerial(value);
-      await sendSerial(value);
+      setNotice({ text: "Número de série identificado. Revise e toque no aviãozinho para enviar.", type: "success" });
     } catch (error) {
       setNotice({
         text: error instanceof Error
