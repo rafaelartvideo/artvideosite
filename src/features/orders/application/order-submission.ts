@@ -11,34 +11,43 @@ import {
 } from "../infrastructure/orders.repository";
 import { orderImageSortOrder, type OrderImageKind } from "../domain/order-image";
 
-type SubmissionImage = { mediaId?: string; file?: File; kind?: OrderImageKind };
-type SubmissionFailure = { success: false; stage: "record" | "relations" | "images"; error: unknown };
+type SubmissionImage = { key?: string; mediaId?: string; file?: File; kind?: OrderImageKind };
+type SubmissionFailure = { success: false; stage: "record" | "technical" | "relations" | "images"; error: unknown; orderId?: string };
 type SubmissionSuccess = { success: true; orderId: string };
 
 export async function persistServiceOrder({
   organizationId,
   editingOrder,
+  pendingOrderId,
   payload,
   selectedTechnicianIds,
   selectedSellerIds,
   orderImages,
   uploadImage,
+  onImageUploaded,
   saveTechnicalValues,
 }: {
   organizationId: string;
   editingOrder: any;
+  pendingOrderId?: string | null;
   payload: Record<string, any>;
   selectedTechnicianIds: string[];
   selectedSellerIds: string[];
   orderImages: SubmissionImage[];
   uploadImage: (file: File) => Promise<string>;
+  onImageUploaded?: (imageKey: string, mediaId: string) => void;
   saveTechnicalValues: (orderId: string) => Promise<{ error: any } | void>;
 }): Promise<SubmissionFailure | SubmissionSuccess> {
   let savedOrderId = editingOrder?.id as string | undefined;
+  const retryingPartialCreate = !editingOrder && Boolean(pendingOrderId);
 
   if (editingOrder) {
     const { error } = await updateServiceOrder(organizationId, editingOrder.id, payload);
-    if (error) return { success: false, stage: "record", error };
+    if (error) return { success: false, stage: "record", error, orderId: editingOrder.id };
+  } else if (pendingOrderId) {
+    savedOrderId = pendingOrderId;
+    const { error } = await updateServiceOrder(organizationId, pendingOrderId, payload);
+    if (error) return { success: false, stage: "record", error, orderId: pendingOrderId };
   } else {
     const { data, error } = await createServiceOrder(organizationId, payload);
     if (error) return { success: false, stage: "record", error };
@@ -48,7 +57,7 @@ export async function persistServiceOrder({
   if (!savedOrderId) return { success: false, stage: "record", error: new Error("A OS foi salva, mas não foi possível obter seu ID.") };
 
   const technicalValuesResult = await saveTechnicalValues(savedOrderId);
-  if (technicalValuesResult?.error) return { success: false, stage: "record", error: technicalValuesResult.error };
+  if (technicalValuesResult?.error) return { success: false, stage: "technical", error: technicalValuesResult.error, orderId: savedOrderId };
 
   const uniqueTechnicianIds = Array.from(new Set(selectedTechnicianIds));
   const uniqueSellerIds = Array.from(new Set(selectedSellerIds));
@@ -56,7 +65,7 @@ export async function persistServiceOrder({
   const previousSellerIds = Array.from(new Set((editingOrder?.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOrder?.seller_id ? [editingOrder.seller_id] : []))) as string[];
 
   try {
-    if (editingOrder) {
+    if (editingOrder || retryingPartialCreate) {
       const { error: technicianClearError } = await clearServiceOrderTechnicians(savedOrderId);
       if (technicianClearError) throw technicianClearError;
       const { error: sellerClearError } = await clearServiceOrderSellers(savedOrderId);
@@ -77,30 +86,37 @@ export async function persistServiceOrder({
       if (previousTechnicianIds.length) await insertServiceOrderTechnicians(savedOrderId, previousTechnicianIds);
       if (previousSellerIds.length) await insertServiceOrderSellers(savedOrderId, previousSellerIds);
     }
-    return { success: false, stage: "relations", error };
+    return { success: false, stage: "relations", error, orderId: savedOrderId };
   }
 
-  try {
-    const { data: existingLinks, error: linksError } = await listServiceOrderMediaLinks(savedOrderId);
-    if (linksError) throw linksError;
+  if (orderImages.length > 0) {
+    try {
+      const { data: existingLinks, error: linksError } = await listServiceOrderMediaLinks(savedOrderId);
+      if (linksError) throw linksError;
 
-    const counters: Record<"equipment" | "label", number> = { equipment: 0, label: 0 };
-    for (const image of orderImages) {
-      const kind = image.kind === "label" ? "label" : "equipment";
-      const sortOrder = orderImageSortOrder(kind, counters[kind]++);
-      if (image.mediaId) {
-        const link = (existingLinks || []).find((item: any) => item.media_id === image.mediaId);
-        if (!link) continue;
-        const { error } = await updateServiceOrderMediaSortOrder(link.id, sortOrder);
-        if (error) throw error;
-      } else if (image.file) {
-        const mediaId = await uploadImage(image.file);
-        const { error } = await insertServiceOrderMedia(savedOrderId, mediaId, sortOrder);
-        if (error) throw error;
+      const counters: Record<"equipment" | "label", number> = { equipment: 0, label: 0 };
+      for (const image of orderImages) {
+        const kind = image.kind === "label" ? "label" : "equipment";
+        const sortOrder = orderImageSortOrder(kind, counters[kind]++);
+        if (image.mediaId) {
+          const link = (existingLinks || []).find((item: any) => item.media_id === image.mediaId);
+          if (link) {
+            const { error } = await updateServiceOrderMediaSortOrder(link.id, sortOrder);
+            if (error) throw error;
+          } else {
+            const { error } = await insertServiceOrderMedia(savedOrderId, image.mediaId, sortOrder);
+            if (error) throw error;
+          }
+        } else if (image.file) {
+          const mediaId = await uploadImage(image.file);
+          if (image.key) onImageUploaded?.(image.key, mediaId);
+          const { error } = await insertServiceOrderMedia(savedOrderId, mediaId, sortOrder);
+          if (error) throw error;
+        }
       }
+    } catch (error) {
+      return { success: false, stage: "images", error, orderId: savedOrderId };
     }
-  } catch (error) {
-    return { success: false, stage: "images", error };
   }
 
   return { success: true, orderId: savedOrderId };
