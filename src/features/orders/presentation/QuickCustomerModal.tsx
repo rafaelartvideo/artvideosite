@@ -48,6 +48,8 @@ export function QuickCustomerModal({ onClose, onSaved }: {
 
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (window.innerWidth < 640) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, a, input, textarea, select, [role='button']")) return;
     dragRef.current = { x: position.x, y: position.y, startX: event.clientX, startY: event.clientY };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
