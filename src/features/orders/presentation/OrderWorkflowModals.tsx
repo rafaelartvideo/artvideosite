@@ -34,6 +34,11 @@ type Props = {
   formatCurrency: (value: number) => string;
 };
 
+function appendUniqueById(current: any[], item?: any | null) {
+  if (!item?.id || current.some(existing => existing?.id === item.id)) return current;
+  return [...current, item];
+}
+
 export function OrderWorkflowModals({
   detail, saving, workspace, formState, images, resolution, completion,
   partRequests, onSelectCustomer: selectCustomer, setToast, formatCurrency,
@@ -43,7 +48,7 @@ export function OrderWorkflowModals({
   } = workspace;
   const {
     quickEquipment, setQuickEquipment, quickCustomer, setQuickCustomer,
-    setForm,
+    form, setForm,
   } = formState;
   const {
     orderImages, solutionImages, viewImage, setViewImage, addSolutionImages,
@@ -76,11 +81,24 @@ export function OrderWorkflowModals({
         onClose={() => setQuickEquipment(false)}
         technicalFields={workspace.technicalFields}
         technicalFieldLinks={workspace.technicalFieldLinks}
+        equipmentTypes={workspace.equipmentTypes}
+        equipmentBrands={workspace.equipmentBrands}
+        initialTypeId={form.equipment_type_id}
+        initialBrandId={form.equipment_brand_id}
         onSaved={({ type, brand, model }) => {
-          setEquipmentTypes(current => [...current, type]);
-          setEquipmentBrands(current => [...current, brand]);
-          setEquipmentModels(current => [...current, model]);
-          setForm(current => ({ ...current, equipment_type_id: type.id, equipment_brand_id: brand.id, equipment_model_id: model.id, technicalValues: {} }));
+          setEquipmentTypes(current => appendUniqueById(current, type));
+          setEquipmentBrands(current => appendUniqueById(current, brand));
+          setEquipmentModels(current => appendUniqueById(current, model));
+          setForm(current => {
+            const typeChanged = current.equipment_type_id !== type.id;
+            return {
+              ...current,
+              equipment_type_id: type.id,
+              equipment_brand_id: brand?.id || "",
+              equipment_model_id: model?.id || "",
+              technicalValues: typeChanged ? {} : current.technicalValues,
+            };
+          });
           void workspace.reloadWorkspace();
         }}
       />}
@@ -118,6 +136,6 @@ export function OrderWorkflowModals({
       {partApprovalOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={false} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={approvePartRequest} />}
       {partRejectionOpen && selectedPartRequest && detail && <ReviewPartRequestModal request={selectedPartRequest} orderNumber={detail.os_number} rejection={true} approvalQuantities={approvalQuantities} notes={partReviewNotes} submitting={partReviewSubmitting} onNotesChange={setPartReviewNotes} onQuantityChange={updateApprovalQuantity} onClose={closePartReview} onSubmit={rejectPartRequest} />}
       {deliveryOpen && selectedDeliveryRequest && <PartCustodyModal request={selectedDeliveryRequest} action={custodyAction} quantities={custodyQuantities} submitting={deliverySubmitting} onQuantitiesChange={setCustodyQuantities} onClose={closeDeliveryRequest} onSubmit={() => void submitCustodyAction()} />}
-      {testResultOpen && selectedTestRequest && <TestResultModal request={selectedTestRequest} rows={testResultRows} submitting={testResultSubmitting} getPendingQuantity={getTestPendingQuantity} onRowsChange={setTestResultRows} onClose={closeTestResult} onSubmit={() => void submitTestResults()} />}
+      {testResultOpen && selectedTestRequest && <TestResultModal request={selectedTestRequest} rows={testResultRows} submitting={testResultSubmitting} getPendingQuantity={getTestPendingQuantity} onRowsChange={setTestResultRows} onClose={closeTestResult} onSubmit={submitTestResults} />}
   </>;
 }
