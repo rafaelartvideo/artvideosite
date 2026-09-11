@@ -13,8 +13,12 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # Build assets are content-hashed. If an old tab requests an asset that was
+  # removed by a newer deploy, let Apache return a real 404 instead of serving
+  # index.html with the wrong MIME type. The app can then recover/reload cleanly.
+  RewriteRule ^assets/ - [L]
+
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-
   RewriteRule ^ index.html [L]
 </IfModule>
