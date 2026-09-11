@@ -83,7 +83,10 @@ export function OrderEditorPage({
     closeOrderForm,
   } = formState;
   const { orderImages, addOrderImages, removeOrderImage, setViewImage } = images;
-  const closePage = onClose || closeOrderForm;
+  const closePage = () => {
+    if (saving) return;
+    (onClose || closeOrderForm)();
+  };
   const technicalFields = workspace.technicalFieldLinks
     .filter((link: any) => link.equipment_type_id === form.equipment_type_id)
     .map((link: any) => ({ ...link, technical_field: link.technical_field || workspace.technicalFields.find((field: any) => field.id === link.technical_field_id) }))
@@ -228,7 +231,7 @@ export function OrderEditorPage({
         saving={saving}
         canSave={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
         onCancel={closePage}
-        onSave={() => { void onSave(); }}
+        onSave={onSave}
       />
     </AdminPage>
   );
