@@ -19,17 +19,20 @@ export function phoneContactLinks(value?: string | null) {
 }
 
 /**
- * Integration point for desktop softphones and browser extensions.
- * A content script can listen for PHONE_CALL_EVENT and optionally handle the
- * call while the regular tel: link remains the native fallback.
+ * Integration point for the ArtVideo telephony layer and optional desktop
+ * softphones/extensions. Returning true means a listener accepted the call
+ * action and the regular tel: navigation should be cancelled.
  */
 export function notifyPhoneCallIntegration(phone: string, serviceOrderId?: string) {
-  if (typeof window === "undefined" || !phone) return;
-  window.dispatchEvent(new CustomEvent(PHONE_CALL_EVENT, {
+  if (typeof window === "undefined" || !phone) return false;
+  const event = new CustomEvent(PHONE_CALL_EVENT, {
+    cancelable: true,
     detail: {
       phone: `+${phone}`,
       serviceOrderId: serviceOrderId || null,
       source: "service-order-customer",
     },
-  }));
+  });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
 }
