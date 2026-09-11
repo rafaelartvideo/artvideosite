@@ -41,6 +41,7 @@ export function useOrderEditorWorkflow({
   const { activeOrganizationId } = useAuth();
   const organizationId = organizationIdOverride || activeOrganizationId;
   const saveInFlightRef = useRef(false);
+  const creationRequestIdRef = useRef<string | null>(null);
 
   const selectCustomer = (customer: any) => {
     const customerAddress = customers.selectCustomer(customer);
@@ -62,6 +63,7 @@ export function useOrderEditorWorkflow({
       showToast({ msg: "Selecione uma empresa antes de criar uma OS.", type: "error" });
       return;
     }
+    creationRequestIdRef.current = crypto.randomUUID();
     formState.openNewForm();
     address.resetServiceAddressState();
     images.clearOrderImages();
@@ -70,6 +72,7 @@ export function useOrderEditorWorkflow({
   };
 
   const openEdit = async (order: any) => {
+    creationRequestIdRef.current = null;
     if (!organizationId || order.organization_id !== organizationId) {
       showToast({ msg: "Esta OS não pertence à empresa selecionada.", type: "error" });
       return false;
@@ -174,13 +177,21 @@ export function useOrderEditorWorkflow({
         needsScheduling: formState.needsScheduling,
         serviceUseCustomerAddress: address.serviceUseCustomerAddress,
       });
+      if (!editingOrder && !creationRequestIdRef.current) creationRequestIdRef.current = crypto.randomUUID();
+      const technicalValues = buildTechnicalValuesPayload({
+        serviceOrderId: editingOrder?.id || creationRequestIdRef.current || "00000000-0000-0000-0000-000000000000",
+        technicalFields,
+        technicalValues: formState.form.technicalValues,
+      });
       const submission = await persistServiceOrder({
         organizationId,
         editingOrder,
         pendingOrderId: formState.pendingCreatedOrderId,
+        creationRequestId: creationRequestIdRef.current,
         payload,
         selectedTechnicianIds: formState.selectedTechnicianIds,
         selectedSellerIds: formState.selectedSellerIds,
+        technicalValues,
         orderImages: images.orderImages,
         uploadImage: file => uploadOrderImage(file, organizationId),
         onImageUploaded: images.markOrderImageUploaded,
@@ -203,6 +214,7 @@ export function useOrderEditorWorkflow({
         return false;
       }
 
+      creationRequestIdRef.current = null;
       formState.setPendingCreatedOrderId(null);
       showToast({ msg: `OS ${editingOrder ? "atualizada" : "criada"} com sucesso!`, type: "success" });
       formState.closeOrderForm();
