@@ -68,6 +68,7 @@ export function QuickEquipmentModal({
   );
 
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (typeof window !== "undefined" && window.innerWidth < 640) return;
     dragRef.current = { x: position.x, y: position.y, startX: event.clientX, startY: event.clientY };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -176,25 +177,34 @@ export function QuickEquipmentModal({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent showClose={false} className="max-w-3xl border-0 bg-transparent p-0 shadow-none">
+      <DialogContent
+        showClose={false}
+        className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] gap-0 border-0 bg-transparent p-0 shadow-none sm:w-full sm:max-w-3xl"
+      >
         <DialogTitle className="sr-only">Adicionar equipamento, marca ou modelo</DialogTitle>
         <div
           style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-          className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white shadow-2xl"
+          className="relative flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-2xl"
         >
-          <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4 select-none sm:px-6">
-            <div className="min-w-0 pr-4">
-              <h3 className="text-base font-black text-[#0d1b2e]">Adicionar equipamento, marca ou modelo</h3>
-              <p className="mt-1 text-xs text-[#5a6a82]">Cadastre somente o nível necessário sem sair da nova OS.</p>
+          <div
+            onPointerDown={startDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            className="flex shrink-0 cursor-default items-start justify-between gap-3 border-b border-[#0d1b2e]/10 px-3 py-3 select-none sm:cursor-move sm:items-center sm:px-6 sm:py-4"
+          >
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-black leading-5 text-[#0d1b2e] sm:text-base">Adicionar equipamento, marca ou modelo</h3>
+              <p className="mt-0.5 text-[11px] leading-4 text-[#5a6a82] sm:mt-1 sm:text-xs">Cadastre somente o nível necessário sem sair da nova OS.</p>
             </div>
-            <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost"><X size={17} /></AdminIconButton>
+            <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost" className="shrink-0"><X size={17} /></AdminIconButton>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
-            <div className="space-y-6">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
                 <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">O que deseja cadastrar?</p>
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {modes.map(item => {
                     const selected = mode === item.id;
                     return (
@@ -203,10 +213,10 @@ export function QuickEquipmentModal({
                         type="button"
                         disabled={saving}
                         onClick={() => selectMode(item.id)}
-                        className={`min-w-0 rounded-xl border px-3 py-3 text-left transition ${selected ? "border-[#0057e7] bg-[#eef5ff] shadow-sm" : "border-[#0d1b2e]/10 bg-white hover:border-[#0057e7]/40 hover:bg-[#f8fafc]"}`}
+                        className={`min-w-0 rounded-xl border px-3 py-2.5 text-left transition sm:py-3 ${selected ? "border-[#0057e7] bg-[#eef5ff] shadow-sm" : "border-[#0d1b2e]/10 bg-white hover:border-[#0057e7]/40 hover:bg-[#f8fafc]"}`}
                       >
                         <span className={`block text-xs font-black ${selected ? "text-[#0057e7]" : "text-[#0d1b2e]"}`}>{item.title}</span>
-                        <span className="mt-1 block text-[10px] leading-4 text-[#5a6a82]">{item.description}</span>
+                        <span className="mt-0.5 block text-[10px] leading-4 text-[#5a6a82] sm:mt-1">{item.description}</span>
                       </button>
                     );
                   })}
@@ -214,20 +224,20 @@ export function QuickEquipmentModal({
               </div>
 
               {(mode === "full" || mode === "type") && (
-                <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4 sm:p-5">
-                  <div className="mb-4">
+                <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 sm:p-5">
+                  <div className="mb-3 sm:mb-4">
                     <p className="text-sm font-black text-[#0d1b2e]">Novo equipamento</p>
-                    <p className="mt-1 text-xs text-[#5a6a82]">Crie o tipo principal. Se o nome já existir, o cadastro existente será reutilizado.</p>
+                    <p className="mt-1 text-[11px] leading-4 text-[#5a6a82] sm:text-xs">Crie o tipo principal. Se o nome já existir, o cadastro existente será reutilizado.</p>
                   </div>
-                  <FInput label="Tipo de equipamento" required autoFocus disabled={saving} value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Ex: Televisão" />
+                  <FInput label="Tipo de equipamento" required disabled={saving} value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Ex: Televisão" />
                 </div>
               )}
 
               {(mode === "brand" || mode === "model") && (
-                <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4 sm:p-5">
-                  <div className="mb-4">
+                <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 sm:p-5">
+                  <div className="mb-3 sm:mb-4">
                     <p className="text-sm font-black text-[#0d1b2e]">Equipamento existente</p>
-                    <p className="mt-1 text-xs text-[#5a6a82]">Escolha onde o novo cadastro será vinculado.</p>
+                    <p className="mt-1 text-[11px] leading-4 text-[#5a6a82] sm:text-xs">Escolha onde o novo cadastro será vinculado.</p>
                   </div>
                   <FSelect
                     label="Tipo de equipamento"
@@ -244,20 +254,20 @@ export function QuickEquipmentModal({
               )}
 
               {mode === "full" && (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 rounded-xl border border-[#0d1b2e]/10 p-3 sm:gap-4 sm:p-5 md:grid-cols-2">
                   <FInput label="Marca" required disabled={saving} value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder="Ex: Samsung" />
                   <FInput label="Modelo" required disabled={saving} value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder="Ex: UN55CU7700" />
                 </div>
               )}
 
               {mode === "brand" && (
-                <div className="rounded-xl border border-[#0d1b2e]/10 p-4 sm:p-5">
-                  <FInput label="Nova marca" required autoFocus disabled={saving || !selectedTypeId} value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder={selectedTypeId ? "Ex: Samsung" : "Selecione o equipamento primeiro"} />
+                <div className="rounded-xl border border-[#0d1b2e]/10 p-3 sm:p-5">
+                  <FInput label="Nova marca" required disabled={saving || !selectedTypeId} value={brandName} onChange={(event: any) => setBrandName(event.target.value)} placeholder={selectedTypeId ? "Ex: Samsung" : "Selecione o equipamento primeiro"} />
                 </div>
               )}
 
               {mode === "model" && (
-                <div className="grid gap-4 rounded-xl border border-[#0d1b2e]/10 p-4 sm:grid-cols-2 sm:p-5">
+                <div className="grid grid-cols-1 gap-3 rounded-xl border border-[#0d1b2e]/10 p-3 sm:grid-cols-2 sm:gap-4 sm:p-5">
                   <FSelect
                     label="Marca existente"
                     required
@@ -266,21 +276,21 @@ export function QuickEquipmentModal({
                     onChange={(event: any) => setSelectedBrandId(event.target.value)}
                     options={[{ value: "", label: selectedTypeId ? "Selecionar marca..." : "Selecione o equipamento primeiro" }, ...availableBrands.map(brand => ({ value: brand.id, label: brand.name }))]}
                   />
-                  <FInput label="Novo modelo" required autoFocus disabled={saving || !selectedBrandId} value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder={selectedBrandId ? "Ex: UN55CU7700" : "Selecione a marca primeiro"} />
+                  <FInput label="Novo modelo" required disabled={saving || !selectedBrandId} value={modelName} onChange={(event: any) => setModelName(event.target.value)} placeholder={selectedBrandId ? "Ex: UN55CU7700" : "Selecione a marca primeiro"} />
                 </div>
               )}
 
               {(mode === "full" || mode === "type") && activeTechnicalFields.length > 0 && (
-                <div className="rounded-xl border border-[#0d1b2e]/10 p-4 sm:p-5">
+                <div className="rounded-xl border border-[#0d1b2e]/10 p-3 sm:p-5">
                   <div className="mb-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Campos do equipamento</p>
-                    <p className="mt-1 text-xs text-[#5a6a82]">Selecione os campos técnicos que devem aparecer nas OS deste equipamento.</p>
+                    <p className="mt-1 text-[11px] leading-4 text-[#5a6a82] sm:text-xs">Selecione os campos técnicos que devem aparecer nas OS deste equipamento.</p>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {activeTechnicalFields.map(field => (
                       <label key={field.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2.5 text-sm font-medium text-[#0d1b2e]">
                         <Checkbox disabled={saving} checked={selectedFieldIds.includes(field.id)} onCheckedChange={checked => setSelectedFieldIds(current => checked === true ? [...current, field.id] : current.filter(id => id !== field.id))} />
-                        <span className="truncate">{field.label}</span>
+                        <span className="min-w-0 break-words">{field.label}</span>
                       </label>
                     ))}
                   </div>
@@ -291,10 +301,10 @@ export function QuickEquipmentModal({
             </div>
           </div>
 
-          <div className="flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/10 bg-white px-5 py-4 sm:px-6">
-            <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+          <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-[#0d1b2e]/10 bg-white px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:flex sm:justify-end sm:px-6 sm:py-4">
+            <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
             {hasPermission("equipment.create") && (
-              <BtnPrimary onClick={save} disabled={!canSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>
+              <BtnPrimary className="w-full sm:w-auto" onClick={save} disabled={!canSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>
             )}
           </div>
         </div>
