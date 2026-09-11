@@ -42,6 +42,15 @@ export async function getActiveUniqCall(subscriberId?: string | null) {
   return { data: (data as unknown as UniqCall | null) ?? null, error };
 }
 
+export async function startUniqCall(phone: string, serviceOrderId?: string | null) {
+  return supabase.functions.invoke("uniq-call", {
+    body: {
+      phone,
+      service_order_id: serviceOrderId || null,
+    },
+  });
+}
+
 export function subscribeToUniqCalls(onChange: () => void) {
   const channel = supabase
     .channel("artvideo-uniq-calls")
