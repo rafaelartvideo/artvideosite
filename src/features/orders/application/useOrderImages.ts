@@ -74,6 +74,10 @@ export function useOrderImages() {
     });
   }, []);
 
+  const markOrderImageUploaded = useCallback((key: string, mediaId: string) => {
+    setOrderImages(current => current.map(image => image.key === key ? { ...image, mediaId } : image));
+  }, []);
+
   const removeOrderImage = useCallback((key: string) => {
     setOrderImages(current => {
       const removed = current.find(image => image.key === key);
@@ -121,6 +125,7 @@ export function useOrderImages() {
     replaceOrderImages,
     clearOrderImages,
     addOrderImages,
+    markOrderImageUploaded,
     removeOrderImage,
     replaceSolutionImages,
     addSolutionImages,
