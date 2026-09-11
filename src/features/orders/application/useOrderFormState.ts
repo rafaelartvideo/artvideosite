@@ -50,7 +50,7 @@ export function useOrderFormState() {
   const [quickEquipment, setQuickEquipment] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(false);
   const [form, setForm] = useState(createEmptyOrderForm);
-  const [needsScheduling, setNeedsScheduling] = useState(true);
+  const [needsScheduling, setNeedsScheduling] = useState(false);
 
   const updateField = (key: string, value: any) => {
     setForm(current => ({ ...current, [key]: value }));
@@ -61,7 +61,7 @@ export function useOrderFormState() {
     setSelectedSellerIds([]);
     setEditingOS(null);
     setForm(createEmptyOrderForm());
-    setNeedsScheduling(true);
+    setNeedsScheduling(false);
     setFormOpen(true);
   };
 
