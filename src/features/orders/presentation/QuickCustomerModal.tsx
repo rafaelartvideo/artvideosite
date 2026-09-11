@@ -26,7 +26,9 @@ import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
 import { isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
 import {
   createQuickCustomer,
-  createQuickCustomerAddress,
+  getQuickCustomerDefaultAddress,
+  saveOrderCustomerAddress,
+  updateOrderCustomer,
 } from "../infrastructure/orders-customer.repository";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 
@@ -37,6 +39,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   const { hasPermission, activeOrganizationId } = useAuth();
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [address, setAddress] = useState<Address>({ ...emptyAddress });
+  const [createdCustomer, setCreatedCustomer] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [sharedAddressOpen, setSharedAddressOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -66,10 +69,25 @@ export function QuickCustomerModal({ onClose, onSaved }: {
     setSaving(true);
     setErrorMessage("");
     try {
-      const { data: customer, error } = await createQuickCustomer(activeOrganizationId, customerPayload(form));
-      if (error || !customer) throw error || new Error("Cliente não foi cadastrado.");
+      const payload = customerPayload(form);
+      let customer = createdCustomer;
+
+      if (customer?.id) {
+        const updateResult = await updateOrderCustomer(activeOrganizationId, customer.id, payload);
+        if (updateResult.error) throw updateResult.error;
+        customer = { ...customer, ...payload };
+        setCreatedCustomer(customer);
+      } else {
+        const { data, error } = await createQuickCustomer(activeOrganizationId, payload);
+        if (error || !data) throw error || new Error("Cliente não foi cadastrado.");
+        customer = data;
+        setCreatedCustomer(data);
+      }
+
       if (Object.values(address).some(Boolean)) {
-        const addressResult = await createQuickCustomerAddress(activeOrganizationId, {
+        const { data: existingAddress, error: addressLookupError } = await getQuickCustomerDefaultAddress(activeOrganizationId, customer.id);
+        if (addressLookupError) throw addressLookupError;
+        const addressPayload = {
           customer_id: customer.id,
           zip_code: address.zip_code || null,
           street: address.street || null,
@@ -81,9 +99,10 @@ export function QuickCustomerModal({ onClose, onSaved }: {
           reference: address.reference || null,
           shared_map_url: normalizeSharedMapUrl(address.shared_map_url) || null,
           is_default: true,
-        });
+        };
+        const addressResult = await saveOrderCustomerAddress(activeOrganizationId, existingAddress?.id || null, addressPayload);
         if (addressResult.error) throw addressResult.error;
-        customer.addresses = [address];
+        customer.addresses = [{ ...address, id: existingAddress?.id || address.id }];
       }
       onSaved(customer);
       onClose();
