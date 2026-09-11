@@ -139,6 +139,32 @@ export const createServiceOrder = (organizationId: string, payload: Record<strin
     .select("id,os_number,external_os_number")
     .single();
 
+export const createServiceOrderAtomic = ({
+  orderId,
+  organizationId,
+  payload,
+  technicianIds,
+  sellerIds,
+  technicalValues,
+  mediaLinks,
+}: {
+  orderId: string;
+  organizationId: string;
+  payload: Record<string, unknown>;
+  technicianIds: string[];
+  sellerIds: string[];
+  technicalValues: Array<Record<string, unknown>>;
+  mediaLinks: Array<{ media_id: string; sort_order: number }>;
+}) => supabase.rpc("create_service_order_atomic", {
+  p_order_id: orderId,
+  p_organization_id: organizationId,
+  p_payload: payload,
+  p_technician_ids: technicianIds,
+  p_seller_ids: sellerIds,
+  p_technical_values: technicalValues,
+  p_media_links: mediaLinks,
+});
+
 export const listEquipmentTypeTechnicalFields = (equipmentTypeId: string) =>
   supabase
     .from("equipment_type_technical_fields")
