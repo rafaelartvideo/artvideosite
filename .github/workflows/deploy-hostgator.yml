@@ -56,6 +56,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore previous production assets
+        id: previous_assets
+        uses: actions/cache/restore@v4
+        with:
+          path: .previous-production-assets
+          key: restore-production-assets-${{ github.run_id }}
+          restore-keys: |
+            production-assets-
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -86,6 +95,20 @@ jobs:
             echo "Um commit mais novo chegou durante o build. O FTPS desta versão será ignorado."
           fi
 
+      - name: Keep current and previous release assets
+        if: steps.current.outputs.deploy == 'true'
+        run: |
+          rm -rf .current-production-assets
+          mkdir -p .current-production-assets
+          cp -a dist/assets/. .current-production-assets/
+
+          if [ -d .previous-production-assets ]; then
+            echo "Mantendo os chunks da versão anterior como janela de compatibilidade."
+            cp -an .previous-production-assets/. dist/assets/
+          else
+            echo "Nenhum cache de assets anterior disponível neste primeiro deploy protegido."
+          fi
+
       - name: Deploy via FTPS
         if: steps.current.outputs.deploy == 'true'
         id: ftp_deploy
@@ -103,6 +126,7 @@ jobs:
 
       - name: Retry FTPS deploy after transient failure
         if: steps.current.outputs.deploy == 'true' && steps.ftp_deploy.outcome == 'failure'
+        id: ftp_retry
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -113,3 +137,10 @@ jobs:
           local-dir: ./dist/
           server-dir: ./
           timeout: 120000
+
+      - name: Save current production assets for next deploy
+        if: steps.current.outputs.deploy == 'true' && (steps.ftp_deploy.outcome == 'success' || steps.ftp_retry.outcome == 'success')
+        uses: actions/cache/save@v4
+        with:
+          path: .current-production-assets
+          key: production-assets-${{ github.sha }}
