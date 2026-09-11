@@ -45,6 +45,7 @@ const createEmptyOrderForm = () => ({
 export function useOrderFormState() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingOS, setEditingOS] = useState<any>(null);
+  const [pendingCreatedOrderId, setPendingCreatedOrderId] = useState<string | null>(null);
   const [selectedTechnicianIds, setSelectedTechnicianIds] = useState<string[]>([]);
   const [selectedSellerIds, setSelectedSellerIds] = useState<string[]>([]);
   const [quickEquipment, setQuickEquipment] = useState(false);
@@ -60,6 +61,7 @@ export function useOrderFormState() {
     setSelectedTechnicianIds([]);
     setSelectedSellerIds([]);
     setEditingOS(null);
+    setPendingCreatedOrderId(null);
     setForm(createEmptyOrderForm());
     setNeedsScheduling(false);
     setFormOpen(true);
@@ -67,6 +69,7 @@ export function useOrderFormState() {
 
   const hydrateOrderForm = (order: any, technicalValues: ServiceOrderTechnicalValue[] = []) => {
     setEditingOS(order);
+    setPendingCreatedOrderId(null);
     setSelectedTechnicianIds(Array.from(new Set(
       (order.technician_links || [])
         .map((link: any) => link.employee_id)
@@ -145,6 +148,8 @@ export function useOrderFormState() {
     setFormOpen,
     editingOS,
     setEditingOS,
+    pendingCreatedOrderId,
+    setPendingCreatedOrderId,
     selectedTechnicianIds,
     setSelectedTechnicianIds,
     selectedSellerIds,
