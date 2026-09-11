@@ -2,6 +2,7 @@ import {
   clearServiceOrderSellers,
   clearServiceOrderTechnicians,
   createServiceOrder,
+  createServiceOrderAtomic,
   insertServiceOrderMedia,
   insertServiceOrderSellers,
   insertServiceOrderTechnicians,
@@ -15,13 +16,21 @@ type SubmissionImage = { key?: string; mediaId?: string; file?: File; kind?: Ord
 type SubmissionFailure = { success: false; stage: "record" | "technical" | "relations" | "images"; error: unknown; orderId?: string };
 type SubmissionSuccess = { success: true; orderId: string };
 
+function isAtomicRpcUnavailable(error: any) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "").toLowerCase();
+  return code === "PGRST202" || (message.includes("create_service_order_atomic") && message.includes("function"));
+}
+
 export async function persistServiceOrder({
   organizationId,
   editingOrder,
   pendingOrderId,
+  creationRequestId,
   payload,
   selectedTechnicianIds,
   selectedSellerIds,
+  technicalValues,
   orderImages,
   uploadImage,
   onImageUploaded,
@@ -30,9 +39,11 @@ export async function persistServiceOrder({
   organizationId: string;
   editingOrder: any;
   pendingOrderId?: string | null;
+  creationRequestId?: string | null;
   payload: Record<string, any>;
   selectedTechnicianIds: string[];
   selectedSellerIds: string[];
+  technicalValues: Array<Record<string, unknown>>;
   orderImages: SubmissionImage[];
   uploadImage: (file: File) => Promise<string>;
   onImageUploaded?: (imageKey: string, mediaId: string) => void;
@@ -40,6 +51,51 @@ export async function persistServiceOrder({
 }): Promise<SubmissionFailure | SubmissionSuccess> {
   let savedOrderId = editingOrder?.id as string | undefined;
   const retryingPartialCreate = !editingOrder && Boolean(pendingOrderId);
+  const preparedImages = orderImages.map(image => ({ ...image }));
+
+  // Caminho seguro para uma NOVA OS: fotos são preparadas antes de existir a OS
+  // e todo o estado relacional é persistido por uma única função PostgreSQL.
+  // Se qualquer insert de filho falhar, a transação inteira é revertida.
+  if (!editingOrder && !pendingOrderId && creationRequestId) {
+    try {
+      for (const image of preparedImages) {
+        if (image.mediaId || !image.file) continue;
+        const mediaId = await uploadImage(image.file);
+        image.mediaId = mediaId;
+        if (image.key) onImageUploaded?.(image.key, mediaId);
+      }
+    } catch (error) {
+      return { success: false, stage: "images", error };
+    }
+
+    const counters: Record<"equipment" | "label", number> = { equipment: 0, label: 0 };
+    const mediaLinks = preparedImages.flatMap(image => {
+      if (!image.mediaId) return [];
+      const kind = image.kind === "label" ? "label" : "equipment";
+      return [{ media_id: image.mediaId, sort_order: orderImageSortOrder(kind, counters[kind]++) }];
+    });
+
+    const atomicResult = await createServiceOrderAtomic({
+      orderId: creationRequestId,
+      organizationId,
+      payload,
+      technicianIds: Array.from(new Set(selectedTechnicianIds)),
+      sellerIds: Array.from(new Set(selectedSellerIds)),
+      technicalValues,
+      mediaLinks,
+    });
+
+    if (!atomicResult.error) {
+      const atomicData = atomicResult.data as any;
+      return { success: true, orderId: String(atomicData?.id || creationRequestId) };
+    }
+
+    // Compatibilidade temporária enquanto a migration ainda não foi aplicada no
+    // Supabase. Qualquer erro real da função atômica NÃO cai no fluxo legado.
+    if (!isAtomicRpcUnavailable(atomicResult.error)) {
+      return { success: false, stage: "record", error: atomicResult.error };
+    }
+  }
 
   if (editingOrder) {
     const { error } = await updateServiceOrder(organizationId, editingOrder.id, payload);
@@ -89,13 +145,13 @@ export async function persistServiceOrder({
     return { success: false, stage: "relations", error, orderId: savedOrderId };
   }
 
-  if (orderImages.length > 0) {
+  if (preparedImages.length > 0) {
     try {
       const { data: existingLinks, error: linksError } = await listServiceOrderMediaLinks(savedOrderId);
       if (linksError) throw linksError;
 
       const counters: Record<"equipment" | "label", number> = { equipment: 0, label: 0 };
-      for (const image of orderImages) {
+      for (const image of preparedImages) {
         const kind = image.kind === "label" ? "label" : "equipment";
         const sortOrder = orderImageSortOrder(kind, counters[kind]++);
         if (image.mediaId) {
@@ -109,6 +165,7 @@ export async function persistServiceOrder({
           }
         } else if (image.file) {
           const mediaId = await uploadImage(image.file);
+          image.mediaId = mediaId;
           if (image.key) onImageUploaded?.(image.key, mediaId);
           const { error } = await insertServiceOrderMedia(savedOrderId, mediaId, sortOrder);
           if (error) throw error;
