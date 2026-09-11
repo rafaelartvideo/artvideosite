@@ -22,7 +22,7 @@ function elapsedSeconds(call: UniqCall | null) {
 }
 
 export function UniqCallOverlay() {
-  const { activeOrganizationId, employee, hasPermission } = useAuth();
+  const { activeOrganizationId, employee } = useAuth();
   const navigate = useNavigate();
   const [call, setCall] = useState<UniqCall | null>(null);
   const [minimized, setMinimized] = useState(false);
@@ -30,21 +30,20 @@ export function UniqCallOverlay() {
 
   const enabled = activeOrganizationId === ARTVIDEO_ORGANIZATION_ID;
   const subscriberId = String((employee as any)?.uniq_subscriber_id || "").trim() || null;
-  const canMonitorAll = hasPermission("orders.view_all") || hasPermission("employees.edit");
-  const canReceiveCallState = Boolean(subscriberId || canMonitorAll);
+  const canReceiveCallState = Boolean(subscriberId);
 
   const refresh = useCallback(async () => {
-    if (!enabled || !canReceiveCallState) {
+    if (!enabled || !subscriberId) {
       setCall(null);
       return;
     }
-    const { data, error } = await getActiveUniqCall({ subscriberId, canMonitorAll });
+    const { data, error } = await getActiveUniqCall(subscriberId);
     if (error) {
       console.error("Erro ao carregar chamada Uniq:", error);
       return;
     }
     setCall(data);
-  }, [enabled, canReceiveCallState, subscriberId, canMonitorAll]);
+  }, [enabled, subscriberId]);
 
   useEffect(() => {
     if (!enabled || !canReceiveCallState) {
