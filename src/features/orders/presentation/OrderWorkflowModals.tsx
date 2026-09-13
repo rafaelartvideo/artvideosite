@@ -83,6 +83,7 @@ export function OrderWorkflowModals({
         technicalFieldLinks={workspace.technicalFieldLinks}
         equipmentTypes={workspace.equipmentTypes}
         equipmentBrands={workspace.equipmentBrands}
+        equipmentModels={workspace.equipmentModels}
         initialTypeId={form.equipment_type_id}
         initialBrandId={form.equipment_brand_id}
         onSaved={({ type, brand, model }) => {
