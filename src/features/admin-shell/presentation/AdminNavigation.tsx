@@ -17,24 +17,28 @@ type SidebarItemProps = {
   item: AdminNavigationItem;
   active: boolean;
   onClick: () => void;
+  collapsed?: boolean;
 };
 
-export function SidebarItem({ item, active, onClick }: SidebarItemProps) {
+export function SidebarItem({ item, active, onClick, collapsed = false }: SidebarItemProps) {
   const Icon = item.icon;
 
   return (
     <button
       type="button"
       onClick={onClick}
+      title={collapsed ? item.label : undefined}
+      aria-label={collapsed ? item.label : undefined}
       className={cn(
-        "flex w-full min-w-0 cursor-default items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-all",
+        "flex w-full min-w-0 cursor-default items-center rounded-lg text-sm font-semibold transition-all",
+        collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2 text-left",
         active
           ? "bg-[#0057e7] text-white shadow-lg shadow-[#0057e7]/25"
           : "text-white/60 hover:bg-white/8 hover:text-white",
       )}
     >
-      <Icon size={16} className="shrink-0" />
-      <span className="min-w-0 truncate">{item.label}</span>
+      <Icon size={collapsed ? 18 : 16} className="shrink-0" />
+      {!collapsed && <span className="min-w-0 truncate">{item.label}</span>}
     </button>
   );
 }
