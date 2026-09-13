@@ -25,6 +25,13 @@ export const findEquipmentModelByName = (equipmentBrandId: string, name: string)
     .ilike("name", name)
     .maybeSingle();
 
+export const listEquipmentModelsByBrand = (equipmentBrandId: string) =>
+  supabase
+    .from("equipment_models")
+    .select("*")
+    .eq("equipment_brand_id", equipmentBrandId)
+    .order("name", { ascending: true });
+
 export const createEquipmentModel = (payload: Record<string, unknown>) =>
   supabase.from("equipment_models").insert(payload).select("*").single();
 
