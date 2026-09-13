@@ -127,6 +127,28 @@ export function OrderEditorPage({
   const canRemoveEquipmentImage = (image: (typeof orderImages)[number]) =>
     canAddEquipmentImages && (!editingOS || !image.mediaId);
 
+  const serviceLocationSection = (
+    <OrderServiceLocationSection
+      form={form}
+      setForm={setForm}
+      serviceUseCustomerAddress={serviceUseCustomerAddress}
+      setServiceUseCustomerAddress={setServiceUseCustomerAddress}
+      setServiceCustomerAddressOverride={setServiceCustomerAddressOverride}
+      selectedServiceAddress={selectedServiceAddress}
+      serviceAddressPreview={serviceAddressPreview}
+      serviceAddressMessage={serviceAddressMessage}
+      setServiceAddressMessage={setServiceAddressMessage}
+      ibgeStates={ibgeStates}
+      ibgeCities={ibgeCities}
+      ibgeStatesLoading={ibgeStatesLoading}
+      ibgeCitiesLoading={ibgeCitiesLoading}
+      onFieldChange={updateField}
+      clearServiceAddress={clearServiceAddress}
+      copyCustomerAddressToForm={copyCustomerAddressToForm}
+      loadIbgeCities={loadIbgeCities}
+    />
+  );
+
   return (
     <AdminPage
       open
@@ -185,25 +207,7 @@ export function OrderEditorPage({
           canRemoveImages={canRemoveEquipmentImage}
         />
 
-        <OrderServiceLocationSection
-          form={form}
-          setForm={setForm}
-          serviceUseCustomerAddress={serviceUseCustomerAddress}
-          setServiceUseCustomerAddress={setServiceUseCustomerAddress}
-          setServiceCustomerAddressOverride={setServiceCustomerAddressOverride}
-          selectedServiceAddress={selectedServiceAddress}
-          serviceAddressPreview={serviceAddressPreview}
-          serviceAddressMessage={serviceAddressMessage}
-          setServiceAddressMessage={setServiceAddressMessage}
-          ibgeStates={ibgeStates}
-          ibgeCities={ibgeCities}
-          ibgeStatesLoading={ibgeStatesLoading}
-          ibgeCitiesLoading={ibgeCitiesLoading}
-          onFieldChange={updateField}
-          clearServiceAddress={clearServiceAddress}
-          copyCustomerAddressToForm={copyCustomerAddressToForm}
-          loadIbgeCities={loadIbgeCities}
-        />
+        {editingOS && serviceLocationSection}
 
         <OrderInformationSection
           form={form}
@@ -225,6 +229,7 @@ export function OrderEditorPage({
           getSla={getSla}
         />
 
+        {!editingOS && serviceLocationSection}
       </div>
 
       <OrderFormActions
