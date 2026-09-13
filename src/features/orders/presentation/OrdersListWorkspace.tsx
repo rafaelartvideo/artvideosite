@@ -49,7 +49,7 @@ export function OrdersListWorkspace(props: Props) {
     clearFilters, loading: listLoading,
   } = filters;
   const {
-    draggingId, dragOverStatusId, cancellingId, setDragOverStatusId, cancelOrder, updateOrderSituation,
+    draggingId, dragOverSituationId, cancellingId, setDragOverSituationId, cancelOrder, updateOrderSituation,
     handleKanbanDrop, handleCardDragStart, handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave,
   } = mutations;
   const { ibgeStates, ibgeStatesLoading } = serviceAddress;
@@ -137,15 +137,14 @@ export function OrdersListWorkspace(props: Props) {
       onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
     /> : <>
       <OrdersKanban
-        statuses={statuses}
         filteredOrders={filteredOrders}
         situations={situations}
         draggingId={draggingId}
-        dragOverStatusId={dragOverStatusId}
+        dragOverSituationId={dragOverSituationId}
         hasPermission={hasPermission}
-        onDragOver={setDragOverStatusId}
+        onDragOver={setDragOverSituationId}
         onDragLeave={handleDragLeave}
-        onDrop={(statusId) => { void handleKanbanDrop(statusId); }}
+        onDrop={(situationId) => { void handleKanbanDrop(situationId); }}
         onCardDragStart={handleCardDragStart}
         onCardDragEnd={handleCardDragEnd}
         onOpen={(order) => { if (!shouldSuppressCardOpen()) openDetail(order); }}
