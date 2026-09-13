@@ -26,6 +26,14 @@ export function isModuleLoadError(error: unknown) {
   ].some(pattern => message.includes(pattern));
 }
 
+export function isExternalDomMutationError(error: unknown) {
+  const message = errorText(error).toLowerCase();
+  return (
+    message.includes("notfounderror") &&
+    (message.includes("removechild") || message.includes("insertbefore"))
+  );
+}
+
 function reloadOnce() {
   if (!import.meta.env.PROD) return false;
 
@@ -47,6 +55,11 @@ export function recoverFromModuleLoadError(error: unknown) {
   return reloadOnce();
 }
 
+export function recoverFromRuntimeError(error: unknown) {
+  if (isModuleLoadError(error) || isExternalDomMutationError(error)) return reloadOnce();
+  return false;
+}
+
 export function installModuleLoadRecovery() {
   if (!import.meta.env.PROD || typeof window === "undefined") return;
 
@@ -57,7 +70,7 @@ export function installModuleLoadRecovery() {
   });
 
   window.addEventListener("unhandledrejection", event => {
-    if (recoverFromModuleLoadError(event.reason)) event.preventDefault();
+    if (recoverFromRuntimeError(event.reason)) event.preventDefault();
   });
 
   window.setTimeout(() => {
@@ -81,7 +94,7 @@ export class AppRuntimeBoundary extends Component<Props, State> {
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error("[APP] Erro não tratado na interface:", error, info.componentStack);
-    recoverFromModuleLoadError(error);
+    recoverFromRuntimeError(error);
   }
 
   render() {
