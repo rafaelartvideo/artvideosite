@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { AlertCircle, Check, ChevronDown, PackagePlus, Search, X } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, Search, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
 import { AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -172,14 +172,16 @@ function CatalogCombobox({
     </div>
 
     {duplicateOption ? (
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-semibold leading-4 text-amber-800">
-        <AlertCircle size={13} className="shrink-0" />
-        <span className="min-w-0 flex-1">“{duplicateOption.name}” já está cadastrado. Use o cadastro existente para evitar duplicidade.</span>
+      <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-800">
+        <div className="flex min-w-0 items-start gap-1.5 text-[10px] font-semibold leading-4">
+          <AlertCircle size={13} className="mt-0.5 shrink-0" />
+          <span className="min-w-0 break-words">“{duplicateOption.name}” já está cadastrado.</span>
+        </div>
         <button
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => selectOption(duplicateOption)}
-          className="shrink-0 font-black text-[#0057e7] hover:underline"
+          className="mt-1.5 inline-flex min-h-6 items-center rounded-md border border-[#0057e7]/20 bg-white px-2 py-1 text-[9px] font-bold leading-none text-[#0057e7] transition-colors hover:bg-[#eef5ff]"
         >
           Usar cadastro
         </button>
@@ -425,12 +427,9 @@ export function QuickEquipmentModal({
             onPointerCancel={endDrag}
             className="flex shrink-0 cursor-default items-start justify-between gap-3 border-b border-[#0d1b2e]/10 bg-white px-3 py-3 select-none sm:cursor-move sm:items-center sm:px-6 sm:py-4"
           >
-            <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#eef5ff] text-[#0057e7]"><PackagePlus size={18} /></span>
-              <div className="min-w-0">
-                <h3 className="text-sm font-black leading-5 text-[#0d1b2e] sm:text-base">Cadastro rápido de equipamento</h3>
-                <p className="mt-0.5 text-[11px] leading-4 text-[#5a6a82] sm:mt-1 sm:text-xs">Pesquise antes de cadastrar e evite duplicidades no catálogo.</p>
-              </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-black leading-5 text-[#0d1b2e] sm:text-base">Cadastro rápido de equipamento</h3>
+              <p className="mt-0.5 text-[11px] leading-4 text-[#5a6a82] sm:mt-1 sm:text-xs">Pesquise antes de cadastrar e evite duplicidades no catálogo.</p>
             </div>
             <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost" className="shrink-0"><X size={17} /></AdminIconButton>
           </div>
