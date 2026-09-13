@@ -13,9 +13,8 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
   const { activeOrganizationId } = useAuth();
   const targetOrganizationId = organizationIdOverride || activeOrganizationId;
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
+  const [dragOverSituationId, setDragOverSituationId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const dragOriginRef = useRef<any[] | null>(null);
   const suppressCardClickRef = useRef(false);
 
   const requireTargetOrganization = () => {
@@ -24,8 +23,8 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
     return null;
   };
 
-  // Mantido apenas por compatibilidade interna durante a transição. A UI não oferece
-  // mais alteração manual de status e o banco força o status pelo ciclo da OS.
+  // Mantido apenas por compatibilidade interna. O status da OS é derivado
+  // automaticamente pelo ciclo Aberta / Fechada / Cancelada.
   const updateOrderStatus = async (order: any, statusId: string) => {
     if (!hasPermission("orders.status.change")) { showToast({ msg: "O status da OS é automático.", type: "error" }); return; }
     const organizationId = requireTargetOrganization();
@@ -92,36 +91,53 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
   };
 
   const updateOrderSituation = async (order: any, situationId: string) => {
-    if (!hasPermission("orders.situation.change")) { showToast({ msg: "Você não possui permissão para alterar a situação.", type: "error" }); return; }
+    if (!hasPermission("orders.situation.change")) { showToast({ msg: "Você não possui permissão para alterar a situação.", type: "error" }); return false; }
     const organizationId = requireTargetOrganization();
-    if (!organizationId || order.organization_id !== organizationId) return;
+    if (!organizationId || order.organization_id !== organizationId) return false;
     const previousOrders = orders; const previousDetail = detail; const optimisticSituation = situations.find(item => item.id === situationId);
     setOrders(current => current.map(item => item.id === order.id ? { ...item, situation_id: situationId || null, situation: optimisticSituation || null } : item));
     setDetail((current: any) => current?.id === order.id ? { ...current, situation_id: situationId || null, situation: optimisticSituation || null } : current);
     const { data, error } = await updateServiceOrderSituation(organizationId, order.id, situationId || null);
-    if (error) { setOrders(previousOrders); setDetail(previousDetail); showToast({ msg: `Erro ao alterar situação: ${formatError(error)}`, type: "error" }); return; }
+    if (error) { setOrders(previousOrders); setDetail(previousDetail); showToast({ msg: `Erro ao alterar situação: ${formatError(error)}`, type: "error" }); return false; }
     const nextSituationId = data?.situation_id || situationId; const situation = situations.find(item => item.id === nextSituationId);
-    setOrders(current => current.map(item => item.id === order.id ? { ...item, situation_id: nextSituationId, situation: situation || null } : item));
-    setDetail((current: any) => current?.id === order.id ? { ...current, situation_id: nextSituationId, situation: situation || null } : current);
+    setOrders(current => current.map(item => item.id === order.id ? { ...item, situation_id: nextSituationId || null, situation: situation || null } : item));
+    setDetail((current: any) => current?.id === order.id ? { ...current, situation_id: nextSituationId || null, situation: situation || null } : current);
     await syncRelatedCaches();
+    return true;
   };
 
-  const handleKanbanDrop = async (statusId: string) => {
-    // Status de OS não é mais alterável por drag-and-drop. Mantido para não quebrar
-    // assinaturas antigas enquanto o Kanban passa a ser somente visual.
+  const handleKanbanDrop = async (situationId: string) => {
+    const orderId = draggingId;
     setDraggingId(null);
-    setDragOverStatusId(null);
-    dragOriginRef.current = null;
-    void statusId;
+    setDragOverSituationId(null);
+    if (!orderId) return;
+
+    const order = orders.find(item => item.id === orderId);
+    if (!order) return;
+    if (order.completed_at || order.cancelled_at || String(order.order_status?.name || "").toLowerCase() === "cancelada") return;
+    if ((order.situation_id || "") === situationId) return;
+
+    suppressCardClickRef.current = true;
+    const changed = await updateOrderSituation(order, situationId);
+    if (changed) {
+      const destination = situations.find(item => item.id === situationId);
+      showToast({ msg: `OS ${order.os_number || ""} movida para ${destination?.name || "Sem situação"}.`, type: "success" });
+    }
   };
 
   const handleCardDragStart = (event: DragEvent<HTMLElement>, order: any) => {
-    event.preventDefault();
-    void order;
+    if (!hasPermission("orders.situation.change") || order.completed_at || order.cancelled_at || String(order.order_status?.name || "").toLowerCase() === "cancelada") {
+      event.preventDefault();
+      return;
+    }
+    suppressCardClickRef.current = true;
+    setDraggingId(order.id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(order.id));
   };
-  const handleCardDragEnd = () => { setDraggingId(null); setDragOverStatusId(null); };
+  const handleCardDragEnd = () => { setDraggingId(null); setDragOverSituationId(null); };
   const shouldSuppressCardOpen = () => { if (!suppressCardClickRef.current) return false; suppressCardClickRef.current = false; return true; };
-  const handleDragLeave = (statusId: string) => { setDragOverStatusId(current => current === statusId ? null : current); };
+  const handleDragLeave = (situationId: string) => { setDragOverSituationId(current => current === situationId ? null : current); };
 
-  return { organizationId: targetOrganizationId, draggingId, dragOverStatusId, cancellingId, setDragOverStatusId, updateOrderStatus, cancelOrder, updateOrderSituation, handleKanbanDrop, handleCardDragStart, handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave };
+  return { organizationId: targetOrganizationId, draggingId, dragOverSituationId, cancellingId, setDragOverSituationId, updateOrderStatus, cancelOrder, updateOrderSituation, handleKanbanDrop, handleCardDragStart, handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave };
 }
