@@ -20,6 +20,9 @@ export async function loadDashboardOverview({ periodDays, access }: DashboardQue
   today.setHours(0, 0, 0, 0);
   const agendaEnd = new Date(today);
   agendaEnd.setDate(agendaEnd.getDate() + Math.max(7, periodDays));
+  const inventoryColumns = access.inventoryCosts
+    ? "id,name,sku,unit,quantity,min_quantity,average_cost,is_active"
+    : "id,name,sku,unit,quantity,min_quantity,is_active";
 
   const [ordersResult, registrationsResult, inventoryResult, appointmentsResult, quotesResult] = await Promise.all([
     access.orders
@@ -37,7 +40,7 @@ export async function loadDashboardOverview({ periodDays, access }: DashboardQue
           .limit(2000)
       : emptyRows(),
     access.inventory
-      ? supabase.from("inventory_items").select("id,name,sku,unit,quantity,min_quantity,purchase_price,sale_price,is_active").order("name").limit(2000)
+      ? supabase.from("inventory_items").select(inventoryColumns).order("name").limit(2000)
       : emptyRows(),
     access.agenda
       ? supabase
