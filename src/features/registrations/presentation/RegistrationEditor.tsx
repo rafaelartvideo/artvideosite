@@ -46,6 +46,7 @@ export function RegistrationEditor({
   setSupplierItems,
   organizationId,
   canModify,
+  showAccess,
   accessForm,
   onAccessChange,
   accessExisting,
@@ -66,6 +67,7 @@ export function RegistrationEditor({
   setSupplierItems: Dispatch<SetStateAction<SupplierInventoryItem[]>>;
   organizationId: string | null;
   canModify: boolean;
+  showAccess: boolean;
   accessForm: EmployeeAccessFormState;
   onAccessChange: (next: EmployeeAccessFormState) => void;
   accessExisting: boolean;
@@ -151,7 +153,7 @@ export function RegistrationEditor({
 
       {form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
 
-      {form.roles.includes("employee") && <UserAccessSection
+      {form.roles.includes("employee") && showAccess && <UserAccessSection
         organizationId={organizationId}
         value={accessForm}
         onChange={onAccessChange}
