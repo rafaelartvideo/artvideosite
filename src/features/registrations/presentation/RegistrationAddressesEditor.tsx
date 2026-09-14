@@ -1,4 +1,4 @@
-import { MapPin, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -48,17 +48,16 @@ export function RegistrationAddressesEditor({
     title="Endereços"
     actions={!disabled ? <BtnSecondary onClick={add}><Plus size={14} /> Adicionar endereço</BtnSecondary> : undefined}
   >
-    {value.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/15 bg-[#f8fafc] p-6 text-center">
-      <MapPin size={24} className="mx-auto text-[#8a98aa]" />
-      <p className="mt-2 text-sm font-bold text-[#0d1b2e]">Nenhum endereço cadastrado.</p>
+    {value.length === 0 ? <div className="py-3">
+      <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>
       {!disabled && <BtnSecondary className="mt-3" onClick={add}><Plus size={14} /> Adicionar endereço</BtnSecondary>}
-    </div> : <div className="space-y-4">
-      {value.map((address, index) => <div key={address.id || `new-${index}`} className="rounded-xl border border-[#0d1b2e]/10 bg-white p-4">
+    </div> : <div className="divide-y divide-[#0d1b2e]/8">
+      {value.map((address, index) => <div key={address.id || `new-${index}`} className="py-5 first:pt-0 last:pb-0">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-black text-[#0d1b2e]">Endereço {index + 1}</span>
-              {address.is_primary && <span className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">Principal</span>}
+              {address.is_primary && <span className="text-[10px] font-black uppercase tracking-wide text-[#0057e7]">Principal</span>}
             </div>
           </div>
           {!disabled && !address.is_primary && <button type="button" onClick={() => markPrimary(index)} className="rounded-lg border border-[#0057e7]/25 px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5">Marcar principal</button>}
