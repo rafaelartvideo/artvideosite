@@ -82,6 +82,22 @@ export async function getRegistration(organizationId: string, id: string) {
   return { ...result, data: normalizeRegistration(result.data) };
 }
 
+export async function findRegistrationByDocument(
+  organizationId: string,
+  document: string,
+  excludeRegistrationId?: string | null,
+) {
+  const digits = document.replace(/\D/g, "");
+  if (!digits) return { data: null, error: null };
+  let query = supabase
+    .from("entities")
+    .select("id,name,person_type,document")
+    .eq("organization_id", organizationId)
+    .eq("document", digits);
+  if (excludeRegistrationId) query = query.neq("id", excludeRegistrationId);
+  return query.maybeSingle();
+}
+
 export type SaveRegistrationInput = {
   id?: string | null;
   organizationId: string;
