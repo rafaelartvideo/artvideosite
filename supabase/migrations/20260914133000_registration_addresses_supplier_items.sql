@@ -258,7 +258,21 @@ begin
   for v_address in select value from jsonb_array_elements(v_addresses)
   loop
     v_position := v_position + 1;
-    v_address_id := coalesce(nullif(v_address->>'id', '')::uuid, gen_random_uuid());
+
+    if nullif(v_address->>'id', '') is not null then
+      v_address_id := (v_address->>'id')::uuid;
+      if not exists (
+        select 1 from public.entity_addresses existing
+        where existing.id = v_address_id
+          and existing.entity_id = p_registration_id
+          and existing.organization_id = p_organization_id
+      ) then
+        raise exception 'Endereço informado não pertence a este cadastro e empresa.';
+      end if;
+    else
+      v_address_id := gen_random_uuid();
+    end if;
+
     v_is_primary := coalesce((v_address->>'is_primary')::boolean, false);
     if v_primary_count = 0 and v_position = 1 then
       v_is_primary := true;
@@ -439,52 +453,5 @@ $$;
 
 revoke all on function public.sync_registration_supplier_items(uuid, uuid, uuid[]) from public, anon;
 grant execute on function public.sync_registration_supplier_items(uuid, uuid, uuid[]) to authenticated;
-
--- Evolui save_registration sem duplicar toda a função histórica.
-do $$
-declare
-  v_def text;
-begin
-  select pg_get_functiondef('public.save_registration(uuid,uuid,jsonb,text[],jsonb,jsonb)'::regprocedure)
-    into v_def;
-
-  if position('municipal_registration' in v_def) = 0 then
-    v_def := replace(v_def,
-      'state_registration, birth_date, foundation_date, phone, whatsapp, email, is_active',
-      'state_registration, municipal_registration, birth_date, foundation_date, phone, whatsapp, email, is_active');
-
-    v_def := replace(v_def,
-      'nullif(trim(coalesce(p_entity->>''state_registration'','''')),''''),\n      nullif(p_entity->>''birth_date'','''')::date,',
-      'nullif(trim(coalesce(p_entity->>''state_registration'','''')),''''),\n      nullif(trim(coalesce(p_entity->>''municipal_registration'','''')),''''),\n      nullif(p_entity->>''birth_date'','''')::date,');
-
-    v_def := replace(v_def,
-      'state_registration = nullif(trim(coalesce(p_entity->>''state_registration'','''')),''''),\n      birth_date =',
-      'state_registration = nullif(trim(coalesce(p_entity->>''state_registration'','''')),''''),\n      municipal_registration = nullif(trim(coalesce(p_entity->>''municipal_registration'','''')),''''),\n      birth_date =');
-
-    v_def := replace(v_def,
-      'trade_name, legal_name, cnpj, state_registration, foundation_date, birth_date',
-      'trade_name, legal_name, cnpj, state_registration, municipal_registration, foundation_date, birth_date');
-
-    v_def := replace(v_def,
-      'case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''state_registration'','''')),'''' ) else null end,',
-      'case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''state_registration'','''')),'''' ) else null end,\n        case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''municipal_registration'','''')),'''' ) else null end,');
-
-    -- pg_get_functiondef normaliza sem espaço antes do fechamento; cobre esse formato também.
-    v_def := replace(v_def,
-      'case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''state_registration'','''')),'''' ) else null end',
-      'case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''state_registration'','''')),'''' ) else null end,\n        case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''municipal_registration'','''')),'''' ) else null end');
-
-    v_def := replace(v_def,
-      'state_registration = case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''state_registration'','''')),'''' ) else null end,\n        foundation_date =',
-      'state_registration = case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''state_registration'','''')),'''' ) else null end,\n        municipal_registration = case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''municipal_registration'','''')),'''' ) else null end,\n        foundation_date =');
-
-    -- Formato efetivo da função atual (sem espaço extra).
-    v_def := replace(v_def,
-      'state_registration = case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''state_registration'','''')),'''' ) else null end',
-      'state_registration = case when v_person_type = ''PJ'' then nullif(trim(coalesce(p_entity->>''state_registration'','''')),'''' ) else null end');
-
-    execute v_def;
-  end if;
-end $$;
 
 commit;
