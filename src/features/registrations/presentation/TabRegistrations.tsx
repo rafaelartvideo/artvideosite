@@ -5,7 +5,7 @@ import { normalizeSharedMapUrl } from "@/lib/address";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import {
   emptyEmployeeAccessForm,
@@ -101,7 +101,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [accessDirty, setAccessDirty] = useState(false);
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessUserId, setAccessUserId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [nameSearch, setNameSearch] = useState("");
+  const [documentSearch, setDocumentSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [page, setPage] = useState(1);
@@ -218,24 +219,39 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   }, [activeOrganizationId, routeResourceId, routeSubpage, items, canViewAccess]);
 
   const filtered = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase("pt-BR");
-    const digits = normalizeDigits(search);
+    const nameQuery = nameSearch.trim().toLocaleLowerCase("pt-BR");
+    const documentQuery = documentSearch.trim().toLocaleLowerCase("pt-BR");
+    const documentDigits = normalizeDigits(documentSearch);
     return items.filter(item => {
       const roles = activeRegistrationRoles(item);
       if (roleFilter !== "all" && !roles.includes(roleFilter)) return false;
       if (statusFilter === "active" && item.is_active === false) return false;
       if (statusFilter === "inactive" && item.is_active !== false) return false;
-      if (!query) return true;
-      const text = [item.name, item.legal_name, item.trade_name, item.email, item.phone, item.whatsapp, item.document]
-        .filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
-      return text.includes(query) || Boolean(digits && normalizeDigits(item.document).includes(digits));
+
+      if (nameQuery) {
+        const names = [item.name, item.legal_name, item.trade_name]
+          .filter(Boolean)
+          .join(" ")
+          .toLocaleLowerCase("pt-BR");
+        if (!names.includes(nameQuery)) return false;
+      }
+
+      if (documentQuery) {
+        const rawDocument = String(item.document || "");
+        const formattedDocument = item.person_type === "PJ" ? formatCnpj(rawDocument) : formatCpf(rawDocument);
+        const textMatch = formattedDocument.toLocaleLowerCase("pt-BR").includes(documentQuery) || rawDocument.toLocaleLowerCase("pt-BR").includes(documentQuery);
+        const digitsMatch = Boolean(documentDigits && normalizeDigits(rawDocument).includes(documentDigits));
+        if (!textMatch && !digitsMatch) return false;
+      }
+
+      return true;
     });
-  }, [items, search, roleFilter, statusFilter]);
+  }, [items, nameSearch, documentSearch, roleFilter, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  useEffect(() => { setPage(1); }, [search, roleFilter, statusFilter, pageSize]);
+  useEffect(() => { setPage(1); }, [nameSearch, documentSearch, roleFilter, statusFilter, pageSize]);
 
   const toggleRole = (role: RegistrationRole) => {
     const allowed = selected ? canEdit : canCreate;
@@ -439,10 +455,33 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Cadastros" subtitle="Gerencie clientes, funcionários e fornecedores em um único cadastro." actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo cadastro</BtnPrimary> : undefined} />
     <AdminCard className="p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px_170px]">
-        <label className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome, CPF/CNPJ, telefone ou e-mail" className={`${INPUT} pl-9`} /></label>
-        <select value={roleFilter} onChange={event => setRoleFilter(event.target.value as any)} className={INPUT}><option value="all">Todos os vínculos</option><option value="customer">Clientes</option><option value="employee">Funcionários</option><option value="supplier">Fornecedores</option></select>
-        <select value={statusFilter} onChange={event => setStatusFilter(event.target.value as any)} className={INPUT}><option value="all">Todos os status</option><option value="active">Ativos</option><option value="inactive">Inativos</option></select>
+      <div className="mb-3">
+        <h3 className="text-sm font-black text-[#0d1b2e]">Buscar cadastro</h3>
+        <p className="mt-0.5 text-xs text-[#5a6a82]">Use os campos separadamente para localizar o cadastro.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="min-w-0">
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Nome</label>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
+            <input value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={`${INPUT} pl-9`} />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF/CNPJ</label>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
+            <input value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={`${INPUT} pl-9`} />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Vínculo</label>
+          <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label>
+          <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Status" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
+        </div>
       </div>
     </AdminCard>
     <AdminCard>{loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cadastro encontrado" message="Crie um cadastro ou ajuste os filtros." onAdd={canCreate ? openNew : undefined} addLabel="Novo cadastro" /> : <><div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr><th className="text-left">Nome / Razão social</th><th className="text-left">Tipo</th><th className="text-left">Vínculos</th><th className="text-left">CPF/CNPJ</th><th className="text-left">Telefone</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{paged.map(item => <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-[#5a6a82]">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-[#5a6a82]">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end" onClick={event => event.stopPropagation()}><AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div></td></tr>)}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} /></>}</AdminCard>
