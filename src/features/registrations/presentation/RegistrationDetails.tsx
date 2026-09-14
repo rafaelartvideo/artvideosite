@@ -71,8 +71,9 @@ export function RegistrationDetails({
   const { activeOrganizationId, hasPermission } = useAuth();
   const roles = activeRegistrationRoles(selected);
   const employee = selected.employee_details?.[0];
+  const employeeRecord = selected.legacy_employee;
   const canToggleAccess = hasPermission("employees.toggle_active");
-  const [accessActive, setAccessActive] = useState(employee?.is_active !== false && accessForm.enabled !== false);
+  const [accessActive, setAccessActive] = useState(employeeRecord?.is_active !== false && accessForm.enabled !== false);
   const [togglingAccess, setTogglingAccess] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const activeAddresses = (selected.addresses || [])
@@ -80,8 +81,8 @@ export function RegistrationDetails({
     .sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
 
   useEffect(() => {
-    setAccessActive(employee?.is_active !== false && accessForm.enabled !== false);
-  }, [selected.id, employee?.is_active, accessForm.enabled]);
+    setAccessActive(employeeRecord?.is_active !== false && accessForm.enabled !== false);
+  }, [selected.id, employeeRecord?.is_active, accessForm.enabled]);
 
   const toggleAccess = async () => {
     if (!activeOrganizationId || !selected.legacy_employee_id || !accessExisting || !canToggleAccess || togglingAccess) return;
@@ -91,7 +92,7 @@ export function RegistrationDetails({
       const { error } = await setEmployeeAccessActive(activeOrganizationId, selected.legacy_employee_id, next);
       if (error) throw error;
       setAccessActive(next);
-      if (employee) employee.is_active = next;
+      if (employeeRecord) employeeRecord.is_active = next;
       accessForm.enabled = next;
       setToast({ msg: next ? "Usuário ativado." : "Usuário inativado. O acesso ao sistema foi bloqueado.", type: "success" });
     } catch (error) {
