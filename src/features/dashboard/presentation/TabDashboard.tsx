@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/auth";
 import { cn, formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import type {
@@ -314,11 +315,14 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
   return (
     <div className="flex min-h-0 flex-col gap-4 lg:h-full">
       <PageHeader title="Dashboard" subtitle="Indicadores objetivos por área, respeitando as permissões do seu perfil." actions={
-        <div className="flex items-center gap-2">
-          <label className="sr-only" htmlFor="dashboard-period">Período do dashboard</label>
-          <select id="dashboard-period" value={periodDays} onChange={event => setPeriodDays(Number(event.target.value))} className="h-9 cursor-default rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-xs font-black text-[#0d1b2e] outline-none focus:border-[#0057e7]">
-            {periodOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+        <div className="w-32">
+          <AdminSelect
+            value={periodDays}
+            onValueChange={value => setPeriodDays(Number(value))}
+            options={periodOptions}
+            ariaLabel="Período do dashboard"
+            className="min-h-9 text-xs font-black"
+          />
         </div>
       } />
 
