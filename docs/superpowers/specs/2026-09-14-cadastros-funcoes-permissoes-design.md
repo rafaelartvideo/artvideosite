@@ -29,7 +29,7 @@ Adicionar o item:
 
 Esse item aponta para o fluxo hoje implementado em `features/employees`, mas apenas para a parte de funções e permissões. Não haverá subseção `Usuários`.
 
-A rota deve usar nomenclatura própria, preferencialmente `/admin/operation/roles`, mantendo redirecionamento/compatibilidade para `/admin/operation/employees` apenas enquanto necessário.
+A rota canônica será `/admin/operation/roles`. A rota antiga `/admin/operation/employees` será mantida apenas como redirecionamento compatível para `/admin/operation/roles`, sem renderizar a antiga área de usuários.
 
 ### Cadastros
 
@@ -55,9 +55,7 @@ As permissões da função continuam em:
 
 ### Permissões individuais
 
-Criar tabela tenant-scoped para permissões adicionais por usuário, por exemplo:
-
-`user_permission_overrides`
+Criar tabela tenant-scoped `user_permission_overrides`.
 
 Campos mínimos:
 
@@ -74,7 +72,12 @@ Restrição única:
 
 - `(organization_id, user_id, permission_id)`
 
-RLS deve restringir por organização e exigir permissão administrativa apropriada para leitura/escrita. Não usar `SECURITY DEFINER` em funções públicas para contornar RLS.
+RLS:
+
+- leitura administrativa exige `roles.view` na organização alvo;
+- inserção/remoção exige `roles.permissions.manage` na organização alvo;
+- o próprio cálculo das permissões efetivas pode ler os overrides do usuário autenticado para a organização solicitada;
+- não usar `SECURITY DEFINER` em funções públicas para contornar RLS.
 
 ## Cálculo de permissões efetivas
 
@@ -85,10 +88,11 @@ A permissão efetiva do usuário em uma organização será:
 Atualizar:
 
 - `public.my_organization_permissions(p_organization_id)`
-- helpers privados equivalentes usados por RLS
-- qualquer helper de autorização que hoje leia apenas `role_permissions`
+- `private.has_organization_permission(...)`
+- `private.has_effective_organization_permission(...)`
+- helpers equivalentes usados por RLS/autorização
 
-O frontend continuará consumindo uma lista plana de chaves efetivas, portanto `hasPermission()` não precisa mudar de interface.
+O frontend continuará consumindo uma lista plana de chaves efetivas, portanto `hasPermission()` não muda de interface.
 
 ## Cadastro de funcionário e usuário do sistema
 
@@ -111,6 +115,8 @@ O fluxo deve sincronizar, sem duplicar UI:
 
 `employees` permanece como compatibilidade para módulos existentes, não como fonte visual de cadastro.
 
+As permissões legadas `employees.create`, `employees.edit` e `employees.toggle_active` continuam como chaves internas de autorização para criar/editar/ativar acesso do funcionário, mas seus rótulos e agrupamentos visuais serão atualizados para `Cadastros — Acesso ao sistema`; não existirão mais como uma página de Usuários.
+
 ## Permissões individuais na tela do funcionário
 
 Nos detalhes de um cadastro com vínculo `Funcionário`, a ação `Acessos e Permissões` abre a gestão do usuário específico.
@@ -122,7 +128,7 @@ Exibir:
 - permissões adicionais, editáveis individualmente
 - agrupamento usando a taxonomia já existente
 
-A edição das permissões individuais deve disparar o evento de atualização de permissões já usado pelo frontend.
+A edição das permissões individuais exige `roles.permissions.manage` e deve disparar o evento `artvideo:permissions-changed` já usado pelo frontend.
 
 ## Cadastros: dados e utilidades
 
@@ -228,12 +234,13 @@ O objetivo desta etapa é remover a duplicação da experiência e unificar a or
 - usuário sem override recebe somente permissões da função
 - usuário com override recebe a união função + individual
 - override de uma organização não vaza para outra
-- RLS bloqueia edição sem permissão administrativa
+- RLS bloqueia edição sem `roles.permissions.manage`
 - mudança de função não apaga overrides individuais
 
 ### Frontend
 
 - Operação mostra `Funções e Permissões`
+- `/admin/operation/roles` é a rota canônica
 - página não mostra aba `Usuários`
 - funcionário é criado/editado somente por Cadastros
 - máscaras e consultas funcionam em Cadastros
