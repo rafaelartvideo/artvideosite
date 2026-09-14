@@ -11,6 +11,7 @@ export type DashboardAccess = {
   orders: boolean;
   registrations: boolean;
   inventory: boolean;
+  inventoryCosts: boolean;
   agenda: boolean;
   quotes: boolean;
 };
@@ -58,8 +59,7 @@ export type DashboardInventoryItem = {
   unit: string | null;
   quantity: number | null;
   min_quantity: number | null;
-  purchase_price: number | null;
-  sale_price: number | null;
+  average_cost?: number | null;
   is_active: boolean;
 };
 
