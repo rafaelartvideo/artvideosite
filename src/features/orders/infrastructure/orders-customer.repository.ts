@@ -6,7 +6,11 @@ export const createQuickCustomer = (organizationId: string, payload: Record<stri
 export const createQuickCustomerAddress = (
   organizationId: string,
   payload: Record<string, unknown>,
-) => supabase.from("customer_addresses").insert({ ...payload, organization_id: organizationId });
+) => supabase
+  .from("customer_addresses")
+  .upsert({ ...payload, organization_id: organizationId }, { onConflict: "id" })
+  .select()
+  .single();
 
 export const getQuickCustomerDefaultAddress = (organizationId: string, customerId: string) =>
   supabase
