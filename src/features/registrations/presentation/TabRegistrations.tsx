@@ -251,6 +251,13 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const hasActiveFilters = Boolean(nameSearch || documentSearch || roleFilter !== "all" || statusFilter !== "all");
+  const clearFilters = () => {
+    setNameSearch("");
+    setDocumentSearch("");
+    setRoleFilter("all");
+    setStatusFilter("all");
+  };
   useEffect(() => { setPage(1); }, [nameSearch, documentSearch, roleFilter, statusFilter, pageSize]);
 
   const toggleRole = (role: RegistrationRole) => {
@@ -454,33 +461,37 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Cadastros" subtitle="Gerencie clientes, funcionários e fornecedores em um único cadastro." actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo cadastro</BtnPrimary> : undefined} />
-    <AdminCard className="p-4">
-      <div className="mb-3">
-        <h3 className="text-sm font-black text-[#0d1b2e]">Buscar cadastro</h3>
-        <p className="mt-0.5 text-xs text-[#5a6a82]">Use os campos separadamente para localizar o cadastro.</p>
+    <AdminCard className="overflow-hidden p-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0057e7] px-4 py-3 text-white">
+        <div className="flex items-center gap-2"><Search size={16} className="shrink-0" /><span className="text-xs font-black uppercase tracking-[0.14em]">Buscar cadastro</span></div>
+        <div className="ml-auto flex max-w-full items-center justify-end">
+          {hasActiveFilters && <button type="button" onClick={clearFilters} aria-label="Limpar filtros" title="Limpar filtros" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar filtros</button>}
+        </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="min-w-0">
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Nome</label>
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
-            <input value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={`${INPUT} pl-9`} />
+      <div className="p-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="min-w-0">
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Nome</label>
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
+              <input value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={`${INPUT} pl-9`} />
+            </div>
           </div>
-        </div>
-        <div className="min-w-0">
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF/CNPJ</label>
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
-            <input value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={`${INPUT} pl-9`} />
+          <div className="min-w-0">
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF/CNPJ</label>
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
+              <input value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={`${INPUT} pl-9`} />
+            </div>
           </div>
-        </div>
-        <div className="min-w-0">
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Vínculo</label>
-          <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
-        </div>
-        <div className="min-w-0">
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label>
-          <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Status" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
+          <div className="min-w-0">
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Vínculo</label>
+            <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label>
+            <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Status" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
+          </div>
         </div>
       </div>
     </AdminCard>
