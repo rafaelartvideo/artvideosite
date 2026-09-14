@@ -45,6 +45,8 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
   });
 }
 
+export const listObservedUniqSubscribers = () => supabase.rpc("observed_uniq_subscribers");
+
 export type PermissionAccess = {
   roleId: string | null;
   roleName: string | null;
