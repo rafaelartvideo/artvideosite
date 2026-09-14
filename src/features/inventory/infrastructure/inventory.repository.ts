@@ -48,7 +48,6 @@ const COST_ITEM_COLUMNS = [
   "average_cost",
   "last_supplier_entity_id",
   "last_purchase_at",
-  "last_supplier:entities!inventory_items_last_supplier_org_fkey(id,name,legal_name,trade_name,document,person_type,is_active)",
 ].join(",");
 
 const factorOf = (item: any) => Math.max(1, Number(item?.conversion_factor ?? 1) || 1);
@@ -57,6 +56,31 @@ const isBox = (item: any) => String(item?.unit || "un").toLowerCase() === "cx";
 async function resolveOrganizationId(organizationIdOverride?: string | null) {
   const normalizedOverride = typeof organizationIdOverride === "string" ? organizationIdOverride.trim() : "";
   return normalizedOverride || await getActiveOrganizationId();
+}
+
+async function loadSupplierEntityMap(organizationId: string, supplierIds: Array<string | null | undefined>) {
+  const ids = Array.from(new Set(supplierIds.map(value => String(value || "").trim()).filter(Boolean)));
+  if (!ids.length) return new Map<string, InventorySupplier>();
+
+  const { data, error } = await supabase
+    .from("entities")
+    .select("id,name,legal_name,trade_name,document,person_type,is_active")
+    .eq("organization_id", organizationId)
+    .in("id", ids);
+
+  // Supplier display information is enrichment only. Inventory data must still load
+  // for users who can see stock/costs but cannot read supplier registration details.
+  if (error) return new Map<string, InventorySupplier>();
+
+  return new Map((data || []).map((item: any) => [String(item.id), {
+    id: String(item.id),
+    name: String(item.name || item.trade_name || item.legal_name || "Fornecedor"),
+    legal_name: item.legal_name || null,
+    trade_name: item.trade_name || null,
+    document: item.document || null,
+    person_type: item.person_type === "PJ" ? "PJ" : "PF",
+    is_active: item.is_active !== false,
+  } as InventorySupplier]));
 }
 
 function toDisplayItem(item: any) {
@@ -112,7 +136,19 @@ export async function listInventoryItems(organizationIdOverride?: string | null,
     .eq("organization_id", organizationId)
     .order("name");
   if (error) throw error;
-  return (data ?? []).map(toDisplayItem);
+
+  const rows = data ?? [];
+  if (!includeCosts) return rows.map(toDisplayItem);
+
+  const supplierMap = await loadSupplierEntityMap(
+    organizationId,
+    rows.map((item: any) => item.last_supplier_entity_id),
+  );
+
+  return rows.map((item: any) => toDisplayItem({
+    ...item,
+    last_supplier: item.last_supplier_entity_id ? supplierMap.get(String(item.last_supplier_entity_id)) || null : null,
+  }));
 }
 
 export async function createInventoryItem(payload: Record<string, unknown>, organizationIdOverride?: string | null): Promise<string> {
@@ -225,7 +261,6 @@ export async function listInventoryMovements(itemId: string, organizationIdOverr
     "resulting_quantity", "purchase_reference", "notes", "movement_origin",
     includeCosts ? "unit_cost,input_unit_cost,total_cost,average_cost_before,average_cost_after" : "",
     "created_by_profile:profiles(full_name)", "service_order:service_orders(os_number)",
-    "supplier:entities!inventory_movements_supplier_org_fkey(id,name,legal_name,trade_name,document,person_type,is_active)",
   ].filter(Boolean).join(",");
 
   const [movementsResult, usedItemsResult, itemResult] = await Promise.all([
@@ -237,12 +272,17 @@ export async function listInventoryMovements(itemId: string, organizationIdOverr
   if (usedItemsResult.error) throw usedItemsResult.error;
   if (itemResult.error) throw itemResult.error;
 
+  const supplierMap = await loadSupplierEntityMap(
+    organizationId,
+    (movementsResult.data ?? []).map((movement: any) => movement.supplier_entity_id),
+  );
   const factor = factorOf(itemResult.data);
   const physicalMovements = (movementsResult.data ?? []).map((movement: any) => {
     const baseQuantity = Number(movement.quantity || 0);
     const inputUnit = movement.input_unit === "cx" ? "cx" : "un";
     return {
       ...movement,
+      supplier: movement.supplier_entity_id ? supplierMap.get(String(movement.supplier_entity_id)) || null : null,
       movement_type: String(movement.movement_type || "").toLowerCase(),
       quantity: movement.input_quantity != null ? Number(movement.input_quantity) : inputUnit === "cx" ? baseQuantity / factor : baseQuantity,
       display_unit: inputUnit,
@@ -273,11 +313,17 @@ export async function listInventoryMovements(itemId: string, organizationIdOverr
 export async function getInventoryItem(itemId: string, organizationIdOverride?: string | null, includeCosts = false) {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const columns = includeCosts
-    ? "id,name,unit,conversion_factor,quantity,min_quantity,is_active,purchase_price,average_cost,last_supplier_entity_id,last_purchase_at,sale_price,last_supplier:entities!inventory_items_last_supplier_org_fkey(id,name,legal_name,trade_name,document,person_type,is_active)"
+    ? "id,name,unit,conversion_factor,quantity,min_quantity,is_active,purchase_price,average_cost,last_supplier_entity_id,last_purchase_at,sale_price"
     : "id,name,unit,conversion_factor,quantity,min_quantity,is_active,sale_price";
   const { data, error } = await supabase.from("inventory_items").select(columns).eq("id", itemId).eq("organization_id", organizationId).maybeSingle();
   if (error) throw error;
-  return toDisplayItem(data);
+  if (!data || !includeCosts || !data.last_supplier_entity_id) return toDisplayItem(data);
+
+  const supplierMap = await loadSupplierEntityMap(organizationId, [data.last_supplier_entity_id]);
+  return toDisplayItem({
+    ...data,
+    last_supplier: supplierMap.get(String(data.last_supplier_entity_id)) || null,
+  });
 }
 
 export async function recordInventoryMovement(movement: InventoryMovementInput, organizationIdOverride?: string | null): Promise<string> {
