@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   Banknote,
+  Building2,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
@@ -15,8 +16,6 @@ import {
   TrendingUp,
   UserCheck,
   Users,
-  UserX,
-  Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
@@ -30,10 +29,10 @@ import type {
   DashboardModule,
   DashboardOrder,
   DashboardQuote,
+  DashboardRegistration,
 } from "../domain/dashboard";
 import { loadDashboardOverview } from "../infrastructure/dashboard.repository";
 import {
-  DashboardBarChart,
   DashboardDonutChart,
   DashboardEmpty,
   DashboardLineChart,
@@ -126,6 +125,18 @@ function appointmentTime(appointment: DashboardAppointment) {
   return labels[appointment.period || ""] || "Sem horário";
 }
 
+function registrationHasRole(registration: DashboardRegistration, role: "customer" | "employee" | "supplier") {
+  return (registration.roles || []).some(item => item.role === role && item.is_active !== false);
+}
+
+function registrationRoleLabel(registration: DashboardRegistration) {
+  const labels: string[] = [];
+  if (registrationHasRole(registration, "customer")) labels.push("Cliente");
+  if (registrationHasRole(registration, "employee")) labels.push("Funcionário");
+  if (registrationHasRole(registration, "supplier")) labels.push("Fornecedor");
+  return labels.length ? labels.join(" · ") : "Sem vínculo ativo";
+}
+
 function MetricGrid({ metrics }: { metrics: Metric[] }) {
   return (
     <div className={cn("grid gap-3", metrics.length >= 5 ? "grid-cols-2 xl:grid-cols-6" : "grid-cols-2 xl:grid-cols-4")}>
@@ -157,8 +168,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
   const [periodDays, setPeriodDays] = useState(30);
   const access = useMemo<DashboardAccess>(() => ({
     orders: hasPermission("orders.view"),
-    customers: hasPermission("customers.view"),
-    employees: hasPermission("employees.view"),
+    registrations: hasPermission("customers.view") || hasPermission("employees.view"),
     inventory: hasPermission("inventory.view"),
     agenda: hasPermission("agenda.view"),
     quotes: hasPermission("quotes.view"),
@@ -167,8 +177,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
   const modules = useMemo(() => [
     { id: "overview" as const, label: "Visão geral", icon: LayoutDashboard, visible: true },
     { id: "orders" as const, label: "Ordens de serviço", icon: ClipboardList, visible: access.orders },
-    { id: "customers" as const, label: "Clientes", icon: Users, visible: access.customers },
-    { id: "employees" as const, label: "Funcionários", icon: UserCheck, visible: access.employees },
+    { id: "registrations" as const, label: "Cadastros", icon: Users, visible: access.registrations },
     { id: "inventory" as const, label: "Estoque", icon: Package, visible: access.inventory },
     { id: "agenda" as const, label: "Agenda", icon: CalendarDays, visible: access.agenda },
     { id: "quotes" as const, label: "Orçamentos", icon: FileText, visible: access.quotes },
@@ -183,10 +192,10 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
     queryKey: queryKeys.admin.dashboard(periodDays, accessScope),
     queryFn: () => loadDashboardOverview({ periodDays, access }),
   });
-  const data = dashboardQuery.data ?? { orders: [], customers: [], employees: [], inventory: [], appointments: [], quotes: [] };
+  const data = dashboardQuery.data ?? { orders: [], registrations: [], inventory: [], appointments: [], quotes: [] };
   const ordersInPeriod = data.orders.filter(order => insidePeriod(order.created_at, periodDays));
   const completedInPeriod = data.orders.filter(order => insidePeriod(order.completed_at, periodDays));
-  const customersInPeriod = data.customers.filter(customer => insidePeriod(customer.created_at, periodDays));
+  const registrationsInPeriod = data.registrations.filter(registration => insidePeriod(registration.created_at, periodDays));
   const quotesInPeriod = data.quotes.filter(quote => insidePeriod(quote.created_at, periodDays));
   const todayKey = localDateKey(new Date());
   const weekLimit = localDateKey(new Date(Date.now() + 7 * DAY_MS));
@@ -197,7 +206,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
   const activeInventory = data.inventory.filter(item => item.is_active !== false);
   const lowInventory = activeInventory.filter(item => Number(item.quantity || 0) > 0 && Number(item.quantity || 0) <= Number(item.min_quantity || 0));
   const outInventory = activeInventory.filter(item => Number(item.quantity || 0) <= 0);
-  const activeEmployees = data.employees.filter(employee => employee.is_active !== false);
+  const activeRegistrations = data.registrations.filter(registration => registration.is_active !== false);
   const revenue = completedInPeriod.reduce((total, order) => total + Number(order.final_total || 0), 0);
   const discounts = completedInPeriod.reduce((total, order) => total + Number(order.discount_amount || 0), 0);
   const convertedQuoteIds = new Set(data.orders.map(order => order.quote_request_id).filter(Boolean));
@@ -215,39 +224,17 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
       return <DashboardArea metrics={metrics} left={<DashboardPanel title="OS por status" subtitle="Distribuição das ordens visíveis" icon={Activity}><DashboardDonutChart data={groupByLabel(activeOrders, order => relationLabel(order.order_status, "Sem status"))} /></DashboardPanel>} right={<DashboardPanel title="Ordens recentes" subtitle="Últimas atualizações" icon={ClipboardList} onOpen={() => open("orders")}><OrdersList orders={data.orders.slice(0, 8)} onOpen={() => open("orders")} /></DashboardPanel>} />;
     }
 
-    if (activeModule === "customers") {
-      const customersWithOrders = new Set(ordersInPeriod.map(order => order.customer_id).filter(Boolean));
-      const orderCounts = new Map<string, number>();
-      data.orders.forEach(order => order.customer_id && orderCounts.set(order.customer_id, (orderCounts.get(order.customer_id) || 0) + 1));
-      const recurring = [...orderCounts.values()].filter(count => count > 1).length;
+    if (activeModule === "registrations") {
+      const customers = activeRegistrations.filter(registration => registrationHasRole(registration, "customer"));
+      const employees = activeRegistrations.filter(registration => registrationHasRole(registration, "employee"));
+      const suppliers = activeRegistrations.filter(registration => registrationHasRole(registration, "supplier"));
       const metrics: Metric[] = [
-        { label: "Total de clientes", value: data.customers.length, icon: Users, tone: "blue", hint: "visíveis para seu perfil" },
-        { label: "Novos clientes", value: customersInPeriod.length, icon: UserCheck, tone: "green", hint: `nos últimos ${periodDays} dias` },
-        { label: "Com OS no período", value: customersWithOrders.size, icon: Wrench, tone: "purple", hint: "clientes atendidos" },
-        { label: "Recorrentes", value: recurring, icon: TrendingUp, tone: "amber", hint: "mais de uma OS" },
+        { label: "Cadastros ativos", value: activeRegistrations.length, icon: Users, tone: "blue", hint: "pessoas e empresas" },
+        { label: "Clientes", value: customers.length, icon: UserCheck, tone: "green", hint: "vínculo ativo" },
+        { label: "Funcionários", value: employees.length, icon: Users, tone: "purple", hint: "vínculo ativo" },
+        { label: "Fornecedores", value: suppliers.length, icon: Building2, tone: "amber", hint: "vínculo ativo" },
       ];
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Entrada de clientes" subtitle={`Novos cadastros em ${periodDays} dias`} icon={TrendingUp}><DashboardLineChart data={buildTrend(customersInPeriod, periodDays, customer => customer.created_at)} /></DashboardPanel>} right={<DashboardPanel title="Clientes recentes" subtitle="Últimos cadastros" icon={Users} onOpen={() => open("customers")}><CompactList>{data.customers.slice(0, 8).map(customer => <CompactRow key={customer.id} title={customer.full_name} subtitle={`Cadastrado em ${fmtDate(customer.created_at)}`} onClick={() => open("customers")} />)}{!data.customers.length && <DashboardEmpty text="Nenhum cliente cadastrado." />}</CompactList></DashboardPanel>} />;
-    }
-
-    if (activeModule === "employees") {
-      const workload = new Map<string, { name: string; value: number }>();
-      activeOrders.forEach(order => {
-        const linked = order.technician_links?.length ? order.technician_links : order.technician_id ? [{ employee_id: order.technician_id, employee: order.technician }] : [];
-        linked.forEach(link => {
-          const name = relationLabel(link.employee, "Sem nome");
-          const current = workload.get(link.employee_id) || { name, value: 0 };
-          workload.set(link.employee_id, { ...current, value: current.value + 1 });
-        });
-      });
-      const workloadData = [...workload.values()].sort((a, b) => b.value - a.value).slice(0, 8);
-      const technicians = activeEmployees.filter(employee => /tecnic/.test(normalized(employee.function_name))).length;
-      const metrics: Metric[] = [
-        { label: "Funcionários ativos", value: activeEmployees.length, icon: UserCheck, tone: "green", hint: "com acesso operacional" },
-        { label: "Inativos", value: data.employees.length - activeEmployees.length, icon: UserX, tone: "red", hint: "cadastros desativados" },
-        { label: "Técnicos", value: technicians, icon: Wrench, tone: "blue", hint: "função técnica ativa" },
-        { label: "Com OS ativa", value: workload.size, icon: ClipboardList, tone: "purple", hint: "carga atual" },
-      ];
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Carga por técnico" subtitle="Ordens ainda em andamento" icon={Activity}><DashboardBarChart data={workloadData} color="#7c3aed" /></DashboardPanel>} right={<DashboardPanel title="Equipe ativa" subtitle="Funcionários disponíveis" icon={UserCheck} onOpen={() => open("employees")}><CompactList>{activeEmployees.slice(0, 10).map(employee => <CompactRow key={employee.id} title={employee.full_name} subtitle={employee.function_name || "Funcionário"} />)}{!activeEmployees.length && <DashboardEmpty text="Nenhum funcionário ativo." />}</CompactList></DashboardPanel>} />;
+      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Novos cadastros" subtitle={`Entradas nos últimos ${periodDays} dias`} icon={TrendingUp}><DashboardLineChart data={buildTrend(registrationsInPeriod, periodDays, registration => registration.created_at)} /></DashboardPanel>} right={<DashboardPanel title="Cadastros recentes" subtitle="Clientes, funcionários e fornecedores" icon={Users} onOpen={() => open("customers")}><CompactList>{data.registrations.slice(0, 10).map(registration => <CompactRow key={registration.id} title={registration.name} subtitle={`${registrationRoleLabel(registration)} · ${fmtDate(registration.created_at)}`} onClick={() => open("customers")} />)}{!data.registrations.length && <DashboardEmpty text="Nenhum cadastro encontrado." />}</CompactList></DashboardPanel>} />;
     }
 
     if (activeModule === "inventory") {
@@ -310,7 +297,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
         { label: "OS em andamento", value: activeOrders.length, icon: Activity, tone: "purple" as const, hint: "ainda não concluídas" },
         { label: "Faturamento", value: formatCurrency(revenue), icon: Banknote, tone: "green" as const, hint: `últimos ${periodDays} dias` },
       ] : []),
-      ...(access.customers ? [{ label: "Novos clientes", value: customersInPeriod.length, icon: Users, tone: "blue" as const, hint: `últimos ${periodDays} dias` }] : []),
+      ...(access.registrations ? [{ label: "Novos cadastros", value: registrationsInPeriod.length, icon: Users, tone: "blue" as const, hint: `últimos ${periodDays} dias` }] : []),
       ...(access.agenda ? [{ label: "Agenda hoje", value: todayAppointments.length, icon: CalendarDays, tone: "amber" as const, hint: "compromissos" }] : []),
       ...(access.inventory ? [{ label: "Alertas de estoque", value: lowInventory.length + outInventory.length, icon: AlertTriangle, tone: lowInventory.length + outInventory.length ? "red" as const : "green" as const, hint: "baixo ou zerado" }] : []),
     ];
