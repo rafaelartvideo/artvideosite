@@ -12,13 +12,13 @@ export type PermissionModuleGroup = { name: string; sections: PermissionSectionG
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço",
-  customers: "Clientes", agenda: "Agenda", inventory: "Estoque", products: "Produtos", categories: "Categorias",
+  customers: "Cadastros", agenda: "Agenda", inventory: "Estoque", products: "Produtos", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
-  situations: "Situações da OS", employees: "Usuários", roles: "Funções e Permissões", documents: "Documentos",
+  situations: "Situações da OS", employees: "Acessos e Usuários", roles: "Funções e Permissões", documents: "Documentos",
 };
 
-const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Clientes", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Usuários", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
+const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Acessos e Usuários", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
 const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
