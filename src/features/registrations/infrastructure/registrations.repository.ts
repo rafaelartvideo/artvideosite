@@ -136,6 +136,22 @@ export type SaveRegistrationInput = {
 };
 
 export async function saveRegistration(input: SaveRegistrationInput) {
+  const document = input.entity.document || "";
+  if (document) {
+    const existing = await findRegistrationByDocument(
+      input.organizationId,
+      document,
+      input.id,
+    );
+    if (existing.error) return { data: null, error: existing.error };
+    if (existing.data) {
+      return {
+        data: null,
+        error: new Error(`Cadastro já existente: ${existing.data.name}. Abra o cadastro existente para adicionar ou alterar vínculos.`),
+      };
+    }
+  }
+
   return supabase.rpc("save_registration", {
     p_registration_id: input.id || null,
     p_organization_id: input.organizationId,
