@@ -55,21 +55,30 @@ const REGISTRATION_SELECT = `
   addresses:entity_addresses(id,type,zip_code,state,city,neighborhood,street,number,complement,reference,location_url,is_primary,is_active)
 `;
 
+function normalizeRegistration<T extends Record<string, any> | null>(row: T): T {
+  if (!row) return row;
+  const employeeDetails = row.employee_details;
+  if (employeeDetails && !Array.isArray(employeeDetails)) row.employee_details = [employeeDetails];
+  return row;
+}
+
 export async function listRegistrations(organizationId: string) {
-  return supabase
+  const result = await supabase
     .from("entities")
     .select(REGISTRATION_SELECT)
     .eq("organization_id", organizationId)
     .order("name", { ascending: true });
+  return { ...result, data: result.data?.map(row => normalizeRegistration(row)) ?? result.data };
 }
 
 export async function getRegistration(organizationId: string, id: string) {
-  return supabase
+  const result = await supabase
     .from("entities")
     .select(REGISTRATION_SELECT)
     .eq("organization_id", organizationId)
     .eq("id", id)
     .maybeSingle();
+  return { ...result, data: normalizeRegistration(result.data) };
 }
 
 export type SaveRegistrationInput = {
