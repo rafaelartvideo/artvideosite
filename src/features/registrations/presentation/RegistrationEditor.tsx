@@ -67,7 +67,7 @@ export function RegistrationEditor({
   setSupplierItems: Dispatch<SetStateAction<SupplierInventoryItem[]>>;
   organizationId: string | null;
   canModify: boolean;
-  showAccess: boolean;
+  showAccess?: boolean;
   accessForm: EmployeeAccessFormState;
   onAccessChange: (next: EmployeeAccessFormState) => void;
   accessExisting: boolean;
@@ -79,6 +79,8 @@ export function RegistrationEditor({
   onClose: () => void;
   onToggleRole: (role: RegistrationRole) => void;
 }) {
+  const canShowAccess = showAccess ?? (accessExisting || canModifyAccess);
+
   return <AdminPage
     open
     onClose={onClose}
@@ -153,7 +155,7 @@ export function RegistrationEditor({
 
       {form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
 
-      {form.roles.includes("employee") && showAccess && <UserAccessSection
+      {form.roles.includes("employee") && canShowAccess && <UserAccessSection
         organizationId={organizationId}
         value={accessForm}
         onChange={onAccessChange}
