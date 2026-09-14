@@ -20,6 +20,7 @@ import {
   BtnPrimary,
   BtnSecondary,
 } from "@/shared/ui/admin/AdminLayout";
+import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { OrderImageThumb, type OrderImage } from "./OrderImages";
@@ -169,7 +170,18 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
       <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[#0d1b2e]/10 bg-white px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Novo anexo</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Confira o preview antes de anexar.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]" aria-label="Fechar"><X size={18} /></button></div>
         <div className="space-y-4 p-5">
-          <label className="block"><span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Tipo de anexo</span><select value={attachmentTypeId} onChange={event => setAttachmentTypeId(event.target.value)} className="w-full rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2.5 text-sm text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15"><option value="">Selecione o tipo</option>{controller.attachmentTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
+          <div className="min-w-0">
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Tipo de anexo</label>
+            <AdminSelect
+              value={attachmentTypeId}
+              onValueChange={setAttachmentTypeId}
+              ariaLabel="Tipo de anexo"
+              options={[
+                { value: "", label: "Selecione o tipo" },
+                ...controller.attachmentTypes.map(type => ({ value: type.id, label: type.name })),
+              ]}
+            />
+          </div>
 
           <div>
             <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Arquivo</span>
