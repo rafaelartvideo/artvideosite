@@ -10,6 +10,7 @@ import {
   Package,
   Phone,
   Settings,
+  ShieldCheck,
   Tag,
   Users,
   Wrench,
@@ -43,6 +44,7 @@ export const operationItems: PermissionAwareHubItem[] = [
   { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica.", permissionKey: "general_services.view" },
   { id: "serviceTypes", label: "Tipos de Atendimento", icon: List, description: "Configure tipos e previsão de atendimento das OS.", permissionKey: "service_types.view" },
   { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "situations.view" },
+  { id: "roles", label: "Funções e Permissões", icon: ShieldCheck, description: "Configure funções e os acessos herdados pelos usuários da empresa.", permissionKey: "roles.view" },
   { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos de impressão e tipos de anexos das ordens de serviço.", permissionKey: "documents.view" },
 ];
 
@@ -67,7 +69,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   documents: "documents.view",
   situations: "situations.view",
   orderStatuses: "order_statuses.view",
-  employees: "employees.view",
+  roles: "roles.view",
   partnerCompanies: "organizations.view",
   settings: "settings.view",
   siteSettings: "site_settings.view",
@@ -88,7 +90,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   serviceTypes: "service_types",
   situations: "order_situations",
   orderStatuses: "order_statuses",
-  employees: "employees",
+  roles: "employees",
   documents: "documents",
   partnerCompanies: null,
   settings: "company_settings",
