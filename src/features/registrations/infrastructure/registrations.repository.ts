@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 export type RegistrationRole = "customer" | "employee" | "supplier";
 
@@ -71,6 +72,11 @@ function normalizeRegistration<T extends Record<string, any> | null>(row: T): T 
   return row;
 }
 
+function normalizeError(error: unknown) {
+  if (!error) return null;
+  return error instanceof Error ? error : new Error(supabaseErrorMessage(error));
+}
+
 export async function listRegistrations(organizationId: string) {
   const result = await supabase
     .from("entities")
@@ -103,7 +109,8 @@ export async function findRegistrationByDocument(
     .eq("organization_id", organizationId)
     .eq("document", digits);
   if (excludeRegistrationId) query = query.neq("id", excludeRegistrationId);
-  return query.maybeSingle();
+  const result = await query.maybeSingle();
+  return result.error ? { ...result, error: normalizeError(result.error) } : result;
 }
 
 export type SaveRegistrationInput = {
@@ -145,7 +152,7 @@ export async function saveRegistration(input: SaveRegistrationInput) {
     }
   }
 
-  return supabase.rpc("save_registration", {
+  const result = await supabase.rpc("save_registration", {
     p_registration_id: input.id || null,
     p_organization_id: input.organizationId,
     p_entity: input.entity,
@@ -153,6 +160,7 @@ export async function saveRegistration(input: SaveRegistrationInput) {
     p_employee: input.employee || {},
     p_address: null,
   });
+  return result.error ? { ...result, error: normalizeError(result.error) } : result;
 }
 
 export async function syncRegistrationAddresses(
@@ -160,11 +168,12 @@ export async function syncRegistrationAddresses(
   registrationId: string,
   addresses: Array<Record<string, unknown>>,
 ) {
-  return supabase.rpc("sync_registration_addresses", {
+  const result = await supabase.rpc("sync_registration_addresses", {
     p_registration_id: registrationId,
     p_organization_id: organizationId,
     p_addresses: addresses,
   });
+  return result.error ? { ...result, error: normalizeError(result.error) } : result;
 }
 
 export async function listSupplierInventoryItems(organizationId: string) {
@@ -183,7 +192,7 @@ export async function getRegistrationSupplierItems(organizationId: string, regis
     .eq("organization_id", organizationId)
     .eq("entity_id", registrationId);
   if (links.error || !links.data?.length) {
-    return { data: [] as SupplierInventoryItem[], error: links.error };
+    return { data: [] as SupplierInventoryItem[], error: links.error ? normalizeError(links.error) : null };
   }
   const ids = links.data.map(row => String(row.inventory_item_id));
   const items = await supabase
@@ -192,7 +201,7 @@ export async function getRegistrationSupplierItems(organizationId: string, regis
     .eq("organization_id", organizationId)
     .in("id", ids)
     .order("name", { ascending: true });
-  return { data: (items.data || []) as SupplierInventoryItem[], error: items.error };
+  return { data: (items.data || []) as SupplierInventoryItem[], error: items.error ? normalizeError(items.error) : null };
 }
 
 export async function syncRegistrationSupplierItems(
@@ -200,9 +209,10 @@ export async function syncRegistrationSupplierItems(
   registrationId: string,
   inventoryItemIds: string[],
 ) {
-  return supabase.rpc("sync_registration_supplier_items", {
+  const result = await supabase.rpc("sync_registration_supplier_items", {
     p_registration_id: registrationId,
     p_organization_id: organizationId,
     p_inventory_item_ids: inventoryItemIds,
   });
+  return result.error ? { ...result, error: normalizeError(result.error) } : result;
 }
