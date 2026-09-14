@@ -40,4 +40,11 @@ export const setEmployeeUniqSubscriber = (employeeId: string, subscriberId?: str
     p_uniq_subscriber_id: subscriberId?.trim() || null,
   });
 
+export const setEmployeeActive = (organizationId: string, employeeId: string, isActive: boolean) =>
+  supabase.rpc("set_employee_active_state", {
+    p_organization_id: organizationId,
+    p_employee_id: employeeId,
+    p_is_active: isActive,
+  });
+
 export const invokeEmployeeCommand = (body: Record<string, unknown>) => supabase.functions.invoke("server", { body });
