@@ -46,15 +46,21 @@ export function useOrderEditorWorkflow({
   const selectCustomer = (customer: any) => {
     const customerAddress = customers.selectCustomer(customer);
     formState.updateField("customer_id", customer.id);
-    if (formState.form.order_type !== "external" || !address.serviceUseCustomerAddress) return;
+
     if (customerAddress) {
       address.setServiceAddressMessage("");
       address.setServiceCustomerAddressOverride(true);
       address.copyCustomerAddressToForm(customerAddress);
-    } else {
+      if (formState.form.order_type === "external") {
+        address.setServiceUseCustomerAddress(true);
+      }
+      return;
+    }
+
+    address.clearServiceAddress();
+    if (formState.form.order_type === "external") {
       address.setServiceUseCustomerAddress(false);
       address.setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento.");
-      address.clearServiceAddress();
     }
   };
 
