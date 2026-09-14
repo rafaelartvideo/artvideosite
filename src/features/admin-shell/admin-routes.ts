@@ -33,6 +33,8 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   contact: "/admin/contact",
 };
 
+const LEGACY_EMPLOYEES_PATH = "/admin/operation/employees";
+
 const ROUTES_BY_SPECIFICITY = (Object.entries(ADMIN_TAB_PATHS) as Array<[AdminTab, string]>)
   .sort((left, right) => right[1].length - left[1].length);
 
@@ -45,6 +47,10 @@ export function adminPath(tab: AdminTab, resourceId?: string | null, subpage?: s
 }
 
 export function resolveAdminRoute(pathname: string): AdminRouteParts {
+  if (pathname === LEGACY_EMPLOYEES_PATH || matchPath({ path: `${LEGACY_EMPLOYEES_PATH}/*`, end: false }, pathname)) {
+    return { tab: "roles", resourceId: null, subpage: null };
+  }
+
   for (const [tab, basePath] of ROUTES_BY_SPECIFICITY) {
     if (pathname !== basePath && !matchPath({ path: `${basePath}/*`, end: false }, pathname)) continue;
     const remainder = pathname.slice(basePath.length).replace(/^\/+/, "");
