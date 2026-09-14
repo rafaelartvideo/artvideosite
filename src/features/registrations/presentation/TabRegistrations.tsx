@@ -134,13 +134,13 @@ function Field({ label, value, onChange, required, type = "text", disabled = fal
 
 export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange, onOpenCustomerHistory, onOpenAccessManagement }: Props) {
   const { activeOrganizationId, hasPermission } = useAuth();
-  const canView = hasPermission("customers.view") || hasPermission("employees.view");
+  const canView = hasPermission("customers.view");
   const canCreateCustomer = hasPermission("customers.create");
   const canEditCustomer = hasPermission("customers.edit") || hasPermission("customers.update");
-  const canCreateEmployee = hasPermission("employees.create");
-  const canEditEmployee = hasPermission("employees.edit");
-  const canCreate = canCreateCustomer || canCreateEmployee;
-  const canEdit = canEditCustomer || canEditEmployee;
+  const canCreateEmployee = canCreateCustomer;
+  const canEditEmployee = canEditCustomer;
+  const canCreate = canCreateCustomer;
+  const canEdit = canEditCustomer;
   const [items, setItems] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -203,7 +203,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   useEffect(() => { setPage(1); }, [search, roleFilter, statusFilter, pageSize]);
 
   const toggleRole = (role: RegistrationRole) => {
-    const allowed = role === "employee" ? (selected ? canEditEmployee : canCreateEmployee) : (selected ? canEditCustomer : canCreateCustomer);
+    const allowed = selected ? canEdit : canCreate;
     if (!allowed) return;
     setForm(current => ({ ...current, roles: current.roles.includes(role) ? current.roles.filter(item => item !== role) : [...current.roles, role] }));
   };
@@ -271,7 +271,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
             <button type="button" onClick={() => setForm(current => ({ ...current, person_type: "PF" }))} className={`rounded-xl border p-4 text-left ${form.person_type === "PF" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec]"}`}><div className="font-black text-[#0d1b2e]">Pessoa Física</div><div className="mt-1 text-xs text-[#5a6a82]">CPF e data de nascimento.</div></button>
             <button type="button" disabled={form.roles.includes("employee")} onClick={() => setForm(current => ({ ...current, person_type: "PJ" }))} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${form.person_type === "PJ" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec]"}`}><div className="font-black text-[#0d1b2e]">Pessoa Jurídica</div><div className="mt-1 text-xs text-[#5a6a82]">CNPJ, razão social e nome fantasia.</div></button>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">{(["customer","employee","supplier"] as RegistrationRole[]).map(role => { const Icon = roleIcons[role]; const checked = form.roles.includes(role); const allowed = role === "employee" ? (creating ? canCreateEmployee : canEditEmployee) : (creating ? canCreateCustomer : canEditCustomer); return <button key={role} type="button" disabled={!allowed} onClick={() => toggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec]"}`}><Checkbox checked={checked} tabIndex={-1} /><Icon size={17} className="text-[#0057e7]" /><span className="text-sm font-bold text-[#0d1b2e]">{roleLabels[role]}</span></button>; })}</div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">{(["customer","employee","supplier"] as RegistrationRole[]).map(role => { const Icon = roleIcons[role]; const checked = form.roles.includes(role); const allowed = creating ? canCreate : canEdit; return <button key={role} type="button" disabled={!allowed} onClick={() => toggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec]"}`}><Checkbox checked={checked} tabIndex={-1} /><Icon size={17} className="text-[#0057e7]" /><span className="text-sm font-bold text-[#0d1b2e]">{roleLabels[role]}</span></button>; })}</div>
         </Section>
 
         <Section title="Informações">
@@ -296,7 +296,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Field label="CEP" value={form.zip_code} onChange={value => setForm(current => ({ ...current, zip_code: normalizeDigits(value).slice(0, 8) }))} /><Field label="UF" value={form.state} onChange={value => setForm(current => ({ ...current, state: value.toUpperCase().slice(0, 2) }))} /><Field label="Cidade" value={form.city} onChange={value => setForm(current => ({ ...current, city: value }))} /><Field label="Bairro" value={form.neighborhood} onChange={value => setForm(current => ({ ...current, neighborhood: value }))} /><div className="lg:col-span-2"><Field label="Rua" value={form.street} onChange={value => setForm(current => ({ ...current, street: value }))} /></div><Field label="Número" value={form.number} onChange={value => setForm(current => ({ ...current, number: value }))} /><Field label="Complemento" value={form.complement} onChange={value => setForm(current => ({ ...current, complement: value }))} /><div className="lg:col-span-2"><Field label="Referência" value={form.reference} onChange={value => setForm(current => ({ ...current, reference: value }))} /></div><div className="lg:col-span-2"><Field label="Link de localização" value={form.location_url} onChange={value => setForm(current => ({ ...current, location_url: value }))} placeholder="Google Maps ou link enviado" /></div></div>
         </Section>
 
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary disabled={saving || !canEdit && !creating} onClick={() => void save()}>{saving ? "Salvando..." : creating ? "Criar cadastro" : "Salvar alterações"}</BtnPrimary></div>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary disabled={saving || (!canEdit && !creating) || (creating && !canCreate)} onClick={() => void save()}>{saving ? "Salvando..." : creating ? "Criar cadastro" : "Salvar alterações"}</BtnPrimary></div>
       </div>
     </AdminPage>;
   }
