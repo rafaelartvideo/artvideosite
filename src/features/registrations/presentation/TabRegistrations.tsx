@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit2, Plus, Search, Users } from "lucide-react";
+import { AlertCircle, CheckCircle, Edit2, Plus, Search, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { normalizeSharedMapUrl } from "@/lib/address";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -12,7 +12,7 @@ import {
   type EmployeeAccessFormState,
 } from "@/features/access/presentation/UserAccessSection";
 import { UserPermissionOverridesPage } from "@/features/access/presentation/UserPermissionOverridesPage";
-import { getEmployeeAccess, saveEmployeeAccess } from "@/features/access/infrastructure/user-access.repository";
+import { getEmployeeAccess, saveEmployeeAccess, setEmployeeAccessActive } from "@/features/access/infrastructure/user-access.repository";
 import { useRegistrationLookups } from "../application/useRegistrationLookups";
 import {
   activeRegistrationRoles,
@@ -107,6 +107,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [togglingEmployeeId, setTogglingEmployeeId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const lookups = useRegistrationLookups({
@@ -390,6 +391,42 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     onRouteChange?.("new", "edit");
   };
 
+  const toggleEmployeeUser = async (item: Registration) => {
+    if (!activeOrganizationId || !canToggleAccess || !item.legacy_employee_id) return;
+    const profileId = item.legacy_employee?.profile_id || item.employee_details?.[0]?.profile_id || null;
+    if (!profileId) {
+      setToast({ msg: "Este funcionário ainda não possui usuário de acesso ao sistema.", type: "error" });
+      return;
+    }
+    const next = item.legacy_employee?.is_active === false;
+    setTogglingEmployeeId(item.legacy_employee_id);
+    try {
+      const { error } = await setEmployeeAccessActive(activeOrganizationId, item.legacy_employee_id, next);
+      if (error) throw error;
+      setItems(current => current.map(registration => registration.id === item.id ? {
+        ...registration,
+        legacy_employee: registration.legacy_employee
+          ? { ...registration.legacy_employee, is_active: next }
+          : { id: item.legacy_employee_id!, profile_id: profileId, is_active: next },
+      } : registration));
+      if (selected?.id === item.id) {
+        setSelected(current => current ? {
+          ...current,
+          legacy_employee: current.legacy_employee
+            ? { ...current.legacy_employee, is_active: next }
+            : { id: item.legacy_employee_id!, profile_id: profileId, is_active: next },
+        } : current);
+        setAccessForm(current => ({ ...current, enabled: next }));
+      }
+      setToast({ msg: next ? "Usuário ativado." : "Usuário inativado. O acesso ao sistema foi bloqueado.", type: "success" });
+    } catch (error) {
+      const message = error && typeof error === "object" && "message" in error ? String((error as any).message || "Erro desconhecido") : String(error || "Erro desconhecido");
+      setToast({ msg: `Erro ao alterar usuário: ${message}`, type: "error" });
+    } finally {
+      setTogglingEmployeeId(null);
+    }
+  };
+
   const openItem = (item: Registration) => { void hydrateRegistration(item); onRouteChange?.(item.id, null); };
   const closeEditor = () => selected ? onRouteChange?.(selected.id, null) : onRouteChange?.(null, null);
   const closeDetail = () => { setSelected(null); onRouteChange?.(null, null); };
@@ -495,6 +532,11 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         </div>
       </div>
     </AdminCard>
-    <AdminCard>{loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cadastro encontrado" message="Crie um cadastro ou ajuste os filtros." onAdd={canCreate ? openNew : undefined} addLabel="Novo cadastro" /> : <><div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr><th className="text-left">Nome / Razão social</th><th className="text-left">Tipo</th><th className="text-left">Vínculos</th><th className="text-left">CPF/CNPJ</th><th className="text-left">Telefone</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{paged.map(item => <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-[#5a6a82]">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-[#5a6a82]">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end" onClick={event => event.stopPropagation()}><AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div></td></tr>)}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} /></>}</AdminCard>
+    <AdminCard>{loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cadastro encontrado" message="Crie um cadastro ou ajuste os filtros." onAdd={canCreate ? openNew : undefined} addLabel="Novo cadastro" /> : <><div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr><th className="text-left">Nome / Razão social</th><th className="text-left">Tipo</th><th className="text-left">Vínculos</th><th className="text-left">CPF/CNPJ</th><th className="text-left">Telefone</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{paged.map(item => {
+      const employeeAccessProfileId = item.legacy_employee?.profile_id || item.employee_details?.[0]?.profile_id || null;
+      const employeeUserActive = item.legacy_employee?.is_active !== false;
+      const canToggleEmployee = canToggleAccess && activeRegistrationRoles(item).includes("employee") && Boolean(item.legacy_employee_id && employeeAccessProfileId);
+      return <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-[#5a6a82]">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-[#5a6a82]">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canToggleEmployee && <AdminIconButton ariaLabel={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} title={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)}>{employeeUserActive ? <AlertCircle size={15} /> : <CheckCircle size={15} />}</AdminIconButton>}<AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div></td></tr>;
+    })}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} /></>}</AdminCard>
   </div>;
 }
