@@ -48,9 +48,8 @@ export function RegistrationAddressesEditor({
     title="Endereços"
     actions={!disabled ? <BtnSecondary onClick={add}><Plus size={14} /> Adicionar endereço</BtnSecondary> : undefined}
   >
-    {value.length === 0 ? <div className="py-3">
+    {value.length === 0 ? <div className="py-6 text-center">
       <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>
-      {!disabled && <BtnSecondary className="mt-3" onClick={add}><Plus size={14} /> Adicionar endereço</BtnSecondary>}
     </div> : <div className="divide-y divide-[#0d1b2e]/8">
       {value.map((address, index) => <div key={address.id || `new-${index}`} className="py-5 first:pt-0 last:pb-0">
         <div className="mb-4 flex flex-wrap items-center gap-2">
