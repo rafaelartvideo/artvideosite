@@ -150,10 +150,10 @@ export function UserPermissionOverridesPage({
                 <span className="text-xs font-semibold text-[#8a98aa]">{permissionCount}</span>
               </button>
 
-              {expanded && <div className="border-t border-[#0d1b2e]/8 pb-2 pl-7">
+              {expanded && <div className="border-t border-[#0d1b2e]/8 pb-2 pl-0 sm:pl-7">
                 {group.sections.map(section => <div key={section.name} className="border-b border-[#0d1b2e]/8 py-4 last:border-b-0">
-                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">{section.name}</div>
-                  <div className="divide-y divide-[#0d1b2e]/8">
+                  <div className="mb-3 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">{section.name}</div>
+                  <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
                     {section.permissions.map(permission => {
                       const inheritedPermission = inherited.has(permission.id);
                       const checked = isEffective(permission.id);
@@ -162,13 +162,13 @@ export function UserPermissionOverridesPage({
                         type="button"
                         disabled={!canManage || inheritedPermission}
                         onClick={() => toggle(permission)}
-                        className="flex w-full min-w-0 items-start gap-3 py-3 text-left disabled:cursor-default"
+                        className="flex min-w-0 items-start gap-3 border-b border-[#0d1b2e]/8 py-3 text-left disabled:cursor-default"
                       >
                         <Checkbox checked={checked} tabIndex={-1} />
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-2 text-xs font-bold text-[#0d1b2e]">
                             {permissionLabel(permission)}
-                            {inheritedPermission && <span className="text-[9px] font-black uppercase tracking-wide text-slate-500">Herdada da função</span>}
+                            {inheritedPermission && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-700">Herdada da função</span>}
                             {!inheritedPermission && selected.includes(permission.id) && <span className="text-[9px] font-black uppercase tracking-wide text-[#0057e7]">Individual</span>}
                           </span>
                           {permission.description && <span className="mt-1 block text-[11px] leading-relaxed text-[#5a6a82]">{permission.description}</span>}
@@ -185,7 +185,7 @@ export function UserPermissionOverridesPage({
     </div>}
     <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
       <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>
-      {canManage && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar permissões individuais</BtnPrimary>}
+      {canManage && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
     </div>
   </AdminPage>;
 }
