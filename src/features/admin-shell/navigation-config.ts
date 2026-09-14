@@ -23,7 +23,7 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "quotes", label: "Orçamentos", icon: FileText },
   { id: "orders", label: "Ordens de Serviço", icon: ClipboardList },
-  { id: "customers", label: "Clientes", icon: Users },
+  { id: "customers", label: "Cadastros", icon: Users },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "inventory", label: "Estoque", icon: Package },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
@@ -43,7 +43,6 @@ export const operationItems: PermissionAwareHubItem[] = [
   { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica.", permissionKey: "general_services.view" },
   { id: "serviceTypes", label: "Tipos de Atendimento", icon: List, description: "Configure tipos e previsão de atendimento das OS.", permissionKey: "service_types.view" },
   { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "situations.view" },
-  { id: "employees", label: "Equipes / Funcionários", icon: Users, description: "Cadastre funcionários, técnicos e gestores da equipe.", permissionKey: "employees.view" },
   { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos de impressão e tipos de anexos das ordens de serviço.", permissionKey: "documents.view" },
 ];
 
