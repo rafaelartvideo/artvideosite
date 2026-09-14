@@ -137,7 +137,7 @@ async function loadAccess(organizationId: string, employee: any) {
   if (authResult.error) throw authResult.error;
 
   return {
-    enabled: profile?.is_active !== false && membership?.status === "active",
+    enabled: profile?.is_active !== false && membership?.status === "active" && employee.is_active !== false,
     profile_id: employee.profile_id,
     user_id: employee.profile_id,
     email: authResult.data.user?.email ?? profile?.email ?? null,
@@ -294,13 +294,14 @@ Deno.serve(async (req) => {
         }
       }
 
+      const preservedActive = creatingAccess ? enabled : currentAccess.enabled;
       const { error: profileError } = await adminClient.from("profiles").upsert({
         id: userId,
         full_name: employee.full_name,
         email: normalizedEmail || null,
         phone: employee.phone || null,
         role_id: roleId,
-        is_active: enabled,
+        is_active: preservedActive,
         updated_at: new Date().toISOString(),
       });
       if (profileError) throw profileError;
@@ -309,7 +310,7 @@ Deno.serve(async (req) => {
         organization_id: organizationId,
         user_id: userId,
         role_id: roleId,
-        status: enabled ? "active" : "blocked",
+        status: preservedActive ? "active" : "blocked",
         is_owner: currentAccess.is_owner === true,
         joined_at: new Date().toISOString(),
         created_by: caller.id,
@@ -328,10 +329,18 @@ Deno.serve(async (req) => {
         body.uniq_subscriber_id === undefined ? undefined : String(body.uniq_subscriber_id || "").trim() || null,
       );
 
+      const { error: activeStateError } = await adminClient.rpc("admin_set_employee_active_state", {
+        p_organization_id: organizationId,
+        p_employee_id: employee.id,
+        p_is_active: enabled,
+      });
+      if (activeStateError) throw activeStateError;
+
       const refreshedEmployee = {
         ...employee,
         profile_id: userId,
         role_id: roleId,
+        is_active: enabled,
         uniq_subscriber_id: organizationId === PLATFORM_ORGANIZATION_ID && body.uniq_subscriber_id !== undefined
           ? String(body.uniq_subscriber_id || "").trim() || null
           : employee.uniq_subscriber_id,
