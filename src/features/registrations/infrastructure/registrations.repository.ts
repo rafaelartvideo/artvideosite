@@ -2,6 +2,13 @@ import { supabase } from "@/lib/supabase";
 
 export type RegistrationRole = "customer" | "employee" | "supplier";
 
+export type SupplierInventoryItem = {
+  id: string;
+  name: string;
+  sku: string | null;
+  is_active: boolean;
+};
+
 export type Registration = {
   id: string;
   organization_id: string;
@@ -11,6 +18,7 @@ export type Registration = {
   trade_name: string | null;
   document: string | null;
   state_registration: string | null;
+  municipal_registration: string | null;
   birth_date: string | null;
   foundation_date: string | null;
   phone: string | null;
@@ -48,7 +56,7 @@ export type Registration = {
 };
 
 const REGISTRATION_SELECT = `
-  id,organization_id,person_type,name,legal_name,trade_name,document,state_registration,
+  id,organization_id,person_type,name,legal_name,trade_name,document,state_registration,municipal_registration,
   birth_date,foundation_date,phone,whatsapp,email,is_active,legacy_customer_id,legacy_employee_id,
   created_at,updated_at,
   roles:entity_roles(role,is_active),
@@ -108,6 +116,7 @@ export type SaveRegistrationInput = {
     trade_name?: string;
     document?: string;
     state_registration?: string;
+    municipal_registration?: string;
     birth_date?: string;
     foundation_date?: string;
     phone?: string;
@@ -121,28 +130,12 @@ export type SaveRegistrationInput = {
     team_name?: string;
     admission_date?: string;
   };
-  address?: {
-    type?: string;
-    zip_code?: string;
-    state?: string;
-    city?: string;
-    neighborhood?: string;
-    street?: string;
-    number?: string;
-    complement?: string;
-    reference?: string;
-    location_url?: string;
-  } | null;
 };
 
 export async function saveRegistration(input: SaveRegistrationInput) {
   const document = input.entity.document || "";
   if (document) {
-    const existing = await findRegistrationByDocument(
-      input.organizationId,
-      document,
-      input.id,
-    );
+    const existing = await findRegistrationByDocument(input.organizationId, document, input.id);
     if (existing.error) return { data: null, error: existing.error };
     if (existing.data) {
       return {
@@ -158,6 +151,58 @@ export async function saveRegistration(input: SaveRegistrationInput) {
     p_entity: input.entity,
     p_roles: input.roles,
     p_employee: input.employee || {},
-    p_address: input.address || null,
+    p_address: null,
+  });
+}
+
+export async function syncRegistrationAddresses(
+  organizationId: string,
+  registrationId: string,
+  addresses: Array<Record<string, unknown>>,
+) {
+  return supabase.rpc("sync_registration_addresses", {
+    p_registration_id: registrationId,
+    p_organization_id: organizationId,
+    p_addresses: addresses,
+  });
+}
+
+export async function listSupplierInventoryItems(organizationId: string) {
+  return supabase
+    .from("inventory_items")
+    .select("id,name,sku,is_active")
+    .eq("organization_id", organizationId)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+}
+
+export async function getRegistrationSupplierItems(organizationId: string, registrationId: string) {
+  const links = await supabase
+    .from("entity_supplier_items")
+    .select("inventory_item_id")
+    .eq("organization_id", organizationId)
+    .eq("entity_id", registrationId);
+  if (links.error || !links.data?.length) {
+    return { data: [] as SupplierInventoryItem[], error: links.error };
+  }
+  const ids = links.data.map(row => String(row.inventory_item_id));
+  const items = await supabase
+    .from("inventory_items")
+    .select("id,name,sku,is_active")
+    .eq("organization_id", organizationId)
+    .in("id", ids)
+    .order("name", { ascending: true });
+  return { data: (items.data || []) as SupplierInventoryItem[], error: items.error };
+}
+
+export async function syncRegistrationSupplierItems(
+  organizationId: string,
+  registrationId: string,
+  inventoryItemIds: string[],
+) {
+  return supabase.rpc("sync_registration_supplier_items", {
+    p_registration_id: registrationId,
+    p_organization_id: organizationId,
+    p_inventory_item_ids: inventoryItemIds,
   });
 }
