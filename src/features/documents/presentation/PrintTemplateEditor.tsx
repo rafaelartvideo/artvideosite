@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Eye } from "lucide-react";
 import { PRINT_FIELD_REGISTRY } from "../domain/print-field-registry";
 import { cn } from "@/shared/domain/formatters";
-import { FDecimalInput, FIntegerInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect, FDecimalInput, FIntegerInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminCard, AdminCardContent, AdminCardHeader, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { PrintTemplatePreview } from "./PrintTemplatePreview";
@@ -67,10 +67,10 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
             <h3 className="font-black text-[#0d1b2e]">Configuração</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Nome"><input className={INPUT} value={value.name} onChange={e => setValue(v => ({ ...v, name: e.target.value }))} placeholder="Ex.: Ordem de Serviço" /></Field>
-              <Field label="Tipo"><select className={INPUT} value={value.document_type} onChange={e => setValue(v => ({ ...v, document_type: e.target.value }))}><option value="OS">Ordem de Serviço</option><option value="ENTRADA">Entrada</option><option value="SAIDA_DEVOLUCAO">Saída / Devolução</option><option value="LAUDO">Laudo técnico</option><option value="COMPROVANTE">Comprovante</option><option value="CUSTOM">Personalizado</option></select></Field>
+              <Field label="Tipo"><AdminSelect value={value.document_type} onValueChange={document_type => setValue(v => ({ ...v, document_type }))} ariaLabel="Tipo" options={[{ value: "OS", label: "Ordem de Serviço" }, { value: "ENTRADA", label: "Entrada" }, { value: "SAIDA_DEVOLUCAO", label: "Saída / Devolução" }, { value: "LAUDO", label: "Laudo técnico" }, { value: "COMPROVANTE", label: "Comprovante" }, { value: "CUSTOM", label: "Personalizado" }]} /></Field>
               <Field label="Descrição" wide><textarea className={cn(INPUT, "min-h-20 resize-y")} value={value.description} onChange={e => setValue(v => ({ ...v, description: e.target.value }))} /></Field>
-              <Field label="Orientação"><select className={INPUT} value={value.orientation} onChange={e => setValue(v => ({ ...v, orientation: e.target.value as any }))}><option value="portrait">Retrato</option><option value="landscape">Paisagem</option></select></Field>
-              <Field label="Papel"><select className={INPUT} value={value.paper_size} disabled><option>A4</option></select></Field>
+              <Field label="Orientação"><AdminSelect value={value.orientation} onValueChange={orientation => setValue(v => ({ ...v, orientation: orientation as typeof v.orientation }))} ariaLabel="Orientação" options={[{ value: "portrait", label: "Retrato" }, { value: "landscape", label: "Paisagem" }]} /></Field>
+              <Field label="Papel"><AdminSelect value={value.paper_size} onValueChange={() => undefined} disabled ariaLabel="Papel" options={[{ value: "A4", label: "A4" }]} /></Field>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{(["margin_top", "margin_right", "margin_bottom", "margin_left"] as const).map((key, index) => <Field key={key} label={["Margem superior", "Direita", "Inferior", "Esquerda"][index]}><FIntegerInput value={String(value[key])} onChange={(e: any) => setValue(v => ({ ...v, [key]: Number(e.target.value || 0) }))} /></Field>)}</div>
@@ -86,8 +86,8 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
             <h3 className="font-black text-[#0d1b2e]">Aparência da impressão</h3>
             <p className="mt-1 text-xs text-[#5a6a82]">Estas configurações são aplicadas igualmente na pré-visualização e no documento impresso.</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <Field label="Fonte"><select className={INPUT} value={value.layout.font_family} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, font_family: e.target.value as typeof v.layout.font_family } }))}><option value="Arial">Arial</option><option value="Inter">Inter</option><option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option></select></Field>
-              <Field label="Estilo das informações"><select className={INPUT} value={value.layout.section_style} onChange={e => setValue(v => ({ ...v, layout: { ...v.layout, section_style: e.target.value as typeof v.layout.section_style } }))}><option value="lines">Linhas</option><option value="boxed">Blocos</option><option value="table">Tabela</option></select></Field>
+              <Field label="Fonte"><AdminSelect value={value.layout.font_family} onValueChange={font_family => setValue(v => ({ ...v, layout: { ...v.layout, font_family: font_family as typeof v.layout.font_family } }))} ariaLabel="Fonte" options={[{ value: "Arial", label: "Arial" }, { value: "Inter", label: "Inter" }, { value: "Times New Roman", label: "Times New Roman" }, { value: "Courier New", label: "Courier New" }]} /></Field>
+              <Field label="Estilo das informações"><AdminSelect value={value.layout.section_style} onValueChange={section_style => setValue(v => ({ ...v, layout: { ...v.layout, section_style: section_style as typeof v.layout.section_style } }))} ariaLabel="Estilo das informações" options={[{ value: "lines", label: "Linhas" }, { value: "boxed", label: "Blocos" }, { value: "table", label: "Tabela" }]} /></Field>
               <Field label="Texto (pt)"><FIntegerInput value={String(value.layout.body_font_size)} onChange={(e: any) => setValue(v => ({ ...v, layout: { ...v.layout, body_font_size: Number(e.target.value || 0) } }))} /></Field>
               <Field label="Rótulos (pt)"><FIntegerInput value={String(value.layout.label_font_size)} onChange={(e: any) => setValue(v => ({ ...v, layout: { ...v.layout, label_font_size: Number(e.target.value || 0) } }))} /></Field>
               <Field label="Título das seções (pt)"><FIntegerInput value={String(value.layout.section_title_font_size)} onChange={(e: any) => setValue(v => ({ ...v, layout: { ...v.layout, section_title_font_size: Number(e.target.value || 0) } }))} /></Field>
