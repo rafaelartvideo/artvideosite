@@ -68,106 +68,64 @@ as $$
   );
 $$;
 
--- Helper privado que materializa as permissões do contexto selecionado. Para
--- membros diretos usa a função/overrides da própria empresa. Para operadores da
--- plataforma preserva a semântica existente e usa a função/overrides da empresa
--- operadora quando o alvo é administrado pela plataforma.
-create or replace function private.current_organization_permissions(
-  p_organization_id uuid
-)
-returns table(permission_key text)
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  with direct_access as (
-    select
-      member.organization_id as access_organization_id,
-      member.role_id
-    from public.organization_members member
-    join public.organizations organization
-      on organization.id = member.organization_id
-    where member.organization_id = p_organization_id
-      and member.user_id = (select auth.uid())
-      and member.status = 'active'
-      and organization.status = 'active'
-  ),
-  platform_access as (
-    select
-      platform_member.organization_id as access_organization_id,
-      platform_member.role_id
-    from public.organization_members platform_member
-    join public.organizations platform
-      on platform.id = platform_member.organization_id
-    join public.organizations target
-      on target.id = p_organization_id
-    where platform_member.user_id = (select auth.uid())
-      and platform_member.status = 'active'
-      and platform.status = 'active'
-      and target.status = 'active'
-      and private.is_platform_organization(platform.id)
-      and private.has_organization_permission(
-        platform.id,
-        'organizations.view'
-      )
-  ),
-  access_memberships as (
-    select * from direct_access
-    union
-    select * from platform_access
-  ),
-  role_permissions_effective as (
-    select permission.key as permission_key
-    from access_memberships access_membership
-    join public.role_permissions role_permission
-      on role_permission.role_id = access_membership.role_id
-    join public.permissions permission
-      on permission.id = role_permission.permission_id
-    where access_membership.role_id is not null
-  ),
-  individual_permissions_effective as (
-    select permission.key as permission_key
-    from access_memberships access_membership
-    join public.user_permission_overrides override_permission
-      on override_permission.organization_id = access_membership.access_organization_id
-     and override_permission.user_id = (select auth.uid())
-    join public.permissions permission
-      on permission.id = override_permission.permission_id
-  )
-  select permission_key
-  from (
-    select permission_key from role_permissions_effective
-    union
-    select permission_key from individual_permissions_effective
-  ) effective_permissions
-  order by permission_key;
-$$;
-
--- A API pública permanece SECURITY INVOKER. O acesso privilegiado às tabelas de
--- autorização fica encapsulado apenas no helper do schema private, que não é um
--- schema exposto pela Data API.
-create or replace function public.my_organization_permissions(
-  p_organization_id uuid
-)
-returns table(permission_key text)
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select permission_key
-  from private.current_organization_permissions(p_organization_id);
-$$;
-
 revoke all on function private.has_organization_permission(uuid, text) from public;
-revoke all on function private.current_organization_permissions(uuid) from public;
-revoke all on function public.my_organization_permissions(uuid) from public;
-revoke all on function public.my_organization_permissions(uuid) from anon;
-
 grant execute on function private.has_organization_permission(uuid, text) to authenticated;
-grant execute on function private.current_organization_permissions(uuid) to authenticated;
-grant execute on function public.my_organization_permissions(uuid) to authenticated;
+
+-- Permite que SECURITY INVOKER calcule as permissões do próprio membership sem
+-- abrir funções/tabelas de autorização de outros usuários. Mantemos as regras
+-- legadas e acrescentamos os roles vinculados ao próprio usuário por organização.
+drop policy if exists role_permissions_view on public.role_permissions;
+create policy role_permissions_view
+on public.role_permissions
+for select
+to authenticated
+using (
+  role_id = (
+    select profile.role_id
+    from public.profiles profile
+    where profile.id = (select auth.uid())
+  )
+  or exists (
+    select 1
+    from public.organization_members member
+    where member.user_id = (select auth.uid())
+      and member.status = 'active'
+      and member.role_id = role_permissions.role_id
+  )
+  or private.has_permission('roles.view')
+);
+
+drop policy if exists permissions_view on public.permissions;
+create policy permissions_view
+on public.permissions
+for select
+to authenticated
+using (
+  private.has_permission('roles.view')
+  or exists (
+    select 1
+    from public.profiles own_profile
+    join public.role_permissions own_role_permission
+      on own_role_permission.role_id = own_profile.role_id
+    where own_profile.id = (select auth.uid())
+      and own_role_permission.permission_id = permissions.id
+  )
+  or exists (
+    select 1
+    from public.organization_members member
+    join public.role_permissions member_role_permission
+      on member_role_permission.role_id = member.role_id
+    where member.user_id = (select auth.uid())
+      and member.status = 'active'
+      and member_role_permission.permission_id = permissions.id
+  )
+  or exists (
+    select 1
+    from public.user_permission_overrides own_override
+    where own_override.user_id = (select auth.uid())
+      and own_override.permission_id = permissions.id
+  )
+);
 
 drop policy if exists user_permission_overrides_select on public.user_permission_overrides;
 create policy user_permission_overrides_select
@@ -212,5 +170,100 @@ using (
     'roles.permissions.manage'
   )
 );
+
+-- SECURITY INVOKER: o RPC usa apenas linhas que o usuário autenticado pode ler
+-- pelas policies acima. O contexto da plataforma é preservado sem chamar helpers
+-- privados a partir do schema public.
+create or replace function public.my_organization_permissions(
+  p_organization_id uuid
+)
+returns table(permission_key text)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with direct_access as (
+    select
+      member.organization_id as access_organization_id,
+      member.role_id
+    from public.organization_members member
+    join public.organizations organization
+      on organization.id = member.organization_id
+    where member.organization_id = p_organization_id
+      and member.user_id = (select auth.uid())
+      and member.status = 'active'
+      and organization.status = 'active'
+  ),
+  platform_access as (
+    select
+      platform_member.organization_id as access_organization_id,
+      platform_member.role_id
+    from public.organization_members platform_member
+    join public.organizations platform
+      on platform.id = platform_member.organization_id
+    join public.organizations target
+      on target.id = p_organization_id
+    where platform_member.user_id = (select auth.uid())
+      and platform_member.status = 'active'
+      and platform.status = 'active'
+      and target.status = 'active'
+      and platform.id = '00000000-0000-4000-8000-000000000001'::uuid
+      and coalesce((platform.settings ->> 'is_platform_operator')::boolean, false)
+      and (
+        exists (
+          select 1
+          from public.role_permissions platform_role_permission
+          join public.permissions platform_permission
+            on platform_permission.id = platform_role_permission.permission_id
+          where platform_role_permission.role_id = platform_member.role_id
+            and platform_permission.key = 'organizations.view'
+        )
+        or exists (
+          select 1
+          from public.user_permission_overrides platform_override
+          join public.permissions platform_override_permission
+            on platform_override_permission.id = platform_override.permission_id
+          where platform_override.organization_id = platform_member.organization_id
+            and platform_override.user_id = platform_member.user_id
+            and platform_override_permission.key = 'organizations.view'
+        )
+      )
+  ),
+  access_memberships as (
+    select * from direct_access
+    union
+    select * from platform_access
+  ),
+  role_permissions_effective as (
+    select permission.key as permission_key
+    from access_memberships access_membership
+    join public.role_permissions role_permission
+      on role_permission.role_id = access_membership.role_id
+    join public.permissions permission
+      on permission.id = role_permission.permission_id
+    where access_membership.role_id is not null
+  ),
+  individual_permissions_effective as (
+    select permission.key as permission_key
+    from access_memberships access_membership
+    join public.user_permission_overrides override_permission
+      on override_permission.organization_id = access_membership.access_organization_id
+     and override_permission.user_id = (select auth.uid())
+    join public.permissions permission
+      on permission.id = override_permission.permission_id
+  )
+  select permission_key
+  from (
+    select permission_key from role_permissions_effective
+    union
+    select permission_key from individual_permissions_effective
+  ) effective_permissions
+  order by permission_key;
+$$;
+
+revoke all on function public.my_organization_permissions(uuid) from public;
+revoke all on function public.my_organization_permissions(uuid) from anon;
+grant execute on function public.my_organization_permissions(uuid) to authenticated;
 
 commit;
