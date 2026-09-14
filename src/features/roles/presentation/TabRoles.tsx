@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit2, Plus, ShieldCheck } from "lucide-react";
+import { ChevronDown, Edit2, Plus, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   addRolePermission,
@@ -80,6 +80,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<RoleRecord | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -118,6 +119,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
 
   useEffect(() => {
     let cancelled = false;
+    setExpandedGroups([]);
     if (!editorOpen) {
       setEditing(null);
       setForm(emptyForm());
@@ -201,6 +203,10 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       });
       return { ...current, selected: Array.from(selected) };
     });
+  };
+
+  const toggleExpandedGroup = (name: string) => {
+    setExpandedGroups(current => current.includes(name) ? current.filter(item => item !== name) : [...current, name]);
   };
 
   const closeEditor = () => onRouteChange?.(null, null);
@@ -299,29 +305,57 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
         </Section>
 
         <Section title="Permissões">
-          <div className="space-y-4">
+          <div className="divide-y divide-[#0d1b2e]/8 border-y border-[#0d1b2e]/8">
             {permissionGroups.map(group => {
+              const expanded = expandedGroups.includes(group.name);
               const allGroup = group.permissions.length > 0 && group.permissions.every(permission => form.selected.includes(permission.id));
-              return <div key={group.name} className="overflow-hidden rounded-xl border border-[#0d1b2e]/10">
-                <button type="button" disabled={!canManagePermissions} onClick={() => toggleGroup(group.permissions)} className="flex w-full items-center gap-3 bg-[#f8fafc] px-4 py-3 text-left disabled:cursor-default">
-                  <Checkbox checked={allGroup} tabIndex={-1} />
-                  <span className="text-sm font-black text-[#0d1b2e]">{group.name}</span>
-                  <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-[#8a98aa]">{group.permissions.filter(permission => form.selected.includes(permission.id)).length}/{group.permissions.length}</span>
-                </button>
-                <div className="space-y-4 p-4">
-                  {group.sections.map(section => <div key={section.name}>
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">{section.name}</div>
-                    <div className="grid gap-2 md:grid-cols-2">
+              const selectedCount = group.permissions.filter(permission => form.selected.includes(permission.id)).length;
+              return <div key={group.name}>
+                <div className="flex items-center gap-3 py-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpandedGroup(group.name)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    aria-expanded={expanded}
+                  >
+                    <ChevronDown size={17} className={`shrink-0 text-[#5a6a82] transition-transform ${expanded ? "rotate-180" : ""}`} />
+                    <span className="min-w-0 flex-1 text-sm font-black text-[#0d1b2e]">{group.name}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8a98aa]">{selectedCount}/{group.permissions.length}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canManagePermissions}
+                    onClick={() => toggleGroup(group.permissions)}
+                    className="inline-flex shrink-0 items-center gap-2 text-xs font-bold text-[#5a6a82] disabled:cursor-default disabled:opacity-50"
+                    title={allGroup ? "Desmarcar grupo" : "Marcar grupo"}
+                  >
+                    <Checkbox checked={allGroup} tabIndex={-1} /> Todos
+                  </button>
+                </div>
+
+                {expanded && <div className="border-t border-[#0d1b2e]/8 pb-2 pl-0 sm:pl-7">
+                  {group.sections.map(section => <div key={section.name} className="border-b border-[#0d1b2e]/8 py-4 last:border-b-0">
+                    <div className="mb-3 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">{section.name}</div>
+                    <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
                       {section.permissions.map(permission => {
                         const checked = form.selected.includes(permission.id);
-                        return <button key={permission.id} type="button" disabled={!canManagePermissions} onClick={() => togglePermission(permission)} className={`flex min-w-0 items-start gap-3 rounded-lg border p-3 text-left disabled:cursor-default ${checked ? "border-[#0057e7]/40 bg-[#0057e7]/5" : "border-[#0d1b2e]/10 bg-white"}`}>
+                        return <button
+                          key={permission.id}
+                          type="button"
+                          disabled={!canManagePermissions}
+                          onClick={() => togglePermission(permission)}
+                          className="flex min-w-0 items-start gap-3 border-b border-[#0d1b2e]/8 py-3 text-left disabled:cursor-default"
+                        >
                           <Checkbox checked={checked} tabIndex={-1} />
-                          <span className="min-w-0"><span className="block text-xs font-bold text-[#0d1b2e]">{permissionLabel(permission)}</span>{permission.description && <span className="mt-1 block text-[11px] leading-relaxed text-[#5a6a82]">{permission.description}</span>}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-xs font-bold text-[#0d1b2e]">{permissionLabel(permission)}</span>
+                            {permission.description && <span className="mt-1 block text-[11px] leading-relaxed text-[#5a6a82]">{permission.description}</span>}
+                          </span>
                         </button>;
                       })}
                     </div>
                   </div>)}
-                </div>
+                </div>}
               </div>;
             })}
           </div>
