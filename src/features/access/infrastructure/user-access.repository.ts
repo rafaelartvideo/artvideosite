@@ -20,18 +20,43 @@ export type SaveEmployeeAccessInput = {
   uniqSubscriberId?: string | null;
 };
 
+const EMPLOYEE_ACCESS_CACHE_TTL = 60_000;
+const employeeAccessCache = new Map<string, { at: number; result: any }>();
+const employeeAccessPending = new Map<string, Promise<any>>();
+
+function employeeAccessKey(organizationId: string, employeeId: string) {
+  return `${organizationId}:${employeeId}`;
+}
+
 export async function getEmployeeAccess(organizationId: string, employeeId: string) {
-  return supabase.functions.invoke("employee-access", {
+  const key = employeeAccessKey(organizationId, employeeId);
+  const cached = employeeAccessCache.get(key);
+  if (cached && Date.now() - cached.at < EMPLOYEE_ACCESS_CACHE_TTL) return cached.result;
+
+  const pending = employeeAccessPending.get(key);
+  if (pending) return pending;
+
+  const request = supabase.functions.invoke("employee-access", {
     body: {
       action: "get_employee_access",
       organization_id: organizationId,
       employee_id: employeeId,
     },
+  }).then(result => {
+    employeeAccessPending.delete(key);
+    if (!result.error) employeeAccessCache.set(key, { at: Date.now(), result });
+    return result;
+  }, error => {
+    employeeAccessPending.delete(key);
+    throw error;
   });
+
+  employeeAccessPending.set(key, request);
+  return request;
 }
 
 export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
-  return supabase.functions.invoke("employee-access", {
+  const result = await supabase.functions.invoke("employee-access", {
     body: {
       action: "upsert_employee_access",
       organization_id: input.organizationId,
@@ -43,6 +68,8 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
       uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
     },
   });
+  if (!result.error) employeeAccessCache.delete(employeeAccessKey(input.organizationId, input.employeeId));
+  return result;
 }
 
 export const listObservedUniqSubscribers = () => supabase.rpc("observed_uniq_subscribers");
