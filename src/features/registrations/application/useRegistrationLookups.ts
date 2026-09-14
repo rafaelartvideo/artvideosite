@@ -1,30 +1,41 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import type { Address } from "@/lib/address";
 import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
 import { applyCnpjData, type CustomerForm } from "@/features/customers/domain/customer-form";
 import { foundationDateFromIso, isValidCnpj, isValidCpf } from "@/shared/domain/formatters";
-import type { RegistrationFormState } from "../domain/registration-form";
+import {
+  emptyRegistrationAddress,
+  type RegistrationAddressForm,
+  type RegistrationFormState,
+} from "../domain/registration-form";
+import { findRegistrationByDocument } from "../infrastructure/registrations.repository";
 
 export function useRegistrationLookups({
   organizationId,
   registrationId,
   form,
-  address,
+  addresses,
   setForm,
-  setAddress,
+  setAddresses,
 }: {
   organizationId: string | null;
   registrationId?: string | null;
   form: RegistrationFormState;
-  address: Address;
+  addresses: RegistrationAddressForm[];
   setForm: Dispatch<SetStateAction<RegistrationFormState>>;
-  setAddress: Dispatch<SetStateAction<Address>>;
+  setAddresses: Dispatch<SetStateAction<RegistrationAddressForm[]>>;
 }) {
   const [cpfLoading, setCpfLoading] = useState(false);
   const [cpfError, setCpfError] = useState("");
   const [cnpjLoading, setCnpjLoading] = useState(false);
-  const [cnpjMessage, setCnpjMessage] = useState("");
+  const [cnpjError, setCnpjError] = useState("");
+
+  const findDuplicate = async (value: string) => {
+    if (!organizationId) return null;
+    const existing = await findRegistrationByDocument(organizationId, value, registrationId);
+    if (existing.error) throw existing.error;
+    return existing.data;
+  };
 
   const lookupCpfName = async (value = form.document) => {
     if (!organizationId) return;
@@ -35,6 +46,11 @@ export function useRegistrationLookups({
     setCpfLoading(true);
     setCpfError("");
     try {
+      const duplicate = await findDuplicate(value);
+      if (duplicate) {
+        setCpfError(`Cadastro já existente: ${duplicate.name}.`);
+        return;
+      }
       const result = await lookupCpf(value, organizationId, registrationId);
       setForm(current => ({
         ...current,
@@ -50,15 +66,22 @@ export function useRegistrationLookups({
 
   const lookupCnpj = async (value = form.document) => {
     const digits = value.replace(/\D/g, "");
-    if (digits.length < 14) return;
     if (!isValidCnpj(digits)) {
-      setCnpjMessage("CNPJ inválido. Verifique os números informados.");
+      setCnpjError("CNPJ inválido. Verifique os números informados.");
       return;
     }
     setCnpjLoading(true);
-    setCnpjMessage("");
+    setCnpjError("");
     try {
+      const duplicate = await findDuplicate(digits);
+      if (duplicate) {
+        setCnpjError(`Cadastro já existente: ${duplicate.name}.`);
+        return;
+      }
+
       const data = await fetchCnpjData(digits);
+      const primaryIndex = Math.max(0, addresses.findIndex(address => address.is_primary));
+      const currentAddress = addresses[primaryIndex] || emptyRegistrationAddress(true);
       const customerForm: CustomerForm = {
         customerType: "PJ",
         full_name: form.trade_name || form.name,
@@ -73,7 +96,7 @@ export function useRegistrationLookups({
         foundation_date: form.foundation_date,
         birth_date: "",
       };
-      const result = applyCnpjData(customerForm, address, data);
+      const result = applyCnpjData(customerForm, currentAddress, data);
       setForm(current => ({
         ...current,
         name: result.form.trade_name || result.form.legal_name || current.name,
@@ -85,10 +108,21 @@ export function useRegistrationLookups({
         phone: result.form.phone,
         whatsapp: result.form.whatsapp,
       }));
-      setAddress(result.address);
-      setCnpjMessage("Dados localizados e preenchidos.");
+      setAddresses(current => {
+        const next = current.length ? [...current] : [emptyRegistrationAddress(true)];
+        const index = Math.max(0, next.findIndex(address => address.is_primary));
+        next[index] = {
+          ...next[index],
+          ...result.address,
+          id: next[index]?.id,
+          type: next[index]?.type || "Principal",
+          is_primary: true,
+          is_default: true,
+        };
+        return next;
+      });
     } catch (error) {
-      setCnpjMessage(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
+      setCnpjError(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
     } finally {
       setCnpjLoading(false);
     }
@@ -100,8 +134,8 @@ export function useRegistrationLookups({
     setCpfError,
     lookupCpfName,
     cnpjLoading,
-    cnpjMessage,
-    setCnpjMessage,
+    cnpjError,
+    setCnpjError,
     lookupCnpj,
   };
 }
