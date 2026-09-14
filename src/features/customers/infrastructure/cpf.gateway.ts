@@ -5,33 +5,39 @@ export type CpfLookupResult = {
   birthDate: string | null;
 };
 
-async function ensureCpfIsNotRegistered(cpf: string, organizationId: string) {
-  const { data, error } = await supabase
-    .from("customers")
-    .select("id,full_name")
+async function ensureCpfIsNotRegistered(cpf: string, organizationId: string, excludeRegistrationId?: string | null) {
+  let query = supabase
+    .from("entities")
+    .select("id,name")
     .eq("organization_id", organizationId)
-    .eq("document", cpf)
-    .maybeSingle();
+    .eq("document", cpf);
+
+  if (excludeRegistrationId) query = query.neq("id", excludeRegistrationId);
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
-    console.error("[CPF LOOKUP] local customer check failed", error);
+    console.error("[CPF LOOKUP] local registration check failed", error);
     throw new Error("Não foi possível verificar se este CPF já está cadastrado. A consulta externa não foi realizada.");
   }
 
   if (data) {
-    const customerName = String(data.full_name || "").trim();
-    throw new Error(customerName
-      ? `Cliente já cadastrado: ${customerName}. Use o cadastro existente.`
-      : "Cliente já cadastrado. Use o cadastro existente.");
+    const registrationName = String(data.name || "").trim();
+    throw new Error(registrationName
+      ? `Cadastro já existente: ${registrationName}. Use o cadastro existente.`
+      : "CPF já cadastrado. Use o cadastro existente.");
   }
 }
 
-export async function lookupCpf(cpf: string, organizationId: string): Promise<CpfLookupResult> {
+export async function lookupCpf(
+  cpf: string,
+  organizationId: string,
+  excludeRegistrationId?: string | null,
+): Promise<CpfLookupResult> {
   const digits = cpf.replace(/\D/g, "");
   if (!organizationId) throw new Error("Empresa ativa não informada para a consulta de CPF.");
 
   // Sempre consulta a base interna primeiro para evitar consumo desnecessário da API externa.
-  await ensureCpfIsNotRegistered(digits, organizationId);
+  await ensureCpfIsNotRegistered(digits, organizationId, excludeRegistrationId);
 
   const { data, error } = await supabase.functions.invoke("lookup-cpf", {
     body: { cpf: digits },
