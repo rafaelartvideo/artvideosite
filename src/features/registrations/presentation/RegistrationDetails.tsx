@@ -1,7 +1,11 @@
-import { Edit2, MapPin, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertCircle, CheckCircle, Edit2, MapPin, ShieldCheck } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
-import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { useAuth } from "@/lib/auth";
+import { AdminButton, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { formatCnpj, formatCpf, formatDateOnly, formatPhone } from "@/shared/domain/formatters";
+import { setEmployeeAccessActive } from "@/features/access/infrastructure/user-access.repository";
 import { activeRegistrationRoles } from "../domain/registration-form";
 import type { Registration, RegistrationRole, SupplierInventoryItem } from "../infrastructure/registrations.repository";
 import type { EmployeeAccessFormState } from "@/features/access/presentation/UserAccessSection";
@@ -64,13 +68,42 @@ export function RegistrationDetails({
   onOpenCustomerHistory?: (customerId: string) => void;
   onOpenPermissions: () => void;
 }) {
+  const { activeOrganizationId, hasPermission } = useAuth();
   const roles = activeRegistrationRoles(selected);
   const employee = selected.employee_details?.[0];
+  const canToggleAccess = hasPermission("employees.toggle_active");
+  const [accessActive, setAccessActive] = useState(employee?.is_active !== false && accessForm.enabled !== false);
+  const [togglingAccess, setTogglingAccess] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const activeAddresses = (selected.addresses || [])
     .filter(address => address.is_active !== false)
     .sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
 
+  useEffect(() => {
+    setAccessActive(employee?.is_active !== false && accessForm.enabled !== false);
+  }, [selected.id, employee?.is_active, accessForm.enabled]);
+
+  const toggleAccess = async () => {
+    if (!activeOrganizationId || !selected.legacy_employee_id || !accessExisting || !canToggleAccess || togglingAccess) return;
+    const next = !accessActive;
+    setTogglingAccess(true);
+    try {
+      const { error } = await setEmployeeAccessActive(activeOrganizationId, selected.legacy_employee_id, next);
+      if (error) throw error;
+      setAccessActive(next);
+      if (employee) employee.is_active = next;
+      accessForm.enabled = next;
+      setToast({ msg: next ? "Usuário ativado." : "Usuário inativado. O acesso ao sistema foi bloqueado.", type: "success" });
+    } catch (error) {
+      const message = error && typeof error === "object" && "message" in error ? String((error as any).message || "Erro desconhecido") : String(error || "Erro desconhecido");
+      setToast({ msg: `Erro ao alterar usuário: ${message}`, type: "error" });
+    } finally {
+      setTogglingAccess(false);
+    }
+  };
+
   return <AdminPage open onClose={onClose} breadcrumb="Cadastros" title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-6xl">
+    {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <div className="space-y-5 p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
         {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
@@ -124,7 +157,7 @@ export function RegistrationDetails({
         {canViewAccess && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-5" aria-busy={accessLoading}>
           <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
           <div className="grid gap-4 sm:grid-cols-3">
-            {detailValue("Status", accessExisting ? (accessForm.enabled ? "Habilitado" : "Bloqueado") : "Sem login")}
+            {detailValue("Status", accessExisting ? (accessActive ? "Ativo" : "Inativo") : "Sem login")}
             {detailValue("E-mail de acesso", accessForm.email || "—")}
             {detailValue("Função vinculada", accessForm.role_id ? "Configurada" : "—")}
           </div>
@@ -140,6 +173,7 @@ export function RegistrationDetails({
       <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>
       {roles.includes("customer") && selected.legacy_customer_id && onOpenCustomerHistory && <BtnSecondary onClick={() => onOpenCustomerHistory(selected.legacy_customer_id!)}>Ficha do cliente</BtnSecondary>}
       {roles.includes("employee") && permissionUserId && canViewPermissionOverrides && <BtnSecondary onClick={onOpenPermissions}><ShieldCheck size={15} /> Acessos e permissões</BtnSecondary>}
+      {roles.includes("employee") && accessExisting && selected.legacy_employee_id && canToggleAccess && <AdminButton variant={accessActive ? "danger" : "secondary"} onClick={() => void toggleAccess()} disabled={togglingAccess}>{accessActive ? <><AlertCircle size={15} /> Inativar usuário</> : <><CheckCircle size={15} /> Ativar usuário</>}</AdminButton>}
       {canEdit && <BtnPrimary onClick={onEdit}><Edit2 size={15} /> Editar cadastro</BtnPrimary>}
     </div>
   </AdminPage>;
