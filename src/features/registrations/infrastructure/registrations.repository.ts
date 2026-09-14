@@ -61,7 +61,7 @@ const REGISTRATION_SELECT = `
   created_at,updated_at,
   roles:entity_roles(role,is_active),
   employee_details:entity_employee_details(job_title,team_name,admission_date,profile_id,role_id,uniq_subscriber_id),
-  addresses:entity_addresses(id,type,zip_code,state,city,neighborhood,street,number,complement,reference,location_url,is_primary,is_active)
+  addresses:entity_addresses!entity_addresses_entity_organization_fkey(id,type,zip_code,state,city,neighborhood,street,number,complement,reference,location_url,is_primary,is_active)
 `;
 
 function normalizeRegistration<T extends Record<string, any> | null>(row: T): T {
