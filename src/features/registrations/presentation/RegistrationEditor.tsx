@@ -117,8 +117,7 @@ export function RegistrationEditor({
               <BtnSecondary className="h-[42px] shrink-0 px-4" onClick={() => void lookups.lookupCpfName()} disabled={lookups.cpfLoading}>Consultar</BtnSecondary>
             </div>
           </div>
-          <div />
-          <div className="sm:col-span-2"><FInput label="Nome completo" required value={form.name} onChange={(event: any) => setForm(current => ({ ...current, name: event.target.value }))} /></div>
+          <FInput label="Nome completo" required value={form.name} onChange={(event: any) => setForm(current => ({ ...current, name: event.target.value }))} />
           <FPhoneInput label="Telefone" value={form.phone} onChange={(event: any) => setForm(current => ({ ...current, phone: event.target.value }))} />
           <FPhoneInput label="WhatsApp" mobile value={form.whatsapp} onChange={(event: any) => setForm(current => ({ ...current, whatsapp: event.target.value }))} />
           <FBrazilianDateInput label="Data de nascimento" required value={form.birth_date} onChange={(event: any) => setForm(current => ({ ...current, birth_date: event.target.value }))} />
