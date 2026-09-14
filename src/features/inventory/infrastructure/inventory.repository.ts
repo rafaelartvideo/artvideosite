@@ -43,15 +43,19 @@ const SAFE_ITEM_COLUMNS = [
   "updated_at",
 ].join(",");
 
-const COST_ITEM_COLUMNS = "purchase_price,average_cost,last_supplier_entity_id,last_purchase_at";
+const COST_ITEM_COLUMNS = [
+  "purchase_price",
+  "average_cost",
+  "last_supplier_entity_id",
+  "last_purchase_at",
+  "last_supplier:entities!inventory_items_last_supplier_org_fkey(id,name,legal_name,trade_name,document,person_type,is_active)",
+].join(",");
 
 const factorOf = (item: any) => Math.max(1, Number(item?.conversion_factor ?? 1) || 1);
 const isBox = (item: any) => String(item?.unit || "un").toLowerCase() === "cx";
 
 async function resolveOrganizationId(organizationIdOverride?: string | null) {
-  const normalizedOverride = typeof organizationIdOverride === "string"
-    ? organizationIdOverride.trim()
-    : "";
+  const normalizedOverride = typeof organizationIdOverride === "string" ? organizationIdOverride.trim() : "";
   return normalizedOverride || await getActiveOrganizationId();
 }
 
@@ -92,20 +96,14 @@ function toBaseUpdatePayload(payload: Record<string, unknown>) {
     storage_level: String(payload.storage_level || "").trim() || null,
     storage_compartment: String(payload.storage_compartment || "").trim() || null,
   };
-
   if (payload.min_quantity != null) base.min_quantity = Number(payload.min_quantity || 0) * factor;
   if (payload.sale_price !== undefined) {
-    base.sale_price = payload.sale_price == null || payload.sale_price === ""
-      ? null
-      : Number(payload.sale_price) / factor;
+    base.sale_price = payload.sale_price == null || payload.sale_price === "" ? null : Number(payload.sale_price) / factor;
   }
   return base;
 }
 
-export async function listInventoryItems(
-  organizationIdOverride?: string | null,
-  includeCosts = false,
-) {
+export async function listInventoryItems(organizationIdOverride?: string | null, includeCosts = false) {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const columns = includeCosts ? `${SAFE_ITEM_COLUMNS},${COST_ITEM_COLUMNS}` : SAFE_ITEM_COLUMNS;
   const { data, error } = await supabase
@@ -113,15 +111,11 @@ export async function listInventoryItems(
     .select(columns)
     .eq("organization_id", organizationId)
     .order("name");
-
   if (error) throw error;
   return (data ?? []).map(toDisplayItem);
 }
 
-export async function createInventoryItem(
-  payload: Record<string, unknown>,
-  organizationIdOverride?: string | null,
-): Promise<string> {
+export async function createInventoryItem(payload: Record<string, unknown>, organizationIdOverride?: string | null): Promise<string> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data, error } = await supabase.rpc("create_inventory_item", {
     p_organization_id: organizationId,
@@ -139,9 +133,7 @@ export async function createInventoryItem(
     p_supplier_entity_ids: Array.isArray(payload.supplier_entity_ids) ? payload.supplier_entity_ids : [],
     p_initial_quantity: Number(payload.initial_quantity ?? payload.quantity ?? 0),
     p_initial_supplier_entity_id: String(payload.initial_supplier_entity_id || "") || null,
-    p_initial_unit_cost: payload.initial_unit_cost == null || payload.initial_unit_cost === ""
-      ? (payload.purchase_price == null || payload.purchase_price === "" ? null : Number(payload.purchase_price))
-      : Number(payload.initial_unit_cost),
+    p_initial_unit_cost: payload.initial_unit_cost == null || payload.initial_unit_cost === "" ? null : Number(payload.initial_unit_cost),
     p_initial_reference: String(payload.initial_reference || "").trim() || null,
   });
   if (error) throw error;
@@ -149,31 +141,21 @@ export async function createInventoryItem(
   return String(data);
 }
 
-export async function saveInventoryItem(
-  payload: Record<string, unknown>,
-  itemId?: string,
-  organizationIdOverride?: string | null,
-): Promise<void> {
+export async function saveInventoryItem(payload: Record<string, unknown>, itemId?: string, organizationIdOverride?: string | null): Promise<void> {
   if (!itemId) {
     await createInventoryItem(payload, organizationIdOverride);
     return;
   }
-
   const organizationId = await resolveOrganizationId(organizationIdOverride);
-  const basePayload = toBaseUpdatePayload(payload);
   const { error } = await supabase
     .from("inventory_items")
-    .update(basePayload)
+    .update(toBaseUpdatePayload(payload))
     .eq("id", itemId)
     .eq("organization_id", organizationId);
   if (error) throw error;
 }
 
-export async function setInventoryItemActive(
-  itemId: string,
-  isActive: boolean,
-  organizationIdOverride?: string | null,
-): Promise<void> {
+export async function setInventoryItemActive(itemId: string, isActive: boolean, organizationIdOverride?: string | null): Promise<void> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { error } = await supabase
     .from("inventory_items")
@@ -183,9 +165,7 @@ export async function setInventoryItemActive(
   if (error) throw error;
 }
 
-export async function listAvailableInventorySuppliers(
-  organizationIdOverride?: string | null,
-): Promise<InventorySupplier[]> {
+export async function listAvailableInventorySuppliers(organizationIdOverride?: string | null): Promise<InventorySupplier[]> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data, error } = await supabase
     .from("entities")
@@ -207,10 +187,7 @@ export async function listAvailableInventorySuppliers(
   }));
 }
 
-export async function listInventoryItemSuppliers(
-  itemId: string,
-  organizationIdOverride?: string | null,
-): Promise<InventorySupplier[]> {
+export async function listInventoryItemSuppliers(itemId: string, organizationIdOverride?: string | null): Promise<InventorySupplier[]> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data: links, error: linksError } = await supabase
     .from("entity_supplier_items")
@@ -220,7 +197,6 @@ export async function listInventoryItemSuppliers(
   if (linksError) throw linksError;
   const ids = (links || []).map((link: any) => String(link.entity_id));
   if (!ids.length) return [];
-
   const { data, error } = await supabase
     .from("entities")
     .select("id,name,legal_name,trade_name,document,person_type,is_active")
@@ -231,11 +207,7 @@ export async function listInventoryItemSuppliers(
   return (data || []) as InventorySupplier[];
 }
 
-export async function syncInventoryItemSuppliers(
-  itemId: string,
-  supplierEntityIds: string[],
-  organizationIdOverride?: string | null,
-): Promise<void> {
+export async function syncInventoryItemSuppliers(itemId: string, supplierEntityIds: string[], organizationIdOverride?: string | null): Promise<void> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { error } = await supabase.rpc("sync_inventory_item_suppliers", {
     p_organization_id: organizationId,
@@ -245,58 +217,22 @@ export async function syncInventoryItemSuppliers(
   if (error) throw error;
 }
 
-export async function listInventoryMovements(
-  itemId: string,
-  organizationIdOverride?: string | null,
-  includeCosts = false,
-) {
+export async function listInventoryMovements(itemId: string, organizationIdOverride?: string | null, includeCosts = false) {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const movementColumns = [
-    "id",
-    "inventory_item_id",
-    "service_order_id",
-    "movement_type",
-    "quantity",
-    "reason",
-    "created_by",
-    "created_at",
-    "request_item_id",
-    "input_unit",
-    "input_quantity",
-    "conversion_factor_snapshot",
-    "supplier_entity_id",
-    "previous_quantity",
-    "resulting_quantity",
-    "purchase_reference",
-    "notes",
-    "movement_origin",
+    "id", "inventory_item_id", "service_order_id", "movement_type", "quantity", "reason", "created_by", "created_at",
+    "request_item_id", "input_unit", "input_quantity", "conversion_factor_snapshot", "supplier_entity_id", "previous_quantity",
+    "resulting_quantity", "purchase_reference", "notes", "movement_origin",
     includeCosts ? "unit_cost,input_unit_cost,total_cost,average_cost_before,average_cost_after" : "",
-    "created_by_profile:profiles(full_name)",
-    "service_order:service_orders(os_number)",
+    "created_by_profile:profiles(full_name)", "service_order:service_orders(os_number)",
     "supplier:entities!inventory_movements_supplier_org_fkey(id,name,legal_name,trade_name,document,person_type,is_active)",
   ].filter(Boolean).join(",");
 
   const [movementsResult, usedItemsResult, itemResult] = await Promise.all([
-    supabase
-      .from("inventory_movements")
-      .select(movementColumns)
-      .eq("inventory_item_id", itemId)
-      .eq("organization_id", organizationId)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("service_order_used_items")
-      .select("id,inventory_item_id,service_order_id,quantity,created_by,created_at,created_by_profile:profiles(full_name),service_order:service_orders(os_number)")
-      .eq("inventory_item_id", itemId)
-      .eq("organization_id", organizationId)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("inventory_items")
-      .select("id,unit,conversion_factor")
-      .eq("id", itemId)
-      .eq("organization_id", organizationId)
-      .maybeSingle(),
+    supabase.from("inventory_movements").select(movementColumns).eq("inventory_item_id", itemId).eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("service_order_used_items").select("id,inventory_item_id,service_order_id,quantity,created_by,created_at,created_by_profile:profiles(full_name),service_order:service_orders(os_number)").eq("inventory_item_id", itemId).eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("inventory_items").select("id,unit,conversion_factor").eq("id", itemId).eq("organization_id", organizationId).maybeSingle(),
   ]);
-
   if (movementsResult.error) throw movementsResult.error;
   if (usedItemsResult.error) throw usedItemsResult.error;
   if (itemResult.error) throw itemResult.error;
@@ -305,13 +241,10 @@ export async function listInventoryMovements(
   const physicalMovements = (movementsResult.data ?? []).map((movement: any) => {
     const baseQuantity = Number(movement.quantity || 0);
     const inputUnit = movement.input_unit === "cx" ? "cx" : "un";
-    const displayQuantity = movement.input_quantity != null
-      ? Number(movement.input_quantity)
-      : inputUnit === "cx" ? baseQuantity / factor : baseQuantity;
     return {
       ...movement,
       movement_type: String(movement.movement_type || "").toLowerCase(),
-      quantity: displayQuantity,
+      quantity: movement.input_quantity != null ? Number(movement.input_quantity) : inputUnit === "cx" ? baseQuantity / factor : baseQuantity,
       display_unit: inputUnit,
       base_quantity: baseQuantity,
     };
@@ -334,34 +267,20 @@ export async function listInventoryMovements(
     is_resolution_usage: true,
   }));
 
-  return [...physicalMovements, ...resolutionUsage].sort((a: any, b: any) =>
-    new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
-  );
+  return [...physicalMovements, ...resolutionUsage].sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 }
 
-export async function getInventoryItem(
-  itemId: string,
-  organizationIdOverride?: string | null,
-  includeCosts = false,
-) {
+export async function getInventoryItem(itemId: string, organizationIdOverride?: string | null, includeCosts = false) {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const columns = includeCosts
-    ? "id,name,unit,conversion_factor,quantity,min_quantity,is_active,purchase_price,average_cost,last_supplier_entity_id,last_purchase_at,sale_price"
+    ? "id,name,unit,conversion_factor,quantity,min_quantity,is_active,purchase_price,average_cost,last_supplier_entity_id,last_purchase_at,sale_price,last_supplier:entities!inventory_items_last_supplier_org_fkey(id,name,legal_name,trade_name,document,person_type,is_active)"
     : "id,name,unit,conversion_factor,quantity,min_quantity,is_active,sale_price";
-  const { data, error } = await supabase
-    .from("inventory_items")
-    .select(columns)
-    .eq("id", itemId)
-    .eq("organization_id", organizationId)
-    .maybeSingle();
+  const { data, error } = await supabase.from("inventory_items").select(columns).eq("id", itemId).eq("organization_id", organizationId).maybeSingle();
   if (error) throw error;
   return toDisplayItem(data);
 }
 
-export async function recordInventoryMovement(
-  movement: InventoryMovementInput,
-  organizationIdOverride?: string | null,
-): Promise<string> {
+export async function recordInventoryMovement(movement: InventoryMovementInput, organizationIdOverride?: string | null): Promise<string> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data, error } = await supabase.rpc("record_inventory_movement", {
     p_organization_id: organizationId,
