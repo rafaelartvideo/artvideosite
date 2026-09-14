@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { PackageSearch, Plus, Search, X } from "lucide-react";
-import { BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { PackageSearch, Plus, Search } from "lucide-react";
+import { Section } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
   listSupplierInventoryItems,
   type SupplierInventoryItem,
 } from "../infrastructure/registrations.repository";
+import { SupplierItemsTable } from "./SupplierItemsTable";
 
 export function SupplierItemsEditor({
   organizationId,
@@ -64,7 +65,7 @@ export function SupplierItemsEditor({
 
   return <Section title="Itens fornecidos">
     <div className="space-y-4">
-      {!disabled && <div className="relative">
+      {!disabled && <div className="relative max-w-xl">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
           <input
@@ -90,17 +91,11 @@ export function SupplierItemsEditor({
 
       {error && <p className="text-xs font-semibold text-red-600">Erro ao consultar estoque: {error}</p>}
 
-      {value.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/15 bg-[#f8fafc] p-5 text-center">
-        <PackageSearch size={22} className="mx-auto text-[#8a98aa]" />
-        <p className="mt-2 text-sm font-bold text-[#0d1b2e]">Nenhum item vinculado.</p>
-        <p className="mt-1 text-xs text-[#5a6a82]">Pesquise no estoque para informar o que este fornecedor fornece.</p>
-      </div> : <div className="grid gap-2 md:grid-cols-2">
-        {value.map(item => <div key={item.id} className="flex items-center gap-3 rounded-xl border border-[#0d1b2e]/10 bg-white p-3">
-          <PackageSearch size={17} className="shrink-0 text-[#0057e7]" />
-          <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold text-[#0d1b2e]">{item.name}</div><div className="truncate text-xs text-[#5a6a82]">{item.sku ? `SKU ${item.sku}` : "Sem SKU"}</div></div>
-          {!disabled && <BtnSecondary onClick={() => remove(item.id)} aria-label={`Remover ${item.name}`} title="Remover vínculo"><X size={14} /></BtnSecondary>}
-        </div>)}
-      </div>}
+      <SupplierItemsTable
+        items={value}
+        onRemove={disabled ? undefined : remove}
+        emptyText="Nenhum item vinculado. Pesquise no estoque para informar o que este fornecedor fornece."
+      />
     </div>
   </Section>;
 }
