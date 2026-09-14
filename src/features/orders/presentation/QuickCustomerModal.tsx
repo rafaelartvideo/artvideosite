@@ -1,8 +1,7 @@
 import React, { useRef, useState } from "react";
-import { Link2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AddressFields } from "@/shared/ui/address/AddressFields";
-import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
+import { normalizeSharedMapUrl, type Address } from "@/lib/address";
 import {
   applyCnpjData,
   customerPayload,
@@ -10,7 +9,7 @@ import {
   type CustomerForm,
   validateCustomerForm,
 } from "@/features/customers/domain/customer-form";
-import { AdminButton, AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
   CustomerTypeToggle,
   FBrazilianDateInput,
@@ -19,18 +18,22 @@ import {
   FEmailInput,
   FInput,
   FPhoneInput,
-  INPUT,
 } from "@/shared/ui/admin/AdminFormControls";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
 import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
 import { isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
 import {
   createQuickCustomer,
-  getQuickCustomerDefaultAddress,
-  saveOrderCustomerAddress,
+  createQuickCustomerAddress,
   updateOrderCustomer,
 } from "../infrastructure/orders-customer.repository";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
+import { QuickCustomerAddressesEditor, newQuickCustomerAddress } from "./QuickCustomerAddressesEditor";
+
+const hasAddressData = (address: Address) => Boolean(
+  address.zip_code || address.street || address.number || address.complement ||
+  address.neighborhood || address.city || address.state || address.reference || address.shared_map_url,
+);
 
 export function QuickCustomerModal({ onClose, onSaved }: {
   onClose: () => void;
@@ -38,10 +41,9 @@ export function QuickCustomerModal({ onClose, onSaved }: {
 }) {
   const { hasPermission, activeOrganizationId } = useAuth();
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
-  const [address, setAddress] = useState<Address>({ ...emptyAddress });
+  const [addresses, setAddresses] = useState<Address[]>(() => [newQuickCustomerAddress(true)]);
   const [createdCustomer, setCreatedCustomer] = useState<any>(null);
   const [saving, setSaving] = useState(false);
-  const [sharedAddressOpen, setSharedAddressOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [cpfLoading, setCpfLoading] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -84,10 +86,13 @@ export function QuickCustomerModal({ onClose, onSaved }: {
         setCreatedCustomer(data);
       }
 
-      if (Object.values(address).some(Boolean)) {
-        const { data: existingAddress, error: addressLookupError } = await getQuickCustomerDefaultAddress(activeOrganizationId, customer.id);
-        if (addressLookupError) throw addressLookupError;
+      const meaningfulAddresses = addresses.filter(hasAddressData);
+      const defaultAddressId = meaningfulAddresses.find(address => address.is_default)?.id || meaningfulAddresses[0]?.id;
+      const savedAddresses: Address[] = [];
+
+      for (const address of meaningfulAddresses) {
         const addressPayload = {
+          id: address.id || crypto.randomUUID(),
           customer_id: customer.id,
           zip_code: address.zip_code || null,
           street: address.street || null,
@@ -98,12 +103,14 @@ export function QuickCustomerModal({ onClose, onSaved }: {
           state: address.state || null,
           reference: address.reference || null,
           shared_map_url: normalizeSharedMapUrl(address.shared_map_url) || null,
-          is_default: true,
+          is_default: (address.id || null) === defaultAddressId,
         };
-        const addressResult = await saveOrderCustomerAddress(activeOrganizationId, existingAddress?.id || null, addressPayload);
-        if (addressResult.error) throw addressResult.error;
-        customer.addresses = [{ ...address, id: existingAddress?.id || address.id }];
+        const { data, error } = await createQuickCustomerAddress(activeOrganizationId, addressPayload);
+        if (error || !data) throw error || new Error("Não foi possível salvar um dos endereços do cliente.");
+        savedAddresses.push(data as Address);
       }
+
+      customer = { ...customer, addresses: savedAddresses };
       onSaved(customer);
       onClose();
     } catch (error) {
@@ -128,11 +135,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
       const result = await lookupCpf(requestedCpf, activeOrganizationId);
       setForm(current => {
         if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
-        return {
-          ...current,
-          full_name: result.name,
-          birth_date: result.birthDate || current.birth_date,
-        };
+        return { ...current, full_name: result.name, birth_date: result.birthDate || current.birth_date };
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Não foi possível consultar o CPF.");
@@ -146,9 +149,17 @@ export function QuickCustomerModal({ onClose, onSaved }: {
     if (digits.length !== 14 || form.customerType !== "PJ") return;
     setCnpjLoading(true); setCnpjMessage("");
     try {
+      const defaultIndex = Math.max(0, addresses.findIndex(address => address.is_default));
+      const baseAddress = addresses[defaultIndex] || newQuickCustomerAddress(true);
       const data = await fetchCnpjData(digits);
-      const result = applyCnpjData(baseForm, address, data);
-      setForm(result.form); setAddress(result.address);
+      const result = applyCnpjData(baseForm, baseAddress, data);
+      setForm(result.form);
+      setAddresses(current => {
+        const next = current.length ? [...current] : [newQuickCustomerAddress(true)];
+        const index = Math.max(0, next.findIndex(address => address.is_default));
+        next[index] = { ...next[index], ...result.address, id: next[index].id, is_default: true };
+        return next;
+      });
     } catch (error) {
       setCnpjMessage(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
     } finally { setCnpjLoading(false); }
@@ -182,25 +193,8 @@ export function QuickCustomerModal({ onClose, onSaved }: {
 
               {form.customerType === "PF" ? <>
                 <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-                  <FCpfInput
-                    label="CPF"
-                    required
-                    value={form.document}
-                    onChange={(e: any) => { setErrorMessage(""); setForm({ ...form, document: e.target.value }); }}
-                  />
-                  <AdminButton
-                    variant="secondary"
-                    size="sm"
-                    loading={cpfLoading}
-                    loadingText="Consultar"
-                    onClick={() => void lookupCpfName()}
-                    disabled={saving || !isValidCpf(form.document)}
-                    className="h-[42px] shrink-0 border-[#0057e7]/30 px-4 text-[#0057e7] hover:bg-[#0057e7]/5"
-                    aria-label="Consultar CPF"
-                    title="Consultar CPF"
-                  >
-                    Consultar
-                  </AdminButton>
+                  <FCpfInput label="CPF" required value={form.document} onChange={(e: any) => { setErrorMessage(""); setForm({ ...form, document: e.target.value }); }} />
+                  <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfName()} disabled={saving || !isValidCpf(form.document)} className="h-[42px] shrink-0 border-[#0057e7]/30 px-4 text-[#0057e7] hover:bg-[#0057e7]/5" aria-label="Consultar CPF" title="Consultar CPF">Consultar</AdminButton>
                 </div>
                 <FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} />
                 <FInput label="Data de nascimento" type="date" required value={form.birth_date} max={todayDateOnly()} onChange={(e: any) => setForm({ ...form, birth_date: e.target.value })} />
@@ -217,25 +211,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
               <FPhoneInput label="WhatsApp" required mobile value={form.whatsapp} onChange={(e: any) => setForm({ ...form, whatsapp: e.target.value })} />
             </div>
 
-            <Section
-              title="Endereço do cliente"
-              actions={
-                <AdminButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setSharedAddressOpen(value => !value)}
-                  disabled={saving}
-                  className="max-w-[12rem] sm:max-w-none"
-                >
-                  <Link2 size={13} /> <span className="truncate">Endereço enviado pelo cliente</span>
-                </AdminButton>
-              }
-            >
-              <div className="space-y-3">
-                {(sharedAddressOpen || address.shared_map_url) && <FInput label="Link compartilhado do endereço" type="url" placeholder="Cole o link enviado pelo cliente" value={address.shared_map_url || ""} onChange={(e: any) => setAddress({ ...address, shared_map_url: e.target.value })} />}
-                <AddressFields value={address} onChange={setAddress} inputClassName={INPUT} />
-              </div>
-            </Section>
+            <QuickCustomerAddressesEditor value={addresses} onChange={setAddresses} disabled={saving} />
 
             {errorMessage && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{errorMessage}</p>}
           </div>
