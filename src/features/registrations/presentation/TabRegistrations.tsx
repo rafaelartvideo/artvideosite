@@ -1,12 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle, Edit2, Plus, Search, Users } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowDownWideNarrow,
+  ArrowUpDown,
+  ArrowUpNarrowWide,
+  Check,
+  CheckCircle,
+  ChevronDown,
+  Edit2,
+  Plus,
+  Search,
+  Users,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { normalizeSharedMapUrl } from "@/lib/address";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { formatCnpj, formatCpf, formatPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
+import { cn, formatCnpj, formatCpf, formatPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/ui/primitives/dropdown-menu";
 import {
   emptyEmployeeAccessForm,
   type EmployeeAccessFormState,
@@ -47,11 +65,21 @@ type Props = {
   onOpenCustomerHistory?: (customerId: string) => void;
 };
 
+type MobileRegistrationFilter = "name" | "document" | "role" | "status";
+type RegistrationSort = "" | "name_asc" | "name_desc" | "newest" | "oldest";
+
 const roleLabels: Record<RegistrationRole, string> = {
   customer: "Cliente",
   employee: "Funcionário",
   supplier: "Fornecedor",
 };
+
+const mobileFilterOptions: Array<{ value: MobileRegistrationFilter; label: string }> = [
+  { value: "name", label: "Nome / Razão social" },
+  { value: "document", label: "CPF ou CNPJ" },
+  { value: "role", label: "Vínculo" },
+  { value: "status", label: "Status" },
+];
 
 function accessFormFromResponse(access: any): EmployeeAccessFormState {
   return {
@@ -75,6 +103,13 @@ function hasAddressContent(address: RegistrationAddressForm) {
     address.reference,
     address.shared_map_url,
   ].some(value => String(value || "").trim()));
+}
+
+function MobileCardField({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="min-w-0">
+    <div className="mb-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">{label}</div>
+    <div className="min-w-0 text-xs font-semibold text-[#0d1b2e]">{children}</div>
+  </div>;
 }
 
 export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange, onOpenCustomerHistory }: Props) {
@@ -105,6 +140,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [documentSearch, setDocumentSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [mobileFilter, setMobileFilter] = useState<MobileRegistrationFilter>("name");
+  const [sortOrder, setSortOrder] = useState<RegistrationSort>("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [togglingEmployeeId, setTogglingEmployeeId] = useState<string | null>(null);
@@ -223,7 +260,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     const nameQuery = nameSearch.trim().toLocaleLowerCase("pt-BR");
     const documentQuery = documentSearch.trim().toLocaleLowerCase("pt-BR");
     const documentDigits = normalizeDigits(documentSearch);
-    return items.filter(item => {
+    const result = items.filter(item => {
       const roles = activeRegistrationRoles(item);
       if (roleFilter !== "all" && !roles.includes(roleFilter)) return false;
       if (statusFilter === "active" && item.is_active === false) return false;
@@ -247,19 +284,29 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
       return true;
     });
-  }, [items, nameSearch, documentSearch, roleFilter, statusFilter]);
+
+    if (!sortOrder) return result;
+    return [...result].sort((a, b) => {
+      if (sortOrder === "name_asc") return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
+      if (sortOrder === "name_desc") return String(b.name || "").localeCompare(String(a.name || ""), "pt-BR", { sensitivity: "base" });
+      const aDate = new Date(a.created_at || 0).getTime();
+      const bDate = new Date(b.created_at || 0).getTime();
+      return sortOrder === "newest" ? bDate - aDate : aDate - bDate;
+    });
+  }, [items, nameSearch, documentSearch, roleFilter, statusFilter, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const hasActiveFilters = Boolean(nameSearch || documentSearch || roleFilter !== "all" || statusFilter !== "all");
+  const hasActiveFilters = Boolean(nameSearch || documentSearch || roleFilter !== "all" || statusFilter !== "all" || sortOrder);
   const clearFilters = () => {
     setNameSearch("");
     setDocumentSearch("");
     setRoleFilter("all");
     setStatusFilter("all");
+    setSortOrder("");
   };
-  useEffect(() => { setPage(1); }, [nameSearch, documentSearch, roleFilter, statusFilter, pageSize]);
+  useEffect(() => { setPage(1); }, [nameSearch, documentSearch, roleFilter, statusFilter, sortOrder, pageSize]);
 
   const toggleRole = (role: RegistrationRole) => {
     const allowed = selected ? canEdit : canCreate;
@@ -495,6 +542,35 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   if (routeResourceId && recordLoading) return <LoadingState text="Carregando cadastro..." />;
 
+  const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Nome / Razão social";
+  const sortLabel = sortOrder === "name_asc" ? "Nome A–Z" : sortOrder === "name_desc" ? "Nome Z–A" : sortOrder === "newest" ? "Mais recentes" : sortOrder === "oldest" ? "Mais antigos" : "Ordenação padrão";
+  const SortIcon = sortOrder === "name_asc" || sortOrder === "oldest" ? ArrowUpNarrowWide : sortOrder === "name_desc" || sortOrder === "newest" ? ArrowDownWideNarrow : ArrowUpDown;
+  const renderMobileFilter = () => {
+    if (mobileFilter === "name") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input aria-label="Buscar por nome ou razão social" value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
+    if (mobileFilter === "document") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input aria-label="Buscar por CPF ou CNPJ" value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
+    if (mobileFilter === "role") return <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Filtrar por vínculo" className="h-[42px] text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />;
+    return <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Filtrar por status" className="h-[42px] text-xs" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />;
+  };
+  const sortMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label={`Ordenação atual: ${sortLabel}`} title={`Ordenação: ${sortLabel}`} className={cn(
+          "inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
+          sortOrder ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]",
+        )}><SortIcon size={20} className="text-[#0057e7]" /></button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[200px]">
+        {([
+          ["", "Ordenação padrão", ArrowUpDown],
+          ["name_asc", "Nome A–Z", ArrowUpNarrowWide],
+          ["name_desc", "Nome Z–A", ArrowDownWideNarrow],
+          ["newest", "Mais recentes", ArrowDownWideNarrow],
+          ["oldest", "Mais antigos", ArrowUpNarrowWide],
+        ] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => setSortOrder(value)} className={cn("cursor-pointer", sortOrder === value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Icon size={15} className={sortOrder === value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{label}</span>{sortOrder === value && <Check size={15} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Cadastros" subtitle="Gerencie clientes, funcionários e fornecedores em um único cadastro." actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo cadastro</BtnPrimary> : undefined} />
@@ -506,7 +582,15 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         </div>
       </div>
       <div className="p-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="space-y-3 md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button></DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[240px]">{mobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent>
+          </DropdownMenu>
+          <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1">{renderMobileFilter()}</div>{sortMenu}</div>
+        </div>
+
+        <div className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-4">
           <div className="min-w-0">
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Nome</label>
             <div className="relative">
@@ -532,11 +616,39 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         </div>
       </div>
     </AdminCard>
-    <AdminCard>{loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cadastro encontrado" message="Crie um cadastro ou ajuste os filtros." onAdd={canCreate ? openNew : undefined} addLabel="Novo cadastro" /> : <><div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr><th className="text-left">Nome / Razão social</th><th className="text-left">Tipo</th><th className="text-left">Vínculos</th><th className="text-left">CPF/CNPJ</th><th className="text-left">Telefone</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{paged.map(item => {
-      const employeeAccessProfileId = item.legacy_employee?.profile_id || item.employee_details?.[0]?.profile_id || null;
-      const employeeUserActive = item.legacy_employee?.is_active !== false;
-      const canToggleEmployee = canToggleAccess && activeRegistrationRoles(item).includes("employee") && Boolean(item.legacy_employee_id && employeeAccessProfileId);
-      return <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-[#5a6a82]">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-[#5a6a82]">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canToggleEmployee && <AdminIconButton ariaLabel={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} title={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)}>{employeeUserActive ? <AlertCircle size={15} /> : <CheckCircle size={15} />}</AdminIconButton>}<AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div></td></tr>;
-    })}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} /></>}</AdminCard>
+
+    <AdminCard>{loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cadastro encontrado" message="Crie um cadastro ou ajuste os filtros." onAdd={canCreate ? openNew : undefined} addLabel="Novo cadastro" /> : <>
+      <div className="divide-y divide-[#0d1b2e]/8 md:hidden">{paged.map(item => {
+        const employeeAccessProfileId = item.legacy_employee?.profile_id || item.employee_details?.[0]?.profile_id || null;
+        const employeeUserActive = item.legacy_employee?.is_active !== false;
+        const canToggleEmployee = canToggleAccess && activeRegistrationRoles(item).includes("employee") && Boolean(item.legacy_employee_id && employeeAccessProfileId);
+        const roles = activeRegistrationRoles(item);
+        const document = item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—";
+        return <article key={item.id} className="cursor-default p-4" onClick={() => openItem(item)}>
+          <div className="flex items-start justify-between gap-3">
+            <MobileCardField label="Nome / Razão social"><span className="break-words text-sm font-black">{item.name}</span></MobileCardField>
+            <div className="shrink-0 text-right"><div className="mb-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">Status</div><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
+            <MobileCardField label="Tipo">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</MobileCardField>
+            <MobileCardField label="CPF/CNPJ"><span className="break-all font-mono">{document}</span></MobileCardField>
+            <MobileCardField label="Telefone">{formatPhone(item.phone || item.whatsapp) || "—"}</MobileCardField>
+            <MobileCardField label="Vínculos"><div className="flex flex-wrap gap-1">{roles.length ? roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[9px] font-black text-[#0057e7]">{roleLabels[role]}</span>) : <span>—</span>}</div></MobileCardField>
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#0d1b2e]/8 pt-3" onClick={event => event.stopPropagation()}>
+            <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">Ações</span>
+            <div className="flex items-center gap-1">{canToggleEmployee && <AdminIconButton ariaLabel={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} title={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)}>{employeeUserActive ? <AlertCircle size={15} /> : <CheckCircle size={15} />}</AdminIconButton>}<AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div>
+          </div>
+        </article>;
+      })}</div>
+
+      <div className="hidden overflow-x-auto md:block"><table className="min-w-[820px]"><thead><tr><th className="text-left">Nome / Razão social</th><th className="text-left">Tipo</th><th className="text-left">Vínculos</th><th className="text-left">CPF/CNPJ</th><th className="text-left">Telefone</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{paged.map(item => {
+        const employeeAccessProfileId = item.legacy_employee?.profile_id || item.employee_details?.[0]?.profile_id || null;
+        const employeeUserActive = item.legacy_employee?.is_active !== false;
+        const canToggleEmployee = canToggleAccess && activeRegistrationRoles(item).includes("employee") && Boolean(item.legacy_employee_id && employeeAccessProfileId);
+        return <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-[#5a6a82]">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-[#5a6a82]">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canToggleEmployee && <AdminIconButton ariaLabel={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} title={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)}>{employeeUserActive ? <AlertCircle size={15} /> : <CheckCircle size={15} />}</AdminIconButton>}<AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div></td></tr>;
+      })}</tbody></table></div>
+      <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} />
+    </>}</AdminCard>
   </div>;
 }
