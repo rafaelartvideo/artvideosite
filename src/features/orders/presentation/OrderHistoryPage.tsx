@@ -2,7 +2,7 @@ import { Plus } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import type { useOrderHistory } from "../application/useOrderHistory";
 
 export function OrderHistoryPage({
@@ -22,22 +22,36 @@ export function OrderHistoryPage({
       <div className="space-y-4 p-4 sm:p-5">
         <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <label className="min-w-0 text-[10px] font-bold uppercase text-[#5a6a82]">Usuário
-              <select value={history.userFilter} onChange={(event) => history.setUserFilter(event.target.value)} className={cn(INPUT, "mt-1 min-w-0 text-xs font-medium normal-case")}>
-                <option value="">Todos os usuários</option>
-                {history.authorOptions.map((author) => <option key={author.id} value={author.id}>{author.name}</option>)}
-                <option value="system">Sistema</option>
-              </select>
-            </label>
+            <div className="min-w-0">
+              <label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Usuário</label>
+              <AdminSelect
+                value={history.userFilter}
+                onValueChange={history.setUserFilter}
+                ariaLabel="Usuário"
+                className="min-w-0 text-xs font-medium normal-case"
+                options={[
+                  { value: "", label: "Todos os usuários" },
+                  ...history.authorOptions.map(author => ({ value: author.id, label: author.name })),
+                  { value: "system", label: "Sistema" },
+                ]}
+              />
+            </div>
             <label className="min-w-0 text-[10px] font-bold uppercase text-[#5a6a82]">Data
               <input type="date" value={history.dateFilter} onChange={(event) => history.setDateFilter(event.target.value)} className={cn(INPUT, "mt-1 min-w-0 text-xs font-medium normal-case")} />
             </label>
-            <label className="min-w-0 text-[10px] font-bold uppercase text-[#5a6a82]">Ordenação
-              <select value={history.sort} onChange={(event) => history.setSort(event.target.value as "desc" | "asc")} className={cn(INPUT, "mt-1 min-w-0 text-xs font-medium normal-case")}>
-                <option value="desc">Mais recentes primeiro</option>
-                <option value="asc">Mais antigos primeiro</option>
-              </select>
-            </label>
+            <div className="min-w-0">
+              <label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Ordenação</label>
+              <AdminSelect
+                value={history.sort}
+                onValueChange={value => history.setSort(value as "desc" | "asc")}
+                ariaLabel="Ordenação"
+                className="min-w-0 text-xs font-medium normal-case"
+                options={[
+                  { value: "desc", label: "Mais recentes primeiro" },
+                  { value: "asc", label: "Mais antigos primeiro" },
+                ]}
+              />
+            </div>
             {(history.userFilter || history.dateFilter) && <button type="button" onClick={history.clearFilters} className="h-10 self-end rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50">Limpar</button>}
           </div>
         </AdminCard>
