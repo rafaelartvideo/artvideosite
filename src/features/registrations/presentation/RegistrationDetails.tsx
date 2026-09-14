@@ -1,11 +1,11 @@
 import { Edit2, MapPin, ShieldCheck } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
 import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { formatCnpj, formatCpf, formatDateOnly, formatPhone } from "@/shared/domain/formatters";
 import { activeRegistrationRoles } from "../domain/registration-form";
 import type { Registration, RegistrationRole, SupplierInventoryItem } from "../infrastructure/registrations.repository";
 import type { EmployeeAccessFormState } from "@/features/access/presentation/UserAccessSection";
+import { SupplierItemsTable } from "./SupplierItemsTable";
 
 const roleLabels: Record<RegistrationRole, string> = {
   customer: "Cliente",
@@ -18,6 +18,21 @@ function detailValue(label: string, value: string) {
     <div className="text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">{label}</div>
     <div className="mt-1 break-words text-sm font-bold text-[#0d1b2e]">{value || "—"}</div>
   </div>;
+}
+
+function formatZipCode(value?: string | null) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  return digits.length === 8 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : value || "";
+}
+
+function formatBrazilianAddress(address: Registration["addresses"] extends Array<infer T> | null | undefined ? T : never) {
+  const streetNumber = [address.street, address.number].filter(Boolean).join(", ");
+  const complement = address.complement ? `, ${address.complement}` : "";
+  const neighborhood = address.neighborhood ? ` - ${address.neighborhood}` : "";
+  const cityState = [address.city, address.state].filter(Boolean).join(" - ");
+  const locality = cityState ? `${streetNumber || complement || neighborhood ? ", " : ""}${cityState}` : "";
+  const zipCode = address.zip_code ? `${streetNumber || complement || neighborhood || locality ? ", " : ""}CEP ${formatZipCode(address.zip_code)}` : "";
+  return `${streetNumber}${complement}${neighborhood}${locality}${zipCode}`.trim() || "Endereço sem dados informados";
 }
 
 export function RegistrationDetails({
@@ -59,10 +74,9 @@ export function RegistrationDetails({
     <div className="space-y-5 p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
         {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
-        <StatusBadge status={selected.is_active ? "Ativo" : "Inativo"} />
       </div>
 
-      <Section title="Informações"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <Section title="Dados Pessoais"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {selected.person_type === "PF" && detailValue("Nome completo", selected.name || "—")}
         {detailValue(selected.person_type === "PJ" ? "CNPJ" : "CPF", selected.document ? (selected.person_type === "PJ" ? formatCnpj(selected.document) : formatCpf(selected.document)) : "—")}
         {detailValue("Telefone", formatPhone(selected.phone) || "—")}
@@ -78,7 +92,7 @@ export function RegistrationDetails({
       </div></Section>
 
       <Section title="Endereços">
-        {activeAddresses.length ? <div className="space-y-3">{activeAddresses.map((address, index) => {
+        {activeAddresses.length ? <div className="divide-y divide-[#0d1b2e]/8">{activeAddresses.map((address, index) => {
           const mapUrl = getAddressMapUrl({
             zip_code: address.zip_code || "",
             street: address.street || "",
@@ -89,41 +103,36 @@ export function RegistrationDetails({
             state: address.state || "",
             shared_map_url: address.location_url || "",
           });
-          return <div key={address.id} className="rounded-xl border border-[#0d1b2e]/10 bg-white p-4">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+          return <div key={address.id} className="py-4 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-black text-[#0d1b2e]">{address.type || `Endereço ${index + 1}`}</span>
-              {address.is_primary && <span className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">Principal</span>}
-              {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5"><MapPin size={13} /> Abrir mapa</a>}
+              {address.is_primary && <span className="text-[10px] font-black uppercase tracking-wide text-[#0057e7]">Principal</span>}
+              {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/20 px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5"><MapPin size={13} /> Abrir mapa</a>}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {detailValue("CEP", address.zip_code || "—")}
-              {detailValue("Rua", address.street || "—")}
-              {detailValue("Número", address.number || "—")}
-              {detailValue("Complemento", address.complement || "—")}
-              {detailValue("Bairro", address.neighborhood || "—")}
-              {detailValue("Cidade / UF", [address.city, address.state].filter(Boolean).join(" / ") || "—")}
-              {detailValue("Referência", address.reference || "—")}
-            </div>
+            <p className="mt-2 text-sm font-semibold leading-relaxed text-[#0d1b2e]">{formatBrazilianAddress(address)}</p>
+            {address.reference && <p className="mt-1 text-xs text-[#5a6a82]">Referência: {address.reference}</p>}
           </div>;
-        })}</div> : <p className="text-sm text-[#5a6a82]">Nenhum endereço cadastrado.</p>}
+        })}</div> : <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>}
       </Section>
 
-      {roles.includes("employee") && <Section title="Funcionário"><div className="grid gap-4 sm:grid-cols-3">
-        {detailValue("Cargo", employee?.job_title || "—")}
-        {detailValue("Setor", employee?.team_name || "—")}
-        {detailValue("Admissão", formatDateOnly(employee?.admission_date, "—"))}
-      </div></Section>}
-
-      {roles.includes("employee") && canViewAccess && <Section title="Acesso ao sistema">
-        {accessLoading ? <LoadingState text="Carregando acesso..." /> : <div className="grid gap-4 sm:grid-cols-3">
-          {detailValue("Status", accessExisting ? (accessForm.enabled ? "Habilitado" : "Bloqueado") : "Sem login")}
-          {detailValue("E-mail de acesso", accessForm.email || "—")}
-          {detailValue("Função vinculada", accessForm.role_id ? "Configurada" : "—")}
+      {roles.includes("employee") && <Section title="Geral">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {detailValue("Cargo", employee?.job_title || "—")}
+          {detailValue("Setor", employee?.team_name || "—")}
+          {detailValue("Admissão", formatDateOnly(employee?.admission_date, "—"))}
+        </div>
+        {canViewAccess && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-5" aria-busy={accessLoading}>
+          <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {detailValue("Status", accessExisting ? (accessForm.enabled ? "Habilitado" : "Bloqueado") : "Sem login")}
+            {detailValue("E-mail de acesso", accessForm.email || "—")}
+            {detailValue("Função vinculada", accessForm.role_id ? "Configurada" : "—")}
+          </div>
         </div>}
       </Section>}
 
       {roles.includes("supplier") && <Section title="Itens fornecidos">
-        {supplierItems.length ? <div className="grid gap-2 md:grid-cols-2">{supplierItems.map(item => <div key={item.id} className="rounded-xl border border-[#0d1b2e]/10 bg-white p-3"><div className="text-sm font-bold text-[#0d1b2e]">{item.name}</div><div className="mt-1 text-xs text-[#5a6a82]">{item.sku ? `SKU ${item.sku}` : "Sem SKU"}</div></div>)}</div> : <p className="text-sm text-[#5a6a82]">Nenhum item do estoque vinculado.</p>}
+        <SupplierItemsTable items={supplierItems} />
       </Section>}
     </div>
 
