@@ -1,8 +1,7 @@
 export type DashboardModule =
   | "overview"
   | "orders"
-  | "customers"
-  | "employees"
+  | "registrations"
   | "inventory"
   | "agenda"
   | "quotes"
@@ -10,8 +9,7 @@ export type DashboardModule =
 
 export type DashboardAccess = {
   orders: boolean;
-  customers: boolean;
-  employees: boolean;
+  registrations: boolean;
   inventory: boolean;
   agenda: boolean;
   quotes: boolean;
@@ -44,17 +42,13 @@ export type DashboardOrder = {
   technician_links: Array<{ employee_id: string; employee: DashboardRelation | null }>;
 };
 
-export type DashboardCustomer = {
+export type DashboardRegistration = {
   id: string;
-  full_name: string;
-  created_at: string;
-};
-
-export type DashboardEmployee = {
-  id: string;
-  full_name: string;
-  function_name: string | null;
+  name: string;
+  person_type: "PF" | "PJ";
   is_active: boolean;
+  created_at: string;
+  roles: Array<{ role: "customer" | "employee" | "supplier"; is_active: boolean }>;
 };
 
 export type DashboardInventoryItem = {
@@ -94,8 +88,7 @@ export type DashboardQuote = {
 
 export type DashboardOverview = {
   orders: DashboardOrder[];
-  customers: DashboardCustomer[];
-  employees: DashboardEmployee[];
+  registrations: DashboardRegistration[];
   inventory: DashboardInventoryItem[];
   appointments: DashboardAppointment[];
   quotes: DashboardQuote[];
