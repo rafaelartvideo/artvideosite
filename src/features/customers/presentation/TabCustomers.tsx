@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router";
+import { useAuth } from "@/lib/auth";
 import { TabRegistrations } from "@/features/registrations/presentation/TabRegistrations";
 import { LegacyTabCustomers } from "./LegacyTabCustomers";
 
@@ -24,6 +25,8 @@ export function TabCustomers({
   onOpenAccessManagement,
 }: TabCustomersProps) {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canManageAccess = hasPermission("employees.view");
 
   if (accessMode === "read") {
     return <LegacyTabCustomers
@@ -56,6 +59,6 @@ export function TabCustomers({
     routeSubpage={routeSubpage}
     onRouteChange={onRouteChange}
     onOpenCustomerHistory={customerId => onRouteChange?.(customerId, "customer")}
-    onOpenAccessManagement={onOpenAccessManagement ?? (() => navigate("/admin/operation/employees"))}
+    onOpenAccessManagement={canManageAccess ? (onOpenAccessManagement ?? (() => navigate("/admin/operation/employees"))) : undefined}
   />;
 }
