@@ -21,7 +21,7 @@ export async function loadDashboardOverview({ periodDays, access }: DashboardQue
   const agendaEnd = new Date(today);
   agendaEnd.setDate(agendaEnd.getDate() + Math.max(7, periodDays));
 
-  const [ordersResult, customersResult, employeesResult, inventoryResult, appointmentsResult, quotesResult] = await Promise.all([
+  const [ordersResult, registrationsResult, inventoryResult, appointmentsResult, quotesResult] = await Promise.all([
     access.orders
       ? supabase
           .from("service_orders")
@@ -29,11 +29,12 @@ export async function loadDashboardOverview({ periodDays, access }: DashboardQue
           .order("created_at", { ascending: false })
           .limit(2000)
       : emptyRows(),
-    access.customers
-      ? supabase.from("customers").select("id,full_name,created_at").order("created_at", { ascending: false }).limit(2000)
-      : emptyRows(),
-    access.employees
-      ? supabase.from("employees").select("id,full_name,function_name,is_active").order("full_name").limit(500)
+    access.registrations
+      ? supabase
+          .from("entities")
+          .select("id,name,person_type,is_active,created_at,roles:entity_roles(role,is_active)")
+          .order("created_at", { ascending: false })
+          .limit(2000)
       : emptyRows(),
     access.inventory
       ? supabase.from("inventory_items").select("id,name,sku,unit,quantity,min_quantity,purchase_price,sale_price,is_active").order("name").limit(2000)
@@ -56,13 +57,12 @@ export async function loadDashboardOverview({ periodDays, access }: DashboardQue
       : emptyRows(),
   ]);
 
-  const error = ordersResult.error || customersResult.error || employeesResult.error || inventoryResult.error || appointmentsResult.error || quotesResult.error;
+  const error = ordersResult.error || registrationsResult.error || inventoryResult.error || appointmentsResult.error || quotesResult.error;
   if (error) throw error;
 
   return {
     orders: (ordersResult.data ?? []) as unknown as DashboardOverview["orders"],
-    customers: (customersResult.data ?? []) as unknown as DashboardOverview["customers"],
-    employees: (employeesResult.data ?? []) as unknown as DashboardOverview["employees"],
+    registrations: (registrationsResult.data ?? []) as unknown as DashboardOverview["registrations"],
     inventory: (inventoryResult.data ?? []) as unknown as DashboardOverview["inventory"],
     appointments: (appointmentsResult.data ?? []) as unknown as DashboardOverview["appointments"],
     quotes: (quotesResult.data ?? []) as unknown as DashboardOverview["quotes"],
