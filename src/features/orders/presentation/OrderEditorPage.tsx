@@ -116,10 +116,12 @@ export function OrderEditorPage({
     ibgeStatesLoading,
     ibgeCities,
     ibgeCitiesLoading,
+    customerAddresses,
     selectedServiceAddress,
     serviceAddressPreview,
     clearServiceAddress,
     copyCustomerAddressToForm,
+    selectServiceAddress,
     loadIbgeCities,
   } = address;
 
@@ -171,6 +173,8 @@ export function OrderEditorPage({
           customerSearch={customerSearch}
           customerResults={customerResults}
           hasPermission={hasPermission}
+          serviceCustomerAddresses={customerAddresses}
+          selectedServiceAddress={selectedServiceAddress}
           setCustomerDraft={setCustomerDraft}
           setCustomerAddressDraft={setCustomerAddressDraft}
           setEditingCustomer={setEditingCustomer}
@@ -178,9 +182,11 @@ export function OrderEditorPage({
           saveCustomer={() => { void customerPersistence.saveCustomer(); }}
           searchCustomers={(query) => { void searchCustomers(query); }}
           selectCustomer={onSelectCustomer}
+          selectServiceAddress={selectServiceAddress}
           onClearCustomer={() => {
             clearCustomer();
             updateField("customer_id", "");
+            clearServiceAddress();
           }}
           onCreateCustomer={() => setQuickCustomer(true)}
         />
