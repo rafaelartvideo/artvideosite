@@ -6,8 +6,8 @@ Evoluir o módulo de Estoque para um fluxo transacional, auditável e multiempre
 
 ## Princípios
 
-1. Todo saldo deve ser explicável pelo histórico de movimentações.
-2. Nenhum item com histórico deve ser excluído fisicamente; usa-se inativação.
+1. Todo saldo novo deve ser explicável pelo histórico de movimentações.
+2. Itens não são excluídos fisicamente pelo fluxo operacional; usa-se inativação.
 3. Movimento e atualização de saldo/custo devem ocorrer na mesma transação.
 4. O histórico é imutável: fornecedor e valores da compra permanecem registrados mesmo se o fornecedor for inativado ou os preços futuros mudarem.
 5. Toda operação é isolada por `organization_id`.
@@ -36,12 +36,13 @@ Adicionar campos de snapshot para auditoria:
 - `unit_cost numeric null` — custo por unidade-base no momento da entrada;
 - `input_unit_cost numeric null` — valor informado pelo usuário na unidade de entrada (`un`/`cx`);
 - `total_cost numeric null`;
-- `previous_quantity numeric not null`;
-- `resulting_quantity numeric not null`;
+- `previous_quantity numeric null` — nullable apenas para movimentos legados; obrigatório para movimentos criados pelo novo RPC;
+- `resulting_quantity numeric null` — nullable apenas para movimentos legados; obrigatório para movimentos criados pelo novo RPC;
 - `average_cost_before numeric null`;
 - `average_cost_after numeric null`;
 - `purchase_reference text null` — NF, pedido, recibo ou referência livre;
-- `notes text null` — observação complementar, separada do motivo principal se necessário.
+- `notes text null` — observação complementar, separada do motivo principal se necessário;
+- `movement_origin text not null default 'legacy'` — valores novos previstos: `purchase`, `manual`, `initial_balance`, `service_order`, `return` e `legacy`.
 
 O fornecedor deve referenciar `entities(id, organization_id)` por FK composta ou validação equivalente para impedir vínculo cross-tenant.
 
@@ -56,7 +57,7 @@ Alterar em uma tela deve refletir imediatamente na outra.
 
 ## Entrada de estoque
 
-Ao registrar `IN`:
+Ao registrar `IN` de compra:
 
 Campos obrigatórios:
 
@@ -78,6 +79,8 @@ O sistema deve validar que:
 - fornecedor está vinculado ao item em `entity_supplier_items`;
 - quantidade > 0;
 - custo >= 0.
+
+A movimentação recebe `movement_origin = 'purchase'`.
 
 ### Conversão de caixa
 
@@ -114,7 +117,8 @@ Regras:
 - registrar saldo anterior e posterior;
 - não alterar custo médio;
 - preservar vínculo com OS quando houver;
-- não exigir fornecedor.
+- não exigir fornecedor;
+- usar `movement_origin = 'manual'` para saída manual e `service_order` quando originada da OS.
 
 ## Ajuste de estoque
 
@@ -125,7 +129,8 @@ Regras:
 - registra saldo anterior e posterior;
 - não exige fornecedor;
 - não atualiza último preço de compra;
-- não recalcula custo médio automaticamente.
+- não recalcula custo médio automaticamente;
+- usa `movement_origin = 'manual'`.
 
 Se futuramente for necessário ajustar valor/custo, deve existir operação específica de reavaliação, não reutilizar `ADJUST` silenciosamente.
 
@@ -136,10 +141,10 @@ Novo item não deve nascer com saldo sem histórico.
 Ao criar item:
 
 - item é criado inicialmente com `quantity = 0`;
-- se o usuário informar saldo inicial > 0, o sistema registra uma movimentação `IN` marcada como `initial_balance = true` ou com origem equivalente;
+- se o usuário informar saldo inicial > 0, o sistema registra uma movimentação `IN` com `movement_origin = 'initial_balance'`;
 - se houver custo inicial, deve registrar custo e fornecedor quando conhecido;
-- se não houver fornecedor para saldo legado, permitir origem `Saldo inicial` sem fornecedor apenas nessa situação especial;
-- custo médio inicial deriva do custo informado.
+- se não houver fornecedor para saldo inicial, permitir a origem `initial_balance` sem fornecedor;
+- custo médio inicial deriva do custo informado quando houver.
 
 ## Operação transacional
 
@@ -155,20 +160,21 @@ public.record_inventory_movement(
   p_input_unit_cost numeric default null,
   p_reason text default null,
   p_purchase_reference text default null,
-  p_service_order_id uuid default null
+  p_service_order_id uuid default null,
+  p_movement_origin text default 'manual'
 )
 ```
 
 O RPC deve:
 
 1. validar `auth.uid()`;
-2. validar `inventory.movements.create`;
+2. validar `inventory.movements.create` ou a permissão operacional específica da OS quando a origem for `service_order`/`return`;
 3. bloquear o item `FOR UPDATE`;
 4. validar organização e status do item;
 5. validar fornecedor quando `IN` de compra;
 6. converter quantidade/custo para unidade-base;
 7. calcular saldo resultante e custo médio;
-8. inserir `inventory_movements` com snapshots;
+8. inserir `inventory_movements` com snapshots completos;
 9. atualizar `inventory_items`;
 10. concluir tudo na mesma transação.
 
@@ -182,7 +188,7 @@ Se qualquer etapa falhar, nada deve ser persistido.
 - usar apenas Ativar/Inativar;
 - alterar FK `inventory_movements.inventory_item_id` de `ON DELETE CASCADE` para `ON DELETE RESTRICT`/`NO ACTION`;
 - preservar `entity_supplier_items` e histórico;
-- manter exclusão física apenas como manutenção administrativa excepcional fora da UI normal, se realmente necessária.
+- exclusão física não faz parte do fluxo operacional normal.
 
 ### Movimentações
 
@@ -199,11 +205,14 @@ No cadastro/edição do item adicionar seção `Fornecedores`:
 - não apagar fornecedor ao remover vínculo;
 - fornecedor inativo continua aparecendo no histórico antigo, mas não pode ser escolhido em nova entrada.
 
+Remover vínculo significa apenas encerrar a relação fornecedor ↔ item; não inativa nem exclui o cadastro do fornecedor.
+
 ## Histórico do item
 
 Cada registro deve exibir, conforme permissão:
 
 - tipo;
+- origem;
 - quantidade informada e unidade;
 - equivalente em unidade-base;
 - saldo anterior;
@@ -260,7 +269,7 @@ Manter as atuais e acrescentar granularidade quando necessário:
 
 `inventory.delete` deixa de ser usado na UI comum.
 
-Quem não possui `inventory.costs.view` não deve receber/visualizar valores sensíveis no frontend. Quando viável, usar RPC/view específica para evitar exposição desnecessária dos campos de custo.
+Quem não possui `inventory.costs.view` não deve receber nem visualizar os campos sensíveis de custo nas consultas usadas pela UI. O repositório de Estoque deve deixar de usar `select('*')` nas telas e usar seleção explícita/RPC que respeite essa permissão.
 
 ## Segurança e multiempresa
 
@@ -268,15 +277,17 @@ Quem não possui `inventory.costs.view` não deve receber/visualizar valores sen
 - fornecedor de outra empresa nunca pode ser associado a item ou movimento;
 - RLS continua obrigatória nas tabelas públicas;
 - RPC deve usar autorização explícita e `search_path` seguro;
-- snapshots históricos permanecem legíveis mesmo após inativação do fornecedor.
+- snapshots históricos permanecem legíveis mesmo após inativação do fornecedor;
+- endpoints de custo não devem retornar custo para usuários sem `inventory.costs.view`.
 
 ## Migração de dados existentes
 
-1. Adicionar novas colunas sem alterar histórico antigo.
-2. Para movimentos legados, preencher `previous_quantity/resulting_quantity` somente quando reconstrução for segura; caso contrário manter snapshot como `null` se a coluna permitir legado ou identificar `legacy_record`.
-3. Inicializar `average_cost` a partir de `purchase_price` quando houver saldo atual e preço existente, documentando que é custo inicial estimado para legado.
-4. Não fabricar fornecedor para entradas antigas.
-5. Trocar FK de movimentos para RESTRICT somente depois de validar inexistência de operações que dependam de cascade delete.
+1. Adicionar novas colunas sem alterar o significado dos movimentos antigos.
+2. Marcar movimentos existentes como `movement_origin = 'legacy'`.
+3. Para movimentos legados, preencher `previous_quantity/resulting_quantity` somente quando reconstrução for segura; quando não for possível, manter `null`. Todo movimento criado pelo novo RPC deve obrigatoriamente gravar ambos.
+4. Inicializar `average_cost` a partir de `purchase_price` quando houver saldo atual e preço existente, documentando que é custo inicial estimado para legado.
+5. Não fabricar fornecedor para entradas antigas.
+6. Trocar FK de movimentos para RESTRICT somente depois de validar inexistência de operações que dependam de cascade delete.
 
 ## Testes de aceitação
 
@@ -290,7 +301,9 @@ Quem não possui `inventory.costs.view` não deve receber/visualizar valores sen
 - saída não altera custo médio;
 - ajuste exige justificativa e não altera último preço de compra;
 - item com histórico não pode ser excluído;
+- UI não oferece exclusão física de item;
 - inativar item bloqueia novas movimentações manuais;
 - histórico mostra fornecedor e custos antigos mesmo após fornecedor ser inativado;
 - permissões escondem custos de usuários sem `inventory.costs.view`;
-- nenhum tenant consegue ver ou vincular fornecedor/item de outro tenant.
+- nenhum tenant consegue ver ou vincular fornecedor/item de outro tenant;
+- saldo inicial positivo gera movimento `initial_balance` e nunca aparece sem histórico.
