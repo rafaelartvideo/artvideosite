@@ -130,6 +130,7 @@ export function isAdminModuleEnabled(
 ) {
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
+  if (tab === "customers") return hasModule("customers") || hasModule("employees");
   const moduleKey = moduleForTab[tab];
   return moduleKey ? hasModule(moduleKey) : true;
 }
