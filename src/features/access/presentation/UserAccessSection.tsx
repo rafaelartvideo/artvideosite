@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { ARTVIDEO_ORGANIZATION_ID } from "@/features/telephony/domain/uniq-call";
 import { listActiveRoles } from "@/features/roles/infrastructure/roles.repository";
 import { listObservedUniqSubscribers } from "../infrastructure/user-access.repository";
@@ -23,6 +23,12 @@ export const emptyEmployeeAccessForm = (): EmployeeAccessFormState => ({
   uniq_subscriber_id: "",
 });
 
+type RoleOption = { id: string; name: string };
+type UniqSubscriber = { subscriber_id: string | number; call_count?: number };
+
+const rolesCache = new Map<string, RoleOption[]>();
+let uniqSubscribersCache: UniqSubscriber[] | null = null;
+
 export function UserAccessSection({
   organizationId,
   value,
@@ -30,6 +36,7 @@ export function UserAccessSection({
   existingAccess,
   disabled = false,
   loading = false,
+  embedded = false,
 }: {
   organizationId: string | null;
   value: EmployeeAccessFormState;
@@ -37,25 +44,44 @@ export function UserAccessSection({
   existingAccess: boolean;
   disabled?: boolean;
   loading?: boolean;
+  embedded?: boolean;
 }) {
-  const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
-  const [uniqSubscribers, setUniqSubscribers] = useState<Array<{ subscriber_id: string | number; call_count?: number }>>([]);
+  const [roles, setRoles] = useState<RoleOption[]>(organizationId ? rolesCache.get(organizationId) || [] : []);
+  const [uniqSubscribers, setUniqSubscribers] = useState<UniqSubscriber[]>(uniqSubscribersCache || []);
   const [showPassword, setShowPassword] = useState(false);
   const isArtVideo = organizationId === ARTVIDEO_ORGANIZATION_ID;
 
   useEffect(() => {
     let cancelled = false;
     if (!organizationId) return;
-    void listActiveRoles(organizationId).then(({ data }) => {
-      if (!cancelled) setRoles((data || []).map((role: any) => ({ id: String(role.id), name: String(role.name) })));
-    });
-    if (isArtVideo) {
-      void listObservedUniqSubscribers().then(({ data }) => {
-        if (!cancelled) setUniqSubscribers((data || []) as Array<{ subscriber_id: string | number; call_count?: number }>);
+
+    const cachedRoles = rolesCache.get(organizationId);
+    if (cachedRoles) {
+      setRoles(cachedRoles);
+    } else {
+      void listActiveRoles(organizationId).then(({ data }) => {
+        if (cancelled) return;
+        const next = (data || []).map((role: any) => ({ id: String(role.id), name: String(role.name) }));
+        rolesCache.set(organizationId, next);
+        setRoles(next);
       });
+    }
+
+    if (isArtVideo) {
+      if (uniqSubscribersCache) {
+        setUniqSubscribers(uniqSubscribersCache);
+      } else {
+        void listObservedUniqSubscribers().then(({ data }) => {
+          if (cancelled) return;
+          const next = (data || []) as UniqSubscriber[];
+          uniqSubscribersCache = next;
+          setUniqSubscribers(next);
+        });
+      }
     } else {
       setUniqSubscribers([]);
     }
+
     return () => { cancelled = true; };
   }, [organizationId, isArtVideo]);
 
@@ -78,71 +104,63 @@ export function UserAccessSection({
     return options;
   }, [uniqSubscribers, value.uniq_subscriber_id]);
 
-  return <Section title="Acesso ao sistema">
-    <div className="space-y-4">
-      <div className="rounded-xl border border-[#0057e7]/15 bg-[#0057e7]/5 p-4">
-        <div className="flex items-start gap-3">
-          <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#0057e7]" />
-          <div className="min-w-0">
-            <div className="text-sm font-black text-[#0d1b2e]">Login separado do cadastro funcional</div>
-            <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">O funcionário pode existir sem login. Ao habilitar o acesso, a função define as permissões-base; permissões extras podem ser configuradas individualmente nos detalhes do cadastro.</p>
-          </div>
-        </div>
-      </div>
+  const content = <div className="space-y-4" aria-busy={loading}>
+    <p className="text-xs leading-relaxed text-[#5a6a82]">O funcionário pode existir sem login. Ao habilitar o acesso, a função define as permissões-base; permissões extras podem ser configuradas nos detalhes do cadastro.</p>
 
-      <FToggle
-        label="Permitir acesso ao sistema"
-        description={existingAccess ? "Desativar bloqueia o login sem excluir o funcionário." : "Ative para criar o usuário de acesso deste funcionário."}
-        checked={value.enabled}
+    <FToggle
+      label="Permitir acesso ao sistema"
+      description={existingAccess ? "Desativar bloqueia o login sem excluir o funcionário." : "Ative para criar o usuário de acesso deste funcionário."}
+      checked={value.enabled}
+      disabled={disabled || loading}
+      onChange={enabled => onChange({ ...value, enabled })}
+    />
+
+    {(value.enabled || existingAccess) && <div className="grid gap-4 sm:grid-cols-2">
+      <FEmailInput
+        label="E-mail de acesso"
+        required={value.enabled}
         disabled={disabled || loading}
-        onChange={enabled => onChange({ ...value, enabled })}
+        value={value.email}
+        onChange={(event: any) => onChange({ ...value, email: event.target.value })}
       />
-
-      {(value.enabled || existingAccess) && <div className="grid gap-4 sm:grid-cols-2">
-        <FEmailInput
-          label="E-mail de acesso"
-          required={value.enabled}
-          disabled={disabled || loading}
-          value={value.email}
-          onChange={(event: any) => onChange({ ...value, email: event.target.value })}
-        />
-        <div className="relative min-w-0">
-          <FInput
-            label={existingAccess ? "Nova senha" : "Senha"}
-            required={value.enabled && !existingAccess}
-            disabled={disabled || loading || !value.enabled}
-            type={showPassword ? "text" : "password"}
-            autoComplete="new-password"
-            minLength={8}
-            placeholder={existingAccess ? "Deixe em branco para manter" : "Mínimo de 8 caracteres"}
-            value={value.password}
-            onChange={(event: any) => onChange({ ...value, password: event.target.value })}
-            className="pr-11"
-          />
-          {value.enabled && !disabled && <button
-            type="button"
-            onClick={() => setShowPassword(current => !current)}
-            className={cn("absolute right-3 top-[35px] rounded p-1 text-[#5a6a82] hover:text-[#0057e7]")}
-            aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-            title={showPassword ? "Ocultar senha" : "Mostrar senha"}
-          >{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>}
-        </div>
-        <FSelect
-          label="Função"
-          required={value.enabled}
+      <div className="relative min-w-0">
+        <FInput
+          label={existingAccess ? "Nova senha" : "Senha"}
+          required={value.enabled && !existingAccess}
           disabled={disabled || loading || !value.enabled}
-          value={value.role_id}
-          onChange={(event: any) => onChange({ ...value, role_id: event.target.value })}
-          options={roleOptions}
+          type={showPassword ? "text" : "password"}
+          autoComplete="new-password"
+          minLength={8}
+          placeholder={existingAccess ? "Deixe em branco para manter" : "Mínimo de 8 caracteres"}
+          value={value.password}
+          onChange={(event: any) => onChange({ ...value, password: event.target.value })}
+          className="pr-11"
         />
-        {isArtVideo && <FSelect
-          label="Usuário / ramal Uniq"
-          disabled={disabled || loading}
-          value={value.uniq_subscriber_id}
-          onChange={(event: any) => onChange({ ...value, uniq_subscriber_id: event.target.value })}
-          options={uniqOptions}
-        />}
-      </div>}
-    </div>
-  </Section>;
+        {value.enabled && !disabled && <button
+          type="button"
+          onClick={() => setShowPassword(current => !current)}
+          className={cn("absolute right-3 top-[35px] rounded p-1 text-[#5a6a82] hover:text-[#0057e7]")}
+          aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+          title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+        >{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>}
+      </div>
+      <FSelect
+        label="Função"
+        required={value.enabled}
+        disabled={disabled || loading || !value.enabled}
+        value={value.role_id}
+        onChange={(event: any) => onChange({ ...value, role_id: event.target.value })}
+        options={roleOptions}
+      />
+      {isArtVideo && <FSelect
+        label="Usuário / ramal Uniq"
+        disabled={disabled || loading}
+        value={value.uniq_subscriber_id}
+        onChange={(event: any) => onChange({ ...value, uniq_subscriber_id: event.target.value })}
+        options={uniqOptions}
+      />}
+    </div>}
+  </div>;
+
+  return embedded ? content : <Section title="Acesso ao sistema">{content}</Section>;
 }
