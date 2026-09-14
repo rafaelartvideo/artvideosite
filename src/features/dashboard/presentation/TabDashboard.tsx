@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   Package,
   RefreshCw,
+  ShoppingCart,
   TrendingUp,
   UserCheck,
   Users,
@@ -24,6 +25,7 @@ import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayou
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
+import { listInventoryPurchaseAnalytics } from "@/features/inventory/infrastructure/inventory-analytics.repository";
 import type {
   DashboardAccess,
   DashboardAppointment,
@@ -61,6 +63,10 @@ function normalized(value?: string | null) {
 
 function relationLabel(value: { name?: string | null; title?: string | null; full_name?: string | null } | null | undefined, fallback = "Sem informação") {
   return value?.name || value?.title || value?.full_name || fallback;
+}
+
+function purchaseSupplierName(value: { name?: string | null; legal_name?: string | null; trade_name?: string | null } | null | undefined) {
+  return value?.name || value?.trade_name || value?.legal_name || "Fornecedor não identificado";
 }
 
 function insidePeriod(value: string | null | undefined, days: number) {
@@ -164,13 +170,15 @@ function CompactRow({ title, subtitle, aside, onClick }: { title: string; subtit
 }
 
 export function TabDashboard({ onNavigate }: TabDashboardProps) {
-  const { hasPermission } = useAuth();
+  const { activeOrganizationId, hasPermission } = useAuth();
   const [activeModule, setActiveModule] = useState<DashboardModule>("overview");
   const [periodDays, setPeriodDays] = useState(30);
+  const canViewInventoryMovements = hasPermission("inventory.movements.view");
   const access = useMemo<DashboardAccess>(() => ({
     orders: hasPermission("orders.view"),
     registrations: hasPermission("customers.view") || hasPermission("employees.view"),
     inventory: hasPermission("inventory.view"),
+    inventoryCosts: hasPermission("inventory.costs.view"),
     agenda: hasPermission("agenda.view"),
     quotes: hasPermission("quotes.view"),
   }), [hasPermission]);
@@ -193,7 +201,32 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
     queryKey: queryKeys.admin.dashboard(periodDays, accessScope),
     queryFn: () => loadDashboardOverview({ periodDays, access }),
   });
+  const inventoryPurchasesQuery = useQuery({
+    queryKey: ["dashboard", "inventory-purchases", activeOrganizationId, periodDays],
+    queryFn: () => listInventoryPurchaseAnalytics(activeOrganizationId!, periodDays),
+    enabled: Boolean(activeOrganizationId && activeModule === "inventory" && access.inventory && access.inventoryCosts && canViewInventoryMovements),
+  });
+
   const data = dashboardQuery.data ?? { orders: [], registrations: [], inventory: [], appointments: [], quotes: [] };
+  const inventoryPurchases = inventoryPurchasesQuery.data ?? [];
+  const inventoryPurchaseSummary = (() => {
+    const suppliers = new Map<string, { name: string; count: number; total: number }>();
+    let total = 0;
+    inventoryPurchases.forEach(row => {
+      const amount = Number(row.total_cost || 0);
+      total += amount;
+      const key = row.supplier_entity_id || "unknown";
+      const current = suppliers.get(key) || { name: purchaseSupplierName(row.supplier), count: 0, total: 0 };
+      current.count += 1;
+      current.total += amount;
+      suppliers.set(key, current);
+    });
+    return {
+      total,
+      count: inventoryPurchases.length,
+      bySupplier: Array.from(suppliers.values()).sort((a, b) => b.total - a.total || b.count - a.count),
+    };
+  })();
   const ordersInPeriod = data.orders.filter(order => insidePeriod(order.created_at, periodDays));
   const completedInPeriod = data.orders.filter(order => insidePeriod(order.completed_at, periodDays));
   const registrationsInPeriod = data.registrations.filter(registration => insidePeriod(registration.created_at, periodDays));
@@ -239,20 +272,29 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
     }
 
     if (activeModule === "inventory") {
-      const stockValue = activeInventory.reduce((total, item) => total + Number(item.quantity || 0) * Number(item.purchase_price || 0), 0);
+      const stockValue = access.inventoryCosts
+        ? activeInventory.reduce((total, item) => total + Number(item.quantity || 0) * Number(item.average_cost || 0), 0)
+        : 0;
       const metrics: Metric[] = [
         { label: "Itens ativos", value: activeInventory.length, icon: Package, tone: "blue", hint: "cadastros no estoque" },
         { label: "Estoque baixo", value: lowInventory.length, icon: AlertTriangle, tone: lowInventory.length ? "amber" : "green", hint: "no mínimo configurado" },
         { label: "Sem estoque", value: outInventory.length, icon: AlertTriangle, tone: outInventory.length ? "red" : "green", hint: "saldo zerado" },
-        { label: "Custo em estoque", value: formatCurrency(stockValue), icon: Banknote, tone: "purple", hint: "saldo × custo unitário" },
+        ...(access.inventoryCosts ? [{ label: "Valor em estoque", value: formatCurrency(stockValue), icon: Banknote, tone: "purple" as const, hint: "saldo × custo médio" }] : []),
       ];
-      const stockChart = [
-        { name: "Normal", value: Math.max(0, activeInventory.length - lowInventory.length - outInventory.length) },
-        { name: "Baixo", value: lowInventory.length },
-        { name: "Zerado", value: outInventory.length },
-      ].filter(item => item.value > 0);
       const alerts = [...outInventory, ...lowInventory].slice(0, 10);
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Saúde do estoque" subtitle="Distribuição dos itens ativos" icon={Package}><DashboardDonutChart data={stockChart} colors={["#16a34a", "#f59e0b", "#dc2626"]} /></DashboardPanel>} right={<DashboardPanel title="Reposição necessária" subtitle="Itens zerados ou no mínimo" icon={AlertTriangle} onOpen={() => open("inventory")}><CompactList>{alerts.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className={cn("text-xs font-black", Number(item.quantity || 0) <= 0 ? "text-red-600" : "text-amber-600")}>{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!alerts.length && <DashboardEmpty text="Nenhum item precisa de reposição." />}</CompactList></DashboardPanel>} />;
+      const topBalances = [...activeInventory]
+        .sort((a, b) => Number(b.quantity || 0) - Number(a.quantity || 0))
+        .slice(0, 10);
+      const purchasesPanel = access.inventoryCosts && canViewInventoryMovements
+        ? <DashboardPanel
+            title="Compras por fornecedor"
+            subtitle={`${inventoryPurchaseSummary.count} entrada${inventoryPurchaseSummary.count === 1 ? "" : "s"} · ${formatCurrency(inventoryPurchaseSummary.total)} · últimos ${periodDays} dias`}
+            icon={ShoppingCart}
+          >
+            {inventoryPurchasesQuery.isPending ? <LoadingState text="Carregando compras..." /> : inventoryPurchasesQuery.isError ? <DashboardEmpty text="Não foi possível carregar as compras do período." /> : inventoryPurchaseSummary.bySupplier.length ? <CompactList>{inventoryPurchaseSummary.bySupplier.slice(0, 10).map((supplier, index) => <CompactRow key={`${supplier.name}-${index}`} title={supplier.name} subtitle={`${supplier.count} entrada${supplier.count === 1 ? "" : "s"}`} aside={<strong className="text-xs text-[#0d1b2e]">{formatCurrency(supplier.total)}</strong>} />)}</CompactList> : <DashboardEmpty text="Nenhuma compra registrada neste período." />}
+          </DashboardPanel>
+        : <DashboardPanel title="Maiores saldos" subtitle="Itens ativos com maior quantidade disponível" icon={Package} onOpen={() => open("inventory")}><CompactList>{topBalances.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className="text-xs font-black text-[#0057e7]">{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!topBalances.length && <DashboardEmpty text="Nenhum item ativo encontrado." />}</CompactList></DashboardPanel>;
+      return <DashboardArea metrics={metrics} left={purchasesPanel} right={<DashboardPanel title="Reposição necessária" subtitle="Itens zerados ou no mínimo" icon={AlertTriangle} onOpen={() => open("inventory")}><CompactList>{alerts.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className={cn("text-xs font-black", Number(item.quantity || 0) <= 0 ? "text-red-600" : "text-amber-600")}>{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!alerts.length && <DashboardEmpty text="Nenhum item precisa de reposição." />}</CompactList></DashboardPanel>} />;
     }
 
     if (activeModule === "agenda") {
