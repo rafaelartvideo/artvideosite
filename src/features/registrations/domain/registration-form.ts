@@ -20,6 +20,7 @@ export type RegistrationFormState = {
   trade_name: string;
   document: string;
   state_registration: string;
+  municipal_registration: string;
   birth_date: string;
   foundation_date: string;
   phone: string;
@@ -32,6 +33,12 @@ export type RegistrationFormState = {
   admission_date: string;
 };
 
+export type RegistrationAddressForm = Address & {
+  id?: string;
+  type: string;
+  is_primary: boolean;
+};
+
 export const emptyRegistrationForm = (): RegistrationFormState => ({
   person_type: "PF",
   name: "",
@@ -39,6 +46,7 @@ export const emptyRegistrationForm = (): RegistrationFormState => ({
   trade_name: "",
   document: "",
   state_registration: "",
+  municipal_registration: "",
   birth_date: "",
   foundation_date: "",
   phone: "",
@@ -51,7 +59,7 @@ export const emptyRegistrationForm = (): RegistrationFormState => ({
   admission_date: "",
 });
 
-export const emptyRegistrationAddress = (): Address => ({
+export const emptyRegistrationAddress = (primary = false): RegistrationAddressForm => ({
   zip_code: "",
   street: "",
   number: "",
@@ -61,7 +69,9 @@ export const emptyRegistrationAddress = (): Address => ({
   state: "",
   reference: "",
   shared_map_url: "",
-  is_default: true,
+  is_default: primary,
+  type: primary ? "Principal" : "Outro",
+  is_primary: primary,
 });
 
 export function activeRegistrationRoles(registration: Registration) {
@@ -69,8 +79,8 @@ export function activeRegistrationRoles(registration: Registration) {
 }
 
 export function primaryRegistrationAddress(registration: Registration) {
-  return (registration.addresses || []).find(address => address.is_primary)
-    || (registration.addresses || [])[0]
+  return (registration.addresses || []).find(address => address.is_primary && address.is_active !== false)
+    || (registration.addresses || []).find(address => address.is_active !== false)
     || null;
 }
 
@@ -85,6 +95,7 @@ export function registrationFormFromRecord(registration: Registration): Registra
     trade_name: registration.trade_name || registration.name || "",
     document: registration.document || "",
     state_registration: registration.state_registration || "",
+    municipal_registration: registration.municipal_registration || "",
     birth_date: foundationDateFromIso(registration.birth_date),
     foundation_date: foundationDateFromIso(registration.foundation_date),
     phone: formatPhone(registration.phone),
@@ -98,11 +109,16 @@ export function registrationFormFromRecord(registration: Registration): Registra
   };
 }
 
-export function registrationAddressFromRecord(registration: Registration): Address {
-  const address = primaryRegistrationAddress(registration);
-  if (!address) return emptyRegistrationAddress();
-  return {
+export function registrationAddressesFromRecord(registration: Registration): RegistrationAddressForm[] {
+  const active = (registration.addresses || [])
+    .filter(address => address.is_active !== false)
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
+
+  if (!active.length) return [emptyRegistrationAddress(true)];
+
+  return active.map(address => ({
     id: address.id,
+    type: address.type || (address.is_primary ? "Principal" : "Outro"),
     zip_code: address.zip_code || "",
     street: address.street || "",
     number: address.number || "",
@@ -113,7 +129,8 @@ export function registrationAddressFromRecord(registration: Registration): Addre
     reference: address.reference || "",
     shared_map_url: address.location_url || "",
     is_default: address.is_primary !== false,
-  };
+    is_primary: address.is_primary !== false,
+  }));
 }
 
 export function registrationDisplayName(form: RegistrationFormState) {
@@ -130,6 +147,7 @@ export function registrationEntityPayload(form: RegistrationFormState) {
     trade_name: form.person_type === "PJ" ? form.trade_name.trim() : "",
     document: normalizeDigits(form.document),
     state_registration: form.person_type === "PJ" ? form.state_registration.trim() : "",
+    municipal_registration: form.person_type === "PJ" ? form.municipal_registration.trim() : "",
     birth_date: form.person_type === "PF" ? foundationDateToIso(form.birth_date) : "",
     foundation_date: form.person_type === "PJ" ? foundationDateToIso(form.foundation_date) : "",
     phone: normalizeDigits(form.phone),
@@ -139,9 +157,10 @@ export function registrationEntityPayload(form: RegistrationFormState) {
   };
 }
 
-export function registrationAddressPayload(address: Address) {
+export function registrationAddressPayload(address: RegistrationAddressForm) {
   return {
-    type: "Principal",
+    id: address.id || null,
+    type: address.is_primary ? "Principal" : (address.type?.trim() || "Outro"),
     zip_code: normalizeDigits(address.zip_code),
     state: address.state.trim().toUpperCase(),
     city: address.city.trim(),
@@ -151,6 +170,7 @@ export function registrationAddressPayload(address: Address) {
     complement: address.complement.trim(),
     reference: address.reference?.trim() || "",
     location_url: address.shared_map_url?.trim() || "",
+    is_primary: address.is_primary,
   };
 }
 
