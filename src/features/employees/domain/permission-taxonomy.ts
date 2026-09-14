@@ -15,15 +15,26 @@ const MODULE_LABELS: Record<string, string> = {
   customers: "Cadastros", agenda: "Agenda", inventory: "Estoque", products: "Produtos", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
-  situations: "Situações da OS", employees: "Acessos e Usuários", roles: "Funções e Permissões", documents: "Documentos",
+  situations: "Situações da OS", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos",
 };
 
-const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Acessos e Usuários", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
+const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
 const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.update", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
 const ACTION_SUFFIXES = [".create", ".edit", ".update", ".delete", ".toggle_active", ".toggle_featured", ".status.change", ".refresh", ".convert_to_order", ".lookup_cnpj"];
+const HIDDEN_LEGACY_PERMISSIONS = new Set([
+  "employees.delete",
+  "employees.details.view",
+  "employees.table.view",
+  "employees.table.name",
+  "employees.table.cpf",
+  "employees.table.phone",
+  "employees.table.role",
+  "employees.table.status",
+  "employees.table.actions",
+]);
 
 export function permissionModuleName(permission: PermissionRecord) {
   const prefix = String(permission.key || "").split(".")[0];
@@ -48,6 +59,7 @@ export function permissionSectionName(permission: PermissionRecord) {
     if (ORDER_FLOW_KEYS.has(key)) return "Fluxo da OS";
     return key.endsWith(".view") ? "Acesso" : "Ações";
   }
+  if (module === "employees") return key === "employees.view" ? "Acesso" : "Ações";
   if (module === "documents") return key.startsWith("documents.attachment_types.") ? "Tipos de Anexo" : "Impressão / Modelos";
   if (module === "inventory" && key.includes("movement")) return "Movimentações";
   if (module === "equipment" && key.includes("technical_field")) return "Campos Técnicos";
@@ -68,13 +80,41 @@ export function permissionSectionName(permission: PermissionRecord) {
 export function buildPermissionGroups(permissions: PermissionRecord[]) {
   const modules = new Map<string, PermissionRecord[]>();
   permissions
-    .filter(permission => !String(permission.key || "").startsWith("order_statuses.") && permission.key !== "orders.status.change")
-    .forEach(permission => { const moduleName = permissionModuleName(permission); modules.set(moduleName, [...(modules.get(moduleName) || []), permission]); });
+    .filter(permission => {
+      const key = String(permission.key || "");
+      return !key.startsWith("order_statuses.")
+        && key !== "orders.status.change"
+        && !HIDDEN_LEGACY_PERMISSIONS.has(key);
+    })
+    .forEach(permission => {
+      const moduleName = permissionModuleName(permission);
+      modules.set(moduleName, [...(modules.get(moduleName) || []), permission]);
+    });
   return Array.from(modules.entries()).map(([name, modulePermissions]): PermissionModuleGroup => {
     const sections = new Map<string, PermissionRecord[]>();
-    modulePermissions.forEach(permission => { const sectionName = permissionSectionName(permission); sections.set(sectionName, [...(sections.get(sectionName) || []), permission]); });
-    return { name, permissions: modulePermissions, sections: Array.from(sections.entries()).map(([sectionName, sectionPermissions]) => ({ name: sectionName, permissions: [...sectionPermissions].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.label || a.key).localeCompare(String(b.label || b.key), "pt-BR")) })).sort((a, b) => { const ai = SECTION_ORDER.indexOf(a.name); const bi = SECTION_ORDER.indexOf(b.name); return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.name.localeCompare(b.name, "pt-BR"); }) };
-  }).sort((a, b) => { const ai = MODULE_ORDER.indexOf(a.name); const bi = MODULE_ORDER.indexOf(b.name); return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.name.localeCompare(b.name, "pt-BR"); });
+    modulePermissions.forEach(permission => {
+      const sectionName = permissionSectionName(permission);
+      sections.set(sectionName, [...(sections.get(sectionName) || []), permission]);
+    });
+    return {
+      name,
+      permissions: modulePermissions,
+      sections: Array.from(sections.entries())
+        .map(([sectionName, sectionPermissions]) => ({
+          name: sectionName,
+          permissions: [...sectionPermissions].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.label || a.key).localeCompare(String(b.label || b.key), "pt-BR")),
+        }))
+        .sort((a, b) => {
+          const ai = SECTION_ORDER.indexOf(a.name);
+          const bi = SECTION_ORDER.indexOf(b.name);
+          return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.name.localeCompare(b.name, "pt-BR");
+        }),
+    };
+  }).sort((a, b) => {
+    const ai = MODULE_ORDER.indexOf(a.name);
+    const bi = MODULE_ORDER.indexOf(b.name);
+    return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.name.localeCompare(b.name, "pt-BR");
+  });
 }
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
@@ -88,7 +128,8 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "products.toggle_active": ["products.update", "products.view"], "products.toggle_featured": ["products.update", "products.view"],
   "categories.toggle_active": ["categories.update", "categories.view"], "brands.toggle_active": ["brands.update", "brands.view"],
   "general_services.toggle_active": ["general_services.edit", "general_services.view"], "service_types.toggle_active": ["service_types.edit", "service_types.view"],
-  "service_types.sla.manage": ["service_types.edit", "service_types.view"], "employees.toggle_active": ["employees.edit", "employees.details.view", "employees.view"],
+  "service_types.sla.manage": ["service_types.edit", "service_types.view"],
+  "employees.create": ["employees.view"], "employees.edit": ["employees.view"], "employees.toggle_active": ["employees.edit", "employees.view"],
   "quotes.status.change": ["quotes.edit", "quotes.view"], "quotes.convert_to_order": ["quotes.view", "orders.create"],
   "agenda.create": ["agenda.view"], "agenda.reschedule": ["agenda.view"], "agenda.view_others": ["agenda.view"],
   "situations.table.view": ["situations.view"], "situations.create": ["situations.view"], "situations.edit": ["situations.view"], "situations.delete": ["situations.view"],
@@ -99,7 +140,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "services.factors.manage": ["services.update", "services.details.view", "services.view"], "services.faq.manage": ["services.update", "services.details.view", "services.view"],
   "services.sections.manage": ["services.update", "services.details.view", "services.view"], "services.publication.manage": ["services.update", "services.details.view", "services.view"],
   "services.toggle_active": ["services.update", "services.view"],
-  "roles.view": ["employees.view"], "roles.permissions.manage": ["roles.edit", "roles.details.view", "roles.view", "employees.view"],
+  "roles.permissions.manage": ["roles.edit", "roles.details.view", "roles.view"],
   "settings.lookup_cnpj": ["settings.update", "settings.details.view", "settings.view"],
 };
 
@@ -108,13 +149,28 @@ export function permissionDependencies(key: string) {
   const module = key.split(".")[0];
   const isModuleView = key === `${module}.view`;
 
+  // O conjunto employees.* é legado apenas como chave de autorização do acesso
+  // dentro de Cadastros. Não herda mais as permissões da antiga tabela de usuários.
+  if (module === "employees") return Array.from(dependencies);
+
   const isTableColumn = key.includes(".table.") && key !== `${module}.table.view`;
   if (key.includes(".details.") && key !== `${module}.details.view`) dependencies.add(`${module}.details.view`);
-  if (!isModuleView && !isTableColumn && (key.endsWith(".create") || key.endsWith(".delete") || key.endsWith(".toggle_active") || key.endsWith(".toggle_featured") || key.endsWith(".refresh"))) { dependencies.add(`${module}.view`); dependencies.add(`${module}.table.view`); }
-  if (!isModuleView && (key.endsWith(".edit") || key.endsWith(".update"))) { dependencies.add(`${module}.view`); dependencies.add(`${module}.details.view`); }
-  if (key.startsWith("orders.section.")) { dependencies.add("orders.details.view"); dependencies.add("orders.view"); }
+  if (!isModuleView && !isTableColumn && (key.endsWith(".create") || key.endsWith(".delete") || key.endsWith(".toggle_active") || key.endsWith(".toggle_featured") || key.endsWith(".refresh"))) {
+    dependencies.add(`${module}.view`);
+    dependencies.add(`${module}.table.view`);
+  }
+  if (!isModuleView && (key.endsWith(".edit") || key.endsWith(".update"))) {
+    dependencies.add(`${module}.view`);
+    dependencies.add(`${module}.details.view`);
+  }
+  if (key.startsWith("orders.section.")) {
+    dependencies.add("orders.details.view");
+    dependencies.add("orders.view");
+  }
   if (!isModuleView) dependencies.add(`${module}.view`);
   return Array.from(dependencies);
 }
 
-export function permissionLabel(permission: PermissionRecord) { return String(permission.label || permission.description || permission.key); }
+export function permissionLabel(permission: PermissionRecord) {
+  return String(permission.label || permission.description || permission.key);
+}
