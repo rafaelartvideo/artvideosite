@@ -19,10 +19,10 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
-const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
+const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
-const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.update", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
+const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
 const ACTION_SUFFIXES = [".create", ".edit", ".update", ".delete", ".toggle_active", ".toggle_featured", ".status.change", ".refresh", ".convert_to_order", ".lookup_cnpj"];
 const HIDDEN_LEGACY_PERMISSIONS = new Set([
   "employees.delete",
@@ -34,6 +34,7 @@ const HIDDEN_LEGACY_PERMISSIONS = new Set([
   "employees.table.role",
   "employees.table.status",
   "employees.table.actions",
+  "inventory.delete",
 ]);
 
 export function permissionModuleName(permission: PermissionRecord) {
@@ -61,7 +62,11 @@ export function permissionSectionName(permission: PermissionRecord) {
   }
   if (module === "employees") return key === "employees.view" ? "Acesso" : "Ações";
   if (module === "documents") return key.startsWith("documents.attachment_types.") ? "Tipos de Anexo" : "Impressão / Modelos";
-  if (module === "inventory" && key.includes("movement")) return "Movimentações";
+  if (module === "inventory") {
+    if (key.includes("movement")) return "Movimentações";
+    if (key.includes("supplier")) return "Fornecedores";
+    if (key.includes("cost")) return "Custos";
+  }
   if (module === "equipment" && key.includes("technical_field")) return "Campos Técnicos";
   if (module === "agenda") { if (key.includes("calendar")) return "Calendário"; if (key.includes("details")) return "Detalhes"; }
   if (module === "customers" && key.includes("address")) return "Endereços";
@@ -125,6 +130,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "orders.register_part_return": ["orders.section.parts", "orders.view"], "orders.receive_returned_parts": ["orders.section.parts", "orders.view"],
   "orders.record_test_results": ["orders.section.parts", "orders.view"], "orders.history.create": ["orders.section.history", "orders.details.view", "orders.view"],
   "inventory.movements.view": ["inventory.view"], "inventory.movements.create": ["inventory.update", "inventory.view"], "inventory.toggle_active": ["inventory.update", "inventory.view"],
+  "inventory.suppliers.view": ["inventory.view"], "inventory.suppliers.manage": ["inventory.suppliers.view", "inventory.update", "inventory.view"], "inventory.costs.view": ["inventory.view"],
   "products.toggle_active": ["products.update", "products.view"], "products.toggle_featured": ["products.update", "products.view"],
   "categories.toggle_active": ["categories.update", "categories.view"], "brands.toggle_active": ["brands.update", "brands.view"],
   "general_services.toggle_active": ["general_services.edit", "general_services.view"], "service_types.toggle_active": ["service_types.edit", "service_types.view"],
@@ -149,8 +155,6 @@ export function permissionDependencies(key: string) {
   const module = key.split(".")[0];
   const isModuleView = key === `${module}.view`;
 
-  // O conjunto employees.* é legado apenas como chave de autorização do acesso
-  // dentro de Cadastros. Não herda mais as permissões da antiga tabela de usuários.
   if (module === "employees") return Array.from(dependencies);
 
   const isTableColumn = key.includes(".table.") && key !== `${module}.table.view`;
