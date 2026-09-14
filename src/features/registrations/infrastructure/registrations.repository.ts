@@ -38,8 +38,12 @@ export type Registration = {
     profile_id: string | null;
     role_id: string | null;
     uniq_subscriber_id: string | null;
-    is_active: boolean;
   }> | null;
+  legacy_employee?: {
+    id: string;
+    profile_id: string | null;
+    is_active: boolean;
+  } | null;
   addresses?: Array<{
     id: string;
     type: string;
@@ -62,7 +66,8 @@ const REGISTRATION_SELECT = `
   birth_date,foundation_date,phone,whatsapp,email,is_active,legacy_customer_id,legacy_employee_id,
   created_at,updated_at,
   roles:entity_roles(role,is_active),
-  employee_details:entity_employee_details(job_title,team_name,admission_date,profile_id,role_id,uniq_subscriber_id,is_active),
+  employee_details:entity_employee_details(job_title,team_name,admission_date,profile_id,role_id,uniq_subscriber_id),
+  legacy_employee:employees!entities_legacy_employee_id_fkey(id,profile_id,is_active),
   addresses:entity_addresses!entity_addresses_entity_organization_fkey(id,type,zip_code,state,city,neighborhood,street,number,complement,reference,location_url,is_primary,is_active)
 `;
 
