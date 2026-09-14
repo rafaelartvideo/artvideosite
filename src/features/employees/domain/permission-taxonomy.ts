@@ -129,7 +129,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "categories.toggle_active": ["categories.update", "categories.view"], "brands.toggle_active": ["brands.update", "brands.view"],
   "general_services.toggle_active": ["general_services.edit", "general_services.view"], "service_types.toggle_active": ["service_types.edit", "service_types.view"],
   "service_types.sla.manage": ["service_types.edit", "service_types.view"],
-  "employees.create": ["employees.view"], "employees.edit": ["employees.view"], "employees.toggle_active": ["employees.edit", "employees.view"],
+  "employees.create": ["employees.view"], "employees.edit": ["employees.view"], "employees.toggle_active": ["employees.view"],
   "quotes.status.change": ["quotes.edit", "quotes.view"], "quotes.convert_to_order": ["quotes.view", "orders.create"],
   "agenda.create": ["agenda.view"], "agenda.reschedule": ["agenda.view"], "agenda.view_others": ["agenda.view"],
   "situations.table.view": ["situations.view"], "situations.create": ["situations.view"], "situations.edit": ["situations.view"], "situations.delete": ["situations.view"],
