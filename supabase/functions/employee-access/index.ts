@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -245,9 +245,10 @@ Deno.serve(async (req) => {
         .from("roles")
         .select("id,is_active")
         .eq("id", roleId)
+        .eq("organization_id", organizationId)
         .maybeSingle();
       if (roleError) throw roleError;
-      if (!role || role.is_active === false) return json({ error: "A função selecionada não está disponível." }, 400);
+      if (!role || role.is_active === false) return json({ error: "A função selecionada não está disponível para esta empresa." }, 400);
     }
 
     const normalizedEmail = String(body.email ?? currentAccess.email ?? "").trim().replace(/\s+/g, "").toLowerCase();
@@ -327,7 +328,14 @@ Deno.serve(async (req) => {
         body.uniq_subscriber_id === undefined ? undefined : String(body.uniq_subscriber_id || "").trim() || null,
       );
 
-      const refreshedEmployee = { ...employee, profile_id: userId, role_id: roleId, uniq_subscriber_id: organizationId === PLATFORM_ORGANIZATION_ID && body.uniq_subscriber_id !== undefined ? String(body.uniq_subscriber_id || "").trim() || null : employee.uniq_subscriber_id };
+      const refreshedEmployee = {
+        ...employee,
+        profile_id: userId,
+        role_id: roleId,
+        uniq_subscriber_id: organizationId === PLATFORM_ORGANIZATION_ID && body.uniq_subscriber_id !== undefined
+          ? String(body.uniq_subscriber_id || "").trim() || null
+          : employee.uniq_subscriber_id,
+      };
       return json({ success: true, access: await loadAccess(organizationId, refreshedEmployee) });
     } catch (error) {
       if (createdUserId) {
