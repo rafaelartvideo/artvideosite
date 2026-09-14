@@ -31,15 +31,8 @@ const FALLBACK_STATES: IbgeState[] = [
   { sigla: "TO", nome: "Tocantins" },
 ];
 
-const normalizeDigits = (value: unknown) =>
-  String(value ?? "").replace(/\D/g, "");
-
-const normalizeLookup = (value: unknown) =>
-  String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
+const normalizeDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
+const normalizeLookup = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 
 export function useOrderServiceAddress({
   form,
@@ -65,9 +58,11 @@ export function useOrderServiceAddress({
     setForm((current: any) => ({ ...current, ...fields }));
   };
 
+  const customerAddresses = ((selectedCustomer?.addresses || []) as Address[]).filter(Boolean);
   const selectedServiceAddress =
-    ((selectedCustomer?.addresses || []) as Address[]).find(address => address.is_default) ||
-    ((selectedCustomer?.addresses || []) as Address[])[0] ||
+    customerAddresses.find(address => address.id && address.id === form.service_customer_address_id) ||
+    customerAddresses.find(address => address.is_default) ||
+    customerAddresses[0] ||
     null;
 
   const serviceAddressPreview: Address | null = serviceUseCustomerAddress
@@ -87,6 +82,7 @@ export function useOrderServiceAddress({
 
   const clearServiceAddress = () => {
     updateFields({
+      service_customer_address_id: "",
       service_zip_code: "",
       service_state: "",
       service_city: "",
@@ -109,9 +105,7 @@ export function useOrderServiceAddress({
     if (cached) {
       setIbgeCities(cached);
       if (preferredCity) {
-        const officialCity = cached.find(city =>
-          normalizeLookup(city.nome) === normalizeLookup(preferredCity),
-        );
+        const officialCity = cached.find(city => normalizeLookup(city.nome) === normalizeLookup(preferredCity));
         if (officialCity) updateFields({ service_city: officialCity.nome });
       }
       return cached;
@@ -119,18 +113,14 @@ export function useOrderServiceAddress({
 
     setIbgeCitiesLoading(true);
     try {
-      const response = await fetch(
-        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`,
-      );
+      const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`);
       if (!response.ok) throw new Error("Falha ao carregar cidades.");
       const cities = await response.json() as IbgeCity[];
       if (requestId !== citiesRequestRef.current) return [];
       citiesCacheRef.current[uf] = cities;
       setIbgeCities(cities);
       if (preferredCity) {
-        const officialCity = cities.find(city =>
-          normalizeLookup(city.nome) === normalizeLookup(preferredCity),
-        );
+        const officialCity = cities.find(city => normalizeLookup(city.nome) === normalizeLookup(preferredCity));
         if (officialCity) updateFields({ service_city: officialCity.nome });
       }
       return cities;
@@ -144,6 +134,7 @@ export function useOrderServiceAddress({
 
   const copyCustomerAddressToForm = (address: Address | null) => {
     updateFields({
+      service_customer_address_id: address?.id || "",
       service_zip_code: address?.zip_code || "",
       service_state: address?.state || "",
       service_city: address?.city || "",
@@ -153,6 +144,13 @@ export function useOrderServiceAddress({
       service_complement: address?.complement || "",
     });
     if (address?.state) void loadIbgeCities(address.state, address.city);
+  };
+
+  const selectServiceAddress = (address: Address) => {
+    setServiceUseCustomerAddress(true);
+    setServiceCustomerAddressOverride(true);
+    setServiceAddressMessage("");
+    copyCustomerAddressToForm(address);
   };
 
   const resetServiceAddressState = () => {
@@ -182,31 +180,15 @@ export function useOrderServiceAddress({
     let active = true;
     setIbgeStatesLoading(true);
     fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome")
-      .then(response =>
-        response.ok
-          ? response.json() as Promise<IbgeState[]>
-          : Promise.reject(new Error("Falha ao carregar estados.")),
-      )
-      .then(states => {
-        if (active) setIbgeStates(states);
-      })
-      .catch(() => {
-        if (active) setIbgeStates(FALLBACK_STATES);
-      })
-      .finally(() => {
-        if (active) setIbgeStatesLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+      .then(response => response.ok ? response.json() as Promise<IbgeState[]> : Promise.reject(new Error("Falha ao carregar estados.")))
+      .then(states => { if (active) setIbgeStates(states); })
+      .catch(() => { if (active) setIbgeStates(FALLBACK_STATES); })
+      .finally(() => { if (active) setIbgeStatesLoading(false); });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
-    if (
-      form.order_type !== "external" ||
-      serviceUseCustomerAddress ||
-      normalizeDigits(form.service_zip_code).length !== 8
-    ) return;
+    if (form.order_type !== "external" || serviceUseCustomerAddress || normalizeDigits(form.service_zip_code).length !== 8) return;
 
     const requestId = ++zipRequestRef.current;
     setServiceAddressMessage("");
@@ -216,9 +198,7 @@ export function useOrderServiceAddress({
       .then(async address => {
         if (requestId !== zipRequestRef.current) return;
         if (!address) {
-          setServiceAddressMessage(
-            "CEP não encontrado. Verifique ou preencha o endereço manualmente.",
-          );
+          setServiceAddressMessage("CEP não encontrado. Verifique ou preencha o endereço manualmente.");
           return;
         }
         updateFields({
@@ -226,37 +206,20 @@ export function useOrderServiceAddress({
           service_neighborhood: address.neighborhood || "",
           service_street: address.street || "",
         });
-        const cities = await loadIbgeCities(
-          address.state || "",
-          address.city || "",
-        );
+        const cities = await loadIbgeCities(address.state || "", address.city || "");
         if (requestId !== zipRequestRef.current) return;
-        if (!cities.some(city =>
-          normalizeLookup(city.nome) === normalizeLookup(address.city)
-        )) {
+        if (!cities.some(city => normalizeLookup(city.nome) === normalizeLookup(address.city))) {
           updateFields({ service_city: address.city || "" });
         }
         setServiceAddressMessage("");
       })
       .catch(() => {
-        if (requestId === zipRequestRef.current) {
-          setServiceAddressMessage(
-            "Não foi possível consultar o CEP agora. Preencha o endereço manualmente.",
-          );
-        }
+        if (requestId === zipRequestRef.current) setServiceAddressMessage("Não foi possível consultar o CEP agora. Preencha o endereço manualmente.");
       })
-      .finally(() => {
-        if (requestId === zipRequestRef.current) setIbgeCitiesLoading(false);
-      });
+      .finally(() => { if (requestId === zipRequestRef.current) setIbgeCitiesLoading(false); });
 
-    return () => {
-      zipRequestRef.current += 1;
-    };
-  }, [
-    form.order_type,
-    form.service_zip_code,
-    serviceUseCustomerAddress,
-  ]);
+    return () => { zipRequestRef.current += 1; };
+  }, [form.order_type, form.service_zip_code, serviceUseCustomerAddress]);
 
   return {
     serviceUseCustomerAddress,
@@ -269,10 +232,12 @@ export function useOrderServiceAddress({
     ibgeStatesLoading,
     ibgeCities,
     ibgeCitiesLoading,
+    customerAddresses,
     selectedServiceAddress,
     serviceAddressPreview,
     clearServiceAddress,
     copyCustomerAddressToForm,
+    selectServiceAddress,
     loadIbgeCities,
     resetServiceAddressState,
     hydrateServiceAddress,
