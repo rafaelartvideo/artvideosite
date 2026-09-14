@@ -72,6 +72,16 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
   return result;
 }
 
+export async function setEmployeeAccessActive(organizationId: string, employeeId: string, isActive: boolean) {
+  const result = await supabase.rpc("set_employee_active_state", {
+    p_organization_id: organizationId,
+    p_employee_id: employeeId,
+    p_is_active: isActive,
+  });
+  if (!result.error) employeeAccessCache.delete(employeeAccessKey(organizationId, employeeId));
+  return result;
+}
+
 export const listObservedUniqSubscribers = () => supabase.rpc("observed_uniq_subscribers");
 
 export type PermissionAccess = {
