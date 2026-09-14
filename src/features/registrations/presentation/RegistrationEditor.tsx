@@ -86,7 +86,7 @@ export function RegistrationEditor({
     onClose={onClose}
     breadcrumb="Cadastros"
     title={creating ? "Novo cadastro" : registrationDisplayName(form) || "Editar cadastro"}
-    subtitle={creating ? "Cadastre uma pessoa ou empresa e defina seus vínculos." : "Atualize informações, endereços, fornecedor e acesso quando permitido."}
+    subtitle={creating ? "Cadastre uma pessoa ou empresa e defina seus vínculos." : "Atualize dados pessoais, endereços, fornecedor e acesso quando permitido."}
     maxW="max-w-6xl"
   >
     <div className="space-y-5 p-4 sm:p-5">
@@ -108,7 +108,7 @@ export function RegistrationEditor({
         })}</div>
       </Section>
 
-      <Section title="Informações">
+      <Section title="Dados Pessoais">
         {form.person_type === "PF" ? <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF<span className="text-red-400">*</span></label>
@@ -145,24 +145,28 @@ export function RegistrationEditor({
 
       <RegistrationAddressesEditor value={addresses} onChange={setAddresses} disabled={!canModify} />
 
-      {form.roles.includes("employee") && <Section title="Funcionário">
+      {form.roles.includes("employee") && <Section title="Geral">
         <div className="grid gap-4 sm:grid-cols-3">
           <FInput label="Cargo" value={form.job_title} onChange={(event: any) => setForm(current => ({ ...current, job_title: event.target.value }))} />
           <FInput label="Setor" value={form.team_name} onChange={(event: any) => setForm(current => ({ ...current, team_name: event.target.value }))} />
           <FInput label="Data de admissão" type="date" value={form.admission_date} onChange={(event: any) => setForm(current => ({ ...current, admission_date: event.target.value }))} />
         </div>
+
+        {canShowAccess && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-5">
+          <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
+          <UserAccessSection
+            embedded
+            organizationId={organizationId}
+            value={accessForm}
+            onChange={onAccessChange}
+            existingAccess={accessExisting}
+            disabled={!canModifyAccess}
+            loading={accessLoading}
+          />
+        </div>}
       </Section>}
 
       {form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
-
-      {form.roles.includes("employee") && canShowAccess && <UserAccessSection
-        organizationId={organizationId}
-        value={accessForm}
-        onChange={onAccessChange}
-        existingAccess={accessExisting}
-        disabled={!canModifyAccess}
-        loading={accessLoading}
-      />}
     </div>
 
     <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
