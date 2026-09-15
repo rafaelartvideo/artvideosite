@@ -4,6 +4,13 @@ import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import type { SupplierInventoryItem } from "../infrastructure/registrations.repository";
 
+function MobileField({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="min-w-0">
+    <div className="mb-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">{label}</div>
+    <div className="min-w-0 text-xs font-semibold text-[#0d1b2e]">{children}</div>
+  </div>;
+}
+
 export function SupplierItemsTable({
   items,
   onRemove,
@@ -27,7 +34,27 @@ export function SupplierItemsTable({
   if (items.length === 0) return <p className="py-5 text-center text-sm text-[#5a6a82]">{emptyText}</p>;
 
   return <div className="min-w-0">
-    <div className="overflow-x-auto">
+    <div className="divide-y divide-[#0d1b2e]/8 md:hidden">
+      {paged.map(item => <article key={item.id} className="py-4 first:pt-0 last:pb-0">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <div className="col-span-2"><MobileField label="Item"><span className="break-words text-sm font-black">{item.name}</span></MobileField></div>
+          <MobileField label="SKU"><span className="break-all font-mono">{item.sku || "—"}</span></MobileField>
+          <MobileField label="Status"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></MobileField>
+        </div>
+        {onRemove && <div className="mt-3 flex items-center justify-between border-t border-[#0d1b2e]/8 pt-3">
+          <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">Ações</span>
+          <button
+            type="button"
+            onClick={() => onRemove(item.id)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+            aria-label={`Remover ${item.name}`}
+            title="Remover vínculo"
+          ><X size={14} /></button>
+        </div>}
+      </article>)}
+    </div>
+
+    <div className="hidden overflow-x-auto md:block">
       <table className="min-w-[720px]">
         <thead><tr>
           <th className="text-left">Item</th>
