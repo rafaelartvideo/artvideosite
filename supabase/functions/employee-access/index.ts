@@ -26,6 +26,29 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function authFailureMessage(error: any, action: "create" | "update") {
+  const code = String(error?.code || "").toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
+  if (
+    code === "email_exists"
+    || code === "user_already_exists"
+    || message.includes("already registered")
+    || message.includes("already been registered")
+    || message.includes("already exists")
+  ) return "E-mail já cadastrado.";
+  if (code.includes("email") || message.includes("invalid email") || message.includes("email address")) {
+    return "Informe um e-mail de acesso válido.";
+  }
+  if (code === "weak_password" || code.includes("password") || message.includes("password")) {
+    return action === "create"
+      ? "A senha informada não atende aos requisitos de segurança."
+      : "A nova senha não atende aos requisitos de segurança.";
+  }
+  return action === "create"
+    ? "Não foi possível criar o usuário de acesso."
+    : "Não foi possível atualizar o e-mail ou a senha do usuário.";
+}
+
 async function authenticatedUser(req: Request) {
   const token = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return null;
@@ -279,8 +302,7 @@ Deno.serve(async (req) => {
           user_metadata: { full_name: employee.full_name },
         });
         if (authError || !authData.user) {
-          const duplicate = authError?.message?.toLowerCase().includes("already");
-          return json({ error: duplicate ? "E-mail já cadastrado." : "Não foi possível criar o usuário de acesso." }, 400);
+          return json({ error: authFailureMessage(authError, "create") }, 400);
         }
         userId = authData.user.id;
         createdUserId = userId;
@@ -290,7 +312,7 @@ Deno.serve(async (req) => {
         if (password) authUpdates.password = password;
         if (Object.keys(authUpdates).length) {
           const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, authUpdates);
-          if (authUpdateError) throw authUpdateError;
+          if (authUpdateError) return json({ error: authFailureMessage(authUpdateError, "update") }, 400);
         }
       }
 
