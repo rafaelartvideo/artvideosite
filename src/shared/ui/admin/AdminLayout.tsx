@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, Pause, Play, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
 import {
@@ -115,6 +115,23 @@ export function AdminIconButton({
     danger: "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100",
     ghost: "border border-transparent bg-transparent text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-[#0057e7]",
   };
+  const rawLabel = String(buttonProps["aria-label"] ?? ariaLabel ?? title ?? "").trim();
+  const normalizedLabel = rawLabel.toLocaleLowerCase("pt-BR");
+  const activeStateAction = normalizedLabel.startsWith("inativar") || normalizedLabel.startsWith("desativar")
+    ? "deactivate"
+    : normalizedLabel.startsWith("ativar")
+      ? "activate"
+      : null;
+  const resolvedLabel = activeStateAction === "deactivate"
+    ? rawLabel.replace(/^(desativar|inativar)/i, "Inativar")
+    : activeStateAction === "activate"
+      ? rawLabel.replace(/^ativar/i, "Ativar")
+      : rawLabel;
+  const activeStateClass = activeStateAction === "deactivate"
+    ? "border-red-200 bg-white text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+    : activeStateAction === "activate"
+      ? "border-emerald-200 bg-white text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+      : "";
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = event => {
     if (!onClick || resolvedLoading) return;
@@ -133,17 +150,23 @@ export function AdminIconButton({
     onClick={handleClick}
     disabled={disabled || resolvedLoading}
     aria-busy={resolvedLoading || buttonProps["aria-busy"] === true ? true : undefined}
-    aria-label={buttonProps["aria-label"] ?? ariaLabel}
-    title={title ?? buttonProps["aria-label"] ?? ariaLabel}
+    aria-label={activeStateAction ? resolvedLabel : (buttonProps["aria-label"] ?? ariaLabel)}
+    title={activeStateAction ? resolvedLabel : (title ?? buttonProps["aria-label"] ?? ariaLabel)}
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
       "inline-flex h-8 w-8 cursor-default items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-40",
-      variants[variant],
+      activeStateAction ? activeStateClass : variants[variant],
       className,
     )}
   >
-    {resolvedLoading ? <ButtonLoadingSpinner /> : children}
+    {resolvedLoading
+      ? <ButtonLoadingSpinner />
+      : activeStateAction === "deactivate"
+        ? <Pause size={15} />
+        : activeStateAction === "activate"
+          ? <Play size={15} />
+          : children}
   </button>;
 }
 

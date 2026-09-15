@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ClipboardCheck, Edit2, Plus, Power, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ClipboardCheck, Edit2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
@@ -13,6 +13,7 @@ import {
   InternalBackButton,
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
+import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import type { ChecklistProfileDraftItem, ChecklistProfileDraftStage, ChecklistStageType } from "../domain/checklist";
@@ -326,9 +327,13 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
                     <Metric label="Itens" value={itemCount} />
                   </div>
                   {canManage && <div className="flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 pt-3">
-                    <AdminButton variant="secondary" onClick={() => void toggleProfile(profile.id)}>
-                      <Power size={14} /> {profile.is_active ? "Inativar" : "Ativar"}
-                    </AdminButton>
+                    <AdminActiveStateButton
+                      active={profile.is_active}
+                      entityLabel="perfil"
+                      onClick={() => void toggleProfile(profile.id)}
+                      className="h-9 w-9"
+                      iconSize={14}
+                    />
                     <AdminButton onClick={() => onRouteChange?.(profile.id, "edit")}><Edit2 size={14} /> Editar</AdminButton>
                   </div>}
                 </div>
