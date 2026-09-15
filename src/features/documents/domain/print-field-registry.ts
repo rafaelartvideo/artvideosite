@@ -24,12 +24,11 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     key: "customer",
     label: "Cliente",
     description: "Dados cadastrais e de contato do cliente vinculado à OS.",
-    defaultColumns: 2,
+    defaultColumns: 3,
     fields: [
       { key: "customer.full_name", label: "Nome / Nome completo" },
       { key: "customer.customer_type", label: "Tipo de cliente (PF/PJ)" },
-      { key: "customer.document", label: "CPF / Documento" },
-      { key: "customer.cnpj", label: "CNPJ" },
+      { key: "customer.document", label: "CPF / CNPJ" },
       { key: "customer.legal_name", label: "Razão social" },
       { key: "customer.trade_name", label: "Nome fantasia" },
       { key: "customer.state_registration", label: "Inscrição estadual" },
@@ -44,7 +43,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     key: "address",
     label: "Endereço",
     description: "Endereço de atendimento registrado na OS e dados do endereço do cliente.",
-    defaultColumns: 2,
+    defaultColumns: 3,
     fields: [
       { key: "address.full", label: "Endereço completo" },
       { key: "address.zip_code", label: "CEP" },
@@ -62,10 +61,8 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     key: "order",
     label: "Informações da OS",
     description: "Identificação, classificação e observações da Ordem de Serviço.",
-    defaultColumns: 2,
+    defaultColumns: 3,
     fields: [
-      { key: "order.os_number", label: "Número da OS" },
-      { key: "order.external_os_number", label: "OS externa" },
       { key: "order.order_type", label: "Tipo da OS" },
       { key: "order.origin", label: "Origem" },
       { key: "order.priority", label: "Prioridade" },
@@ -81,11 +78,10 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     key: "service",
     label: "Atendimento / Serviço",
     description: "Serviço, tipo de atendimento e informações relacionadas ao atendimento.",
-    defaultColumns: 2,
+    defaultColumns: 3,
     fields: [
       { key: "service.name", label: "Serviço" },
       { key: "service.type", label: "Tipo de atendimento" },
-      { key: "service.general_services", label: "Serviços gerais", kind: "list" },
       { key: "service.scheduled_at", label: "Data agendada", kind: "datetime" },
       { key: "service.started_at", label: "Data de início", kind: "datetime" },
     ],
@@ -94,7 +90,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     key: "equipment",
     label: "Equipamento",
     description: "Identificação e condição do equipamento recebido para atendimento.",
-    defaultColumns: 2,
+    defaultColumns: 3,
     fields: [
       { key: "equipment.type", label: "Tipo de equipamento" },
       { key: "equipment.brand", label: "Marca" },
@@ -108,7 +104,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     key: "responsibility",
     label: "Responsáveis / Equipe",
     description: "Pessoas responsáveis pelo atendimento e execução da OS.",
-    defaultColumns: 2,
+    defaultColumns: 3,
     fields: [
       { key: "responsibility.assigned_to", label: "Responsável" },
       { key: "responsibility.technician", label: "Técnico" },
@@ -119,12 +115,11 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     key: "sla",
     label: "SLA / Prazos",
     description: "Datas, prazos e informações temporais do fluxo da OS.",
-    defaultColumns: 2,
+    defaultColumns: 3,
     fields: [
       { key: "sla.situation_started_at", label: "Início da situação atual", kind: "datetime" },
       { key: "sla.situation_hours", label: "Prazo da situação (horas)" },
       { key: "sla.service_type_forecast_days", label: "Previsão do atendimento (dias)" },
-      { key: "sla.solved_at", label: "Data da solução", kind: "datetime" },
       { key: "sla.completed_at", label: "Data da conclusão", kind: "datetime" },
     ],
   },
@@ -137,7 +132,6 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
       { key: "resolution.diagnosis", label: "Diagnóstico" },
       { key: "resolution.solution", label: "Solução executada" },
       { key: "resolution.solved_at", label: "Data/hora da solução", kind: "datetime" },
-      { key: "resolution.solution_images", label: "Imagens da solução", kind: "image" },
     ],
   },
   {
@@ -159,8 +153,6 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     defaultColumns: 1,
     fields: [
       { key: "part_requests.requests", label: "Solicitações", kind: "list" },
-      { key: "part_requests.items", label: "Peças solicitadas", kind: "list" },
-      { key: "part_requests.quantities", label: "Quantidades", kind: "list" },
       { key: "part_requests.status", label: "Situação das solicitações", kind: "list" },
       { key: "part_requests.purpose", label: "Finalidade", kind: "list" },
       { key: "part_requests.notes", label: "Observações", kind: "list" },
@@ -170,7 +162,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     key: "financial",
     label: "Financeiro",
     description: "Valores consolidados e descontos da conclusão financeira.",
-    defaultColumns: 2,
+    defaultColumns: 3,
     fields: [
       { key: "financial.service_price", label: "Valor do serviço", kind: "currency" },
       { key: "financial.parts_total", label: "Total de peças", kind: "currency" },
@@ -179,7 +171,6 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
       { key: "financial.discount_amount", label: "Valor do desconto", kind: "currency" },
       { key: "financial.final_total", label: "Valor total", kind: "currency" },
       { key: "financial.estimated_price", label: "Valor estimado", kind: "currency" },
-      { key: "financial.final_price", label: "Valor final legado", kind: "currency" },
     ],
   },
   {
@@ -188,45 +179,38 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     description: "Registros manuais e alterações de fluxo relacionadas à OS.",
     defaultColumns: 1,
     fields: [
-      { key: "history.manual_entries", label: "Registros do histórico", kind: "list" },
       { key: "history.status_changes", label: "Histórico de status", kind: "list" },
-      { key: "history.author", label: "Autor dos registros", kind: "list" },
-      { key: "history.created_at", label: "Data/hora dos registros", kind: "list" },
     ],
   },
   {
-    key: "documents",
-    label: "Documentos / Imagens",
-    description: "Documentos e imagens associados às situações e à resolução da OS.",
+    key: "checklists",
+    label: "Checklists do equipamento",
+    description: "Etapas registradas nesta OS, com itens, respostas e observações.",
     defaultColumns: 1,
     fields: [
-      { key: "documents.situation_media", label: "Documentos por situação", kind: "image" },
-      { key: "documents.legacy_media", label: "Imagens anteriores da OS", kind: "image" },
-      { key: "documents.solution_media", label: "Imagens da solução", kind: "image" },
+      { key: "checklists.entry", label: "Checklist de entrada" },
+      { key: "checklists.diagnosis", label: "Checklist de diagnóstico" },
+      { key: "checklists.qc", label: "Checklist de qualidade / saída" },
+      { key: "checklists.custom", label: "Checklists de etapas personalizadas" },
     ],
   },
   {
     key: "signatures",
     label: "Assinaturas",
-    description: "Áreas reservadas para assinatura no documento impresso.",
+    description: "Linha de assinatura com identificação e data abaixo, sem caixas.",
     defaultColumns: 2,
     fields: [
       { key: "signatures.customer", label: "Assinatura do cliente", kind: "signature" },
       { key: "signatures.technician", label: "Assinatura do técnico", kind: "signature" },
-      { key: "signatures.customer_name", label: "Nome do cliente por extenso" },
-      { key: "signatures.customer_document", label: "CPF/CNPJ do cliente" },
-      { key: "signatures.date", label: "Data da assinatura", kind: "date" },
     ],
   },
   {
     key: "system",
     label: "Sistema / Impressão",
     description: "Metadados gerados no momento da impressão.",
-    defaultColumns: 2,
+    defaultColumns: 3,
     fields: [
-      { key: "system.printed_at", label: "Data/hora da impressão", kind: "datetime" },
       { key: "system.printed_by", label: "Impresso por" },
-      { key: "system.page_number", label: "Número da página" },
     ],
   },
 ];
@@ -238,3 +222,21 @@ export const PRINT_FIELD_BY_KEY = new Map(
 export const PRINT_SECTION_BY_KEY = new Map(
   PRINT_FIELD_REGISTRY.map(section => [section.key, section] as const),
 );
+
+
+/** Map saved legacy selections to the current catalog without duplicate output. */
+export function normalizePrintSelectedFields(keys: Iterable<string>): Set<string> {
+  const source = new Set(keys);
+  const aliases: Record<string, string> = {
+    "customer.cnpj": "customer.document",
+    "service.general_services": "service.name",
+    "sla.solved_at": "resolution.solved_at",
+    "financial.final_price": "financial.final_total",
+  };
+  const result = new Set([...source].map(key => aliases[key] || key).filter(key => PRINT_FIELD_BY_KEY.has(key)));
+  if (!result.has("signatures.customer") && !result.has("signatures.technician") &&
+      ["signatures.customer_name", "signatures.customer_document", "signatures.date"].some(key => source.has(key))) {
+    result.add("signatures.customer");
+  }
+  return result;
+}

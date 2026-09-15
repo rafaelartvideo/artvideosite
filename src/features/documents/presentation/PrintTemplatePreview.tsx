@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildOrderPrintDocumentHtml, type PrintOrderContext } from "../domain/order-print-document";
+import type { ChecklistStageType, OrderChecklistStage } from "@/features/checklists/domain/checklist";
 import type { PrintTemplateEditorValue } from "../domain/print-template";
 
 const PREVIEW_CONTEXT: PrintOrderContext = {
@@ -63,6 +64,30 @@ const PREVIEW_CONTEXT: PrintOrderContext = {
   }],
   partRequests: [{ status: "Aprovada", purpose: "Resolução", notes: "Peça necessária para o reparo." }],
   history: [],
+  checklist: {
+    id: "preview-checklist", organization_id: "preview", service_order_id: "preview",
+    equipment_type_id: null, source_profile_id: null, profile_name_snapshot: "Inspeção do equipamento",
+    profile_version_snapshot: 1, status: "in_progress", created_at: "2026-09-15T09:00:00",
+    completed_by: null, completed_at: null,
+    stages: (["entry", "diagnosis", "qc", "custom"] as ChecklistStageType[]).map((type, index): OrderChecklistStage => ({
+      id: type, organization_id: "preview", checklist_id: "preview-checklist",
+      stage_code_snapshot: type, stage_type_snapshot: type,
+      name_snapshot: ["Entrada", "Diagnóstico", "Qualidade / saída", "Conferência adicional"][index],
+      situation_id_snapshot: null, situation_name_snapshot: null,
+      block_situation_exit_snapshot: false, block_resolution_snapshot: false, block_completion_snapshot: false,
+      sort_order: index, status: "completed", completed_by: null, completed_at: null,
+      reopened_by: null, reopened_at: null,
+      items: [{
+        id: type + "-item", organization_id: "preview", stage_id: type, source_kind: "profile",
+        title_snapshot: ["Estado do gabinete", "Teste da fonte", "Teste de funcionamento", "Conferência dos acessórios"][index],
+        description_snapshot: null, response_type_snapshot: "conformity", allow_na_snapshot: true,
+        is_required_snapshot: true, photo_requirement_snapshot: "none", observation_requirement_snapshot: "optional",
+        sort_order: 0, response_code: "ok", response_text: null, response_number: null,
+        observation: index === 0 ? "Sem avarias aparentes." : null,
+        answered_by: null, answered_at: null, media: [],
+      }],
+    })),
+  },
 };
 
 export function PrintTemplatePreview({
@@ -76,19 +101,35 @@ export function PrintTemplatePreview({
     () => buildOrderPrintDocumentHtml(template, PREVIEW_CONTEXT),
     [template],
   );
-  const aspectRatio = template.orientation === "landscape" ? "297 / 210" : "210 / 297";
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  const pageWidth = (template.orientation === "landscape" ? 297 : 210) * 96 / 25.4;
+  const pageHeight = (template.orientation === "landscape" ? 210 : 297) * 96 / 25.4;
+  const scale = Math.min(1, (availableWidth || pageWidth) / pageWidth);
+
+  useEffect(() => setContentHeight(0), [html]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(([entry]) => setAvailableWidth(entry.contentRect.width));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="flex w-full justify-center py-2">
-      <iframe
-        title="Pré-visualização do documento"
-        srcDoc={html}
-        className="w-full rounded-lg border border-slate-200 bg-white shadow-lg"
-        style={{
-          aspectRatio,
-          maxWidth: compact ? (template.orientation === "landscape" ? 620 : 440) : 900,
-        }}
-      />
+      <div ref={containerRef} className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+        style={{ maxWidth: compact ? (template.orientation === "landscape" ? 620 : 440) : pageWidth, height: Math.max(pageHeight, contentHeight) * scale }}>
+        <iframe
+          title="Pré-visualização do documento"
+          srcDoc={html}
+          onLoad={event => setContentHeight(event.currentTarget.contentDocument?.body.scrollHeight || pageHeight)}
+          className="absolute left-0 top-0 border-0 bg-white"
+          style={{ width: pageWidth, height: Math.max(pageHeight, contentHeight), transform: `scale(${scale})`, transformOrigin: "top left" }}
+        />
+      </div>
     </div>
   );
 }

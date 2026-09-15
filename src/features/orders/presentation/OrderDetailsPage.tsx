@@ -1,3 +1,4 @@
+import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useState } from "react";
 import { ChevronDown, FileText, Mail, PackagePlus, Printer } from "lucide-react";
 import { AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -112,7 +113,10 @@ export function OrderDetailsPage(props: Props) {
     try {
       if (!detail?.organization_id) throw new Error("A OS não possui empresa definida.");
       const [configuredTemplate, company] = await Promise.all([loadPrintTemplateEditorValue(template), getCompanyPrintContext(detail.organization_id)]);
-      renderOrderPrintDocument(popup, configuredTemplate, { order: detail, usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName, company });
+      const needsChecklist = [...configuredTemplate.selectedFields].some(key => key.startsWith("checklists."));
+      if (needsChecklist && !hasPermission("orders.section.checklists")) throw new Error("Você não possui permissão para imprimir os checklists desta OS.");
+      const checklist = needsChecklist ? await getOrderChecklist(detail.id) : null;
+      renderOrderPrintDocument(popup, configuredTemplate, { order: detail, checklist, usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName, company });
     } catch (error) { popup.close(); setPrintError(error instanceof Error ? error.message : "Não foi possível preparar o documento."); }
     finally { setPrintingTemplateId(null); }
   };
@@ -125,7 +129,10 @@ export function OrderDetailsPage(props: Props) {
     try {
       if (!detail?.organization_id) throw new Error("A OS não possui empresa definida.");
       const [configuredTemplate, company] = await Promise.all([loadPrintTemplateEditorValue(template), getCompanyPrintContext(detail.organization_id)]);
-      const html = buildOrderPrintDocumentHtml(configuredTemplate, { order: detail, usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName, company });
+      const needsChecklist = [...configuredTemplate.selectedFields].some(key => key.startsWith("checklists."));
+      if (needsChecklist && !hasPermission("orders.section.checklists")) throw new Error("Você não possui permissão para imprimir os checklists desta OS.");
+      const checklist = needsChecklist ? await getOrderChecklist(detail.id) : null;
+      const html = buildOrderPrintDocumentHtml(configuredTemplate, { order: detail, checklist, usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName, company });
       const result = await sendOrderDocumentEmail({ orderId: detail.id, documentName: template.name, documentHtml: html });
       setEmailMessage({ text: `Documento enviado para ${result.recipient}.`, type: "success" });
     } catch (error) { setEmailMessage({ text: error instanceof Error ? error.message : "Não foi possível enviar o documento.", type: "error" }); }
@@ -167,3 +174,4 @@ export function OrderDetailsPage(props: Props) {
     </AdminPage>}
   </>;
 }
+

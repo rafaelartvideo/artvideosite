@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { getActiveOrganizationId } from "@/lib/active-organization";
-import { PRINT_FIELD_REGISTRY } from "../domain/print-field-registry";
+import { PRINT_FIELD_REGISTRY, normalizePrintSelectedFields } from "../domain/print-field-registry";
 import { normalizePrintLayoutSettings, type PrintTemplate, type PrintTemplateEditorValue } from "../domain/print-template";
 
 export async function listPrintTemplates() {
@@ -40,10 +40,10 @@ export async function loadPrintTemplateEditorValue(template: PrintTemplate) {
     is_active: template.is_active,
     paper_size: template.paper_size,
     orientation: template.orientation,
-    margin_top: Number(template.margin_top || 0),
-    margin_right: Number(template.margin_right || 0),
-    margin_bottom: Number(template.margin_bottom || 0),
-    margin_left: Number(template.margin_left || 0),
+    margin_top: Math.max(6, Number(template.margin_top) || 6),
+    margin_right: Math.max(6, Number(template.margin_right) || 6),
+    margin_bottom: Math.max(6, Number(template.margin_bottom) || 6),
+    margin_left: Math.max(6, Number(template.margin_left) || 6),
     show_logo: template.show_logo,
     show_company_info: template.show_company_info,
     show_page_number: template.show_page_number,
@@ -51,11 +51,12 @@ export async function loadPrintTemplateEditorValue(template: PrintTemplate) {
     header_text: template.header_text || "",
     footer_text: template.footer_text || "",
     layout: normalizePrintLayoutSettings(template.settings),
-    selectedFields: new Set<string>((fields || []).map((field: any) => field.field_key).filter(Boolean)),
+    selectedFields: normalizePrintSelectedFields((fields || []).filter((field: any) => field.is_enabled !== false && (sections || []).some((section: any) => section.id === field.template_section_id && section.is_enabled !== false)).map((field: any) => field.field_key).filter(Boolean)),
   } satisfies PrintTemplateEditorValue;
 }
 
 export async function savePrintTemplate(value: PrintTemplateEditorValue) {
+  value = { ...value, selectedFields: normalizePrintSelectedFields(value.selectedFields) };
   const organizationId = await getActiveOrganizationId();
   const payload = {
     organization_id: organizationId,
@@ -211,3 +212,4 @@ export async function deleteAttachmentType(id: string) {
     .eq("organization_id", organizationId);
   if (error) throw error;
 }
+

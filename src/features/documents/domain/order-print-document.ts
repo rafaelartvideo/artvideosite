@@ -11,11 +11,13 @@ import {
   normalizeDigits,
   todayDateOnly,
 } from "@/shared/domain/formatters";
-import { PRINT_FIELD_REGISTRY } from "./print-field-registry";
+import { PRINT_FIELD_REGISTRY, normalizePrintSelectedFields } from "./print-field-registry";
+import type { OrderChecklist } from "@/features/checklists/domain/checklist";
 import type { PrintTemplateEditorValue } from "./print-template";
 
 export type PrintOrderContext = {
   order: any;
+  checklist?: OrderChecklist | null;
   usedItems?: any[];
   partRequests?: any[];
   history?: any[];
@@ -82,8 +84,7 @@ function resolveField(key: string, context: PrintOrderContext): string {
   const values: Record<string, unknown> = {
     "customer.full_name": customer.full_name,
     "customer.customer_type": customer.customer_type === "PJ" ? "Pessoa jurídica" : "Pessoa física",
-    "customer.document": formatDocument(customer.document),
-    "customer.cnpj": formatDocument(customer.cnpj),
+    "customer.document": formatDocument(customer.cnpj || customer.document),
     "customer.legal_name": customer.legal_name,
     "customer.trade_name": customer.trade_name,
     "customer.state_registration": customer.state_registration,
@@ -115,7 +116,6 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "order.updated_at": date(order.updated_at),
     "service.name": nameOf(order.general_service || order.service),
     "service.type": nameOf(order.service_type),
-    "service.general_services": nameOf(order.general_service),
     "service.scheduled_at": date(order.scheduled_at),
     "service.started_at": date(order.started_at || order.created_at),
     "equipment.type": nameOf(order.equipment_type),
@@ -130,12 +130,10 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "sla.situation_started_at": date(order.situation_started_at),
     "sla.situation_hours": order.situation_sla_hours == null ? null : formatDurationHours(order.situation_sla_hours),
     "sla.service_type_forecast_days": order.service_type?.forecast_days == null ? null : formatForecastDays(order.service_type.forecast_days),
-    "sla.solved_at": date(order.solved_at),
     "sla.completed_at": date(order.completed_at),
     "resolution.diagnosis": order.diagnosis,
     "resolution.solution": order.solution,
     "resolution.solved_at": date(order.solved_at),
-    "resolution.solution_images": order.solution_images?.length ? `${order.solution_images.length} ${order.solution_images.length === 1 ? "imagem" : "imagens"}` : "—",
     "used_parts.items": usedItems.map((item: any) => nameOf(item.inventory_item || item.item)).join("\\n"),
     "used_parts.quantity": usedItems.map((item: any) => formatNumber(item.quantity, { maximumFractionDigits: 2 })).join("\\n"),
     "used_parts.unit_price": usedItems.map((item: any) => money(item.unit_sale_price)).join("\\n"),
@@ -149,13 +147,9 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "financial.subtotal": money(order.subtotal),
     "financial.discount_percentage": order.discount_percentage == null ? null : `${formatNumber(order.discount_percentage, { maximumFractionDigits: 2 })}%`,
     "financial.discount_amount": money(order.discount_amount),
-    "financial.final_total": money(order.final_total),
+    "financial.final_total": money(order.final_total ?? order.final_price),
     "financial.estimated_price": money(order.estimated_price),
-    "financial.final_price": money(order.final_price),
     "history.status_changes": history.map((item: any) => [date(item.created_at), item.old_status?.name, item.new_status?.name].filter(Boolean).join(" — ")).join("\\n"),
-    "signatures.customer_name": customer.full_name,
-    "signatures.customer_document": formatDocument(customer.cnpj || customer.document),
-    "signatures.date": formatDateOnly(todayDateOnly(), "—"),
     "system.printed_at": date(new Date().toISOString()),
     "system.printed_by": context.printedBy,
   };
@@ -172,6 +166,7 @@ export function openPrintWindow() {
 }
 
 export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, context: PrintOrderContext, autoPrint = false) {
+  template = { ...template, selectedFields: normalizePrintSelectedFields(template.selectedFields) };
   const sections = PRINT_FIELD_REGISTRY
     .filter((section) => section.key !== "system")
     .map((section) => ({
@@ -182,7 +177,7 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
 
   const footerItems = [
     template.footer_text?.trim() || "",
-    template.selectedFields.has("system.printed_at") && template.show_printed_at
+    template.show_printed_at
       ? "Impresso em " + resolveField("system.printed_at", context)
       : "",
     template.selectedFields.has("system.printed_by")
@@ -203,6 +198,38 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     "history.status_changes",
   ]);
   const sectionHtml = sections.map((section) => {
+    if (section.key === "signatures") {
+      const signatures = section.fields.map((field) => {
+        const customer = context.order?.customer || {};
+        const isCustomer = field.key === "signatures.customer";
+        const name = isCustomer ? customer.full_name || customer.legal_name || customer.trade_name : resolveField("responsibility.technician", context);
+        const document = isCustomer ? customer.cnpj || customer.document : null;
+        return "<div class='signature'><div class='signature-line'></div>" +
+          "<div class='signature-label'>" + escapeHtml(field.label) + "</div>" +
+          (name && name !== "—" ? "<div class='signature-name'>" + escapeHtml(name) + "</div>" : "") +
+          (document ? "<div>" + escapeHtml(formatDocument(document)) + "</div>" : "") +
+          "<div class='signature-date'>Data: " + escapeHtml(formatDateOnly(todayDateOnly(), "—")) + "</div></div>";
+      }).join("");
+      return "<section class='signature-section'><div class='signatures'>" + signatures + "</div></section>";
+    }
+    if (section.key === "checklists") {
+      const stages = (context.checklist?.stages || []).filter(stage => template.selectedFields.has("checklists." + stage.stage_type_snapshot));
+      if (!stages.length) return "<section><h2>Checklists do equipamento</h2><div class='field'>Nenhuma etapa selecionada registrada nesta OS.</div></section>";
+      const labels: Record<string, string> = { ok: "Conforme", not_ok: "Não conforme", yes: "Sim", no: "Não", confirmed: "Confirmado", na: "Não se aplica" };
+      return [...stages].sort((a, b) => a.sort_order - b.sort_order).map(stage => {
+        const hasNotes = stage.items.some(item => item.observation?.trim());
+        const rows = [...stage.items].sort((a, b) => a.sort_order - b.sort_order).map(item => {
+          const answer = item.response_code === "na" ? labels.na
+            : item.response_type_snapshot === "number" ? (item.response_number == null ? "Não respondido" : formatNumber(item.response_number))
+            : item.response_type_snapshot === "text" ? item.response_text || "Não respondido"
+            : labels[item.response_code || ""] || "Não respondido";
+          return "<tr><td>" + escapeHtml(item.title_snapshot) + "</td><td>" + escapeHtml(answer) + "</td>" +
+            (hasNotes ? "<td>" + escapeHtml(item.observation) + "</td>" : "") + "</tr>";
+        }).join("");
+        return "<section class='section-list'><h2>Checklist · " + escapeHtml(stage.name_snapshot) + "</h2><table class='checklist-table'><thead><tr><th scope='col'>Item</th><th scope='col'>Resultado</th>" +
+          (hasNotes ? "<th scope='col'>Observações</th>" : "") + "</tr></thead><tbody>" + (rows || "<tr><td colspan='2'>Nenhum item cadastrado.</td></tr>") + "</tbody></table></section>";
+      }).join("");
+    }
     const columnCount = Math.min(section.fields.length, section.defaultColumns);
     if (section.key === "used_parts") {
       const numeric = (key: string) => key !== "used_parts.items" ? " class='numeric'" : "";
@@ -215,9 +242,6 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     }
     const fields = section.fields.map((field) => {
       const value = escapeHtml(resolveField(field.key, context)).replaceAll("\\n", "<br>");
-      if (field.kind === "signature") {
-        return "<div class='field signature'><div class='signature-line'></div><span>" + escapeHtml(field.label) + "</span></div>";
-      }
       const widthClass = (fullWidthFields.has(field.key) ? " field-wide" : "") + (field.key === "financial.final_total" ? " field-total" : "");
       return "<div class='field" + widthClass + "'><span>" + escapeHtml(field.label) + "</span><strong>" + value + "</strong></div>";
     }).join("");
@@ -244,17 +268,18 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     ? "<script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print()},250)});window.addEventListener('afterprint',function(){window.close()})</script>"
     : "";
   const html = "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>" + escapeHtml(template.name) + "</title><style>" +
-    "@page{size:A4 " + orientation + ";margin:" + pagePadding + ";" + (template.selectedFields.has("system.page_number") && template.show_page_number ? "@bottom-center{content:'Página ' counter(page) ' de ' counter(pages);font-family:Arial,sans-serif;font-size:8pt;color:#526174}" : "") + "}" +
+    "@page{size:A4 " + orientation + ";margin:" + pagePadding + ";" + (template.show_page_number ? "@bottom-center{content:'Página ' counter(page) ' de ' counter(pages);font-family:Arial,sans-serif;font-size:8pt;color:#526174}" : "") + "}" +
     "*{box-sizing:border-box}html{background:#eef2f6}body{width:" + pageWidth + "mm;max-width:100%;margin:0 auto;padding:" + pagePadding + ";background:#fff;color:#172536;font-family:" + layout.font_family + ",sans-serif;font-size:" + layout.body_font_size + "pt;line-height:" + Math.max(1.2, layout.line_height) + ";overflow-wrap:anywhere}" +
-    ".header{display:grid;grid-template-columns:minmax(0,1fr) minmax(95px,.3fr);align-items:start;gap:12px 20px;border-bottom:2px solid #0057e7;padding-bottom:12px;margin-bottom:14px;break-inside:avoid}.company{display:flex;align-items:center;gap:12px;min-width:0}.company-logo{display:block;flex-shrink:0;width:64px;height:64px;object-fit:contain}.brand-mark{display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;border-radius:8px;background:#0057e7;color:#fff;font-size:16px;font-weight:800}.company-copy{min-width:0}.brand{font-size:14pt;font-weight:800;line-height:1.2}.company-subtitle{margin-top:3px;font-size:9pt;color:#475569}.company-details{margin-top:5px;font-size:8pt;line-height:1.45;color:#475569}.document{grid-column:1/-1;grid-row:2;padding-top:10px;border-top:1px solid #dbe2ea}.document h1{margin:0;font-size:15pt;line-height:1.25;font-weight:800}.document p{margin:4px 0 0;font-size:9pt;color:#475569;white-space:pre-wrap}.document p:empty{display:none}.order-number{grid-column:2;grid-row:1;text-align:right;min-width:0}.order-number span{display:block;font-size:8pt;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.order-number strong{display:block;margin-top:4px;font-size:21pt;line-height:1.15;color:#0057e7}.order-number small{display:block;margin-top:6px;font-size:8pt;color:#475569}" +
-    "section{margin:0 0 " + Math.max(8, layout.section_spacing) + "px;border:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "6px" : "0") + ";padding:" + (layout.section_style === "boxed" ? "8px" : "0") + ";break-inside:auto}h2{margin:0;padding:6px 8px;background:#eef3f9;color:#24364b;border-bottom:1px solid #cbd5e1;font-size:" + layout.section_title_font_size + "pt;line-height:1.25;font-weight:700;text-transform:uppercase;letter-spacing:.035em;break-after:avoid}" +
-    ".grid{display:grid;gap:" + layout.field_spacing + "px;align-items:stretch;border-left:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";}.columns-1{grid-template-columns:minmax(0,1fr)}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:7px 8px;break-inside:avoid;border:0;" + (layout.show_field_borders ? "box-shadow:inset -1px -1px #cbd5e1;" : layout.section_style === "table" ? "border-bottom:1px solid #dbe2ea;" : "") + "}.field span{display:block;margin-bottom:3px;color:#526174;font-size:" + layout.label_font_size + "pt;line-height:1.3;font-weight:700;text-transform:uppercase}.field strong{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt;font-weight:500;line-height:inherit}.field-wide{grid-column:1/-1}.field-total{background:#eef3f9}.field-total strong{font-size:1.15em;font-weight:800;color:#0057e7}.signature{display:flex;flex-direction:column;justify-content:end;min-height:72px;text-align:center}.signature-line{border-top:1px solid #64748b;margin:30px 12px 6px}.signature span{font-weight:500}" +
-    ".items-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:inherit}.items-table th,.items-table td{padding:7px 8px;border-bottom:1px solid #cbd5e1;vertical-align:top;overflow-wrap:anywhere}.items-table th{text-align:left;font-size:" + layout.label_font_size + "pt;color:#526174;font-weight:700;line-height:1.3}.items-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.items-table th:not(.numeric){width:46%}.items-table tr{break-inside:avoid}.items-table thead{display:table-header-group}.footer{position:static;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin-top:14px;border-top:1px solid #cbd5e1;padding-top:8px;color:#526174;font-size:8pt;line-height:1.4;break-inside:avoid}.footer-item{white-space:pre-wrap}" +
+    ".header{display:grid;grid-template-columns:minmax(0,1fr) minmax(95px,.3fr);align-items:start;gap:6px 16px;padding-bottom:4px;margin-bottom:6px;break-inside:avoid}.company{display:flex;align-items:center;gap:12px;min-width:0}.company-logo{display:block;flex-shrink:0;width:64px;height:64px;object-fit:contain}.brand-mark{display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;border-radius:8px;background:#0057e7;color:#fff;font-size:16px;font-weight:800}.company-copy{min-width:0}.brand{font-size:14pt;font-weight:800;line-height:1.2}.company-subtitle{margin-top:3px;font-size:9pt;color:#475569}.company-details{margin-top:5px;font-size:8pt;line-height:1.45;color:#475569}.document{grid-column:1/-1;grid-row:2;padding-top:6px;border-top:1px solid #dbe2ea}.document h1{margin:0;font-size:15pt;line-height:1.25;font-weight:800}.document p{margin:4px 0 0;font-size:9pt;color:#475569;white-space:pre-wrap}.document p:empty{display:none}.order-number{grid-column:2;grid-row:1;text-align:right;min-width:0}.order-number span{display:block;font-size:8pt;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.order-number strong{display:block;margin-top:4px;font-size:21pt;line-height:1.15;color:#0057e7}.order-number small{display:block;margin-top:6px;font-size:8pt;color:#475569}" +
+    "section{margin:0 0 " + layout.section_spacing + "px;border:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "6px" : "0") + ";padding:" + (layout.section_style === "boxed" ? "8px" : "0") + ";break-inside:auto}h2{margin:0;padding:3px 6px;background:#eef3f9;color:#24364b;border-bottom:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";font-size:" + layout.section_title_font_size + "pt;line-height:1.25;font-weight:700;text-transform:uppercase;letter-spacing:.035em;break-after:avoid}" +
+    ".grid{display:grid;gap:" + layout.field_spacing + "px;align-items:stretch;border-left:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";}.columns-1{grid-template-columns:minmax(0,1fr)}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:4px 6px;break-inside:avoid;border:0;" + (layout.show_field_borders ? "box-shadow:inset -1px -1px #cbd5e1;" : "") + "}.field span{display:block;margin-bottom:1px;color:#526174;font-size:" + layout.label_font_size + "pt;line-height:1.3;font-weight:700;text-transform:uppercase}.field strong{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt;font-weight:500;line-height:inherit}.field-wide{grid-column:1/-1}.field-total{background:#eef3f9}.field-total strong{font-size:1.15em;font-weight:800;color:#0057e7}" +
+    ".signature-section{border:0;padding:0;margin:10px 0 4px;break-inside:avoid}.signatures{display:flex;justify-content:center;align-items:stretch;gap:24px}.signature{flex:1;max-width:46%;min-width:0;text-align:center;font-size:9pt;line-height:1.3;display:flex;flex-direction:column}.signature-line{border-top:1px solid #64748b;margin:24px 0 4px}.signature-label{font-size:8pt;color:#526174}.signature-name{font-weight:600}.signature-date{margin-top:auto;padding-top:3px}" +
+    ".items-table,.checklist-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:inherit}.items-table th,.items-table td,.checklist-table th,.checklist-table td{padding:4px 6px;border-bottom:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}.items-table th,.checklist-table th{text-align:left;font-size:" + layout.label_font_size + "pt;color:#526174;font-weight:700;line-height:1.3}.items-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.items-table th:not(.numeric){width:46%}.items-table tr,.checklist-table tr{break-inside:avoid}.items-table thead,.checklist-table thead{display:table-header-group}.footer{position:static;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin-top:8px;border-top:1px solid #cbd5e1;padding-top:5px;color:#526174;font-size:8pt;line-height:1.4;break-inside:avoid}.footer-item{white-space:pre-wrap}" +
     "@media print{html{background:#fff}body{width:auto;max-width:none;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}h2{break-after:avoid}p{orphans:3;widows:3}}" +
     "</style></head><body><header class='header'><div class='company'>" +
     (template.show_logo ? companyLogo : "") +
     (template.show_company_info ? "<div class='company-copy'><div class='brand'>" + escapeHtml(companyName) + "</div><div class='company-subtitle'>" + escapeHtml(companySubtitle) + "</div>" + (companyDetails.length ? "<div class='company-details'>" + companyDetails.map(escapeHtml).join("<br>") + "</div>" : "") + "</div>" : "") +
-    "</div><div class='document'><h1>" + escapeHtml(template.name) + "</h1><p>" + escapeHtml(template.header_text || "") + "</p></div><div class='order-number'><span>Número da OS</span><strong>" + escapeHtml(context.order?.os_number) + "</strong>" + (context.order?.external_os_number ? "<small>OS externa " + escapeHtml(context.order.external_os_number) + "</small>" : "") + "</div></header>" +
+    "</div><div class='document'><h1>" + escapeHtml(template.name) + "</h1>" + (template.header_text?.trim() ? "<p>" + escapeHtml(template.header_text.trim()) + "</p>" : "") + "</div><div class='order-number'><span>Número da OS</span><strong>" + escapeHtml(context.order?.os_number) + "</strong>" + (context.order?.external_os_number ? "<small>OS externa " + escapeHtml(context.order.external_os_number) + "</small>" : "") + "</div></header>" +
     sectionHtml +
     (footerItems.length ? "<footer class='footer'>" + footerItems.map((item) => "<span class='footer-item'>" + escapeHtml(item) + "</span>").join("") + "</footer>" : "") +
     printScript + "</body></html>";
@@ -267,3 +292,4 @@ export function renderOrderPrintDocument(popup: Window, template: PrintTemplateE
   popup.document.write(buildOrderPrintDocumentHtml(template, context, true));
   popup.document.close();
 }
+

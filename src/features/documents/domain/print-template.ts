@@ -13,19 +13,19 @@ export type PrintLayoutSettings = {
 
 export const DEFAULT_PRINT_LAYOUT_SETTINGS: PrintLayoutSettings = {
   font_family: "Arial",
-  body_font_size: 11,
+  body_font_size: 10,
   label_font_size: 8,
-  section_title_font_size: 11,
-  line_height: 1.4,
-  section_spacing: 14,
-  field_spacing: 8,
+  section_title_font_size: 9,
+  line_height: 1.2,
+  section_spacing: 4,
+  field_spacing: 2,
   section_style: "lines",
   show_section_borders: true,
   show_field_borders: false,
 };
 
 export function normalizePrintLayoutSettings(value?: Partial<PrintLayoutSettings> | null): PrintLayoutSettings {
-  return { ...DEFAULT_PRINT_LAYOUT_SETTINGS, ...(value || {}) };
+  return { ...DEFAULT_PRINT_LAYOUT_SETTINGS, ...(value || {}), line_height: Math.max(1.2, value?.line_height || DEFAULT_PRINT_LAYOUT_SETTINGS.line_height) };
 }
 
 export type PrintTemplate = {
@@ -102,3 +102,4 @@ export const PRINT_TEMPLATE_TYPE_LABELS: Record<string, string> = {
   COMPROVANTE: "Comprovante",
   CUSTOM: "Personalizado",
 };
+

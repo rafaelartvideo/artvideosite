@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Eye } from "lucide-react";
-import { PRINT_FIELD_REGISTRY } from "../domain/print-field-registry";
+import { PRINT_FIELD_REGISTRY, normalizePrintSelectedFields } from "../domain/print-field-registry";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSelect, FDecimalInput, FIntegerInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminCard, AdminCardContent, AdminCardHeader, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -14,12 +14,12 @@ const inRange = (value: unknown, min: number, max: number, integer = false) => {
 };
 
 export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, saveError }: { initialValue: PrintTemplateEditorValue; onCancel: () => void; onSave: (value: PrintTemplateEditorValue) => Promise<unknown>; saving: boolean; saveError?: string }) {
-  const [value, setValue] = useState<PrintTemplateEditorValue>(() => ({ ...initialValue, layout: { ...initialValue.layout }, selectedFields: new Set(initialValue.selectedFields) }));
+  const [value, setValue] = useState<PrintTemplateEditorValue>(() => ({ ...initialValue, layout: { ...initialValue.layout }, selectedFields: normalizePrintSelectedFields(initialValue.selectedFields) }));
   const [expanded, setExpanded] = useState<Set<string>>(new Set(PRINT_FIELD_REGISTRY.slice(0, 3).map(section => section.key)));
   const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
-    setValue({ ...initialValue, layout: { ...initialValue.layout }, selectedFields: new Set(initialValue.selectedFields) });
+    setValue({ ...initialValue, layout: { ...initialValue.layout }, selectedFields: normalizePrintSelectedFields(initialValue.selectedFields) });
     setValidationError("");
   }, [initialValue]);
 
@@ -46,11 +46,11 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
   const save = async () => {
     if (!value.name.trim()) { setValidationError("Informe o nome do documento."); return; }
     if (!selectedCount) { setValidationError("Selecione pelo menos um campo para o documento."); return; }
-    if (![value.margin_top, value.margin_right, value.margin_bottom, value.margin_left].every(item => inRange(item, 0, 100, true))) { setValidationError("As margens devem ser números inteiros entre 0 e 100."); return; }
+    if (![value.margin_top, value.margin_right, value.margin_bottom, value.margin_left].every(item => inRange(item, 6, 40, true))) { setValidationError("As margens devem ser números inteiros entre 6 e 40 mm."); return; }
     if (!inRange(value.layout.body_font_size, 7, 18, true)) { setValidationError("O tamanho do texto deve estar entre 7 e 18 pt."); return; }
     if (!inRange(value.layout.label_font_size, 6, 14, true)) { setValidationError("O tamanho dos rótulos deve estar entre 6 e 14 pt."); return; }
     if (!inRange(value.layout.section_title_font_size, 8, 18, true)) { setValidationError("O título das seções deve estar entre 8 e 18 pt."); return; }
-    if (!inRange(value.layout.line_height, 1, 2)) { setValidationError("A altura da linha deve estar entre 1 e 2."); return; }
+    if (!inRange(value.layout.line_height, 1.2, 2)) { setValidationError("A altura da linha deve estar entre 1,2 e 2."); return; }
     if (!inRange(value.layout.section_spacing, 0, 40, true)) { setValidationError("O espaço entre seções deve estar entre 0 e 40 px."); return; }
     if (!inRange(value.layout.field_spacing, 0, 30, true)) { setValidationError("O espaço entre campos deve estar entre 0 e 30 px."); return; }
     setValidationError("");
@@ -73,7 +73,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
               <Field label="Papel"><AdminSelect value={value.paper_size} onValueChange={() => undefined} disabled ariaLabel="Papel" options={[{ value: "A4", label: "A4" }]} /></Field>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{(["margin_top", "margin_right", "margin_bottom", "margin_left"] as const).map((key, index) => <Field key={key} label={["Margem superior", "Direita", "Inferior", "Esquerda"][index]}><FIntegerInput value={String(value[key])} onChange={(e: any) => setValue(v => ({ ...v, [key]: Number(e.target.value || 0) }))} /></Field>)}</div>
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{(["margin_top", "margin_right", "margin_bottom", "margin_left"] as const).map((key, index) => <Field key={key} label={["Margem superior (mm)", "Direita (mm)", "Inferior (mm)", "Esquerda (mm)"][index]}><FIntegerInput value={String(value[key])} onChange={(e: any) => setValue(v => ({ ...v, [key]: Number(e.target.value || 0) }))} /></Field>)}</div>
 
             <div className="mt-4 grid gap-1 sm:grid-cols-2">{([['show_logo', 'Exibir logo'], ['show_company_info', 'Dados da empresa'], ['show_page_number', 'Número da página'], ['show_printed_at', 'Data da impressão'], ['is_active', 'Modelo ativo']] as const).map(([key, label]) => <CheckOption key={key} checked={value[key]} label={label} onChange={() => setValue(v => ({ ...v, [key]: !v[key] }))} />)}</div>
 
@@ -95,13 +95,13 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
               <Field label="Espaço entre seções (px)"><FIntegerInput value={String(value.layout.section_spacing)} onChange={(e: any) => setValue(v => ({ ...v, layout: { ...v.layout, section_spacing: Number(e.target.value || 0) } }))} /></Field>
               <Field label="Espaço entre campos (px)"><FIntegerInput value={String(value.layout.field_spacing)} onChange={(e: any) => setValue(v => ({ ...v, layout: { ...v.layout, field_spacing: Number(e.target.value || 0) } }))} /></Field>
             </div>
-            <div className="mt-4 grid gap-1 sm:grid-cols-2"><CheckOption checked={value.layout.show_section_borders} label="Exibir linhas das seções" onChange={() => setValue(v => ({ ...v, layout: { ...v.layout, show_section_borders: !v.layout.show_section_borders } }))} /><CheckOption checked={value.layout.show_field_borders} label="Exibir bordas nos campos" onChange={() => setValue(v => ({ ...v, layout: { ...v.layout, show_field_borders: !v.layout.show_field_borders } }))} /></div>
+            <div className="mt-4 grid gap-1 sm:grid-cols-2"><CheckOption checked={value.layout.show_section_borders} label="Exibir bordas das seções" onChange={() => setValue(v => ({ ...v, layout: { ...v.layout, show_section_borders: !v.layout.show_section_borders } }))} /><CheckOption checked={value.layout.show_field_borders} label="Exibir bordas nos campos" onChange={() => setValue(v => ({ ...v, layout: { ...v.layout, show_field_borders: !v.layout.show_field_borders } }))} /></div>
           </AdminCardContent>
         </AdminCard>
 
         <AdminCard>
           <AdminCardHeader>
-            <div><h3 className="font-black text-[#0d1b2e]">Campos</h3><p className="mt-1 text-xs text-[#5a6a82]">Marque os dados que farão parte deste documento.</p></div>
+            <div><h3 className="font-black text-[#0d1b2e]">Campos</h3><p className="mt-1 text-xs text-[#5a6a82]">Marque os dados que farão parte deste documento. As assinaturas incluem identificação e data abaixo da linha.</p></div>
             <span className="rounded-full bg-[#edf3ff] px-2.5 py-1 text-xs font-bold text-[#0057e7]">{selectedCount} selecionados</span>
           </AdminCardHeader>
           <div className="divide-y divide-[#0d1b2e]/7">{PRINT_FIELD_REGISTRY.map(section => {
@@ -158,3 +158,4 @@ function CheckOption({ checked, label, onChange }: { checked: boolean; label: st
     <span className="min-w-0 break-words">{label}</span>
   </label>;
 }
+
