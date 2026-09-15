@@ -18,6 +18,7 @@ import type { PrintTemplateEditorValue } from "./print-template";
 export type PrintOrderContext = {
   order: any;
   checklist?: OrderChecklist | null;
+  checklistPhotoUrls?: Record<string, string>;
   usedItems?: any[];
   partRequests?: any[];
   history?: any[];
@@ -223,8 +224,19 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
             : item.response_type_snapshot === "number" ? (item.response_number == null ? "Não respondido" : formatNumber(item.response_number))
             : item.response_type_snapshot === "text" ? item.response_text || "Não respondido"
             : labels[item.response_code || ""] || "Não respondido";
+          const photos = (item.media || []).filter((link, index, links) =>
+            Boolean(context.checklistPhotoUrls?.[link.media_id]) && links.findIndex(other => other.media_id === link.media_id) === index,
+          );
+          let photoRows = "";
+          for (let offset = 0; offset < photos.length; offset += 3) {
+            photoRows += "<tr class='checklist-photo-row'><td colspan='" + (hasNotes ? 3 : 2) + "'><div class='checklist-photos'>" +
+              photos.slice(offset, offset + 3).map((link, index) => {
+                const caption = item.title_snapshot + " · Foto " + (offset + index + 1);
+                return "<figure><img src='" + escapeHtml(context.checklistPhotoUrls![link.media_id]) + "' alt='" + escapeHtml(caption) + "' loading='eager'><figcaption>" + escapeHtml(caption) + "</figcaption></figure>";
+              }).join("") + "</div></td></tr>";
+          }
           return "<tr><td>" + escapeHtml(item.title_snapshot) + "</td><td>" + escapeHtml(answer) + "</td>" +
-            (hasNotes ? "<td>" + escapeHtml(item.observation) + "</td>" : "") + "</tr>";
+            (hasNotes ? "<td>" + escapeHtml(item.observation) + "</td>" : "") + "</tr>" + photoRows;
         }).join("");
         return "<section class='section-list'><h2>Checklist · " + escapeHtml(stage.name_snapshot) + "</h2><table class='checklist-table'><thead><tr><th scope='col'>Item</th><th scope='col'>Resultado</th>" +
           (hasNotes ? "<th scope='col'>Observações</th>" : "") + "</tr></thead><tbody>" + (rows || "<tr><td colspan='2'>Nenhum item cadastrado.</td></tr>") + "</tbody></table></section>";
@@ -275,6 +287,7 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     ".grid{display:grid;gap:" + layout.field_spacing + "px;align-items:stretch;border-left:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";}.columns-1{grid-template-columns:minmax(0,1fr)}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:4px 6px;break-inside:avoid;border:0;" + (layout.show_field_borders ? "box-shadow:inset -1px -1px #cbd5e1;" : "") + "}.field span{display:block;margin-bottom:1px;color:#526174;font-size:" + layout.label_font_size + "pt;line-height:1.3;font-weight:700;text-transform:uppercase}.field strong{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt;font-weight:500;line-height:inherit}.field-wide{grid-column:1/-1}.field-total{background:#eef3f9}.field-total strong{font-size:1.15em;font-weight:800;color:#0057e7}" +
     ".signature-section{border:0;padding:0;margin:10px 0 4px;break-inside:avoid}.signatures{display:flex;justify-content:center;align-items:stretch;gap:24px}.signature{flex:1;max-width:46%;min-width:0;text-align:center;font-size:9pt;line-height:1.3;display:flex;flex-direction:column}.signature-line{border-top:1px solid #64748b;margin:24px 0 4px}.signature-label{font-size:8pt;color:#526174}.signature-name{font-weight:600}.signature-date{margin-top:auto;padding-top:3px}" +
     ".items-table,.checklist-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:inherit}.items-table th,.items-table td,.checklist-table th,.checklist-table td{padding:4px 6px;border-bottom:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}.items-table th,.checklist-table th{text-align:left;font-size:" + layout.label_font_size + "pt;color:#526174;font-weight:700;line-height:1.3}.items-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.items-table th:not(.numeric){width:46%}.items-table tr,.checklist-table tr{break-inside:avoid}.items-table thead,.checklist-table thead{display:table-header-group}.footer{position:static;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin-top:8px;border-top:1px solid #cbd5e1;padding-top:5px;color:#526174;font-size:8pt;line-height:1.4;break-inside:avoid}.footer-item{white-space:pre-wrap}" +
+    ".checklist-photos{display:flex;gap:8px;white-space:normal}.checklist-photos figure{margin:0;width:calc((100% - 16px)/3);min-width:0;break-inside:avoid}.checklist-photos img{display:block;width:100%;height:38mm;object-fit:contain;background:#f8fafc}.checklist-photos figcaption{margin-top:3px;font-size:7pt;line-height:1.25;color:#526174}.checklist-photo-row{break-inside:avoid}" +
     "@media print{html{background:#fff}body{width:auto;max-width:none;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}h2{break-after:avoid}p{orphans:3;widows:3}}" +
     "</style></head><body><header class='header'><div class='company'>" +
     (template.show_logo ? companyLogo : "") +
