@@ -121,7 +121,7 @@ export function RegistrationEditor({
           <FPhoneInput label="Telefone" value={form.phone} onChange={(event: any) => setForm(current => ({ ...current, phone: event.target.value }))} />
           <FPhoneInput label="WhatsApp" mobile value={form.whatsapp} onChange={(event: any) => setForm(current => ({ ...current, whatsapp: event.target.value }))} />
           <FBrazilianDateInput label="Data de nascimento" required value={form.birth_date} onChange={(event: any) => setForm(current => ({ ...current, birth_date: event.target.value }))} />
-          <FEmailInput label="E-mail" value={form.email} onChange={(event: any) => setForm(current => ({ ...current, email: event.target.value }))} />
+          <FEmailInput label="E-mail de contato" value={form.email} onChange={(event: any) => setForm(current => ({ ...current, email: event.target.value }))} />
         </div> : <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ<span className="text-red-400">*</span></label>
@@ -137,7 +137,7 @@ export function RegistrationEditor({
           <FInput label="Inscrição municipal" value={form.municipal_registration} onChange={(event: any) => setForm(current => ({ ...current, municipal_registration: event.target.value }))} />
           <FPhoneInput label="Telefone" value={form.phone} onChange={(event: any) => setForm(current => ({ ...current, phone: event.target.value }))} />
           <FPhoneInput label="WhatsApp" mobile value={form.whatsapp} onChange={(event: any) => setForm(current => ({ ...current, whatsapp: event.target.value }))} />
-          <div className="sm:col-span-2"><FEmailInput label="E-mail" value={form.email} onChange={(event: any) => setForm(current => ({ ...current, email: event.target.value }))} /></div>
+          <div className="sm:col-span-2"><FEmailInput label="E-mail de contato" value={form.email} onChange={(event: any) => setForm(current => ({ ...current, email: event.target.value }))} /></div>
         </div>}
         <label className="mt-4 flex items-center gap-2 text-sm font-bold text-[#0d1b2e]"><Checkbox checked={form.is_active} onCheckedChange={checked => setForm(current => ({ ...current, is_active: checked === true }))} /> Cadastro ativo</label>
       </Section>
@@ -159,6 +159,7 @@ export function RegistrationEditor({
             value={accessForm}
             onChange={onAccessChange}
             existingAccess={accessExisting}
+            registrationEmail={form.email}
             disabled={!canModifyAccess}
             loading={accessLoading}
           />
