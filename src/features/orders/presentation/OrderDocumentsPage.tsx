@@ -24,6 +24,7 @@ import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { OrderImageThumb, type OrderImage } from "./OrderImages";
+import { OrderChecklistDocumentsSection } from "./OrderChecklistDocumentsSection";
 import type { useOrderSituationDocuments } from "../application/useOrderSituationDocuments";
 import {
   situationDocumentMedia,
@@ -33,6 +34,8 @@ import {
 } from "../domain/order-situation-document";
 
 type Controller = ReturnType<typeof useOrderSituationDocuments>;
+
+type DocumentsTab = "situations" | "solution" | "checklist" | "attachments";
 
 function AttachmentCard({
   document,
@@ -257,7 +260,7 @@ export function OrderDocumentsPage({
   onClose: () => void;
   onView: (image: OrderImage) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"situations" | "solution" | "attachments">("situations");
+  const [activeTab, setActiveTab] = useState<DocumentsTab>("situations");
   const [newAttachmentOpen, setNewAttachmentOpen] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [browserBottomInset, setBrowserBottomInset] = useState(0);
@@ -302,16 +305,17 @@ export function OrderDocumentsPage({
       <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos e imagens da ordem de serviço" maxW="max-w-4xl">
         <div className="border-b border-[#0d1b2e]/10 px-5 pt-2">
           <nav className="flex items-center gap-6 overflow-x-auto" aria-label="Seções de documentos">
-            <button type="button" onClick={() => setActiveTab("situations")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>SITUAÇÕES</button>
-            <button type="button" onClick={() => setActiveTab("solution")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "solution" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>SOLUÇÃO</button>
-            <button type="button" onClick={() => setActiveTab("attachments")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>ANEXOS</button>
+            <button type="button" onClick={() => setActiveTab("situations")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Situações</button>
+            <button type="button" onClick={() => setActiveTab("solution")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "solution" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Solução</button>
+            <button type="button" onClick={() => setActiveTab("checklist")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "checklist" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Checklist</button>
+            <button type="button" onClick={() => setActiveTab("attachments")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Anexos</button>
           </nav>
         </div>
 
         <div className="min-w-0 max-w-full space-y-4 overflow-hidden p-5">
           {message && <div className={cn("flex min-w-0 items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}</span><span className="min-w-0 break-words">{message.text}</span></span><button type="button" onClick={() => setMessage(null)} className="shrink-0"><X size={13} /></button></div>}
 
-          {activeTab !== "solution" && controller.loading ? (
+          {activeTab !== "solution" && activeTab !== "checklist" && controller.loading ? (
             <LoadingState text="Carregando documentos..." />
           ) : activeTab === "situations" ? (
             controller.flowSituations.length === 0 ? (
@@ -345,6 +349,8 @@ export function OrderDocumentsPage({
                 </div>
               )}
             </div>
+          ) : activeTab === "checklist" ? (
+            <OrderChecklistDocumentsSection orderId={order.id} onView={onView} />
           ) : (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm"><Plus size={14} /> Novo anexo</AdminButton>}</div>
