@@ -149,13 +149,13 @@ export function isChecklistFailure(item: Pick<OrderChecklistItem, "response_type
 }
 
 export function checklistItemHasAnswer(item: OrderChecklistItem) {
-  return Boolean(
-    item.response_code
-    || item.response_text?.trim()
-    || item.response_number !== null
-    || item.observation?.trim()
-    || item.media.length,
-  );
+  if (item.response_code === "na") return item.allow_na_snapshot;
+  if (item.response_type_snapshot === "conformity") return item.response_code === "ok" || item.response_code === "not_ok";
+  if (item.response_type_snapshot === "yes_no") return item.response_code === "yes" || item.response_code === "no";
+  if (item.response_type_snapshot === "confirmation") return item.response_code === "confirmed";
+  if (item.response_type_snapshot === "text") return Boolean(item.response_text?.trim());
+  if (item.response_type_snapshot === "number") return item.response_number !== null;
+  return false;
 }
 
 export function checklistStageProgress(stage: OrderChecklistStage) {
