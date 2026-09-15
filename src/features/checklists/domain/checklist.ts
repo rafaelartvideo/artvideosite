@@ -36,8 +36,8 @@ export type ChecklistProfileStage = {
   organization_id: string;
   profile_id: string;
   code: string;
-  stage_type: ChecklistStageType;
   name: string;
+  stage_type: ChecklistStageType;
   situation_id: string | null;
   block_situation_exit: boolean;
   block_resolution: boolean;
@@ -104,6 +104,7 @@ export type OrderChecklistItem = {
   observation: string | null;
   answered_by: string | null;
   answered_at: string | null;
+  answered_by_name?: string | null;
   media: OrderChecklistMedia[];
 };
 
@@ -123,8 +124,10 @@ export type OrderChecklistStage = {
   status: ChecklistStageStatus;
   completed_by: string | null;
   completed_at: string | null;
+  completed_by_name?: string | null;
   reopened_by: string | null;
   reopened_at: string | null;
+  reopened_by_name?: string | null;
   items: OrderChecklistItem[];
 };
 
@@ -140,6 +143,7 @@ export type OrderChecklist = {
   created_at: string;
   completed_by: string | null;
   completed_at: string | null;
+  completed_by_name?: string | null;
   stages: OrderChecklistStage[];
 };
 
