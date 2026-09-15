@@ -2,7 +2,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import {
   authEmailForUsername,
-  INTERNAL_AUTH_DOMAIN,
+  isValidUsername,
   normalizeUsername,
   usernameFromAuthEmail,
   usernameHash,
@@ -40,13 +40,14 @@ async function normalizeFunctionInvokeError(error: unknown) {
           ? payload.message
           : "";
       if (message.trim()) {
-        if (message.toLocaleLowerCase("pt-BR").includes("e-mail já cadastrado")) {
+        const normalized = message.toLocaleLowerCase("pt-BR");
+        if (normalized.includes("e-mail já cadastrado") || normalized.includes("already registered") || normalized.includes("already exists")) {
           return new Error("Este usuário já está em uso.");
         }
         return new Error(message.trim());
       }
     } catch {
-      // Keep the SDK fallback below when the response body is not JSON.
+      // Keep SDK fallback.
     }
   }
   if (error instanceof Error) return error;
@@ -65,24 +66,23 @@ export async function getEmployeeAccess(organizationId: string, employeeId: stri
     organization_id: organizationId,
     employee_id: employeeId,
   });
-
   if (result.error || !result.data?.access) return result;
+
   const access = result.data.access as Record<string, unknown>;
   const username = normalizeUsername(access.username || usernameFromAuthEmail(access.email));
   return {
     ...result,
     data: {
       ...result.data,
-      access: {
-        ...access,
-        username: username || null,
-      } as EmployeeAccess,
+      access: { ...access, username: username || null } as EmployeeAccess,
     },
   };
 }
 
 export async function checkEmployeeUsernameAvailability(username: string, currentUserId?: string | null) {
   const normalized = normalizeUsername(username);
+  if (!isValidUsername(normalized)) return { available: false, error: null };
+
   const hash = await usernameHash(normalized);
   const { data, error } = await supabase
     .from("username_registry")
@@ -98,30 +98,32 @@ export async function checkEmployeeUsernameAvailability(username: string, curren
 }
 
 export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
-  const currentEmail = String(input.email || "").trim().replace(/\s+/g, "").toLowerCase();
-  const username = normalizeUsername(input.username || usernameFromAuthEmail(currentEmail));
-  const emailAlreadyUsesUsername = currentEmail.endsWith(`@${INTERNAL_AUTH_DOMAIN}`);
-  const unchangedLegacyUsername = Boolean(
-    input.enabled
-    && !input.username
-    && currentEmail
-    && !emailAlreadyUsesUsername
-    && usernameFromAuthEmail(currentEmail) === username,
-  );
+  const emailInput = String(input.email || "").trim().replace(/\s+/g, "").toLowerCase();
+  const username = normalizeUsername(input.username || usernameFromAuthEmail(emailInput));
 
-  if (input.enabled && username && !unchangedLegacyUsername) {
-    const availability = await checkEmployeeUsernameAvailability(username);
-    if (availability.error) {
-      return { data: null, error: new Error("Não foi possível verificar a disponibilidade do usuário.") };
-    }
-    if (!availability.available) {
-      return { data: null, error: new Error("Este usuário já está em uso.") };
-    }
+  if (input.enabled && !isValidUsername(username)) {
+    return { data: null, error: new Error("Informe um usuário válido com 3 a 32 caracteres.") };
   }
 
-  const authEmail = input.username || emailAlreadyUsesUsername
-    ? authEmailForUsername(username)
-    : currentEmail || (username ? authEmailForUsername(username) : null);
+  let currentProfileId: string | null = null;
+  let currentUsername = "";
+  if (input.enabled && username) {
+    const current = await getEmployeeAccess(input.organizationId, input.employeeId);
+    if (!current.error && current.data?.access) {
+      currentProfileId = current.data.access.profile_id ?? null;
+      currentUsername = normalizeUsername(current.data.access.username || usernameFromAuthEmail(current.data.access.email));
+    }
+
+    if (currentUsername !== username) {
+      const availability = await checkEmployeeUsernameAvailability(username, currentProfileId);
+      if (availability.error) {
+        return { data: null, error: new Error("Não foi possível verificar a disponibilidade do usuário.") };
+      }
+      if (!availability.available) {
+        return { data: null, error: new Error("Este usuário já está em uso.") };
+      }
+    }
+  }
 
   return invokeEmployeeAccess({
     action: "upsert_employee_access",
@@ -129,7 +131,7 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
     employee_id: input.employeeId,
     enabled: input.enabled,
     username: username || null,
-    email: authEmail,
+    email: username ? authEmailForUsername(username) : emailInput || null,
     password: input.password || undefined,
     role_id: input.roleId || null,
     uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
