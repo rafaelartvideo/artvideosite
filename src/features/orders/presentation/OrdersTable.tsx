@@ -34,11 +34,11 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
   const solvedIndicator = (order: any) => isSolvedPendingCompletion(order) ? (
     <span
-      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-700"
+      className="inline-flex shrink-0 items-center justify-center text-green-600"
       title="Solucionada"
       aria-label="OS solucionada"
     >
-      <CheckCircle2 size={15} strokeWidth={2.5} />
+      <CheckCircle2 size={16} strokeWidth={2.5} />
     </span>
   ) : null;
 
@@ -76,7 +76,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
           <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#16a34a]" aria-hidden="true" />Aberta</span>
           <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#0057e7]" aria-hidden="true" />Fechada</span>
           <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#dc2626]" aria-hidden="true" />Cancelada</span>
-          <span className="inline-flex items-center gap-1.5"><span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-700" aria-hidden="true"><CheckCircle2 size={13} strokeWidth={2.5} /></span>Solucionada</span>
+          <span className="inline-flex items-center gap-1.5"><span className="inline-flex items-center justify-center text-green-600" aria-hidden="true"><CheckCircle2 size={14} strokeWidth={2.5} /></span>Solucionada</span>
         </div>
       </>}
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={onPageSizeChange} />
