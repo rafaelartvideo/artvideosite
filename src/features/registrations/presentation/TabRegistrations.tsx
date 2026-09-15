@@ -339,7 +339,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     if (!sortOrder) return result;
     return [...result].sort((a, b) => {
       if (sortOrder === "name_asc") return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
-      if (sortOrder === "name_desc") return String(b.name || "").localeCompare(String(a.name || "").localeCompare ? String(a.name || "") : "", "pt-BR", { sensitivity: "base" });
+      if (sortOrder === "name_desc") return String(b.name || "").localeCompare(String(a.name || ""), "pt-BR", { sensitivity: "base" });
       const aDate = new Date(a.created_at || 0).getTime();
       const bDate = new Date(b.created_at || 0).getTime();
       return sortOrder === "newest" ? bDate - aDate : aDate - bDate;
