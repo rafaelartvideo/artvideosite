@@ -106,7 +106,7 @@ export function RegistrationDetails({
         {detailValue(selected.person_type === "PJ" ? "CNPJ" : "CPF", selected.document ? (selected.person_type === "PJ" ? formatCnpj(selected.document) : formatCpf(selected.document)) : "—")}
         {detailValue("Telefone", formatPhone(selected.phone) || "—")}
         {detailValue("WhatsApp", formatPhone(selected.whatsapp) || "—")}
-        {detailValue("E-mail", selected.email || "—")}
+        {detailValue("E-mail de contato", selected.email || "—")}
         {selected.person_type === "PJ" ? <>
           {detailValue("Nome fantasia", selected.trade_name || selected.name || "—")}
           {detailValue("Razão social", selected.legal_name || "—")}
@@ -150,7 +150,7 @@ export function RegistrationDetails({
           <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
           <div className="grid gap-4 sm:grid-cols-3">
             {detailValue("Status", accessExisting ? (accessActive ? "Ativo" : "Inativo") : "Sem login")}
-            {detailValue("E-mail de acesso", accessForm.email || "—")}
+            {detailValue("E-mail de login", accessForm.email || "—")}
             {detailValue("Função vinculada", accessForm.role_id ? "Configurada" : "—")}
           </div>
         </div>}
