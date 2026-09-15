@@ -275,6 +275,7 @@ Deno.serve(async request => {
       return json({
         success: true,
         checklist: {
+          equipment_type_id: session.equipment_type_id,
           stage_name: config.stageName,
           stage_code: config.stageCode,
           items: config.items.map(item => ({
