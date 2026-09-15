@@ -17,6 +17,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
+      "@/features/access/presentation/UserAccessSection": ["src/features/access/presentation/UserAccessSectionV2.tsx"],
       "@/*": ["src/*"]
     },
     "types": ["vite/client"]
