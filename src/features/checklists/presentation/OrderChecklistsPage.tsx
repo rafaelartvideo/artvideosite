@@ -235,12 +235,18 @@ export function OrderChecklistsPage({
                   const current = index === activeIndex && !completed;
                   const locked = index > maxAccessibleIndex;
                   const selected = stage.id === selectedStage?.id;
+                  const lineColor = completed ? "#10b981" : current ? "#0057e7" : "#d7dee8";
+                  const nextStage = checklist.stages[index + 1];
+                  const nextCompleted = nextStage?.status === "completed";
+                  const nextCurrent = Boolean(nextStage) && index + 1 === activeIndex && !nextCompleted;
+                  const nextLineColor = nextCompleted ? "#10b981" : nextCurrent ? "#0057e7" : "#d7dee8";
                   return (
                     <div key={stage.id} className="relative flex w-[176px] shrink-0 justify-center">
-                      {index < checklist.stages.length - 1 && (
+                      {nextStage && (
                         <span
                           aria-hidden="true"
-                          className={`absolute left-[calc(50%+18px)] right-[calc(-50%+18px)] top-[18px] h-px ${completed ? "bg-emerald-400" : "bg-[#d7dee8]"}`}
+                          className="absolute left-[calc(50%+18px)] right-[calc(-50%+18px)] top-[18px] h-px"
+                          style={{ background: `linear-gradient(to right, ${lineColor} 0%, ${lineColor} 50%, ${nextLineColor} 50%, ${nextLineColor} 100%)` }}
                         />
                       )}
                       <button
