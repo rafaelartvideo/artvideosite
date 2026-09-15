@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Camera, ClipboardCheck, Plus, X } from "lucide-react";
+import { Camera, ClipboardCheck, ImagePlus, X } from "lucide-react";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import {
   getNewOrderEntryChecklistDraft,
@@ -90,7 +90,7 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
 
               return (
                 <div key={item.key} className="px-3 py-3 sm:px-4">
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-[#0d1b2e]">
                         {index + 1}. {item.title}
@@ -143,14 +143,15 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
                     </div>
 
                     {photoEnabled && (
-                      <div className="flex items-center justify-end gap-2 sm:self-center">
-                        <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff]" title="Tirar foto" aria-label="Tirar foto">
+                      <div className="flex items-center justify-end gap-2 self-center">
+                        <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff] sm:hidden" title="Tirar foto" aria-label="Tirar foto">
                           <Camera size={16} />
                           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
                         </label>
 
-                        <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 text-xs font-bold text-[#0057e7] transition hover:bg-[#eef5ff]">
-                          <Plus size={15} /> Foto
+                        <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white text-[#0057e7] transition hover:bg-[#eef5ff] sm:w-auto sm:gap-1.5 sm:px-3" title="Selecionar imagem" aria-label="Selecionar imagem">
+                          <ImagePlus size={16} />
+                          <span className="hidden text-xs font-bold sm:inline">Selecionar imagem</span>
                           <input type="file" accept="image/*" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
                         </label>
                       </div>
