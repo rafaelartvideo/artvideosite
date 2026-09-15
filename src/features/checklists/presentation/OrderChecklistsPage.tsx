@@ -242,7 +242,7 @@ export function OrderChecklistsPage({
                   : null;
 
               return (
-                <AdminCard className="mt-5">
+                <AdminCard className="mx-auto mt-5 w-full max-w-5xl">
                   <div className="p-4 sm:p-5">
                     <div className="border-b border-[#0d1b2e]/8 pb-4">
                       <div className="mb-2 flex items-end justify-between gap-3">
@@ -303,10 +303,16 @@ export function OrderChecklistsPage({
                           </AdminButton>
                         )}
                         {!completed && isCurrent && canManage && (
-                          <BtnPrimary disabled={busyStageId === stage.id} onClick={() => void completeStage(stage)}>
-                            <CheckCircle2 size={15} />
-                            {busyStageId === stage.id ? "Validando..." : checklist.stages[selectedIndex + 1] ? "Concluir e avançar" : "Concluir checklist"}
-                            {checklist.stages[selectedIndex + 1] && <ChevronRight size={15} />}
+                          <BtnPrimary
+                            aria-label={checklist.stages[selectedIndex + 1] ? "Concluir e avançar" : "Concluir checklist"}
+                            title={checklist.stages[selectedIndex + 1] ? "Concluir e avançar" : "Concluir checklist"}
+                            disabled={busyStageId === stage.id}
+                            onClick={() => void completeStage(stage)}
+                          >
+                            <CheckCircle2 size={15} className="sm:hidden" />
+                            <span className="hidden sm:inline">
+                              {busyStageId === stage.id ? "Validando..." : checklist.stages[selectedIndex + 1] ? "Concluir e avançar" : "Concluir checklist"}
+                            </span>
                           </BtnPrimary>
                         )}
                       </div>
@@ -455,12 +461,12 @@ function OrderChecklistItemEditor({
           )}
 
           {item.response_type_snapshot === "text" && (
-            <div className="mt-2 max-w-3xl">
+            <div className="mt-2 w-full">
               <FTextarea label="Resposta" disabled={disabled || isNA} value={responseText} onChange={(event: any) => setResponseText(event.target.value)} />
             </div>
           )}
           {item.response_type_snapshot === "number" && (
-            <div className="mt-2 max-w-xs">
+            <div className="mt-2 w-full">
               <FInput label="Valor" disabled={disabled || isNA} type="text" inputMode="decimal" value={responseNumber} onChange={(event: any) => setResponseNumber(event.target.value)} />
             </div>
           )}
@@ -518,7 +524,7 @@ function OrderChecklistItemEditor({
       )}
 
       {showObservation && (
-        <div className="mt-3 max-w-4xl">
+        <div className="mt-3 w-full">
           <FTextarea
             label={`Observação${requiredObservation ? " *" : ""}`}
             disabled={disabled}
@@ -531,8 +537,15 @@ function OrderChecklistItemEditor({
 
       {!disabled && (
         <div className="mt-3 flex justify-end">
-          <AdminButton className="h-9" onClick={() => void save()} disabled={saving}>
-            <Save size={14} /> {saving ? "Salvando..." : "Salvar"}
+          <AdminButton
+            className="h-9"
+            aria-label={saving ? "Salvando resposta" : "Salvar resposta"}
+            title={saving ? "Salvando..." : "Salvar"}
+            onClick={() => void save()}
+            disabled={saving}
+          >
+            <Save size={14} className="sm:hidden" />
+            <span className="hidden sm:inline">{saving ? "Salvando..." : "Salvar"}</span>
           </AdminButton>
         </div>
       )}
