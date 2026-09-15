@@ -16,13 +16,7 @@ type Props = {
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 };
 
-type Draft = {
-  id?: string;
-  name: string;
-  description: string;
-  is_active: boolean;
-  stages: ChecklistProfileDraftStage[];
-};
+type Draft = { id?: string; name: string; description: string; is_active: boolean; stages: ChecklistProfileDraftStage[] };
 
 const RESPONSE_OPTIONS = [
   { value: "conformity", label: "Conforme / Não conforme" },
@@ -51,49 +45,25 @@ const STAGE_TYPE_OPTIONS = [
 ];
 
 function stageCode(name: string, fallback: string) {
-  const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-  return normalized || fallback;
+  return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || fallback;
 }
 
-function newItem(sortOrder = 0): ChecklistProfileDraftItem {
-  return {
-    title: "",
-    description: null,
-    response_type: "conformity",
-    allow_na: true,
-    is_required: true,
-    photo_requirement: "none",
-    observation_requirement: "optional",
-    sort_order: sortOrder,
-    is_active: true,
-  };
+function newItem(sort_order = 0): ChecklistProfileDraftItem {
+  return { title: "", description: null, response_type: "conformity", allow_na: true, is_required: true, photo_requirement: "none", observation_requirement: "optional", sort_order, is_active: true };
 }
 
-function newStage(name: string, type: ChecklistStageType, code: string, sortOrder: number): ChecklistProfileDraftStage {
+function newStage(name: string, stage_type: ChecklistStageType, code: string, sort_order: number): ChecklistProfileDraftStage {
   return {
-    code,
-    stage_type: type,
-    name,
-    situation_id: null,
-    block_situation_exit: false,
-    block_resolution: type === "diagnosis",
-    block_completion: type === "qc",
-    sort_order: sortOrder,
-    is_active: true,
-    items: [newItem(0)],
+    code, stage_type, name, situation_id: null, block_situation_exit: false,
+    block_resolution: stage_type === "diagnosis", block_completion: stage_type === "qc",
+    sort_order, is_active: true, items: [newItem()],
   };
 }
 
 function newDraft(): Draft {
   return {
-    name: "",
-    description: "",
-    is_active: true,
-    stages: [
-      newStage("Entrada", "entry", "entrada", 0),
-      newStage("Diagnóstico", "diagnosis", "diagnostico", 10),
-      newStage("Saída / QC", "qc", "saida_qc", 20),
-    ],
+    name: "", description: "", is_active: true,
+    stages: [newStage("Entrada", "entry", "entrada", 0), newStage("Diagnóstico", "diagnosis", "diagnostico", 10), newStage("Saída / QC", "qc", "saida_qc", 20)],
   };
 }
 
@@ -110,99 +80,65 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const editorOpen = routeResourceId === "new" || Boolean(routeResourceId && routeSubpage === "edit");
 
   const linkedCounts = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const equipment of data?.equipmentTypes ?? []) {
-      if (!equipment.checklist_profile_id) continue;
-      map.set(equipment.checklist_profile_id, (map.get(equipment.checklist_profile_id) || 0) + 1);
-    }
-    return map;
+    const counts = new Map<string, number>();
+    for (const equipment of data?.equipmentTypes ?? []) if (equipment.checklist_profile_id) counts.set(equipment.checklist_profile_id, (counts.get(equipment.checklist_profile_id) || 0) + 1);
+    return counts;
   }, [data?.equipmentTypes]);
 
   useEffect(() => {
-    if (!editorOpen || !data) { if (!editorOpen) setDraft(null); return; }
-    if (routeResourceId === "new") {
-      setDraft(current => current?.id ? newDraft() : current || newDraft());
-      return;
-    }
+    if (!editorOpen) { setDraft(null); return; }
+    if (!data) return;
+    if (routeResourceId === "new") { setDraft(current => current || newDraft()); return; }
     const editor = profileEditorFromAdminData(data, String(routeResourceId));
     if (!editor) return;
     setDraft({
-      id: editor.id,
-      name: editor.name,
-      description: editor.description || "",
-      is_active: editor.is_active,
-      stages: editor.stages.map(stage => ({
-        ...stage,
-        situation_id: stage.situation_id || null,
-        items: stage.items.map(item => ({ ...item })),
-      })),
+      id: editor.id, name: editor.name, description: editor.description || "", is_active: editor.is_active,
+      stages: editor.stages.map(stage => ({ ...stage, situation_id: stage.situation_id || null, items: stage.items.map(item => ({ ...item })) })),
     });
-  }, [editorOpen, routeResourceId, routeSubpage, data]);
+  }, [editorOpen, routeResourceId, data]);
 
   useEffect(() => {
-    if (!query.error) return;
-    setToast({ msg: `Erro ao carregar checklists: ${query.error instanceof Error ? query.error.message : String(query.error)}`, type: "error" });
+    if (query.error) setToast({ msg: `Erro ao carregar checklists: ${query.error instanceof Error ? query.error.message : String(query.error)}`, type: "error" });
   }, [query.error]);
 
   const closeEditor = () => onRouteChange?.(null, null);
-  const updateStage = (stageIndex: number, value: Partial<ChecklistProfileDraftStage>) => setDraft(current => current ? ({
-    ...current,
-    stages: current.stages.map((stage, index) => index === stageIndex ? { ...stage, ...value } : stage),
-  }) : current);
-  const updateItem = (stageIndex: number, itemIndex: number, value: Partial<ChecklistProfileDraftItem>) => setDraft(current => current ? ({
-    ...current,
-    stages: current.stages.map((stage, index) => index === stageIndex ? {
-      ...stage,
-      items: stage.items.map((item, childIndex) => childIndex === itemIndex ? { ...item, ...value } : item),
-    } : stage),
-  }) : current);
-  const addStage = () => setDraft(current => current ? ({
-    ...current,
-    stages: [...current.stages, newStage("Nova etapa", "custom", `etapa_${current.stages.length + 1}`, current.stages.length * 10)],
-  }) : current);
+  const updateStage = (stageIndex: number, patch: Partial<ChecklistProfileDraftStage>) => setDraft(current => current ? ({ ...current, stages: current.stages.map((stage, index) => index === stageIndex ? { ...stage, ...patch } : stage) }) : current);
+  const updateItem = (stageIndex: number, itemIndex: number, patch: Partial<ChecklistProfileDraftItem>) => setDraft(current => current ? ({ ...current, stages: current.stages.map((stage, index) => index === stageIndex ? { ...stage, items: stage.items.map((item, childIndex) => childIndex === itemIndex ? { ...item, ...patch } : item) } : stage) }) : current);
+  const addStage = () => setDraft(current => current ? ({ ...current, stages: [...current.stages, newStage("Nova etapa", "custom", `etapa_${current.stages.length + 1}`, current.stages.length * 10)] }) : current);
   const removeStage = (stageIndex: number) => setDraft(current => current ? ({ ...current, stages: current.stages.filter((_, index) => index !== stageIndex) }) : current);
   const moveStage = (stageIndex: number, direction: -1 | 1) => setDraft(current => {
     if (!current) return current;
-    const next = [...current.stages];
     const target = stageIndex + direction;
-    if (target < 0 || target >= next.length) return current;
-    [next[stageIndex], next[target]] = [next[target], next[stageIndex]];
-    return { ...current, stages: next.map((stage, index) => ({ ...stage, sort_order: index * 10 })) };
+    if (target < 0 || target >= current.stages.length) return current;
+    const stages = [...current.stages];
+    [stages[stageIndex], stages[target]] = [stages[target], stages[stageIndex]];
+    return { ...current, stages: stages.map((stage, index) => ({ ...stage, sort_order: index * 10 })) };
   });
-  const addItem = (stageIndex: number) => setDraft(current => current ? ({
-    ...current,
-    stages: current.stages.map((stage, index) => index === stageIndex ? { ...stage, items: [...stage.items, newItem(stage.items.length * 10)] } : stage),
-  }) : current);
-  const removeItem = (stageIndex: number, itemIndex: number) => setDraft(current => current ? ({
-    ...current,
-    stages: current.stages.map((stage, index) => index === stageIndex ? { ...stage, items: stage.items.filter((_, childIndex) => childIndex !== itemIndex) } : stage),
-  }) : current);
+  const addItem = (stageIndex: number) => setDraft(current => current ? ({ ...current, stages: current.stages.map((stage, index) => index === stageIndex ? { ...stage, items: [...stage.items, newItem(stage.items.length * 10)] } : stage) }) : current);
+  const removeItem = (stageIndex: number, itemIndex: number) => setDraft(current => current ? ({ ...current, stages: current.stages.map((stage, index) => index === stageIndex ? { ...stage, items: stage.items.filter((_, childIndex) => childIndex !== itemIndex) } : stage) }) : current);
 
-  const validateDraft = (value: Draft) => {
+  const validate = (value: Draft) => {
     if (!value.name.trim()) return "Informe o nome do perfil.";
     if (!value.stages.length) return "Adicione ao menos uma etapa.";
     const codes = new Set<string>();
-    for (const [stageIndex, stage] of value.stages.entries()) {
-      if (!stage.name.trim()) return `Informe o nome da etapa ${stageIndex + 1}.`;
-      const code = stageCode(stage.name, stage.code || `etapa_${stageIndex + 1}`);
-      if (codes.has(code)) return "As etapas precisam ter nomes diferentes.";
+    for (const [index, stage] of value.stages.entries()) {
+      if (!stage.name.trim()) return `Informe o nome da etapa ${index + 1}.`;
+      const code = stage.id ? stage.code : stageCode(stage.name, stage.code || `etapa_${index + 1}`);
+      if (codes.has(code)) return "As etapas precisam ter códigos diferentes.";
       codes.add(code);
       if (stage.items.some(item => !item.title.trim())) return `Preencha todos os itens da etapa ${stage.name}.`;
     }
     return "";
   };
 
-  const persist = async (value = draft) => {
+  const persist = async (value = draft, close = true) => {
     if (!value || !canManage) return;
-    const validation = validateDraft(value);
-    if (validation) { setToast({ msg: validation, type: "error" }); return; }
+    const errorMessage = validate(value);
+    if (errorMessage) { setToast({ msg: errorMessage, type: "error" }); return; }
     setSaving(true);
     try {
       await saveChecklistProfile({
-        id: value.id,
-        name: value.name,
-        description: value.description,
-        is_active: value.is_active,
+        id: value.id, name: value.name, description: value.description, is_active: value.is_active,
         stages: value.stages.map((stage, index) => ({
           ...stage,
           code: stage.id ? stage.code : stageCode(stage.name, stage.code || `etapa_${index + 1}`),
@@ -210,30 +146,19 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
           items: stage.items.map((item, itemIndex) => ({ ...item, sort_order: itemIndex * 10 })),
         })),
       });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all }),
-      ]);
+      await Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all }), queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all })]);
       setToast({ msg: value.id ? "Perfil de checklist atualizado." : "Perfil de checklist criado.", type: "success" });
-      closeEditor();
+      if (close) closeEditor();
     } catch (error) {
       setToast({ msg: `Erro ao salvar checklist: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const toggleProfile = async (profileId: string) => {
     if (!data || !canManage) return;
     const editor = profileEditorFromAdminData(data, profileId);
     if (!editor) return;
-    await persist({
-      id: editor.id,
-      name: editor.name,
-      description: editor.description || "",
-      is_active: !editor.is_active,
-      stages: editor.stages.map(stage => ({ ...stage, items: stage.items.map(item => ({ ...item })) })),
-    });
+    await persist({ id: editor.id, name: editor.name, description: editor.description || "", is_active: !editor.is_active, stages: editor.stages.map(stage => ({ ...stage, items: stage.items.map(item => ({ ...item })) })) }, false);
   };
 
   if (!canView) return null;
@@ -243,76 +168,30 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!editorOpen && <>
       <PageHeader title="Checklists" subtitle="Perfis técnicos vinculados aos equipamentos e às etapas das ordens de serviço" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{canManage && <AdminButton onClick={() => onRouteChange?.("new", null)}><Plus size={15} /> Novo perfil</AdminButton>}</div>} />
-      {!data?.profiles.length ? <EmptyState icon={<ClipboardCheck size={24} />} title="Nenhum perfil de checklist" description="Crie o primeiro perfil para organizar Entrada, Diagnóstico e Saída/QC dos equipamentos." action={canManage ? <BtnPrimary onClick={() => onRouteChange?.("new", null)}><Plus size={15} /> Criar perfil</BtnPrimary> : undefined} /> : <div className="grid gap-3 lg:grid-cols-2">
+      {!data?.profiles.length ? <EmptyState icon={ClipboardCheck} title="Nenhum perfil de checklist" message="Crie o primeiro perfil para organizar Entrada, Diagnóstico e Saída/QC dos equipamentos." onAdd={canManage ? () => onRouteChange?.("new", null) : undefined} addLabel="Criar perfil" /> : <div className="grid gap-3 lg:grid-cols-2">
         {data.profiles.map(profile => {
           const stages = data.stages.filter(stage => stage.profile_id === profile.id);
           const itemCount = stages.reduce((total, stage) => total + stage.items.length, 0);
-          return <AdminCard key={profile.id}>
-            <AdminCardHeader title={profile.name} subtitle={`Versão ${profile.version} • ${stages.length} etapa(s) • ${itemCount} item(ns)`} actions={<StatusBadge status={profile.is_active ? "Ativo" : "Inativo"} color={profile.is_active ? "#16a34a" : "#64748b"} />} />
-            <div className="space-y-3 p-4">
-              {profile.description && <p className="text-xs leading-5 text-[#5a6a82]">{profile.description}</p>}
-              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                <div className="rounded-lg bg-[#f5f7fa] p-2.5"><span className="block text-[10px] font-bold uppercase text-[#7a8aa0]">Equipamentos</span><strong>{linkedCounts.get(profile.id) || 0}</strong></div>
-                <div className="rounded-lg bg-[#f5f7fa] p-2.5"><span className="block text-[10px] font-bold uppercase text-[#7a8aa0]">Etapas</span><strong>{stages.length}</strong></div>
-                <div className="rounded-lg bg-[#f5f7fa] p-2.5"><span className="block text-[10px] font-bold uppercase text-[#7a8aa0]">Itens</span><strong>{itemCount}</strong></div>
-              </div>
-              {canManage && <div className="flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 pt-3">
-                <AdminButton variant="secondary" onClick={() => void toggleProfile(profile.id)}><Power size={14} /> {profile.is_active ? "Inativar" : "Ativar"}</AdminButton>
-                <AdminButton onClick={() => onRouteChange?.(profile.id, "edit")}><Edit2 size={14} /> Editar</AdminButton>
-              </div>}
-            </div>
-          </AdminCard>;
+          return <AdminCard key={profile.id}><AdminCardHeader title={profile.name} subtitle={`Versão ${profile.version} • ${stages.length} etapa(s) • ${itemCount} item(ns)`} actions={<StatusBadge status={profile.is_active ? "Ativo" : "Inativo"} color={profile.is_active ? "#16a34a" : "#64748b"} />} /><div className="space-y-3 p-4">{profile.description && <p className="text-xs leading-5 text-[#5a6a82]">{profile.description}</p>}<div className="grid grid-cols-3 gap-2 text-xs"><Metric label="Equipamentos" value={linkedCounts.get(profile.id) || 0} /><Metric label="Etapas" value={stages.length} /><Metric label="Itens" value={itemCount} /></div>{canManage && <div className="flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 pt-3"><AdminButton variant="secondary" onClick={() => void toggleProfile(profile.id)}><Power size={14} /> {profile.is_active ? "Inativar" : "Ativar"}</AdminButton><AdminButton onClick={() => onRouteChange?.(profile.id, "edit")}><Edit2 size={14} /> Editar</AdminButton></div>}</div></AdminCard>;
         })}
       </div>}
     </>}
 
     {editorOpen && draft && <AdminPage open onClose={closeEditor} breadcrumb="Operação > Checklists" title={draft.id ? "Editar perfil de checklist" : "Novo perfil de checklist"} subtitle="Configure etapas, situação vinculada, bloqueios e itens técnicos" maxW="max-w-5xl">
       <div className="space-y-5 p-5">
-        <Section title="Perfil">
-          <div className="grid gap-4 md:grid-cols-2">
-            <FInput label="Nome do perfil" value={draft.name} onChange={event => setDraft(current => current ? { ...current, name: event.target.value } : current)} placeholder="Ex.: Televisor — Padrão" />
-            <div className="flex items-end"><FToggle label="Perfil ativo" checked={draft.is_active} onCheckedChange={checked => setDraft(current => current ? { ...current, is_active: checked } : current)} /></div>
-            <div className="md:col-span-2"><FInput label="Descrição" value={draft.description} onChange={event => setDraft(current => current ? { ...current, description: event.target.value } : current)} placeholder="Uso e objetivo deste perfil" /></div>
-          </div>
-        </Section>
-
-        <div className="flex items-center justify-between gap-3">
-          <div><h3 className="text-sm font-black text-[#0d1b2e]">Etapas</h3><p className="text-xs text-[#6b7c93]">Cada etapa pode ser ligada a uma Situação da OS e bloquear o fluxo.</p></div>
-          <AdminButton variant="secondary" onClick={addStage}><Plus size={14} /> Etapa</AdminButton>
-        </div>
-
-        {draft.stages.map((stage, stageIndex) => <AdminCard key={`${stage.id || stage.code}-${stageIndex}`}>
-          <AdminCardHeader title={`${stageIndex + 1}. ${stage.name || "Nova etapa"}`} subtitle={stage.situation_id ? `Vinculada a ${data?.situations.find(item => item.id === stage.situation_id)?.name || "Situação"}` : "Sem situação vinculada"} actions={<div className="flex gap-1"><AdminButton variant="secondary" className="px-2" disabled={stageIndex === 0} onClick={() => moveStage(stageIndex, -1)} title="Subir"><ArrowUp size={14} /></AdminButton><AdminButton variant="secondary" className="px-2" disabled={stageIndex === draft.stages.length - 1} onClick={() => moveStage(stageIndex, 1)} title="Descer"><ArrowDown size={14} /></AdminButton><AdminButton variant="secondary" className="px-2 text-red-600" onClick={() => removeStage(stageIndex)} title="Remover"><Trash2 size={14} /></AdminButton></div>} />
-          <div className="space-y-4 p-4">
-            <div className="grid gap-3 md:grid-cols-3">
-              <FInput label="Nome da etapa" value={stage.name} onChange={event => updateStage(stageIndex, { name: event.target.value })} />
-              <FSelect label="Tipo" value={stage.stage_type} onValueChange={value => updateStage(stageIndex, { stage_type: value as ChecklistStageType })} options={STAGE_TYPE_OPTIONS} />
-              <FSelect label="Situação da OS" value={stage.situation_id || ""} onValueChange={value => updateStage(stageIndex, { situation_id: value || null })} options={[{ value: "", label: "Sem vínculo" }, ...(data?.situations ?? []).map(item => ({ value: item.id, label: item.name }))]} />
-            </div>
-            <div className="grid gap-2 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3 md:grid-cols-3">
-              <FToggle label="Bloquear saída da situação" checked={stage.block_situation_exit} onCheckedChange={checked => updateStage(stageIndex, { block_situation_exit: checked })} />
-              <FToggle label="Bloquear Resolver OS" checked={stage.block_resolution} onCheckedChange={checked => updateStage(stageIndex, { block_resolution: checked })} />
-              <FToggle label="Bloquear Concluir OS" checked={stage.block_completion} onCheckedChange={checked => updateStage(stageIndex, { block_completion: checked })} />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between"><strong className="text-xs uppercase tracking-wide text-[#52647c]">Itens</strong><AdminButton variant="secondary" onClick={() => addItem(stageIndex)}><Plus size={13} /> Item</AdminButton></div>
-              {stage.items.map((item, itemIndex) => <div key={`${item.id || "new"}-${itemIndex}`} className="rounded-xl border border-[#0d1b2e]/10 p-3">
-                <div className="mb-3 flex items-center justify-between gap-2"><span className="text-xs font-bold text-[#0d1b2e]">Item {itemIndex + 1}</span><button type="button" onClick={() => removeItem(stageIndex, itemIndex)} className="rounded-md p-1.5 text-red-600 hover:bg-red-50" title="Remover item"><Trash2 size={14} /></button></div>
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  <div className="md:col-span-2 lg:col-span-2"><FInput label="Título" value={item.title} onChange={event => updateItem(stageIndex, itemIndex, { title: event.target.value })} placeholder="O que deve ser verificado?" /></div>
-                  <FSelect label="Resposta" value={item.response_type} onValueChange={value => updateItem(stageIndex, itemIndex, { response_type: value as ChecklistProfileDraftItem["response_type"] })} options={RESPONSE_OPTIONS} />
-                  <FSelect label="Foto" value={item.photo_requirement} onValueChange={value => updateItem(stageIndex, itemIndex, { photo_requirement: value as ChecklistProfileDraftItem["photo_requirement"] })} options={PHOTO_OPTIONS} />
-                  <FSelect label="Observação" value={item.observation_requirement} onValueChange={value => updateItem(stageIndex, itemIndex, { observation_requirement: value as ChecklistProfileDraftItem["observation_requirement"] })} options={OBSERVATION_OPTIONS} />
-                  <div className="flex flex-wrap items-end gap-4 pb-1"><FToggle label="Obrigatório" checked={item.is_required} onCheckedChange={checked => updateItem(stageIndex, itemIndex, { is_required: checked })} /><FToggle label="Permitir N/A" checked={item.allow_na} onCheckedChange={checked => updateItem(stageIndex, itemIndex, { allow_na: checked })} /></div>
-                  <div className="md:col-span-2 lg:col-span-3"><FInput label="Instrução / descrição" value={item.description || ""} onChange={event => updateItem(stageIndex, itemIndex, { description: event.target.value || null })} placeholder="Orientação opcional para quem executará o checklist" /></div>
-                </div>
-              </div>)}
-            </div>
-          </div>
-        </AdminCard>)}
+        <Section title="Perfil"><div className="grid gap-4 md:grid-cols-2"><FInput label="Nome do perfil" value={draft.name} onChange={event => setDraft(current => current ? { ...current, name: event.target.value } : current)} placeholder="Ex.: Televisor — Padrão" /><div className="flex items-end"><FToggle label="Perfil ativo" checked={draft.is_active} onChange={checked => setDraft(current => current ? { ...current, is_active: checked } : current)} /></div><div className="md:col-span-2"><FInput label="Descrição" value={draft.description} onChange={event => setDraft(current => current ? { ...current, description: event.target.value } : current)} /></div></div></Section>
+        <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-black text-[#0d1b2e]">Etapas</h3><p className="text-xs text-[#6b7c93]">Vincule uma situação e defina os bloqueios do fluxo.</p></div><AdminButton variant="secondary" onClick={addStage}><Plus size={14} /> Etapa</AdminButton></div>
+        {draft.stages.map((stage, stageIndex) => <AdminCard key={`${stage.id || stage.code}-${stageIndex}`}><AdminCardHeader title={`${stageIndex + 1}. ${stage.name || "Nova etapa"}`} subtitle={stage.situation_id ? `Vinculada a ${data?.situations.find(item => item.id === stage.situation_id)?.name || "Situação"}` : "Sem situação vinculada"} actions={<div className="flex gap-1"><AdminButton variant="secondary" className="px-2" disabled={stageIndex === 0} onClick={() => moveStage(stageIndex, -1)}><ArrowUp size={14} /></AdminButton><AdminButton variant="secondary" className="px-2" disabled={stageIndex === draft.stages.length - 1} onClick={() => moveStage(stageIndex, 1)}><ArrowDown size={14} /></AdminButton><AdminButton variant="secondary" className="px-2 text-red-600" onClick={() => removeStage(stageIndex)}><Trash2 size={14} /></AdminButton></div>} /><div className="space-y-4 p-4">
+          <div className="grid gap-3 md:grid-cols-3"><FInput label="Nome da etapa" value={stage.name} onChange={event => updateStage(stageIndex, { name: event.target.value })} /><FSelect label="Tipo" value={stage.stage_type} onChange={(event: any) => updateStage(stageIndex, { stage_type: event.target.value as ChecklistStageType })} options={STAGE_TYPE_OPTIONS} /><FSelect label="Situação da OS" value={stage.situation_id || ""} onChange={(event: any) => updateStage(stageIndex, { situation_id: event.target.value || null })} options={[{ value: "", label: "Sem vínculo" }, ...(data?.situations ?? []).map(item => ({ value: item.id, label: item.name }))]} /></div>
+          <div className="grid gap-2 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3 md:grid-cols-3"><FToggle label="Bloquear saída da situação" checked={stage.block_situation_exit} onChange={checked => updateStage(stageIndex, { block_situation_exit: checked })} /><FToggle label="Bloquear Resolver OS" checked={stage.block_resolution} onChange={checked => updateStage(stageIndex, { block_resolution: checked })} /><FToggle label="Bloquear Concluir OS" checked={stage.block_completion} onChange={checked => updateStage(stageIndex, { block_completion: checked })} /></div>
+          <div className="space-y-3"><div className="flex items-center justify-between"><strong className="text-xs uppercase tracking-wide text-[#52647c]">Itens</strong><AdminButton variant="secondary" onClick={() => addItem(stageIndex)}><Plus size={13} /> Item</AdminButton></div>{stage.items.map((item, itemIndex) => <div key={`${item.id || "new"}-${itemIndex}`} className="rounded-xl border border-[#0d1b2e]/10 p-3"><div className="mb-3 flex justify-between"><span className="text-xs font-bold">Item {itemIndex + 1}</span><button type="button" onClick={() => removeItem(stageIndex, itemIndex)} className="rounded-md p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={14} /></button></div><div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3"><div className="md:col-span-2"><FInput label="Título" value={item.title} onChange={event => updateItem(stageIndex, itemIndex, { title: event.target.value })} /></div><FSelect label="Resposta" value={item.response_type} onChange={(event: any) => updateItem(stageIndex, itemIndex, { response_type: event.target.value })} options={RESPONSE_OPTIONS} /><FSelect label="Foto" value={item.photo_requirement} onChange={(event: any) => updateItem(stageIndex, itemIndex, { photo_requirement: event.target.value })} options={PHOTO_OPTIONS} /><FSelect label="Observação" value={item.observation_requirement} onChange={(event: any) => updateItem(stageIndex, itemIndex, { observation_requirement: event.target.value })} options={OBSERVATION_OPTIONS} /><div className="flex flex-wrap items-end gap-4 pb-1"><FToggle label="Obrigatório" checked={item.is_required} onChange={checked => updateItem(stageIndex, itemIndex, { is_required: checked })} /><FToggle label="Permitir N/A" checked={item.allow_na} onChange={checked => updateItem(stageIndex, itemIndex, { allow_na: checked })} /></div><div className="md:col-span-2 lg:col-span-3"><FInput label="Instrução / descrição" value={item.description || ""} onChange={event => updateItem(stageIndex, itemIndex, { description: event.target.value || null })} /></div></div></div>)}</div>
+        </div></AdminCard>)}
       </div>
       <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary disabled={saving} onClick={() => void persist()}>{saving ? "Salvando..." : "Salvar perfil"}</BtnPrimary></div>
     </AdminPage>}
   </div>;
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-lg bg-[#f5f7fa] p-2.5"><span className="block text-[10px] font-bold uppercase text-[#7a8aa0]">{label}</span><strong>{value}</strong></div>;
 }
