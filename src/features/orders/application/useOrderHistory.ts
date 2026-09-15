@@ -22,7 +22,6 @@ export function useOrderHistory({
   showToast: (toast: ToastMessage) => void;
 }) {
   const queryClient = useQueryClient();
-  const [pageOpen, setPageOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [text, setText] = useState("");
   const [userFilter, setUserFilter] = useState("");
@@ -99,18 +98,17 @@ export function useOrderHistory({
     return [...ids].map((id) => ({ id, name: profiles.find((profile) => profile.id === id)?.full_name || "Usuário não informado" }));
   }, [statusHistory, notesQuery.data, profiles]);
 
-  const closePage = () => {
-    setPageOpen(false);
+  const resetPageState = () => {
     setModalOpen(false);
     setText("");
   };
 
   return {
-    pageOpen, setPageOpen, modalOpen, setModalOpen, text, setText,
+    modalOpen, setModalOpen, text, setText,
     userFilter, setUserFilter, dateFilter, setDateFilter, sort, setSort,
     entries, authorOptions, total: statusHistory.length + (notesQuery.data?.length || 0),
     loading: notesQuery.isLoading, saving: createMutation.isPending,
-    submit: () => createMutation.mutate(), closePage,
+    submit: () => createMutation.mutate(), resetPageState,
     clearFilters: () => { setUserFilter(""); setDateFilter(""); },
   };
 }
