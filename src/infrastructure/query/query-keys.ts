@@ -38,6 +38,15 @@ export const queryKeys = {
     permissionsAll: ["registrations", "permissions"] as const,
     permissions: (organizationId: string, userId: string) => ["registrations", "permissions", organizationId, userId] as const,
   },
+  checklists: {
+    all: ["checklists"] as const,
+    profiles: () => ["checklists", "profiles"] as const,
+    profile: (profileId: string) => ["checklists", "profile", profileId] as const,
+    equipmentAll: ["checklists", "equipment"] as const,
+    equipment: (equipmentTypeId: string) => ["checklists", "equipment", equipmentTypeId] as const,
+    ordersAll: ["checklists", "orders"] as const,
+    order: (orderId: string) => ["checklists", "orders", orderId] as const,
+  },
   equipment: {
     all: ["equipment"] as const,
     catalog: () => ["equipment", "catalog"] as const,
