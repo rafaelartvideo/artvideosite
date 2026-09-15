@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Copy, Eye, EyeOff } from "lucide-react";
 import { ARTVIDEO_ORGANIZATION_ID } from "@/features/telephony/domain/uniq-call";
 import { listActiveRoles } from "@/features/roles/infrastructure/roles.repository";
 import { listObservedUniqSubscribers } from "../infrastructure/user-access.repository";
 import { FEmailInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, Section } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
 
 export type EmployeeAccessFormState = {
@@ -34,6 +34,7 @@ export function UserAccessSection({
   value,
   onChange,
   existingAccess,
+  registrationEmail = "",
   disabled = false,
   loading = false,
   embedded = false,
@@ -42,6 +43,7 @@ export function UserAccessSection({
   value: EmployeeAccessFormState;
   onChange: (value: EmployeeAccessFormState) => void;
   existingAccess: boolean;
+  registrationEmail?: string;
   disabled?: boolean;
   loading?: boolean;
   embedded?: boolean;
@@ -50,6 +52,14 @@ export function UserAccessSection({
   const [uniqSubscribers, setUniqSubscribers] = useState<UniqSubscriber[]>(uniqSubscribersCache || []);
   const [showPassword, setShowPassword] = useState(false);
   const isArtVideo = organizationId === ARTVIDEO_ORGANIZATION_ID;
+  const normalizedRegistrationEmail = registrationEmail.trim().replace(/\s+/g, "").toLowerCase();
+  const normalizedLoginEmail = value.email.trim().replace(/\s+/g, "").toLowerCase();
+  const canCopyRegistrationEmail = Boolean(
+    normalizedRegistrationEmail
+    && normalizedRegistrationEmail !== normalizedLoginEmail
+    && !disabled
+    && !loading,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -105,7 +115,7 @@ export function UserAccessSection({
   }, [uniqSubscribers, value.uniq_subscriber_id]);
 
   const content = <div className="space-y-4" aria-busy={loading}>
-    <p className="text-xs leading-relaxed text-[#5a6a82]">O funcionário pode existir sem login. Ao habilitar o acesso, a função define as permissões-base; permissões extras podem ser configuradas nos detalhes do cadastro.</p>
+    <p className="text-xs leading-relaxed text-[#5a6a82]">O funcionário pode existir sem login. O e-mail de login é independente do e-mail de contato do cadastro e pode ser diferente.</p>
 
     <FToggle
       label="Permitir acesso ao sistema"
@@ -116,13 +126,27 @@ export function UserAccessSection({
     />
 
     {(value.enabled || existingAccess) && <div className="grid gap-4 sm:grid-cols-2">
-      <FEmailInput
-        label="E-mail de acesso"
-        required={value.enabled}
-        disabled={disabled || loading}
-        value={value.email}
-        onChange={(event: any) => onChange({ ...value, email: event.target.value })}
-      />
+      <div className="min-w-0">
+        <FEmailInput
+          label="E-mail de login"
+          required={value.enabled}
+          disabled={disabled || loading}
+          value={value.email}
+          onChange={(event: any) => onChange({ ...value, email: event.target.value })}
+        />
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+          <AdminButton
+            variant="secondary"
+            size="sm"
+            disabled={!canCopyRegistrationEmail}
+            onClick={() => onChange({ ...value, email: normalizedRegistrationEmail })}
+            title={normalizedRegistrationEmail ? "Copiar o e-mail de contato para o e-mail de login" : "Cadastre primeiro um e-mail de contato"}
+          >
+            <Copy size={13} /> Usar e-mail do cadastro
+          </AdminButton>
+          {normalizedRegistrationEmail && <span className="min-w-0 truncate text-[11px] text-[#6b7c93]" title={normalizedRegistrationEmail}>{normalizedRegistrationEmail}</span>}
+        </div>
+      </div>
       <div className="relative min-w-0">
         <FInput
           label={existingAccess ? "Nova senha" : "Senha"}
