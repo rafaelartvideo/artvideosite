@@ -101,6 +101,24 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
   const currentEmail = String(input.email || "").trim().replace(/\s+/g, "").toLowerCase();
   const username = normalizeUsername(input.username || usernameFromAuthEmail(currentEmail));
   const emailAlreadyUsesUsername = currentEmail.endsWith(`@${INTERNAL_AUTH_DOMAIN}`);
+  const unchangedLegacyUsername = Boolean(
+    input.enabled
+    && !input.username
+    && currentEmail
+    && !emailAlreadyUsesUsername
+    && usernameFromAuthEmail(currentEmail) === username,
+  );
+
+  if (input.enabled && username && !unchangedLegacyUsername) {
+    const availability = await checkEmployeeUsernameAvailability(username);
+    if (availability.error) {
+      return { data: null, error: new Error("Não foi possível verificar a disponibilidade do usuário.") };
+    }
+    if (!availability.available) {
+      return { data: null, error: new Error("Este usuário já está em uso.") };
+    }
+  }
+
   const authEmail = input.username || emailAlreadyUsesUsername
     ? authEmailForUsername(username)
     : currentEmail || (username ? authEmailForUsername(username) : null);
