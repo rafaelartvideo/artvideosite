@@ -70,6 +70,9 @@ function registrationEmployeeKeys(payload: RealtimePayload) {
   return keys;
 }
 
+const checklistConfigKeys: QueryKey[] = [queryKeys.checklists.all, queryKeys.equipment.all];
+const checklistOrderKeys: QueryKey[] = [queryKeys.checklists.ordersAll, queryKeys.orders.all];
+
 const tableQueryKeys: TableQueryConfig[] = [
   { table: "site_settings", keys: [queryKeys.publicSite.settings()] },
   { table: "services", keys: [queryKeys.publicSite.all, queryKeys.catalog.services()] },
@@ -88,6 +91,16 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "organization_members", keys: payload => [...registrationPermissionKeys(payload), queryKeys.registrations.accessAll, queryKeys.employees.all] },
   { table: "user_permission_overrides", keys: payload => [...registrationPermissionKeys(payload), queryKeys.employees.all] },
   { table: "role_permissions", keys: [queryKeys.registrations.permissionsAll, queryKeys.employees.all] },
+  { table: "checklist_profiles", keys: checklistConfigKeys },
+  { table: "checklist_profile_stages", keys: checklistConfigKeys },
+  { table: "checklist_profile_items", keys: checklistConfigKeys },
+  { table: "equipment_checklist_items", keys: checklistConfigKeys },
+  { table: "service_order_checklists", keys: checklistOrderKeys },
+  { table: "service_order_checklist_stages", keys: checklistOrderKeys },
+  { table: "service_order_checklist_items", keys: checklistOrderKeys },
+  { table: "service_order_checklist_item_media", keys: [...checklistOrderKeys, queryKeys.orders.all] },
+  { table: "equipment_types", keys: [queryKeys.equipment.all, queryKeys.orders.all, queryKeys.checklists.all] },
+  { table: "os_situations", keys: [queryKeys.orderSituations.all, queryKeys.orders.all, queryKeys.checklists.all] },
   { table: "inventory_items", keys: [queryKeys.inventory.all, queryKeys.orders.all, queryKeys.registrations.supplierItemsAll] },
   { table: "inventory_movements", keys: [queryKeys.inventory.all] },
   { table: "service_orders", keys: [queryKeys.orders.all, queryKeys.customers.all, queryKeys.appointments.all, queryKeys.admin.dashboard()] },
