@@ -24,21 +24,23 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const usernamePattern = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+
+function normalizeUsername(value: unknown) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function validUsername(value: string) {
+  return usernamePattern.test(value);
+}
+
+function internalAuthEmail(employeeId: string) {
+  return `employee-${employeeId}@auth.artvideo.app`;
+}
 
 function authFailureMessage(error: any, action: "create" | "update") {
   const code = String(error?.code || "").toLowerCase();
   const message = String(error?.message || "").toLowerCase();
-  if (
-    code === "email_exists"
-    || code === "user_already_exists"
-    || message.includes("already registered")
-    || message.includes("already been registered")
-    || message.includes("already exists")
-  ) return "E-mail já cadastrado.";
-  if (code.includes("email") || message.includes("invalid email") || message.includes("email address")) {
-    return "Informe um e-mail de acesso válido.";
-  }
   if (code === "weak_password" || code.includes("password") || message.includes("password")) {
     return action === "create"
       ? "A senha informada não atende aos requisitos de segurança."
@@ -46,7 +48,7 @@ function authFailureMessage(error: any, action: "create" | "update") {
   }
   return action === "create"
     ? "Não foi possível criar o usuário de acesso."
-    : "Não foi possível atualizar o e-mail ou a senha do usuário.";
+    : "Não foi possível atualizar a senha do usuário.";
 }
 
 async function authenticatedUser(req: Request) {
@@ -137,12 +139,23 @@ async function getEntityForEmployee(organizationId: string, employeeId: string) 
   return data;
 }
 
+async function findProfileByUsername(username: string) {
+  const { data, error } = await adminClient
+    .from("profiles")
+    .select("id,username")
+    .eq("username", username)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 async function loadAccess(organizationId: string, employee: any) {
   if (!employee.profile_id) {
     return {
       enabled: false,
       profile_id: null,
       user_id: null,
+      username: null,
       email: null,
       role_id: employee.role_id ?? null,
       uniq_subscriber_id: employee.uniq_subscriber_id ?? null,
@@ -151,7 +164,7 @@ async function loadAccess(organizationId: string, employee: any) {
   }
 
   const [{ data: profile, error: profileError }, { data: membership, error: membershipError }, authResult] = await Promise.all([
-    adminClient.from("profiles").select("id,email,is_active,role_id").eq("id", employee.profile_id).maybeSingle(),
+    adminClient.from("profiles").select("id,username,email,is_active,role_id").eq("id", employee.profile_id).maybeSingle(),
     adminClient.from("organization_members").select("id,role_id,status,is_owner").eq("organization_id", organizationId).eq("user_id", employee.profile_id).maybeSingle(),
     adminClient.auth.admin.getUserById(employee.profile_id),
   ]);
@@ -163,6 +176,7 @@ async function loadAccess(organizationId: string, employee: any) {
     enabled: profile?.is_active !== false && membership?.status === "active" && employee.is_active !== false,
     profile_id: employee.profile_id,
     user_id: employee.profile_id,
+    username: profile?.username ?? null,
     email: authResult.data.user?.email ?? profile?.email ?? null,
     role_id: membership?.role_id ?? employee.role_id ?? profile?.role_id ?? null,
     uniq_subscriber_id: employee.uniq_subscriber_id ?? null,
@@ -269,6 +283,22 @@ Deno.serve(async (req) => {
       return json({ success: true, access: await loadAccess(organizationId, employee) });
     }
 
+    if (action === "check_username") {
+      if (!await requireAnyPermission(caller.id, organizationId, ["employees.view", "employees.create", "employees.edit", "roles.view"])) {
+        return json({ error: "Você não possui permissão para verificar este usuário." }, 403);
+      }
+      const username = normalizeUsername(body.username);
+      if (!validUsername(username)) {
+        return json({ error: "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado." }, 400);
+      }
+      const existing = await findProfileByUsername(username);
+      return json({
+        success: true,
+        username,
+        available: !existing || existing.id === employee.profile_id,
+      });
+    }
+
     if (action !== "upsert_employee_access") {
       return json({ error: "Ação não suportada." }, 400);
     }
@@ -308,10 +338,16 @@ Deno.serve(async (req) => {
       if (!role || role.is_active === false) return json({ error: "A função selecionada não está disponível para esta empresa." }, 400);
     }
 
-    const normalizedEmail = String(body.email ?? currentAccess.email ?? "").trim().replace(/\s+/g, "").toLowerCase();
+    const username = normalizeUsername(body.username ?? currentAccess.username ?? "");
     const password = String(body.password ?? "");
-    if (enabled && (!normalizedEmail || !emailPattern.test(normalizedEmail))) {
-      return json({ error: "Informe um e-mail de acesso válido." }, 400);
+    if (enabled && !validUsername(username)) {
+      return json({ error: "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado." }, 400);
+    }
+    if (enabled) {
+      const usernameOwner = await findProfileByUsername(username);
+      if (usernameOwner && usernameOwner.id !== employee.profile_id) {
+        return json({ error: "Este usuário já está em uso." }, 409);
+      }
     }
     if (creatingAccess && enabled && password.length < 8) {
       return json({ error: "A senha deve ter pelo menos 8 caracteres." }, 400);
@@ -326,41 +362,45 @@ Deno.serve(async (req) => {
 
     let userId = employee.profile_id as string | null;
     let createdUserId: string | null = null;
+    let authEmail = currentAccess.email as string | null;
 
     try {
       if (!userId) {
+        authEmail = internalAuthEmail(employee.id);
         const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
-          email: normalizedEmail,
+          email: authEmail,
           password,
           email_confirm: true,
-          user_metadata: { full_name: employee.full_name },
+          user_metadata: { full_name: employee.full_name, username },
         });
         if (authError || !authData.user) {
           return json({ error: authFailureMessage(authError, "create") }, 400);
         }
         userId = authData.user.id;
         createdUserId = userId;
-      } else {
-        const authUpdates: Record<string, string> = {};
-        if (normalizedEmail && normalizedEmail !== currentAccess.email) authUpdates.email = normalizedEmail;
-        if (password) authUpdates.password = password;
-        if (Object.keys(authUpdates).length) {
-          const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, authUpdates);
-          if (authUpdateError) return json({ error: authFailureMessage(authUpdateError, "update") }, 400);
-        }
+        authEmail = authData.user.email ?? authEmail;
+      } else if (password) {
+        const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, { password });
+        if (authUpdateError) return json({ error: authFailureMessage(authUpdateError, "update") }, 400);
       }
 
       const preservedActive = creatingAccess ? enabled : currentAccess.enabled;
       const { error: profileError } = await adminClient.from("profiles").upsert({
         id: userId,
+        username,
         full_name: employee.full_name,
-        email: normalizedEmail || null,
+        email: authEmail || null,
         phone: employee.phone || null,
         role_id: roleId,
         is_active: preservedActive,
         updated_at: new Date().toISOString(),
       });
-      if (profileError) throw profileError;
+      if (profileError) {
+        if (String((profileError as any)?.code || "") === "23505") {
+          return json({ error: "Este usuário já está em uso." }, 409);
+        }
+        throw profileError;
+      }
 
       const membershipPayload = {
         organization_id: organizationId,
