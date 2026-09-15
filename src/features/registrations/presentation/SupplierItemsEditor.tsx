@@ -78,7 +78,7 @@ export function SupplierItemsEditor({
 
   return <Section title="Itens fornecidos">
     <div className="space-y-4">
-      <div className="mx-auto w-full max-w-md md:mx-0">
+      <div className="mx-auto w-full max-w-md">
         <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Pesquisar</label>
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
