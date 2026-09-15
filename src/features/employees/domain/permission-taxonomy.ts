@@ -14,12 +14,12 @@ const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço",
   customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", inventory: "Estoque", products: "Produtos", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
-  contact: "Contato", equipment: "Equipamentos", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
+  contact: "Contato", equipment: "Equipamentos", checklists: "Checklists", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
   situations: "Situações da OS", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos",
 };
 
-const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
-const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
+const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Checklists", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
+const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Checklists", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
@@ -54,6 +54,7 @@ export function permissionSectionName(permission: PermissionRecord) {
     if (key.includes(".kanban.")) return "Kanban";
     if (key.startsWith("orders.section.sla") || key === "orders.section.sla_cards") return "SLA";
     if (ORDER_PART_KEYS.has(key) || key === "orders.section.parts") return "Peças";
+    if (key === "orders.section.checklists" || key.startsWith("orders.checklists.")) return "Checklists";
     if (key.startsWith("orders.history.") || key === "orders.section.history") return "Histórico";
     if (key.includes("image") || key.includes("media") || key.includes("document") || /^orders\.situation\..+\.upload$/.test(key)) return "Documentos e Imagens";
     if (key.startsWith("orders.section.")) return "Detalhes";
@@ -65,6 +66,7 @@ export function permissionSectionName(permission: PermissionRecord) {
     if (key.startsWith("registrations.records.")) return "Registros";
   }
   if (module === "employees") return key === "employees.view" ? "Acesso" : "Ações";
+  if (module === "checklists") return key === "checklists.view" ? "Acesso" : "Ações";
   if (module === "documents") return key.startsWith("documents.attachment_types.") ? "Tipos de Anexo" : "Impressão / Modelos";
   if (module === "inventory") {
     if (key.includes("movement")) return "Movimentações";
@@ -133,6 +135,9 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "orders.dispatch_parts": ["orders.section.parts", "orders.view"], "orders.confirm_part_delivery": ["orders.section.parts", "orders.view"],
   "orders.register_part_return": ["orders.section.parts", "orders.view"], "orders.receive_returned_parts": ["orders.section.parts", "orders.view"],
   "orders.record_test_results": ["orders.section.parts", "orders.view"], "orders.history.create": ["orders.section.history", "orders.details.view", "orders.view"],
+  "orders.section.checklists": ["orders.details.view", "orders.view"],
+  "orders.checklists.manage": ["orders.section.checklists", "orders.details.view", "orders.view"],
+  "orders.checklists.reopen": ["orders.section.checklists", "orders.details.view", "orders.view"],
   "inventory.movements.view": ["inventory.view"], "inventory.movements.create": ["inventory.update", "inventory.view"], "inventory.toggle_active": ["inventory.update", "inventory.view"],
   "inventory.suppliers.view": ["inventory.view"], "inventory.suppliers.manage": ["inventory.suppliers.view", "inventory.update", "inventory.view"], "inventory.costs.view": ["inventory.view"],
   "products.toggle_active": ["products.update", "products.view"], "products.toggle_featured": ["products.update", "products.view"],
