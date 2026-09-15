@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, LoaderCircle, XCircle } from "lucide-react";
 import { ARTVIDEO_ORGANIZATION_ID } from "@/features/telephony/domain/uniq-call";
 import { listActiveRoles } from "@/features/roles/infrastructure/roles.repository";
-import { listObservedUniqSubscribers } from "../infrastructure/user-access.repository";
-import { FEmailInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, Section } from "@/shared/ui/admin/AdminLayout";
+import {
+  checkEmployeeUsernameAvailability,
+  listObservedUniqSubscribers,
+} from "../infrastructure/user-access.repository";
+import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
+import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { Section } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
 
 export type EmployeeAccessFormState = {
   enabled: boolean;
-  email: string;
+  profile_id: string | null;
+  username: string;
   password: string;
   role_id: string;
   uniq_subscriber_id: string;
@@ -17,7 +22,8 @@ export type EmployeeAccessFormState = {
 
 export const emptyEmployeeAccessForm = (): EmployeeAccessFormState => ({
   enabled: false,
-  email: "",
+  profile_id: null,
+  username: "",
   password: "",
   role_id: "",
   uniq_subscriber_id: "",
@@ -25,6 +31,7 @@ export const emptyEmployeeAccessForm = (): EmployeeAccessFormState => ({
 
 type RoleOption = { id: string; name: string };
 type UniqSubscriber = { subscriber_id: string | number; call_count?: number };
+type UsernameAvailability = "idle" | "checking" | "available" | "unavailable" | "error";
 
 const rolesCache = new Map<string, RoleOption[]>();
 let uniqSubscribersCache: UniqSubscriber[] | null = null;
@@ -34,7 +41,6 @@ export function UserAccessSection({
   value,
   onChange,
   existingAccess,
-  registrationEmail = "",
   disabled = false,
   loading = false,
   embedded = false,
@@ -43,7 +49,6 @@ export function UserAccessSection({
   value: EmployeeAccessFormState;
   onChange: (value: EmployeeAccessFormState) => void;
   existingAccess: boolean;
-  registrationEmail?: string;
   disabled?: boolean;
   loading?: boolean;
   embedded?: boolean;
@@ -51,15 +56,10 @@ export function UserAccessSection({
   const [roles, setRoles] = useState<RoleOption[]>(organizationId ? rolesCache.get(organizationId) || [] : []);
   const [uniqSubscribers, setUniqSubscribers] = useState<UniqSubscriber[]>(uniqSubscribersCache || []);
   const [showPassword, setShowPassword] = useState(false);
+  const [usernameAvailability, setUsernameAvailability] = useState<UsernameAvailability>("idle");
   const isArtVideo = organizationId === ARTVIDEO_ORGANIZATION_ID;
-  const normalizedRegistrationEmail = registrationEmail.trim().replace(/\s+/g, "").toLowerCase();
-  const normalizedLoginEmail = value.email.trim().replace(/\s+/g, "").toLowerCase();
-  const canCopyRegistrationEmail = Boolean(
-    normalizedRegistrationEmail
-    && normalizedRegistrationEmail !== normalizedLoginEmail
-    && !disabled
-    && !loading,
-  );
+  const normalizedUsername = normalizeUsername(value.username);
+  const usernameValid = isValidUsername(normalizedUsername);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +95,31 @@ export function UserAccessSection({
     return () => { cancelled = true; };
   }, [organizationId, isArtVideo]);
 
+  useEffect(() => {
+    if (!value.enabled || !normalizedUsername || !usernameValid) {
+      setUsernameAvailability("idle");
+      return;
+    }
+
+    let cancelled = false;
+    setUsernameAvailability("checking");
+    const timeout = window.setTimeout(() => {
+      void checkEmployeeUsernameAvailability(normalizedUsername, value.profile_id).then(result => {
+        if (cancelled) return;
+        if (result.error) {
+          setUsernameAvailability("error");
+          return;
+        }
+        setUsernameAvailability(result.available ? "available" : "unavailable");
+      });
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [value.enabled, value.profile_id, normalizedUsername, usernameValid]);
+
   const roleOptions = useMemo(() => [
     { value: "", label: "Selecionar função..." },
     ...roles.map(role => ({ value: role.id, label: role.name })),
@@ -114,8 +139,22 @@ export function UserAccessSection({
     return options;
   }, [uniqSubscribers, value.uniq_subscriber_id]);
 
+  const availabilityFeedback = !normalizedUsername
+    ? <span className="text-[#6b7c93]">Use de 3 a 32 caracteres: letras, números, ponto, hífen ou sublinhado.</span>
+    : !usernameValid
+      ? <span className="inline-flex items-center gap-1.5 text-red-600"><XCircle size={13} /> Usuário inválido. Use somente letras, números, ponto, hífen ou sublinhado.</span>
+      : usernameAvailability === "checking"
+        ? <span className="inline-flex items-center gap-1.5 text-[#6b7c93]"><LoaderCircle size={13} className="animate-spin" /> Verificando disponibilidade...</span>
+        : usernameAvailability === "available"
+          ? <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600"><CheckCircle2 size={13} /> Usuário disponível</span>
+          : usernameAvailability === "unavailable"
+            ? <span className="inline-flex items-center gap-1.5 font-semibold text-red-600"><XCircle size={13} /> Usuário já está em uso</span>
+            : usernameAvailability === "error"
+              ? <span className="inline-flex items-center gap-1.5 text-red-600"><XCircle size={13} /> Não foi possível verificar a disponibilidade.</span>
+              : null;
+
   const content = <div className="space-y-4" aria-busy={loading}>
-    <p className="text-xs leading-relaxed text-[#5a6a82]">O funcionário pode existir sem login. O e-mail de login é independente do e-mail de contato do cadastro e pode ser diferente.</p>
+    <p className="text-xs leading-relaxed text-[#5a6a82]">O funcionário pode existir sem login. O usuário de acesso é global e deve ser único em todo o sistema.</p>
 
     <FToggle
       label="Permitir acesso ao sistema"
@@ -127,25 +166,18 @@ export function UserAccessSection({
 
     {(value.enabled || existingAccess) && <div className="grid gap-4 sm:grid-cols-2">
       <div className="min-w-0">
-        <FEmailInput
-          label="E-mail de login"
+        <FInput
+          label="Usuário"
           required={value.enabled}
           disabled={disabled || loading}
-          value={value.email}
-          onChange={(event: any) => onChange({ ...value, email: event.target.value })}
+          autoComplete="username"
+          spellCheck={false}
+          maxLength={32}
+          placeholder="ex.: rafael.lima"
+          value={value.username}
+          onChange={(event: any) => onChange({ ...value, username: normalizeUsername(event.target.value) })}
         />
-        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-          <AdminButton
-            variant="secondary"
-            size="sm"
-            disabled={!canCopyRegistrationEmail}
-            onClick={() => onChange({ ...value, email: normalizedRegistrationEmail })}
-            title={normalizedRegistrationEmail ? "Copiar o e-mail de contato para o e-mail de login" : "Cadastre primeiro um e-mail de contato"}
-          >
-            <Copy size={13} /> Usar e-mail do cadastro
-          </AdminButton>
-          {normalizedRegistrationEmail && <span className="min-w-0 truncate text-[11px] text-[#6b7c93]" title={normalizedRegistrationEmail}>{normalizedRegistrationEmail}</span>}
-        </div>
+        <div className="mt-1.5 min-h-4 text-[11px] leading-4">{availabilityFeedback}</div>
       </div>
       <div className="relative min-w-0">
         <FInput
