@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
 export type EmployeeAccess = {
@@ -28,6 +29,30 @@ function employeeAccessKey(organizationId: string, employeeId: string) {
   return `${organizationId}:${employeeId}`;
 }
 
+async function normalizeFunctionInvokeError(error: unknown) {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const payload = await error.context.json();
+      const message = typeof payload?.error === "string"
+        ? payload.error
+        : typeof payload?.message === "string"
+          ? payload.message
+          : "";
+      if (message.trim()) return new Error(message.trim());
+    } catch {
+      // Keep the SDK fallback below when the response body is not JSON.
+    }
+  }
+  if (error instanceof Error) return error;
+  return new Error(String(error || "Não foi possível acessar o usuário do sistema."));
+}
+
+async function invokeEmployeeAccess(body: Record<string, unknown>) {
+  const result = await supabase.functions.invoke("employee-access", { body });
+  if (!result.error) return result;
+  return { ...result, error: await normalizeFunctionInvokeError(result.error) };
+}
+
 export async function getEmployeeAccess(organizationId: string, employeeId: string) {
   const key = employeeAccessKey(organizationId, employeeId);
   const cached = employeeAccessCache.get(key);
@@ -36,12 +61,10 @@ export async function getEmployeeAccess(organizationId: string, employeeId: stri
   const pending = employeeAccessPending.get(key);
   if (pending) return pending;
 
-  const request = supabase.functions.invoke("employee-access", {
-    body: {
-      action: "get_employee_access",
-      organization_id: organizationId,
-      employee_id: employeeId,
-    },
+  const request = invokeEmployeeAccess({
+    action: "get_employee_access",
+    organization_id: organizationId,
+    employee_id: employeeId,
   }).then(result => {
     employeeAccessPending.delete(key);
     if (!result.error) employeeAccessCache.set(key, { at: Date.now(), result });
@@ -56,17 +79,15 @@ export async function getEmployeeAccess(organizationId: string, employeeId: stri
 }
 
 export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
-  const result = await supabase.functions.invoke("employee-access", {
-    body: {
-      action: "upsert_employee_access",
-      organization_id: input.organizationId,
-      employee_id: input.employeeId,
-      enabled: input.enabled,
-      email: input.email?.trim() || null,
-      password: input.password || undefined,
-      role_id: input.roleId || null,
-      uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
-    },
+  const result = await invokeEmployeeAccess({
+    action: "upsert_employee_access",
+    organization_id: input.organizationId,
+    employee_id: input.employeeId,
+    enabled: input.enabled,
+    email: input.email?.trim() || null,
+    password: input.password || undefined,
+    role_id: input.roleId || null,
+    uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
   });
   if (!result.error) employeeAccessCache.delete(employeeAccessKey(input.organizationId, input.employeeId));
   return result;
