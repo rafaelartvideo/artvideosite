@@ -12,7 +12,7 @@ export async function loadEquipmentCatalog(): Promise<EquipmentCatalog> {
     supabase.from("equipment_models").select("*").eq("organization_id", organizationId).order("sort_order").order("name"),
     supabase.from("technical_fields").select("*").eq("organization_id", organizationId).order("sort_order").order("label"),
     supabase.from("equipment_type_technical_fields").select("*").eq("organization_id", organizationId).order("sort_order"),
-    supabase.from("checklist_profiles").select("id,name,version,is_active").eq("organization_id", organizationId).eq("is_active", true).order("name"),
+    supabase.from("checklist_profiles").select("id,name,version,is_active").eq("organization_id", organizationId).order("name"),
     supabase.from("checklist_profile_stages").select("id,profile_id,code,name,stage_type,sort_order,is_active").eq("organization_id", organizationId).eq("is_active", true).order("sort_order"),
     supabase.from("equipment_checklist_items").select("*").eq("organization_id", organizationId).order("sort_order"),
   ]);
