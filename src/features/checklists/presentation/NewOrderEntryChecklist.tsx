@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Camera, ClipboardCheck, Plus, X } from "lucide-react";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import {
+  getNewOrderEntryChecklistDraft,
   loadNewOrderEntryChecklist,
   setNewOrderEntryChecklistDraft,
+  subscribeNewOrderEntryChecklistDraft,
   type EntryChecklistDraft,
 } from "../application/new-order-entry-checklist";
 
@@ -11,6 +13,10 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
   const [draft, setDraft] = useState<EntryChecklistDraft | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => subscribeNewOrderEntryChecklistDraft(() => {
+    setDraft(getNewOrderEntryChecklistDraft());
+  }), []);
 
   useEffect(() => {
     let cancelled = false;
