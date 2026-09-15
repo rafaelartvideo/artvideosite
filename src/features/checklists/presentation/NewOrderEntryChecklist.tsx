@@ -80,40 +80,76 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
               const failure = (item.responseType === "conformity" && item.responseCode === "not_ok")
                 || (item.responseType === "yes_no" && item.responseCode === "no");
               const showObservation = item.observationRequirement !== "none" || failure || Boolean(item.observation);
+              const photoEnabled = item.photoRequirement !== "none";
 
               return (
                 <div key={item.key} className="px-3 py-3 sm:px-4">
-                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="min-w-0 text-sm font-bold text-[#0d1b2e]">
-                      {index + 1}. {item.title}
-                      {item.required && <span className="ml-1 text-red-500">*</span>}
-                    </p>
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-[#0d1b2e]">
+                        {index + 1}. {item.title}
+                        {item.required && <span className="ml-1 text-red-500">*</span>}
+                      </p>
 
-                    <div className="flex shrink-0 flex-wrap items-center gap-2">
-                      {["conformity", "yes_no", "confirmation"].includes(item.responseType) && options(item.responseType).map(option => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => update(index, { responseCode: option.value })}
-                          className={`h-9 rounded-lg border px-3 text-xs font-bold transition ${item.responseCode === option.value ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/12 bg-white text-[#52647c] hover:border-[#0057e7]/35 hover:text-[#0057e7]"}`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+                      {["conformity", "yes_no", "confirmation"].includes(item.responseType) && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {options(item.responseType).map(option => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => update(index, { responseCode: option.value })}
+                              className={`h-9 rounded-lg border px-3 text-xs font-bold transition ${item.responseCode === option.value
+                                ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]"
+                                : "border-[#0d1b2e]/12 bg-white text-[#52647c] hover:border-[#0057e7]/35 hover:text-[#0057e7]"}`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
-                      <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff]" title="Tirar foto" aria-label="Tirar foto">
-                        <Camera size={16} />
-                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
-                      </label>
+                      {item.responseType === "text" && (
+                        <div className="mt-2">
+                          <FTextarea
+                            label="Resposta"
+                            value={item.responseText}
+                            onChange={(event: any) => update(index, { responseText: event.target.value })}
+                          />
+                        </div>
+                      )}
 
-                      <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 text-xs font-bold text-[#0057e7] transition hover:bg-[#eef5ff]">
-                        <Plus size={15} /> Foto
-                        <input type="file" accept="image/*" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
-                      </label>
+                      {item.responseType === "number" && (
+                        <div className="mt-2 max-w-xs">
+                          <FInput
+                            label="Valor"
+                            inputMode="decimal"
+                            value={item.responseNumber}
+                            onChange={(event: any) => update(index, { responseNumber: event.target.value })}
+                          />
+                        </div>
+                      )}
+
+                      {item.description && (
+                        <p className="mt-1.5 text-xs leading-5 text-[#6b7c93]">
+                          <span className="font-bold text-[#52647c]">Orientação:</span> {item.description}
+                        </p>
+                      )}
                     </div>
-                  </div>
 
-                  {item.description && <p className="mt-1.5 text-xs leading-5 text-[#6b7c93]"><span className="font-bold text-[#52647c]">Orientação:</span> {item.description}</p>}
+                    {photoEnabled && (
+                      <div className="flex items-center justify-end gap-2 sm:self-center">
+                        <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff]" title="Tirar foto" aria-label="Tirar foto">
+                          <Camera size={16} />
+                          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
+                        </label>
+
+                        <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 text-xs font-bold text-[#0057e7] transition hover:bg-[#eef5ff]">
+                          <Plus size={15} /> Foto
+                          <input type="file" accept="image/*" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
+                        </label>
+                      </div>
+                    )}
+                  </div>
 
                   {item.photos.length > 0 && (
                     <div className="mt-2.5 flex flex-wrap gap-2">
@@ -127,9 +163,15 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
                     </div>
                   )}
 
-                  {item.responseType === "text" && <div className="mt-3"><FTextarea label="Resposta" value={item.responseText} onChange={(event: any) => update(index, { responseText: event.target.value })} /></div>}
-                  {item.responseType === "number" && <div className="mt-3 max-w-xs"><FInput label="Valor" inputMode="decimal" value={item.responseNumber} onChange={(event: any) => update(index, { responseNumber: event.target.value })} /></div>}
-                  {showObservation && <div className="mt-3"><FTextarea label="Observação" value={item.observation} onChange={(event: any) => update(index, { observation: event.target.value })} /></div>}
+                  {showObservation && (
+                    <div className="mt-3">
+                      <FTextarea
+                        label="Observação"
+                        value={item.observation}
+                        onChange={(event: any) => update(index, { observation: event.target.value })}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}
