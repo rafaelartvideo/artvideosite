@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -24,20 +26,28 @@ function formatDateTime(value: string) {
 }
 
 export function RegistrationRecordsPage({
-  open,
   registration,
   organizationId,
   canCreate,
   onClose,
 }: {
-  open: boolean;
   registration: Registration;
   organizationId: string;
   canCreate: boolean;
   onClose: () => void;
 }) {
-  const [records, setRecords] = useState<RegistrationRecord[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.registrations.records(organizationId, registration.id);
+  const recordsQuery = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const result = await listRegistrationRecords(organizationId, registration.id);
+      if (result.error) throw result.error;
+      return result.data;
+    },
+  });
+  const records = recordsQuery.data ?? [];
+  const loading = recordsQuery.isPending && !recordsQuery.data;
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [text, setText] = useState("");
@@ -45,20 +55,10 @@ export function RegistrationRecordsPage({
   const [dateFilter, setDateFilter] = useState("");
   const [sort, setSort] = useState<"desc" | "asc">("desc");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const result = await listRegistrationRecords(organizationId, registration.id);
-    setLoading(false);
-    if (result.error) {
-      notifyAdmin(`Erro ao carregar registros: ${result.error.message}`, "error");
-      return;
-    }
-    setRecords(result.data);
-  }, [organizationId, registration.id]);
-
   useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
+    if (!recordsQuery.error) return;
+    notifyAdmin(`Erro ao carregar registros: ${recordsQuery.error instanceof Error ? recordsQuery.error.message : String(recordsQuery.error)}`, "error");
+  }, [recordsQuery.error]);
 
   const authorOptions = useMemo(() => {
     const byId = new Map<string, string>();
@@ -92,20 +92,21 @@ export function RegistrationRecordsPage({
     setSaving(true);
     const result = await createRegistrationRecord(organizationId, registration.id, content);
     setSaving(false);
-    if (result.error) {
-      notifyAdmin(`Erro ao adicionar registro: ${result.error.message}`, "error");
+    if (result.error || !result.data) {
+      notifyAdmin(`Erro ao adicionar registro: ${result.error?.message || "Registro não retornado após salvar."}`, "error");
       return;
     }
+    queryClient.setQueryData<RegistrationRecord[]>(queryKey, current => [
+      result.data!,
+      ...(current || []).filter(record => record.id !== result.data!.id),
+    ]);
     setText("");
     setModalOpen(false);
     notifyAdmin("Registro adicionado.");
-    await load();
   };
 
-  if (!open) return null;
-
   return <>
-    <AdminPage open onClose={onClose} breadcrumb={`Cadastros > ${registration.name}`} title="Registros" subtitle="Linha do tempo de observações permanentes deste cadastro" maxW="max-w-4xl">
+    <AdminPage open onClose={onClose} breadcrumb={`Cadastros > ${registration.name} > Registros`} title="Registros" subtitle="Linha do tempo de observações permanentes deste cadastro" maxW="max-w-4xl">
       <div className="space-y-4 p-4 sm:p-5">
         <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
