@@ -301,6 +301,7 @@ Deno.serve(async (request) => {
         .from("device_capture_events")
         .select("id,event_type,serial_value,photo_kind,storage_path,file_name,mime_type,size_bytes,created_at")
         .eq("session_id", session.id)
+        .in("event_type", ["serial", "photo"])
         .gt("id", lastEventId)
         .order("id", { ascending: true });
       if (error) throw error;
