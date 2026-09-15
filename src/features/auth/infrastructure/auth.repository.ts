@@ -1,28 +1,42 @@
-import { createTransientSupabaseClient, supabase } from "@/lib/supabase";
-import { authEmailForUsername, normalizeUsername } from "../domain/username";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
+import { isValidUsername, normalizeUsername } from "../domain/username";
 
 export type AdminAuthenticationResult = "authenticated" | "invalid_credentials" | "inactive_user";
 export type AdminPasswordChangeResult = "changed" | "invalid_credentials" | "inactive_user" | "weak_password" | "update_failed";
 
-function authIdentifierEmail(identifier: string) {
-  const normalized = String(identifier || "").trim().toLowerCase();
-  // Transitional compatibility: until every existing Auth identity is moved to
-  // the internal username address, the old e-mail can still be used directly.
-  if (normalized.includes("@")) return normalized;
-  return authEmailForUsername(normalizeUsername(normalized));
+async function functionErrorPayload(error: unknown) {
+  if (!(error instanceof FunctionsHttpError)) return { message: "", code: "" };
+  try {
+    const payload = await error.context.json();
+    return {
+      message: typeof payload?.error === "string" ? payload.error : "",
+      code: typeof payload?.code === "string" ? payload.code : "",
+    };
+  } catch {
+    return { message: "", code: "" };
+  }
 }
 
 export async function authenticateAdmin(identifier: string, password: string): Promise<AdminAuthenticationResult> {
-  const email = authIdentifierEmail(identifier);
-  if (!email || !password) return "invalid_credentials";
+  const username = normalizeUsername(identifier);
+  if (!isValidUsername(username) || !password) return "invalid_credentials";
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error || !data.user) return "invalid_credentials";
+  const result = await supabase.functions.invoke("username-auth", {
+    body: { action: "login", username, password },
+  });
+  if (result.error || !result.data?.access_token || !result.data?.refresh_token) return "invalid_credentials";
+
+  const session = await supabase.auth.setSession({
+    access_token: String(result.data.access_token),
+    refresh_token: String(result.data.refresh_token),
+  });
+  if (session.error || !session.data.user) return "invalid_credentials";
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("is_active")
-    .eq("id", data.user.id)
+    .eq("id", session.data.user.id)
     .single();
 
   if (profile?.is_active === false) {
@@ -38,40 +52,24 @@ export async function changeAdminPassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<AdminPasswordChangeResult> {
+  const username = normalizeUsername(identifier);
+  if (!isValidUsername(username) || !currentPassword) return "invalid_credentials";
   if (newPassword.length < 8) return "weak_password";
 
-  const email = authIdentifierEmail(identifier);
-  if (!email || !currentPassword) return "invalid_credentials";
-
-  const client = createTransientSupabaseClient();
-  const { data, error } = await client.auth.signInWithPassword({
-    email,
-    password: currentPassword,
+  const result = await supabase.functions.invoke("username-auth", {
+    body: {
+      action: "change_password",
+      username,
+      password: currentPassword,
+      new_password: newPassword,
+    },
   });
 
-  if (error || !data.user) return "invalid_credentials";
+  if (!result.error && result.data?.success === true) return "changed";
 
-  try {
-    const { data: profile } = await client
-      .from("profiles")
-      .select("is_active")
-      .eq("id", data.user.id)
-      .single();
-
-    if (profile?.is_active === false) return "inactive_user";
-
-    const { error: updateError } = await client.auth.updateUser({ password: newPassword });
-    if (updateError) {
-      const code = String((updateError as any)?.code || "").toLowerCase();
-      const message = String(updateError.message || "").toLowerCase();
-      if (code === "weak_password" || code.includes("password") || message.includes("weak password")) {
-        return "weak_password";
-      }
-      return "update_failed";
-    }
-
-    return "changed";
-  } finally {
-    await client.auth.signOut();
-  }
+  const payload = await functionErrorPayload(result.error);
+  if (payload.code === "weak_password" || payload.message.toLowerCase().includes("requisitos de segurança")) return "weak_password";
+  if (payload.message.toLowerCase().includes("credenciais inválidas")) return "invalid_credentials";
+  if (payload.message.toLowerCase().includes("inativo")) return "inactive_user";
+  return "update_failed";
 }
