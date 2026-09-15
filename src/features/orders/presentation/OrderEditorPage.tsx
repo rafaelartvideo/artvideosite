@@ -1,4 +1,5 @@
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";
+import { NewOrderEntryChecklist } from "@/features/checklists/presentation/NewOrderEntryChecklist";
 import { OrderCustomerSection } from "@/features/orders/presentation/OrderCustomerSection";
 import { OrderEquipmentSection } from "@/features/orders/presentation/OrderEquipmentSection";
 import { OrderFormActions } from "@/features/orders/presentation/OrderFormActions";
@@ -11,239 +12,28 @@ import type { useOrderFormState } from "@/features/orders/application/useOrderFo
 import type { useOrderImages } from "@/features/orders/application/useOrderImages";
 import type { useOrderServiceAddress } from "@/features/orders/application/useOrderServiceAddress";
 import type { useOrdersWorkspace } from "@/features/orders/application/useOrdersWorkspace";
-
 type PermissionCheck = (permission: string) => boolean;
-
-interface OrderEditorPageProps {
-  visible: boolean;
-  saving: boolean;
-  workspace: ReturnType<typeof useOrdersWorkspace>;
-  formState: ReturnType<typeof useOrderFormState>;
-  images: ReturnType<typeof useOrderImages>;
-  customers: ReturnType<typeof useOrderCustomerSelection>;
-  address: ReturnType<typeof useOrderServiceAddress>;
-  customerPersistence: ReturnType<typeof useOrderCustomerPersistence>;
-  hasPermission: PermissionCheck;
-  getSituations: (
-    serviceTypeId: string,
-    currentSituationId?: string,
-    currentSituation?: any,
-  ) => any[];
-  getSla: (
-    serviceTypeId?: string,
-    situationId?: string,
-    relatedSituation?: any,
-  ) => { hours: number; isDefault: boolean } | null;
-  onSelectCustomer: ReturnType<typeof useOrderEditorWorkflow>["selectCustomer"];
-  onSave: () => Promise<unknown>;
-  onClose?: () => void;
-}
-
-export function OrderEditorPage({
-  visible,
-  saving,
-  workspace,
-  formState,
-  images,
-  customers,
-  address,
-  customerPersistence,
-  hasPermission,
-  getSituations,
-  getSla,
-  onSelectCustomer,
-  onSave,
-  onClose,
-}: OrderEditorPageProps) {
+interface OrderEditorPageProps { visible: boolean; saving: boolean; workspace: ReturnType<typeof useOrdersWorkspace>; formState: ReturnType<typeof useOrderFormState>; images: ReturnType<typeof useOrderImages>; customers: ReturnType<typeof useOrderCustomerSelection>; address: ReturnType<typeof useOrderServiceAddress>; customerPersistence: ReturnType<typeof useOrderCustomerPersistence>; hasPermission: PermissionCheck; getSituations: (serviceTypeId: string,currentSituationId?: string,currentSituation?: any) => any[]; getSla: (serviceTypeId?: string,situationId?: string,relatedSituation?: any) => { hours: number; isDefault: boolean } | null; onSelectCustomer: ReturnType<typeof useOrderEditorWorkflow>["selectCustomer"]; onSave: () => Promise<unknown>; onClose?: () => void; }
+export function OrderEditorPage({ visible,saving,workspace,formState,images,customers,address,customerPersistence,hasPermission,getSituations,getSla,onSelectCustomer,onSave,onClose }: OrderEditorPageProps) {
   if (!visible) return null;
-
-  const {
-    equipmentTypes,
-    equipmentBrands,
-    equipmentModels,
-    serviceTypes,
-    serviceTypeSituations,
-    generalServices,
-    employees,
-    situations,
-  } = workspace;
-  const {
-    editingOS,
-    selectedTechnicianIds,
-    setSelectedTechnicianIds,
-    selectedSellerIds,
-    setSelectedSellerIds,
-    setQuickEquipment,
-    setQuickCustomer,
-    form,
-    setForm,
-    needsScheduling,
-    setNeedsScheduling,
-    updateField,
-    closeOrderForm,
-  } = formState;
-  const { orderImages, addOrderImages, removeOrderImage, setViewImage } = images;
-  const closePage = () => {
-    if (saving) return;
-    (onClose || closeOrderForm)();
-  };
-  const technicalFields = workspace.technicalFieldLinks
-    .filter((link: any) => link.equipment_type_id === form.equipment_type_id)
-    .map((link: any) => ({ ...link, technical_field: link.technical_field || workspace.technicalFields.find((field: any) => field.id === link.technical_field_id) }))
-    .filter((link: any) => Boolean(editingOS) || link.technical_field?.is_active !== false);
-  const {
-    customerSearch,
-    customerResults,
-    selectedCustomer,
-    editingCustomer,
-    setEditingCustomer,
-    customerDraft,
-    setCustomerDraft,
-    customerAddressDraft,
-    setCustomerAddressDraft,
-    addressExpanded,
-    setAddressExpanded,
-    searchCustomers,
-    clearCustomer,
-  } = customers;
-  const {
-    serviceUseCustomerAddress,
-    setServiceUseCustomerAddress,
-    setServiceCustomerAddressOverride,
-    serviceAddressMessage,
-    setServiceAddressMessage,
-    ibgeStates,
-    ibgeStatesLoading,
-    ibgeCities,
-    ibgeCitiesLoading,
-    customerAddresses,
-    selectedServiceAddress,
-    serviceAddressPreview,
-    clearServiceAddress,
-    copyCustomerAddressToForm,
-    selectServiceAddress,
-    loadIbgeCities,
-  } = address;
-
-  const canAddEquipmentImages = editingOS ? hasPermission("orders.edit") : hasPermission("orders.create");
-  const canRemoveEquipmentImage = (image: (typeof orderImages)[number]) =>
-    canAddEquipmentImages && (!editingOS || !image.mediaId);
-
-  const serviceLocationSection = (
-    <OrderServiceLocationSection
-      form={form}
-      setForm={setForm}
-      serviceUseCustomerAddress={serviceUseCustomerAddress}
-      setServiceUseCustomerAddress={setServiceUseCustomerAddress}
-      setServiceCustomerAddressOverride={setServiceCustomerAddressOverride}
-      selectedServiceAddress={selectedServiceAddress}
-      serviceAddressPreview={serviceAddressPreview}
-      serviceAddressMessage={serviceAddressMessage}
-      setServiceAddressMessage={setServiceAddressMessage}
-      ibgeStates={ibgeStates}
-      ibgeCities={ibgeCities}
-      ibgeStatesLoading={ibgeStatesLoading}
-      ibgeCitiesLoading={ibgeCitiesLoading}
-      onFieldChange={updateField}
-      clearServiceAddress={clearServiceAddress}
-      copyCustomerAddressToForm={copyCustomerAddressToForm}
-      loadIbgeCities={loadIbgeCities}
-    />
-  );
-
-  return (
-    <AdminPage
-      open
-      onClose={closePage}
-      breadcrumb={editingOS ? `Ordens de Serviço > OS #${editingOS.os_number || editingOS.id.slice(0, 8)}` : "Ordens de Serviço"}
-      title={editingOS ? "Editar OS" : "Nova OS"}
-      subtitle={editingOS ? "Atualize os dados do atendimento" : "Cadastre os dados do atendimento"}
-      maxW="max-w-2xl"
-      fullPage={Boolean(editingOS)}
-    >
-      <div className="p-5 space-y-5">
-        <OrderCustomerSection
-          selectedCustomer={selectedCustomer}
-          editingCustomer={editingCustomer}
-          customerDraft={customerDraft}
-          customerAddressDraft={customerAddressDraft}
-          saving={saving}
-          editingOrder={Boolean(editingOS)}
-          addressExpanded={addressExpanded}
-          customerSearch={customerSearch}
-          customerResults={customerResults}
-          hasPermission={hasPermission}
-          serviceCustomerAddresses={customerAddresses}
-          selectedServiceAddress={selectedServiceAddress}
-          setCustomerDraft={setCustomerDraft}
-          setCustomerAddressDraft={setCustomerAddressDraft}
-          setEditingCustomer={setEditingCustomer}
-          setAddressExpanded={setAddressExpanded}
-          saveCustomer={() => { void customerPersistence.saveCustomer(); }}
-          searchCustomers={(query) => { void searchCustomers(query); }}
-          selectCustomer={onSelectCustomer}
-          selectServiceAddress={selectServiceAddress}
-          onClearCustomer={() => {
-            clearCustomer();
-            updateField("customer_id", "");
-            clearServiceAddress();
-          }}
-          onCreateCustomer={() => setQuickCustomer(true)}
-        />
-
-        <OrderEquipmentSection
-          form={form}
-          equipmentTypes={equipmentTypes}
-          equipmentBrands={equipmentBrands}
-          equipmentModels={equipmentModels}
-          technicalFields={technicalFields}
-          technicalValues={form.technicalValues}
-          technicalHistory={form.technicalHistory}
-          onTechnicalValueChange={(fieldId, value) => setForm(current => ({ ...current, technicalValues: { ...current.technicalValues, [fieldId]: value } }))}
-          editing={Boolean(editingOS)}
-          canCreate={hasPermission("equipment.create")}
-          onFieldChange={updateField}
-          onCreateEquipment={() => setQuickEquipment(true)}
-          images={orderImages}
-          onAddImages={addOrderImages}
-          onRemoveImage={removeOrderImage}
-          onViewImage={setViewImage}
-          showImages={hasPermission("orders.section.images")}
-          canAddImages={canAddEquipmentImages}
-          canRemoveImages={canRemoveEquipmentImage}
-        />
-
-        {editingOS && serviceLocationSection}
-
-        <OrderInformationSection
-          form={form}
-          editingOrder={editingOS}
-          serviceTypes={serviceTypes}
-          serviceTypeSituations={serviceTypeSituations}
-          generalServices={generalServices}
-          employees={employees}
-          selectedTechnicianIds={selectedTechnicianIds}
-          selectedSellerIds={selectedSellerIds}
-          canAssign={hasPermission("orders.assign")}
-          situations={situations}
-          needsScheduling={needsScheduling}
-          setNeedsScheduling={setNeedsScheduling}
-          onFieldChange={updateField}
-          onTechniciansChange={setSelectedTechnicianIds}
-          onSellersChange={setSelectedSellerIds}
-          getSituations={getSituations}
-          getSla={getSla}
-        />
-
-        {!editingOS && serviceLocationSection}
-      </div>
-
-      <OrderFormActions
-        saving={saving}
-        canSave={editingOS ? hasPermission("orders.edit") : hasPermission("orders.create")}
-        onCancel={closePage}
-        onSave={onSave}
-      />
-    </AdminPage>
-  );
+  const { equipmentTypes,equipmentBrands,equipmentModels,serviceTypes,serviceTypeSituations,generalServices,employees,situations } = workspace;
+  const { editingOS,selectedTechnicianIds,setSelectedTechnicianIds,selectedSellerIds,setSelectedSellerIds,setQuickEquipment,setQuickCustomer,form,setForm,needsScheduling,setNeedsScheduling,updateField,closeOrderForm } = formState;
+  const { orderImages,addOrderImages,removeOrderImage,setViewImage } = images;
+  const closePage = () => { if (saving) return; (onClose || closeOrderForm)(); };
+  const technicalFields = workspace.technicalFieldLinks.filter((link:any)=>link.equipment_type_id===form.equipment_type_id).map((link:any)=>({...link,technical_field:link.technical_field||workspace.technicalFields.find((field:any)=>field.id===link.technical_field_id)})).filter((link:any)=>Boolean(editingOS)||link.technical_field?.is_active!==false);
+  const { customerSearch,customerResults,selectedCustomer,editingCustomer,setEditingCustomer,customerDraft,setCustomerDraft,customerAddressDraft,setCustomerAddressDraft,addressExpanded,setAddressExpanded,searchCustomers,clearCustomer } = customers;
+  const { serviceUseCustomerAddress,setServiceUseCustomerAddress,setServiceCustomerAddressOverride,serviceAddressMessage,setServiceAddressMessage,ibgeStates,ibgeStatesLoading,ibgeCities,ibgeCitiesLoading,customerAddresses,selectedServiceAddress,serviceAddressPreview,clearServiceAddress,copyCustomerAddressToForm,selectServiceAddress,loadIbgeCities } = address;
+  const canAddEquipmentImages=editingOS?hasPermission("orders.edit"):hasPermission("orders.create"); const canRemoveEquipmentImage=(image:(typeof orderImages)[number])=>canAddEquipmentImages&&(!editingOS||!image.mediaId);
+  const serviceLocationSection=<OrderServiceLocationSection form={form} setForm={setForm} serviceUseCustomerAddress={serviceUseCustomerAddress} setServiceUseCustomerAddress={setServiceUseCustomerAddress} setServiceCustomerAddressOverride={setServiceCustomerAddressOverride} selectedServiceAddress={selectedServiceAddress} serviceAddressPreview={serviceAddressPreview} serviceAddressMessage={serviceAddressMessage} setServiceAddressMessage={setServiceAddressMessage} ibgeStates={ibgeStates} ibgeCities={ibgeCities} ibgeStatesLoading={ibgeStatesLoading} ibgeCitiesLoading={ibgeCitiesLoading} onFieldChange={updateField} clearServiceAddress={clearServiceAddress} copyCustomerAddressToForm={copyCustomerAddressToForm} loadIbgeCities={loadIbgeCities}/>;
+  return <AdminPage open onClose={closePage} breadcrumb={editingOS?`Ordens de Serviço > OS #${editingOS.os_number||editingOS.id.slice(0,8)}`:"Ordens de Serviço"} title={editingOS?"Editar OS":"Nova OS"} subtitle={editingOS?"Atualize os dados do atendimento":"Cadastre os dados do atendimento"} maxW="max-w-2xl" fullPage={Boolean(editingOS)}>
+    <div className="p-5 space-y-5">
+      <OrderCustomerSection selectedCustomer={selectedCustomer} editingCustomer={editingCustomer} customerDraft={customerDraft} customerAddressDraft={customerAddressDraft} saving={saving} editingOrder={Boolean(editingOS)} addressExpanded={addressExpanded} customerSearch={customerSearch} customerResults={customerResults} hasPermission={hasPermission} serviceCustomerAddresses={customerAddresses} selectedServiceAddress={selectedServiceAddress} setCustomerDraft={setCustomerDraft} setCustomerAddressDraft={setCustomerAddressDraft} setEditingCustomer={setEditingCustomer} setAddressExpanded={setAddressExpanded} saveCustomer={()=>{void customerPersistence.saveCustomer();}} searchCustomers={query=>{void searchCustomers(query);}} selectCustomer={onSelectCustomer} selectServiceAddress={selectServiceAddress} onClearCustomer={()=>{clearCustomer();updateField("customer_id","");clearServiceAddress();}} onCreateCustomer={()=>setQuickCustomer(true)}/>
+      <OrderEquipmentSection form={form} equipmentTypes={equipmentTypes} equipmentBrands={equipmentBrands} equipmentModels={equipmentModels} technicalFields={technicalFields} technicalValues={form.technicalValues} technicalHistory={form.technicalHistory} onTechnicalValueChange={(fieldId,value)=>setForm(current=>({...current,technicalValues:{...current.technicalValues,[fieldId]:value}}))} editing={Boolean(editingOS)} canCreate={hasPermission("equipment.create")} onFieldChange={updateField} onCreateEquipment={()=>setQuickEquipment(true)} images={orderImages} onAddImages={addOrderImages} onRemoveImage={removeOrderImage} onViewImage={setViewImage} showImages={hasPermission("orders.section.images")} canAddImages={canAddEquipmentImages} canRemoveImages={canRemoveEquipmentImage}/>
+      {!editingOS && <NewOrderEntryChecklist equipmentTypeId={form.equipment_type_id} />}
+      {editingOS&&serviceLocationSection}
+      <OrderInformationSection form={form} editingOrder={editingOS} serviceTypes={serviceTypes} serviceTypeSituations={serviceTypeSituations} generalServices={generalServices} employees={employees} selectedTechnicianIds={selectedTechnicianIds} selectedSellerIds={selectedSellerIds} canAssign={hasPermission("orders.assign")} situations={situations} needsScheduling={needsScheduling} setNeedsScheduling={setNeedsScheduling} onFieldChange={updateField} onTechniciansChange={setSelectedTechnicianIds} onSellersChange={setSelectedSellerIds} getSituations={getSituations} getSla={getSla}/>
+      {!editingOS&&serviceLocationSection}
+    </div>
+    <OrderFormActions saving={saving} canSave={editingOS?hasPermission("orders.edit"):hasPermission("orders.create")} onCancel={closePage} onSave={onSave}/>
+  </AdminPage>;
 }
