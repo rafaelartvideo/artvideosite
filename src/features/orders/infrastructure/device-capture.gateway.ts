@@ -44,6 +44,7 @@ export type DeviceEntryChecklistItem = {
 };
 
 export type DeviceEntryChecklist = {
+  equipmentTypeId: string;
   stageName: string;
   stageCode: string;
   items: DeviceEntryChecklistItem[];
@@ -169,6 +170,7 @@ export async function getDeviceEntryChecklist(sessionId: string, token: string):
   const checklist = data.checklist;
   if (!checklist) return null;
   return {
+    equipmentTypeId: String(checklist.equipment_type_id || ""),
     stageName: String(checklist.stage_name || "Checklist de entrada"),
     stageCode: String(checklist.stage_code || "entry"),
     items: (checklist.items || []).map((item: any) => ({
