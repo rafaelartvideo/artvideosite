@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-export type MediaBucket = "service-images" | "product-images" | "brand-images" | "avatars" | "public-assets";
+export type MediaBucket = "service-images" | "product-images" | "brand-images" | "avatars" | "public-assets" | "registration-files";
 
 export async function getAuthenticatedSession() {
   const { data: { session }, error } = await supabase.auth.getSession();
@@ -54,6 +54,30 @@ export async function uploadServiceOrderMediaFile(
   const safeScope = scope.replace(/[^a-z0-9/_-]/gi, "-").replace(/^\/+|\/+$/g, "") || "files";
   const path = `orders/${serviceOrderId}/${safeScope}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
   return uploadMediaAtPath("service-images", path, file, organizationId);
+}
+
+export async function uploadRegistrationRecordMediaFile(
+  organizationId: string,
+  entityId: string,
+  recordId: string,
+  file: File,
+) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
+  const path = `${organizationId}/registrations/${entityId}/${recordId}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  return uploadMediaAtPath("registration-files", path, file, organizationId);
+}
+
+export async function createStorageSignedUrl(
+  bucket: MediaBucket,
+  path: string,
+  expiresIn = 300,
+  download?: string | boolean,
+) {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresIn, download ? { download } : undefined);
+  if (error || !data?.signedUrl) throw new Error(error?.message || "Não foi possível abrir o arquivo.");
+  return data.signedUrl;
 }
 
 export function supabaseErrorMessage(error: unknown) {
