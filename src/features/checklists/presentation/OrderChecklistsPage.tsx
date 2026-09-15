@@ -148,31 +148,35 @@ function OrderChecklistItemEditor({ item, number, checklistId, order, disabled, 
   const showObservation = item.observation_requirement_snapshot !== "none" || Boolean(observation) || failure;
   const requiredObservation = item.observation_requirement_snapshot === "required" || (item.observation_requirement_snapshot === "required_on_failure" && failure);
   const requiredPhoto = item.photo_requirement_snapshot === "required" || (item.photo_requirement_snapshot === "required_on_failure" && failure);
+  const photoEnabled = item.photo_requirement_snapshot !== "none";
 
   return <div className="border-b border-[#0d1b2e]/8 px-3 py-3 last:border-b-0 sm:px-4">
-    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm font-bold text-[#0d1b2e]">{number}. {item.title_snapshot}{item.is_required_snapshot && <span className="ml-1 text-red-500">*</span>}</p>
           {item.source_kind === "equipment_extra" && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700">Específico</span>}
         </div>
+
+        {(item.response_type_snapshot === "conformity" || item.response_type_snapshot === "yes_no" || item.response_type_snapshot === "confirmation") && <div className="mt-2 flex flex-wrap items-center gap-2">
+          {answerOptions(item).map(option => <button key={option.value} type="button" disabled={disabled} onClick={() => setResponseCode(option.value)} className={`h-9 rounded-lg border px-3 text-xs font-bold transition ${responseCode === option.value ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/12 bg-white text-[#52647c] hover:border-[#0057e7]/35 hover:text-[#0057e7]"} disabled:opacity-60`}>{option.label}</button>)}
+          {item.allow_na_snapshot && <button type="button" disabled={disabled} onClick={() => setResponseCode(isNA ? "" : "na")} className={`h-9 rounded-lg border px-3 text-xs font-bold ${isNA ? "border-slate-500 bg-slate-100 text-slate-700" : "border-[#0d1b2e]/12 bg-white text-[#52647c]"} disabled:opacity-60`}>N/A</button>}
+        </div>}
+
+        {item.response_type_snapshot === "text" && <div className="mt-2"><FTextarea label="Resposta" disabled={disabled || isNA} value={responseText} onChange={(event: any) => setResponseText(event.target.value)} /></div>}
+        {item.response_type_snapshot === "number" && <div className="mt-2 max-w-xs"><FInput label="Valor" disabled={disabled || isNA} type="text" inputMode="decimal" value={responseNumber} onChange={(event: any) => setResponseNumber(event.target.value)} /></div>}
+        {item.description_snapshot && <p className="mt-1.5 text-xs leading-5 text-[#6b7c93]"><span className="font-bold text-[#52647c]">Orientação:</span> {item.description_snapshot}</p>}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {(item.response_type_snapshot === "conformity" || item.response_type_snapshot === "yes_no" || item.response_type_snapshot === "confirmation") && answerOptions(item).map(option => <button key={option.value} type="button" disabled={disabled} onClick={() => setResponseCode(option.value)} className={`h-9 rounded-lg border px-3 text-xs font-bold transition ${responseCode === option.value ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/12 bg-white text-[#52647c] hover:border-[#0057e7]/35 hover:text-[#0057e7]"} disabled:opacity-60`}>{option.label}</button>)}
-        {item.allow_na_snapshot && <button type="button" disabled={disabled} onClick={() => setResponseCode(isNA ? "" : "na")} className={`h-9 rounded-lg border px-3 text-xs font-bold ${isNA ? "border-slate-500 bg-slate-100 text-slate-700" : "border-[#0d1b2e]/12 bg-white text-[#52647c]"} disabled:opacity-60`}>N/A</button>}
-        {!disabled && <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff]" title="Tirar foto" aria-label="Tirar foto"><Camera size={16} /><input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; void upload(file); event.currentTarget.value = ""; }} /></label>}
-        {!disabled && <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 text-xs font-bold text-[#0057e7] transition hover:bg-[#eef5ff]"><Plus size={15} /> Foto<input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; void upload(file); event.currentTarget.value = ""; }} /></label>}
-      </div>
+      {photoEnabled && !disabled && <div className="flex items-center justify-end gap-2 sm:self-center">
+        <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff]" title="Tirar foto" aria-label="Tirar foto"><Camera size={16} /><input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; void upload(file); event.currentTarget.value = ""; }} /></label>
+        <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 text-xs font-bold text-[#0057e7] transition hover:bg-[#eef5ff]"><Plus size={15} /> Foto<input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; void upload(file); event.currentTarget.value = ""; }} /></label>
+      </div>}
     </div>
 
-    {item.description_snapshot && <p className="mt-1.5 text-xs leading-5 text-[#6b7c93]"><span className="font-bold text-[#52647c]">Orientação:</span> {item.description_snapshot}</p>}
+    {item.media.length > 0 && <div className="mt-2.5"><div className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6b7c93]">Fotos{requiredPhoto && <span className="text-red-500">*</span>}</div><div className="flex flex-wrap gap-2">{item.media.map(link => link.media && <a key={link.id} href={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)} target="_blank" rel="noreferrer" className="group relative h-16 w-16 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f5f7fa]"><img src={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)} alt={link.media.file_name || "Foto do checklist"} className="h-full w-full object-cover" /><span className="absolute inset-0 hidden items-center justify-center bg-black/35 text-white group-hover:flex"><ImageIcon size={16} /></span></a>)}</div></div>}
 
-    {item.response_type_snapshot === "text" && <div className="mt-3"><FTextarea label="Resposta" disabled={disabled || isNA} value={responseText} onChange={(event: any) => setResponseText(event.target.value)} /></div>}
-    {item.response_type_snapshot === "number" && <div className="mt-3 max-w-xs"><FInput label="Valor" disabled={disabled || isNA} type="text" inputMode="decimal" value={responseNumber} onChange={(event: any) => setResponseNumber(event.target.value)} /></div>}
     {showObservation && <div className="mt-3"><FTextarea label={`Observação${requiredObservation ? " *" : ""}`} disabled={disabled} value={observation} onChange={(event: any) => setObservation(event.target.value)} placeholder={failure ? "Descreva a não conformidade encontrada" : "Observação do item"} /></div>}
-
-    {item.media.length > 0 && <div className="mt-3"><div className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6b7c93]">Fotos{requiredPhoto && <span className="text-red-500">*</span>}</div><div className="flex flex-wrap gap-2">{item.media.map(link => link.media && <a key={link.id} href={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)} target="_blank" rel="noreferrer" className="group relative h-16 w-16 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f5f7fa]"><img src={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)} alt={link.media.file_name || "Foto do checklist"} className="h-full w-full object-cover" /><span className="absolute inset-0 hidden items-center justify-center bg-black/35 text-white group-hover:flex"><ImageIcon size={16} /></span></a>)}</div></div>}
 
     {!disabled && <div className="mt-3 flex justify-end"><AdminButton className="h-9" onClick={() => void save()} disabled={saving}><Save size={14} /> {saving ? "Salvando..." : "Salvar"}</AdminButton></div>}
   </div>;
