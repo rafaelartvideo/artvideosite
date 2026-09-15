@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   getUserPermissionAccess,
   setUserPermissionOverrides,
@@ -30,28 +32,30 @@ export function UserPermissionOverridesPage({
   const { hasPermission } = useAuth();
   const canView = hasPermission("roles.view");
   const canManage = hasPermission("roles.permissions.manage");
-  const [access, setAccess] = useState<PermissionAccess | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.registrations.permissions(organizationId, userId);
+  const accessQuery = useQuery({
+    queryKey,
+    queryFn: () => getUserPermissionAccess(organizationId, userId),
+    enabled: canView,
+  });
+  const access = accessQuery.data ?? null;
+  const initializedFor = useRef<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const load = async () => {
-    if (!canView) return;
-    setLoading(true);
-    try {
-      const result = await getUserPermissionAccess(organizationId, userId);
-      setAccess(result);
-      setSelected(result.individualPermissionIds.filter(id => !result.inheritedPermissionIds.includes(id)));
-    } catch (error) {
-      setToast({ msg: `Erro ao carregar acessos: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!access || initializedFor.current === `${organizationId}:${userId}`) return;
+    initializedFor.current = `${organizationId}:${userId}`;
+    setSelected(access.individualPermissionIds.filter(id => !access.inheritedPermissionIds.includes(id)));
+  }, [access, organizationId, userId]);
 
-  useEffect(() => { void load(); }, [organizationId, userId, canView]);
+  useEffect(() => {
+    if (!accessQuery.error) return;
+    setToast({ msg: `Erro ao carregar acessos: ${accessQuery.error instanceof Error ? accessQuery.error.message : String(accessQuery.error)}`, type: "error" });
+  }, [accessQuery.error]);
 
   const permissions = (access?.permissions || []) as PermissionRecord[];
   const groups = useMemo(() => buildPermissionGroups(permissions), [permissions]);
@@ -111,7 +115,7 @@ export function UserPermissionOverridesPage({
       return;
     }
     setToast({ msg: "Permissões individuais atualizadas.", type: "success" });
-    await load();
+    await queryClient.invalidateQueries({ queryKey });
   };
 
   if (!canView) return null;
@@ -119,13 +123,13 @@ export function UserPermissionOverridesPage({
   return <AdminPage
     open
     onClose={onClose}
-    breadcrumb="Cadastros > Acessos e Permissões"
-    title={registrationName}
-    subtitle="Permissões herdadas da função e acessos adicionais deste usuário."
+    breadcrumb={`Cadastros > ${registrationName} > Acessos e Permissões`}
+    title="Acessos e Permissões"
+    subtitle={`Permissões herdadas da função e acessos adicionais de ${registrationName}.`}
     maxW="max-w-6xl"
   >
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {loading || !access ? <LoadingState /> : <div className="space-y-5 p-4 sm:p-5">
+    {accessQuery.isPending && !access ? <LoadingState /> : !access ? <div className="p-5 text-sm text-[#5a6a82]">Não foi possível carregar os acessos deste usuário.</div> : <div className="space-y-5 p-4 sm:p-5">
       <Section title="Função base">
         <div className="flex items-start gap-3">
           <ShieldCheck size={20} className="mt-0.5 shrink-0 text-[#0057e7]" />
@@ -184,7 +188,7 @@ export function UserPermissionOverridesPage({
       </Section>
     </div>}
     <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
-      <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>
+      <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
       {canManage && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
     </div>
   </AdminPage>;
