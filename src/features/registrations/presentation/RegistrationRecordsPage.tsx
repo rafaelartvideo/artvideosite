@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink, File as FileIcon, Image as ImageIcon, Paperclip, Plus, X } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cn } from "@/shared/domain/formatters";
@@ -284,7 +285,7 @@ export function RegistrationRecordsPage({
             <div className="text-xs font-black text-[#0d1b2e]">Anexos</div>
             <div className="mt-0.5 text-[10px] text-[#6b7c93]">Arquivos ou imagens • até 10 arquivos • 20 MB por arquivo</div>
           </div>
-          <BtnSecondary type="button" onClick={() => fileInputRef.current?.click()} disabled={saving || files.length >= MAX_ATTACHMENTS} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#eef5ff]">
+          <BtnSecondary onClick={() => fileInputRef.current?.click()} disabled={saving || files.length >= MAX_ATTACHMENTS} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#eef5ff]">
             <Paperclip size={15} /> Anexar arquivos
           </BtnSecondary>
           <input
