@@ -12,7 +12,6 @@ import {
   BtnSecondary,
   InternalBackButton,
   PageHeader,
-  Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
@@ -344,36 +343,40 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       breadcrumb="Operação > Checklists"
       title={draft.id ? "Editar perfil de checklist" : "Novo perfil de checklist"}
       subtitle="Configure etapas, situação vinculada, bloqueios e itens técnicos"
-      maxW="max-w-5xl"
+      maxW="max-w-7xl"
     >
       <div className="space-y-5 p-5">
-        <Section title="Perfil">
-          <div className="grid gap-4 md:grid-cols-2">
-            <FInput
-              label="Nome do perfil"
-              value={draft.name}
-              onChange={event => setDraft(current => current ? { ...current, name: event.target.value } : current)}
-              placeholder="Ex.: Televisor — Padrão"
-            />
-            <div className="flex items-center justify-center md:min-h-[66px]">
+        <section className="overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white">
+          <div className="flex flex-col gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-black text-[#0d1b2e]">Perfil</h3>
+              <p className="mt-1 text-xs text-[#6b7c93]">Defina a identificação e disponibilidade deste perfil.</p>
+            </div>
+            <div className="flex justify-end">
               <FToggle
                 label="Perfil ativo"
                 checked={draft.is_active}
                 onChange={checked => setDraft(current => current ? { ...current, is_active: checked } : current)}
               />
             </div>
-            <div className="md:col-span-2">
-              <FInput
-                label="Descrição"
-                value={draft.description}
-                onChange={event => setDraft(current => current ? { ...current, description: event.target.value } : current)}
-              />
-            </div>
           </div>
-        </Section>
+          <div className="grid gap-4 p-5 lg:grid-cols-2">
+            <FInput
+              label="Nome do perfil"
+              value={draft.name}
+              onChange={event => setDraft(current => current ? { ...current, name: event.target.value } : current)}
+              placeholder="Ex.: Televisor — Padrão"
+            />
+            <FInput
+              label="Descrição"
+              value={draft.description}
+              onChange={event => setDraft(current => current ? { ...current, description: event.target.value } : current)}
+            />
+          </div>
+        </section>
 
         <section className="overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white">
-          <div className="flex flex-col gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] text-[#0057e7]">
                 <ClipboardCheck size={18} />
@@ -395,52 +398,56 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
             </AdminButton>
           </div>
 
-          <div className="grid gap-4 p-4 xl:grid-cols-2">
+          <div className="grid gap-5 p-5 xl:grid-cols-2">
             {draft.stages.map((stage, stageIndex) => <AdminCard key={`${stage.id || stage.code}-${stageIndex}`} className="h-full overflow-hidden shadow-none">
-              <AdminCardHeader
-                title={`${stageIndex + 1}. ${stage.name || "Nova etapa"}`}
-                subtitle={stage.situation_id
-                  ? `Vinculada a ${data?.situations.find(item => item.id === stage.situation_id)?.name || "Situação"}`
-                  : "Sem situação vinculada"}
-                actions={<div className="flex flex-wrap items-center justify-end gap-1.5">
-                  <AdminButton
-                    variant="secondary"
-                    className="px-2"
-                    disabled={stageIndex === 0}
-                    onClick={() => moveStage(stageIndex, -1)}
-                    title="Mover etapa para cima"
-                  >
-                    <ArrowUp size={14} />
-                  </AdminButton>
-                  <AdminButton
-                    variant="secondary"
-                    className="px-2"
-                    disabled={stageIndex === draft.stages.length - 1}
-                    onClick={() => moveStage(stageIndex, 1)}
-                    title="Mover etapa para baixo"
-                  >
-                    <ArrowDown size={14} />
-                  </AdminButton>
-                  <AdminButton
-                    variant="secondary"
-                    className="border-red-200 bg-red-50 px-2.5 text-red-600 hover:bg-red-100"
-                    onClick={() => removeStage(stageIndex)}
-                    title="Excluir etapa"
-                  >
-                    <Trash2 size={14} /> <span className="hidden xl:inline">Excluir</span>
-                  </AdminButton>
-                </div>}
-              />
+              <div className="border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <FInput
+                      label={`Nome da etapa ${stageIndex + 1}`}
+                      value={stage.name}
+                      onChange={event => updateStage(stageIndex, { name: event.target.value })}
+                      placeholder="Ex.: Entrada"
+                    />
+                    <p className="mt-1.5 text-[11px] text-[#6b7c93]">
+                      {stage.situation_id
+                        ? `Vinculada a ${data?.situations.find(item => item.id === stage.situation_id)?.name || "Situação"}`
+                        : "Sem situação vinculada"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                    <AdminButton
+                      variant="secondary"
+                      className="px-2"
+                      disabled={stageIndex === 0}
+                      onClick={() => moveStage(stageIndex, -1)}
+                      title="Mover etapa para cima"
+                    >
+                      <ArrowUp size={14} />
+                    </AdminButton>
+                    <AdminButton
+                      variant="secondary"
+                      className="px-2"
+                      disabled={stageIndex === draft.stages.length - 1}
+                      onClick={() => moveStage(stageIndex, 1)}
+                      title="Mover etapa para baixo"
+                    >
+                      <ArrowDown size={14} />
+                    </AdminButton>
+                    <AdminButton
+                      variant="secondary"
+                      className="border-red-200 bg-red-50 px-3 text-red-600 hover:bg-red-100"
+                      onClick={() => removeStage(stageIndex)}
+                      title="Excluir etapa"
+                    >
+                      <Trash2 size={14} /> Excluir etapa
+                    </AdminButton>
+                  </div>
+                </div>
+              </div>
 
               <div className="space-y-4 p-4">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <FInput
-                      label="Nome da etapa"
-                      value={stage.name}
-                      onChange={event => updateStage(stageIndex, { name: event.target.value })}
-                    />
-                  </div>
                   <FSelect
                     label="Tipo"
                     value={stage.stage_type}
