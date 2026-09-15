@@ -355,7 +355,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
               onChange={event => setDraft(current => current ? { ...current, name: event.target.value } : current)}
               placeholder="Ex.: Televisor — Padrão"
             />
-            <div className="flex items-end">
+            <div className="flex items-center justify-center md:min-h-[66px]">
               <FToggle
                 label="Perfil ativo"
                 checked={draft.is_active}
@@ -395,7 +395,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
             </AdminButton>
           </div>
 
-          <div className="grid gap-4 p-4 lg:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-4 p-4 xl:grid-cols-2">
             {draft.stages.map((stage, stageIndex) => <AdminCard key={`${stage.id || stage.code}-${stageIndex}`} className="h-full overflow-hidden shadow-none">
               <AdminCardHeader
                 title={`${stageIndex + 1}. ${stage.name || "Nova etapa"}`}
