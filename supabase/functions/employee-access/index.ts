@@ -209,6 +209,40 @@ async function syncEmployeeAccessLinks(
   if (detailError) throw detailError;
 }
 
+async function restoreEmployeeAccessLinks(organizationId: string, employee: any) {
+  const restoredEmployee: Record<string, unknown> = {
+    profile_id: employee.profile_id ?? null,
+    role_id: employee.role_id ?? null,
+    is_active: employee.is_active !== false,
+    updated_at: new Date().toISOString(),
+  };
+  if (organizationId === PLATFORM_ORGANIZATION_ID) {
+    restoredEmployee.uniq_subscriber_id = employee.uniq_subscriber_id ?? null;
+  }
+  const { error: employeeError } = await adminClient
+    .from("employees")
+    .update(restoredEmployee)
+    .eq("id", employee.id)
+    .eq("organization_id", organizationId);
+  if (employeeError) throw employeeError;
+
+  const entity = await getEntityForEmployee(organizationId, employee.id);
+  if (!entity) return;
+  const restoredDetail: Record<string, unknown> = {
+    profile_id: employee.profile_id ?? null,
+    role_id: employee.role_id ?? null,
+    updated_at: new Date().toISOString(),
+  };
+  if (organizationId === PLATFORM_ORGANIZATION_ID) {
+    restoredDetail.uniq_subscriber_id = employee.uniq_subscriber_id ?? null;
+  }
+  const { error: detailError } = await adminClient
+    .from("entity_employee_details")
+    .update(restoredDetail)
+    .eq("entity_id", entity.id);
+  if (detailError) throw detailError;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
@@ -370,6 +404,11 @@ Deno.serve(async (req) => {
       return json({ success: true, access: await loadAccess(organizationId, refreshedEmployee) });
     } catch (error) {
       if (createdUserId) {
+        try {
+          await restoreEmployeeAccessLinks(organizationId, employee);
+        } catch (restoreError) {
+          console.error("[employee-access:rollback-links]", restoreError);
+        }
         await adminClient.from("organization_members").delete().eq("user_id", createdUserId).eq("organization_id", organizationId);
         await adminClient.from("profiles").delete().eq("id", createdUserId);
         await adminClient.auth.admin.deleteUser(createdUserId);
