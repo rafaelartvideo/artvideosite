@@ -59,7 +59,7 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
     organization_id: input.organizationId,
     employee_id: input.employeeId,
     enabled: input.enabled,
-    email: input.email?.trim() || null,
+    email: input.email?.trim().replace(/\s+/g, "").toLowerCase() || null,
     password: input.password || undefined,
     role_id: input.roleId || null,
     uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
