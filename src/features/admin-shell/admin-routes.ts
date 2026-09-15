@@ -23,6 +23,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   brands: "/admin/site/brands",
   operation: "/admin/operation",
   equipment: "/admin/operation/equipment",
+  checklists: "/admin/operation/checklists",
   generalServices: "/admin/operation/general-services",
   serviceTypes: "/admin/operation/service-types",
   situations: "/admin/operation/order-situations",
@@ -66,6 +67,6 @@ export function resolveAdminTab(pathname: string): AdminTab {
 
 export function parentAdminTab(tab: AdminTab): AdminTab | null {
   if (["services", "categories", "products", "brands", "siteSettings", "contact"].includes(tab)) return "site";
-  if (["documents", "equipment", "generalServices", "serviceTypes", "situations", "orderStatuses", "roles"].includes(tab)) return "operation";
+  if (["documents", "equipment", "checklists", "generalServices", "serviceTypes", "situations", "orderStatuses", "roles"].includes(tab)) return "operation";
   return null;
 }
