@@ -153,14 +153,11 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "financial.estimated_price": money(order.estimated_price),
     "financial.final_price": money(order.final_price),
     "history.status_changes": history.map((item: any) => [date(item.created_at), item.old_status?.name, item.new_status?.name].filter(Boolean).join(" — ")).join("\\n"),
-    "signatures.customer": "________________________________",
-    "signatures.technician": "________________________________",
     "signatures.customer_name": customer.full_name,
     "signatures.customer_document": formatDocument(customer.cnpj || customer.document),
     "signatures.date": formatDateOnly(todayDateOnly(), "—"),
     "system.printed_at": date(new Date().toISOString()),
     "system.printed_by": context.printedBy,
-    "system.page_number": "1",
   };
   return text(values[key]);
 }
@@ -191,9 +188,6 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     template.selectedFields.has("system.printed_by")
       ? "Impresso por " + resolveField("system.printed_by", context)
       : "",
-    template.selectedFields.has("system.page_number") && template.show_page_number
-      ? "Página " + resolveField("system.page_number", context)
-      : "",
   ].filter(Boolean);
 
   const fullWidthFields = new Set([
@@ -207,14 +201,24 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     "used_parts.items",
     "part_requests.notes",
     "history.status_changes",
-    "signatures.customer",
-    "signatures.technician",
   ]);
   const sectionHtml = sections.map((section) => {
-    const columnCount = section.fields.length >= 3 ? 3 : Math.max(1, section.defaultColumns);
+    const columnCount = Math.min(section.fields.length, section.defaultColumns);
+    if (section.key === "used_parts") {
+      const numeric = (key: string) => key !== "used_parts.items" ? " class='numeric'" : "";
+      const rows = (context.usedItems || []).map((item) => "<tr>" + section.fields.map((field) =>
+        "<td" + numeric(field.key) + ">" + escapeHtml(resolveField(field.key, { ...context, usedItems: [item] })) + "</td>",
+      ).join("") + "</tr>").join("");
+      return "<section class='section-list'><h2>" + escapeHtml(section.label) + "</h2><table class='items-table'><thead><tr>" + section.fields.map((field) =>
+        "<th scope='col'" + numeric(field.key) + ">" + escapeHtml(field.label) + "</th>",
+      ).join("") + "</tr></thead><tbody>" + (rows || "<tr><td colspan='" + section.fields.length + "'>Nenhum produto utilizado.</td></tr>") + "</tbody></table></section>";
+    }
     const fields = section.fields.map((field) => {
       const value = escapeHtml(resolveField(field.key, context)).replaceAll("\\n", "<br>");
-      const widthClass = fullWidthFields.has(field.key) ? " field-wide" : "";
+      if (field.kind === "signature") {
+        return "<div class='field signature'><div class='signature-line'></div><span>" + escapeHtml(field.label) + "</span></div>";
+      }
+      const widthClass = (fullWidthFields.has(field.key) ? " field-wide" : "") + (field.key === "financial.final_total" ? " field-total" : "");
       return "<div class='field" + widthClass + "'><span>" + escapeHtml(field.label) + "</span><strong>" + value + "</strong></div>";
     }).join("");
     return "<section><h2>" + escapeHtml(section.label) + "</h2><div class='grid columns-" + columnCount + "'>" + fields + "</div></section>";
@@ -231,13 +235,22 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
   const companyLogo = company.logoUrl
     ? "<img class='company-logo' src='" + escapeHtml(company.logoUrl) + "' alt='" + escapeHtml(companyName) + "'>"
     : "<div class='brand-mark'>AV</div>";
-  const pagePadding = template.margin_top + "mm " + template.margin_right + "mm " + template.margin_bottom + "mm " + template.margin_left + "mm";
+  // Keep enough printable area around the sheet even for older 2mm templates.
+  const margins = [template.margin_top, template.margin_right, template.margin_bottom, template.margin_left]
+    .map((value) => Math.max(6, Number(value) || 6));
+  const pagePadding = margins.map((value) => value + "mm").join(" ");
+  const pageWidth = orientation === "landscape" ? 297 : 210;
   const printScript = autoPrint
     ? "<script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print()},250)});window.addEventListener('afterprint',function(){window.close()})</script>"
     : "";
-  const html = "<!doctype html><html><head><meta charset='utf-8'><title>" + escapeHtml(template.name) + "</title><style>" +
-    "@page{size:A4 " + orientation + ";margin:" + template.margin_top + "mm " + template.margin_right + "mm " + template.margin_bottom + "mm " + template.margin_left + "mm}" +
-    "*{box-sizing:border-box}body{margin:0;padding:" + pagePadding + ";color:#0f172a;font-family:" + layout.font_family + ",sans-serif;font-size:" + layout.body_font_size + "pt;line-height:" + layout.line_height + "}.header{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,1.25fr) minmax(0,1fr);align-items:center;gap:18px;border-bottom:2px solid #0d1b2e;padding-bottom:13px;margin-bottom:14px}.company{display:flex;align-items:center;gap:10px;min-width:0}.company-logo{display:block;max-width:58px;max-height:58px;object-fit:contain}.brand-mark{display:grid;place-items:center;width:48px;height:48px;border-radius:12px;background:#0057e7;color:#fff;font-size:15px;font-weight:900;letter-spacing:.04em}.company-copy{min-width:0}.brand{font-size:14px;font-weight:900;line-height:1.15}.company-subtitle{margin-top:2px;color:#64748b;font-size:8px}.company-details{margin-top:4px;color:#64748b;font-size:7px;line-height:1.35}.document{text-align:center;min-width:0}.document h1{margin:0;font-size:17px;line-height:1.15}.document p{margin:4px 0 0;color:#64748b;font-size:8px}.order-number{justify-self:end;text-align:right}.order-number span{display:block;color:#64748b;font-size:7px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.order-number strong{display:block;margin-top:2px;font-size:22px;line-height:1}.order-number small{display:block;margin-top:5px;color:#64748b;font-size:8px}section{margin:0 0 " + layout.section_spacing + "px;break-inside:avoid;border:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "8px" : "0") + ";padding:" + (layout.section_style === "boxed" ? "9px" : "8px 0") + "}h2{margin:0 0 7px;padding-bottom:5px;border-bottom:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";font-size:" + layout.section_title_font_size + "pt;text-transform:uppercase;letter-spacing:.08em}.grid{display:grid;gap:" + layout.field_spacing + "px 14px}.columns-1{grid-template-columns:1fr}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:" + (layout.section_style === "table" ? "6px 4px" : "5px 7px") + ";border:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";border-bottom:" + (layout.section_style === "table" && !layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "5px" : "0") + "}.field span{display:block;color:#64748b;font-size:" + layout.label_font_size + "pt;font-weight:700;text-transform:uppercase;margin-bottom:2px}.field strong{display:block;white-space:normal;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt}.field-wide{grid-column:1/-1}.footer{position:fixed;right:0;bottom:0;left:0;display:flex;align-items:center;justify-content:center;gap:8px;border-top:1px solid #cbd5e1;padding-top:7px;color:#64748b;font-size:8px}.footer-item+.footer-item:before{content:'•';margin-right:8px;color:#94a3b8}@media print{body{padding:0 0 14mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}}" +
+  const html = "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>" + escapeHtml(template.name) + "</title><style>" +
+    "@page{size:A4 " + orientation + ";margin:" + pagePadding + ";" + (template.selectedFields.has("system.page_number") && template.show_page_number ? "@bottom-center{content:'Página ' counter(page) ' de ' counter(pages);font-family:Arial,sans-serif;font-size:8pt;color:#526174}" : "") + "}" +
+    "*{box-sizing:border-box}html{background:#eef2f6}body{width:" + pageWidth + "mm;max-width:100%;margin:0 auto;padding:" + pagePadding + ";background:#fff;color:#172536;font-family:" + layout.font_family + ",sans-serif;font-size:" + layout.body_font_size + "pt;line-height:" + Math.max(1.2, layout.line_height) + ";overflow-wrap:anywhere}" +
+    ".header{display:grid;grid-template-columns:minmax(0,1fr) minmax(95px,.3fr);align-items:start;gap:12px 20px;border-bottom:2px solid #0057e7;padding-bottom:12px;margin-bottom:14px;break-inside:avoid}.company{display:flex;align-items:center;gap:12px;min-width:0}.company-logo{display:block;flex-shrink:0;width:64px;height:64px;object-fit:contain}.brand-mark{display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;border-radius:8px;background:#0057e7;color:#fff;font-size:16px;font-weight:800}.company-copy{min-width:0}.brand{font-size:14pt;font-weight:800;line-height:1.2}.company-subtitle{margin-top:3px;font-size:9pt;color:#475569}.company-details{margin-top:5px;font-size:8pt;line-height:1.45;color:#475569}.document{grid-column:1/-1;grid-row:2;padding-top:10px;border-top:1px solid #dbe2ea}.document h1{margin:0;font-size:15pt;line-height:1.25;font-weight:800}.document p{margin:4px 0 0;font-size:9pt;color:#475569;white-space:pre-wrap}.document p:empty{display:none}.order-number{grid-column:2;grid-row:1;text-align:right;min-width:0}.order-number span{display:block;font-size:8pt;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.order-number strong{display:block;margin-top:4px;font-size:21pt;line-height:1.15;color:#0057e7}.order-number small{display:block;margin-top:6px;font-size:8pt;color:#475569}" +
+    "section{margin:0 0 " + Math.max(8, layout.section_spacing) + "px;border:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "6px" : "0") + ";padding:" + (layout.section_style === "boxed" ? "8px" : "0") + ";break-inside:auto}h2{margin:0;padding:6px 8px;background:#eef3f9;color:#24364b;border-bottom:1px solid #cbd5e1;font-size:" + layout.section_title_font_size + "pt;line-height:1.25;font-weight:700;text-transform:uppercase;letter-spacing:.035em;break-after:avoid}" +
+    ".grid{display:grid;gap:" + layout.field_spacing + "px;align-items:stretch;border-left:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";}.columns-1{grid-template-columns:minmax(0,1fr)}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:7px 8px;break-inside:avoid;border:0;" + (layout.show_field_borders ? "box-shadow:inset -1px -1px #cbd5e1;" : layout.section_style === "table" ? "border-bottom:1px solid #dbe2ea;" : "") + "}.field span{display:block;margin-bottom:3px;color:#526174;font-size:" + layout.label_font_size + "pt;line-height:1.3;font-weight:700;text-transform:uppercase}.field strong{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt;font-weight:500;line-height:inherit}.field-wide{grid-column:1/-1}.field-total{background:#eef3f9}.field-total strong{font-size:1.15em;font-weight:800;color:#0057e7}.signature{display:flex;flex-direction:column;justify-content:end;min-height:72px;text-align:center}.signature-line{border-top:1px solid #64748b;margin:30px 12px 6px}.signature span{font-weight:500}" +
+    ".items-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:inherit}.items-table th,.items-table td{padding:7px 8px;border-bottom:1px solid #cbd5e1;vertical-align:top;overflow-wrap:anywhere}.items-table th{text-align:left;font-size:" + layout.label_font_size + "pt;color:#526174;font-weight:700;line-height:1.3}.items-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.items-table th:not(.numeric){width:46%}.items-table tr{break-inside:avoid}.items-table thead{display:table-header-group}.footer{position:static;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin-top:14px;border-top:1px solid #cbd5e1;padding-top:8px;color:#526174;font-size:8pt;line-height:1.4;break-inside:avoid}.footer-item{white-space:pre-wrap}" +
+    "@media print{html{background:#fff}body{width:auto;max-width:none;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}h2{break-after:avoid}p{orphans:3;widows:3}}" +
     "</style></head><body><header class='header'><div class='company'>" +
     (template.show_logo ? companyLogo : "") +
     (template.show_company_info ? "<div class='company-copy'><div class='brand'>" + escapeHtml(companyName) + "</div><div class='company-subtitle'>" + escapeHtml(companySubtitle) + "</div>" + (companyDetails.length ? "<div class='company-details'>" + companyDetails.map(escapeHtml).join("<br>") + "</div>" : "") + "</div>" : "") +
