@@ -4,13 +4,13 @@
 
 Criar um subsistema de checklist técnico integrado a **Operação > Checklists**, **Equipamentos** e **Ordens de Serviço**, mantendo o padrão atual do admin: multiempresa, permissões, rotas reais para páginas completas, TanStack Query para cache e Supabase para persistência/segurança.
 
-O sistema deve permitir que cada tipo de equipamento use um único **Perfil de Checklist**, composto por etapas como **Entrada**, **Diagnóstico** e **Saída / Controle de Qualidade (QC)**. Cada etapa pode ser vinculada a uma **Situação da OS** e, opcionalmente, bloquear a saída dessa situação enquanto os itens obrigatórios não estiverem válidos.
+O sistema deve permitir que cada tipo de equipamento use um único **Perfil de Checklist**, composto por etapas como **Entrada**, **Diagnóstico** e **Saída / Controle de Qualidade (QC)**. Cada etapa pode ser vinculada a uma **Situação da OS** e, opcionalmente, controlar a saída da situação, a resolução técnica ou a conclusão financeira da OS.
 
 A OS deve receber um **snapshot imutável** do checklist vigente no momento da criação/vinculação do equipamento, para que alterações futuras no perfil não modifiquem o histórico técnico de ordens antigas.
 
 ## Decisão de arquitetura
 
-A estrutura recomendada é:
+A estrutura é:
 
 ```text
 Perfil de Checklist
@@ -33,13 +33,7 @@ Não haverá um checklist genérico único para todas as OS e não serão mantid
 
 Adicionar o módulo **Checklists** ao hub de Operação, logo após Equipamentos.
 
-Rota principal:
-
-```text
-/admin/operation/checklists
-```
-
-Rotas de página completa:
+Rotas:
 
 ```text
 /admin/operation/checklists
@@ -47,11 +41,11 @@ Rotas de página completa:
 /admin/operation/checklists/:profileId/edit
 ```
 
-O módulo deve seguir o padrão visual dos demais cadastros operacionais e usar `AdminPage` apenas para a página ativa.
+O módulo segue o padrão visual dos demais cadastros operacionais e usa `AdminPage` apenas para a página ativa.
 
 ### Lista de perfis
 
-A listagem deve exibir pelo menos:
+Exibir pelo menos:
 
 - Nome;
 - Versão atual;
@@ -87,15 +81,23 @@ Pode existir etapa personalizada além das três sugeridas.
 
 ## Etapas do perfil
 
-Cada etapa deve possuir:
+Cada etapa possui:
 
-- `title`: título apresentado ao usuário;
-- `code`: código estável dentro do perfil, usado para associar itens adicionais do equipamento;
+- `name`: título apresentado ao usuário;
+- `code`: código estável dentro do perfil, usado por itens adicionais do equipamento;
 - `stage_type`: `entry`, `diagnosis`, `qc` ou `custom`;
 - `situation_id`: Situação da OS vinculada, opcional;
-- `block_situation_exit`: se a OS fica impedida de sair dessa situação enquanto a etapa obrigatória estiver incompleta;
+- `block_situation_exit`: bloqueia saída da Situação vinculada enquanto a etapa estiver incompleta;
+- `block_order_resolution`: bloqueia **Resolver OS** enquanto a etapa estiver incompleta;
+- `block_order_completion`: bloqueia **Concluir OS** enquanto a etapa estiver incompleta;
 - `sort_order`;
 - `is_active`.
+
+As três travas são independentes. Por padrão recomendado:
+
+- Entrada: pode bloquear saída da situação de recepção;
+- Diagnóstico: pode bloquear saída de diagnóstico e/ou Resolver OS;
+- Saída/QC: pode bloquear saída da situação final e Concluir OS.
 
 ### Vínculo com Situação da OS
 
@@ -106,18 +108,20 @@ Exemplo:
 ```text
 Etapa: Diagnóstico
 Situação vinculada: Em diagnóstico
-[x] Bloquear saída da situação enquanto o checklist estiver incompleto
+[x] Bloquear saída da situação
+[x] Bloquear Resolver OS
+[ ] Bloquear Concluir OS
 ```
 
-O vínculo é opcional. Sem situação vinculada, a etapa fica disponível manualmente no checklist da OS e nunca bloqueia troca de situação.
+O vínculo é opcional. Sem situação vinculada, a etapa fica disponível manualmente e `block_situation_exit` deve permanecer desabilitado.
 
-Se várias etapas forem vinculadas à mesma situação e estiverem configuradas para bloqueio, todas as etapas bloqueadoras precisam estar válidas antes da saída dessa situação.
+Se várias etapas forem vinculadas à mesma situação e estiverem configuradas para bloqueio, todas as etapas bloqueadoras precisam estar concluídas antes da saída dessa situação.
 
-O bloqueio deve ser aplicado no banco, não apenas na interface. Isso é necessário porque hoje a situação também pode ser alterada por Kanban e por outros fluxos que atualizam `service_orders.situation_id` diretamente.
+O bloqueio deve ser aplicado no banco, não apenas na interface, porque a Situação também pode mudar via Kanban e outros fluxos que atualizam `service_orders.situation_id`.
 
 ## Itens de checklist
 
-Cada item deve conter:
+Cada item contém:
 
 - Título;
 - Descrição/instrução opcional;
@@ -139,7 +143,7 @@ Versão inicial:
 - `text`: resposta textual;
 - `number`: valor numérico.
 
-O modelo não deve depender apenas de uma checkbox binária, porque itens técnicos precisam distinguir conformidade, falha e não aplicabilidade.
+O modelo não depende apenas de uma checkbox binária, porque itens técnicos precisam distinguir conformidade, falha e não aplicabilidade.
 
 ### Foto
 
@@ -147,9 +151,10 @@ Configuração:
 
 - `none`: não solicita;
 - `optional`: permite foto;
-- `required`: foto obrigatória para concluir o item.
+- `required`: foto obrigatória para considerar o item válido;
+- `required_on_failure`: foto obrigatória apenas quando a resposta representa falha.
 
-Isso substitui uma simples opção Foto Sim/Não e cobre os dois casos sem alterar o modelo depois.
+Para `conformity`, falha é `not_ok`. Para `yes_no`, falha é `no`.
 
 ### Observação
 
@@ -159,8 +164,6 @@ Configuração:
 - `optional`;
 - `required`;
 - `required_on_failure`.
-
-Para `conformity`, falha é `not_ok`. Para `yes_no`, o valor `no` é tratado como falha quando o item usa `required_on_failure`.
 
 Exemplo:
 
@@ -180,10 +183,10 @@ O cadastro existente de Equipamentos continua sendo a fonte do tipo técnico (`e
 Cada tipo recebe:
 
 - `checklist_profile_id` opcional;
-- seção "Checklist" no editor;
+- seção **Checklist** no editor;
 - seletor de Perfil de Checklist;
-- resumo de etapas do perfil selecionado;
-- área "Itens adicionais deste equipamento".
+- resumo das etapas do perfil selecionado;
+- área **Itens adicionais deste equipamento**.
 
 Exemplo:
 
@@ -198,27 +201,29 @@ Itens adicionais
 
 ### Itens adicionais do equipamento
 
-O usuário pode acrescentar itens exclusivos daquele tipo de equipamento sem duplicar ou alterar o perfil global.
+O usuário pode acrescentar itens exclusivos daquele tipo de equipamento sem duplicar nem alterar o perfil global.
 
-Cada item adicional deve escolher em qual etapa será inserido. O vínculo é feito pelo `stage_code` do perfil, permitindo que o perfil seja revisado sem depender do UUID da etapa.
+Cada item adicional escolhe em qual etapa será inserido. O vínculo usa o `stage_code` do perfil, permitindo revisar o perfil sem depender do UUID da etapa.
 
-Os itens adicionais usam as mesmas propriedades dos itens do perfil: tipo de resposta, obrigatório, foto, observação e ordem.
+Os itens adicionais usam as mesmas propriedades dos itens do perfil: tipo de resposta, obrigatório, N/A, foto, observação e ordem.
 
-Se o perfil do equipamento for trocado e algum `stage_code` usado por itens extras deixar de existir, a UI deve exigir que o usuário remapeie esses itens antes de salvar.
+Se o perfil do equipamento for trocado e algum `stage_code` usado por itens extras deixar de existir, a UI exige remapeamento desses itens antes de salvar.
 
 ## Versionamento do perfil
 
-`checklist_profiles.version` é incrementado quando houver alteração estrutural em etapas ou itens.
+`checklist_profiles.version` é incrementado quando houver mudança que afete o snapshot: etapas, itens, Situação vinculada, regras de bloqueio ou conteúdo técnico.
 
-Não é necessário manter uma cópia completa de cada versão configurável em tabelas separadas, porque a OS mantém o snapshot completo da configuração que recebeu.
+Ativar/inativar o perfil por si só não precisa incrementar a versão.
 
-A listagem exibe a versão atual para facilitar suporte e auditoria.
+Não é necessário manter cópia completa de cada versão configurável em tabelas separadas, porque cada OS mantém seu próprio snapshot completo.
 
 ## Snapshot na Ordem de Serviço
 
-Uma OS com `equipment_type_id` que tenha Perfil de Checklist recebe um snapshot completo.
+Uma OS com `equipment_type_id` cujo tipo possua Perfil de Checklist recebe um snapshot completo.
 
-O snapshot deve ocorrer automaticamente após a criação da OS e também deve existir um fluxo `ensure` ao abrir Checklists para cobrir OS antigas que ainda não tenham snapshot.
+O snapshot ocorre automaticamente dentro do fluxo transacional de criação da OS. A ausência de perfil não é erro e não impede a criação. Se existe um perfil aplicável e a criação do snapshot falha por inconsistência real de dados, a transação deve falhar em vez de deixar uma OS parcialmente configurada.
+
+Também existe um fluxo `ensure` ao abrir Checklists para cobrir OS antigas sem snapshot.
 
 O snapshot copia:
 
@@ -226,7 +231,7 @@ O snapshot copia:
 - tipo de equipamento;
 - etapas;
 - Situação vinculada e nome da situação naquele momento;
-- regras de bloqueio;
+- regras de bloqueio de situação/resolução/conclusão;
 - itens do perfil;
 - itens adicionais do equipamento;
 - requisitos de resposta/foto/observação;
@@ -240,20 +245,20 @@ Se `equipment_type_id` mudar:
 
 - o checklist ativo anterior é marcado como `superseded`;
 - nunca é apagado;
-- é criado um novo snapshot para o novo equipamento, se houver perfil;
+- é criado novo snapshot para o novo equipamento, se houver perfil;
 - o checklist superseded continua disponível para auditoria, mas não bloqueia o fluxo atual.
 
-Isso evita perda de dados quando uma OS já teve respostas e o equipamento foi corrigido posteriormente.
+Isso evita perda de dados mesmo quando a OS já teve respostas antes da correção do equipamento.
 
 ## Execução do checklist na OS
 
-Adicionar uma subrota real:
+Adicionar subrota real:
 
 ```text
 /admin/orders/:orderId/checklists
 ```
 
-Não é necessário criar uma terceira camada de rota por etapa na primeira versão. A página de Checklists mostra todas as etapas em cards expansíveis, preservando o padrão atual `resourceId + subpage` do admin.
+Não criar uma terceira camada de rota por etapa na primeira versão. A página mostra todas as etapas em cards expansíveis e preserva o contrato atual `resourceId + subpage` do admin.
 
 Na toolbar da OS haverá botão **Checklists**, com badge de progresso.
 
@@ -282,12 +287,14 @@ Situação: Pronto para retirada
 
 ### Disponibilidade das etapas
 
-- Etapa sem situação: disponível a qualquer momento;
-- Etapa vinculada à situação atual: destacada como etapa atual;
-- Etapas de outras situações permanecem visíveis para consulta, mas edição deve seguir permissões e regras do fluxo;
-- Uma etapa concluída permanece somente leitura, salvo permissão específica de reabertura.
+- Etapa sem Situação: disponível a qualquer momento;
+- Etapa vinculada à Situação atual: destacada como etapa atual;
+- Etapas de outras situações permanecem visíveis e podem ser preenchidas por usuário com `orders.checklists.fill`, permitindo correções e OS antigas;
+- Uma etapa concluída fica somente leitura até ser reaberta por usuário com `orders.checklists.reopen`.
 
-## Regra de conclusão
+A Situação serve para contexto e bloqueio de fluxo, não para esconder dados históricos.
+
+## Regra de validade e conclusão
 
 A etapa pode ser concluída quando todos os itens obrigatórios estiverem válidos.
 
@@ -295,16 +302,17 @@ Um item obrigatório está válido quando:
 
 - possui resposta compatível com seu tipo;
 - se foto for `required`, possui pelo menos uma mídia vinculada;
+- se foto for `required_on_failure`, possui mídia quando a resposta representa falha;
 - se observação for `required`, possui texto;
 - se observação for `required_on_failure`, possui texto quando a resposta representa falha.
 
 Itens opcionais podem permanecer sem resposta. O progresso visual continua mostrando respondidos/total.
 
-A conclusão deve ocorrer por RPC/função transacional, que revalida as condições no banco antes de marcar a etapa como concluída.
+A conclusão ocorre por RPC/função transacional, que revalida todas as condições no banco antes de marcar a etapa como concluída.
 
 ## Bloqueio de avanço da Situação
 
-Criar uma validação server-side em mudança de `service_orders.situation_id`.
+Criar validação server-side em mudança de `service_orders.situation_id`.
 
 Quando `OLD.situation_id` for diferente de `NEW.situation_id`, o banco verifica o checklist ativo da OS.
 
@@ -314,36 +322,41 @@ Se houver etapa:
 - `block_situation_exit = true`;
 - ainda não concluída;
 
-a alteração é rejeitada com mensagem clara, por exemplo:
+a alteração é rejeitada com mensagem clara:
 
 ```text
 Conclua o checklist "Diagnóstico" antes de sair da situação "Em diagnóstico".
 ```
 
-A mesma regra vale para alteração pelo detalhe da OS e pelo Kanban.
+A mesma regra vale para detalhe da OS e Kanban.
 
-A regra não bloqueia cancelamento da OS. Cancelamento é um fluxo administrativo distinto e deve permanecer possível conforme permissão existente.
+A regra não bloqueia cancelamento da OS. Cancelamento continua sendo fluxo administrativo separado.
+
+## Bloqueio de Resolver e Concluir OS
+
+A função/RPC usada para **Resolver OS** deve verificar etapas ativas com `block_order_resolution_snapshot = true`. Se alguma estiver incompleta, a resolução é rejeitada com mensagem indicando a etapa.
+
+A função/RPC usada para **Concluir OS** deve verificar etapas ativas com `block_order_completion_snapshot = true`. Se alguma estiver incompleta, a conclusão é rejeitada.
+
+Assim uma etapa de Diagnóstico pode impedir resolução prematura e uma etapa de QC pode impedir conclusão financeira sem depender de uma troca posterior de Situação.
 
 ## Fotos e Documentos da OS
 
-Não criar um novo bucket.
+Não criar novo bucket.
 
-Usar o bucket existente `service-images` e o repositório compartilhado de mídia, com path semelhante a:
+Usar `service-images` e o repositório compartilhado de mídia, com path semelhante a:
 
 ```text
 orders/{orderId}/checklists/{checklistId}/{itemId}/...
 ```
 
-Criar vínculo específico entre item de checklist e `media`.
+Cada foto possui vínculo em `service_order_checklist_item_media`.
 
-Quando a etapa possui Situação vinculada, a mesma mídia também deve ser ligada a `service_order_situation_media`, para aparecer automaticamente em **Documentos da OS** agrupada pela situação correspondente.
+Além disso, toda foto de checklist deve ser ligada a `service_order_media`, garantindo que pertença à OS e seja encontrada pelos fluxos gerais de mídia/documentos.
 
-Assim a foto continua acessível por dois contextos:
+Quando a etapa possuir Situação vinculada, a mesma mídia também é ligada a `service_order_situation_media`, para aparecer agrupada pela Situação correspondente em **Documentos da OS**.
 
-- dentro do item do checklist;
-- dentro dos Documentos/Imagens da OS.
-
-Não duplicar o arquivo físico.
+O arquivo físico não é duplicado. Apenas são criados os vínculos necessários.
 
 ## Auditoria
 
@@ -353,11 +366,11 @@ Registrar:
 - `answered_at`;
 - quem concluiu cada etapa;
 - `completed_at`;
-- quem reabriu uma etapa;
-- superseding do checklist por troca de equipamento;
+- quem reabriu etapa;
+- substituição do checklist por troca de equipamento;
 - alterações relevantes de resposta.
 
-Além dos campos atuais de resposta, usar uma tabela append-only de eventos do checklist para eventos relevantes (`snapshot_created`, `item_changed`, `stage_completed`, `stage_reopened`, `checklist_superseded`).
+Além dos campos de estado, usar uma tabela append-only de eventos para `snapshot_created`, `item_changed`, `stage_completed`, `stage_reopened` e `checklist_superseded`.
 
 Não permitir apagar histórico de execução.
 
@@ -388,11 +401,13 @@ stage_type text NOT NULL
 name text NOT NULL
 situation_id uuid FK -> os_situations
 block_situation_exit boolean NOT NULL default false
+block_order_resolution boolean NOT NULL default false
+block_order_completion boolean NOT NULL default false
 sort_order integer NOT NULL
 is_active boolean NOT NULL default true
 ```
 
-Restrição única por `(profile_id, code)`.
+Unique `(profile_id, code)`.
 
 ### `checklist_profile_items`
 
@@ -412,8 +427,6 @@ is_active boolean NOT NULL default true
 ```
 
 ### `equipment_checklist_items`
-
-Itens extras por tipo de equipamento:
 
 ```text
 id uuid PK
@@ -438,6 +451,8 @@ Adicionar:
 ```text
 checklist_profile_id uuid NULL FK -> checklist_profiles
 ```
+
+O banco deve garantir que equipamento e perfil pertençam à mesma `organization_id`.
 
 ### `service_order_checklists`
 
@@ -472,6 +487,8 @@ name_snapshot text NOT NULL
 situation_id_snapshot uuid
 situation_name_snapshot text
 block_situation_exit_snapshot boolean NOT NULL
+block_order_resolution_snapshot boolean NOT NULL
+block_order_completion_snapshot boolean NOT NULL
 sort_order integer NOT NULL
 status text NOT NULL -- pending/in_progress/completed/reopened
 completed_by uuid
@@ -500,8 +517,6 @@ answered_by uuid
 answered_at timestamptz
 updated_at timestamptz
 ```
-
-`response_value` aceita formato simples por tipo sem alterar schema a cada novo tipo de resposta.
 
 ### `service_order_checklist_item_media`
 
@@ -533,9 +548,11 @@ created_at timestamptz NOT NULL
 
 Append-only.
 
+Todas as relações multi-tenant devem impedir vínculo entre registros de organizações diferentes, por FK composta, validação ou função segura conforme o padrão já existente no projeto.
+
 ## RLS e segurança
 
-Todas as tabelas `public` novas devem nascer com RLS habilitado.
+Todas as tabelas `public` novas nascem com RLS habilitado.
 
 Configuração de perfil:
 
@@ -544,12 +561,12 @@ Configuração de perfil:
 
 Execução na OS:
 
-- leitura exige que `private.can_view_service_order(service_order_id)` seja verdadeira e `orders.checklists.view`;
+- leitura exige `private.can_view_service_order(service_order_id)` e `orders.checklists.view`;
 - resposta exige `orders.checklists.fill` e acesso à OS;
-- concluir exige `orders.checklists.complete`;
+- concluir etapa exige `orders.checklists.complete`;
 - reabrir exige `orders.checklists.reopen`.
 
-As funções internas de validação e snapshot devem ficar em schema `private` quando precisarem de privilégios elevados. Não expor `SECURITY DEFINER` em `public` sem necessidade.
+Funções internas de snapshot, validação e auditoria ficam no schema `private` quando precisarem de privilégio elevado. Não expor `SECURITY DEFINER` em `public` sem necessidade.
 
 ## Permissões
 
@@ -566,13 +583,11 @@ orders.checklists.reopen
 
 `checklists.manage` cobre criar/editar/inativar perfis, etapas e itens.
 
-O módulo Operação > Checklists usa `checklists.view` como permissão principal.
-
 ## Módulo multiempresa
 
 Adicionar chave de módulo `checklists` ao catálogo de módulos operacionais e ao mapeamento do admin.
 
-Não é uma integração exclusiva da ArtVideo: o subsistema deve ser multiempresa desde o início e respeitar `organization_id` em todas as tabelas e queries.
+Não é exclusivo da ArtVideo: o subsistema é multiempresa desde o início e respeita `organization_id` em todas as tabelas e queries.
 
 ## Cache e Realtime
 
@@ -586,7 +601,7 @@ checklists.equipmentItems(organizationId, equipmentTypeId)
 orders.checklists(orderId)
 ```
 
-Perfis, etapas, itens e vínculos do equipamento usam TanStack Query.
+Perfis, etapas, itens e vínculos usam TanStack Query.
 
 Adicionar ao `QueryRealtimeSync`:
 
@@ -607,9 +622,9 @@ A invalidação deve ser granular por organização/perfil/equipamento/OS quando
 
 `EquipmentDraft` e `EquipmentTypeRow` passam a incluir `checklist_profile_id`.
 
-`loadEquipmentCatalog` deve carregar o vínculo de perfil e somente os dados necessários para o editor.
+`loadEquipmentCatalog` carrega o vínculo de perfil e apenas os dados necessários para o editor.
 
-O editor de Equipamentos não deve incorporar o editor inteiro do perfil. Ele apenas:
+O editor de Equipamentos não incorpora o editor inteiro do perfil. Ele apenas:
 
 - seleciona perfil;
 - mostra resumo;
@@ -631,13 +646,15 @@ O clique navega para:
 
 A subpágina usa uma única `AdminPage` e volta para `/admin/orders/:id`.
 
-A mudança de situação continua usando o fluxo atual de `updateServiceOrderSituation`; se o banco bloquear a transição por checklist incompleto, o optimistic update existente deve ser revertido e a mensagem retornada pelo banco mostrada ao usuário.
+A mudança de Situação continua usando o fluxo atual de `updateServiceOrderSituation`; se o banco bloquear a transição por checklist incompleto, o optimistic update existente é revertido e a mensagem retornada pelo banco é mostrada ao usuário.
 
-O mesmo comportamento vale para drag-and-drop do Kanban, porque ele usa a mesma mutação de situação.
+O mesmo vale para drag-and-drop do Kanban.
+
+As RPCs atuais de Resolver e Concluir OS passam a chamar a validação do checklist antes de efetivar a operação.
 
 ## UX da página de execução
 
-Desktop e mobile devem priorizar uso rápido de bancada.
+Desktop e mobile priorizam uso rápido de bancada.
 
 Cada etapa mostra:
 
@@ -652,8 +669,8 @@ Cada item mostra resposta grande e fácil de tocar, observação quando aplicáv
 No mobile:
 
 - botões de resposta com altura confortável;
-- ações Câmera/Anexar como ícones compactos onde necessário;
-- barra inferior respeitando `safe-area-inset-bottom` e `visualViewport`, igual às páginas atuais da OS.
+- ações Câmera/Anexar compactas;
+- barra inferior respeitando `safe-area-inset-bottom` e `visualViewport`, como as páginas atuais da OS.
 
 ## Estado e mensagens
 
@@ -671,27 +688,23 @@ Estados da etapa:
 - Concluído;
 - Reaberto.
 
-Mensagens de validação devem apontar exatamente o item ausente, quando possível:
+Mensagens de validação devem apontar o requisito ausente quando possível:
 
 ```text
 Adicione uma foto em "Estado da tela" antes de concluir a etapa.
 ```
 
-ou:
-
 ```text
-Conclua o checklist "Saída / QC" antes de sair da situação "Pronto para retirada".
+Conclua o checklist "Saída / QC" antes de concluir a OS.
 ```
 
 ## Fluxo de criação de OS
 
 Não adicionar campos de checklist na criação da OS.
 
-O usuário escolhe o equipamento normalmente. O perfil vem automaticamente de `equipment_types.checklist_profile_id`.
+O usuário escolhe o equipamento normalmente e o perfil vem de `equipment_types.checklist_profile_id`.
 
-Após a criação atômica da OS, o backend cria/garante o snapshot. A criação da OS não deve falhar apenas porque o equipamento não tem perfil configurado.
-
-OS sem perfil simplesmente não exibe checklist ativo até que exista um snapshot aplicável.
+A criação atômica da OS deve garantir o snapshot quando houver perfil aplicável. Equipamento sem perfil continua sendo uma configuração válida.
 
 ## Compatibilidade com OS existentes
 
@@ -712,7 +725,7 @@ Não fazer backfill obrigatório de todas as OS históricas na migration.
 - regras condicionais complexas entre itens;
 - perfis específicos por marca/modelo;
 - editor visual drag-and-drop avançado;
-- automação de mudança de situação ao concluir checklist;
+- automação de mudança de Situação ao concluir checklist;
 - checklist no site público.
 
 Essas extensões podem ser adicionadas depois sem alterar o núcleo de snapshot/execução.
@@ -722,10 +735,10 @@ Essas extensões podem ser adicionadas depois sem alterar o núcleo de snapshot/
 1. Operação possui módulo Checklists com permissão própria.
 2. É possível criar perfil com múltiplas etapas.
 3. Cada etapa pode selecionar uma Situação da OS ou ficar manual.
-4. Cada etapa pode bloquear a saída da Situação vinculada.
+4. Cada etapa pode bloquear saída da Situação, Resolver OS e/ou Concluir OS de forma independente.
 5. É possível criar itens com tipos de resposta diferentes.
-6. Foto pode ser nenhuma, opcional ou obrigatória.
-7. Observação pode ser opcional, obrigatória ou obrigatória em falha.
+6. Foto pode ser nenhuma, opcional, obrigatória ou obrigatória em falha.
+7. Observação pode ser nenhuma, opcional, obrigatória ou obrigatória em falha.
 8. Um equipamento pode escolher exatamente um perfil.
 9. Um equipamento pode possuir itens adicionais por etapa.
 10. OS criada com equipamento configurado recebe snapshot.
@@ -734,17 +747,19 @@ Essas extensões podem ser adicionadas depois sem alterar o núcleo de snapshot/
 13. `/admin/orders/:id/checklists` funciona com deep-link/F5 e volta para o detalhe da OS.
 14. Página da OS mostra progresso por etapa.
 15. Usuário pode responder item conforme permissão.
-16. Foto de item é vinculada ao checklist sem duplicar arquivo físico.
-17. Foto de etapa vinculada a Situação aparece também em Documentos da OS.
+16. Foto de item é vinculada ao checklist e também à mídia geral da OS sem duplicar arquivo físico.
+17. Foto de etapa vinculada a Situação também aparece agrupada em Documentos da OS.
 18. Etapa só conclui quando requisitos obrigatórios estiverem válidos.
 19. Banco impede saída de Situação bloqueadora incompleta.
 20. Bloqueio funciona também no Kanban.
-21. Cancelamento da OS não fica bloqueado pelo checklist.
-22. Auditoria registra responsáveis e eventos relevantes.
-23. Todas as tabelas são isoladas por `organization_id` e RLS.
-24. Cache usa o QueryClient existente, sem cache manual paralelo.
-25. OS antigas sem snapshot continuam funcionando.
-26. Build Vite deve passar após implementação.
+21. Resolver OS respeita etapas configuradas para bloquear resolução.
+22. Concluir OS respeita etapas configuradas para bloquear conclusão.
+23. Cancelamento da OS não fica bloqueado pelo checklist.
+24. Auditoria registra responsáveis e eventos relevantes.
+25. Todas as tabelas são isoladas por `organization_id`, RLS e integridade multi-tenant.
+26. Cache usa o QueryClient existente, sem cache manual paralelo.
+27. OS antigas sem snapshot continuam funcionando.
+28. Build Vite deve passar após implementação.
 
 ## Arquivos/áreas esperadas na implementação
 
@@ -757,13 +772,14 @@ Essas extensões podem ser adicionadas depois sem alterar o núcleo de snapshot/
 - `src/features/orders/presentation/TabOrders.tsx`
 - `src/features/orders/presentation/OrderDetailsPage.tsx`
 - nova página `OrderChecklistsPage.tsx` e hook/repositório correspondente
+- `src/features/orders/infrastructure/orders.repository.ts`
 - `src/features/admin-shell/domain/admin.types.ts`
 - `src/features/admin-shell/admin-routes.ts`
 - `src/features/admin-shell/navigation-config.ts`
 - `src/app/Admin.tsx`
 - `src/infrastructure/query/query-keys.ts`
 - `src/infrastructure/query/QueryRealtimeSync.tsx`
-- permission taxonomy
+- taxonomy de permissões
 - migration SQL do checklist
 
-A implementação deve ser feita diretamente na `main`, em commits agrupados e coerentes, sem branch/PR intermediário e sem acompanhamento contínuo de deploy.
+A implementação será feita diretamente na `main`, em commits agrupados e coerentes, sem branch/PR intermediário e sem acompanhamento contínuo de deploy.
