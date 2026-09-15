@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Eye, EyeOff, LoaderCircle, XCircle } from "lucide-react";
 import { ARTVIDEO_ORGANIZATION_ID } from "@/features/telephony/domain/uniq-call";
 import { listActiveRoles } from "@/features/roles/infrastructure/roles.repository";
@@ -6,15 +6,21 @@ import {
   checkEmployeeUsernameAvailability,
   listObservedUniqSubscribers,
 } from "../infrastructure/user-access.repository";
-import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
+import {
+  authEmailForUsername,
+  isValidUsername,
+  normalizeUsername,
+  usernameFromAuthEmail,
+} from "@/features/auth/domain/username";
 import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { Section } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
 
 export type EmployeeAccessFormState = {
   enabled: boolean;
-  profile_id: string | null;
-  username: string;
+  email: string;
+  profile_id?: string | null;
+  username?: string;
   password: string;
   role_id: string;
   uniq_subscriber_id: string;
@@ -22,6 +28,7 @@ export type EmployeeAccessFormState = {
 
 export const emptyEmployeeAccessForm = (): EmployeeAccessFormState => ({
   enabled: false,
+  email: "",
   profile_id: null,
   username: "",
   password: "",
@@ -41,6 +48,7 @@ export function UserAccessSection({
   value,
   onChange,
   existingAccess,
+  registrationEmail: _registrationEmail,
   disabled = false,
   loading = false,
   embedded = false,
@@ -49,6 +57,7 @@ export function UserAccessSection({
   value: EmployeeAccessFormState;
   onChange: (value: EmployeeAccessFormState) => void;
   existingAccess: boolean;
+  registrationEmail?: string;
   disabled?: boolean;
   loading?: boolean;
   embedded?: boolean;
@@ -57,9 +66,15 @@ export function UserAccessSection({
   const [uniqSubscribers, setUniqSubscribers] = useState<UniqSubscriber[]>(uniqSubscribersCache || []);
   const [showPassword, setShowPassword] = useState(false);
   const [usernameAvailability, setUsernameAvailability] = useState<UsernameAvailability>("idle");
+  const initialUsernameRef = useRef("");
   const isArtVideo = organizationId === ARTVIDEO_ORGANIZATION_ID;
-  const normalizedUsername = normalizeUsername(value.username);
+  const normalizedUsername = normalizeUsername(value.username || usernameFromAuthEmail(value.email));
   const usernameValid = isValidUsername(normalizedUsername);
+
+  useEffect(() => {
+    if (!existingAccess || initialUsernameRef.current || !normalizedUsername) return;
+    initialUsernameRef.current = normalizedUsername;
+  }, [existingAccess, normalizedUsername]);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +116,11 @@ export function UserAccessSection({
       return;
     }
 
+    if (existingAccess && initialUsernameRef.current === normalizedUsername) {
+      setUsernameAvailability("available");
+      return;
+    }
+
     let cancelled = false;
     setUsernameAvailability("checking");
     const timeout = window.setTimeout(() => {
@@ -118,7 +138,7 @@ export function UserAccessSection({
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [value.enabled, value.profile_id, normalizedUsername, usernameValid]);
+  }, [value.enabled, value.profile_id, existingAccess, normalizedUsername, usernameValid]);
 
   const roleOptions = useMemo(() => [
     { value: "", label: "Selecionar função..." },
@@ -174,8 +194,15 @@ export function UserAccessSection({
           spellCheck={false}
           maxLength={32}
           placeholder="ex.: rafael.lima"
-          value={value.username}
-          onChange={(event: any) => onChange({ ...value, username: normalizeUsername(event.target.value) })}
+          value={normalizedUsername}
+          onChange={(event: any) => {
+            const username = normalizeUsername(event.target.value);
+            onChange({
+              ...value,
+              username,
+              email: authEmailForUsername(username),
+            });
+          }}
         />
         <div className="mt-1.5 min-h-4 text-[11px] leading-4">{availabilityFeedback}</div>
       </div>
