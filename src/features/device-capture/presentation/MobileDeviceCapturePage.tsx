@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Camera, CheckCircle2, Hash, ImagePlus, Loader2, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
 import { useLocation, useParams } from "react-router";
+import { MobileEntryChecklist } from "./MobileEntryChecklist";
 import {
   connectDeviceCaptureByCode,
   connectDeviceCaptureSession,
@@ -499,6 +500,8 @@ export function MobileDeviceCapturePage() {
           <input ref={labelInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("label", file); }} />
           <input ref={equipmentInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("equipment", file); }} />
         </section>
+
+        <MobileEntryChecklist sessionId={pairing.sessionId} token={pairing.token} />
 
         <button type="button" onClick={disconnectDevice} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]"><Unplug size={17} /> Desconectar e conectar outra OS</button>
         <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#5a6a82]"><WifiOff size={12} /> A conexão também encerra automaticamente quando o QR/código expirar ou o PC fechar a sessão.</div>
