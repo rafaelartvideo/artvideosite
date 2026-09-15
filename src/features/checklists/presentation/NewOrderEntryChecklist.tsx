@@ -61,23 +61,12 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
         </span>
         <div className="min-w-0">
           <p className="text-sm font-black text-[#0d1b2e]">Checklist de entrada</p>
-          <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">
-            Preencha a primeira etapa durante a abertura da OS.
-          </p>
+          <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">Preencha a primeira etapa durante a abertura da OS.</p>
         </div>
       </div>
 
-      {loading && (
-        <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] p-4 text-sm font-semibold text-[#0057e7]">
-          Carregando checklist de entrada...
-        </div>
-      )}
-
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-          {error}
-        </div>
-      )}
+      {loading && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] p-4 text-sm font-semibold text-[#0057e7]">Carregando checklist de entrada...</div>}
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
       {draft && (
         <div className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
@@ -106,88 +95,28 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
                           key={option.value}
                           type="button"
                           onClick={() => update(index, { responseCode: option.value })}
-                          className={`h-9 rounded-lg border px-3 text-xs font-bold transition ${item.responseCode === option.value
-                            ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]"
-                            : "border-[#0d1b2e]/12 bg-white text-[#52647c] hover:border-[#0057e7]/35 hover:text-[#0057e7]"}`}
+                          className={`h-9 rounded-lg border px-3 text-xs font-bold transition ${item.responseCode === option.value ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/12 bg-white text-[#52647c] hover:border-[#0057e7]/35 hover:text-[#0057e7]"}`}
                         >
                           {option.label}
                         </button>
                       ))}
 
-                      <label
-                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff]"
-                        title="Tirar foto"
-                        aria-label="Tirar foto"
-                      >
+                      <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff]" title="Tirar foto" aria-label="Tirar foto">
                         <Camera size={16} />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
-                          onChange={event => {
-                            const file = event.target.files?.[0];
-                            if (file) update(index, { photos: [...item.photos, file] });
-                            event.currentTarget.value = "";
-                          }}
-                        />
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
                       </label>
 
                       <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 text-xs font-bold text-[#0057e7] transition hover:bg-[#eef5ff]">
                         <Plus size={15} /> Foto
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={event => {
-                            const file = event.target.files?.[0];
-                            if (file) update(index, { photos: [...item.photos, file] });
-                            event.currentTarget.value = "";
-                          }}
-                        />
+                        <input type="file" accept="image/*" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
                       </label>
                     </div>
                   </div>
 
-                  {item.description && (
-                    <p className="mt-1.5 text-xs leading-5 text-[#6b7c93]">
-                      <span className="font-bold text-[#52647c]">Orientação:</span> {item.description}
-                    </p>
-                  )}
-
-                  {item.responseType === "text" && (
-                    <div className="mt-3">
-                      <FTextarea
-                        label="Resposta"
-                        value={item.responseText}
-                        onChange={(event: any) => update(index, { responseText: event.target.value })}
-                      />
-                    </div>
-                  )}
-
-                  {item.responseType === "number" && (
-                    <div className="mt-3 max-w-xs">
-                      <FInput
-                        label="Valor"
-                        inputMode="decimal"
-                        value={item.responseNumber}
-                        onChange={(event: any) => update(index, { responseNumber: event.target.value })}
-                      />
-                    </div>
-                  )}
-
-                  {showObservation && (
-                    <div className="mt-3">
-                      <FTextarea
-                        label="Observação"
-                        value={item.observation}
-                        onChange={(event: any) => update(index, { observation: event.target.value })}
-                      />
-                    </div>
-                  )}
+                  {item.description && <p className="mt-1.5 text-xs leading-5 text-[#6b7c93]"><span className="font-bold text-[#52647c]">Orientação:</span> {item.description}</p>}
 
                   {item.photos.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2.5 flex flex-wrap gap-2">
                       {item.photos.map((file, photoIndex) => (
                         <LocalPhotoThumb
                           key={`${file.name}-${file.lastModified}-${photoIndex}`}
@@ -197,6 +126,10 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
                       ))}
                     </div>
                   )}
+
+                  {item.responseType === "text" && <div className="mt-3"><FTextarea label="Resposta" value={item.responseText} onChange={(event: any) => update(index, { responseText: event.target.value })} /></div>}
+                  {item.responseType === "number" && <div className="mt-3 max-w-xs"><FInput label="Valor" inputMode="decimal" value={item.responseNumber} onChange={(event: any) => update(index, { responseNumber: event.target.value })} /></div>}
+                  {showObservation && <div className="mt-3"><FTextarea label="Observação" value={item.observation} onChange={(event: any) => update(index, { observation: event.target.value })} /></div>}
                 </div>
               );
             })}
@@ -219,13 +152,7 @@ function LocalPhotoThumb({ file, onRemove }: { file: File; onRemove: () => void 
   return (
     <div className="group relative h-16 w-16 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f5f7fa]">
       {src && <img src={src} alt={file.name || "Foto do checklist"} className="h-full w-full object-cover" />}
-      <button
-        type="button"
-        onClick={onRemove}
-        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/65 text-white shadow-sm transition hover:bg-black"
-        title="Remover foto"
-        aria-label="Remover foto"
-      >
+      <button type="button" onClick={onRemove} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/65 text-white shadow-sm transition hover:bg-black" title="Remover foto" aria-label="Remover foto">
         <X size={12} />
       </button>
     </div>
@@ -233,13 +160,7 @@ function LocalPhotoThumb({ file, onRemove }: { file: File; onRemove: () => void 
 }
 
 function options(type: string) {
-  if (type === "conformity") return [
-    { value: "ok", label: "Conforme" },
-    { value: "not_ok", label: "Não conforme" },
-  ];
-  if (type === "yes_no") return [
-    { value: "yes", label: "Sim" },
-    { value: "no", label: "Não" },
-  ];
+  if (type === "conformity") return [{ value: "ok", label: "Conforme" }, { value: "not_ok", label: "Não conforme" }];
+  if (type === "yes_no") return [{ value: "yes", label: "Sim" }, { value: "no", label: "Não" }];
   return [{ value: "confirmed", label: "Confirmar" }];
 }
