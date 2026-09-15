@@ -36,7 +36,7 @@ import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type SharedAccessMode = "default" | "read";
-type OrderDetailSubpage = "history" | "documents";
+type OrderDetailSubpage = "history" | "documents" | "part-requests" | "sla-records";
 
 type TabOrdersProps = {
   onNavigate?: (tab: AdminTab) => void;
