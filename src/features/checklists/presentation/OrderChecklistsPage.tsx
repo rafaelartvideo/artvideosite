@@ -10,7 +10,6 @@ import {
   ClipboardCheck,
   Image as ImageIcon,
   LockKeyhole,
-  Plus,
   RotateCcw,
   Save,
   UserRoundCheck,
@@ -42,6 +41,47 @@ function formatAuditDate(value?: string | null) {
   if (!value) return "";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : auditDateFormatter.format(date);
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}
+
+function getStagePendingMessage(stage: OrderChecklistStage) {
+  for (const item of stage.items) {
+    const isNA = item.allow_na_snapshot && item.response_code === "na";
+    const hasAnswer = isNA
+      || (item.response_type_snapshot === "conformity" && ["ok", "not_ok"].includes(item.response_code || ""))
+      || (item.response_type_snapshot === "yes_no" && ["yes", "no"].includes(item.response_code || ""))
+      || (item.response_type_snapshot === "confirmation" && item.response_code === "confirmed")
+      || (item.response_type_snapshot === "text" && Boolean(item.response_text?.trim()))
+      || (item.response_type_snapshot === "number" && item.response_number != null);
+
+    if (item.is_required_snapshot && !hasAnswer) {
+      return `Responda “${item.title_snapshot}” antes de concluir a etapa.`;
+    }
+    if (!hasAnswer) continue;
+
+    const failure = isChecklistFailure(item);
+    const requiresPhoto = item.photo_requirement_snapshot === "required"
+      || (item.photo_requirement_snapshot === "required_on_failure" && failure);
+    if (requiresPhoto && item.media.length === 0) {
+      return `Adicione a imagem obrigatória em “${item.title_snapshot}” antes de concluir a etapa.`;
+    }
+
+    const requiresObservation = item.observation_requirement_snapshot === "required"
+      || (item.observation_requirement_snapshot === "required_on_failure" && failure);
+    if (requiresObservation && !item.observation?.trim()) {
+      return `Preencha a observação obrigatória em “${item.title_snapshot}” antes de concluir a etapa.`;
+    }
+  }
+  return null;
 }
 
 export function OrderChecklistsPage({
@@ -97,6 +137,12 @@ export function OrderChecklistsPage({
   };
 
   const completeStage = async (stage: OrderChecklistStage) => {
+    const pendingMessage = getStagePendingMessage(stage);
+    if (pendingMessage) {
+      setToast({ msg: pendingMessage, type: "error" });
+      return;
+    }
+
     setBusyStageId(stage.id);
     try {
       await completeOrderChecklistStage(stage.id);
@@ -109,7 +155,7 @@ export function OrderChecklistsPage({
         type: "success",
       });
     } catch (error) {
-      setToast({ msg: error instanceof Error ? error.message : String(error), type: "error" });
+      setToast({ msg: getErrorMessage(error, "Não foi possível concluir a etapa do checklist."), type: "error" });
     } finally {
       setBusyStageId(null);
     }
@@ -123,7 +169,7 @@ export function OrderChecklistsPage({
       setSelectedStageId(stage.id);
       setToast({ msg: `Etapa ${stage.name_snapshot} reaberta.`, type: "success" });
     } catch (error) {
-      setToast({ msg: error instanceof Error ? error.message : String(error), type: "error" });
+      setToast({ msg: getErrorMessage(error, "Não foi possível reabrir a etapa do checklist."), type: "error" });
     } finally {
       setBusyStageId(null);
     }
@@ -150,7 +196,7 @@ export function OrderChecklistsPage({
           <LoadingState text="Preparando checklist da OS..." />
         ) : query.error ? (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-            {query.error instanceof Error ? query.error.message : String(query.error)}
+            {getErrorMessage(query.error, "Não foi possível carregar o checklist.")}
           </div>
         ) : !checklist ? (
           <EmptyState
@@ -383,7 +429,7 @@ function OrderChecklistItemEditor({
       await onChanged();
       onSuccess("Resposta do checklist salva.");
     } catch (error) {
-      onError(error instanceof Error ? error.message : String(error));
+      onError(getErrorMessage(error, "Não foi possível salvar a resposta do checklist."));
     } finally {
       setSaving(false);
     }
@@ -403,7 +449,7 @@ function OrderChecklistItemEditor({
       await onChanged();
       onSuccess("Foto adicionada ao checklist e disponível em Documentos > Checklist.");
     } catch (error) {
-      onError(error instanceof Error ? error.message : String(error));
+      onError(getErrorMessage(error, "Não foi possível adicionar a imagem ao checklist."));
     } finally {
       setUploading(false);
     }
@@ -489,12 +535,13 @@ function OrderChecklistItemEditor({
 
         {photoEnabled && !disabled && (
           <div className="flex items-center justify-end gap-2 md:self-center">
-            <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff]" title="Tirar foto" aria-label="Tirar foto">
+            <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff] sm:hidden" title="Tirar foto" aria-label="Tirar foto">
               <Camera size={16} />
               <input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; void upload(file); event.currentTarget.value = ""; }} />
             </label>
-            <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 text-xs font-bold text-[#0057e7] transition hover:bg-[#eef5ff]">
-              <Plus size={15} /> Foto
+            <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white text-[#0057e7] transition hover:bg-[#eef5ff] sm:w-auto sm:px-3" title="Selecionar imagem" aria-label="Selecionar imagem">
+              <ImageIcon size={16} className="sm:hidden" />
+              <span className="hidden text-xs font-bold sm:inline">Selecionar imagem</span>
               <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; void upload(file); event.currentTarget.value = ""; }} />
             </label>
           </div>
