@@ -1,10 +1,17 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import {
+  authEmailForUsername,
+  normalizeUsername,
+  usernameFromAuthEmail,
+  usernameHash,
+} from "@/features/auth/domain/username";
 
 export type EmployeeAccess = {
   enabled: boolean;
   profile_id: string | null;
   user_id: string | null;
+  username: string | null;
   email: string | null;
   role_id: string | null;
   uniq_subscriber_id: string | null;
@@ -15,7 +22,7 @@ export type SaveEmployeeAccessInput = {
   organizationId: string;
   employeeId: string;
   enabled: boolean;
-  email?: string | null;
+  username?: string | null;
   password?: string | null;
   roleId?: string | null;
   uniqSubscriberId?: string | null;
@@ -30,7 +37,12 @@ async function normalizeFunctionInvokeError(error: unknown) {
         : typeof payload?.message === "string"
           ? payload.message
           : "";
-      if (message.trim()) return new Error(message.trim());
+      if (message.trim()) {
+        if (message.toLocaleLowerCase("pt-BR").includes("e-mail já cadastrado")) {
+          return new Error("Este usuário já está em uso.");
+        }
+        return new Error(message.trim());
+      }
     } catch {
       // Keep the SDK fallback below when the response body is not JSON.
     }
@@ -46,20 +58,52 @@ async function invokeEmployeeAccess(body: Record<string, unknown>) {
 }
 
 export async function getEmployeeAccess(organizationId: string, employeeId: string) {
-  return invokeEmployeeAccess({
+  const result = await invokeEmployeeAccess({
     action: "get_employee_access",
     organization_id: organizationId,
     employee_id: employeeId,
   });
+
+  if (result.error || !result.data?.access) return result;
+  const access = result.data.access as Record<string, unknown>;
+  const username = normalizeUsername(access.username || usernameFromAuthEmail(access.email));
+  return {
+    ...result,
+    data: {
+      ...result.data,
+      access: {
+        ...access,
+        username: username || null,
+      } as EmployeeAccess,
+    },
+  };
+}
+
+export async function checkEmployeeUsernameAvailability(username: string, currentUserId?: string | null) {
+  const normalized = normalizeUsername(username);
+  const hash = await usernameHash(normalized);
+  const { data, error } = await supabase
+    .from("username_registry")
+    .select("user_id")
+    .eq("username_hash", hash)
+    .maybeSingle();
+
+  if (error) return { available: false, error };
+  return {
+    available: !data?.user_id || data.user_id === currentUserId,
+    error: null,
+  };
 }
 
 export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
+  const username = normalizeUsername(input.username);
   return invokeEmployeeAccess({
     action: "upsert_employee_access",
     organization_id: input.organizationId,
     employee_id: input.employeeId,
     enabled: input.enabled,
-    email: input.email?.trim().replace(/\s+/g, "").toLowerCase() || null,
+    username: username || null,
+    email: username ? authEmailForUsername(username) : null,
     password: input.password || undefined,
     role_id: input.roleId || null,
     uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
