@@ -4,9 +4,15 @@ import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import {
+  applyDeviceEntryChecklistAnswer,
+  applyDeviceEntryChecklistPhoto,
+} from "@/features/checklists/application/new-order-entry-checklist";
+import {
+  bindDeviceCaptureChecklist,
   closeDeviceCaptureSession,
   createDeviceCaptureSession,
   pollDeviceCaptureSession,
+  pollDeviceChecklistEvents,
   type DeviceCapturePhotoKind,
   type DeviceCaptureSession,
 } from "../infrastructure/device-capture.gateway";
@@ -16,12 +22,24 @@ function formatPairingCode(code: string) {
   return digits.length > 4 ? `${digits.slice(0, 4)} ${digits.slice(4)}` : digits;
 }
 
+async function signedUrlToFile(signedUrl: string, fileName: string, mimeType: string, fallbackId: number) {
+  const response = await fetch(signedUrl);
+  if (!response.ok) throw new Error("Não foi possível baixar a foto recebida.");
+  const blob = await response.blob();
+  return new File([blob], fileName || `foto-${fallbackId}.jpg`, {
+    type: mimeType || blob.type || "image/jpeg",
+    lastModified: Date.now(),
+  });
+}
+
 export function DeviceCaptureBridge({
   disabled = false,
+  equipmentTypeId,
   onSerial,
   onPhoto,
 }: {
   disabled?: boolean;
+  equipmentTypeId?: string | null;
   onSerial: (serial: string) => void;
   onPhoto: (file: File, kind: DeviceCapturePhotoKind) => void;
 }) {
@@ -33,12 +51,22 @@ export function DeviceCaptureBridge({
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState("");
   const [receivedPhotos, setReceivedPhotos] = useState(0);
+  const [receivedChecklistChanges, setReceivedChecklistChanges] = useState(0);
   const [lastSerial, setLastSerial] = useState("");
   const lastEventIdRef = useRef(0);
+  const lastChecklistEventIdRef = useRef(0);
   const pollingRef = useRef(false);
   const sessionRef = useRef<DeviceCaptureSession | null>(null);
 
   sessionRef.current = session;
+
+  const resetCounters = () => {
+    setReceivedPhotos(0);
+    setReceivedChecklistChanges(0);
+    setLastSerial("");
+    lastEventIdRef.current = 0;
+    lastChecklistEventIdRef.current = 0;
+  };
 
   const startSession = useCallback(async () => {
     if (!activeOrganizationId || disabled || creating) return;
@@ -46,14 +74,12 @@ export function DeviceCaptureBridge({
     setError("");
     setExpired(false);
     setConnected(false);
-    setReceivedPhotos(0);
-    setLastSerial("");
-    lastEventIdRef.current = 0;
+    resetCounters();
     try {
       if (sessionRef.current) {
-        await closeDeviceCaptureSession(sessionRef.current.id).catch(() => undefined);
+        await closeDeviceCaptureSession(sessionRef.current.id, sessionRef.current.token).catch(() => undefined);
       }
-      const nextSession = await createDeviceCaptureSession(activeOrganizationId);
+      const nextSession = await createDeviceCaptureSession(activeOrganizationId, equipmentTypeId);
       sessionRef.current = nextSession;
       setSession(nextSession);
     } catch (nextError) {
@@ -62,7 +88,7 @@ export function DeviceCaptureBridge({
     } finally {
       setCreating(false);
     }
-  }, [activeOrganizationId, disabled, creating]);
+  }, [activeOrganizationId, disabled, creating, equipmentTypeId]);
 
   const openBridge = () => {
     setOpen(true);
@@ -71,20 +97,26 @@ export function DeviceCaptureBridge({
 
   const endSession = async () => {
     const current = sessionRef.current;
-    if (current) await closeDeviceCaptureSession(current.id).catch(() => undefined);
+    if (current) await closeDeviceCaptureSession(current.id, current.token).catch(() => undefined);
     sessionRef.current = null;
     setSession(null);
     setConnected(false);
     setExpired(false);
-    setReceivedPhotos(0);
-    setLastSerial("");
-    lastEventIdRef.current = 0;
+    resetCounters();
   };
 
   useEffect(() => () => {
     const current = sessionRef.current;
-    if (current) void closeDeviceCaptureSession(current.id).catch(() => undefined);
+    if (current) void closeDeviceCaptureSession(current.id, current.token).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    lastChecklistEventIdRef.current = 0;
+    void bindDeviceCaptureChecklist(session.id, equipmentTypeId).catch(bindError => {
+      setError(bindError instanceof Error ? bindError.message : "Não foi possível vincular o checklist ao celular.");
+    });
+  }, [session?.id, equipmentTypeId]);
 
   useEffect(() => {
     if (!session || expired) return;
@@ -94,15 +126,19 @@ export function DeviceCaptureBridge({
       if (pollingRef.current || cancelled) return;
       pollingRef.current = true;
       try {
-        const result = await pollDeviceCaptureSession(session.id, lastEventIdRef.current);
+        const [captureResult, checklistEvents] = await Promise.all([
+          pollDeviceCaptureSession(session.id, lastEventIdRef.current),
+          pollDeviceChecklistEvents(session.id, session.token, lastChecklistEventIdRef.current),
+        ]);
         if (cancelled) return;
-        setConnected(result.connected);
-        if (result.status !== "active") {
+
+        setConnected(captureResult.connected);
+        if (captureResult.status !== "active") {
           setExpired(true);
           setConnected(false);
         }
 
-        for (const event of result.events) {
+        for (const event of captureResult.events) {
           if (cancelled || event.id <= lastEventIdRef.current) continue;
           if (event.type === "serial") {
             const value = event.value.trim();
@@ -115,18 +151,32 @@ export function DeviceCaptureBridge({
           }
 
           try {
-            const response = await fetch(event.signedUrl);
-            if (!response.ok) throw new Error("Não foi possível baixar a foto recebida.");
-            const blob = await response.blob();
-            const file = new File([blob], event.fileName || `foto-${event.id}.jpg`, {
-              type: event.mimeType || blob.type || "image/jpeg",
-              lastModified: Date.now(),
-            });
+            const file = await signedUrlToFile(event.signedUrl, event.fileName, event.mimeType, event.id);
             onPhoto(file, event.kind);
             setReceivedPhotos(current => current + 1);
             lastEventIdRef.current = event.id;
           } catch (photoError) {
             setError(photoError instanceof Error ? photoError.message : "Não foi possível receber uma foto do celular.");
+            break;
+          }
+        }
+
+        for (const event of checklistEvents) {
+          if (cancelled || event.id <= lastChecklistEventIdRef.current) continue;
+          if (event.type === "checklist") {
+            applyDeviceEntryChecklistAnswer(event.itemKey, event.payload);
+            setReceivedChecklistChanges(current => current + 1);
+            lastChecklistEventIdRef.current = event.id;
+            continue;
+          }
+
+          try {
+            const file = await signedUrlToFile(event.signedUrl, event.fileName, event.mimeType, event.id);
+            applyDeviceEntryChecklistPhoto(event.itemKey, file);
+            setReceivedChecklistChanges(current => current + 1);
+            lastChecklistEventIdRef.current = event.id;
+          } catch (photoError) {
+            setError(photoError instanceof Error ? photoError.message : "Não foi possível receber a foto do checklist.");
             break;
           }
         }
@@ -143,7 +193,7 @@ export function DeviceCaptureBridge({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [session?.id, expired, onPhoto, onSerial]);
+  }, [session?.id, session?.token, expired, onPhoto, onSerial]);
 
   const captureUrl = session
     ? `${window.location.origin}/captura?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}`
@@ -192,12 +242,15 @@ export function DeviceCaptureBridge({
 
             <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${connected ? "border-emerald-200 bg-emerald-50" : "border-[#0057e7]/20 bg-[#eef5ff]"}`}>
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${connected ? "bg-emerald-600 text-white" : "bg-[#0057e7] text-white"}`}>{connected ? <Wifi size={17} /> : <Smartphone size={17} />}</span>
-              <div className="min-w-0 flex-1"><p className={`text-sm font-black ${connected ? "text-emerald-700" : "text-[#0d1b2e]"}`}>{connected ? "Celular conectado" : "Aguardando o celular"}</p><p className="mt-0.5 text-xs text-[#5a6a82]">{connected ? "As capturas aparecerão automaticamente nesta OS." : <>Abra <strong>{fixedCaptureUrl}</strong> no celular e use o QR ou o código.</>}</p></div>
+              <div className="min-w-0 flex-1"><p className={`text-sm font-black ${connected ? "text-emerald-700" : "text-[#0d1b2e]"}`}>{connected ? "Celular conectado" : "Aguardando o celular"}</p><p className="mt-0.5 text-xs text-[#5a6a82]">{connected ? "Série, fotos e checklist aparecem automaticamente nesta OS." : <>Abra <strong>{fixedCaptureUrl}</strong> no celular e use o QR ou o código.</>}</p></div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+
+            <div className="grid grid-cols-3 gap-2">
               <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-3"><p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#5a6a82]"><Clock3 size={12} /> Expira</p><p className="mt-1 text-sm font-black text-[#0d1b2e]">{expiryLabel}</p></div>
-              <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-3"><p className="text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Recebido</p><p className="mt-1 text-sm font-black text-[#0d1b2e]">{receivedPhotos} foto{receivedPhotos === 1 ? "" : "s"}</p></div>
+              <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-3"><p className="text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Fotos</p><p className="mt-1 text-sm font-black text-[#0d1b2e]">{receivedPhotos}</p></div>
+              <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-3"><p className="text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Checklist</p><p className="mt-1 text-sm font-black text-[#0d1b2e]">{receivedChecklistChanges}</p></div>
             </div>
+
             {lastSerial && <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={15} /> Série recebida: <span className="min-w-0 truncate font-black">{lastSerial}</span></div>}
             <p className="text-center text-[11px] leading-5 text-[#5a6a82]">QR e código são temporários e pertencem somente a esta sessão. Eles não dão acesso ao painel administrativo.</p>
             <div className="flex flex-wrap justify-end gap-2">
