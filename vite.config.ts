@@ -8,28 +8,36 @@ function figmaAssetResolver() {
     name: 'figma-asset-resolver',
     resolveId(id) {
       if (id.startsWith('figma:asset/')) {
-        return path.resolve(__dirname, 'src/assets', id.replace('figma:asset/', ''))
+        const filename = id.replace('figma:asset/', '')
+        return path.resolve(__dirname, 'src/assets', filename)
       }
     },
   }
 }
 
 export default defineConfig({
-  plugins: [figmaAssetResolver(), react(), tailwindcss()],
+  plugins: [
+    figmaAssetResolver(),
+    react(),
+    tailwindcss(),
+  ],
   resolve: {
     alias: {
-      '@/features/access/presentation/UserAccessSection': path.resolve(__dirname, 'src/features/access/presentation/UserAccessSectionV2.tsx'),
-      '@': path.resolve(__dirname, 'src'),
+      '@': path.resolve(__dirname, './src'),
     },
   },
+
   build: {
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('@tanstack/react-query') || id.includes('@tanstack/query-core')) return 'vendor-query'
+          if (id.includes('@tanstack/react-query') || id.includes('@tanstack/query-core')) {
+            return 'vendor-query'
+          }
         },
       },
     },
   },
+
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })
