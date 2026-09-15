@@ -3,6 +3,7 @@ import { getAddressMapUrl } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
 import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { formatCnpj, formatCpf, formatDateOnly, formatPhone } from "@/shared/domain/formatters";
+import { usernameFromAuthEmail } from "@/features/auth/domain/username";
 import { activeRegistrationRoles } from "../domain/registration-form";
 import type { Registration, RegistrationRole, SupplierInventoryItem } from "../infrastructure/registrations.repository";
 import type { EmployeeAccessFormState } from "@/features/access/presentation/UserAccessSection";
@@ -75,6 +76,7 @@ export function RegistrationDetails({
   const employee = selected.employee_details?.[0];
   const employeeRecord = selected.legacy_employee;
   const accessActive = employeeRecord?.is_active !== false && accessForm.enabled !== false;
+  const accessUsername = accessForm.username || usernameFromAuthEmail(accessForm.email) || "—";
   const activeAddresses = (selected.addresses || [])
     .filter(address => address.is_active !== false)
     .sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
@@ -150,7 +152,7 @@ export function RegistrationDetails({
           <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
           <div className="grid gap-4 sm:grid-cols-3">
             {detailValue("Status", accessExisting ? (accessActive ? "Ativo" : "Inativo") : "Sem login")}
-            {detailValue("E-mail de login", accessForm.email || "—")}
+            {detailValue("Usuário", accessUsername)}
             {detailValue("Função vinculada", accessForm.role_id ? "Configurada" : "—")}
           </div>
         </div>}
