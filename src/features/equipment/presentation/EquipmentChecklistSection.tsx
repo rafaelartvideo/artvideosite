@@ -46,9 +46,10 @@ export function EquipmentChecklistSection({ draft, catalog, onChange }: {
 }) {
   const selectedStages = catalog.checklistStages.filter(stage => stage.profile_id === draft.checklist_profile_id);
   const stageOptions = selectedStages.map(stage => ({ value: stage.code, label: stage.name }));
+  const selectableProfiles = catalog.checklistProfiles.filter(profile => profile.is_active || profile.id === draft.checklist_profile_id);
   const profileOptions = [
     { value: "", label: "Sem perfil de checklist" },
-    ...catalog.checklistProfiles.map(profile => ({ value: profile.id, label: `${profile.name} • v${profile.version}` })),
+    ...selectableProfiles.map(profile => ({ value: profile.id, label: `${profile.name} • v${profile.version}${profile.is_active ? "" : " • Inativo"}` })),
   ];
 
   const updateItem = (index: number, patch: Partial<EquipmentChecklistItem>) => onChange({ checklistItems: draft.checklistItems.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) });
