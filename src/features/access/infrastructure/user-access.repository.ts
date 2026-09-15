@@ -21,14 +21,6 @@ export type SaveEmployeeAccessInput = {
   uniqSubscriberId?: string | null;
 };
 
-const EMPLOYEE_ACCESS_CACHE_TTL = 60_000;
-const employeeAccessCache = new Map<string, { at: number; result: any }>();
-const employeeAccessPending = new Map<string, Promise<any>>();
-
-function employeeAccessKey(organizationId: string, employeeId: string) {
-  return `${organizationId}:${employeeId}`;
-}
-
 async function normalizeFunctionInvokeError(error: unknown) {
   if (error instanceof FunctionsHttpError) {
     try {
@@ -54,32 +46,15 @@ async function invokeEmployeeAccess(body: Record<string, unknown>) {
 }
 
 export async function getEmployeeAccess(organizationId: string, employeeId: string) {
-  const key = employeeAccessKey(organizationId, employeeId);
-  const cached = employeeAccessCache.get(key);
-  if (cached && Date.now() - cached.at < EMPLOYEE_ACCESS_CACHE_TTL) return cached.result;
-
-  const pending = employeeAccessPending.get(key);
-  if (pending) return pending;
-
-  const request = invokeEmployeeAccess({
+  return invokeEmployeeAccess({
     action: "get_employee_access",
     organization_id: organizationId,
     employee_id: employeeId,
-  }).then(result => {
-    employeeAccessPending.delete(key);
-    if (!result.error) employeeAccessCache.set(key, { at: Date.now(), result });
-    return result;
-  }, error => {
-    employeeAccessPending.delete(key);
-    throw error;
   });
-
-  employeeAccessPending.set(key, request);
-  return request;
 }
 
 export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
-  const result = await invokeEmployeeAccess({
+  return invokeEmployeeAccess({
     action: "upsert_employee_access",
     organization_id: input.organizationId,
     employee_id: input.employeeId,
@@ -89,18 +64,14 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
     role_id: input.roleId || null,
     uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
   });
-  if (!result.error) employeeAccessCache.delete(employeeAccessKey(input.organizationId, input.employeeId));
-  return result;
 }
 
 export async function setEmployeeAccessActive(organizationId: string, employeeId: string, isActive: boolean) {
-  const result = await supabase.rpc("set_employee_active_state", {
+  return supabase.rpc("set_employee_active_state", {
     p_organization_id: organizationId,
     p_employee_id: employeeId,
     p_is_active: isActive,
   });
-  if (!result.error) employeeAccessCache.delete(employeeAccessKey(organizationId, employeeId));
-  return result;
 }
 
 export const listObservedUniqSubscribers = () => supabase.rpc("observed_uniq_subscribers");
