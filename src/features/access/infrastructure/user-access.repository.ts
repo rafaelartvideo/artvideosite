@@ -2,6 +2,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import {
   authEmailForUsername,
+  INTERNAL_AUTH_DOMAIN,
   normalizeUsername,
   usernameFromAuthEmail,
   usernameHash,
@@ -23,6 +24,7 @@ export type SaveEmployeeAccessInput = {
   employeeId: string;
   enabled: boolean;
   username?: string | null;
+  email?: string | null;
   password?: string | null;
   roleId?: string | null;
   uniqSubscriberId?: string | null;
@@ -96,14 +98,20 @@ export async function checkEmployeeUsernameAvailability(username: string, curren
 }
 
 export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
-  const username = normalizeUsername(input.username);
+  const currentEmail = String(input.email || "").trim().replace(/\s+/g, "").toLowerCase();
+  const username = normalizeUsername(input.username || usernameFromAuthEmail(currentEmail));
+  const emailAlreadyUsesUsername = currentEmail.endsWith(`@${INTERNAL_AUTH_DOMAIN}`);
+  const authEmail = input.username || emailAlreadyUsesUsername
+    ? authEmailForUsername(username)
+    : currentEmail || (username ? authEmailForUsername(username) : null);
+
   return invokeEmployeeAccess({
     action: "upsert_employee_access",
     organization_id: input.organizationId,
     employee_id: input.employeeId,
     enabled: input.enabled,
     username: username || null,
-    email: username ? authEmailForUsername(username) : null,
+    email: authEmail,
     password: input.password || undefined,
     role_id: input.roleId || null,
     uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
