@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Camera,
@@ -15,7 +16,7 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { AdminButton, AdminCard, AdminCardHeader, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
@@ -139,7 +140,10 @@ export function OrderChecklistsPage({
       subtitle={checklist ? `${checklist.profile_name_snapshot} • versão ${checklist.profile_version_snapshot}` : "Checklist técnico do equipamento"}
       maxW="max-w-7xl"
     >
-      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && typeof document !== "undefined" && createPortal(
+        <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />,
+        document.body,
+      )}
 
       <div className="px-4 py-5 sm:px-6 lg:px-8">
         {query.isPending ? (
@@ -171,7 +175,7 @@ export function OrderChecklistsPage({
                     </p>
                   )}
                 </div>
-                <span className="text-2xl font-black tracking-tight text-[#0d1b2e]">{progress.percentage}%</span>
+                <span className="text-sm font-black text-[#0d1b2e]">{progress.percentage}%</span>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e8edf4]">
                 <div className="h-full rounded-full bg-[#0057e7] transition-all" style={{ width: `${progress.percentage}%` }} />
@@ -236,75 +240,27 @@ export function OrderChecklistsPage({
                 : completed && stage.completed_at
                   ? <>Concluída por <strong className="font-bold text-[#34445b]">{stage.completed_by_name || "Usuário"}</strong>{formatAuditDate(stage.completed_at) && <> • {formatAuditDate(stage.completed_at)}</>}</>
                   : null;
-              const stageSubtitle = completed
-                ? "Etapa concluída do checklist"
-                : isCurrent
-                  ? "Etapa atual do checklist"
-                  : "Etapa do checklist";
 
               return (
                 <AdminCard className="mt-5">
-                  <AdminCardHeader className="items-start bg-white">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-base font-black text-[#0d1b2e]">{stage.name_snapshot}</h2>
-                        <StatusBadge status={completed ? "Concluído" : isCurrent ? "Em andamento" : "Pendente"} />
-                      </div>
-                      <p className="mt-1 text-xs font-medium text-[#6b7c93]">{stageSubtitle}</p>
-                    </div>
-
-                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                      {selectedIndex > 0 && (
-                        <AdminButton variant="secondary" onClick={() => setSelectedStageId(checklist.stages[selectedIndex - 1].id)}>
-                          <ChevronLeft size={15} /> Anterior
-                        </AdminButton>
-                      )}
-                      {completed && canGoNext && (
-                        <AdminButton variant="secondary" onClick={() => setSelectedStageId(checklist.stages[selectedIndex + 1].id)}>
-                          Próxima <ChevronRight size={15} />
-                        </AdminButton>
-                      )}
-                      {canReopenSelected && (
-                        <AdminButton
-                          variant="secondary"
-                          disabled={busyStageId === stage.id}
-                          onClick={() => void reopenStage(stage)}
-                        >
-                          <RotateCcw size={14} /> Reabrir etapa
-                        </AdminButton>
-                      )}
-                      {!completed && isCurrent && canManage && (
-                        <BtnPrimary disabled={busyStageId === stage.id} onClick={() => void completeStage(stage)}>
-                          <CheckCircle2 size={15} />
-                          {busyStageId === stage.id ? "Validando..." : checklist.stages[selectedIndex + 1] ? "Concluir e avançar" : "Concluir checklist"}
-                          {checklist.stages[selectedIndex + 1] && <ChevronRight size={15} />}
-                        </BtnPrimary>
-                      )}
-                    </div>
-                  </AdminCardHeader>
-
                   <div className="p-4 sm:p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#0d1b2e]/8 pb-4">
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                        <StatusBadge status={completed ? "Concluído" : isCurrent ? "Em andamento" : "Pendente"} />
-                        {stage.situation_name_snapshot && (
-                          <span className="text-xs text-[#6b7c93]">Situação: <strong className="font-bold text-[#45566d]">{stage.situation_name_snapshot}</strong></span>
-                        )}
-                        {stageAudit && <span className="text-xs text-[#6b7c93]">{stageAudit}</span>}
-                      </div>
-                    </div>
-
-                    <div className="border-b border-[#0d1b2e]/8 py-4">
+                    <div className="border-b border-[#0d1b2e]/8 pb-4">
                       <div className="mb-2 flex items-end justify-between gap-3">
                         <div>
-                          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#718096]">Progresso da etapa</p>
+                          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#718096]">Progresso dessa etapa</p>
                           <p className="mt-0.5 text-xs font-semibold text-[#52647c]">{stageProgress.answered} de {stageProgress.total} respondidos</p>
                         </div>
-                        <span className="text-lg font-black text-[#0d1b2e]">{stageProgress.percentage}%</span>
+                        <span className="text-sm font-black text-[#0d1b2e]">{stageProgress.percentage}%</span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-[#e8edf4]">
                         <div className="h-full rounded-full bg-[#0057e7] transition-all" style={{ width: `${stageProgress.percentage}%` }} />
                       </div>
+                      {(stageAudit || stage.situation_name_snapshot) && (
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[#718096]">
+                          {stage.situation_name_snapshot && <span>Situação: <strong className="font-bold text-[#45566d]">{stage.situation_name_snapshot}</strong></span>}
+                          {stageAudit && <span>{stageAudit}</span>}
+                        </div>
+                      )}
                     </div>
 
                     <div className="divide-y divide-[#0d1b2e]/8">
@@ -321,6 +277,39 @@ export function OrderChecklistsPage({
                           onSuccess={message => setToast({ msg: message, type: "success" })}
                         />
                       ))}
+                    </div>
+
+                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-[#0d1b2e]/8 pt-4">
+                      <div>
+                        {selectedIndex > 0 && (
+                          <AdminButton variant="secondary" onClick={() => setSelectedStageId(checklist.stages[selectedIndex - 1].id)}>
+                            <ChevronLeft size={15} /> Anterior
+                          </AdminButton>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {completed && canGoNext && (
+                          <AdminButton variant="secondary" onClick={() => setSelectedStageId(checklist.stages[selectedIndex + 1].id)}>
+                            Próxima <ChevronRight size={15} />
+                          </AdminButton>
+                        )}
+                        {canReopenSelected && (
+                          <AdminButton
+                            variant="secondary"
+                            disabled={busyStageId === stage.id}
+                            onClick={() => void reopenStage(stage)}
+                          >
+                            <RotateCcw size={14} /> Reabrir etapa
+                          </AdminButton>
+                        )}
+                        {!completed && isCurrent && canManage && (
+                          <BtnPrimary disabled={busyStageId === stage.id} onClick={() => void completeStage(stage)}>
+                            <CheckCircle2 size={15} />
+                            {busyStageId === stage.id ? "Validando..." : checklist.stages[selectedIndex + 1] ? "Concluir e avançar" : "Concluir checklist"}
+                            {checklist.stages[selectedIndex + 1] && <ChevronRight size={15} />}
+                          </BtnPrimary>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </AdminCard>
