@@ -7,6 +7,7 @@ do $$
 declare
   v_first uuid;
   v_second uuid;
+  v_normalized text;
 begin
   select id into v_first from public.profiles order by created_at, id limit 1;
   select id into v_second from public.profiles where id <> v_first order by created_at, id limit 1;
@@ -18,20 +19,18 @@ begin
   update public.profiles set username = 'username_test_alpha' where id = v_first;
 
   begin
-    update public.profiles set username = 'username_test_alpha' where id = v_second;
-    raise exception 'expected duplicate username to be rejected';
+    update public.profiles set username = 'USERNAME_TEST_ALPHA' where id = v_second;
+    raise exception 'expected normalized duplicate username to be rejected';
   exception
     when unique_violation then
       null;
   end;
 
-  begin
-    update public.profiles set username = 'Username_Test_Upper' where id = v_second;
-    raise exception 'expected mixed-case username to be rejected';
-  exception
-    when check_violation then
-      null;
-  end;
+  update public.profiles set username = 'Username_Test_Upper' where id = v_second;
+  select username into v_normalized from public.profiles where id = v_second;
+  if v_normalized <> 'username_test_upper' then
+    raise exception 'expected username to be normalized to lowercase, got %', v_normalized;
+  end if;
 
   begin
     update public.profiles set username = 'ab' where id = v_second;
