@@ -12,3 +12,13 @@ export const supabase = createClient(supabaseUrl, publicAnonKey, {
     detectSessionInUrl: true,
   },
 });
+
+export function createTransientSupabaseClient() {
+  return createClient(supabaseUrl, publicAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+}
