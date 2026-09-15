@@ -1,3 +1,5 @@
+import type { EquipmentChecklistItem } from "@/features/checklists/domain/checklist";
+
 export type EquipmentDraftModel = {
   id?: string;
   name: string;
@@ -15,6 +17,8 @@ export type EquipmentDraft = {
   id?: string;
   name: string;
   is_active: boolean;
+  checklist_profile_id: string | null;
+  checklistItems: EquipmentChecklistItem[];
   technicalFields: Array<{ technical_field_id: string; required: boolean; sort_order: number }>;
   brands: EquipmentDraftBrand[];
 };
@@ -23,6 +27,7 @@ export type EquipmentTypeRow = {
   id: string;
   name: string;
   is_active: boolean;
+  checklist_profile_id: string | null;
 };
 
 export type EquipmentBrandRow = {
@@ -79,4 +84,7 @@ export type EquipmentCatalog = {
   models: EquipmentModelRow[];
   technicalFields: TechnicalField[];
   technicalFieldLinks: EquipmentTypeTechnicalField[];
+  checklistProfiles: Array<{ id: string; name: string; version: number; is_active: boolean }>;
+  checklistStages: Array<{ id: string; profile_id: string; code: string; name: string; stage_type: string; sort_order: number; is_active: boolean }>;
+  equipmentChecklistItems: EquipmentChecklistItem[];
 };
