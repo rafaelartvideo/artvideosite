@@ -74,6 +74,11 @@ function answerOptions(item: DeviceEntryChecklistItem) {
   return [];
 }
 
+function checklistSignature(checklist: DeviceEntryChecklist | null) {
+  if (!checklist) return "none";
+  return `${checklist.stageCode}|${checklist.items.map(item => item.key).join("|")}`;
+}
+
 export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; token: string }) {
   const [checklist, setChecklist] = useState<DeviceEntryChecklist | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,39 +86,28 @@ export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; 
   const [uploadingItemKey, setUploadingItemKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
 
-  const loadChecklist = async (quiet = false) => {
-    if (!quiet) setLoading(true);
-    try {
-      const result = await getDeviceEntryChecklist(sessionId, token);
-      setChecklist(result);
-    } catch (error) {
-      setNotice({ text: error instanceof Error ? error.message : "Não foi possível carregar o checklist.", type: "error" });
-    } finally {
-      if (!quiet) setLoading(false);
-    }
-  };
-
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+
+    const load = async (initial = false) => {
       try {
         const result = await getDeviceEntryChecklist(sessionId, token);
-        if (!cancelled) setChecklist(result);
+        if (cancelled) return;
+        setChecklist(current => checklistSignature(current) === checklistSignature(result) ? current : result);
       } catch (error) {
         if (!cancelled) setNotice({ text: error instanceof Error ? error.message : "Não foi possível carregar o checklist.", type: "error" });
       } finally {
-        if (!cancelled) setLoading(false);
+        if (initial && !cancelled) setLoading(false);
       }
     };
-    void load();
-    const timer = window.setInterval(() => {
-      if (!cancelled && !checklist) void load();
-    }, 4000);
+
+    void load(true);
+    const timer = window.setInterval(() => void load(false), 4000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [sessionId, token, checklist?.stageCode]);
+  }, [sessionId, token]);
 
   const progress = useMemo(() => {
     const items = checklist?.items || [];
