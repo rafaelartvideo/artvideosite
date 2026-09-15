@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle,
   ArrowDownWideNarrow,
   ArrowUpDown,
   ArrowUpNarrowWide,
   Check,
-  CheckCircle,
   ChevronDown,
   Edit2,
+  Pause,
+  Play,
   Plus,
   Search,
   Users,
@@ -637,7 +637,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           </div>
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#0d1b2e]/8 pt-3" onClick={event => event.stopPropagation()}>
             <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">Ações</span>
-            <div className="flex items-center gap-1">{canToggleEmployee && <AdminIconButton ariaLabel={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} title={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)}>{employeeUserActive ? <AlertCircle size={15} /> : <CheckCircle size={15} />}</AdminIconButton>}<AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div>
+            <div className="flex items-center gap-1">{canToggleEmployee && <AdminIconButton ariaLabel={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} title={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} disabled={togglingEmployeeId === item.legacy_employee_id} className={employeeUserActive ? "border-red-500 text-red-600 hover:border-red-600 hover:bg-red-50 hover:text-red-700" : "border-emerald-500 text-emerald-600 hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"} onClick={() => void toggleEmployeeUser(item)}>{employeeUserActive ? <Pause size={15} /> : <Play size={15} />}</AdminIconButton>}<AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div>
           </div>
         </article>;
       })}</div>
@@ -646,7 +646,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         const employeeAccessProfileId = item.legacy_employee?.profile_id || item.employee_details?.[0]?.profile_id || null;
         const employeeUserActive = item.legacy_employee?.is_active !== false;
         const canToggleEmployee = canToggleAccess && activeRegistrationRoles(item).includes("employee") && Boolean(item.legacy_employee_id && employeeAccessProfileId);
-        return <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-[#5a6a82]">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-[#5a6a82]">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canToggleEmployee && <AdminIconButton ariaLabel={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} title={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)}>{employeeUserActive ? <AlertCircle size={15} /> : <CheckCircle size={15} />}</AdminIconButton>}<AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div></td></tr>;
+        return <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-[#5a6a82]">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-[#5a6a82]">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canToggleEmployee && <AdminIconButton ariaLabel={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} title={employeeUserActive ? "Inativar usuário" : "Ativar usuário"} disabled={togglingEmployeeId === item.legacy_employee_id} className={employeeUserActive ? "border-red-500 text-red-600 hover:border-red-600 hover:bg-red-50 hover:text-red-700" : "border-emerald-500 text-emerald-600 hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"} onClick={() => void toggleEmployeeUser(item)}>{employeeUserActive ? <Pause size={15} /> : <Play size={15} />}</AdminIconButton>}<AdminIconButton ariaLabel="Abrir cadastro" title="Abrir cadastro" onClick={() => openItem(item)}><Edit2 size={15} /></AdminIconButton></div></td></tr>;
       })}</tbody></table></div>
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} />
     </>}</AdminCard>
