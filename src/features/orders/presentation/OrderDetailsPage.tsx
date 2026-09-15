@@ -32,6 +32,7 @@ import type { useOrdersWorkspace } from "../application/useOrdersWorkspace";
 const ORDER_EMAIL_ACTION_VISIBLE = false;
 
 type PermissionCheck = (permission: string) => boolean;
+type OrderDetailSubpage = "history" | "documents";
 
 type Props = {
   visible: boolean;
@@ -41,8 +42,9 @@ type Props = {
   details: ReturnType<typeof useOrderDetails>;
   history: ReturnType<typeof useOrderHistory>;
   documents: ReturnType<typeof useOrderSituationDocuments>;
-  documentsPageOpen: boolean;
-  onDocumentsPageOpenChange: (open: boolean) => void;
+  routeSubpage?: string | null;
+  onOpenSubpage: (subpage: OrderDetailSubpage) => void;
+  onCloseSubpage: () => void;
   images: ReturnType<typeof useOrderImages>;
   partRequests: ReturnType<typeof useOrderPartRequests>;
   resolution: ReturnType<typeof useOrderResolution>;
@@ -62,7 +64,7 @@ type Props = {
 
 export function OrderDetailsPage(props: Props) {
   const {
-    visible, userId, profileName, workspace, details, history, documents, documentsPageOpen, onDocumentsPageOpenChange, images, partRequests,
+    visible, userId, profileName, workspace, details, history, documents, routeSubpage, onOpenSubpage, onCloseSubpage, images, partRequests,
     resolution, completion, mutations, hasPermission, usedItemsTotal: detailUsedItemsTotal,
     formatDate: fmtDate, formatState: stateLabel, formatSolvedAt,
     formatCurrency, getSituations: getSituationsForType, getSla: getSlaForOrder,
@@ -74,6 +76,9 @@ export function OrderDetailsPage(props: Props) {
   const [printError, setPrintError] = useState("");
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const historyPageOpen = routeSubpage === "history";
+  const documentsPageOpen = routeSubpage === "documents";
+  const routedSubpageOpen = historyPageOpen || documentsPageOpen;
   const { statuses, situations } = workspace;
   const {
     detail, detailUsedItems, detailSolutionImages, closeDetail,
@@ -170,7 +175,7 @@ export function OrderDetailsPage(props: Props) {
         currentSituationId={detail?.situation_id}
         controller={documents}
         solutionImages={detailSolutionImages}
-        onClose={() => onDocumentsPageOpenChange(false)}
+        onClose={onCloseSubpage}
         onView={setViewImage}
       />
       <OrderSituationRecordsPage
@@ -182,12 +187,14 @@ export function OrderDetailsPage(props: Props) {
         onClose={() => setSlaRecordsPageOpen(false)}
       />
       <OrderHistoryPage
+        open={historyPageOpen}
         order={detail}
         history={history}
         canCreate={hasPermission("orders.history.create")}
         formatDate={fmtDate}
+        onClose={onCloseSubpage}
       />
-{partRequestsPageOpen && detail && !history.pageOpen && !documentsPageOpen && !slaRecordsPageOpen && (
+{partRequestsPageOpen && detail && !routedSubpageOpen && !slaRecordsPageOpen && (
         <AdminPage open={true} onClose={() => setPartRequestsPageOpen(false)} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Solicitações de peças" subtitle="Acompanhe os pedidos e o fluxo das peças desta OS" maxW="max-w-2xl">
           <div className="p-5">
             <OrderPartRequestsSection
@@ -209,7 +216,7 @@ export function OrderDetailsPage(props: Props) {
           </div>
         </AdminPage>
       )}
-{visible && !history.pageOpen && !documentsPageOpen && !partRequestsPageOpen && !slaRecordsPageOpen && (
+{visible && !routedSubpageOpen && !partRequestsPageOpen && !slaRecordsPageOpen && (
         <AdminPage open={true} onClose={closePage} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
             <div className="p-5 space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -262,8 +269,8 @@ export function OrderDetailsPage(props: Props) {
                     </DropdownMenuContent>
                   </DropdownMenu>}
                   {hasPermission("orders.section.parts") && <button type="button" onClick={() => setPartRequestsPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button>}
-                  {hasPermission("orders.section.images") && <button type="button" onClick={() => onDocumentsPageOpenChange(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos{visibleDocumentCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{visibleDocumentCount}</span>}</button>}
-                  {hasPermission("orders.section.history") && <button type="button" onClick={() => history.setPageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button>}
+                  {hasPermission("orders.section.images") && <button type="button" onClick={() => onOpenSubpage("documents")} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos{visibleDocumentCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{visibleDocumentCount}</span>}</button>}
+                  {hasPermission("orders.section.history") && <button type="button" onClick={() => onOpenSubpage("history")} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button>}
                 </div>
               </div>
               {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
