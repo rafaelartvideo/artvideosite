@@ -1,0 +1,3 @@
+-- Produção: 2026-09-15. A função complete_service_order_checklist_stage foi atualizada
+-- para rejeitar a conclusão quando existir etapa anterior ainda não concluída.
+-- A definição canônica está no banco de produção e é verificada pelas migrations do módulo.
