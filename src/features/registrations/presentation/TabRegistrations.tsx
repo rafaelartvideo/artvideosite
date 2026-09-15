@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownWideNarrow,
   ArrowUpDown,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { normalizeSharedMapUrl } from "@/lib/address";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -55,8 +57,10 @@ import {
   type RegistrationRole,
   type SupplierInventoryItem,
 } from "../infrastructure/registrations.repository";
+import { RegistrationContactsPage } from "./RegistrationContactsPage";
 import { RegistrationDetails } from "./RegistrationDetails";
 import { RegistrationEditor } from "./RegistrationEditor";
+import { RegistrationRecordsPage } from "./RegistrationRecordsPage";
 
 type Props = {
   routeResourceId?: string | null;
@@ -122,10 +126,71 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const canEditAccess = hasPermission("employees.edit");
   const canToggleAccess = hasPermission("employees.toggle_active");
   const canViewPermissionOverrides = hasPermission("roles.view");
+  const canManageContacts = hasPermission("registrations.contacts.manage");
+  const canViewContacts = hasPermission("registrations.contacts.view") || canManageContacts;
+  const canCreateRecords = hasPermission("registrations.records.create");
+  const canViewRecords = hasPermission("registrations.records.view") || canCreateRecords;
+  const queryClient = useQueryClient();
+  const organizationKey = activeOrganizationId || "";
+  const listKey = queryKeys.registrations.list(organizationKey);
 
-  const [items, setItems] = useState<Registration[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [recordLoading, setRecordLoading] = useState(false);
+  const registrationsQuery = useQuery({
+    queryKey: listKey,
+    queryFn: async () => {
+      const result = await listRegistrations(activeOrganizationId!);
+      if (result.error) throw result.error;
+      return (result.data || []) as unknown as Registration[];
+    },
+    enabled: Boolean(activeOrganizationId && canView && !routeResourceId),
+  });
+  const items = registrationsQuery.data ?? [];
+  const loading = registrationsQuery.isPending && !registrationsQuery.data;
+
+  const routeRegistrationId = routeResourceId && routeResourceId !== "new" && routeSubpage !== "customer"
+    ? routeResourceId
+    : null;
+  const registrationFromList = routeRegistrationId
+    ? items.find(item => item.id === routeRegistrationId)
+    : undefined;
+  const detailKey = queryKeys.registrations.detail(organizationKey, routeRegistrationId || "");
+  const detailQuery = useQuery({
+    queryKey: detailKey,
+    queryFn: async () => {
+      const result = await getRegistration(activeOrganizationId!, routeRegistrationId!);
+      if (result.error) throw result.error;
+      if (!result.data) throw new Error("Cadastro não encontrado.");
+      return result.data as unknown as Registration;
+    },
+    enabled: Boolean(activeOrganizationId && routeRegistrationId && canView),
+    initialData: registrationFromList,
+    initialDataUpdatedAt: registrationFromList ? registrationsQuery.dataUpdatedAt : undefined,
+  });
+  const routeRegistration = detailQuery.data ?? registrationFromList ?? null;
+  const recordLoading = Boolean(routeRegistrationId && detailQuery.isPending && !routeRegistration);
+  const detailExtrasEnabled = Boolean(routeRegistration && (!routeSubpage || routeSubpage === "edit"));
+  const routeRoles = routeRegistration ? activeRegistrationRoles(routeRegistration) : [];
+  const routeEmployeeId = routeRegistration?.legacy_employee_id || null;
+
+  const supplierItemsQuery = useQuery({
+    queryKey: queryKeys.registrations.supplierItems(organizationKey, routeRegistration?.id || ""),
+    queryFn: async () => {
+      const result = await getRegistrationSupplierItems(activeOrganizationId!, routeRegistration!.id);
+      if (result.error) throw result.error;
+      return result.data || [];
+    },
+    enabled: Boolean(activeOrganizationId && detailExtrasEnabled && routeRegistration && routeRoles.includes("supplier")),
+  });
+
+  const employeeAccessQuery = useQuery({
+    queryKey: queryKeys.registrations.access(organizationKey, routeEmployeeId || ""),
+    queryFn: async () => {
+      const result = await getEmployeeAccess(activeOrganizationId!, routeEmployeeId!);
+      if (result.error) throw result.error;
+      return result.data?.access ?? null;
+    },
+    enabled: Boolean(activeOrganizationId && detailExtrasEnabled && routeEmployeeId && canViewAccess),
+  });
+
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<Registration | null>(null);
   const [form, setForm] = useState<RegistrationFormState>(emptyRegistrationForm());
@@ -134,7 +199,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [accessForm, setAccessForm] = useState<EmployeeAccessFormState>(emptyEmployeeAccessForm());
   const [accessExisting, setAccessExisting] = useState(false);
   const [accessDirty, setAccessDirty] = useState(false);
-  const [accessLoading, setAccessLoading] = useState(false);
   const [accessUserId, setAccessUserId] = useState<string | null>(null);
   const [nameSearch, setNameSearch] = useState("");
   const [documentSearch, setDocumentSearch] = useState("");
@@ -146,6 +210,9 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [pageSize, setPageSize] = useState(10);
   const [togglingEmployeeId, setTogglingEmployeeId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const editorBaseHydratedRef = useRef<string | null>(null);
+  const editorSupplierHydratedRef = useRef<string | null>(null);
+  const editorAccessHydratedRef = useRef<string | null>(null);
 
   const lookups = useRegistrationLookups({
     organizationId: activeOrganizationId,
@@ -156,105 +223,89 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     setAddresses,
   });
 
-  const load = async () => {
-    if (!activeOrganizationId || !canView) {
-      setItems([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const { data, error } = await listRegistrations(activeOrganizationId);
-    setLoading(false);
-    if (error) {
-      setToast({ msg: `Erro ao carregar cadastros: ${error.message}`, type: "error" });
-      return;
-    }
-    setItems((data || []) as unknown as Registration[]);
-  };
-
-  const loadAccess = async (registration: Registration | null) => {
-    const employeeId = registration?.legacy_employee_id;
-    setAccessDirty(false);
-    if (!activeOrganizationId || !employeeId || !canViewAccess) {
-      setAccessExisting(false);
-      setAccessUserId(registration?.employee_details?.[0]?.profile_id || null);
-      setAccessForm(emptyEmployeeAccessForm());
-      return;
-    }
-    setAccessLoading(true);
-    const { data, error } = await getEmployeeAccess(activeOrganizationId, employeeId);
-    setAccessLoading(false);
-    if (error || !data?.access) {
-      setAccessExisting(Boolean(registration.employee_details?.[0]?.profile_id));
-      setAccessUserId(registration.employee_details?.[0]?.profile_id || null);
-      if (error) setToast({ msg: `Erro ao carregar acesso do funcionário: ${error.message}`, type: "error" });
-      return;
-    }
-    setAccessExisting(Boolean(data.access.profile_id));
-    setAccessUserId(data.access.user_id || data.access.profile_id || null);
-    setAccessForm(accessFormFromResponse(data.access));
-  };
-
-  const loadSupplierItems = async (registration: Registration | null) => {
-    if (!activeOrganizationId || !registration || !activeRegistrationRoles(registration).includes("supplier")) {
-      setSupplierItems([]);
-      return;
-    }
-    const { data, error } = await getRegistrationSupplierItems(activeOrganizationId, registration.id);
-    if (error) {
-      setToast({ msg: `Erro ao carregar itens do fornecedor: ${error.message}`, type: "error" });
-      return;
-    }
-    setSupplierItems(data || []);
-  };
-
-  const hydrateRegistration = async (registration: Registration) => {
-    setSelected(registration);
-    setForm(registrationFormFromRecord(registration));
-    setAddresses(registrationAddressesFromRecord(registration));
-    await Promise.all([loadAccess(registration), loadSupplierItems(registration)]);
-  };
-
-  useEffect(() => { void load(); }, [activeOrganizationId, canView]);
-
-  const editorOpen = routeResourceId === "new" || Boolean(routeResourceId && routeSubpage === "edit");
-  const permissionsOpen = Boolean(routeResourceId && routeSubpage === "permissions");
+  useEffect(() => {
+    if (!registrationsQuery.error) return;
+    setToast({ msg: `Erro ao carregar cadastros: ${registrationsQuery.error instanceof Error ? registrationsQuery.error.message : String(registrationsQuery.error)}`, type: "error" });
+  }, [registrationsQuery.error]);
 
   useEffect(() => {
-    let cancelled = false;
-    const hydrateRoute = async () => {
-      if (!activeOrganizationId || !routeResourceId || routeSubpage === "customer") return;
-      if (routeResourceId === "new") {
-        setSelected(null);
-        setForm(emptyRegistrationForm());
-        setAddresses([emptyRegistrationAddress(true)]);
-        setSupplierItems([]);
-        setAccessForm(emptyEmployeeAccessForm());
-        setAccessExisting(false);
-        setAccessUserId(null);
-        setAccessDirty(false);
-        return;
-      }
+    if (!detailQuery.error) return;
+    setToast({ msg: `Cadastro não encontrado: ${detailQuery.error instanceof Error ? detailQuery.error.message : String(detailQuery.error)}`, type: "error" });
+  }, [detailQuery.error]);
 
-      const fromList = items.find(item => item.id === routeResourceId);
-      if (fromList) {
-        if (!cancelled) await hydrateRegistration(fromList);
-        return;
-      }
+  useEffect(() => {
+    if (!supplierItemsQuery.error) return;
+    setToast({ msg: `Erro ao carregar itens do fornecedor: ${supplierItemsQuery.error instanceof Error ? supplierItemsQuery.error.message : String(supplierItemsQuery.error)}`, type: "error" });
+  }, [supplierItemsQuery.error]);
 
-      setRecordLoading(true);
-      const { data, error } = await getRegistration(activeOrganizationId, routeResourceId);
-      setRecordLoading(false);
-      if (cancelled) return;
-      if (error || !data) {
-        setToast({ msg: `Cadastro não encontrado${error ? `: ${error.message}` : "."}`, type: "error" });
-        return;
-      }
-      await hydrateRegistration(data as unknown as Registration);
-    };
-    void hydrateRoute();
-    return () => { cancelled = true; };
-  }, [activeOrganizationId, routeResourceId, routeSubpage, items, canViewAccess]);
+  useEffect(() => {
+    if (!employeeAccessQuery.error) return;
+    setToast({ msg: `Erro ao carregar acesso do funcionário: ${employeeAccessQuery.error instanceof Error ? employeeAccessQuery.error.message : String(employeeAccessQuery.error)}`, type: "error" });
+  }, [employeeAccessQuery.error]);
+
+  const editorOpen = routeResourceId === "new" || Boolean(routeResourceId && routeSubpage === "edit");
+  const contactsOpen = Boolean(routeResourceId && routeSubpage === "contacts");
+  const recordsOpen = Boolean(routeResourceId && routeSubpage === "records");
+  const permissionsOpen = Boolean(routeResourceId && routeSubpage === "permissions");
+  const creating = routeResourceId === "new";
+
+  useEffect(() => {
+    if (!editorOpen) {
+      editorBaseHydratedRef.current = null;
+      editorSupplierHydratedRef.current = null;
+      editorAccessHydratedRef.current = null;
+      return;
+    }
+
+    if (creating) {
+      if (editorBaseHydratedRef.current === "new") return;
+      setSelected(null);
+      setForm(emptyRegistrationForm());
+      setAddresses([emptyRegistrationAddress(true)]);
+      setSupplierItems([]);
+      setAccessForm(emptyEmployeeAccessForm());
+      setAccessExisting(false);
+      setAccessUserId(null);
+      setAccessDirty(false);
+      editorBaseHydratedRef.current = "new";
+      editorSupplierHydratedRef.current = "new";
+      editorAccessHydratedRef.current = "new";
+      return;
+    }
+
+    if (!routeRegistration || editorBaseHydratedRef.current === routeRegistration.id) return;
+    const profileId = routeRegistration.employee_details?.[0]?.profile_id || routeRegistration.legacy_employee?.profile_id || null;
+    setSelected(routeRegistration);
+    setForm(registrationFormFromRecord(routeRegistration));
+    setAddresses(registrationAddressesFromRecord(routeRegistration));
+    setSupplierItems([]);
+    setAccessForm(emptyEmployeeAccessForm());
+    setAccessExisting(Boolean(profileId));
+    setAccessUserId(profileId);
+    setAccessDirty(false);
+    editorBaseHydratedRef.current = routeRegistration.id;
+    editorSupplierHydratedRef.current = null;
+    editorAccessHydratedRef.current = null;
+  }, [editorOpen, creating, routeRegistration]);
+
+  useEffect(() => {
+    if (!editorOpen || creating || !routeRegistration || !routeRoles.includes("supplier")) return;
+    if (!supplierItemsQuery.isSuccess || editorSupplierHydratedRef.current === routeRegistration.id) return;
+    setSupplierItems(supplierItemsQuery.data || []);
+    editorSupplierHydratedRef.current = routeRegistration.id;
+  }, [editorOpen, creating, routeRegistration, routeRoles, supplierItemsQuery.isSuccess, supplierItemsQuery.data]);
+
+  useEffect(() => {
+    if (!editorOpen || creating || !routeRegistration || !routeRoles.includes("employee")) return;
+    if (!canViewAccess || !routeEmployeeId) return;
+    if (!employeeAccessQuery.isSuccess || editorAccessHydratedRef.current === routeRegistration.id) return;
+    const access = employeeAccessQuery.data;
+    const fallbackProfileId = routeRegistration.employee_details?.[0]?.profile_id || routeRegistration.legacy_employee?.profile_id || null;
+    setAccessExisting(Boolean(access?.profile_id || fallbackProfileId));
+    setAccessUserId(access?.user_id || access?.profile_id || fallbackProfileId);
+    setAccessForm(access ? accessFormFromResponse(access) : emptyEmployeeAccessForm());
+    editorAccessHydratedRef.current = routeRegistration.id;
+  }, [editorOpen, creating, routeRegistration, routeRoles, routeEmployeeId, canViewAccess, employeeAccessQuery.isSuccess, employeeAccessQuery.data]);
 
   const filtered = useMemo(() => {
     const nameQuery = nameSearch.trim().toLocaleLowerCase("pt-BR");
@@ -288,7 +339,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     if (!sortOrder) return result;
     return [...result].sort((a, b) => {
       if (sortOrder === "name_asc") return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
-      if (sortOrder === "name_desc") return String(b.name || "").localeCompare(String(a.name || ""), "pt-BR", { sensitivity: "base" });
+      if (sortOrder === "name_desc") return String(b.name || "").localeCompare(String(a.name || "").localeCompare ? String(a.name || "") : "", "pt-BR", { sensitivity: "base" });
       const aDate = new Date(a.created_at || 0).getTime();
       const bDate = new Date(b.created_at || 0).getTime();
       return sortOrder === "newest" ? bDate - aDate : aDate - bDate;
@@ -374,8 +425,10 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       const addressResult = await syncRegistrationAddresses(activeOrganizationId, savedId, addressPayloads);
       if (addressResult.error) throw addressResult.error;
 
-      const supplierResult = await syncRegistrationSupplierItems(activeOrganizationId, savedId, form.roles.includes("supplier") ? supplierItems.map(item => item.id) : []);
+      const savedSupplierItems = form.roles.includes("supplier") ? supplierItems : [];
+      const supplierResult = await syncRegistrationSupplierItems(activeOrganizationId, savedId, savedSupplierItems.map(item => item.id));
       if (supplierResult.error) throw supplierResult.error;
+      queryClient.setQueryData(queryKeys.registrations.supplierItems(activeOrganizationId, savedId), savedSupplierItems);
 
       let { data: refreshedData, error: refreshedError } = await getRegistration(activeOrganizationId, savedId);
       if (refreshedError || !refreshedData) throw refreshedError || new Error("Não foi possível recarregar o cadastro salvo.");
@@ -392,6 +445,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           uniqSubscriberId: accessForm.uniq_subscriber_id,
         });
         if (result.error) throw result.error;
+        await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
       } else if (!form.roles.includes("employee") && refreshed.legacy_employee_id && removingEmployeeWithAccess) {
         const result = await saveEmployeeAccess({
           organizationId: activeOrganizationId,
@@ -402,6 +456,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           uniqSubscriberId: accessForm.uniq_subscriber_id,
         });
         if (result.error) throw result.error;
+        await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
       }
 
       if (accessDirty || removingEmployeeWithAccess) {
@@ -409,9 +464,10 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         if (!refreshedAgain.error && refreshedAgain.data) refreshed = refreshedAgain.data as unknown as Registration;
       }
 
+      queryClient.setQueryData(queryKeys.registrations.detail(activeOrganizationId, savedId), refreshed);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.list(activeOrganizationId), refetchType: "none" });
+      setSelected(refreshed);
       setToast({ msg: selected ? "Cadastro atualizado." : "Cadastro criado.", type: "success" });
-      await load();
-      await hydrateRegistration(refreshed);
       onRouteChange?.(savedId, null);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -427,14 +483,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   };
 
   const openNew = () => {
-    setSelected(null);
-    setForm(emptyRegistrationForm());
-    setAddresses([emptyRegistrationAddress(true)]);
-    setSupplierItems([]);
-    setAccessForm(emptyEmployeeAccessForm());
-    setAccessExisting(false);
-    setAccessDirty(false);
-    setAccessUserId(null);
+    editorBaseHydratedRef.current = null;
     onRouteChange?.("new", "edit");
   };
 
@@ -450,21 +499,15 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     try {
       const { error } = await setEmployeeAccessActive(activeOrganizationId, item.legacy_employee_id, next);
       if (error) throw error;
-      setItems(current => current.map(registration => registration.id === item.id ? {
+      const patchRegistration = (registration: Registration) => registration.id === item.id ? {
         ...registration,
         legacy_employee: registration.legacy_employee
           ? { ...registration.legacy_employee, is_active: next }
           : { id: item.legacy_employee_id!, profile_id: profileId, is_active: next },
-      } : registration));
-      if (selected?.id === item.id) {
-        setSelected(current => current ? {
-          ...current,
-          legacy_employee: current.legacy_employee
-            ? { ...current.legacy_employee, is_active: next }
-            : { id: item.legacy_employee_id!, profile_id: profileId, is_active: next },
-        } : current);
-        setAccessForm(current => ({ ...current, enabled: next }));
-      }
+      } : registration;
+      queryClient.setQueryData<Registration[]>(queryKeys.registrations.list(activeOrganizationId), current => (current || []).map(patchRegistration));
+      queryClient.setQueryData<Registration>(queryKeys.registrations.detail(activeOrganizationId, item.id), current => current ? patchRegistration(current) : current);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, item.legacy_employee_id) });
       setToast({ msg: next ? "Usuário ativado." : "Usuário inativado. O acesso ao sistema foi bloqueado.", type: "success" });
     } catch (error) {
       const message = error && typeof error === "object" && "message" in error ? String((error as any).message || "Erro desconhecido") : String(error || "Erro desconhecido");
@@ -474,24 +517,38 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     }
   };
 
-  const openItem = (item: Registration) => { void hydrateRegistration(item); onRouteChange?.(item.id, null); };
+  const openItem = (item: Registration) => {
+    if (activeOrganizationId) queryClient.setQueryData(queryKeys.registrations.detail(activeOrganizationId, item.id), item);
+    onRouteChange?.(item.id, null);
+  };
   const closeEditor = () => selected ? onRouteChange?.(selected.id, null) : onRouteChange?.(null, null);
-  const closeDetail = () => { setSelected(null); onRouteChange?.(null, null); };
+  const closeDetail = () => onRouteChange?.(null, null);
 
   if (!canView) return null;
 
+  if (contactsOpen) {
+    if (recordLoading || !routeRegistration) return <AdminPage open onClose={() => onRouteChange?.(routeResourceId, null)} breadcrumb="Cadastros" title="Carregando contatos"><LoadingState /></AdminPage>;
+    if (!activeOrganizationId || !canViewContacts) return <AdminPage open onClose={() => onRouteChange?.(routeRegistration.id, null)} breadcrumb={`Cadastros > ${routeRegistration.name}`} title="Contatos" subtitle="Você não possui permissão para visualizar os contatos deste cadastro." />;
+    return <RegistrationContactsPage registration={routeRegistration} organizationId={activeOrganizationId} canManage={canManageContacts} onClose={() => onRouteChange?.(routeRegistration.id, null)} />;
+  }
+
+  if (recordsOpen) {
+    if (recordLoading || !routeRegistration) return <AdminPage open onClose={() => onRouteChange?.(routeResourceId, null)} breadcrumb="Cadastros" title="Carregando registros"><LoadingState /></AdminPage>;
+    if (!activeOrganizationId || !canViewRecords) return <AdminPage open onClose={() => onRouteChange?.(routeRegistration.id, null)} breadcrumb={`Cadastros > ${routeRegistration.name}`} title="Registros" subtitle="Você não possui permissão para visualizar os registros deste cadastro." />;
+    return <RegistrationRecordsPage registration={routeRegistration} organizationId={activeOrganizationId} canCreate={canCreateRecords} onClose={() => onRouteChange?.(routeRegistration.id, null)} />;
+  }
+
   if (permissionsOpen) {
-    if (recordLoading || !selected) return <AdminPage open onClose={() => onRouteChange?.(routeResourceId, null)} breadcrumb="Cadastros" title="Carregando acessos"><LoadingState /></AdminPage>;
-    const userId = accessUserId || selected.employee_details?.[0]?.profile_id || null;
+    if (recordLoading || !routeRegistration) return <AdminPage open onClose={() => onRouteChange?.(routeResourceId, null)} breadcrumb="Cadastros" title="Carregando acessos"><LoadingState /></AdminPage>;
+    const userId = routeRegistration.employee_details?.[0]?.profile_id || routeRegistration.legacy_employee?.profile_id || null;
     if (!userId || !activeOrganizationId || !canViewPermissionOverrides) {
-      return <AdminPage open onClose={() => onRouteChange?.(selected.id, null)} breadcrumb="Cadastros > Acessos e Permissões" title={selected.name} subtitle="Este funcionário ainda não possui um acesso ao sistema vinculado." />;
+      return <AdminPage open onClose={() => onRouteChange?.(routeRegistration.id, null)} breadcrumb={`Cadastros > ${routeRegistration.name} > Acessos e Permissões`} title="Acessos e Permissões" subtitle="Este funcionário ainda não possui um acesso ao sistema vinculado." />;
     }
-    return <UserPermissionOverridesPage organizationId={activeOrganizationId} userId={userId} registrationName={selected.name} onClose={() => onRouteChange?.(selected.id, null)} />;
+    return <UserPermissionOverridesPage organizationId={activeOrganizationId} userId={userId} registrationName={routeRegistration.name} onClose={() => onRouteChange?.(routeRegistration.id, null)} />;
   }
 
   if (editorOpen) {
-    const creating = routeResourceId === "new";
-    if (!creating && (recordLoading || !selected)) return <AdminPage open onClose={closeEditor} breadcrumb="Cadastros" title="Carregando cadastro"><LoadingState /></AdminPage>;
+    if (!creating && (recordLoading || !routeRegistration || !selected)) return <AdminPage open onClose={closeEditor} breadcrumb="Cadastros" title="Carregando cadastro"><LoadingState /></AdminPage>;
     return <>
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <RegistrationEditor
@@ -507,7 +564,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         accessForm={accessForm}
         onAccessChange={updateAccess}
         accessExisting={accessExisting}
-        accessLoading={accessLoading}
+        accessLoading={!creating && employeeAccessQuery.isPending}
         canModifyAccess={accessExisting ? canEditAccess : canCreateAccess}
         lookups={lookups}
         saving={saving}
@@ -518,24 +575,29 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     </>;
   }
 
-  if (selected && routeResourceId) {
-    const permissionUserId = accessUserId || selected.employee_details?.[0]?.profile_id || null;
+  if (routeRegistration && routeResourceId) {
+    const access = employeeAccessQuery.data;
+    const permissionUserId = access?.user_id || access?.profile_id || routeRegistration.employee_details?.[0]?.profile_id || routeRegistration.legacy_employee?.profile_id || null;
+    const detailAccessForm = access ? accessFormFromResponse(access) : emptyEmployeeAccessForm();
+    const detailAccessExisting = Boolean(access?.profile_id || permissionUserId);
     return <>
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <RegistrationDetails
-        selected={selected}
-        supplierItems={supplierItems}
-        accessForm={accessForm}
-        accessExisting={accessExisting}
-        accessLoading={accessLoading}
+        selected={routeRegistration}
+        supplierItems={supplierItemsQuery.data || []}
+        accessForm={detailAccessForm}
+        accessExisting={detailAccessExisting}
+        accessLoading={employeeAccessQuery.isPending}
         permissionUserId={permissionUserId}
         canViewAccess={canViewAccess}
         canViewPermissionOverrides={canViewPermissionOverrides}
         canEdit={canEdit}
         onClose={closeDetail}
-        onEdit={() => onRouteChange?.(selected.id, "edit")}
+        onEdit={() => onRouteChange?.(routeRegistration.id, "edit")}
+        onOpenContacts={() => onRouteChange?.(routeRegistration.id, "contacts")}
+        onOpenRecords={() => onRouteChange?.(routeRegistration.id, "records")}
         onOpenCustomerHistory={onOpenCustomerHistory}
-        onOpenPermissions={() => onRouteChange?.(selected.id, "permissions")}
+        onOpenPermissions={() => onRouteChange?.(routeRegistration.id, "permissions")}
       />
     </>;
   }
