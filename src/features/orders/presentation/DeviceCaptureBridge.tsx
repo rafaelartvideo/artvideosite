@@ -6,6 +6,8 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import {
   applyDeviceEntryChecklistAnswer,
   applyDeviceEntryChecklistPhoto,
+  getNewOrderEntryChecklistDraft,
+  subscribeNewOrderEntryChecklistDraft,
 } from "@/features/checklists/application/new-order-entry-checklist";
 import {
   bindDeviceCaptureChecklist,
@@ -68,6 +70,8 @@ export function DeviceCaptureBridge({
     lastChecklistEventIdRef.current = 0;
   };
 
+  const currentEquipmentTypeId = () => equipmentTypeId || getNewOrderEntryChecklistDraft()?.equipmentTypeId || null;
+
   const startSession = useCallback(async () => {
     if (!activeOrganizationId || disabled || creating) return;
     setCreating(true);
@@ -79,7 +83,7 @@ export function DeviceCaptureBridge({
       if (sessionRef.current) {
         await closeDeviceCaptureSession(sessionRef.current.id, sessionRef.current.token).catch(() => undefined);
       }
-      const nextSession = await createDeviceCaptureSession(activeOrganizationId, equipmentTypeId);
+      const nextSession = await createDeviceCaptureSession(activeOrganizationId, currentEquipmentTypeId());
       sessionRef.current = nextSession;
       setSession(nextSession);
     } catch (nextError) {
@@ -111,11 +115,17 @@ export function DeviceCaptureBridge({
   }, []);
 
   useEffect(() => {
-    if (!session) return;
-    lastChecklistEventIdRef.current = 0;
-    void bindDeviceCaptureChecklist(session.id, equipmentTypeId).catch(bindError => {
-      setError(bindError instanceof Error ? bindError.message : "Não foi possível vincular o checklist ao celular.");
-    });
+    const bindCurrentDraft = () => {
+      const current = sessionRef.current;
+      if (!current) return;
+      lastChecklistEventIdRef.current = 0;
+      void bindDeviceCaptureChecklist(current.id, currentEquipmentTypeId()).catch(bindError => {
+        setError(bindError instanceof Error ? bindError.message : "Não foi possível vincular o checklist ao celular.");
+      });
+    };
+    const unsubscribe = subscribeNewOrderEntryChecklistDraft(bindCurrentDraft);
+    bindCurrentDraft();
+    return unsubscribe;
   }, [session?.id, equipmentTypeId]);
 
   useEffect(() => {
