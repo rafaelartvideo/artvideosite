@@ -8,6 +8,8 @@ import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { Section } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
 
+export const PENDING_USERNAME_AUTH_EMAIL = "_username_required_@auth.artvideo.app";
+
 export type EmployeeAccessFormState = {
   enabled: boolean;
   profile_id?: string | null;
@@ -49,7 +51,7 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
   const [availability, setAvailability] = useState<Availability>("idle");
   const initialUsername = useRef("");
   const isArtVideo = organizationId === ARTVIDEO_ORGANIZATION_ID;
-  const username = normalizeUsername(value.username || usernameFromAuthEmail(value.email));
+  const username = normalizeUsername(value.username || (value.email === PENDING_USERNAME_AUTH_EMAIL ? "" : usernameFromAuthEmail(value.email)));
   const valid = isValidUsername(username);
 
   useEffect(() => {
@@ -108,12 +110,12 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
 
   const content = <div className="space-y-4" aria-busy={loading}>
     <p className="text-xs leading-relaxed text-[#5a6a82]">O funcionário pode existir sem login. O usuário de acesso é global e único em todo o sistema.</p>
-    <FToggle label="Permitir acesso ao sistema" description={existingAccess ? "Desativar bloqueia o login sem excluir o funcionário." : "Ative para criar o usuário de acesso deste funcionário."} checked={value.enabled} disabled={disabled || loading} onChange={enabled => onChange({ ...value, enabled })} />
+    <FToggle label="Permitir acesso ao sistema" description={existingAccess ? "Desativar bloqueia o login sem excluir o funcionário." : "Ative para criar o usuário de acesso deste funcionário."} checked={value.enabled} disabled={disabled || loading} onChange={enabled => onChange({ ...value, enabled, email: enabled && !username ? PENDING_USERNAME_AUTH_EMAIL : value.email })} />
     {(value.enabled || existingAccess) && <div className="grid gap-4 sm:grid-cols-2">
       <div className="min-w-0">
         <FInput label="Usuário" required={value.enabled} disabled={disabled || loading} autoComplete="username" spellCheck={false} maxLength={32} placeholder="ex.: rafael.lima" value={username} onChange={(event: any) => {
           const next = normalizeUsername(event.target.value);
-          onChange({ ...value, username: next, email: next ? authEmailForUsername(next) : "" });
+          onChange({ ...value, username: next, email: next ? authEmailForUsername(next) : value.enabled ? PENDING_USERNAME_AUTH_EMAIL : "" });
         }} />
         <div className="mt-1.5 min-h-4 text-[11px] leading-4">{feedback}</div>
       </div>
