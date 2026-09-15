@@ -74,15 +74,21 @@ export function OrderDetailsPage(props: Props) {
   const [printError, setPrintError] = useState("");
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
-  const historyPageOpen = routeSubpage === "history";
-  const documentsPageOpen = routeSubpage === "documents";
-  const partRequestsPageOpen = routeSubpage === "part-requests";
-  const slaRecordsPageOpen = routeSubpage === "sla-records";
-  const routedSubpageOpen = historyPageOpen || documentsPageOpen || partRequestsPageOpen || slaRecordsPageOpen;
   const { statuses, situations } = workspace;
   const {
     detail, detailUsedItems, detailSolutionImages, closeDetail,
   } = details;
+  const historyPageOpen = Boolean(detail) && routeSubpage === "history" && hasPermission("orders.section.history");
+  const documentsPageOpen = Boolean(detail) && routeSubpage === "documents" && hasPermission("orders.section.images");
+  const partRequestsPageOpen = Boolean(detail) && routeSubpage === "part-requests" && hasPermission("orders.section.parts");
+  const slaRecordsPageOpen = Boolean(detail) && routeSubpage === "sla-records" && hasPermission("orders.section.sla_cards");
+  const routedSubpageOpen = historyPageOpen || documentsPageOpen || partRequestsPageOpen || slaRecordsPageOpen;
+  const routedSubpageDenied = Boolean(detail && (
+    (routeSubpage === "history" && !hasPermission("orders.section.history"))
+    || (routeSubpage === "documents" && !hasPermission("orders.section.images"))
+    || (routeSubpage === "part-requests" && !hasPermission("orders.section.parts"))
+    || (routeSubpage === "sla-records" && !hasPermission("orders.section.sla_cards"))
+  ));
   const slaVisits = useOrderSituationVisits(detail?.id, detail?.situation_id, detail?.situation_started_at);
   const { setViewImage, orderImages } = images;
   const solutionMediaIds = new Set(detailSolutionImages.map(image => image.mediaId).filter(Boolean));
@@ -167,6 +173,14 @@ export function OrderDetailsPage(props: Props) {
     closeDetail();
     if (onClose) onClose();
   };
+
+  if (routedSubpageDenied && detail) {
+    return <AdminPage open onClose={onCloseSubpage} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Acesso restrito" subtitle="Você não possui permissão para acessar esta seção da OS." maxW="max-w-2xl">
+      <div className="p-5">
+        <BtnSecondary onClick={onCloseSubpage}>Voltar para a OS</BtnSecondary>
+      </div>
+    </AdminPage>;
+  }
 
   return <>
       <OrderDocumentsPage
