@@ -199,7 +199,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [accessForm, setAccessForm] = useState<EmployeeAccessFormState>(emptyEmployeeAccessForm());
   const [accessExisting, setAccessExisting] = useState(false);
   const [accessDirty, setAccessDirty] = useState(false);
-  const [accessUserId, setAccessUserId] = useState<string | null>(null);
   const [nameSearch, setNameSearch] = useState("");
   const [documentSearch, setDocumentSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
@@ -265,7 +264,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       setSupplierItems([]);
       setAccessForm(emptyEmployeeAccessForm());
       setAccessExisting(false);
-      setAccessUserId(null);
       setAccessDirty(false);
       editorBaseHydratedRef.current = "new";
       editorSupplierHydratedRef.current = "new";
@@ -281,7 +279,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     setSupplierItems([]);
     setAccessForm(emptyEmployeeAccessForm());
     setAccessExisting(Boolean(profileId));
-    setAccessUserId(profileId);
     setAccessDirty(false);
     editorBaseHydratedRef.current = routeRegistration.id;
     editorSupplierHydratedRef.current = null;
@@ -302,7 +299,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     const access = employeeAccessQuery.data;
     const fallbackProfileId = routeRegistration.employee_details?.[0]?.profile_id || routeRegistration.legacy_employee?.profile_id || null;
     setAccessExisting(Boolean(access?.profile_id || fallbackProfileId));
-    setAccessUserId(access?.user_id || access?.profile_id || fallbackProfileId);
     setAccessForm(access ? accessFormFromResponse(access) : emptyEmployeeAccessForm());
     editorAccessHydratedRef.current = routeRegistration.id;
   }, [editorOpen, creating, routeRegistration, routeRoles, routeEmployeeId, canViewAccess, employeeAccessQuery.isSuccess, employeeAccessQuery.data]);
