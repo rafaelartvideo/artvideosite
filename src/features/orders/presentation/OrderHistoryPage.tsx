@@ -6,19 +6,23 @@ import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import type { useOrderHistory } from "../application/useOrderHistory";
 
 export function OrderHistoryPage({
+  open,
   order,
   history,
   canCreate,
   formatDate,
+  onClose,
 }: {
+  open: boolean;
   order: any;
   history: ReturnType<typeof useOrderHistory>;
   canCreate: boolean;
   formatDate: (value?: string | null, time?: boolean) => string;
+  onClose: () => void;
 }) {
-  if (!history.pageOpen) return null;
+  if (!open) return null;
   return <>
-    <AdminPage open onClose={history.closePage} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"}`} title="Histórico da OS" subtitle="Linha do tempo de alterações e registros da equipe" maxW="max-w-2xl">
+    <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Histórico`} title="Histórico da OS" subtitle="Linha do tempo de alterações e registros da equipe" maxW="max-w-2xl">
       <div className="space-y-4 p-4 sm:p-5">
         <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -61,7 +65,7 @@ export function OrderHistoryPage({
         </AdminCard>)}</div>}
       </div>
       <div className="sticky bottom-0 flex items-center gap-2 border-t border-[#0d1b2e]/8 bg-white px-3 py-3 sm:justify-between sm:px-5 sm:py-4">
-        <BtnSecondary onClick={history.closePage} className="min-w-0 flex-1 sm:flex-none">Voltar para a OS</BtnSecondary>
+        <BtnSecondary onClick={onClose} className="min-w-0 flex-1 sm:flex-none">Voltar para a OS</BtnSecondary>
         {canCreate && <BtnPrimary onClick={() => { history.setText(""); history.setModalOpen(true); }} className="min-w-0 flex-1 sm:flex-none"><Plus size={14} /> Novo registro</BtnPrimary>}
       </div>
     </AdminPage>

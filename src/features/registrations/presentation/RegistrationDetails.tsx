@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Edit2, MapPin } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
@@ -9,8 +8,6 @@ import type { Registration, RegistrationRole, SupplierInventoryItem } from "../i
 import type { EmployeeAccessFormState } from "@/features/access/presentation/UserAccessSection";
 import { SupplierItemsTable } from "./SupplierItemsTable";
 import { RegistrationDetailsToolbar } from "./RegistrationDetailsToolbar";
-import { RegistrationContactsPage } from "./RegistrationContactsPage";
-import { RegistrationRecordsPage } from "./RegistrationRecordsPage";
 
 const roleLabels: Record<RegistrationRole, string> = {
   customer: "Cliente",
@@ -52,6 +49,8 @@ export function RegistrationDetails({
   canEdit,
   onClose,
   onEdit,
+  onOpenContacts,
+  onOpenRecords,
   onOpenCustomerHistory,
   onOpenPermissions,
 }: {
@@ -66,6 +65,8 @@ export function RegistrationDetails({
   canEdit: boolean;
   onClose: () => void;
   onEdit: () => void;
+  onOpenContacts: () => void;
+  onOpenRecords: () => void;
   onOpenCustomerHistory?: (customerId: string) => void;
   onOpenPermissions: () => void;
 }) {
@@ -74,8 +75,6 @@ export function RegistrationDetails({
   const employee = selected.employee_details?.[0];
   const employeeRecord = selected.legacy_employee;
   const accessActive = employeeRecord?.is_active !== false && accessForm.enabled !== false;
-  const [contactsOpen, setContactsOpen] = useState(false);
-  const [recordsOpen, setRecordsOpen] = useState(false);
   const activeAddresses = (selected.addresses || [])
     .filter(address => address.is_active !== false)
     .sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
@@ -86,104 +85,86 @@ export function RegistrationDetails({
   const canViewRecords = hasPermission("registrations.records.view") || canCreateRecords;
   const canOpenPermissions = roles.includes("employee") && Boolean(permissionUserId) && canViewPermissionOverrides;
 
-  return <>
-    <AdminPage open onClose={onClose} breadcrumb="Cadastros" title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-6xl">
-      <div className="space-y-5 p-4 sm:p-5">
+  return <AdminPage open onClose={onClose} breadcrumb="Cadastros" title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-6xl">
+    <div className="space-y-5 p-4 sm:p-5">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
-          </div>
-          <RegistrationDetailsToolbar
-            canViewContacts={Boolean(activeOrganizationId && canViewContacts)}
-            canViewRecords={Boolean(activeOrganizationId && canViewRecords)}
-            canViewPermissions={canOpenPermissions}
-            onOpenContacts={() => setContactsOpen(true)}
-            onOpenRecords={() => setRecordsOpen(true)}
-            onOpenPermissions={onOpenPermissions}
-          />
+          {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
         </div>
+        <RegistrationDetailsToolbar
+          canViewContacts={Boolean(activeOrganizationId && canViewContacts)}
+          canViewRecords={Boolean(activeOrganizationId && canViewRecords)}
+          canViewPermissions={canOpenPermissions}
+          onOpenContacts={onOpenContacts}
+          onOpenRecords={onOpenRecords}
+          onOpenPermissions={onOpenPermissions}
+        />
+      </div>
 
-        <Section title="Dados Pessoais"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {selected.person_type === "PF" && detailValue("Nome completo", selected.name || "—")}
-          {detailValue(selected.person_type === "PJ" ? "CNPJ" : "CPF", selected.document ? (selected.person_type === "PJ" ? formatCnpj(selected.document) : formatCpf(selected.document)) : "—")}
-          {detailValue("Telefone", formatPhone(selected.phone) || "—")}
-          {detailValue("WhatsApp", formatPhone(selected.whatsapp) || "—")}
-          {detailValue("E-mail", selected.email || "—")}
-          {selected.person_type === "PJ" ? <>
-            {detailValue("Nome fantasia", selected.trade_name || selected.name || "—")}
-            {detailValue("Razão social", selected.legal_name || "—")}
-            {detailValue("Inscrição estadual", selected.state_registration || "—")}
-            {detailValue("Inscrição municipal", selected.municipal_registration || "—")}
-            {detailValue("Fundação", formatDateOnly(selected.foundation_date, "—"))}
-          </> : detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
-        </div></Section>
+      <Section title="Dados Pessoais"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {selected.person_type === "PF" && detailValue("Nome completo", selected.name || "—")}
+        {detailValue(selected.person_type === "PJ" ? "CNPJ" : "CPF", selected.document ? (selected.person_type === "PJ" ? formatCnpj(selected.document) : formatCpf(selected.document)) : "—")}
+        {detailValue("Telefone", formatPhone(selected.phone) || "—")}
+        {detailValue("WhatsApp", formatPhone(selected.whatsapp) || "—")}
+        {detailValue("E-mail", selected.email || "—")}
+        {selected.person_type === "PJ" ? <>
+          {detailValue("Nome fantasia", selected.trade_name || selected.name || "—")}
+          {detailValue("Razão social", selected.legal_name || "—")}
+          {detailValue("Inscrição estadual", selected.state_registration || "—")}
+          {detailValue("Inscrição municipal", selected.municipal_registration || "—")}
+          {detailValue("Fundação", formatDateOnly(selected.foundation_date, "—"))}
+        </> : detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
+      </div></Section>
 
-        <Section title="Endereços">
-          {activeAddresses.length ? <div className="divide-y divide-[#0d1b2e]/8">{activeAddresses.map((address, index) => {
-            const mapUrl = getAddressMapUrl({
-              zip_code: address.zip_code || "",
-              street: address.street || "",
-              number: address.number || "",
-              complement: address.complement || "",
-              neighborhood: address.neighborhood || "",
-              city: address.city || "",
-              state: address.state || "",
-              shared_map_url: address.location_url || "",
-            });
-            return <div key={address.id} className="py-4 first:pt-0 last:pb-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-black text-[#0d1b2e]">{address.type || `Endereço ${index + 1}`}</span>
-                {address.is_primary && <span className="text-[10px] font-black uppercase tracking-wide text-[#0057e7]">Principal</span>}
-                {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/20 px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5"><MapPin size={13} /> Abrir mapa</a>}
-              </div>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-[#0d1b2e]">{formatBrazilianAddress(address)}</p>
-              {address.reference && <p className="mt-1 text-xs text-[#5a6a82]">Referência: {address.reference}</p>}
-            </div>;
-          })}</div> : <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>}
-        </Section>
-
-        {roles.includes("employee") && <Section title="Geral">
-          <div className="grid gap-4 sm:grid-cols-3">
-            {detailValue("Cargo", employee?.job_title || "—")}
-            {detailValue("Setor", employee?.team_name || "—")}
-            {detailValue("Admissão", formatDateOnly(employee?.admission_date, "—"))}
-          </div>
-          {canViewAccess && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-5" aria-busy={accessLoading}>
-            <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {detailValue("Status", accessExisting ? (accessActive ? "Ativo" : "Inativo") : "Sem login")}
-              {detailValue("E-mail de acesso", accessForm.email || "—")}
-              {detailValue("Função vinculada", accessForm.role_id ? "Configurada" : "—")}
+      <Section title="Endereços">
+        {activeAddresses.length ? <div className="divide-y divide-[#0d1b2e]/8">{activeAddresses.map((address, index) => {
+          const mapUrl = getAddressMapUrl({
+            zip_code: address.zip_code || "",
+            street: address.street || "",
+            number: address.number || "",
+            complement: address.complement || "",
+            neighborhood: address.neighborhood || "",
+            city: address.city || "",
+            state: address.state || "",
+            shared_map_url: address.location_url || "",
+          });
+          return <div key={address.id} className="py-4 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-black text-[#0d1b2e]">{address.type || `Endereço ${index + 1}`}</span>
+              {address.is_primary && <span className="text-[10px] font-black uppercase tracking-wide text-[#0057e7]">Principal</span>}
+              {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/20 px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5"><MapPin size={13} /> Abrir mapa</a>}
             </div>
-          </div>}
-        </Section>}
+            <p className="mt-2 text-sm font-semibold leading-relaxed text-[#0d1b2e]">{formatBrazilianAddress(address)}</p>
+            {address.reference && <p className="mt-1 text-xs text-[#5a6a82]">Referência: {address.reference}</p>}
+          </div>;
+        })}</div> : <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>}
+      </Section>
 
-        {roles.includes("supplier") && <Section title="Itens fornecidos">
-          <SupplierItemsTable items={supplierItems} />
-        </Section>}
-      </div>
+      {roles.includes("employee") && <Section title="Geral">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {detailValue("Cargo", employee?.job_title || "—")}
+          {detailValue("Setor", employee?.team_name || "—")}
+          {detailValue("Admissão", formatDateOnly(employee?.admission_date, "—"))}
+        </div>
+        {canViewAccess && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-5" aria-busy={accessLoading}>
+          <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {detailValue("Status", accessExisting ? (accessActive ? "Ativo" : "Inativo") : "Sem login")}
+            {detailValue("E-mail de acesso", accessForm.email || "—")}
+            {detailValue("Função vinculada", accessForm.role_id ? "Configurada" : "—")}
+          </div>
+        </div>}
+      </Section>}
 
-      <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
-        <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>
-        {roles.includes("customer") && selected.legacy_customer_id && onOpenCustomerHistory && <BtnSecondary onClick={() => onOpenCustomerHistory(selected.legacy_customer_id!)}>Ficha do cliente</BtnSecondary>}
-        {canEdit && <BtnPrimary onClick={onEdit}><Edit2 size={15} /> Editar cadastro</BtnPrimary>}
-      </div>
-    </AdminPage>
+      {roles.includes("supplier") && <Section title="Itens fornecidos">
+        <SupplierItemsTable items={supplierItems} />
+      </Section>}
+    </div>
 
-    {activeOrganizationId && canViewContacts && <RegistrationContactsPage
-      open={contactsOpen}
-      registration={selected}
-      organizationId={activeOrganizationId}
-      canManage={canManageContacts}
-      onClose={() => setContactsOpen(false)}
-    />}
-
-    {activeOrganizationId && canViewRecords && <RegistrationRecordsPage
-      open={recordsOpen}
-      registration={selected}
-      organizationId={activeOrganizationId}
-      canCreate={canCreateRecords}
-      onClose={() => setRecordsOpen(false)}
-    />}
-  </>;
+    <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
+      <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>
+      {roles.includes("customer") && selected.legacy_customer_id && onOpenCustomerHistory && <BtnSecondary onClick={() => onOpenCustomerHistory(selected.legacy_customer_id!)}>Ficha do cliente</BtnSecondary>}
+      {canEdit && <BtnPrimary onClick={onEdit}><Edit2 size={15} /> Editar cadastro</BtnPrimary>}
+    </div>
+  </AdminPage>;
 }

@@ -36,6 +36,7 @@ import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type SharedAccessMode = "default" | "read";
+type OrderDetailSubpage = "history" | "documents" | "part-requests" | "sla-records";
 
 type TabOrdersProps = {
   onNavigate?: (tab: AdminTab) => void;
@@ -204,7 +205,6 @@ export function TabOrders({
     profiles,
     showToast: setToast,
   });
-  const [documentsPageOpen, setDocumentsPageOpen] = useState(false);
   const orderDocuments = useOrderSituationDocuments({
     orderId: detail?.id,
     serviceTypeId: detail?.service_type_id,
@@ -423,6 +423,19 @@ export function TabOrders({
     if (opened) closeDetail();
   };
 
+  const openRoutedSubpage = (subpage: OrderDetailSubpage) => {
+    const orderId = detail?.id || initialOrderId;
+    if (!orderId || orderId === "new") return;
+    onOrderRouteChange?.(orderId, subpage);
+  };
+
+  const closeRoutedSubpage = () => {
+    orderHistory.resetPageState();
+    const orderId = detail?.id || initialOrderId;
+    if (!orderId || orderId === "new") return;
+    onOrderRouteChange?.(orderId, null);
+  };
+
   const closeRoutedPage = () => {
     const routedId = initialOrderId || detail?.id || null;
     if (routedId) closingRouteRef.current = routedId;
@@ -436,8 +449,7 @@ export function TabOrders({
 
     closeDetail();
     closeOrderForm();
-    setDocumentsPageOpen(false);
-    orderHistory.closePage();
+    orderHistory.resetPageState();
   };
 
   const cancelOrderEditor = () => {
@@ -519,8 +531,9 @@ export function TabOrders({
         details={detailsController}
         history={orderHistory}
         documents={orderDocuments}
-        documentsPageOpen={documentsPageOpen}
-        onDocumentsPageOpenChange={setDocumentsPageOpen}
+        routeSubpage={routeSubpage}
+        onOpenSubpage={openRoutedSubpage}
+        onCloseSubpage={closeRoutedSubpage}
         images={imagesController}
         partRequests={partRequests}
         resolution={resolutionController}

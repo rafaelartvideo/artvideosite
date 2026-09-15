@@ -22,8 +22,8 @@ Esta fase cobre **somente Cadastros e OS**. Depois de validar o resultado visual
 ### OS
 
 - A OS já possui rota real para detalhes e edição (`/admin/orders/:id` e `/admin/orders/:id/edit`).
-- Histórico e Documentos ainda são páginas completas controladas por estado interno dentro do detalhe.
-- O resultado é uma arquitetura híbrida: parte da navegação está na URL e parte não.
+- Histórico, Documentos, Solicitações de peças e Registros de SLA são páginas completas que viviam em estado interno dentro do detalhe.
+- O resultado era uma arquitetura híbrida: parte da navegação estava na URL e parte não.
 
 ## Princípio de arquitetura
 
@@ -63,18 +63,20 @@ Comportamento:
 
 ## Rotas da OS
 
-Manter as rotas já existentes e acrescentar rotas para páginas completas que hoje vivem em estado local:
+Manter as rotas já existentes e acrescentar rotas para todas as páginas completas do detalhe:
 
 ```text
 /admin/orders/:orderId
 /admin/orders/:orderId/edit
 /admin/orders/:orderId/history
 /admin/orders/:orderId/documents
+/admin/orders/:orderId/part-requests
+/admin/orders/:orderId/sla-records
 ```
 
-Nesta fase, `part-requests` só vira rota se a implementação atual se comportar como página completa. Se continuar sendo modal/fluxo temporário, permanece em estado local.
+Ações como alterar status, alterar situação, pedir peça, aprovar/rejeitar etapas, concluir OS, resolver OS, confirmações e diálogos rápidos continuam como modais quando não representam uma página completa.
 
-Ações como alterar status, alterar situação, concluir OS, resolver OS, confirmações e diálogos rápidos continuam como modais.
+As subrotas devem aguardar o detalhe da OS existir antes de montar seus componentes e devem respeitar as mesmas permissões usadas para exibir os respectivos botões da toolbar.
 
 ## Header e breadcrumb
 
@@ -127,20 +129,27 @@ registrations.lists()
 registrations.list(organizationId)
 registrations.details()
 registrations.detail(organizationId, registrationId)
+registrations.contactsAll
 registrations.contacts(organizationId, registrationId)
+registrations.recordsAll
 registrations.records(organizationId, registrationId)
+registrations.supplierItemsAll
 registrations.supplierItems(organizationId, registrationId)
+registrations.accessAll
 registrations.access(organizationId, employeeId)
+registrations.permissionsAll
 registrations.permissions(organizationId, userId)
 ```
 
+Os prefixos `*All` existem somente para invalidação de fallback quando um evento Realtime não traz os identificadores necessários; leituras continuam usando chaves isoladas por organização/recurso.
+
 ### Comportamento de leitura
 
-- Reabrir uma tela dentro do `staleTime` deve usar o cache sem refetch.
+- Reabrir uma tela dentro do `staleTime` deve usar o cache sem refetch bloqueante.
 - Dados em cache fora do `staleTime` continuam visíveis enquanto o Query atualiza em segundo plano.
 - Não trocar uma tela já preenchida por `LoadingState` apenas porque existe refetch de background.
 - Deep-link sem cache deve carregar somente o recurso necessário.
-- Ao abrir detalhes a partir da lista, usar o item da lista como `initialData`/seed quando seguro, e buscar detalhe somente quando necessário para completar dados.
+- Ao abrir detalhes a partir da lista, usar o item da lista como `initialData`/seed quando seguro. Como lista e detalhe usam o mesmo `REGISTRATION_SELECT`, esse seed é completo para o detalhe atual.
 
 ### Escritas e invalidação
 
@@ -152,16 +161,16 @@ Após criar/editar/ativar/inativar dados:
 
 Exemplos:
 
-- contato criado → atualizar/invalidate `registrations.contacts(org,id)`;
-- registro criado → atualizar/invalidate `registrations.records(org,id)`;
-- cadastro alterado → atualizar `registrations.detail(org,id)` e invalidar `registrations.list(org)`;
-- itens fornecidos alterados → invalidar `registrations.supplierItems(org,id)`;
+- contato criado → atualizar `registrations.contacts(org,id)`;
+- registro criado → atualizar `registrations.records(org,id)`;
+- cadastro alterado → atualizar `registrations.detail(org,id)` e marcar `registrations.list(org)` como stale sem bloquear a navegação;
+- itens fornecidos alterados → atualizar/invalidate `registrations.supplierItems(org,id)`;
 - permissões individuais alteradas → invalidar `registrations.permissions(org,userId)`;
 - acesso do funcionário alterado → invalidar a chave de acesso e refletir estado na lista/detalhe quando possível.
 
 ## Realtime
 
-Expandir `QueryRealtimeSync` para conhecer as tabelas de Cadastros relevantes:
+`QueryRealtimeSync` conhece as tabelas de Cadastros relevantes:
 
 ```text
 entities
@@ -172,29 +181,37 @@ entity_supplier_items
 entity_contacts
 entity_records
 employees
+profiles
 organization_members
 user_permission_overrides
 role_permissions
+inventory_items
 ```
 
-A invalidação deve ser agrupada por família (`registrations.all` ou chaves mais específicas quando viável), com o debounce existente.
+A invalidação deve ser granular quando o payload trouxer `organization_id`, `entity_id`, `user_id` ou `employee_id`:
 
-A troca de empresa continua limpando o QueryClient inteiro pelo evento `artvideo:organization-changed`.
+- `entity_contacts` → somente contatos do cadastro;
+- `entity_records` → somente registros do cadastro;
+- `entity_supplier_items` → somente itens do fornecedor afetado + estoque;
+- `entities`/papéis/endereços/detalhes de funcionário → lista + detalhe afetado;
+- `organization_members`/`user_permission_overrides` → permissões do usuário afetado;
+- `role_permissions` → prefixo de permissões, pois a tabela não identifica diretamente todos os usuários afetados;
+- `inventory_items` → estoque, OS e prefixo de itens fornecidos.
+
+Quando um evento (principalmente DELETE) não trouxer os IDs necessários, usar o prefixo seguro correspondente, sem invalidar toda a família `registrations` desnecessariamente.
+
+A troca de empresa limpa o `QueryClient` inteiro com `queryClient.clear()` pelo evento `artvideo:organization-changed`, evitando mistura de dados entre organizações.
 
 ## Registros: reduzir requests
 
-Eliminar a segunda consulta manual a `profiles` se a relação do Supabase permitir selecionar o autor no mesmo request de `entity_records`.
-
-Formato desejado do repositório:
+A relação `entity_records_created_by_fkey` aponta para `profiles(id)` e permite selecionar o autor no mesmo request de `entity_records`:
 
 ```text
 entity_records
   -> created_by_profile:profiles!entity_records_created_by_fkey(id,full_name,email)
 ```
 
-O mapeamento final continua expondo `author_name` para a UI, sem obrigar a tela a conhecer o formato da relação.
-
-Se o PostgREST não aceitar a relação pelo nome da constraint no ambiente atual, manter a resolução em duas consultas, mas cachear a consulta completa via Query e documentar a limitação. Não criar N+1.
+O mapeamento final continua expondo `author_name` para a UI, sem obrigar a tela a conhecer o formato da relação e sem segunda consulta manual a `profiles`.
 
 ## Itens fornecidos
 
@@ -206,19 +223,13 @@ Ao abrir detalhes repetidamente, não deve repetir as duas consultas (`entity_su
 
 ### Acesso básico
 
-O cache manual atual de `getEmployeeAccess` deve ser avaliado durante a implementação.
+O consumo de `getEmployeeAccess` foi migrado para TanStack Query e o cache manual `employeeAccessCache`/`employeeAccessPending` foi removido. Deduplicação e concorrência ficam sob responsabilidade do QueryClient.
 
-Preferência arquitetural:
-
-- migrar o consumo para TanStack Query;
-- remover `employeeAccessCache` e `employeeAccessPending` se deixarem de ter consumidores;
-- manter deduplicação/concurrency pelo próprio QueryClient.
-
-Não manter dois caches paralelos para o mesmo recurso sem necessidade comprovada.
+Caches de recursos diferentes que ainda tenham consumidores fora deste escopo não devem ser removidos apenas por estética.
 
 ### Acessos e permissões
 
-`UserPermissionOverridesPage` deve usar Query para carregar:
+`UserPermissionOverridesPage` usa Query para carregar:
 
 - membership/função;
 - permissões;
@@ -229,15 +240,16 @@ Salvar overrides invalida somente a chave desse usuário, além de preservar o e
 
 ## OS e cache
 
-As rotas novas de Histórico/Documentos devem reutilizar as queries/hooks existentes de OS, sem duplicar carregamento do detalhe.
+As rotas de Histórico, Documentos, Solicitações de peças e Registros de SLA reutilizam o detalhe/workspace e os hooks existentes da OS, sem criar um segundo workspace.
 
 Ao navegar:
 
 ```text
 OS detalhe → histórico → voltar → detalhe → documentos → voltar
+OS detalhe → solicitações de peças → voltar → detalhe → registros de SLA → voltar
 ```
 
-o detalhe e o workspace já carregados devem continuar aproveitando cache existente. Não criar um segundo workspace nem refazer consultas globais sem necessidade.
+o detalhe e o workspace já carregados continuam sendo reaproveitados. Deep-links aguardam o detalhe existir antes de montar a subpágina e uma URL direta sem permissão recebe uma página de acesso restrito.
 
 ## Estado visual e performance
 
@@ -251,7 +263,7 @@ o detalhe e o workspace já carregados devem continuar aproveitando cache existe
 
 Durante esta fase, remover somente resíduos diretamente relacionados à migração de rotas/cache:
 
-- estados locais `contactsOpen`, `recordsOpen` e equivalentes que deixarem de ser usados;
+- estados locais `contactsOpen`, `recordsOpen`, `documentsPageOpen`, `partRequestsPageOpen`, `slaRecordsPageOpen` e equivalentes que tenham sido substituídos por rota;
 - handlers de abrir/fechar páginas internas substituídos por navegação;
 - imports mortos;
 - caches manuais substituídos integralmente pelo QueryClient;
@@ -282,25 +294,22 @@ A futura troca de slug deve ser feita com redirect de compatibilidade, não queb
 
 ## Arquivos esperados
 
-Prováveis alterações:
+Alterações desta fase ficam concentradas em:
 
-- `src/features/admin-shell/admin-routes.ts`
 - `src/infrastructure/query/query-keys.ts`
 - `src/infrastructure/query/QueryRealtimeSync.tsx`
-- `src/features/customers/presentation/TabCustomers.tsx`
 - `src/features/registrations/presentation/TabRegistrations.tsx`
 - `src/features/registrations/presentation/RegistrationDetails.tsx`
 - `src/features/registrations/presentation/RegistrationContactsPage.tsx`
 - `src/features/registrations/presentation/RegistrationRecordsPage.tsx`
-- `src/features/registrations/infrastructure/registration-contacts.repository.ts`
 - `src/features/registrations/infrastructure/registration-records.repository.ts`
-- `src/features/registrations/infrastructure/registrations.repository.ts`
 - `src/features/access/presentation/UserPermissionOverridesPage.tsx`
-- `src/features/access/presentation/UserAccessSection.tsx` se o cache manual de funções/Uniq for migrado nesta fase
 - `src/features/access/infrastructure/user-access.repository.ts`
 - `src/features/orders/presentation/TabOrders.tsx`
-- `src/features/orders/presentation/OrderDetailsPage.tsx` e/ou componentes de histórico/documentos conforme responsabilidades atuais
-- hooks de OS relacionados a histórico/documentos apenas quando necessário para suportar route state.
+- `src/features/orders/presentation/OrderDetailsPage.tsx`
+- `src/features/orders/presentation/OrderHistoryPage.tsx`
+- `src/features/orders/application/useOrderHistory.ts`
+- documentação/plano/check de build relacionados a esta migração.
 
 Nenhum arquivo deve ser alterado apenas por estética de código se não contribuir para esta migração.
 
@@ -320,28 +329,31 @@ Nenhum arquivo deve ser alterado apenas por estética de código se não contrib
 12. Itens fornecidos não refazem suas consultas a cada reabertura do detalhe enquanto o cache estiver fresco.
 13. Acessos e Permissões usam cache global e não recarregam bloqueando a tela sem necessidade.
 14. Após uma escrita, a UI reflete a alteração sem recarregar todo o módulo.
-15. Trocar empresa limpa o cache e não mistura dados entre organizações.
+15. Trocar empresa limpa todo o cache e não mistura dados entre organizações.
 
 ## Critérios de aceite — OS
 
 16. `/admin/orders/:id/history` abre o histórico da OS diretamente.
 17. `/admin/orders/:id/documents` abre os documentos da OS diretamente.
-18. F5 nessas rotas mantém a página correta.
-19. Voltar do navegador retorna ao detalhe da OS.
-20. Histórico/Documentos não são mais controlados apenas por booleano local quando representam página completa.
-21. Modais temporários continuam modais.
-22. O workspace/detalhe da OS não sofre refetch global desnecessário ao navegar entre subpáginas.
+18. `/admin/orders/:id/part-requests` abre Solicitações de peças diretamente.
+19. `/admin/orders/:id/sla-records` abre Registros de SLA diretamente.
+20. F5 nessas rotas aguarda a OS carregar e mantém a página correta, sem acessar `detail` nulo.
+21. Voltar do navegador retorna ao detalhe da OS.
+22. Nenhuma dessas páginas completas depende de booleano local no detalhe.
+23. Deep-link sem a permissão correspondente não monta a página protegida e apresenta acesso restrito.
+24. Modais/ações temporárias continuam modais.
+25. O workspace/detalhe da OS não sofre refetch global desnecessário ao navegar entre subpáginas.
 
 ## Critérios de aceite — qualidade
 
-23. `npm run build` passa.
-24. GitHub Actions de build/deploy passa.
-25. Nenhum import/estado/handler morto relacionado ao fluxo antigo permanece.
-26. Nenhum arquivo removido possui consumidores no repositório.
-27. Não são introduzidos novos caches manuais paralelos ao QueryClient.
-28. Nomes novos usam `registration`/`Cadastros` quando o conceito não é exclusivamente cliente.
-29. Rotas antigas de Cadastros continuam válidas nesta fase.
-30. Não há regressão funcional em criação/edição de cadastro, ativação de funcionário, contatos, registros, permissões, detalhes/edição de OS, histórico e documentos.
+26. `npm run build` passa no check do PR.
+27. GitHub Actions de build/deploy passa após integração na `main`.
+28. Nenhum import/estado/handler morto relacionado ao fluxo antigo permanece.
+29. Nenhum arquivo removido possui consumidores no repositório.
+30. Não são introduzidos novos caches manuais paralelos ao QueryClient.
+31. Nomes novos usam `registration`/`Cadastros` quando o conceito não é exclusivamente cliente.
+32. Rotas antigas de Cadastros continuam válidas nesta fase.
+33. Não há regressão estrutural em criação/edição de cadastro, ativação de funcionário, contatos, registros, permissões, detalhes/edição de OS e subpáginas roteadas.
 
 ## Fora de escopo
 

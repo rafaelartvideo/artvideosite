@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Mail, MessageCircle, Pause, Phone, Play, Plus, UserRound } from "lucide-react";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cn, formatPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
-import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminDialog, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import type { Registration } from "../infrastructure/registrations.repository";
@@ -44,6 +46,14 @@ function contactFormFromRecord(contact: RegistrationContact): ContactForm {
   };
 }
 
+function sortContacts(contacts: RegistrationContact[]) {
+  return [...contacts].sort((left, right) => {
+    if (left.is_primary !== right.is_primary) return Number(right.is_primary) - Number(left.is_primary);
+    if (left.is_active !== right.is_active) return Number(right.is_active) - Number(left.is_active);
+    return left.name.localeCompare(right.name, "pt-BR", { sensitivity: "base" });
+  });
+}
+
 function whatsappUrl(value?: string | null) {
   const digits = normalizeDigits(value || "");
   if (!digits) return "";
@@ -61,39 +71,44 @@ function ContactChannels({ phone, whatsapp, email }: { phone?: string | null; wh
 }
 
 export function RegistrationContactsPage({
-  open,
   registration,
   organizationId,
   canManage,
   onClose,
 }: {
-  open: boolean;
   registration: Registration;
   organizationId: string;
   canManage: boolean;
   onClose: () => void;
 }) {
-  const [contacts, setContacts] = useState<RegistrationContact[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.registrations.contacts(organizationId, registration.id);
+  const contactsQuery = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const result = await listRegistrationContacts(organizationId, registration.id);
+      if (result.error) throw result.error;
+      return result.data;
+    },
+  });
+  const contacts = contactsQuery.data ?? [];
+  const loading = contactsQuery.isPending && !contactsQuery.data;
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<RegistrationContact | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<ContactForm>(emptyContactForm());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const result = await listRegistrationContacts(organizationId, registration.id);
-    setLoading(false);
-    if (result.error) {
-      notifyAdmin(`Erro ao carregar contatos: ${result.error.message}`, "error");
-      return;
-    }
-    setContacts(result.data);
-  }, [organizationId, registration.id]);
-
   useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
+    if (!contactsQuery.error) return;
+    notifyAdmin(`Erro ao carregar contatos: ${contactsQuery.error instanceof Error ? contactsQuery.error.message : String(contactsQuery.error)}`, "error");
+  }, [contactsQuery.error]);
+
+  const updateContactCache = (contact: RegistrationContact) => {
+    queryClient.setQueryData<RegistrationContact[]>(queryKey, current => sortContacts([
+      ...(current || []).filter(item => item.id !== contact.id),
+      contact,
+    ]));
+  };
 
   const openNew = () => {
     setEditing(null);
@@ -127,31 +142,30 @@ export function RegistrationContactsPage({
       ? await updateRegistrationContact(organizationId, registration.id, editing.id, payload)
       : await createRegistrationContact(organizationId, registration.id, payload);
     setSaving(false);
-    if (result.error) {
-      notifyAdmin(`Erro ao salvar contato: ${result.error.message}`, "error");
+    if (result.error || !result.data) {
+      notifyAdmin(`Erro ao salvar contato: ${result.error?.message || "Contato não retornado após salvar."}`, "error");
       return;
     }
+    updateContactCache(result.data);
     setFormOpen(false);
     notifyAdmin(editing ? "Contato atualizado." : "Contato adicionado.");
-    await load();
   };
 
   const toggleActive = async (contact: RegistrationContact) => {
     const next = !contact.is_active;
     const result = await setRegistrationContactActive(organizationId, registration.id, contact.id, next);
-    if (result.error) {
-      notifyAdmin(`Erro ao alterar contato: ${result.error.message}`, "error");
+    if (result.error || !result.data) {
+      notifyAdmin(`Erro ao alterar contato: ${result.error?.message || "Contato não retornado após alterar."}`, "error");
       return;
     }
+    updateContactCache(result.data);
     notifyAdmin(next ? "Contato ativado." : "Contato inativado.");
-    await load();
   };
 
-  if (!open) return null;
   const hasPrimaryChannels = Boolean(registration.phone || registration.whatsapp || registration.email);
 
   return <>
-    <AdminPage open onClose={onClose} breadcrumb={`Cadastros > ${registration.name}`} title="Contatos" subtitle="Contatos principais e adicionais deste cadastro" maxW="max-w-4xl">
+    <AdminPage open onClose={onClose} breadcrumb={`Cadastros > ${registration.name} > Contatos`} title="Contatos" subtitle="Contatos principais e adicionais deste cadastro" maxW="max-w-4xl">
       <div className="space-y-4 p-4 sm:p-5">
         <AdminCard className="p-4 shadow-none sm:p-5">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">

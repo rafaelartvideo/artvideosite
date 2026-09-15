@@ -100,7 +100,7 @@ export function OrderSituationRecordsPage({
   return <AdminPage
     open
     onClose={onClose}
-    breadcrumb={`Ordens de Serviço > ${order?.os_number || "OS"}`}
+    breadcrumb={`Ordens de Serviço > ${order?.os_number || "OS"} > Registros de SLA`}
     title="Registros de SLA"
     subtitle="Histórico das passagens da ordem de serviço pelas situações"
     maxW="max-w-4xl"
