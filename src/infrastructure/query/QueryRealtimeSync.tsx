@@ -85,7 +85,7 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "entity_supplier_items", keys: payload => [...registrationChildKeys(payload, "supplier-items"), queryKeys.inventory.all] },
   { table: "entity_contacts", keys: payload => registrationChildKeys(payload, "contacts") },
   { table: "entity_records", keys: payload => registrationChildKeys(payload, "records") },
-  { table: "organization_members", keys: payload => [...registrationPermissionKeys(payload), queryKeys.employees.all] },
+  { table: "organization_members", keys: payload => [...registrationPermissionKeys(payload), queryKeys.registrations.accessAll, queryKeys.employees.all] },
   { table: "user_permission_overrides", keys: payload => [...registrationPermissionKeys(payload), queryKeys.employees.all] },
   { table: "role_permissions", keys: [queryKeys.registrations.permissionsAll, queryKeys.employees.all] },
   { table: "inventory_items", keys: [queryKeys.inventory.all, queryKeys.orders.all, queryKeys.registrations.supplierItemsAll] },
@@ -99,7 +99,7 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "quote_requests", keys: [queryKeys.quotes.all, queryKeys.customers.all, queryKeys.admin.dashboard()] },
   { table: "quote_status_history", keys: [queryKeys.quotes.all, queryKeys.customers.all] },
   { table: "employees", keys: registrationEmployeeKeys },
-  { table: "profiles", keys: [queryKeys.employees.all, queryKeys.orders.all, queryKeys.registrations.details(), queryKeys.registrations.permissionsAll] },
+  { table: "profiles", keys: [queryKeys.employees.all, queryKeys.orders.all, queryKeys.registrations.details(), queryKeys.registrations.permissionsAll, queryKeys.registrations.accessAll] },
 ];
 
 export function QueryRealtimeSync() {
