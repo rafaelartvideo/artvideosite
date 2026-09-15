@@ -7,6 +7,7 @@ import {
   AdminButton,
   AdminCard,
   AdminCardHeader,
+  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -298,7 +299,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         subtitle="Perfis técnicos vinculados aos equipamentos e às etapas das ordens de serviço"
         actions={<div className="flex items-center gap-2">
           <InternalBackButton onBack={onBack} />
-          {canManage && <AdminButton onClick={() => onRouteChange?.("new", null)}><Plus size={15} /> Novo perfil</AdminButton>}
+          {canManage && <AdminButton onClick={() => onRouteChange?.("new", null)}><Plus size={17} /> Novo perfil</AdminButton>}
         </div>}
       />
       {!data?.profiles.length
@@ -352,12 +353,13 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     >
       <div className="space-y-5 p-5">
         <section className="overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white">
-          <div className="flex flex-col gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="grid gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4 text-center sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+            <div className="hidden sm:block" />
             <div>
               <h3 className="text-sm font-black text-[#0d1b2e]">Perfil</h3>
               <p className="mt-1 text-xs text-[#6b7c93]">Defina a identificação e disponibilidade deste perfil.</p>
             </div>
-            <div className="flex justify-end">
+            <div className="flex justify-center sm:justify-end">
               <FToggle
                 label="Perfil ativo"
                 checked={draft.is_active}
@@ -381,32 +383,33 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white">
-          <div className="flex flex-col gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] text-[#0057e7]">
+          <div className="grid gap-4 border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-5 text-center sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+            <div className="hidden sm:block" />
+            <div className="flex min-w-0 flex-col items-center">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] text-[#0057e7]">
                 <ClipboardCheck size={18} />
               </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-sm font-black text-[#0d1b2e]">Etapas do checklist</h3>
-                  <span className="rounded-full bg-[#e8edf4] px-2 py-0.5 text-[10px] font-bold text-[#52647c]">
-                    {draft.stages.length} {draft.stages.length === 1 ? "etapa" : "etapas"}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs leading-5 text-[#6b7c93]">
-                  Organize o fluxo, vincule situações da OS e defina os bloqueios de cada etapa.
-                </p>
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                <h3 className="text-sm font-black text-[#0d1b2e]">Etapas do checklist</h3>
+                <span className="rounded-full border border-[#0057e7]/15 bg-[#eaf2ff] px-2.5 py-0.5 text-[10px] font-black text-[#0057e7]">
+                  {draft.stages.length} {draft.stages.length === 1 ? "etapa" : "etapas"}
+                </span>
               </div>
+              <p className="mt-1 max-w-xl text-xs leading-5 text-[#6b7c93]">
+                Organize o fluxo, vincule situações da OS e defina os bloqueios de cada etapa.
+              </p>
             </div>
-            <AdminButton className="w-full justify-center sm:w-auto" onClick={addStage}>
-              <Plus size={14} /> Nova etapa
-            </AdminButton>
+            <div className="flex justify-center sm:justify-end">
+              <AdminButton className="h-11 min-w-11 px-3 sm:px-4" onClick={addStage}>
+                <Plus size={17} /> Nova etapa
+              </AdminButton>
+            </div>
           </div>
 
           <div className="grid gap-5 p-5 xl:grid-cols-2">
             {draft.stages.map((stage, stageIndex) => <AdminCard key={`${stage.id || stage.code}-${stageIndex}`} className="h-full overflow-hidden shadow-none">
               <div className="border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="min-w-0 flex-1">
                     <FInput
                       label={`Nome da etapa ${stageIndex + 1}`}
@@ -414,39 +417,35 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
                       onChange={event => updateStage(stageIndex, { name: event.target.value })}
                       placeholder="Ex.: Entrada"
                     />
-                    <p className="mt-1.5 text-[11px] text-[#6b7c93]">
-                      {stage.situation_id
-                        ? `Vinculada a ${data?.situations.find(item => item.id === stage.situation_id)?.name || "Situação"}`
-                        : "Sem situação vinculada"}
-                    </p>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                    <AdminButton
-                      variant="secondary"
-                      className="px-2"
+                  <div className="flex shrink-0 items-center justify-center gap-1.5 sm:pt-5">
+                    <AdminIconButton
                       disabled={stageIndex === 0}
                       onClick={() => moveStage(stageIndex, -1)}
                       title="Mover etapa para cima"
+                      ariaLabel="Mover etapa para cima"
+                      className="h-10 w-10"
                     >
-                      <ArrowUp size={14} />
-                    </AdminButton>
-                    <AdminButton
-                      variant="secondary"
-                      className="px-2"
+                      <ArrowUp size={15} />
+                    </AdminIconButton>
+                    <AdminIconButton
                       disabled={stageIndex === draft.stages.length - 1}
                       onClick={() => moveStage(stageIndex, 1)}
                       title="Mover etapa para baixo"
+                      ariaLabel="Mover etapa para baixo"
+                      className="h-10 w-10"
                     >
-                      <ArrowDown size={14} />
-                    </AdminButton>
-                    <AdminButton
-                      variant="secondary"
-                      className="border-red-200 bg-red-50 px-3 text-red-600 hover:bg-red-100"
+                      <ArrowDown size={15} />
+                    </AdminIconButton>
+                    <AdminIconButton
+                      variant="danger"
                       onClick={() => removeStage(stageIndex)}
                       title="Excluir etapa"
+                      ariaLabel="Excluir etapa"
+                      className="h-10 w-10"
                     >
-                      <Trash2 size={14} /> Excluir etapa
-                    </AdminButton>
+                      <Trash2 size={15} />
+                    </AdminIconButton>
                   </div>
                 </div>
               </div>
@@ -492,12 +491,16 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3 border-t border-[#0d1b2e]/8 pt-3">
-                    <div>
-                      <strong className="text-xs uppercase tracking-wide text-[#52647c]">Itens</strong>
-                      <p className="mt-0.5 text-[11px] text-[#7a8aa0]">{stage.items.length} {stage.items.length === 1 ? "item" : "itens"}</p>
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-2 text-[#0057e7]">
+                      <strong className="text-xs uppercase tracking-wide">Itens</strong>
+                      <span className="text-[11px] font-bold">{stage.items.length} {stage.items.length === 1 ? "item" : "itens"}</span>
                     </div>
-                    <AdminButton variant="secondary" onClick={() => addItem(stageIndex)}>
-                      <Plus size={13} /> Item
+                    <AdminButton
+                      variant="secondary"
+                      className="h-10 border-[#0057e7]/30 px-3 text-[#0057e7] hover:bg-[#eef5ff] hover:text-[#0057e7]"
+                      onClick={() => addItem(stageIndex)}
+                    >
+                      <Plus size={17} /> Item
                     </AdminButton>
                   </div>
 
