@@ -5,7 +5,7 @@ import {
   getNewOrderEntryChecklistDraft,
   loadNewOrderEntryChecklist,
   setNewOrderEntryChecklistDraft,
-  subscribeNewOrderEntryChecklistDraft,
+  subscribeNewOrderEntryChecklistContent,
   type EntryChecklistDraft,
 } from "../application/new-order-entry-checklist";
 
@@ -14,7 +14,7 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => subscribeNewOrderEntryChecklistDraft(() => {
+  useEffect(() => subscribeNewOrderEntryChecklistContent(() => {
     setDraft(getNewOrderEntryChecklistDraft());
   }), []);
 
