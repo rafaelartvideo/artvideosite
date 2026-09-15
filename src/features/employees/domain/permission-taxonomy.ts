@@ -12,14 +12,14 @@ export type PermissionModuleGroup = { name: string; sections: PermissionSectionG
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço",
-  customers: "Cadastros", agenda: "Agenda", inventory: "Estoque", products: "Produtos", categories: "Categorias",
+  customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", inventory: "Estoque", products: "Produtos", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
   situations: "Situações da OS", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos",
 };
 
 const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
-const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Conteúdo", "Publicação", "Outros"];
+const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
@@ -59,6 +59,10 @@ export function permissionSectionName(permission: PermissionRecord) {
     if (key.startsWith("orders.section.")) return "Detalhes";
     if (ORDER_FLOW_KEYS.has(key)) return "Fluxo da OS";
     return key.endsWith(".view") ? "Acesso" : "Ações";
+  }
+  if (module === "registrations") {
+    if (key.startsWith("registrations.contacts.")) return "Contatos";
+    if (key.startsWith("registrations.records.")) return "Registros";
   }
   if (module === "employees") return key === "employees.view" ? "Acesso" : "Ações";
   if (module === "documents") return key.startsWith("documents.attachment_types.") ? "Tipos de Anexo" : "Impressão / Modelos";
@@ -136,6 +140,8 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "general_services.toggle_active": ["general_services.edit", "general_services.view"], "service_types.toggle_active": ["service_types.edit", "service_types.view"],
   "service_types.sla.manage": ["service_types.edit", "service_types.view"],
   "employees.create": ["employees.view"], "employees.edit": ["employees.view"], "employees.toggle_active": ["employees.view"],
+  "registrations.contacts.view": ["customers.view"], "registrations.contacts.manage": ["registrations.contacts.view", "customers.view"],
+  "registrations.records.view": ["customers.view"], "registrations.records.create": ["registrations.records.view", "customers.view"],
   "quotes.status.change": ["quotes.edit", "quotes.view"], "quotes.convert_to_order": ["quotes.view", "orders.create"],
   "agenda.create": ["agenda.view"], "agenda.reschedule": ["agenda.view"], "agenda.view_others": ["agenda.view"],
   "situations.table.view": ["situations.view"], "situations.create": ["situations.view"], "situations.edit": ["situations.view"], "situations.delete": ["situations.view"],
@@ -155,7 +161,7 @@ export function permissionDependencies(key: string) {
   const module = key.split(".")[0];
   const isModuleView = key === `${module}.view`;
 
-  if (module === "employees") return Array.from(dependencies);
+  if (module === "employees" || module === "registrations") return Array.from(dependencies);
 
   const isTableColumn = key.includes(".table.") && key !== `${module}.table.view`;
   if (key.includes(".details.") && key !== `${module}.details.view`) dependencies.add(`${module}.details.view`);
