@@ -32,13 +32,18 @@ export type EntryChecklistDevicePayload = {
   observation?: string;
 };
 
-const DRAFT_CHANGED_EVENT = "artvideo:entry-checklist-draft-changed";
+const DRAFT_STRUCTURE_CHANGED_EVENT = "artvideo:entry-checklist-structure-changed";
+const DRAFT_CONTENT_CHANGED_EVENT = "artvideo:entry-checklist-content-changed";
 let currentDraft: EntryChecklistDraft | null = null;
 const pendingDeviceAnswers = new Map<string, EntryChecklistDevicePayload>();
 const pendingDevicePhotos = new Map<string, File[]>();
 
-function notifyDraftChanged() {
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DRAFT_CHANGED_EVENT));
+function notifyDraftContentChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DRAFT_CONTENT_CHANGED_EVENT));
+}
+
+function notifyDraftStructureChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DRAFT_STRUCTURE_CHANGED_EVENT));
 }
 
 function mergePendingDeviceChanges(draft: EntryChecklistDraft | null) {
@@ -65,11 +70,18 @@ function mergePendingDeviceChanges(draft: EntryChecklistDraft | null) {
 
 export function subscribeNewOrderEntryChecklistDraft(listener: () => void) {
   if (typeof window === "undefined") return () => undefined;
-  window.addEventListener(DRAFT_CHANGED_EVENT, listener);
-  return () => window.removeEventListener(DRAFT_CHANGED_EVENT, listener);
+  window.addEventListener(DRAFT_STRUCTURE_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(DRAFT_STRUCTURE_CHANGED_EVENT, listener);
+}
+
+export function subscribeNewOrderEntryChecklistContent(listener: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+  window.addEventListener(DRAFT_CONTENT_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(DRAFT_CONTENT_CHANGED_EVENT, listener);
 }
 
 export function setNewOrderEntryChecklistDraft(draft: EntryChecklistDraft | null) {
+  const previousEquipmentTypeId = currentDraft?.equipmentTypeId || null;
   currentDraft = mergePendingDeviceChanges(draft);
   if (currentDraft) {
     for (const item of currentDraft.items) {
@@ -77,7 +89,9 @@ export function setNewOrderEntryChecklistDraft(draft: EntryChecklistDraft | null
       pendingDevicePhotos.delete(item.key);
     }
   }
-  notifyDraftChanged();
+  notifyDraftContentChanged();
+  const nextEquipmentTypeId = currentDraft?.equipmentTypeId || null;
+  if (previousEquipmentTypeId !== nextEquipmentTypeId) notifyDraftStructureChanged();
   return currentDraft;
 }
 
@@ -86,10 +100,12 @@ export function getNewOrderEntryChecklistDraft() {
 }
 
 export function clearNewOrderEntryChecklistDraft() {
+  const hadStructure = Boolean(currentDraft?.equipmentTypeId);
   currentDraft = null;
   pendingDeviceAnswers.clear();
   pendingDevicePhotos.clear();
-  notifyDraftChanged();
+  notifyDraftContentChanged();
+  if (hadStructure) notifyDraftStructureChanged();
 }
 
 export function applyDeviceEntryChecklistAnswer(itemKey: string, payload: EntryChecklistDevicePayload) {
@@ -113,7 +129,7 @@ export function applyDeviceEntryChecklistAnswer(itemKey: string, payload: EntryC
       observation: payload.observation ?? item.observation,
     } : item),
   };
-  notifyDraftChanged();
+  notifyDraftContentChanged();
 }
 
 export function applyDeviceEntryChecklistPhoto(itemKey: string, file: File) {
@@ -134,7 +150,7 @@ export function applyDeviceEntryChecklistPhoto(itemKey: string, file: File) {
       photos: [...item.photos, file],
     } : item),
   };
-  notifyDraftChanged();
+  notifyDraftContentChanged();
 }
 
 export async function loadNewOrderEntryChecklist(equipmentTypeId: string): Promise<EntryChecklistDraft | null> {
