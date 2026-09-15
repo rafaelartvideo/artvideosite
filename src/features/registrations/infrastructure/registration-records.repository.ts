@@ -1,5 +1,19 @@
 import { supabase } from "@/lib/supabase";
-import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
+import {
+  createStorageSignedUrl,
+  supabaseErrorMessage,
+  uploadRegistrationRecordMediaFile,
+} from "@/shared/infrastructure/media.repository";
+
+export type RegistrationRecordAttachment = {
+  id: string;
+  media_id: string;
+  file_name: string;
+  mime_type: string | null;
+  file_size: number | null;
+  bucket_id: string;
+  storage_path: string;
+};
 
 export type RegistrationRecord = {
   id: string;
@@ -11,6 +25,7 @@ export type RegistrationRecord = {
   content: string;
   created_at: string;
   author_name: string;
+  attachments: RegistrationRecordAttachment[];
 };
 
 const RECORD_SELECT = `
@@ -39,20 +54,63 @@ function mapRegistrationRecord(row: any): RegistrationRecord {
     author_name: row.created_by
       ? String(profile?.full_name || profile?.email || "Usuário")
       : "Sistema",
+    attachments: [],
+  };
+}
+
+function mapAttachment(row: any): RegistrationRecordAttachment | null {
+  const media = Array.isArray(row?.media) ? row.media[0] : row?.media;
+  if (!media?.id) return null;
+  return {
+    id: String(row.id),
+    media_id: String(media.id),
+    file_name: String(media.file_name || "Arquivo"),
+    mime_type: media.mime_type ? String(media.mime_type) : null,
+    file_size: media.file_size == null ? null : Number(media.file_size),
+    bucket_id: String(media.bucket_id || "registration-files"),
+    storage_path: String(media.storage_path || ""),
   };
 }
 
 export async function listRegistrationRecords(organizationId: string, entityId: string) {
-  const result = await supabase
+  const recordsResult = await supabase
     .from("entity_records")
     .select(RECORD_SELECT)
     .eq("organization_id", organizationId)
     .eq("entity_id", entityId)
     .order("created_at", { ascending: false });
 
+  if (recordsResult.error) {
+    return { data: [] as RegistrationRecord[], error: normalizeError(recordsResult.error) };
+  }
+
+  const records = (recordsResult.data || []).map(mapRegistrationRecord);
+  if (!records.length) return { data: records, error: null };
+
+  const attachmentsResult = await supabase
+    .from("entity_record_media")
+    .select("id,record_id,media_id,created_at,media:media(id,bucket_id,storage_path,file_name,mime_type,file_size)")
+    .eq("organization_id", organizationId)
+    .in("record_id", records.map(record => record.id))
+    .order("created_at", { ascending: true });
+
+  if (attachmentsResult.error) {
+    return { data: records, error: normalizeError(attachmentsResult.error) };
+  }
+
+  const byRecord = new Map<string, RegistrationRecordAttachment[]>();
+  for (const row of attachmentsResult.data || []) {
+    const attachment = mapAttachment(row);
+    if (!attachment) continue;
+    const recordId = String((row as any).record_id);
+    const current = byRecord.get(recordId) || [];
+    current.push(attachment);
+    byRecord.set(recordId, current);
+  }
+
   return {
-    data: result.error ? [] as RegistrationRecord[] : (result.data || []).map(mapRegistrationRecord),
-    error: result.error ? normalizeError(result.error) : null,
+    data: records.map(record => ({ ...record, attachments: byRecord.get(record.id) || [] })),
+    error: null,
   };
 }
 
@@ -77,4 +135,45 @@ export async function createRegistrationRecord(
     data: result.data ? mapRegistrationRecord(result.data) : null,
     error: result.error ? normalizeError(result.error) : null,
   };
+}
+
+export async function addRegistrationRecordAttachments(
+  organizationId: string,
+  entityId: string,
+  recordId: string,
+  files: File[],
+) {
+  let uploaded = 0;
+  for (const file of files) {
+    try {
+      const mediaId = await uploadRegistrationRecordMediaFile(organizationId, entityId, recordId, file);
+      const { error } = await supabase.from("entity_record_media").insert({
+        organization_id: organizationId,
+        record_id: recordId,
+        media_id: mediaId,
+      });
+      if (error) throw error;
+      uploaded += 1;
+    } catch (error) {
+      return { uploaded, error: normalizeError(error) };
+    }
+  }
+  return { uploaded, error: null };
+}
+
+export async function getRegistrationRecordAttachmentUrl(
+  attachment: RegistrationRecordAttachment,
+  download = false,
+) {
+  try {
+    const url = await createStorageSignedUrl(
+      attachment.bucket_id as "registration-files",
+      attachment.storage_path,
+      300,
+      download ? attachment.file_name : undefined,
+    );
+    return { url, error: null };
+  } catch (error) {
+    return { url: "", error: normalizeError(error) };
+  }
 }
