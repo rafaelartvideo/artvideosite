@@ -76,7 +76,7 @@ function answerOptions(item: DeviceEntryChecklistItem) {
 
 function checklistSignature(checklist: DeviceEntryChecklist | null) {
   if (!checklist) return "none";
-  return `${checklist.stageCode}|${checklist.items.map(item => item.key).join("|")}`;
+  return `${checklist.equipmentTypeId}|${checklist.stageCode}|${checklist.items.map(item => item.key).join("|")}`;
 }
 
 export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; token: string }) {
