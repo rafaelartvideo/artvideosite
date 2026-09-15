@@ -13,45 +13,46 @@ export type RegistrationRecord = {
   author_name: string;
 };
 
+const RECORD_SELECT = `
+  id,organization_id,entity_id,created_by,record_type,title,content,created_at,
+  created_by_profile:profiles!entity_records_created_by_fkey(id,full_name,email)
+`;
+
 function normalizeError(error: unknown) {
   if (!error) return null;
   return error instanceof Error ? error : new Error(supabaseErrorMessage(error));
 }
 
+function mapRegistrationRecord(row: any): RegistrationRecord {
+  const profile = Array.isArray(row?.created_by_profile)
+    ? row.created_by_profile[0]
+    : row?.created_by_profile;
+  return {
+    id: String(row.id),
+    organization_id: String(row.organization_id),
+    entity_id: String(row.entity_id),
+    created_by: row.created_by ? String(row.created_by) : null,
+    record_type: String(row.record_type || "note"),
+    title: String(row.title || "Registro"),
+    content: String(row.content || ""),
+    created_at: String(row.created_at),
+    author_name: row.created_by
+      ? String(profile?.full_name || profile?.email || "Usuário")
+      : "Sistema",
+  };
+}
+
 export async function listRegistrationRecords(organizationId: string, entityId: string) {
   const result = await supabase
     .from("entity_records")
-    .select("id,organization_id,entity_id,created_by,record_type,title,content,created_at")
+    .select(RECORD_SELECT)
     .eq("organization_id", organizationId)
     .eq("entity_id", entityId)
     .order("created_at", { ascending: false });
 
-  if (result.error) {
-    return { data: [] as RegistrationRecord[], error: normalizeError(result.error) };
-  }
-
-  const rows = (result.data || []) as Array<Omit<RegistrationRecord, "author_name">>;
-  const authorIds = Array.from(new Set(rows.map(row => row.created_by).filter(Boolean))) as string[];
-  const authorNames = new Map<string, string>();
-
-  if (authorIds.length) {
-    const profiles = await supabase
-      .from("profiles")
-      .select("id,full_name,email")
-      .in("id", authorIds);
-    if (!profiles.error) {
-      (profiles.data || []).forEach((profile: any) => {
-        authorNames.set(String(profile.id), String(profile.full_name || profile.email || "Usuário"));
-      });
-    }
-  }
-
   return {
-    data: rows.map(row => ({
-      ...row,
-      author_name: row.created_by ? authorNames.get(row.created_by) || "Usuário" : "Sistema",
-    })),
-    error: null,
+    data: result.error ? [] as RegistrationRecord[] : (result.data || []).map(mapRegistrationRecord),
+    error: result.error ? normalizeError(result.error) : null,
   };
 }
 
@@ -70,10 +71,10 @@ export async function createRegistrationRecord(
       title: title.trim() || "Registro",
       content: content.trim(),
     })
-    .select("id,organization_id,entity_id,created_by,record_type,title,content,created_at")
+    .select(RECORD_SELECT)
     .single();
   return {
-    data: result.data,
+    data: result.data ? mapRegistrationRecord(result.data) : null,
     error: result.error ? normalizeError(result.error) : null,
   };
 }
