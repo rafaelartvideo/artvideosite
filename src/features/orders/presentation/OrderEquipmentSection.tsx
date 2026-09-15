@@ -3,6 +3,7 @@ import { Plus, Tag, ScanLine } from "lucide-react";
 import { AdminButton, AdminDialog, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import type { EquipmentTypeTechnicalField, ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
+import { NewOrderEntryChecklist } from "@/features/checklists/presentation/NewOrderEntryChecklist";
 import { DeviceCaptureBridge } from "./DeviceCaptureBridge";
 import { OrderImagesField, type OrderImage } from "./OrderImages";
 import type { OrderImageKind } from "../domain/order-image";
@@ -55,11 +56,13 @@ export function OrderEquipmentSection({
   const [scanValues, setScanValues] = useState<string[]>([]);
   const [scanValue, setScanValue] = useState("");
   const scanGeneration = useRef(0);
+
   const closeScanner = () => {
     scanGeneration.current += 1;
     setScanOpen(false);
     setScanBusy(false);
   };
+
   const readSerialCode = async (file?: File) => {
     if (!file || editing) return;
     const generation = ++scanGeneration.current;
@@ -69,6 +72,7 @@ export function OrderEquipmentSection({
     setScanValues([]);
     setScanValue("");
     let bitmap: ImageBitmap | undefined;
+
     try {
       const Detector = (window as unknown as {
         BarcodeDetector?: new () => { detect: (image: ImageBitmap) => Promise<Array<{ rawValue: string }>> };
@@ -88,16 +92,28 @@ export function OrderEquipmentSection({
       if (generation === scanGeneration.current) setScanBusy(false);
     }
   };
+
   const editingOS = editing;
-  const hasPermission = (permission: string) =>
-    permission === "equipment.create" && canCreate;
+  const hasPermission = (permission: string) => permission === "equipment.create" && canCreate;
   const setQuickEquipment = (open: boolean) => {
     if (open) onCreateEquipment();
   };
   const upF = onFieldChange;
   const historicalFields = technicalHistory
     .filter(value => !technicalFields.some(field => field.technical_field_id === value.technical_field_id))
-    .map(value => ({ technical_field_id: value.technical_field_id, required: false, sort_order: 0, technical_field: { id: value.technical_field_id, field_key: value.field_key_snapshot, label: value.label_snapshot, field_type: value.field_type_snapshot, is_active: false, sort_order: 0 } }));
+    .map(value => ({
+      technical_field_id: value.technical_field_id,
+      required: false,
+      sort_order: 0,
+      technical_field: {
+        id: value.technical_field_id,
+        field_key: value.field_key_snapshot,
+        label: value.label_snapshot,
+        field_type: value.field_type_snapshot,
+        is_active: false,
+        sort_order: 0,
+      },
+    }));
   const displayedTechnicalFields = [...technicalFields, ...historicalFields].sort((first, second) => first.sort_order - second.sort_order);
   const labelImages = images.filter(image => image.kind === "label");
   const otherImages = images.filter(image => image.kind !== "label");
@@ -127,6 +143,7 @@ export function OrderEquipmentSection({
               options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]}
             />
           </div>
+
           {!editingOS && hasPermission("equipment.create") && (
             <BtnPrimary
               className="h-[42px] w-[42px] shrink-0 justify-center p-0 sm:w-auto sm:px-4"
@@ -164,27 +181,77 @@ export function OrderEquipmentSection({
         </div>
 
         <div className="flex min-w-0 items-end gap-2 sm:col-span-2">
-          <div className="min-w-0 flex-1"><FInput
-            label="Número de série"
-            type="text"
-            value={form.serial_number || ""}
-            disabled={editingOS}
-            onChange={(e: any) => upF("serial_number", e.target.value)}
-            placeholder="Digite o número de série do equipamento"
-          /></div>
-          {!editingOS && <AdminButton variant="secondary" onClick={() => scannerInput.current?.click()} aria-label="Escanear número de série" title="Escanear número de série" className="h-[42px] w-[42px] shrink-0 p-0 md:hidden">
-            <ScanLine size={22} className="!h-[22px] !w-[22px] shrink-0" />
-          </AdminButton>}
-          <input ref={scannerInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void readSerialCode(file); }} />
-          <AdminDialog open={scanOpen} onClose={closeScanner} title="Escanear número de série" description="Confira se o código corresponde à série, e não ao modelo ou a um endereço da etiqueta.">
+          <div className="min-w-0 flex-1">
+            <FInput
+              label="Número de série"
+              type="text"
+              value={form.serial_number || ""}
+              disabled={editingOS}
+              onChange={(e: any) => upF("serial_number", e.target.value)}
+              placeholder="Digite o número de série do equipamento"
+            />
+          </div>
+
+          {!editingOS && (
+            <AdminButton
+              variant="secondary"
+              onClick={() => scannerInput.current?.click()}
+              aria-label="Escanear número de série"
+              title="Escanear número de série"
+              className="h-[42px] w-[42px] shrink-0 p-0 md:hidden"
+            >
+              <ScanLine size={22} className="!h-[22px] !w-[22px] shrink-0" />
+            </AdminButton>
+          )}
+
+          <input
+            ref={scannerInput}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={event => {
+              const file = event.target.files?.[0];
+              event.currentTarget.value = "";
+              void readSerialCode(file);
+            }}
+          />
+
+          <AdminDialog
+            open={scanOpen}
+            onClose={closeScanner}
+            title="Escanear número de série"
+            description="Confira se o código corresponde à série, e não ao modelo ou a um endereço da etiqueta."
+          >
             {scanBusy && <p role="status">Lendo código da foto...</p>}
             {scanError && <p role="alert" className="text-sm text-red-700">{scanError}</p>}
-            {!scanBusy && scanValues.length > 1 && <FSelect label="Códigos encontrados" value={scanValue} onChange={(event: any) => setScanValue(event.target.value)} options={scanValues.map(value => ({ value, label: value }))} />}
-            {!scanBusy && scanValues.length > 0 && <FInput label="Número de série lido" value={scanValue} onChange={(event: any) => setScanValue(event.target.value)} />}
+            {!scanBusy && scanValues.length > 1 && (
+              <FSelect
+                label="Códigos encontrados"
+                value={scanValue}
+                onChange={(event: any) => setScanValue(event.target.value)}
+                options={scanValues.map(value => ({ value, label: value }))}
+              />
+            )}
+            {!scanBusy && scanValues.length > 0 && (
+              <FInput
+                label="Número de série lido"
+                value={scanValue}
+                onChange={(event: any) => setScanValue(event.target.value)}
+              />
+            )}
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <AdminButton variant="secondary" onClick={closeScanner}>Cancelar</AdminButton>
               <AdminButton variant="secondary" disabled={scanBusy} onClick={() => scannerInput.current?.click()}>Outra foto</AdminButton>
-              <AdminButton disabled={scanBusy || !scanValue.trim() || editingOS} onClick={() => { upF("serial_number", scanValue.trim()); closeScanner(); }}>Usar número</AdminButton>
+              <AdminButton
+                disabled={scanBusy || !scanValue.trim() || editingOS}
+                onClick={() => {
+                  upF("serial_number", scanValue.trim());
+                  closeScanner();
+                }}
+              >
+                Usar número
+              </AdminButton>
             </div>
           </AdminDialog>
         </div>
@@ -251,6 +318,8 @@ export function OrderEquipmentSection({
             </div>
           </div>
         )}
+
+        {!editingOS && <NewOrderEntryChecklist equipmentTypeId={form.equipment_type_id} />}
       </div>
     </Section>
   );
