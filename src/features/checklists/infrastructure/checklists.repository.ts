@@ -153,6 +153,7 @@ async function loadOrderChecklistById(checklistId: string): Promise<OrderCheckli
   if (stagesResult.error) throw stagesResult.error;
   if (!checklistResult.data) return null;
 
+  const checklistBase = checklistResult.data as Omit<OrderChecklist, "stages">;
   const stagesBase = (stagesResult.data ?? []) as Omit<OrderChecklistStage, "items">[];
   const stageIds = stagesBase.map(stage => stage.id);
   const itemsResult = stageIds.length
@@ -167,15 +168,33 @@ async function loadOrderChecklistById(checklistId: string): Promise<OrderCheckli
   if (mediaResult.error) throw mediaResult.error;
   const mediaRows = (mediaResult.data ?? []) as Array<OrderChecklistMedia & { item_id: string }>;
 
+  const actorIds = Array.from(new Set([
+    checklistBase.completed_by,
+    ...stagesBase.flatMap(stage => [stage.completed_by, stage.reopened_by]),
+    ...itemsBase.map(item => item.answered_by),
+  ].filter((value): value is string => Boolean(value))));
+  const profilesResult = actorIds.length
+    ? await supabase.from("profiles").select("id,full_name").in("id", actorIds)
+    : { data: [], error: null };
+  if (profilesResult.error) throw profilesResult.error;
+  const profileNames = new Map((profilesResult.data ?? []).map(profile => [profile.id, profile.full_name || "Usuário"]));
+
   const items: OrderChecklistItem[] = itemsBase.map(item => ({
     ...item,
+    answered_by_name: item.answered_by ? profileNames.get(item.answered_by) || "Usuário" : null,
     media: mediaRows.filter(media => media.item_id === item.id).map(({ item_id: _itemId, ...media }) => media),
   }));
   const stages: OrderChecklistStage[] = stagesBase.map(stage => ({
     ...stage,
+    completed_by_name: stage.completed_by ? profileNames.get(stage.completed_by) || "Usuário" : null,
+    reopened_by_name: stage.reopened_by ? profileNames.get(stage.reopened_by) || "Usuário" : null,
     items: items.filter(item => item.stage_id === stage.id),
   }));
-  return { ...(checklistResult.data as Omit<OrderChecklist, "stages">), stages };
+  return {
+    ...checklistBase,
+    completed_by_name: checklistBase.completed_by ? profileNames.get(checklistBase.completed_by) || "Usuário" : null,
+    stages,
+  };
 }
 
 export async function getOrderChecklist(serviceOrderId: string) {
