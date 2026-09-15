@@ -34,23 +34,31 @@ export function UserPermissionOverridesPage({
   const canManage = hasPermission("roles.permissions.manage");
   const queryClient = useQueryClient();
   const queryKey = queryKeys.registrations.permissions(organizationId, userId);
+  const accessIdentity = `${organizationId}:${userId}`;
   const accessQuery = useQuery({
     queryKey,
     queryFn: () => getUserPermissionAccess(organizationId, userId),
     enabled: canView,
   });
   const access = accessQuery.data ?? null;
-  const initializedFor = useRef<string | null>(null);
+  const syncedFor = useRef<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [dirty, setDirty] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
-    if (!access || initializedFor.current === `${organizationId}:${userId}`) return;
-    initializedFor.current = `${organizationId}:${userId}`;
-    setSelected(access.individualPermissionIds.filter(id => !access.inheritedPermissionIds.includes(id)));
-  }, [access, organizationId, userId]);
+    if (!access) return;
+    const serverSelected = access.individualPermissionIds.filter(id => !access.inheritedPermissionIds.includes(id));
+    if (syncedFor.current !== accessIdentity) {
+      syncedFor.current = accessIdentity;
+      setDirty(false);
+      setSelected(serverSelected);
+      return;
+    }
+    if (!dirty) setSelected(serverSelected);
+  }, [access, accessIdentity, dirty]);
 
   useEffect(() => {
     if (!accessQuery.error) return;
@@ -84,6 +92,7 @@ export function UserPermissionOverridesPage({
 
   const toggle = (permission: PermissionRecord) => {
     if (!canManage || inherited.has(permission.id)) return;
+    setDirty(true);
     setSelected(current => {
       const next = new Set(current);
       if (next.has(permission.id)) {
@@ -116,6 +125,7 @@ export function UserPermissionOverridesPage({
     }
     setToast({ msg: "Permissões individuais atualizadas.", type: "success" });
     await queryClient.invalidateQueries({ queryKey });
+    setDirty(false);
   };
 
   if (!canView) return null;
