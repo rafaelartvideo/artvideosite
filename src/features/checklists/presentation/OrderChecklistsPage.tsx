@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Camera, CheckCircle2, ClipboardCheck, Image as ImageIcon, RotateCcw, Save } from "lucide-react";
+import { Camera, CheckCircle2, ClipboardCheck, Image as ImageIcon, Paperclip, RotateCcw, Save } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminButton, AdminCard, AdminCardHeader, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -120,13 +120,18 @@ function OrderChecklistItemEditor({ item, number, checklistId, order, disabled, 
   }, [item.id, item.response_code, item.response_text, item.response_number, item.observation]);
 
   const save = async () => {
+    const normalizedNumber = responseNumber === "" ? null : Number(responseNumber.replace(",", "."));
+    if (item.response_type_snapshot === "number" && responseCode !== "na" && responseNumber !== "" && !Number.isFinite(normalizedNumber)) {
+      onError("Informe um valor numérico válido.");
+      return;
+    }
     setSaving(true);
     try {
       await saveOrderChecklistItemAnswer({
         itemId: item.id,
         responseCode: responseCode || null,
-        responseText: responseText || null,
-        responseNumber: responseNumber === "" ? null : Number(responseNumber),
+        responseText: responseCode === "na" ? null : responseText || null,
+        responseNumber: responseCode === "na" ? null : normalizedNumber,
         observation: observation || null,
       });
       await onChanged();
@@ -146,6 +151,7 @@ function OrderChecklistItemEditor({ item, number, checklistId, order, disabled, 
     finally { setUploading(false); }
   };
 
+  const isNA = responseCode === "na";
   const failure = isChecklistFailure({ response_type_snapshot: item.response_type_snapshot, response_code: responseCode || null });
   const showObservation = item.observation_requirement_snapshot !== "none" || Boolean(observation) || failure;
   const showPhoto = item.photo_requirement_snapshot !== "none" || item.media.length > 0;
@@ -157,12 +163,12 @@ function OrderChecklistItemEditor({ item, number, checklistId, order, disabled, 
     <div className="mt-3 space-y-3">
       {(item.response_type_snapshot === "conformity" || item.response_type_snapshot === "yes_no" || item.response_type_snapshot === "confirmation") && <div className="flex flex-wrap gap-2">
         {answerOptions(item).map(option => <button key={option.value} type="button" disabled={disabled} onClick={() => setResponseCode(option.value)} className={`rounded-lg border px-3 py-2 text-xs font-bold transition ${responseCode === option.value ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/12 bg-white text-[#52647c]"} disabled:opacity-60`}>{option.label}</button>)}
-        {item.allow_na_snapshot && <button type="button" disabled={disabled} onClick={() => setResponseCode("na")} className={`rounded-lg border px-3 py-2 text-xs font-bold ${responseCode === "na" ? "border-slate-500 bg-slate-100 text-slate-700" : "border-[#0d1b2e]/12 text-[#52647c]"} disabled:opacity-60`}>N/A</button>}
       </div>}
-      {item.response_type_snapshot === "text" && <FTextarea label="Resposta" disabled={disabled} value={responseText} onChange={(event: any) => setResponseText(event.target.value)} />}
-      {item.response_type_snapshot === "number" && <FInput label="Valor" disabled={disabled} type="number" inputMode="decimal" value={responseNumber} onChange={(event: any) => setResponseNumber(event.target.value)} />}
+      {item.allow_na_snapshot && <button type="button" disabled={disabled} onClick={() => setResponseCode(isNA ? "" : "na")} className={`rounded-lg border px-3 py-2 text-xs font-bold ${isNA ? "border-slate-500 bg-slate-100 text-slate-700" : "border-[#0d1b2e]/12 bg-white text-[#52647c]"} disabled:opacity-60`}>N/A</button>}
+      {item.response_type_snapshot === "text" && <FTextarea label="Resposta" disabled={disabled || isNA} value={responseText} onChange={(event: any) => setResponseText(event.target.value)} />}
+      {item.response_type_snapshot === "number" && <FInput label="Valor" disabled={disabled || isNA} type="text" inputMode="decimal" value={responseNumber} onChange={(event: any) => setResponseNumber(event.target.value)} />}
       {showObservation && <FTextarea label={`Observação${requiredObservation ? " *" : ""}`} disabled={disabled} value={observation} onChange={(event: any) => setObservation(event.target.value)} placeholder={failure ? "Descreva a não conformidade encontrada" : "Observação do item"} />}
-      {showPhoto && <div><p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fotos{requiredPhoto && <span className="text-red-500"> *</span>}</p><div className="flex flex-wrap gap-2">{item.media.map(link => link.media && <a key={link.id} href={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)} target="_blank" rel="noreferrer" className="group relative h-20 w-20 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f5f7fa]"><img src={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)} alt={link.media.file_name || "Foto do checklist"} className="h-full w-full object-cover" /><span className="absolute inset-0 hidden items-center justify-center bg-black/35 text-white group-hover:flex"><ImageIcon size={18} /></span></a>)}{!disabled && <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#0057e7]/35 bg-[#eef5ff]/50 text-[10px] font-bold text-[#0057e7]"><Camera size={18} />{uploading ? "Enviando" : "Foto"}<input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; void upload(file); event.currentTarget.value = ""; }} /></label>}</div></div>}
+      {showPhoto && <div><p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fotos{requiredPhoto && <span className="text-red-500"> *</span>}</p><div className="flex flex-wrap gap-2">{item.media.map(link => link.media && <a key={link.id} href={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)} target="_blank" rel="noreferrer" className="group relative h-20 w-20 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f5f7fa]"><img src={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)} alt={link.media.file_name || "Foto do checklist"} className="h-full w-full object-cover" /><span className="absolute inset-0 hidden items-center justify-center bg-black/35 text-white group-hover:flex"><ImageIcon size={18} /></span></a>)}{!disabled && <><label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#0057e7]/35 bg-[#eef5ff]/50 text-[10px] font-bold text-[#0057e7]"><Camera size={18} />{uploading ? "Enviando" : "Câmera"}<input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; void upload(file); event.currentTarget.value = ""; }} /></label><label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#0d1b2e]/20 bg-white text-[10px] font-bold text-[#52647c]"><Paperclip size={18} />{uploading ? "Enviando" : "Anexar"}<input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; void upload(file); event.currentTarget.value = ""; }} /></label></>}</div></div>}
       {!disabled && <div className="flex justify-end"><AdminButton onClick={() => void save()} disabled={saving}><Save size={14} /> {saving ? "Salvando..." : "Salvar item"}</AdminButton></div>}
     </div>
   </div>;
