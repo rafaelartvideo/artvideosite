@@ -9,6 +9,13 @@ import {
   type SupplierInventoryItem,
 } from "../infrastructure/registrations.repository";
 
+function MobileField({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="min-w-0">
+    <div className="mb-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">{label}</div>
+    <div className="min-w-0 text-xs font-semibold text-[#0d1b2e]">{children}</div>
+  </div>;
+}
+
 export function SupplierItemsEditor({
   organizationId,
   value,
@@ -87,7 +94,28 @@ export function SupplierItemsEditor({
       {error && <p className="text-xs font-semibold text-red-600">Erro ao consultar estoque: {error}</p>}
 
       {loading ? <LoadingState text="Carregando estoque..." /> : items.length === 0 ? <p className="py-5 text-center text-sm text-[#5a6a82]">Nenhum item de estoque disponível.</p> : <>
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-[#0d1b2e]/8 md:hidden">
+          {paged.length ? paged.map(item => {
+            const linked = selectedIds.has(item.id);
+            return <article key={item.id} className="py-4 first:pt-0 last:pb-0">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div className="col-span-2"><MobileField label="Item"><span className="break-words text-sm font-black">{item.name}</span></MobileField></div>
+                <MobileField label="SKU"><span className="break-all font-mono">{item.sku || "—"}</span></MobileField>
+                <MobileField label="Status"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></MobileField>
+                <div className="col-span-2"><MobileField label="Fornecedor"><span className={linked ? "font-bold text-emerald-700" : "text-[#8a98aa]"}>{linked ? "Vinculado" : "Não vinculado"}</span></MobileField></div>
+              </div>
+              {!disabled && <div className="mt-3 flex justify-end border-t border-[#0d1b2e]/8 pt-3">
+                <button
+                  type="button"
+                  onClick={() => toggleItem(item)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold ${linked ? "border-red-200 text-red-600 hover:bg-red-50" : "border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}`}
+                >{linked ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>
+              </div>}
+            </article>;
+          }) : <p className="py-6 text-center text-sm text-[#5a6a82]">Nenhum item encontrado.</p>}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="min-w-[760px]">
             <thead><tr>
               <th className="text-left">Item</th>
