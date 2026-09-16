@@ -47,6 +47,26 @@ export function constantTimeEqualHex(left, right) {
   return diff === 0;
 }
 
+export function publicRequestState(row, now = Date.now()) {
+  const status = String(row?.status || "");
+  if (["signed", "cancelled", "expired"].includes(status)) return status;
+  const expiresAt = Date.parse(String(row?.expires_at || ""));
+  if (!Number.isFinite(expiresAt) || expiresAt <= now) return "expired";
+  return status === "viewed" ? "viewed" : "pending";
+}
+
+export function otpSendPolicy({ now = Date.now(), lastSentAt = null, sendsLastHour = 0 }) {
+  if (Number(sendsLastHour) >= 5) return { allowed: false, retryAfterSeconds: 3600, reason: "hourly_limit" };
+  if (lastSentAt) {
+    const sentAt = Date.parse(String(lastSentAt));
+    if (Number.isFinite(sentAt)) {
+      const elapsedSeconds = Math.floor((now - sentAt) / 1000);
+      if (elapsedSeconds < 60) return { allowed: false, retryAfterSeconds: Math.max(1, 60 - elapsedSeconds), reason: "cooldown" };
+    }
+  }
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
 export async function buildOtpProof(secret, binding, now = Date.now(), ttlMs = 15 * 60 * 1000) {
   const payload = {
     v: 1,
