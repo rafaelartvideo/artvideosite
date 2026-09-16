@@ -13,6 +13,15 @@ export type DocumentSignatureEmployeeCandidate = {
   signature_version: number;
 };
 
+export type SignedDocumentAccess = {
+  download_url: string;
+  verification_url: string;
+  verification_code: string;
+  final_pdf_hash: string;
+  snapshot_hash: string;
+  signed_at: string;
+};
+
 async function invokeSignatureAdmin<T>(action: string, payload: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
     body: { action, ...payload },
@@ -27,6 +36,7 @@ export async function createSignatureRequest(input: CreateDocumentSignatureReque
     request: DocumentSignatureRequestSummary;
     link?: string | null;
     email_warning?: string | null;
+    finalization_warning?: string | null;
   }>("create", input as unknown as Record<string, unknown>);
 }
 
@@ -75,4 +85,11 @@ export async function getSignatureAudit(organizationId: string, requestId: strin
     request_id: requestId,
   });
   return result.events || [];
+}
+
+export async function getSignedSignatureDocument(organizationId: string, requestId: string) {
+  return invokeSignatureAdmin<SignedDocumentAccess>("signed_document", {
+    organization_id: organizationId,
+    request_id: requestId,
+  });
 }
