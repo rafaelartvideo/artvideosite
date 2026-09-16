@@ -57,3 +57,20 @@ test("decodes only PNG data URLs up to one megabyte", () => {
   const tooLarge = `data:image/png;base64,${Buffer.alloc(1024 * 1024 + 1).toString("base64")}`;
   assert.throws(() => policy.decodePngDataUrl(tooLarge), /1 MB/i);
 });
+
+test("classifies expired and terminal requests as not signable", () => {
+  assert.ok(policy, "public signature policy module must exist");
+  const now = Date.parse("2026-09-16T18:00:00Z");
+  assert.equal(policy.publicRequestState({ status: "pending", expires_at: "2026-09-16T18:10:00Z" }, now), "pending");
+  assert.equal(policy.publicRequestState({ status: "viewed", expires_at: "2026-09-16T17:59:59Z" }, now), "expired");
+  assert.equal(policy.publicRequestState({ status: "cancelled", expires_at: "2026-09-17T18:00:00Z" }, now), "cancelled");
+  assert.equal(policy.publicRequestState({ status: "signed", expires_at: "2026-09-17T18:00:00Z" }, now), "signed");
+});
+
+test("enforces otp cooldown and hourly send limit", () => {
+  assert.ok(policy, "public signature policy module must exist");
+  const now = Date.parse("2026-09-16T18:00:00Z");
+  assert.deepEqual(policy.otpSendPolicy({ now, lastSentAt: null, sendsLastHour: 0 }), { allowed: true, retryAfterSeconds: 0 });
+  assert.deepEqual(policy.otpSendPolicy({ now, lastSentAt: "2026-09-16T17:59:30Z", sendsLastHour: 1 }), { allowed: false, retryAfterSeconds: 30, reason: "cooldown" });
+  assert.deepEqual(policy.otpSendPolicy({ now, lastSentAt: "2026-09-16T17:58:00Z", sendsLastHour: 5 }), { allowed: false, retryAfterSeconds: 3600, reason: "hourly_limit" });
+});
