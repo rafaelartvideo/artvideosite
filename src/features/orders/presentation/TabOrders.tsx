@@ -474,12 +474,27 @@ export function TabOrders({
   };
 
   const saveRoutedOrder = async () => {
-    const saved = await saveOS();
-    if (saved) {
-      if (initialOrderId) closingRouteRef.current = initialOrderId;
-      openingEditRouteRef.current = null;
-      onOrderRouteChange?.(null, null);
+    const wasCreating = !editingOS;
+    const savedOrderId = await saveOS();
+    if (!savedOrderId) return;
+
+    openingEditRouteRef.current = null;
+
+    if (wasCreating) {
+      closingRouteRef.current = null;
+      if (onOrderRouteChange) {
+        onOrderRouteChange(savedOrderId, null);
+        return;
+      }
+      if (workspaceBase.organizationId) {
+        const createdOrder = await getServiceOrderForRoute(workspaceBase.organizationId, savedOrderId);
+        if (createdOrder) openDetail(createdOrder);
+      }
+      return;
     }
+
+    if (initialOrderId) closingRouteRef.current = initialOrderId;
+    onOrderRouteChange?.(null, null);
   };
 
   const setViewMode = (mode: "list" | "kanban") => {
