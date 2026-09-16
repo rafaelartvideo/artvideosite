@@ -83,15 +83,16 @@ export function OrderDetailsPage(props: Props) {
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
   const { statuses, situations } = workspace;
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
+  const canOpenDocumentsPage = hasPermission("orders.section.images") || hasPermission("documents.signatures.view");
   const historyPageOpen = Boolean(detail) && routeSubpage === "history" && hasPermission("orders.section.history");
-  const documentsPageOpen = Boolean(detail) && routeSubpage === "documents" && hasPermission("orders.section.images");
+  const documentsPageOpen = Boolean(detail) && routeSubpage === "documents" && canOpenDocumentsPage;
   const partRequestsPageOpen = Boolean(detail) && routeSubpage === "part-requests" && hasPermission("orders.section.parts");
   const slaRecordsPageOpen = Boolean(detail) && routeSubpage === "sla-records" && hasPermission("orders.section.sla_cards");
   const checklistsPageOpen = Boolean(detail) && routeSubpage === "checklists" && hasPermission("orders.section.checklists");
   const routedSubpageOpen = historyPageOpen || documentsPageOpen || partRequestsPageOpen || slaRecordsPageOpen || checklistsPageOpen;
   const routedSubpageDenied = Boolean(detail && (
     (routeSubpage === "history" && !hasPermission("orders.section.history"))
-    || (routeSubpage === "documents" && !hasPermission("orders.section.images"))
+    || (routeSubpage === "documents" && !canOpenDocumentsPage)
     || (routeSubpage === "part-requests" && !hasPermission("orders.section.parts"))
     || (routeSubpage === "sla-records" && !hasPermission("orders.section.sla_cards"))
     || (routeSubpage === "checklists" && !hasPermission("orders.section.checklists"))
@@ -120,7 +121,8 @@ export function OrderDetailsPage(props: Props) {
   const completedPartRequests = detailPartRequests.length - pendingPartRequests;
   const { updateOrderStatus, updateOrderSituation } = mutations;
   const canPrintDocuments = hasPermission("documents.print");
-  const printTemplates = useOrderPrintTemplates(canPrintDocuments);
+  const canUseSignatureDocuments = hasPermission("documents.signatures.view") || hasPermission("documents.signatures.send");
+  const printTemplates = useOrderPrintTemplates(canPrintDocuments || canUseSignatureDocuments);
 
   useEffect(() => {
     setSolutionRecordsOpen(false);
@@ -182,7 +184,18 @@ export function OrderDetailsPage(props: Props) {
   }
 
   return <>
-    <OrderDocumentsPage open={documentsPageOpen} order={detail} currentSituationId={detail?.situation_id} controller={documents} solutionImages={detailSolutionImages} onClose={onCloseSubpage} onView={setViewImage} />
+    <OrderDocumentsPage
+      open={documentsPageOpen}
+      order={detail}
+      currentSituationId={detail?.situation_id}
+      controller={documents}
+      solutionImages={detailSolutionImages}
+      signatureTemplates={printTemplates.templates}
+      signatureContext={{ usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName }}
+      hasPermission={hasPermission}
+      onClose={onCloseSubpage}
+      onView={setViewImage}
+    />
     <OrderSituationRecordsPage open={slaRecordsPageOpen} order={detail} visits={slaVisits.visits} loading={slaVisits.loading} error={slaVisits.error} onClose={onCloseSubpage} />
     <OrderSolutionRecordsPage open={solutionRecordsOpen && Boolean(detail)} order={detail} attempts={solutionAttempts} loading={solutionHistoryLoading} error={solutionHistoryError} onClose={() => setSolutionRecordsOpen(false)} onViewImage={setViewImage} />
     <OrderUndoSolutionDialog order={detail} open={Boolean(detail) && undoOpen} loading={undoSubmitting} onClose={() => setUndoOpen(false)} onConfirm={undoOrderSolution} />
@@ -198,7 +211,7 @@ export function OrderDetailsPage(props: Props) {
             {ORDER_EMAIL_ACTION_VISIBLE && canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Mail size={14} /> Enviar e-mail <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72">{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => <DropdownMenuItem key={template.id} disabled={Boolean(emailingTemplateId)} onSelect={event => { event.preventDefault(); void emailTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4"><span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>{emailingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Enviando...</span>}</DropdownMenuItem>)}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
             {hasPermission("orders.section.checklists") && <OrderChecklistToolbarButton orderId={detail.id} onClick={() => onOpenSubpage("checklists")} />}
             {hasPermission("orders.section.parts") && <button type="button" onClick={() => onOpenSubpage("part-requests")} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button>}
-            {hasPermission("orders.section.images") && <button type="button" onClick={() => onOpenSubpage("documents")} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos{visibleDocumentCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{visibleDocumentCount}</span>}</button>}
+            {canOpenDocumentsPage && <button type="button" onClick={() => onOpenSubpage("documents")} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos{visibleDocumentCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{visibleDocumentCount}</span>}</button>}
             {hasPermission("orders.section.history") && <button type="button" onClick={() => onOpenSubpage("history")} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button>}
           </div>
         </div>
