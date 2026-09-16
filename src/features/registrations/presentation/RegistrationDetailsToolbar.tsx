@@ -18,8 +18,7 @@ export function RegistrationDetailsToolbar({
 }) {
   if (!canViewContacts && !canViewRecords && !canViewPermissions) return null;
 
-  return <div className="flex min-w-0 flex-wrap items-center gap-2 sm:ml-1">
-    <div className="hidden h-7 w-px shrink-0 bg-[#0d1b2e]/12 sm:block" aria-hidden="true" />
+  return <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
     {canViewContacts && <AdminButton
       variant="secondary"
       size="sm"
