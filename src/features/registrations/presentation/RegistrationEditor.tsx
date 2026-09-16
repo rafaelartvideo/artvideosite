@@ -1,5 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
+import { useLocation } from "react-router";
 import { Building2, Users, UserRound } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import {
   FBrazilianDateInput,
@@ -39,7 +42,6 @@ const roleIcons: Record<RegistrationRole, typeof Users> = {
 
 export function RegistrationEditor({
   creating,
-  registrationId,
   form,
   setForm,
   addresses,
@@ -48,7 +50,6 @@ export function RegistrationEditor({
   setSupplierItems,
   organizationId,
   canModify,
-  canManageEmployeeSignature,
   showAccess,
   accessForm,
   onAccessChange,
@@ -62,7 +63,6 @@ export function RegistrationEditor({
   onToggleRole,
 }: {
   creating: boolean;
-  registrationId?: string | null;
   form: RegistrationFormState;
   setForm: Dispatch<SetStateAction<RegistrationFormState>>;
   addresses: RegistrationAddressForm[];
@@ -71,7 +71,6 @@ export function RegistrationEditor({
   setSupplierItems: Dispatch<SetStateAction<SupplierInventoryItem[]>>;
   organizationId: string | null;
   canModify: boolean;
-  canManageEmployeeSignature: boolean;
   showAccess?: boolean;
   accessForm: EmployeeAccessFormState;
   onAccessChange: (next: EmployeeAccessFormState) => void;
@@ -85,6 +84,11 @@ export function RegistrationEditor({
   onToggleRole: (role: RegistrationRole) => void;
 }) {
   const canShowAccess = showAccess ?? (accessExisting || canModifyAccess);
+  const location = useLocation();
+  const { hasPermission } = useAuth();
+  const route = resolveAdminRoute(location.pathname);
+  const registrationId = !creating && route.tab === "customers" && route.resourceId && route.resourceId !== "new" ? route.resourceId : null;
+  const canManageEmployeeSignature = hasPermission("registrations.employee_signature.manage");
 
   return <AdminPage
     open
