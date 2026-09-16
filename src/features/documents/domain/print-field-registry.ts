@@ -201,7 +201,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     defaultColumns: 2,
     fields: [
       { key: "signatures.customer", label: "Assinatura do cliente", kind: "signature" },
-      { key: "signatures.technician", label: "Assinatura do técnico", kind: "signature" },
+      { key: "signatures.employee", label: "Assinatura do funcionário", kind: "signature" },
     ],
   },
   {
@@ -223,7 +223,6 @@ export const PRINT_SECTION_BY_KEY = new Map(
   PRINT_FIELD_REGISTRY.map(section => [section.key, section] as const),
 );
 
-
 /** Map saved legacy selections to the current catalog without duplicate output. */
 export function normalizePrintSelectedFields(keys: Iterable<string>): Set<string> {
   const source = new Set(keys);
@@ -232,9 +231,10 @@ export function normalizePrintSelectedFields(keys: Iterable<string>): Set<string
     "service.general_services": "service.name",
     "sla.solved_at": "resolution.solved_at",
     "financial.final_price": "financial.final_total",
+    "signatures.technician": "signatures.employee",
   };
   const result = new Set([...source].map(key => aliases[key] || key).filter(key => PRINT_FIELD_BY_KEY.has(key)));
-  if (!result.has("signatures.customer") && !result.has("signatures.technician") &&
+  if (!result.has("signatures.customer") && !result.has("signatures.employee") &&
       ["signatures.customer_name", "signatures.customer_document", "signatures.date"].some(key => source.has(key))) {
     result.add("signatures.customer");
   }
