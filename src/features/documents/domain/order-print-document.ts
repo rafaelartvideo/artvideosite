@@ -57,6 +57,16 @@ const formatForecastDays = (value: unknown) => {
 };
 const nameOf = (value: any) => value?.full_name || value?.name || value?.title || "—";
 
+function employeeSignatureName(context: PrintOrderContext) {
+  const order = context.order || {};
+  const technicians = (order.technician_links || []).map((item: any) => nameOf(item.employee)).filter((name: string) => name && name !== "—");
+  return order.assigned_to_profile?.full_name
+    || technicians.join(", ")
+    || (nameOf(order.technician) !== "—" ? nameOf(order.technician) : null)
+    || order.completed_by_profile?.full_name
+    || "—";
+}
+
 function addressOf(order: any) {
   if (order.order_type === "external" && (order.service_street || order.service_city)) {
     return {
@@ -203,7 +213,7 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
       const signatures = section.fields.map((field) => {
         const customer = context.order?.customer || {};
         const isCustomer = field.key === "signatures.customer";
-        const name = isCustomer ? customer.full_name || customer.legal_name || customer.trade_name : resolveField("responsibility.technician", context);
+        const name = isCustomer ? customer.full_name || customer.legal_name || customer.trade_name : employeeSignatureName(context);
         const document = isCustomer ? customer.cnpj || customer.document : null;
         return "<div class='signature'><div class='signature-line'></div>" +
           "<div class='signature-label'>" + escapeHtml(field.label) + "</div>" +
@@ -305,4 +315,3 @@ export function renderOrderPrintDocument(popup: Window, template: PrintTemplateE
   popup.document.write(buildOrderPrintDocumentHtml(template, context, true));
   popup.document.close();
 }
-
