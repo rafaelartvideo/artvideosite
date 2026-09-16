@@ -72,7 +72,6 @@ export function SupplierItemsEditor({
     searchValue={search}
     onSearchChange={setSearch}
     searchPlaceholder="Buscar por nome ou SKU"
-    searchDisabled={disabled}
     loading={loading}
     loadingText="Carregando estoque..."
     error={error ? `Erro ao consultar estoque: ${error}` : undefined}
