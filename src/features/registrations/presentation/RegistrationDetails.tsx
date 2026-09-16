@@ -67,7 +67,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
   const canViewRecords = hasPermission("registrations.records.view") || canCreateRecords;
   const canOpenPermissions = roles.includes("employee") && Boolean(permissionUserId) && canViewPermissionOverrides;
 
-  return <AdminPage open onClose={onClose} breadcrumb="Cadastros" title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-6xl">
+  return <AdminPage open onClose={onClose} breadcrumb="Cadastros" title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-7xl">
     <div className="space-y-5 p-4 sm:p-5">
       <div className="flex min-w-0 flex-wrap items-center justify-center gap-3 py-1">
         <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
