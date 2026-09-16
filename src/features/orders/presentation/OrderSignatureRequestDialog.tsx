@@ -46,7 +46,12 @@ export function OrderSignatureRequestDialog({
   history: any[];
   printedBy?: string | null;
   onClose: () => void;
-  onCreated: (result: { link?: string | null; email_warning?: string | null }) => void;
+  onCreated: (result: {
+    link?: string | null;
+    email_warning?: string | null;
+    finalization_warning?: string | null;
+    request?: { status?: string } | null;
+  }) => void;
 }) {
   const onlineTemplates = useMemo(
     () => templates.filter(template => template.is_active !== false && template.allow_online_signature === true),
@@ -153,7 +158,12 @@ export function OrderSignatureRequestDialog({
         external_signer: externalSigner,
         manual_employee_entity_id: manualEmployeeEntityId || null,
       });
-      onCreated({ link: result.link, email_warning: result.email_warning });
+      onCreated({
+        link: result.link,
+        email_warning: result.email_warning,
+        finalization_warning: result.finalization_warning,
+        request: result.request,
+      });
       onClose();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : String(submitError));
