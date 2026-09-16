@@ -1,8 +1,9 @@
 import React from "react";
-import { CheckCircle, PackagePlus, Search, X } from "lucide-react";
+import { CheckCircle, PackagePlus, X } from "lucide-react";
 import { AdminCard, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminListSection, AdminListSectionRow } from "@/shared/ui/admin/AdminListSection";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { FIntegerInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { FIntegerInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { cn } from "@/shared/domain/formatters";
 import { normalizeSearchText } from "../application/order-search";
 import type { PartRequestInventoryItem, SelectedPartRequestItem } from "../domain/part-request.types";
@@ -115,59 +116,21 @@ export function PartRequestModal({
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
-          <div className="border-b border-[#0d1b2e]/8 px-4 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-black text-[#0d1b2e]">Estoque</p>
-                <p className="mt-0.5 text-[11px] text-[#5a6a82]">Saldo disponível em unidades individuais.</p>
-              </div>
-              <span className="shrink-0 text-[10px] font-bold text-[#7c899c]">{visibleItems.length} item{visibleItems.length === 1 ? "" : "s"}</span>
-            </div>
-            <div className="relative mt-3">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7c899c]" />
-              <input
-                autoFocus
-                disabled={submitting}
-                value={search}
-                onChange={event => onSearchChange(event.target.value)}
-                placeholder="Buscar por nome ou SKU"
-                className={cn(INPUT, "h-10 w-full pl-9 pr-3 text-sm")}
-              />
-            </div>
-          </div>
-
-          {inventoryLoading ? <div className="flex min-h-40 items-center justify-center px-4 text-xs text-[#5a6a82]">Carregando peças do estoque...</div>
-            : inventoryError ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{inventoryError}</div>
-              : visibleItems.length === 0 ? <div className="flex min-h-40 flex-col items-center justify-center px-4 text-center"><Search size={20} className="mb-2 text-[#a0acba]" /><p className="text-xs font-bold text-[#5a6a82]">Nenhuma peça encontrada</p></div>
-                : <div className="px-4">{pagedInventoryItems.map((item, index) => {
-                  const selected = selectedIds.has(item.id);
-                  const hint = packageHint(item);
-                  return <div key={item.id} className={cn("flex min-w-0 items-center gap-3 py-3.5", index > 0 && "border-t border-[#0d1b2e]/8")}>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-[#0d1b2e]">{item.name}</p>
-                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#7c899c]">
-                        {item.sku && <span className="truncate">SKU {item.sku}</span>}
-                        <span className="font-semibold text-[#425168]">Disponível: {Number(item.quantity)} un</span>
-                        {hint && <span>{hint}</span>}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={submitting || selected || Number(item.quantity) <= 0}
-                      onClick={() => onSelect(item)}
-                      className={cn(
-                        "inline-flex h-9 shrink-0 items-center justify-center rounded-lg border px-3 text-xs font-bold transition-colors",
-                        selected
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-[#0d1b2e]/15 bg-white text-[#0057e7] hover:bg-[#f5f7fa]",
-                        Number(item.quantity) <= 0 && "cursor-not-allowed opacity-50",
-                      )}
-                    >{selected ? "Adicionada" : "Adicionar"}</button>
-                  </div>;
-                })}</div>}
-
-          {!inventoryLoading && !inventoryError && visibleItems.length > 0 && <PaginationBar
+        <AdminListSection
+          title="Estoque"
+          description="Saldo disponível em unidades individuais."
+          count={visibleItems.length}
+          searchValue={search}
+          onSearchChange={onSearchChange}
+          searchPlaceholder="Buscar por nome ou SKU"
+          searchDisabled={submitting}
+          searchAutoFocus
+          loading={inventoryLoading}
+          loadingText="Carregando peças do estoque..."
+          error={inventoryError || undefined}
+          empty={!inventoryLoading && !inventoryError && visibleItems.length === 0}
+          emptyText="Nenhuma peça encontrada"
+          footer={!inventoryLoading && !inventoryError && visibleItems.length > 0 ? <PaginationBar
             page={inventoryPage}
             pageSize={INVENTORY_PAGE_SIZE}
             totalItems={visibleItems.length}
@@ -176,8 +139,35 @@ export function PartRequestModal({
             defaultPageSize={INVENTORY_PAGE_SIZE}
             pageSizeOptions={[INVENTORY_PAGE_SIZE]}
             showPageSizeSelector={false}
-          />}
-        </section>
+          /> : undefined}
+        >
+          {pagedInventoryItems.map(item => {
+            const selected = selectedIds.has(item.id);
+            const hint = packageHint(item);
+            return <AdminListSectionRow key={item.id} className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-[#0d1b2e]">{item.name}</p>
+                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#7c899c]">
+                  {item.sku && <span className="truncate">SKU {item.sku}</span>}
+                  <span className="font-semibold text-[#425168]">Disponível: {Number(item.quantity)} un</span>
+                  {hint && <span>{hint}</span>}
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={submitting || selected || Number(item.quantity) <= 0}
+                onClick={() => onSelect(item)}
+                className={cn(
+                  "inline-flex h-9 shrink-0 items-center justify-center rounded-lg border px-3 text-xs font-bold transition-colors",
+                  selected
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-[#0d1b2e]/15 bg-white text-[#0057e7] hover:bg-[#f5f7fa]",
+                  Number(item.quantity) <= 0 && "cursor-not-allowed opacity-50",
+                )}
+              >{selected ? "Adicionada" : "Adicionar"}</button>
+            </AdminListSectionRow>;
+          })}
+        </AdminListSection>
 
         <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
           <div className="flex items-center justify-between gap-3 border-b border-[#0d1b2e]/8 px-4 py-3.5">
