@@ -21,7 +21,9 @@ test("generates exactly six numeric OTP digits", () => {
 
 test("sha256 and hmac are stable lowercase hexadecimal", async () => {
   assert.ok(cryptoHelpers, "public signature crypto module must exist");
-  assert.equal(await cryptoHelpers.sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  const expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+  assert.equal(await cryptoHelpers.sha256Hex("abc"), expected);
+  assert.equal(await cryptoHelpers.sha256BytesHex(new TextEncoder().encode("abc")), expected);
   const first = await cryptoHelpers.hmacHex("secret", "value");
   const second = await cryptoHelpers.hmacHex("secret", "value");
   assert.equal(first, second);
