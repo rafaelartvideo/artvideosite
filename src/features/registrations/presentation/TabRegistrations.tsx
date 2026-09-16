@@ -72,6 +72,7 @@ type Props = {
 
 type MobileRegistrationFilter = "name" | "document" | "role" | "status";
 type RegistrationSort = "" | "name_asc" | "name_desc" | "newest" | "oldest";
+type RegistrationEditorOrigin = "list" | "detail";
 
 const roleLabels: Record<RegistrationRole, string> = {
   customer: "Cliente",
@@ -217,6 +218,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const editorBaseHydratedRef = useRef<string | null>(null);
   const editorSupplierHydratedRef = useRef<string | null>(null);
   const editorAccessHydratedRef = useRef<string | null>(null);
+  const editorOriginRef = useRef<RegistrationEditorOrigin | null>(null);
 
   const lookups = useRegistrationLookups({
     organizationId: activeOrganizationId,
@@ -258,6 +260,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       editorBaseHydratedRef.current = null;
       editorSupplierHydratedRef.current = null;
       editorAccessHydratedRef.current = null;
+      editorOriginRef.current = null;
       return;
     }
 
@@ -478,6 +481,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.list(activeOrganizationId), refetchType: "none" });
       setSelected(refreshed);
       setToast({ msg: selected ? "Cadastro atualizado." : "Cadastro criado.", type: "success" });
+      editorOriginRef.current = null;
       onRouteChange?.(savedId, null);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -494,6 +498,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   const openNew = () => {
     editorBaseHydratedRef.current = null;
+    editorOriginRef.current = "list";
     onRouteChange?.("new", "edit");
   };
 
@@ -534,9 +539,16 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const openEditItem = (item: Registration) => {
     if (!canEdit) return;
     if (activeOrganizationId) queryClient.setQueryData(queryKeys.registrations.detail(activeOrganizationId, item.id), item);
+    editorOriginRef.current = "list";
     onRouteChange?.(item.id, "edit");
   };
-  const closeEditor = () => selected ? onRouteChange?.(selected.id, null) : onRouteChange?.(null, null);
+  const closeEditor = () => {
+    if (creating || editorOriginRef.current === "list") {
+      onRouteChange?.(null, null);
+      return;
+    }
+    onRouteChange?.(selected?.id || routeRegistration?.id || null, null);
+  };
   const closeDetail = () => onRouteChange?.(null, null);
 
   if (!canView) return null;
@@ -608,7 +620,10 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         canViewPermissionOverrides={canViewPermissionOverrides}
         canEdit={canEdit}
         onClose={closeDetail}
-        onEdit={() => onRouteChange?.(routeRegistration.id, "edit")}
+        onEdit={() => {
+          editorOriginRef.current = "detail";
+          onRouteChange?.(routeRegistration.id, "edit");
+        }}
         onOpenContacts={() => onRouteChange?.(routeRegistration.id, "contacts")}
         onOpenRecords={() => onRouteChange?.(routeRegistration.id, "records")}
         onOpenCustomerHistory={onOpenCustomerHistory}
