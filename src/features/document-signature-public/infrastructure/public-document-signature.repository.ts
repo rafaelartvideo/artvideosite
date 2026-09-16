@@ -1,6 +1,7 @@
-import { supabase } from "@/lib/supabase";
+import { projectId, publicAnonKey } from "../../../../utils/supabase/info";
 
 const FUNCTION_NAME = "document-signature-public";
+const FUNCTION_URL = `https://${projectId}.supabase.co/functions/v1/${FUNCTION_NAME}`;
 
 export type PublicSignatureInspection = {
   state: "pending" | "viewed" | "signed" | "expired" | "cancelled";
@@ -26,29 +27,24 @@ export type PublicSignatureDocument = {
 };
 
 async function invokePublicSignature<T>(action: string, payload: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
-    body: { action, ...payload },
+  const response = await fetch(FUNCTION_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: publicAnonKey,
+    },
+    body: JSON.stringify({ action, ...payload }),
   });
+  const data = await response.json().catch(() => null);
 
-  if (error) {
-    let message = error.message || "Não foi possível acessar a assinatura eletrônica.";
-    let code: string | null = null;
-    let retryAfterSeconds = 0;
-    const response = (error as any)?.context;
-    if (response instanceof Response) {
-      const body = await response.clone().json().catch(() => null);
-      if (body?.error) message = String(body.error);
-      if (body?.code) code = String(body.code);
-      if (body?.retry_after_seconds) retryAfterSeconds = Number(body.retry_after_seconds) || 0;
-    }
-    throw Object.assign(new Error(message), { code, retryAfterSeconds });
-  }
-
-  if (!data || data.success !== true) {
-    throw Object.assign(new Error(String(data?.error || "Não foi possível concluir a operação.")), {
-      code: data?.code || null,
-      retryAfterSeconds: Number(data?.retry_after_seconds) || 0,
-    });
+  if (!response.ok || !data || data.success !== true) {
+    throw Object.assign(
+      new Error(String(data?.error || "Não foi possível acessar a assinatura eletrônica.")),
+      {
+        code: data?.code || null,
+        retryAfterSeconds: Number(data?.retry_after_seconds || response.headers.get("Retry-After")) || 0,
+      },
+    );
   }
   return data as T & { success: true };
 }
