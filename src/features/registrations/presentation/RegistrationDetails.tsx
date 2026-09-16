@@ -84,7 +84,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
         />
       </div>
 
-      <div className="grid items-start gap-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,34rem),1fr))]">
+      <div className="grid items-start gap-5">
         <Section title="Dados Pessoais"><div className="grid gap-4 sm:grid-cols-2">
           {selected.person_type === "PF" && detailValue("Nome completo", selected.name || "—")}
           {detailValue(selected.person_type === "PJ" ? "CNPJ" : "CPF", selected.document ? (selected.person_type === "PJ" ? formatCnpj(selected.document) : formatCpf(selected.document)) : "—")}
