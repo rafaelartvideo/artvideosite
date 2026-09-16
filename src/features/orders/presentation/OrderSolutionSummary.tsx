@@ -43,7 +43,7 @@ export function OrderSolutionSummary({
 
   const actions = <div className="flex flex-wrap items-center gap-2">
     {hasHistory && <AdminButton variant="secondary" size="sm" onClick={onOpenRecords} className="h-8 px-2.5 text-[11px]"><History size={13} /> Registros <span className="rounded-full bg-[#eaf2ff] px-1.5 py-0.5 text-[9px] font-black text-[#0057e7]">{solutionCount}</span></AdminButton>}
-    {detail.is_solved && canUndo && <AdminButton variant="danger" size="sm" onClick={onUndo} className="h-8 bg-white px-2.5 text-[11px] text-red-600 hover:bg-red-50"><RotateCcw size={13} /> Desfazer</AdminButton>}
+    {detail.is_solved && canUndo && <AdminButton variant="secondary" size="sm" onClick={onUndo} className="h-8 border-[#0057e7]/30 bg-white px-2.5 text-[11px] text-[#0057e7] hover:border-[#0057e7]/45 hover:bg-[#f0f6ff] hover:text-[#0057e7]"><RotateCcw size={13} /> Desfazer</AdminButton>}
   </div>;
 
   return <Section title="Solução da OS" actions={actions}>
