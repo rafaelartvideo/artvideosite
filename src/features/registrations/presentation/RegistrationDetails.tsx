@@ -1,7 +1,7 @@
 import { Edit2, MapPin } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
-import { AdminCard, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { formatCnpj, formatCpf, formatDateOnly, formatPhone } from "@/shared/domain/formatters";
 import { usernameFromAuthEmail } from "@/features/auth/domain/username";
@@ -69,23 +69,22 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
 
   return <AdminPage open onClose={onClose} breadcrumb="Cadastros" title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-6xl">
     <div className="space-y-5 p-4 sm:p-5">
-      <AdminCard className="px-4 py-4 shadow-none sm:px-5">
-        <div className="flex min-w-0 flex-col items-center justify-center gap-3 text-center">
-          <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
-            {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
-          </div>
-          <RegistrationDetailsToolbar
-            canViewContacts={Boolean(activeOrganizationId && canViewContacts)}
-            canViewRecords={Boolean(activeOrganizationId && canViewRecords)}
-            canViewPermissions={canOpenPermissions}
-            onOpenContacts={onOpenContacts}
-            onOpenRecords={onOpenRecords}
-            onOpenPermissions={onOpenPermissions}
-          />
+      <div className="flex min-w-0 flex-wrap items-center justify-center gap-3 py-1">
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
+          {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
         </div>
-      </AdminCard>
+        <div className="hidden h-7 w-px shrink-0 bg-[#0d1b2e]/14 sm:block" aria-hidden="true" />
+        <RegistrationDetailsToolbar
+          canViewContacts={Boolean(activeOrganizationId && canViewContacts)}
+          canViewRecords={Boolean(activeOrganizationId && canViewRecords)}
+          canViewPermissions={canOpenPermissions}
+          onOpenContacts={onOpenContacts}
+          onOpenRecords={onOpenRecords}
+          onOpenPermissions={onOpenPermissions}
+        />
+      </div>
 
-      <div className="grid items-start gap-5 lg:grid-cols-2">
+      <div className="grid items-start gap-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,34rem),1fr))]">
         <Section title="Dados Pessoais"><div className="grid gap-4 sm:grid-cols-2">
           {selected.person_type === "PF" && detailValue("Nome completo", selected.name || "—")}
           {detailValue(selected.person_type === "PJ" ? "CNPJ" : "CPF", selected.document ? (selected.person_type === "PJ" ? formatCnpj(selected.document) : formatCpf(selected.document)) : "—")}
