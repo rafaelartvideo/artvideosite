@@ -9,6 +9,8 @@ export interface Profile {
   full_name: string | null;
   avatar_media_id: string | null;
   role_id: string | null;
+  restrict_by_ip: boolean;
+  allowed_ips: string[];
   created_at: string;
   updated_at: string;
 }

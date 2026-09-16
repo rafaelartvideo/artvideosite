@@ -17,6 +17,8 @@ export type EmployeeAccess = {
   role_id: string | null;
   uniq_subscriber_id: string | null;
   is_owner: boolean;
+  restrict_by_ip: boolean;
+  allowed_ips: string[];
 };
 
 export type SaveEmployeeAccessInput = {
@@ -28,6 +30,8 @@ export type SaveEmployeeAccessInput = {
   password?: string | null;
   roleId?: string | null;
   uniqSubscriberId?: string | null;
+  restrictByIp?: boolean;
+  allowedIps?: string[];
 };
 
 async function normalizeFunctionInvokeError(error: unknown) {
@@ -135,6 +139,8 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
     password: input.password || undefined,
     role_id: input.roleId || null,
     uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
+    restrict_by_ip: input.restrictByIp === undefined ? undefined : input.restrictByIp,
+    allowed_ips: input.allowedIps,
   });
 }
 

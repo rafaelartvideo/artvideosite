@@ -2,7 +2,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { isValidUsername, normalizeUsername } from "../domain/username";
 
-export type AdminAuthenticationResult = "authenticated" | "invalid_credentials" | "inactive_user";
+export type AdminAuthenticationResult = "authenticated" | "invalid_credentials" | "inactive_user" | "ip_not_allowed";
 export type AdminPasswordChangeResult = "changed" | "invalid_credentials" | "inactive_user" | "weak_password" | "update_failed";
 
 async function functionErrorPayload(error: unknown) {
@@ -25,7 +25,12 @@ export async function authenticateAdmin(identifier: string, password: string): P
   const result = await supabase.functions.invoke("username-auth", {
     body: { action: "login", username, password },
   });
-  if (result.error || !result.data?.access_token || !result.data?.refresh_token) return "invalid_credentials";
+  if (result.error) {
+    const payload = await functionErrorPayload(result.error);
+    if (payload.code === "ip_not_allowed") return "ip_not_allowed";
+    return "invalid_credentials";
+  }
+  if (!result.data?.access_token || !result.data?.refresh_token) return "invalid_credentials";
 
   const session = await supabase.auth.setSession({
     access_token: String(result.data.access_token),
@@ -45,6 +50,14 @@ export async function authenticateAdmin(identifier: string, password: string): P
   }
 
   return "authenticated";
+}
+
+export async function validateCurrentSessionIp() {
+  const result = await supabase.functions.invoke("username-auth", {
+    body: { action: "validate_session" },
+  });
+  if (!result.error && result.data?.success === true) return true;
+  return false;
 }
 
 export async function changeAdminPassword(

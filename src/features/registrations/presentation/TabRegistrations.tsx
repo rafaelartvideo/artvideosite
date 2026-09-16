@@ -33,6 +33,7 @@ import {
 } from "@/features/access/presentation/UserAccessSection";
 import { UserPermissionOverridesPage } from "@/features/access/presentation/UserPermissionOverridesPage";
 import { getEmployeeAccess, saveEmployeeAccess, setEmployeeAccessActive } from "@/features/access/infrastructure/user-access.repository";
+import { invalidAllowedIps, parseAllowedIps } from "@/features/access/domain/ip-access";
 import { useRegistrationLookups } from "../application/useRegistrationLookups";
 import {
   activeRegistrationRoles,
@@ -88,10 +89,14 @@ const mobileFilterOptions: Array<{ value: MobileRegistrationFilter; label: strin
 function accessFormFromResponse(access: any): EmployeeAccessFormState {
   return {
     enabled: access?.enabled === true,
+    profile_id: access?.profile_id ? String(access.profile_id) : null,
+    username: String(access?.username || ""),
     email: String(access?.email || ""),
     password: "",
     role_id: String(access?.role_id || ""),
     uniq_subscriber_id: String(access?.uniq_subscriber_id || ""),
+    restrict_by_ip: access?.restrict_by_ip === true,
+    allowed_ips: Array.isArray(access?.allowed_ips) ? access.allowed_ips.map(String).join("\n") : "",
   };
 }
 
@@ -383,6 +388,11 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     if (!accessForm.enabled) return null;
     if (!accessForm.email.trim() || !isValidEmail(accessForm.email)) return "Informe um e-mail de acesso válido.";
     if (!accessForm.role_id) return "Selecione a função do acesso ao sistema.";
+    const allowedIps = parseAllowedIps(accessForm.allowed_ips);
+    if (accessForm.restrict_by_ip && allowedIps.length === 0) return "Informe pelo menos um IP permitido para restringir o acesso.";
+    const invalidIps = invalidAllowedIps(accessForm.allowed_ips);
+    if (accessForm.restrict_by_ip && invalidIps.length > 0) return `IP inválido: ${invalidIps[0]}.`;
+    if (allowedIps.length > 20) return "Informe no máximo 20 endereços IP permitidos.";
     if (!accessExisting && accessForm.password.length < 8) return "A senha do novo acesso deve ter pelo menos 8 caracteres.";
     if (accessExisting && accessForm.password && accessForm.password.length < 8) return "A nova senha deve ter pelo menos 8 caracteres.";
     return null;
@@ -439,6 +449,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           password: accessForm.password,
           roleId: accessForm.role_id,
           uniqSubscriberId: accessForm.uniq_subscriber_id,
+          restrictByIp: accessForm.restrict_by_ip,
+          allowedIps: parseAllowedIps(accessForm.allowed_ips),
         });
         if (result.error) throw result.error;
         await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
@@ -450,6 +462,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           email: accessForm.email,
           roleId: accessForm.role_id,
           uniqSubscriberId: accessForm.uniq_subscriber_id,
+          restrictByIp: accessForm.restrict_by_ip,
+          allowedIps: parseAllowedIps(accessForm.allowed_ips),
         });
         if (result.error) throw result.error;
         await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });

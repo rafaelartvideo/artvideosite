@@ -87,6 +87,8 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
       setError("Credenciais inválidas. Verifique seu usuário e senha.");
     } else if (result === "inactive_user") {
       setError("Usuário inativo. Entre em contato com o gestor.");
+    } else if (result === "ip_not_allowed") {
+      setError("Acesso negado. Este endereço IP não está autorizado para este usuário.");
     }
 
     setLoading(false);

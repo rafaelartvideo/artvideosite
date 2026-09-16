@@ -3,6 +3,8 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import type { Profile } from "./database.types";
 import type { OrganizationAccess, OrganizationStatus, OrganizationType } from "./organization.types";
+import { validateCurrentSessionIp } from "@/features/auth/infrastructure/auth.repository";
+import { INACTIVITY_TIMEOUT_MS, isSessionInactive, remainingSessionTime } from "./session-security";
 
 const ACTIVE_ORGANIZATION_STORAGE_PREFIX = "artvideo:active-organization";
 const ORGANIZATION_CHANGED_EVENT = "artvideo:organization-changed";
@@ -66,17 +68,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signedInUserRef = useRef<string | null>(null);
   const activeOrganizationIdRef = useRef<string | null>(null);
   const deferredAccessTimerRef = useRef<number | null>(null);
+  const sessionValidationRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (cancelled) return;
-      setSession(data.session);
       if (data.session?.user) {
+        const allowed = await validateCurrentSessionIp();
+        if (cancelled) return;
+        if (!allowed) {
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+        setSession(data.session);
         signedInUserRef.current = data.session.user.id;
         void loadAccess(data.session.user.id);
       } else {
+        setSession(null);
         setLoading(false);
       }
     });
@@ -134,6 +145,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("artvideo:permissions-changed", handlePermissionChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    let lastActivityAt = Date.now();
+    let inactivityTimer: number | null = null;
+    let lastAcceptedActivityAt = 0;
+
+    const expireIfInactive = () => {
+      if (isSessionInactive(lastActivityAt)) {
+        void signOut();
+        return;
+      }
+      inactivityTimer = window.setTimeout(expireIfInactive, remainingSessionTime(lastActivityAt));
+    };
+
+    const scheduleExpiration = () => {
+      if (inactivityTimer !== null) window.clearTimeout(inactivityTimer);
+      inactivityTimer = window.setTimeout(expireIfInactive, INACTIVITY_TIMEOUT_MS);
+    };
+
+    const recordActivity = () => {
+      const now = Date.now();
+      if (now - lastAcceptedActivityAt < 1_000) return;
+      lastAcceptedActivityAt = now;
+      lastActivityAt = now;
+      scheduleExpiration();
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = ["pointerdown", "pointermove", "keydown", "touchstart", "scroll"];
+    activityEvents.forEach(eventName => window.addEventListener(eventName, recordActivity, { passive: true }));
+    scheduleExpiration();
+
+    return () => {
+      if (inactivityTimer !== null) window.clearTimeout(inactivityTimer);
+      activityEvents.forEach(eventName => window.removeEventListener(eventName, recordActivity));
+    };
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const validateVisibleSession = async () => {
+      if (document.visibilityState !== "visible" || sessionValidationRef.current) return;
+      sessionValidationRef.current = true;
+      try {
+        if (!await validateCurrentSessionIp()) await signOut();
+      } finally {
+        sessionValidationRef.current = false;
+      }
+    };
+
+    document.addEventListener("visibilitychange", validateVisibleSession);
+    const interval = window.setInterval(validateVisibleSession, 5 * 60 * 1000);
+    return () => {
+      document.removeEventListener("visibilitychange", validateVisibleSession);
+      window.clearInterval(interval);
+    };
+  }, [session?.user.id]);
 
   function cancelScheduledAccessLoad() {
     if (deferredAccessTimerRef.current === null) return;

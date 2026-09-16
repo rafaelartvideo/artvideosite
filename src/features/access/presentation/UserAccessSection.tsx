@@ -3,8 +3,9 @@ import { CheckCircle2, Eye, EyeOff, LoaderCircle, XCircle } from "lucide-react";
 import { ARTVIDEO_ORGANIZATION_ID } from "@/features/telephony/domain/uniq-call";
 import { listActiveRoles } from "@/features/roles/infrastructure/roles.repository";
 import { checkEmployeeUsernameAvailability, listObservedUniqSubscribers } from "../infrastructure/user-access.repository";
+import { invalidAllowedIps } from "../domain/ip-access";
 import { authEmailForUsername, isValidUsername, normalizeUsername, usernameFromAuthEmail } from "@/features/auth/domain/username";
-import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { Section } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
 
@@ -18,6 +19,8 @@ export type EmployeeAccessFormState = {
   password: string;
   role_id: string;
   uniq_subscriber_id: string;
+  restrict_by_ip: boolean;
+  allowed_ips: string;
 };
 
 export const emptyEmployeeAccessForm = (): EmployeeAccessFormState => ({
@@ -28,6 +31,8 @@ export const emptyEmployeeAccessForm = (): EmployeeAccessFormState => ({
   password: "",
   role_id: "",
   uniq_subscriber_id: "",
+  restrict_by_ip: false,
+  allowed_ips: "",
 });
 
 type RoleOption = { id: string; name: string };
@@ -125,6 +130,26 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
       </div>
       <FSelect label="Função" required={value.enabled} disabled={disabled || loading || !value.enabled} value={value.role_id} onChange={(event: any) => onChange({ ...value, role_id: event.target.value })} options={roleOptions} />
       {isArtVideo && <FSelect label="Usuário / ramal Uniq" disabled={disabled || loading} value={value.uniq_subscriber_id} onChange={(event: any) => onChange({ ...value, uniq_subscriber_id: event.target.value })} options={uniqOptions} />}
+      <div className="space-y-3 rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 sm:col-span-2">
+        <FToggle
+          label="Restringir acesso por IP"
+          description="Quando ativado, este usuário só poderá entrar pelos IPs públicos configurados abaixo."
+          checked={value.restrict_by_ip}
+          disabled={disabled || loading || !value.enabled}
+          onChange={restrict_by_ip => onChange({ ...value, restrict_by_ip })}
+        />
+        {value.restrict_by_ip && <FTextarea
+          label="IPs permitidos"
+          rows={3}
+          required
+          disabled={disabled || loading || !value.enabled}
+          placeholder={"189.15.10.214\n2001:db8::1"}
+          value={value.allowed_ips}
+          error={invalidAllowedIps(value.allowed_ips).length ? "Há um endereço IP inválido na lista." : undefined}
+          onChange={(event: any) => onChange({ ...value, allowed_ips: event.target.value })}
+        />}
+        {value.restrict_by_ip && <p className="text-[11px] leading-relaxed text-[#5a6a82]">Separe vários IPs por linha ou vírgula. Use o IP público fixo da conexão.</p>}
+      </div>
     </div>}
   </div>;
   return embedded ? content : <Section title="Acesso ao sistema">{content}</Section>;

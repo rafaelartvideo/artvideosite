@@ -160,11 +160,13 @@ async function loadAccess(organizationId: string, employee: any) {
       role_id: employee.role_id ?? null,
       uniq_subscriber_id: employee.uniq_subscriber_id ?? null,
       is_owner: false,
+      restrict_by_ip: false,
+      allowed_ips: [],
     };
   }
 
   const [{ data: profile, error: profileError }, { data: membership, error: membershipError }, authResult] = await Promise.all([
-    adminClient.from("profiles").select("id,username,email,is_active,role_id").eq("id", employee.profile_id).maybeSingle(),
+    adminClient.from("profiles").select("id,username,email,is_active,role_id,restrict_by_ip,allowed_ips").eq("id", employee.profile_id).maybeSingle(),
     adminClient.from("organization_members").select("id,role_id,status,is_owner").eq("organization_id", organizationId).eq("user_id", employee.profile_id).maybeSingle(),
     adminClient.auth.admin.getUserById(employee.profile_id),
   ]);
@@ -181,6 +183,8 @@ async function loadAccess(organizationId: string, employee: any) {
     role_id: membership?.role_id ?? employee.role_id ?? profile?.role_id ?? null,
     uniq_subscriber_id: employee.uniq_subscriber_id ?? null,
     is_owner: membership?.is_owner === true,
+    restrict_by_ip: profile?.restrict_by_ip === true,
+    allowed_ips: Array.isArray(profile?.allowed_ips) ? profile.allowed_ips.map(String) : [],
   };
 }
 
@@ -340,6 +344,22 @@ Deno.serve(async (req) => {
 
     const username = normalizeUsername(body.username ?? currentAccess.username ?? "");
     const password = String(body.password ?? "");
+    const restrictByIp = body.restrict_by_ip === undefined
+      ? currentAccess.restrict_by_ip === true
+      : body.restrict_by_ip === true;
+    const allowedIps = body.allowed_ips === undefined
+      ? (Array.isArray(currentAccess.allowed_ips) ? currentAccess.allowed_ips.map(String) : [])
+      : Array.from(new Set(
+        (Array.isArray(body.allowed_ips) ? body.allowed_ips : [])
+          .map((value: unknown) => String(value ?? "").trim())
+          .filter(Boolean),
+      ));
+    if (allowedIps.length > 20) {
+      return json({ error: "Informe no máximo 20 endereços IP permitidos." }, 400);
+    }
+    if (restrictByIp && allowedIps.length === 0) {
+      return json({ error: "Informe pelo menos um IP permitido para restringir o acesso." }, 400);
+    }
     if (enabled && !validUsername(username)) {
       return json({ error: "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado." }, 400);
     }
@@ -393,6 +413,8 @@ Deno.serve(async (req) => {
         phone: employee.phone || null,
         role_id: roleId,
         is_active: preservedActive,
+        restrict_by_ip: restrictByIp,
+        allowed_ips: allowedIps,
         updated_at: new Date().toISOString(),
       });
       if (profileError) {

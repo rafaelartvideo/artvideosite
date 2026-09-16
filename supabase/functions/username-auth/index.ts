@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
+import { extractClientIp } from "./access-policy.mjs";
 
 const url = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -32,7 +33,21 @@ async function resolveLogin(username: string) {
 
   const authResult = await admin.auth.admin.getUserById(profile.id);
   if (authResult.error || !authResult.data.user?.email) return null;
-  return { email: authResult.data.user.email };
+  return { id: profile.id, email: authResult.data.user.email };
+}
+
+async function ipAccessAllowed(profileId: string, req: Request) {
+  const clientIp = extractClientIp(req.headers);
+  const { data, error } = await admin.rpc("is_profile_ip_allowed", {
+    p_profile_id: profileId,
+    p_client_ip: clientIp ?? "",
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+function bearerToken(req: Request) {
+  return req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "").trim() || "";
 }
 
 Deno.serve(async (req) => {
@@ -42,6 +57,24 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const action = String(body?.action ?? "login");
+
+    if (action === "validate_session") {
+      const token = bearerToken(req);
+      if (!token) return json({ error: "Usuário não autenticado." }, 401);
+      const client = createClient(url, anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      });
+      const userResult = await client.auth.getUser(token);
+      if (userResult.error || !userResult.data.user) return json({ error: "Usuário não autenticado." }, 401);
+      if (!await ipAccessAllowed(userResult.data.user.id, req)) {
+        return json({
+          error: "Acesso negado. Este endereço IP não está autorizado para este usuário.",
+          code: "ip_not_allowed",
+        }, 403);
+      }
+      return json({ success: true });
+    }
+
     const username = normalizeUsername(body?.username);
     const password = String(body?.password ?? "");
 
@@ -55,6 +88,14 @@ Deno.serve(async (req) => {
     });
     const signIn = await client.auth.signInWithPassword({ email: login.email, password });
     if (signIn.error || !signIn.data.session) return json({ error: "Credenciais inválidas." }, 400);
+
+    if (!await ipAccessAllowed(login.id, req)) {
+      await client.auth.signOut();
+      return json({
+        error: "Acesso negado. Este endereço IP não está autorizado para este usuário.",
+        code: "ip_not_allowed",
+      }, 403);
+    }
 
     if (action === "login") {
       return json({

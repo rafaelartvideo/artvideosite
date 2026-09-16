@@ -154,6 +154,8 @@ export function RegistrationDetails({
             {detailValue("Status", accessExisting ? (accessActive ? "Ativo" : "Inativo") : "Sem login")}
             {detailValue("Usuário", accessUsername)}
             {detailValue("Função vinculada", accessForm.role_id ? "Configurada" : "—")}
+            {detailValue("Restrição por IP", accessForm.restrict_by_ip ? "Ativada" : "Desativada")}
+            {accessForm.restrict_by_ip && detailValue("IPs permitidos", accessForm.allowed_ips.split("\n").filter(Boolean).join(", ") || "—")}
           </div>
         </div>}
       </Section>}
