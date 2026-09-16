@@ -21,6 +21,7 @@ const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistan
 const ServiceTrackingSection = lazy(() => import("@/features/service-tracking/presentation/ServiceTrackingSection").then(module => ({ default: module.ServiceTrackingSection })));
 const PublicQuotePage = lazy(() => import("@/features/public-quotes/presentation/PublicQuotePage").then(module => ({ default: module.PublicQuotePage })));
 const MobileDeviceCapturePage = lazy(() => import("@/features/device-capture/presentation/MobileDeviceCapturePage").then(module => ({ default: module.MobileDeviceCapturePage })));
+const PublicDocumentSignaturePage = lazy(() => import("@/features/document-signature-public/presentation/PublicDocumentSignaturePage").then(module => ({ default: module.PublicDocumentSignaturePage })));
 
 const PUBLIC_PAGE_PATHS: Record<Page, string> = {
   home: "/",
@@ -38,8 +39,12 @@ function PublicPageFallback() {
   return <div className="min-h-[55vh] bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">Carregando página...</div>;
 }
 
+function StandaloneFallback({ text }: { text: string }) {
+  return <div className="min-h-dvh bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">{text}</div>;
+}
+
 function CaptureFallback() {
-  return <div className="min-h-dvh bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">Carregando captura...</div>;
+  return <StandaloneFallback text="Carregando captura..." />;
 }
 
 function AdminFallback() {
@@ -104,6 +109,7 @@ export default function App() {
       <Routes>
         <Route path="/captura" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
         <Route path="/captura/:sessionId" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
+        <Route path="/assinatura/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando assinatura..." />}><PublicDocumentSignaturePage /></Suspense>} />
         <Route path="/admin/*" element={<AdminEntry />} />
         <Route path="/*" element={<PublicRoutes />} />
       </Routes>
