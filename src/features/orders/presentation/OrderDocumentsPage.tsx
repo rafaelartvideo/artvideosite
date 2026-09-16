@@ -11,6 +11,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import type { PrintTemplate } from "@/features/documents/domain/print-template";
 import { cn } from "@/shared/domain/formatters";
 import {
   AdminButton,
@@ -25,6 +26,7 @@ import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { OrderImageThumb, type OrderImage } from "./OrderImages";
 import { OrderChecklistDocumentsSection } from "./OrderChecklistDocumentsSection";
+import { OrderSignatureRequestsSection } from "./OrderSignatureRequestsSection";
 import type { useOrderSituationDocuments } from "../application/useOrderSituationDocuments";
 import {
   situationDocumentMedia,
@@ -34,8 +36,16 @@ import {
 } from "../domain/order-situation-document";
 
 type Controller = ReturnType<typeof useOrderSituationDocuments>;
+type PermissionCheck = (permission: string) => boolean;
 
-type DocumentsTab = "situations" | "solution" | "checklist" | "attachments";
+type DocumentsTab = "situations" | "solution" | "checklist" | "attachments" | "signatures";
+
+type SignatureContext = {
+  usedItems: any[];
+  partRequests: any[];
+  history: any[];
+  printedBy?: string | null;
+};
 
 function AttachmentCard({
   document,
@@ -249,6 +259,9 @@ export function OrderDocumentsPage({
   currentSituationId,
   controller,
   solutionImages,
+  signatureTemplates,
+  signatureContext,
+  hasPermission,
   onClose,
   onView,
 }: {
@@ -257,6 +270,9 @@ export function OrderDocumentsPage({
   currentSituationId?: string | null;
   controller: Controller;
   solutionImages: OrderImage[];
+  signatureTemplates: PrintTemplate[];
+  signatureContext: SignatureContext;
+  hasPermission: PermissionCheck;
   onClose: () => void;
   onView: (image: OrderImage) => void;
 }) {
@@ -264,6 +280,7 @@ export function OrderDocumentsPage({
   const [newAttachmentOpen, setNewAttachmentOpen] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [browserBottomInset, setBrowserBottomInset] = useState(0);
+  const canViewSignatures = hasPermission("documents.signatures.view");
 
   useEffect(() => {
     if (!open) { setBrowserBottomInset(0); return; }
@@ -284,6 +301,10 @@ export function OrderDocumentsPage({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!canViewSignatures && activeTab === "signatures") setActiveTab("situations");
+  }, [canViewSignatures, activeTab]);
+
   if (!open) return null;
 
   const remove = async (document: OrderSituationDocument) => {
@@ -302,20 +323,21 @@ export function OrderDocumentsPage({
 
   return (
     <>
-      <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos e imagens da ordem de serviço" maxW="max-w-4xl">
+      <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos, imagens e assinaturas da ordem de serviço" maxW="max-w-4xl">
         <div className="border-b border-[#0d1b2e]/10 px-5 pt-2">
           <nav className="flex items-center gap-6 overflow-x-auto" aria-label="Seções de documentos">
             <button type="button" onClick={() => setActiveTab("situations")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Situações</button>
             <button type="button" onClick={() => setActiveTab("solution")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "solution" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Solução</button>
             <button type="button" onClick={() => setActiveTab("checklist")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "checklist" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Checklist</button>
             <button type="button" onClick={() => setActiveTab("attachments")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Anexos</button>
+            {canViewSignatures && <button type="button" onClick={() => setActiveTab("signatures")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "signatures" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Assinaturas</button>}
           </nav>
         </div>
 
         <div className="min-w-0 max-w-full space-y-4 overflow-hidden p-5">
           {message && <div className={cn("flex min-w-0 items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}</span><span className="min-w-0 break-words">{message.text}</span></span><button type="button" onClick={() => setMessage(null)} className="shrink-0"><X size={13} /></button></div>}
 
-          {activeTab !== "solution" && activeTab !== "checklist" && controller.loading ? (
+          {activeTab !== "solution" && activeTab !== "checklist" && activeTab !== "signatures" && controller.loading ? (
             <LoadingState text="Carregando documentos..." />
           ) : activeTab === "situations" ? (
             controller.flowSituations.length === 0 ? (
@@ -351,6 +373,16 @@ export function OrderDocumentsPage({
             </div>
           ) : activeTab === "checklist" ? (
             <OrderChecklistDocumentsSection orderId={order.id} onView={onView} />
+          ) : activeTab === "signatures" ? (
+            <OrderSignatureRequestsSection
+              order={order}
+              templates={signatureTemplates}
+              usedItems={signatureContext.usedItems}
+              partRequests={signatureContext.partRequests}
+              history={signatureContext.history}
+              printedBy={signatureContext.printedBy}
+              hasPermission={hasPermission}
+            />
           ) : (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm"><Plus size={14} /> Novo anexo</AdminButton>}</div>
