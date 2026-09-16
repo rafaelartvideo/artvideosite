@@ -16,6 +16,7 @@ import {
 } from "../infrastructure/orders-catalog.repository";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/popover";
 import { saveEquipmentTypeTechnicalFields } from "@/features/equipment/infrastructure/equipment.repository";
 
 type QuickEquipmentMode = "full" | "model";
@@ -86,6 +87,10 @@ function CatalogCombobox({
   const exactOption = findExactCatalogOption(options, value);
   const duplicateOption = exactOption && exactOption.id !== selectedId ? exactOption : null;
 
+  React.useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
   const filteredOptions = useMemo(() => {
     const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
     if (!query) return sorted.slice(0, 8);
@@ -104,72 +109,80 @@ function CatalogCombobox({
     <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
       {label}{required && <span className="text-red-400">*</span>}
     </label>
-    <div className="relative">
-      <input
-        value={value}
-        disabled={disabled}
-        autoComplete="off"
-        placeholder={placeholder}
-        onFocus={() => setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") setOpen(false);
-          if (event.key === "Enter" && exactOption) {
-            event.preventDefault();
-            selectOption(exactOption);
-          }
-        }}
-        onChange={(event) => {
-          const nextValue = event.target.value;
-          onChange(nextValue);
-          if (selectedId && normalizeCatalogValue(selectedOption?.name) !== normalizeCatalogValue(nextValue)) onSelect(null);
-          setOpen(true);
-        }}
-        className={cn(
-          INPUT,
-          "h-[42px] pr-9",
-          disabled && "disabled:cursor-default disabled:bg-slate-100/60 disabled:text-slate-500 disabled:opacity-70 disabled:focus:ring-0",
-          duplicateOption && "border-amber-400 focus:border-amber-500 focus:ring-amber-400/30",
-          selectedId && "border-emerald-300 bg-emerald-50/30",
-        )}
-      />
-      <ChevronDown size={15} className={cn("pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5a6a82] transition-transform", open && "rotate-180")} />
-
-      {open && !disabled && (
-        <div className="absolute z-[140] mt-1 w-full min-w-[220px] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl">
-          <div className="flex items-center gap-2 border-b border-[#0d1b2e]/8 px-3 py-2 text-[11px] font-semibold text-[#5a6a82]">
-            <Search size={13} className="shrink-0" />
-            <span>{query ? "Resultados encontrados" : "Cadastros recentes"}</span>
-          </div>
-          <div className="max-h-56 overflow-y-auto p-1.5">
-            {filteredOptions.length > 0 ? filteredOptions.map(option => {
-              const selected = selectedId === option.id;
-              return <button
-                key={option.id}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => selectOption(option)}
-                className={cn(
-                  "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[#eef5ff] focus-visible:bg-[#eef5ff] focus-visible:outline-none",
-                  selected && "bg-[#eef5ff]",
-                )}
-              >
-                <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected ? "border-[#0057e7] bg-[#0057e7] text-white" : "border-[#0d1b2e]/15 text-transparent")}><Check size={11} /></span>
-                <span className="min-w-0 flex-1">
-                  <span className={cn("block truncate text-xs font-bold", selected ? "text-[#0057e7]" : "text-[#0d1b2e]")}>{option.name}</span>
-                  {option.meta && <span className="mt-0.5 block truncate text-[10px] text-[#5a6a82]">{option.meta}</span>}
-                </span>
-              </button>;
-            }) : <p className="px-2.5 py-3 text-xs text-[#5a6a82]">{emptyText}</p>}
-          </div>
-          {allowCreate && cleanCatalogValue(value) && !exactOption && (
-            <div className="border-t border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2 text-[10px] text-[#5a6a82]">
-              <span className="font-bold text-[#0057e7]">{createLabel}:</span> {cleanCatalogValue(value)}
-            </div>
-          )}
+    <Popover open={open && !disabled} onOpenChange={(nextOpen) => { if (!disabled) setOpen(nextOpen); }}>
+      <PopoverAnchor asChild>
+        <div className="relative">
+          <input
+            value={value}
+            disabled={disabled}
+            autoComplete="off"
+            placeholder={placeholder}
+            onFocus={() => setOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setOpen(false);
+              if (event.key === "Enter" && exactOption) {
+                event.preventDefault();
+                selectOption(exactOption);
+              }
+            }}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              onChange(nextValue);
+              if (selectedId && normalizeCatalogValue(selectedOption?.name) !== normalizeCatalogValue(nextValue)) onSelect(null);
+              setOpen(true);
+            }}
+            className={cn(
+              INPUT,
+              "h-[42px] pr-9",
+              disabled && "disabled:cursor-default disabled:bg-slate-100/60 disabled:text-slate-500 disabled:opacity-70 disabled:focus:ring-0",
+              duplicateOption && "border-amber-400 focus:border-amber-500 focus:ring-amber-400/30",
+              selectedId && "border-emerald-300 bg-emerald-50/30",
+            )}
+          />
+          <ChevronDown size={15} className={cn("pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5a6a82] transition-transform", open && "rotate-180")} />
         </div>
-      )}
-    </div>
+      </PopoverAnchor>
+
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        collisionPadding={{ top: 12, right: 12, bottom: 96, left: 12 }}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+        className="z-[220] w-[var(--radix-popover-trigger-width)] min-w-[220px] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white p-0 text-[#0d1b2e] shadow-2xl"
+      >
+        <div className="flex items-center gap-2 border-b border-[#0d1b2e]/8 px-3 py-2 text-[11px] font-semibold text-[#5a6a82]">
+          <Search size={13} className="shrink-0" />
+          <span>{query ? "Resultados encontrados" : "Cadastros recentes"}</span>
+        </div>
+        <div className="max-h-56 overflow-y-auto overscroll-contain p-1.5">
+          {filteredOptions.length > 0 ? filteredOptions.map(option => {
+            const selected = selectedId === option.id;
+            return <button
+              key={option.id}
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectOption(option)}
+              className={cn(
+                "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[#eef5ff] focus-visible:bg-[#eef5ff] focus-visible:outline-none",
+                selected && "bg-[#eef5ff]",
+              )}
+            >
+              <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected ? "border-[#0057e7] bg-[#0057e7] text-white" : "border-[#0d1b2e]/15 text-transparent")}><Check size={11} /></span>
+              <span className="min-w-0 flex-1">
+                <span className={cn("block truncate text-xs font-bold", selected ? "text-[#0057e7]" : "text-[#0d1b2e]")}>{option.name}</span>
+                {option.meta && <span className="mt-0.5 block truncate text-[10px] text-[#5a6a82]">{option.meta}</span>}
+              </span>
+            </button>;
+          }) : <p className="px-2.5 py-3 text-xs text-[#5a6a82]">{emptyText}</p>}
+        </div>
+        {allowCreate && cleanCatalogValue(value) && !exactOption && (
+          <div className="border-t border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2 text-[10px] text-[#5a6a82]">
+            <span className="font-bold text-[#0057e7]">{createLabel}:</span> {cleanCatalogValue(value)}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
 
     {duplicateOption ? (
       <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-800">
@@ -285,6 +298,8 @@ export function QuickEquipmentModal({
 
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (typeof window !== "undefined" && window.innerWidth < 640) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, input, textarea, select, a, [role='button'], [data-no-drag='true']")) return;
     dragRef.current = { x: position.x, y: position.y, startX: event.clientX, startY: event.clientY };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -413,12 +428,12 @@ export function QuickEquipmentModal({
     <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <DialogContent
         showClose={false}
-        className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] gap-0 border-0 bg-transparent p-0 shadow-none sm:w-full sm:max-w-3xl"
+        className="w-[calc(100vw-0.5rem)] max-w-[calc(100vw-0.5rem)] gap-0 border-0 bg-transparent p-0 shadow-none sm:w-full sm:max-w-4xl"
       >
         <DialogTitle className="sr-only">Cadastro rápido de equipamento</DialogTitle>
         <div
           style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-          className="relative flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-2xl"
+          className="relative flex h-[calc(100dvh-0.5rem)] max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl sm:h-[96dvh] sm:max-h-[96dvh] sm:max-w-4xl sm:rounded-2xl"
         >
           <div
             onPointerDown={startDrag}
@@ -431,13 +446,13 @@ export function QuickEquipmentModal({
               <h3 className="text-sm font-black leading-5 text-[#0d1b2e] sm:text-base">Cadastro rápido de equipamento</h3>
               <p className="mt-0.5 text-[11px] leading-4 text-[#5a6a82] sm:mt-1 sm:text-xs">Pesquise antes de cadastrar e evite duplicidades no catálogo.</p>
             </div>
-            <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost" className="shrink-0"><X size={17} /></AdminIconButton>
+            <AdminIconButton ariaLabel="Fechar" onPointerDown={(event) => event.stopPropagation()} onClick={onClose} disabled={saving} variant="ghost" className="shrink-0"><X size={17} /></AdminIconButton>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6">
-            <div className="space-y-4 sm:space-y-5">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:px-6 sm:py-6">
+            <div className="space-y-5 sm:space-y-6">
               <div>
-                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Tipo de cadastro</p>
+                <p className="mb-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Tipo de cadastro</p>
                 <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#f3f6fa] p-1.5">
                   {modes.map(item => {
                     const selected = mode === item.id;
@@ -460,14 +475,14 @@ export function QuickEquipmentModal({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 sm:p-5">
-                <div className="mb-4">
+              <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4 sm:p-6">
+                <div className="mb-5">
                   <p className="text-sm font-black text-[#0d1b2e]">Dados do equipamento</p>
                   <p className="mt-1 text-[11px] leading-4 text-[#5a6a82] sm:text-xs">Digite em cada campo para pesquisar os cadastros existentes. Cadastros selecionados são reutilizados sem alteração.</p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="relative">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                  <div className="relative min-w-0">
                     <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-[#0057e7] text-[10px] font-black text-white">1</span>
                     <CatalogCombobox
                       label="Equipamento"
@@ -493,7 +508,7 @@ export function QuickEquipmentModal({
                     />
                   </div>
 
-                  <div className="relative">
+                  <div className="relative min-w-0">
                     <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-[#0057e7] text-[10px] font-black text-white">2</span>
                     <CatalogCombobox
                       label="Marca"
@@ -519,7 +534,7 @@ export function QuickEquipmentModal({
                     />
                   </div>
 
-                  <div className="relative">
+                  <div className="relative min-w-0">
                     <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-[#0057e7] text-[10px] font-black text-white">3</span>
                     <CatalogCombobox
                       label="Modelo"
