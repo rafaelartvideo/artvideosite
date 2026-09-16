@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, FileCheck2, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { Check, Download, FileCheck2, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import { useParams } from "react-router";
 import {
   completePublicSignature,
+  getPublicSignedDocument,
   inspectPublicSignature,
   loadPublicSignatureDocument,
   requestPublicSignatureOtp,
@@ -12,7 +13,7 @@ import {
 } from "../infrastructure/public-document-signature.repository";
 import { SignaturePad, type SignaturePadHandle } from "./SignaturePad";
 
-type Step = "loading" | "identity" | "otp" | "document" | "captured" | "terminal" | "error";
+type Step = "loading" | "identity" | "otp" | "document" | "signed" | "terminal" | "error";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -148,8 +149,15 @@ export function PublicDocumentSignaturePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [cooldown, setCooldown] = useState(0);
-  const [capturedAt, setCapturedAt] = useState<string | null>(null);
+  const [signedAt, setSignedAt] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState<string | null>(null);
+
+  const enterSignedState = (result: { signed_at?: string | null; verification_code?: string | null }) => {
+    setSignedAt(result.signed_at || new Date().toISOString());
+    setVerificationCode(result.verification_code || null);
+    setStep("signed");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -166,10 +174,10 @@ export function PublicDocumentSignaturePage() {
         const result = await inspectPublicSignature(token);
         if (cancelled) return;
         setInspection(result);
-        setCapturedAt(result.captured_at);
+        setSignedAt(result.signed_at);
         setVerificationCode(result.verification_code);
-        if (result.external_signature_captured) setStep("captured");
-        else if (["signed", "expired", "cancelled"].includes(result.state)) setStep("terminal");
+        if (result.state === "signed") setStep("signed");
+        else if (["expired", "cancelled"].includes(result.state)) setStep("terminal");
         else setStep("identity");
       } catch (loadError) {
         if (cancelled) return;
@@ -185,7 +193,6 @@ export function PublicDocumentSignaturePage() {
     if (!inspection) return "Esta solicitação não está disponível.";
     if (inspection.state === "expired") return "O prazo deste link terminou. Solicite um novo envio à empresa.";
     if (inspection.state === "cancelled") return "Esta solicitação foi cancelada e não aceita mais assinatura.";
-    if (inspection.state === "signed") return "Este documento já foi assinado e finalizado.";
     return "Esta solicitação não está disponível.";
   }, [inspection]);
 
@@ -195,7 +202,7 @@ export function PublicDocumentSignaturePage() {
     setError("");
     try {
       const result = await requestPublicSignatureOtp(token, documentValue);
-      if (result.already_captured) { setStep("captured"); return; }
+      if (result.signed || result.already_captured) { enterSignedState(result); return; }
       if (!result.challenge_id) throw new Error("Não foi possível gerar o código de validação.");
       setChallengeId(result.challenge_id);
       setCooldown(result.retry_after_seconds || 60);
@@ -215,7 +222,7 @@ export function PublicDocumentSignaturePage() {
     setError("");
     try {
       const result = await verifyPublicSignatureOtp(token, challengeId, otp);
-      if (result.already_captured) { setStep("captured"); return; }
+      if (result.signed || result.already_captured) { enterSignedState(result); return; }
       if (!result.proof) throw new Error("Não foi possível concluir a validação.");
       const loadedDocument = await loadPublicSignatureDocument(token, result.proof);
       setProof(result.proof);
@@ -243,15 +250,37 @@ export function PublicDocumentSignaturePage() {
     setError("");
     try {
       const result = await completePublicSignature({ token, proof, signatureDataUrl });
-      setCapturedAt(result.captured_at || new Date().toISOString());
-      setVerificationCode(result.verification_code || null);
-      setStep("captured");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      enterSignedState(result);
     } catch (completeError) {
       setError(completeError instanceof Error ? completeError.message : "Não foi possível registrar a assinatura.");
     } finally {
       setBusy(false);
     }
+  };
+
+  const downloadPdf = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await getPublicSignedDocument(token);
+      const anchor = document.createElement("a");
+      anchor.href = result.download_url;
+      anchor.download = `${inspection?.document_name || "documento-assinado"}.pdf`;
+      anchor.rel = "noreferrer";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Não foi possível preparar o PDF.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openVerification = () => {
+    if (!verificationCode) return;
+    window.open(`/verificar-documento/${encodeURIComponent(verificationCode)}`, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -269,9 +298,9 @@ export function PublicDocumentSignaturePage() {
 
         {step === "error" && <div className="rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm"><LockKeyhole className="mx-auto text-red-500" size={28} /><h2 className="mt-3 text-lg font-black">Link indisponível</h2><p className="mt-2 text-sm text-[#64748b]">{error}</p></div>}
 
-        {step === "terminal" && <div className="rounded-2xl border border-[#dbe2ea] bg-white p-6 text-center shadow-sm"><FileCheck2 className="mx-auto text-[#0057e7]" size={30} /><h2 className="mt-3 text-lg font-black">{inspection?.document_name || "Documento"}</h2><p className="mt-2 text-sm text-[#64748b]">{terminalMessage}</p>{inspection?.verification_code && <p className="mt-4 rounded-xl bg-[#f8fafc] px-3 py-2 font-mono text-sm font-bold">Código: {inspection.verification_code}</p>}</div>}
+        {step === "terminal" && <div className="rounded-2xl border border-[#dbe2ea] bg-white p-6 text-center shadow-sm"><FileCheck2 className="mx-auto text-[#0057e7]" size={30} /><h2 className="mt-3 text-lg font-black">{inspection?.document_name || "Documento"}</h2><p className="mt-2 text-sm text-[#64748b]">{terminalMessage}</p></div>}
 
-        {step === "captured" && <div className="rounded-2xl border border-emerald-200 bg-white p-6 text-center shadow-sm"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check size={28} strokeWidth={3} /></div><h2 className="mt-4 text-xl font-black">Assinatura recebida</h2><p className="mt-2 text-sm leading-6 text-[#64748b]">Sua assinatura foi registrada com sucesso para {inspection?.document_name || "este documento"}.</p>{capturedAt && <p className="mt-3 text-xs font-semibold text-[#475569]">Registrada em {formatDateTime(capturedAt)}</p>}{verificationCode && <p className="mt-4 rounded-xl bg-[#f8fafc] px-3 py-2 font-mono text-sm font-bold">Código: {verificationCode}</p>}</div>}
+        {step === "signed" && <div className="rounded-2xl border border-emerald-200 bg-white p-6 text-center shadow-sm sm:p-8"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check size={28} strokeWidth={3} /></div><h2 className="mt-4 text-xl font-black">Documento assinado</h2><p className="mt-2 text-sm leading-6 text-[#64748b]">{inspection?.document_name || "O documento"} foi finalizado e preservado como uma versão imutável.</p>{signedAt && <p className="mt-3 text-xs font-semibold text-[#475569]">Assinado em {formatDateTime(signedAt)}</p>}{verificationCode && <p className="mx-auto mt-4 max-w-md rounded-xl bg-[#f8fafc] px-3 py-2 font-mono text-sm font-bold">Código: {verificationCode}</p>}{error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}<div className="mx-auto mt-5 grid max-w-md gap-2 sm:grid-cols-2"><button type="button" onClick={() => void downloadPdf()} disabled={busy} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white hover:bg-[#0048c7] disabled:opacity-60"><Download size={16} />{busy ? "Preparando..." : "Baixar PDF"}</button><button type="button" onClick={openVerification} disabled={!verificationCode} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#0057e7]/30 bg-white px-4 text-sm font-black text-[#0057e7] hover:bg-[#f7faff] disabled:opacity-50"><ShieldCheck size={16} /> Verificar autenticidade</button></div><p className="mt-4 text-[11px] leading-5 text-[#64748b]">Uma cópia do PDF também é enviada automaticamente ao e-mail do assinante quando o serviço de e-mail está disponível.</p></div>}
 
         {step === "identity" && inspection && <div className="rounded-2xl border border-[#dbe2ea] bg-white p-5 shadow-sm sm:p-6">
           <div className="rounded-xl bg-[#f8fafc] p-4"><p className="text-xs font-bold uppercase tracking-wide text-[#64748b]">Documento</p><p className="mt-1 text-base font-black">{inspection.document_name}</p><p className="mt-1 text-xs text-[#64748b]">OS {inspection.order_number} · link válido até {formatDateTime(inspection.expires_at)}</p></div>
@@ -302,7 +331,7 @@ export function PublicDocumentSignaturePage() {
             </label>
             <div className="mt-5"><span className="mb-2 block text-xs font-bold uppercase tracking-wide text-[#475569]">Sua assinatura</span><SignaturePad ref={padRef} disabled={busy} onInkChange={setHasInk} /></div>
             {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
-            <button type="button" onClick={() => void complete()} disabled={busy || !consentAccepted || !hasInk} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-5 text-sm font-black text-white hover:bg-[#0048c7] disabled:cursor-not-allowed disabled:opacity-50"><FileCheck2 size={17} />{busy ? "Registrando..." : "Confirmar assinatura"}</button>
+            <button type="button" onClick={() => void complete()} disabled={busy || !consentAccepted || !hasInk} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-5 text-sm font-black text-white hover:bg-[#0048c7] disabled:cursor-not-allowed disabled:opacity-50"><FileCheck2 size={17} />{busy ? "Finalizando documento..." : "Confirmar assinatura"}</button>
             <p className="mt-4 text-center text-[11px] leading-5 text-[#64748b]">Validação por e-mail · {signatureDocument.signer_document_masked}</p>
           </div>
         </div>}
