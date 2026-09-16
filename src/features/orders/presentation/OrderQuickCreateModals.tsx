@@ -82,6 +82,7 @@ function CatalogCombobox({
   helperText?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
   const query = normalizeCatalogValue(value);
   const selectedOption = options.find(option => option.id === selectedId) || null;
   const exactOption = findExactCatalogOption(options, value);
@@ -93,10 +94,8 @@ function CatalogCombobox({
 
   const filteredOptions = useMemo(() => {
     const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
-    if (!query) return sorted.slice(0, 8);
-    return sorted
-      .filter(option => normalizeCatalogValue(option.name).includes(query) || normalizeCatalogValue(option.meta).includes(query))
-      .slice(0, 8);
+    if (!query) return sorted;
+    return sorted.filter(option => normalizeCatalogValue(option.name).includes(query) || normalizeCatalogValue(option.meta).includes(query));
   }, [options, query]);
 
   const selectOption = (option: CatalogOption) => {
@@ -111,13 +110,14 @@ function CatalogCombobox({
     </label>
     <Popover open={open && !disabled} onOpenChange={(nextOpen) => { if (!disabled) setOpen(nextOpen); }}>
       <PopoverAnchor asChild>
-        <div className="relative">
+        <div ref={anchorRef} className="relative">
           <input
             value={value}
             disabled={disabled}
             autoComplete="off"
             placeholder={placeholder}
             onFocus={() => setOpen(true)}
+            onPointerDown={() => setOpen(true)}
             onKeyDown={(event) => {
               if (event.key === "Escape") setOpen(false);
               if (event.key === "Enter" && exactOption) {
@@ -146,16 +146,24 @@ function CatalogCombobox({
       <PopoverContent
         align="start"
         sideOffset={6}
-        collisionPadding={{ top: 12, right: 12, bottom: 96, left: 12 }}
+        collisionPadding={{ top: 12, right: 12, bottom: 84, left: 12 }}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}
+        onInteractOutside={(event) => {
+          const target = event.target as Node | null;
+          if (target && anchorRef.current?.contains(target)) event.preventDefault();
+        }}
         className="z-[220] w-[var(--radix-popover-trigger-width)] min-w-[220px] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white p-0 text-[#0d1b2e] shadow-2xl"
       >
         <div className="flex items-center gap-2 border-b border-[#0d1b2e]/8 px-3 py-2 text-[11px] font-semibold text-[#5a6a82]">
           <Search size={13} className="shrink-0" />
           <span>{query ? "Resultados encontrados" : "Cadastros recentes"}</span>
         </div>
-        <div className="max-h-56 overflow-y-auto overscroll-contain p-1.5">
+        <div
+          className="max-h-40 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable]"
+          onWheelCapture={(event) => event.stopPropagation()}
+          onTouchMoveCapture={(event) => event.stopPropagation()}
+        >
           {filteredOptions.length > 0 ? filteredOptions.map(option => {
             const selected = selectedId === option.id;
             return <button
@@ -433,7 +441,7 @@ export function QuickEquipmentModal({
         <DialogTitle className="sr-only">Cadastro rápido de equipamento</DialogTitle>
         <div
           style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-          className="relative flex h-[calc(100dvh-0.5rem)] max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl sm:h-[96dvh] sm:max-h-[96dvh] sm:max-w-4xl sm:rounded-2xl"
+          className="relative flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl sm:max-h-[92dvh] sm:max-w-4xl sm:rounded-2xl"
         >
           <div
             onPointerDown={startDrag}
