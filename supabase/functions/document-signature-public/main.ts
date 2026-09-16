@@ -17,11 +17,18 @@ import {
   sha256BytesHex,
   sha256Hex,
 } from "./public-signature-crypto.mjs";
+import {
+  createSignedDocumentAccess,
+  finalizeSignatureRequest,
+  signedRequestById,
+  verifySignedDocumentByCode,
+} from "./final-document-service.ts";
 
 const ACTIVE_STATUSES = new Set(["pending", "viewed"]);
 const MAX_TOKEN_LENGTH = 512;
 const PROOF_TTL_MS = 15 * 60 * 1000;
 const OTP_TTL_MS = 10 * 60 * 1000;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -190,7 +197,7 @@ async function sendOtpEmail({ recipient, code, companyName, documentName, orderN
     body: JSON.stringify({
       from,
       to: [recipient],
-      subject: `Código de assinatura — ${documentName} — OS ${orderNumber}`,
+      subject: `Código de assinatura - ${documentName} - OS ${orderNumber}`,
       html: `<div style="font-family:Arial,sans-serif;color:#172536;line-height:1.55"><h2>${escapeHtml(companyName)}</h2><p>Use o código abaixo para validar sua identidade e acessar o documento <strong>${escapeHtml(documentName)}</strong>.</p><div style="font-size:28px;font-weight:800;letter-spacing:6px;margin:18px 0">${escapeHtml(code)}</div><p style="font-size:12px;color:#526174">O código expira em 10 minutos. Não compartilhe este código com terceiros.</p></div>`,
     }),
   });
@@ -214,10 +221,27 @@ async function verifiedProof(client: any, row: any, tokenHash: string, rawProof:
   return payload;
 }
 
+function finalPublicPayload(finalized: any) {
+  return {
+    signed: true,
+    signed_at: finalized.row?.signed_at || finalized.signed_at,
+    verification_code: finalized.row?.verification_code || finalized.verification_code,
+    verification_url: finalized.verification_url,
+    download_url: finalized.download_url,
+    final_pdf_hash: finalized.final_pdf_hash,
+    snapshot_hash: finalized.snapshot_hash,
+  };
+}
+
 async function inspectAction(client: any, request: Request, body: any) {
-  const { row } = await requestFromToken(client, request, body.token, { markView: true });
+  let { row } = await requestFromToken(client, request, body.token, { markView: true });
+  let signature = await externalSignature(client, row);
+  if (signature && ACTIVE_STATUSES.has(String(row.status))) {
+    const finalized = await finalizeSignatureRequest(client, request, row);
+    row = finalized.row;
+    signature = await externalSignature(client, row);
+  }
   const companyName = await loadCompanyName(client, row.organization_id);
-  const signature = await externalSignature(client, row);
   const state = publicRequestState(row);
   return {
     success: true,
@@ -230,6 +254,9 @@ async function inspectAction(client: any, request: Request, body: any) {
     signer_email_masked: maskEmail(row.external_signer_email || ""),
     expires_at: row.expires_at,
     verification_code: row.status === "signed" ? row.verification_code : null,
+    final_pdf_hash: row.status === "signed" ? row.final_pdf_hash : null,
+    snapshot_hash: row.status === "signed" ? row.snapshot_hash : null,
+    signed_at: row.status === "signed" ? row.signed_at : null,
     external_signature_captured: Boolean(signature),
     captured_at: signature?.signed_at || null,
   };
@@ -238,7 +265,11 @@ async function inspectAction(client: any, request: Request, body: any) {
 async function requestOtpAction(client: any, request: Request, body: any, identityPepper: string) {
   const { row } = await requestFromToken(client, request, body.token, { markView: true });
   assertCanValidate(row);
-  if (await externalSignature(client, row)) return { success: true, already_captured: true };
+  const existing = await externalSignature(client, row);
+  if (existing) {
+    const finalized = await finalizeSignatureRequest(client, request, row);
+    return { success: true, already_captured: true, ...finalPublicPayload(finalized) };
+  }
 
   const document = normalizeDocument(body.document);
   if (![11, 14].includes(document.length)) {
@@ -332,7 +363,11 @@ async function requestOtpAction(client: any, request: Request, body: any, identi
 async function verifyOtpAction(client: any, request: Request, body: any, identityPepper: string, tokenKey: string) {
   const { row, tokenHash } = await requestFromToken(client, request, body.token, { markView: true });
   assertCanValidate(row);
-  if (await externalSignature(client, row)) return { success: true, already_captured: true };
+  const existing = await externalSignature(client, row);
+  if (existing) {
+    const finalized = await finalizeSignatureRequest(client, request, row);
+    return { success: true, already_captured: true, ...finalPublicPayload(finalized) };
+  }
   const challengeId = text(body.challenge_id, 64);
   const code = normalizeOtp(body.code);
   if (!challengeId || !isOtpFormat(code)) throw Object.assign(new Error("Código inválido ou expirado."), { status: 401 });
@@ -405,7 +440,8 @@ async function completeAction(client: any, request: Request, body: any, tokenKey
   await verifiedProof(client, row, tokenHash, body.proof, tokenKey);
   const existing = await externalSignature(client, row);
   if (existing) {
-    return { success: true, captured: true, captured_at: existing.signed_at, verification_code: row.verification_code };
+    const finalized = await finalizeSignatureRequest(client, request, row);
+    return { success: true, captured: true, captured_at: existing.signed_at, ...finalPublicPayload(finalized) };
   }
   if (body.consent_accepted !== true) throw new Error("Confirme o aceite do documento antes de assinar.");
   const bytes = decodePngDataUrl(body.signature_data_url);
@@ -442,32 +478,76 @@ async function completeAction(client: any, request: Request, body: any, tokenKey
   if (insertError) {
     await client.storage.from("signed-documents").remove([storagePath]);
     const concurrent = await externalSignature(client, row);
-    if (concurrent) return { success: true, captured: true, captured_at: concurrent.signed_at, verification_code: row.verification_code };
+    if (concurrent) {
+      const finalized = await finalizeSignatureRequest(client, request, row);
+      return { success: true, captured: true, captured_at: concurrent.signed_at, ...finalPublicPayload(finalized) };
+    }
     throw insertError;
   }
 
   await recordEvent(client, request, row, "consent_accepted", { consent_text: row.consent_text_snapshot });
   await recordEvent(client, request, row, "signature_captured", { signature_id: inserted?.id || signatureId, validation_method: "email_otp" });
-  return { success: true, captured: true, captured_at: inserted?.signed_at || signedAt, verification_code: row.verification_code };
+  const finalized = await finalizeSignatureRequest(client, request, row);
+  return { success: true, captured: true, captured_at: inserted?.signed_at || signedAt, ...finalPublicPayload(finalized) };
+}
+
+async function signedDocumentAction(client: any, request: Request, body: any) {
+  const { row } = await requestFromToken(client, request, body.token, { markView: false });
+  if (row.status !== "signed") throw Object.assign(new Error("O documento ainda não foi finalizado."), { status: 409 });
+  return { success: true, ...(await createSignedDocumentAccess(client, request, row)) };
+}
+
+async function verifyDocumentAction(client: any, body: any) {
+  return { success: true, document: await verifySignedDocumentByCode(client, body.verification_code) };
+}
+
+async function finalizeInternalAction(client: any, request: Request, body: any) {
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const authorization = request.headers.get("Authorization") || "";
+  if (!serviceRole || authorization !== `Bearer ${serviceRole}`) {
+    throw Object.assign(new Error("Acesso interno não autorizado."), { status: 403 });
+  }
+  const requestId = text(body.request_id, 64);
+  if (!UUID_PATTERN.test(requestId)) throw new Error("Solicitação inválida.");
+  const row = await signedRequestById(client, requestId);
+  if (row.require_external_signature === true) {
+    throw Object.assign(new Error("A finalização interna é reservada a documentos sem assinante externo."), { status: 409 });
+  }
+  const finalized = await finalizeSignatureRequest(client, request, row);
+  return {
+    success: true,
+    request_id: finalized.row.id,
+    status: finalized.row.status,
+    signed_at: finalized.row.signed_at,
+    verification_code: finalized.row.verification_code,
+    final_pdf_hash: finalized.final_pdf_hash,
+    snapshot_hash: finalized.snapshot_hash,
+  };
 }
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ success: false, error: "Método não permitido." }, 405);
   try {
-    const identityPepper = Deno.env.get("SIGNATURE_IDENTITY_PEPPER");
-    const tokenKey = Deno.env.get("SIGNATURE_TOKEN_KEY");
-    if (!identityPepper || identityPepper.length < 16 || !tokenKey || tokenKey.length < 16) {
-      return json({ success: false, error: "Assinatura eletrônica não configurada no servidor." }, 503);
-    }
     const body = await request.json().catch(() => ({}));
     const action = text(body?.action, 40);
+    const identityPepper = Deno.env.get("SIGNATURE_IDENTITY_PEPPER") || "";
+    const tokenKey = Deno.env.get("SIGNATURE_TOKEN_KEY") || "";
+    if (["request_otp", "verify_otp"].includes(action) && identityPepper.length < 16) {
+      return json({ success: false, error: "Validação de identidade não configurada no servidor." }, 503);
+    }
+    if (["verify_otp", "document", "complete"].includes(action) && tokenKey.length < 16) {
+      return json({ success: false, error: "Assinatura eletrônica não configurada no servidor." }, 503);
+    }
     const client = adminClient();
     if (action === "inspect") return json(await inspectAction(client, request, body));
     if (action === "request_otp") return json(await requestOtpAction(client, request, body, identityPepper));
     if (action === "verify_otp") return json(await verifyOtpAction(client, request, body, identityPepper, tokenKey));
     if (action === "document") return json(await documentAction(client, request, body, tokenKey));
     if (action === "complete") return json(await completeAction(client, request, body, tokenKey));
+    if (action === "signed_document") return json(await signedDocumentAction(client, request, body));
+    if (action === "verify_document") return json(await verifyDocumentAction(client, body));
+    if (action === "finalize_internal") return json(await finalizeInternalAction(client, request, body));
     return json({ success: false, error: "Ação inválida." }, 400);
   } catch (error) {
     const status = Number((error as any)?.status) || 400;
