@@ -35,9 +35,14 @@ export function randomOtp() {
   return String(value[0] % 1_000_000).padStart(6, "0");
 }
 
-export async function sha256Hex(value) {
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(String(value)));
+export async function sha256BytesHex(value) {
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
   return bytesToHex(new Uint8Array(digest));
+}
+
+export async function sha256Hex(value) {
+  return sha256BytesHex(encoder.encode(String(value)));
 }
 
 export async function hmacHex(secret, value) {
