@@ -6,6 +6,15 @@ function text(value: unknown, max = 500) {
   return String(value ?? "").trim().slice(0, max);
 }
 
+function escapeHtml(value: unknown) {
+  return text(value, 1000)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function clientIp(request: Request) {
   const raw = request.headers.get("cf-connecting-ip")
     || request.headers.get("x-real-ip")
@@ -177,6 +186,11 @@ async function sendFinalCopyEmail(client: any, request: Request, row: any, pdfBy
     return;
   }
   const company = await companySettings(client, row.organization_id);
+  const safeCompany = escapeHtml(company.name || company.legal_name || "Empresa");
+  const safeSigner = escapeHtml(row.external_signer_name || "Cliente");
+  const safeDocument = escapeHtml(row.template_name_snapshot || "Documento");
+  const safeCode = escapeHtml(row.verification_code);
+  const safeVerificationUrl = escapeHtml(verificationUrl);
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -184,8 +198,8 @@ async function sendFinalCopyEmail(client: any, request: Request, row: any, pdfBy
       body: JSON.stringify({
         from,
         to: [row.external_signer_email],
-        subject: `${text(row.template_name_snapshot, 180)} assinado — OS ${text(row.order_number_snapshot, 80)}`,
-        html: `<div style="font-family:Arial,sans-serif;color:#172536;line-height:1.55"><h2>${text(company.name || company.legal_name, 180)}</h2><p>Olá, ${text(row.external_signer_name, 180)}.</p><p>Seu documento <strong>${text(row.template_name_snapshot, 180)}</strong> foi assinado eletronicamente e está anexado a este e-mail.</p><p>Código de autenticidade: <strong>${text(row.verification_code, 160)}</strong></p><p><a href="${verificationUrl}">Verificar autenticidade</a></p></div>`,
+        subject: `${text(row.template_name_snapshot, 180)} assinado - OS ${text(row.order_number_snapshot, 80)}`,
+        html: `<div style="font-family:Arial,sans-serif;color:#172536;line-height:1.55"><h2>${safeCompany}</h2><p>Olá, ${safeSigner}.</p><p>Seu documento <strong>${safeDocument}</strong> foi assinado eletronicamente e está anexado a este e-mail.</p><p>Código de autenticidade: <strong>${safeCode}</strong></p><p><a href="${safeVerificationUrl}">Verificar autenticidade</a></p></div>`,
         attachments: [{ filename: `${safeFileName(row.template_name_snapshot)}-OS-${safeFileName(row.order_number_snapshot)}.pdf`, content: bytesToBase64(pdfBytes) }],
       }),
     });
@@ -267,7 +281,10 @@ export async function finalizeSignatureRequest(client: any, request: Request, so
   if (updateError) throw updateError;
   if (!updated) {
     row = await getRequest(client, row.id);
-    if (row.status !== "signed") throw Object.assign(new Error("Outra operação alterou esta solicitação. Atualize e tente novamente."), { status: 409 });
+    if (row.status !== "signed") {
+      if (newlyGenerated) await client.storage.from("signed-documents").remove([finalPath]);
+      throw Object.assign(new Error("Outra operação alterou esta solicitação. Atualize e tente novamente."), { status: 409 });
+    }
     return { row, ...(await createSignedDocumentAccess(client, request, row)) };
   }
 
@@ -283,18 +300,18 @@ export async function verifySignedDocumentByCode(client: any, rawCode: unknown) 
   if (!code || code.length < 8) throw Object.assign(new Error("Documento assinado não encontrado."), { status: 404 });
   const { data: row, error } = await client
     .from("document_signature_requests")
-    .select("verification_code,organization_id,template_name_snapshot,order_number_snapshot,signed_at,snapshot_hash,final_pdf_hash,status")
+    .select("id,verification_code,organization_id,template_name_snapshot,order_number_snapshot,signed_at,snapshot_hash,final_pdf_hash,status")
     .eq("verification_code", code)
     .eq("status", "signed")
     .maybeSingle();
   if (error) throw error;
-  if (!row?.final_pdf_hash || !row?.signed_at) throw Object.assign(new Error("Documento assinado não encontrado."), { status: 404 });
+  if (!row?.id || !row?.final_pdf_hash || !row?.signed_at) throw Object.assign(new Error("Documento assinado não encontrado."), { status: 404 });
   const [{ data: signatures, error: signatureError }, company] = await Promise.all([
     client
       .from("document_signatures")
       .select("signer_type,signer_name,signer_document_masked,validation_method,signed_at")
       .eq("organization_id", row.organization_id)
-      .eq("request_id", (await client.from("document_signature_requests").select("id").eq("verification_code", code).single()).data?.id)
+      .eq("request_id", row.id)
       .order("signed_at", { ascending: true }),
     companySettings(client, row.organization_id),
   ]);
