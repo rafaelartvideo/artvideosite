@@ -79,7 +79,21 @@ export function InventorySuppliersEditor({
     onChange([...value, supplier]);
   };
 
-  return <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
+  return <section data-inventory-suppliers-section="true" className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
+    <style>{`
+      .admin-page-mobile-safe div:has(> div > section[data-inventory-suppliers-section="true"]) {
+        border: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        overflow: visible !important;
+      }
+      .admin-page-mobile-safe div:has(> div > section[data-inventory-suppliers-section="true"]) > div:first-child {
+        display: none !important;
+      }
+      .admin-page-mobile-safe div:has(> div > section[data-inventory-suppliers-section="true"]) > div:nth-child(2) {
+        padding: 0 !important;
+      }
+    `}</style>
     <div className="border-b border-[#0d1b2e]/8 px-4 py-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
