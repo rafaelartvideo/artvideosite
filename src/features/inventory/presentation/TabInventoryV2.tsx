@@ -497,7 +497,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
 
         {selectedItem && <Section title="Controle de estoque"><FIntegerInput label={`Quantidade mínima (${form.unit})`} value={form.min_quantity} onChange={(event: any) => setForm({ ...form, min_quantity: event.target.value })} /></Section>}
 
-        {canViewSuppliers && <Section title="Fornecedores"><InventorySuppliersEditor organizationId={activeOrganizationId} value={linkedSuppliers} onChange={setLinkedSuppliers} disabled={!canManageSuppliers} /></Section>}
+        {canViewSuppliers && <Section title="Fornecedores" flush><InventorySuppliersEditor organizationId={activeOrganizationId} value={linkedSuppliers} onChange={setLinkedSuppliers} disabled={!canManageSuppliers} /></Section>}
 
         <Section title="Endereço da peça"><div className="grid gap-4 sm:grid-cols-3"><FInput label="Estante" value={form.storage_shelf} onChange={(event: any) => setForm({ ...form, storage_shelf: event.target.value })} placeholder="Ex.: A, 1, A1" /><FInput label="Prateleira" value={form.storage_level} onChange={(event: any) => setForm({ ...form, storage_level: event.target.value })} placeholder="Ex.: 1, B, 2B" /><FInput label="Compartimento" value={form.storage_compartment} onChange={(event: any) => setForm({ ...form, storage_compartment: event.target.value })} placeholder="Ex.: A, 12, C3" /></div></Section>
       </div>

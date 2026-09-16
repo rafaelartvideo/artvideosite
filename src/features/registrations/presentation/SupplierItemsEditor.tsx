@@ -76,8 +76,9 @@ export function SupplierItemsEditor({
     else onChange([...value, item]);
   };
 
-  return <Section title="Itens fornecidos">
-    <div className="space-y-4">
+  return <Section title="Itens fornecidos" flush>
+    <div className="min-w-0">
+      <div className="border-b border-[#0d1b2e]/8 px-4 py-4">
       <div className="mx-auto w-full max-w-md">
         <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Pesquisar</label>
         <div className="relative">
@@ -91,13 +92,14 @@ export function SupplierItemsEditor({
         </div>
       </div>
 
+      </div>
       {error && <p className="text-xs font-semibold text-red-600">Erro ao consultar estoque: {error}</p>}
 
       {loading ? <LoadingState text="Carregando estoque..." /> : items.length === 0 ? <p className="py-5 text-center text-sm text-[#5a6a82]">Nenhum item de estoque disponível.</p> : <>
-        <div className="divide-y divide-[#0d1b2e]/8 md:hidden">
+        <div className="divide-y divide-[#0d1b2e]/8 px-4 md:hidden">
           {paged.length ? paged.map(item => {
             const linked = selectedIds.has(item.id);
-            return <article key={item.id} className="py-4 first:pt-0 last:pb-0">
+            return <article key={item.id} className="py-3.5">
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <div className="col-span-2"><MobileField label="Item"><span className="break-words text-sm font-black">{item.name}</span></MobileField></div>
                 <MobileField label="SKU"><span className="break-all font-mono">{item.sku || "—"}</span></MobileField>
@@ -116,7 +118,7 @@ export function SupplierItemsEditor({
         </div>
 
         <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-[760px]">
+          <table className="w-full">
             <thead><tr>
               <th className="text-left">Item</th>
               <th className="text-left">SKU</th>

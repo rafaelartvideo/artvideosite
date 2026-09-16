@@ -160,7 +160,7 @@ export function RegistrationDetails({
         </div>}
       </Section>}
 
-      {roles.includes("supplier") && <Section title="Itens fornecidos">
+      {roles.includes("supplier") && <Section title="Itens fornecidos" flush>
         <SupplierItemsTable items={supplierItems} />
       </Section>}
     </div>

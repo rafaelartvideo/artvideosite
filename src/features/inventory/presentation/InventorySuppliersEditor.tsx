@@ -80,10 +80,14 @@ export function InventorySuppliersEditor({
     onChange([...value, supplier]);
   };
 
-  return <div className="space-y-3">
-    <div className="relative">
+  return <div className="min-w-0">
+    <div className="border-b border-[#0d1b2e]/8 px-4 py-4">
+      <div className="mx-auto w-full max-w-md">
+      <label htmlFor="inventory-supplier-search" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Pesquisar</label>
+      <div className="relative">
       <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
       <input
+        id="inventory-supplier-search"
         value={search}
         onChange={event => setSearch(event.target.value)}
         placeholder="Buscar fornecedor por nome ou CPF/CNPJ"
@@ -91,8 +95,25 @@ export function InventorySuppliersEditor({
       />
     </div>
 
+      </div>
+    </div>
     {error && <p className="text-xs font-semibold text-red-600">Erro ao carregar fornecedores: {error}</p>}
-    {loading ? <p className="py-4 text-center text-sm text-[#5a6a82]">Carregando fornecedores...</p> : rows.length === 0 ? <p className="py-4 text-center text-sm text-[#5a6a82]">Nenhum fornecedor disponível.</p> : <div className="overflow-x-auto rounded-xl border border-[#0d1b2e]/10">
+    {loading ? <p className="py-4 text-center text-sm text-[#5a6a82]">Carregando fornecedores...</p> : rows.length === 0 ? <p className="py-4 text-center text-sm text-[#5a6a82]">Nenhum fornecedor disponível.</p> : <>
+      <div className="divide-y divide-[#0d1b2e]/8 px-4 md:hidden">{rows.map(supplier => {
+        const selected = selectedIds.has(supplier.id);
+        return <article key={supplier.id} className="py-3.5">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Fornecedor</p><p className="mt-1 break-words text-sm font-bold text-[#0d1b2e]">{supplier.name}</p></div>
+            <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">CPF/CNPJ</p><p className="mt-1 break-all text-xs">{supplierDocument(supplier)}</p></div>
+            <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Status</p><p className="mt-1 text-xs">{supplier.is_active !== false ? "Ativo" : "Inativo"}</p></div>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="text-xs text-[#5a6a82]">{selected ? "Vinculado" : "Não vinculado"}</span>
+            <AdminButton size="sm" variant="secondary" disabled={disabled || (!selected && supplier.is_active === false)} onClick={() => toggle(supplier)} className={selected ? "border-red-200 text-red-600" : "text-[#0057e7]"}>{selected ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</AdminButton>
+          </div>
+        </article>;
+      })}</div>
+      <div className="hidden overflow-x-auto md:block">
       <table className="min-w-[620px]">
         <thead><tr><th className="text-left">Fornecedor</th><th className="text-left">CPF/CNPJ</th><th className="text-left">Status</th><th className="text-right">Vínculo</th></tr></thead>
         <tbody>{rows.map(supplier => {
@@ -112,8 +133,8 @@ export function InventorySuppliersEditor({
           </tr>;
         })}</tbody>
       </table>
-    </div>}
+    </div></>}
 
-    {value.length > 0 && <p className="text-xs font-semibold text-[#5a6a82]">{value.length} fornecedor(es) vinculado(s) ao item.</p>}
+    {value.length > 0 && <p className="border-t border-[#0d1b2e]/8 px-4 py-3 text-xs font-semibold text-[#5a6a82]">{value.length} fornecedor(es) vinculado(s) ao item.</p>}
   </div>;
 }

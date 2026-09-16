@@ -34,8 +34,8 @@ export function SupplierItemsTable({
   if (items.length === 0) return <p className="py-5 text-center text-sm text-[#5a6a82]">{emptyText}</p>;
 
   return <div className="min-w-0">
-    <div className="divide-y divide-[#0d1b2e]/8 md:hidden">
-      {paged.map(item => <article key={item.id} className="py-4 first:pt-0 last:pb-0">
+    <div className="divide-y divide-[#0d1b2e]/8 px-4 md:hidden">
+      {paged.map(item => <article key={item.id} className="py-3.5">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           <div className="col-span-2"><MobileField label="Item"><span className="break-words text-sm font-black">{item.name}</span></MobileField></div>
           <MobileField label="SKU"><span className="break-all font-mono">{item.sku || "—"}</span></MobileField>
@@ -55,7 +55,7 @@ export function SupplierItemsTable({
     </div>
 
     <div className="hidden overflow-x-auto md:block">
-      <table className="min-w-[720px]">
+      <table className="w-full">
         <thead><tr>
           <th className="text-left">Item</th>
           <th className="text-left">SKU</th>

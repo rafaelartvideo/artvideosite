@@ -341,7 +341,7 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
   </div>;
 }
 
-export function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
+export function Section({ title, actions, children, flush = false }: { title: string; actions?: React.ReactNode; children: React.ReactNode; flush?: boolean }) {
   return <AdminCard>
     <AdminCardHeader>
       <h3 className="min-w-0 flex-1 break-words text-xs font-black uppercase leading-tight tracking-[0.12em] text-[#0d1b2e]">{title}</h3>
@@ -351,7 +351,7 @@ export function Section({ title, actions, children }: { title: string; actions?:
         </div>
       )}
     </AdminCardHeader>
-    <AdminCardContent>{children}</AdminCardContent>
+    <AdminCardContent className={flush ? "p-0 sm:p-0" : ""}>{children}</AdminCardContent>
   </AdminCard>;
 }
 
