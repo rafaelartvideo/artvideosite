@@ -105,6 +105,30 @@ export async function listServiceOrderSolutionAttempts(
   return (data || []) as ServiceOrderSolutionAttempt[];
 }
 
+export const listAvailableResolutionPartRequests = (serviceOrderId: string) =>
+  (supabase as any)
+    .from("service_order_part_requests")
+    .select(`
+      id,
+      purpose,
+      status,
+      items:service_order_part_request_items(
+        id,
+        inventory_item_id,
+        approved_quantity,
+        source_test_item_id,
+        resolution_reverted_quantity,
+        technician_received_quantity,
+        returned_quantity,
+        damaged_quantity,
+        return_pending_quantity,
+        inventory_item:inventory_items(id,name,sku,unit,quantity)
+      )
+    `)
+    .eq("service_order_id", serviceOrderId)
+    .eq("status", "APPROVED")
+    .eq("purpose", "RESOLUTION");
+
 export async function undoServiceOrderSolution({
   organizationId,
   serviceOrderId,
