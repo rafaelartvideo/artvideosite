@@ -7,6 +7,12 @@ import type {
 
 const FUNCTION_NAME = "document-signature-admin";
 
+export type DocumentSignatureEmployeeCandidate = {
+  entity_id: string;
+  employee_name: string;
+  signature_version: number;
+};
+
 async function invokeSignatureAdmin<T>(action: string, payload: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
     body: { action, ...payload },
@@ -30,6 +36,14 @@ export async function listOrderSignatureRequests(organizationId: string, service
     service_order_id: serviceOrderId,
   });
   return result.requests || [];
+}
+
+export async function listDocumentSignatureEmployeeCandidates(organizationId: string) {
+  const { data, error } = await (supabase as any).rpc("list_document_signature_employee_candidates", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+  return (data || []) as DocumentSignatureEmployeeCandidate[];
 }
 
 export async function getSignatureAdminLink(organizationId: string, requestId: string) {
