@@ -22,6 +22,7 @@ const ServiceTrackingSection = lazy(() => import("@/features/service-tracking/pr
 const PublicQuotePage = lazy(() => import("@/features/public-quotes/presentation/PublicQuotePage").then(module => ({ default: module.PublicQuotePage })));
 const MobileDeviceCapturePage = lazy(() => import("@/features/device-capture/presentation/MobileDeviceCapturePage").then(module => ({ default: module.MobileDeviceCapturePage })));
 const PublicDocumentSignaturePage = lazy(() => import("@/features/document-signature-public/presentation/PublicDocumentSignaturePage").then(module => ({ default: module.PublicDocumentSignaturePage })));
+const PublicDocumentVerificationPage = lazy(() => import("@/features/document-signature-public/presentation/PublicDocumentVerificationPage").then(module => ({ default: module.PublicDocumentVerificationPage })));
 
 const PUBLIC_PAGE_PATHS: Record<Page, string> = {
   home: "/",
@@ -110,6 +111,7 @@ export default function App() {
         <Route path="/captura" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
         <Route path="/captura/:sessionId" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
         <Route path="/assinatura/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando assinatura..." />}><PublicDocumentSignaturePage /></Suspense>} />
+        <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
         <Route path="/admin/*" element={<AdminEntry />} />
         <Route path="/*" element={<PublicRoutes />} />
       </Routes>
