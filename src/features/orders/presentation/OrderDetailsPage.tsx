@@ -1,6 +1,6 @@
 import { getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, FileText, Mail, PackagePlus, Printer } from "lucide-react";
 import { AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
@@ -14,6 +14,8 @@ import { OrderDocumentsPage } from "./OrderDocumentsPage";
 import { OrderSituationRecordsPage } from "./OrderSituationRecordsPage";
 import { OrderPartRequestsSection } from "./OrderPartRequestsSection";
 import { OrderSolutionSummary } from "./OrderSolutionSummary";
+import { OrderSolutionRecordsPage } from "./OrderSolutionRecordsPage";
+import { OrderUndoSolutionDialog } from "./OrderUndoSolutionDialog";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
@@ -78,6 +80,7 @@ export function OrderDetailsPage(props: Props) {
   const [printError, setPrintError] = useState("");
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
   const { statuses, situations } = workspace;
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
   const historyPageOpen = Boolean(detail) && routeSubpage === "history" && hasPermission("orders.section.history");
@@ -98,13 +101,35 @@ export function OrderDetailsPage(props: Props) {
   const solutionMediaIds = new Set(detailSolutionImages.map(image => image.mediaId).filter(Boolean));
   const visibleDocumentCount = documents.documents.filter(document => !solutionMediaIds.has(document.media_id)).length + detailSolutionImages.length;
   const { detailPartRequests, getTestCommittedQuantity, getTestPendingQuantity, openPartApproval, openPartRejection, openDeliveryRequest, openTestResult, openPartRequestModal } = partRequests;
-  const { openSolveOrder } = resolution;
+  const {
+    openSolveOrder,
+    solutionAttempts,
+    solutionCount,
+    activeSolutionAttempt,
+    solutionHistoryLoading,
+    solutionHistoryError,
+    loadSolutionAttempts,
+    undoOpen,
+    setUndoOpen,
+    undoSubmitting,
+    openUndoSolution,
+    undoOrderSolution,
+  } = resolution;
   const { openCompletion } = completion;
   const pendingPartRequests = detailPartRequests.filter(request => String(request.status || "").toUpperCase() === "PENDING").length;
   const completedPartRequests = detailPartRequests.length - pendingPartRequests;
   const { updateOrderStatus, updateOrderSituation } = mutations;
   const canPrintDocuments = hasPermission("documents.print");
   const printTemplates = useOrderPrintTemplates(canPrintDocuments);
+
+  useEffect(() => {
+    setSolutionRecordsOpen(false);
+  }, [detail?.id]);
+
+  const openSolutionRecords = () => {
+    if (detail?.id) void loadSolutionAttempts(detail.id, detail.organization_id);
+    setSolutionRecordsOpen(true);
+  };
 
   const printTemplate = async (template: PrintTemplate) => {
     setPrintError("");
@@ -150,7 +175,7 @@ export function OrderDetailsPage(props: Props) {
     finally { setEmailingTemplateId(null); }
   };
 
-  const closePage = () => { closeDetail(); if (onClose) onClose(); };
+  const closePage = () => { setSolutionRecordsOpen(false); closeDetail(); if (onClose) onClose(); };
 
   if (routedSubpageDenied && detail) {
     return <AdminPage open onClose={onCloseSubpage} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Acesso restrito" subtitle="Você não possui permissão para acessar esta seção da OS." maxW="max-w-2xl"><div className="p-5"><BtnSecondary onClick={onCloseSubpage}>Voltar para a OS</BtnSecondary></div></AdminPage>;
@@ -159,10 +184,12 @@ export function OrderDetailsPage(props: Props) {
   return <>
     <OrderDocumentsPage open={documentsPageOpen} order={detail} currentSituationId={detail?.situation_id} controller={documents} solutionImages={detailSolutionImages} onClose={onCloseSubpage} onView={setViewImage} />
     <OrderSituationRecordsPage open={slaRecordsPageOpen} order={detail} visits={slaVisits.visits} loading={slaVisits.loading} error={slaVisits.error} onClose={onCloseSubpage} />
+    <OrderSolutionRecordsPage open={solutionRecordsOpen && Boolean(detail)} order={detail} attempts={solutionAttempts} loading={solutionHistoryLoading} error={solutionHistoryError} onClose={() => setSolutionRecordsOpen(false)} onViewImage={setViewImage} />
+    <OrderUndoSolutionDialog order={detail} open={Boolean(detail) && undoOpen} loading={undoSubmitting} onClose={() => setUndoOpen(false)} onConfirm={undoOrderSolution} />
     <OrderHistoryPage open={historyPageOpen} order={detail} history={history} canCreate={hasPermission("orders.history.create")} formatDate={fmtDate} onClose={onCloseSubpage} />
     {detail && <OrderChecklistsPage open={checklistsPageOpen} order={detail} canManage={hasPermission("orders.checklists.manage")} canReopen={hasPermission("orders.checklists.reopen")} onClose={onCloseSubpage} />}
     {partRequestsPageOpen && detail && <AdminPage open onClose={onCloseSubpage} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"} > Solicitações de peças`} title="Solicitações de peças" subtitle="Acompanhe os pedidos e o fluxo das peças desta OS" maxW="max-w-2xl"><div className="p-5"><OrderPartRequestsSection requests={detailPartRequests} assignedTo={detail.assigned_to} currentUserId={userId} hasPermission={hasPermission} formatDate={fmtDate} getCommittedQuantity={getTestCommittedQuantity} getPendingQuantity={getTestPendingQuantity} onApprove={openPartApproval} onReject={openPartRejection} onDelivery={openDeliveryRequest} onTestResult={openTestResult} /></div><div className="sticky bottom-0 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onCloseSubpage}>Voltar para a OS</BtnSecondary></div></AdminPage>}
-    {visible && !routedSubpageOpen && <AdminPage open onClose={closePage} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
+    {visible && !routedSubpageOpen && !solutionRecordsOpen && <AdminPage open onClose={closePage} breadcrumb="Ordens de Serviço" title={detail.os_number || "Ordem de Serviço"} subtitle={(detail.service as any)?.title || "Ordem de Serviço"} maxW="max-w-2xl">
       <div className="space-y-5 p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2"><StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />{(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}{detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}</div>
@@ -179,10 +206,9 @@ export function OrderDetailsPage(props: Props) {
         {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} visits={slaVisits.visits} onOpenRecords={() => onOpenSubpage("sla-records")} />}
         <OrderDetailsContent detail={detail} formatDate={fmtDate} formatState={stateLabel} getSla={getSlaForOrder} hasPermission={hasPermission} orderImages={orderImages} onViewImage={setViewImage} />
         <OrderFinancialSummary detail={detail} formatCurrency={formatCurrency} />
-        <OrderSolutionSummary detail={detail} profileName={profileName} usedItems={detailUsedItems} solutionImages={detailSolutionImages} usedItemsTotal={detailUsedItemsTotal} formatSolvedAt={formatSolvedAt} formatCurrency={formatCurrency} onViewImage={setViewImage} />
+        <OrderSolutionSummary detail={detail} usedItems={detailUsedItems} solutionImages={detailSolutionImages} usedItemsTotal={detailUsedItemsTotal} solutionCount={solutionCount} activeAttempt={activeSolutionAttempt} canUndo={hasPermission("orders.solve") && !detail.completed_at} formatSolvedAt={formatSolvedAt} formatCurrency={formatCurrency} onViewImage={setViewImage} onOpenRecords={openSolutionRecords} onUndo={openUndoSolution} />
       </div>
       <OrderDetailsActions detail={detail} statuses={statuses} situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)} hasPermission={hasPermission} onClose={closePage} onStatusChange={statusId => updateOrderStatus(detail, statusId)} onSituationChange={situationId => { void updateOrderSituation(detail, situationId); }} onRequestParts={openPartRequestModal} onResolve={() => openSolveOrder(detail)} onComplete={openCompletion} onEdit={() => { void openEdit(detail); }} />
     </AdminPage>}
   </>;
 }
-
