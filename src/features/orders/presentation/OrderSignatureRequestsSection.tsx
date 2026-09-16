@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Ban,
   Clipboard,
+  Download,
   ExternalLink,
   FileSignature,
   History,
@@ -9,6 +10,7 @@ import {
   MessageCircle,
   Plus,
   RefreshCw,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import {
@@ -22,13 +24,14 @@ import {
   cancelSignatureRequest,
   getSignatureAdminLink,
   getSignatureAudit,
+  getSignedSignatureDocument,
   listOrderSignatureRequests,
   resendSignatureEmail,
 } from "@/features/documents/infrastructure/document-signatures.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
 import { formatDateTime } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
 
 type PermissionCheck = (permission: string) => boolean;
@@ -57,10 +60,17 @@ const eventLabels: Record<string, string> = {
   email_failed: "Falha no envio do convite",
   email_resent: "Convite reenviado por e-mail",
   link_viewed: "Link visualizado",
-  identity_confirmed: "Identidade confirmada",
+  identity_verified: "Identidade confirmada",
+  identity_failed: "Falha na confirmação da identidade",
   otp_sent: "Código enviado",
+  otp_failed: "Código informado incorretamente",
   otp_verified: "Código validado",
+  consent_accepted: "Aceite eletrônico confirmado",
+  signature_captured: "Assinatura do cliente capturada",
+  pdf_generated: "PDF final imutável gerado",
   signed: "Documento assinado",
+  final_copy_emailed: "Cópia final enviada por e-mail",
+  final_copy_email_failed: "Falha ao enviar a cópia final",
   cancelled: "Solicitação cancelada",
   expired: "Solicitação expirada",
 };
@@ -150,6 +160,27 @@ export function OrderSignatureRequestsSection({
     await load();
   });
 
+  const openSignedPdf = (request: DocumentSignatureRequestSummary) => withBusy(request.id, async () => {
+    const result = await getSignedSignatureDocument(order.organization_id, request.id);
+    window.open(result.download_url, "_blank", "noopener,noreferrer");
+  });
+
+  const downloadSignedPdf = (request: DocumentSignatureRequestSummary) => withBusy(request.id, async () => {
+    const result = await getSignedSignatureDocument(order.organization_id, request.id);
+    const anchor = document.createElement("a");
+    anchor.href = result.download_url;
+    anchor.download = `${request.template_name_snapshot || "documento"}-OS-${request.order_number_snapshot || ""}.pdf`;
+    anchor.rel = "noreferrer";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  });
+
+  const verifySignedDocument = (request: DocumentSignatureRequestSummary) => withBusy(request.id, async () => {
+    const result = await getSignedSignatureDocument(order.organization_id, request.id);
+    window.open(result.verification_url, "_blank", "noopener,noreferrer");
+  });
+
   const cancel = (request: DocumentSignatureRequestSummary) => {
     if (!window.confirm("Cancelar esta solicitação de assinatura? O link deixará de aceitar assinatura.")) return;
     void withBusy(request.id, async () => {
@@ -182,7 +213,9 @@ export function OrderSignatureRequestsSection({
 
       {loading ? <LoadingState text="Carregando assinaturas..." /> : requests.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-4 py-10 text-center"><FileSignature size={24} className="mx-auto text-[#8a98aa]" /><p className="mt-2 text-sm font-bold text-[#0d1b2e]">Nenhuma solicitação</p><p className="mt-1 text-xs text-[#5a6a82]">Os documentos enviados para assinatura aparecerão aqui.</p></div> : <div className="space-y-3">{requests.map(request => {
         const active = isActiveSignatureStatus(request.status);
+        const signed = request.status === "signed";
         const busy = busyId === request.id;
+        const finalPdfHash = String((request as any).final_pdf_hash || "");
         return <AdminCard key={request.id} className="p-4 shadow-none">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0 flex-1">
@@ -191,13 +224,19 @@ export function OrderSignatureRequestsSection({
                 <Meta label="Assinante" value={request.external_signer_name || (request.require_external_signature ? "—" : "Somente funcionário")} />
                 <Meta label="Funcionário" value={request.employee_name || (request.require_employee_signature ? "—" : "Não exigido")} />
                 <Meta label="Criada em" value={formatDateTime(request.created_at, "—")} />
-                <Meta label="Validade" value={formatDateTime(request.expires_at, "—")} />
+                {signed ? <Meta label="Assinado em" value={formatDateTime(request.signed_at, "—")} /> : <Meta label="Validade" value={formatDateTime(request.expires_at, "—")} />}
                 <Meta label="Primeira visualização" value={request.first_viewed_at ? formatDateTime(request.first_viewed_at, "—") : "Ainda não visualizado"} />
                 <Meta label="Código" value={request.verification_code} mono />
+                {signed && finalPdfHash && <div className="sm:col-span-2 lg:col-span-3"><Meta label="Hash do PDF final (SHA-256)" value={finalPdfHash} mono /></div>}
               </div>
             </div>
 
-            <div className="flex shrink-0 flex-wrap items-center gap-1 border-t border-[#0d1b2e]/8 pt-3 md:max-w-[220px] md:justify-end md:border-l md:border-t-0 md:pl-3 md:pt-0">
+            <div className="flex shrink-0 flex-wrap items-center gap-1 border-t border-[#0d1b2e]/8 pt-3 md:max-w-[240px] md:justify-end md:border-l md:border-t-0 md:pl-3 md:pt-0">
+              {signed && <>
+                <AdminIconButton ariaLabel="Visualizar documento assinado" title="Ver PDF assinado" disabled={busy} onClick={() => void openSignedPdf(request)}><ExternalLink size={15} /></AdminIconButton>
+                <AdminIconButton ariaLabel="Baixar documento assinado" title="Baixar PDF" disabled={busy} onClick={() => void downloadSignedPdf(request)}><Download size={15} /></AdminIconButton>
+                <AdminIconButton ariaLabel="Verificar autenticidade do documento" title="Verificar autenticidade" disabled={busy} onClick={() => void verifySignedDocument(request)}><ShieldCheck size={15} /></AdminIconButton>
+              </>}
               {active && request.require_external_signature && <>
                 <AdminIconButton ariaLabel="Abrir link de assinatura" title="Abrir link" disabled={busy} onClick={() => void openLink(request)}><ExternalLink size={15} /></AdminIconButton>
                 <AdminIconButton ariaLabel="Copiar link de assinatura" title="Copiar link" disabled={busy} onClick={() => void copyLink(request)}><Clipboard size={15} /></AdminIconButton>
@@ -222,7 +261,12 @@ export function OrderSignatureRequestsSection({
       printedBy={printedBy}
       onClose={() => setCreateOpen(false)}
       onCreated={result => {
-        setMessage({ text: result.email_warning ? `Solicitação criada. Atenção: ${result.email_warning}` : "Solicitação criada e convite preparado.", type: result.email_warning ? "error" : "success" });
+        const warning = result.email_warning || result.finalization_warning;
+        const signed = result.request?.status === "signed";
+        setMessage({
+          text: warning ? `Solicitação criada. Atenção: ${warning}` : signed ? "Documento gerado e assinado com sucesso." : "Solicitação criada e convite preparado.",
+          type: warning ? "error" : "success",
+        });
         void load();
       }}
     />
