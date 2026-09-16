@@ -15,6 +15,7 @@ export type InventoryMovementInput = {
   inventory_item_id: string;
   movement_type: "IN" | "OUT" | "ADJUST";
   input_quantity: number;
+  input_unit?: "un" | "cx" | null;
   supplier_entity_id?: string | null;
   input_unit_cost?: number | null;
   reason?: string | null;
@@ -108,7 +109,8 @@ function toDisplayItem(item: any) {
 
 function toBaseUpdatePayload(payload: Record<string, unknown>) {
   const unit = String(payload.unit || "un").toLowerCase() === "cx" ? "cx" : "un";
-  const factor = unit === "cx" ? Math.max(1, Number(payload.conversion_factor ?? 1) || 1) : 1;
+  const factor = Math.max(1, Number(payload.conversion_factor ?? 1) || 1);
+  const displayFactor = unit === "cx" ? factor : 1;
   const base: Record<string, unknown> = {
     name: String(payload.name || "").trim(),
     sku: String(payload.sku || "").trim() || null,
@@ -120,9 +122,9 @@ function toBaseUpdatePayload(payload: Record<string, unknown>) {
     storage_level: String(payload.storage_level || "").trim() || null,
     storage_compartment: String(payload.storage_compartment || "").trim() || null,
   };
-  if (payload.min_quantity != null) base.min_quantity = Number(payload.min_quantity || 0) * factor;
+  if (payload.min_quantity != null) base.min_quantity = Number(payload.min_quantity || 0) * displayFactor;
   if (payload.sale_price !== undefined) {
-    base.sale_price = payload.sale_price == null || payload.sale_price === "" ? null : Number(payload.sale_price) / factor;
+    base.sale_price = payload.sale_price == null || payload.sale_price === "" ? null : Number(payload.sale_price) / displayFactor;
   }
   return base;
 }
@@ -340,6 +342,7 @@ export async function recordInventoryMovement(movement: InventoryMovementInput, 
     p_service_order_id: movement.service_order_id || null,
     p_movement_origin: movement.movement_origin || "manual",
     p_notes: movement.notes?.trim() || null,
+    p_input_unit: movement.input_unit || null,
   });
   if (error) throw error;
   return String(data);
