@@ -11,6 +11,7 @@ import {
   sha256Hex,
 } from "./signature-crypto.mjs";
 import { renderFrozenSnapshotHtml, sanitizeFrozenSnapshot } from "./signature-snapshot.mjs";
+import { createAdminSignedDocumentAccess, finalizeEmployeeOnlyRequest } from "./signature-finalization.ts";
 
 const PLATFORM_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 const CONSENT_TEXT = "Li e concordo com o conteúdo deste documento e reconheço esta assinatura eletrônica.";
@@ -23,7 +24,7 @@ const SUMMARY_SELECT = [
   "expires_at", "created_at", "first_viewed_at", "signed_at", "cancelled_at", "last_email_sent_at",
   "require_external_signature", "require_employee_signature", "external_signer_type", "external_signer_name",
   "external_signer_email", "external_signer_phone", "external_document_masked", "employee_entity_id",
-  "template_name_snapshot", "order_number_snapshot",
+  "template_name_snapshot", "order_number_snapshot", "snapshot_hash", "final_pdf_hash",
 ].join(",");
 
 const corsHeaders = {
@@ -501,6 +502,29 @@ async function getRequest(adminClient: any, organizationId: string, requestId: s
   return data;
 }
 
+async function maybeFinalizeEmployeeOnly(request: Request, adminClient: any, organizationId: string, requestId: string) {
+  try {
+    await finalizeEmployeeOnlyRequest(request, requestId);
+    const { data, error } = await adminClient
+      .from("document_signature_requests")
+      .select(SUMMARY_SELECT)
+      .eq("organization_id", organizationId)
+      .eq("id", requestId)
+      .single();
+    if (error) throw error;
+    return { row: data, warning: null as string | null };
+  } catch (error) {
+    console.error("[DOCUMENT SIGNATURE EMPLOYEE-ONLY FINALIZE]", error instanceof Error ? error.message : error);
+    const { data } = await adminClient
+      .from("document_signature_requests")
+      .select(SUMMARY_SELECT)
+      .eq("organization_id", organizationId)
+      .eq("id", requestId)
+      .maybeSingle();
+    return { row: data || null, warning: error instanceof Error ? error.message : "Não foi possível gerar o PDF final agora." };
+  }
+}
+
 async function createAction(context: any) {
   const { request, body, user, authClient, adminClient, tokenKey, identityPepper } = context;
   const organizationId = requireUuid(body.organization_id, "Empresa");
@@ -593,6 +617,7 @@ async function createAction(context: any) {
   const snapshotPath = `${basePath}/snapshot.html`;
   const employeeSignaturePath = employeeSignature ? `${basePath}/employee-signature.png` : null;
   const uploadedPaths: string[] = [];
+  let persisted = false;
 
   try {
     const htmlBlob = new Blob([renderFrozenSnapshotHtml(safeSnapshot)], { type: "text/html; charset=utf-8" });
@@ -664,6 +689,7 @@ async function createAction(context: any) {
       .select(SUMMARY_SELECT)
       .single();
     if (insertError) throw insertError;
+    persisted = true;
 
     if (employeeSignature && employeeEntity && employeeSignaturePath) {
       const employeeName = employeeEntity.name || employeeEntity.trade_name || employeeEntity.legal_name || "Funcionário";
@@ -681,7 +707,7 @@ async function createAction(context: any) {
         consent_accepted: false,
         consent_text_snapshot: null,
       });
-      if (evidenceError) console.error("[DOCUMENT SIGNATURE EMPLOYEE EVIDENCE]", evidenceError.message);
+      if (evidenceError) throw evidenceError;
     }
 
     await recordEvent(adminClient, request, inserted, "created", "admin", user.id, {
@@ -690,6 +716,14 @@ async function createAction(context: any) {
       require_employee_signature: template.require_employee_signature === true,
       supersedes_request_id: previousId,
     });
+
+    let currentRequest = inserted;
+    let finalizationWarning: string | null = null;
+    if (!externalSigner) {
+      const finalized = await maybeFinalizeEmployeeOnly(request, adminClient, organizationId, requestId);
+      if (finalized.row) currentRequest = finalized.row;
+      finalizationWarning = finalized.warning;
+    }
 
     let link: string | null = null;
     let emailWarning: string | null = null;
@@ -711,19 +745,19 @@ async function createAction(context: any) {
           });
           const sentAt = new Date().toISOString();
           await adminClient.from("document_signature_requests").update({ last_email_sent_at: sentAt }).eq("id", requestId).eq("organization_id", organizationId);
-          inserted.last_email_sent_at = sentAt;
-          await recordEvent(adminClient, request, inserted, "email_sent", "admin", user.id, { recipient: maskEmail(externalSigner.email) });
+          currentRequest.last_email_sent_at = sentAt;
+          await recordEvent(adminClient, request, currentRequest, "email_sent", "admin", user.id, { recipient: maskEmail(externalSigner.email) });
         } catch (emailError) {
           emailWarning = emailError instanceof Error ? emailError.message : String(emailError);
-          await recordEvent(adminClient, request, inserted, "email_failed", "admin", user.id, { recipient: maskEmail(externalSigner.email) });
+          await recordEvent(adminClient, request, currentRequest, "email_failed", "admin", user.id, { recipient: maskEmail(externalSigner.email) });
         }
       }
     }
 
-    const [summary] = await enrichRequests(adminClient, [inserted]);
-    return { success: true, request: summary, link, email_warning: emailWarning };
+    const [summary] = await enrichRequests(adminClient, [currentRequest]);
+    return { success: true, request: summary, link, email_warning: emailWarning, finalization_warning: finalizationWarning };
   } catch (error) {
-    if (uploadedPaths.length) {
+    if (!persisted && uploadedPaths.length) {
       try { await adminClient.storage.from("signed-documents").remove(uploadedPaths); } catch { /* best effort cleanup */ }
     }
     throw error;
@@ -744,7 +778,14 @@ async function listAction(context: any) {
     .order("created_at", { ascending: false });
   if (error) throw error;
   const rows = [];
-  for (const row of data || []) rows.push(await expireIfNeeded(adminClient, request, row));
+  for (const source of data || []) {
+    let row = await expireIfNeeded(adminClient, request, source);
+    if (ACTIVE_STATUSES.has(row.status) && row.require_external_signature === false && row.require_employee_signature === true) {
+      const finalized = await maybeFinalizeEmployeeOnly(request, adminClient, organizationId, row.id);
+      if (finalized.row) row = finalized.row;
+    }
+    rows.push(row);
+  }
   return { success: true, requests: await enrichRequests(adminClient, rows) };
 }
 
@@ -839,19 +880,34 @@ async function auditAction(context: any) {
   return { success: true, events: data || [] };
 }
 
+async function signedDocumentAction(context: any) {
+  const { request, body, user, authClient, adminClient } = context;
+  const organizationId = requireUuid(body.organization_id, "Empresa");
+  const requestId = requireUuid(body.request_id, "Solicitação");
+  await requirePermission(adminClient, user.id, organizationId, "documents.signatures.view");
+  const row = await getRequest(adminClient, organizationId, requestId);
+  await ensureOrderVisible(authClient, organizationId, row.service_order_id);
+  if (row.status !== "signed") throw new Error("Este documento ainda não foi finalizado.");
+  return { success: true, ...(await createAdminSignedDocumentAccess(adminClient, request, row)) };
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ success: false, error: "Método não permitido." }, 405);
   try {
-    const tokenKey = Deno.env.get("SIGNATURE_TOKEN_KEY");
-    const identityPepper = Deno.env.get("SIGNATURE_IDENTITY_PEPPER");
-    if (!tokenKey || tokenKey.length < 16) return json({ success: false, error: "Configure SIGNATURE_TOKEN_KEY com uma chave secreta forte." }, 500);
-    if (!identityPepper || identityPepper.length < 16) return json({ success: false, error: "Configure SIGNATURE_IDENTITY_PEPPER com um segredo forte." }, 500);
+    const body = await request.json().catch(() => ({}));
+    const action = text(body?.action, 40);
+    const tokenKey = Deno.env.get("SIGNATURE_TOKEN_KEY") || "";
+    const identityPepper = Deno.env.get("SIGNATURE_IDENTITY_PEPPER") || "";
+    if (["create", "link", "resend_email"].includes(action) && tokenKey.length < 16) {
+      return json({ success: false, error: "Configure SIGNATURE_TOKEN_KEY com uma chave secreta forte." }, 500);
+    }
+    if (action === "create" && identityPepper.length < 16) {
+      return json({ success: false, error: "Configure SIGNATURE_IDENTITY_PEPPER com um segredo forte." }, 500);
+    }
     const { authClient, adminClient } = createClients(request);
     const user = await authenticatedUser(authClient, request);
     if (!user) return json({ success: false, error: "Usuário não autenticado." }, 401);
-    const body = await request.json().catch(() => ({}));
-    const action = text(body?.action, 40);
     const context = { request, body, user, authClient, adminClient, tokenKey, identityPepper };
     if (action === "create") return json(await createAction(context));
     if (action === "list") return json(await listAction(context));
@@ -859,6 +915,7 @@ Deno.serve(async (request) => {
     if (action === "resend_email") return json(await resendEmailAction(context));
     if (action === "cancel") return json(await cancelAction(context));
     if (action === "audit") return json(await auditAction(context));
+    if (action === "signed_document") return json(await signedDocumentAction(context));
     return json({ success: false, error: "Ação inválida." }, 400);
   } catch (error) {
     console.error("[DOCUMENT SIGNATURE ADMIN]", error instanceof Error ? error.message : error);
