@@ -11,6 +11,8 @@ export type PrintLayoutSettings = {
   show_field_borders: boolean;
 };
 
+export type EmployeeSignatureSource = "responsible" | "technician" | "completed_by" | "manual";
+
 export const DEFAULT_PRINT_LAYOUT_SETTINGS: PrintLayoutSettings = {
   font_family: "Arial",
   body_font_size: 10,
@@ -47,6 +49,11 @@ export type PrintTemplate = {
   header_text: string | null;
   footer_text: string | null;
   settings: Partial<PrintLayoutSettings> | null;
+  allow_online_signature: boolean;
+  signature_link_ttl_hours: number;
+  require_external_signature: boolean;
+  require_employee_signature: boolean;
+  employee_signature_source: EmployeeSignatureSource | null;
   created_at: string;
   updated_at: string;
 };
@@ -71,6 +78,11 @@ export type PrintTemplateEditorValue = {
   footer_text: string;
   layout: PrintLayoutSettings;
   selectedFields: Set<string>;
+  allow_online_signature: boolean;
+  signature_link_ttl_hours: number;
+  require_external_signature: boolean;
+  require_employee_signature: boolean;
+  employee_signature_source: EmployeeSignatureSource | null;
 };
 
 export const emptyPrintTemplateEditorValue = (): PrintTemplateEditorValue => ({
@@ -92,6 +104,11 @@ export const emptyPrintTemplateEditorValue = (): PrintTemplateEditorValue => ({
   footer_text: "",
   layout: { ...DEFAULT_PRINT_LAYOUT_SETTINGS },
   selectedFields: new Set(),
+  allow_online_signature: false,
+  signature_link_ttl_hours: 72,
+  require_external_signature: true,
+  require_employee_signature: false,
+  employee_signature_source: null,
 });
 
 export const PRINT_TEMPLATE_TYPE_LABELS: Record<string, string> = {
@@ -102,4 +119,3 @@ export const PRINT_TEMPLATE_TYPE_LABELS: Record<string, string> = {
   COMPROVANTE: "Comprovante",
   CUSTOM: "Personalizado",
 };
-
