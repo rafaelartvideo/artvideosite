@@ -1,32 +1,51 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Eye } from "lucide-react";
+import { ChevronDown, ChevronRight, Eye, FileSignature } from "lucide-react";
 import { PRINT_FIELD_REGISTRY, normalizePrintSelectedFields } from "../domain/print-field-registry";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSelect, FDecimalInput, FIntegerInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminCard, AdminCardContent, AdminCardHeader, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { PrintTemplatePreview } from "./PrintTemplatePreview";
-import type { PrintTemplateEditorValue } from "../domain/print-template";
+import type { EmployeeSignatureSource, PrintTemplateEditorValue } from "../domain/print-template";
 
 const inRange = (value: unknown, min: number, max: number, integer = false) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) && numeric >= min && numeric <= max && (!integer || Number.isInteger(numeric));
 };
 
+const TTL_PRESETS = new Set([24, 48, 72, 168]);
+
+function isRequiredSignatureField(value: PrintTemplateEditorValue, key: string) {
+  if (!value.allow_online_signature) return false;
+  return (key === "signatures.customer" && value.require_external_signature)
+    || (key === "signatures.employee" && value.require_employee_signature);
+}
+
+function normalizeEditorValue(value: PrintTemplateEditorValue): PrintTemplateEditorValue {
+  const selectedFields = normalizePrintSelectedFields(value.selectedFields);
+  if (value.allow_online_signature && value.require_external_signature) selectedFields.add("signatures.customer");
+  if (value.allow_online_signature && value.require_employee_signature) selectedFields.add("signatures.employee");
+  return { ...value, layout: { ...value.layout }, selectedFields };
+}
+
 export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, saveError }: { initialValue: PrintTemplateEditorValue; onCancel: () => void; onSave: (value: PrintTemplateEditorValue) => Promise<unknown>; saving: boolean; saveError?: string }) {
-  const [value, setValue] = useState<PrintTemplateEditorValue>(() => ({ ...initialValue, layout: { ...initialValue.layout }, selectedFields: normalizePrintSelectedFields(initialValue.selectedFields) }));
+  const [value, setValue] = useState<PrintTemplateEditorValue>(() => normalizeEditorValue(initialValue));
   const [expanded, setExpanded] = useState<Set<string>>(new Set(PRINT_FIELD_REGISTRY.slice(0, 3).map(section => section.key)));
   const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
-    setValue({ ...initialValue, layout: { ...initialValue.layout }, selectedFields: normalizePrintSelectedFields(initialValue.selectedFields) });
+    setValue(normalizeEditorValue(initialValue));
     setValidationError("");
   }, [initialValue]);
 
   const selectedCount = value.selectedFields.size;
   const selectedSections = useMemo(() => PRINT_FIELD_REGISTRY.filter(section => section.fields.some(field => value.selectedFields.has(field.key))), [value.selectedFields]);
+  const ttlPreset = TTL_PRESETS.has(value.signature_link_ttl_hours) ? String(value.signature_link_ttl_hours) : "custom";
+
+  const setSignatureConfig = (patch: Partial<PrintTemplateEditorValue>) => setValue(current => normalizeEditorValue({ ...current, ...patch }));
 
   const toggleField = (key: string) => setValue(current => {
+    if (isRequiredSignatureField(current, key)) return current;
     const fields = new Set(current.selectedFields);
     fields.has(key) ? fields.delete(key) : fields.add(key);
     return { ...current, selectedFields: fields };
@@ -38,13 +57,22 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
     setValue(current => {
       const fields = new Set(current.selectedFields);
       const allSelected = section.fields.every(field => fields.has(field.key));
-      section.fields.forEach(field => allSelected ? fields.delete(field.key) : fields.add(field.key));
+      section.fields.forEach(field => {
+        if (allSelected) {
+          if (!isRequiredSignatureField(current, field.key)) fields.delete(field.key);
+        } else {
+          fields.add(field.key);
+        }
+      });
       return { ...current, selectedFields: fields };
     });
   };
 
   const save = async () => {
     if (!value.name.trim()) { setValidationError("Informe o nome do documento."); return; }
+    if (value.allow_online_signature && !value.require_external_signature && !value.require_employee_signature) { setValidationError("Selecione pelo menos uma assinatura obrigatória para o envio online."); return; }
+    if (value.allow_online_signature && !inRange(value.signature_link_ttl_hours, 1, 720, true)) { setValidationError("A validade do link deve ficar entre 1 e 720 horas."); return; }
+    if (value.allow_online_signature && value.require_employee_signature && !value.employee_signature_source) { setValidationError("Selecione de qual funcionário virá a assinatura automática."); return; }
     if (!selectedCount) { setValidationError("Selecione pelo menos um campo para o documento."); return; }
     if (![value.margin_top, value.margin_right, value.margin_bottom, value.margin_left].every(item => inRange(item, 6, 40, true))) { setValidationError("As margens devem ser números inteiros entre 6 e 40 mm."); return; }
     if (!inRange(value.layout.body_font_size, 7, 18, true)) { setValidationError("O tamanho do texto deve estar entre 7 e 18 pt."); return; }
@@ -54,7 +82,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
     if (!inRange(value.layout.section_spacing, 0, 40, true)) { setValidationError("O espaço entre seções deve estar entre 0 e 40 px."); return; }
     if (!inRange(value.layout.field_spacing, 0, 30, true)) { setValidationError("O espaço entre campos deve estar entre 0 e 30 px."); return; }
     setValidationError("");
-    await onSave(value);
+    await onSave(normalizeEditorValue(value));
   };
 
   return <div className="space-y-5">
@@ -78,6 +106,75 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
             <div className="mt-4 grid gap-1 sm:grid-cols-2">{([['show_logo', 'Exibir logo'], ['show_company_info', 'Dados da empresa'], ['show_page_number', 'Número da página'], ['show_printed_at', 'Data da impressão'], ['is_active', 'Modelo ativo']] as const).map(([key, label]) => <CheckOption key={key} checked={value[key]} label={label} onChange={() => setValue(v => ({ ...v, [key]: !v[key] }))} />)}</div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-2"><Field label="Texto do cabeçalho"><input className={INPUT} value={value.header_text} onChange={e => setValue(v => ({ ...v, header_text: e.target.value }))} /></Field><Field label="Texto do rodapé"><input className={INPUT} value={value.footer_text} onChange={e => setValue(v => ({ ...v, footer_text: e.target.value }))} /></Field></div>
+          </AdminCardContent>
+        </AdminCard>
+
+        <AdminCard>
+          <AdminCardHeader>
+            <div className="flex items-center gap-2"><FileSignature size={18} className="text-[#0057e7]" /><div><h3 className="font-black text-[#0d1b2e]">Assinatura online</h3><p className="mt-1 text-xs text-[#5a6a82]">Defina se este modelo poderá gerar um link seguro para assinatura eletrônica.</p></div></div>
+          </AdminCardHeader>
+          <AdminCardContent className="space-y-4">
+            <CheckOption
+              checked={value.allow_online_signature}
+              label="Permitir assinatura online"
+              onChange={() => setSignatureConfig({ allow_online_signature: !value.allow_online_signature })}
+            />
+
+            {value.allow_online_signature && <div className="space-y-4 rounded-xl border border-[#0057e7]/15 bg-[#f7faff] p-4">
+              <div className="grid gap-1 sm:grid-cols-2">
+                <CheckOption
+                  checked={value.require_external_signature}
+                  label="Exigir assinatura do cliente / responsável"
+                  onChange={() => setSignatureConfig({ require_external_signature: !value.require_external_signature })}
+                />
+                <CheckOption
+                  checked={value.require_employee_signature}
+                  label="Exigir assinatura do funcionário"
+                  onChange={() => setSignatureConfig({
+                    require_employee_signature: !value.require_employee_signature,
+                    employee_signature_source: value.require_employee_signature ? null : (value.employee_signature_source || "responsible"),
+                  })}
+                />
+              </div>
+
+              {value.require_employee_signature && <Field label="Origem da assinatura do funcionário">
+                <AdminSelect
+                  value={value.employee_signature_source || ""}
+                  onValueChange={employee_signature_source => setSignatureConfig({ employee_signature_source: employee_signature_source as EmployeeSignatureSource })}
+                  ariaLabel="Origem da assinatura do funcionário"
+                  options={[
+                    { value: "responsible", label: "Responsável da OS" },
+                    { value: "technician", label: "Técnico" },
+                    { value: "completed_by", label: "Quem concluiu a OS" },
+                    { value: "manual", label: "Selecionar manualmente" },
+                  ]}
+                />
+              </Field>}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Validade do link">
+                  <AdminSelect
+                    value={ttlPreset}
+                    onValueChange={preset => {
+                      if (preset !== "custom") setSignatureConfig({ signature_link_ttl_hours: Number(preset) });
+                    }}
+                    ariaLabel="Validade do link de assinatura"
+                    options={[
+                      { value: "24", label: "24 horas" },
+                      { value: "48", label: "48 horas" },
+                      { value: "72", label: "72 horas" },
+                      { value: "168", label: "7 dias" },
+                      { value: "custom", label: "Personalizado" },
+                    ]}
+                  />
+                </Field>
+                {ttlPreset === "custom" && <Field label="Validade personalizada (horas)">
+                  <FIntegerInput value={String(value.signature_link_ttl_hours)} onChange={(e: any) => setSignatureConfig({ signature_link_ttl_hours: Number(e.target.value || 0) })} />
+                </Field>}
+              </div>
+
+              <p className="text-xs leading-5 text-[#5a6a82]">Os campos de assinatura exigidos por este fluxo permanecem selecionados no documento e não podem ser removidos enquanto forem obrigatórios.</p>
+            </div>}
           </AdminCardContent>
         </AdminCard>
 
@@ -121,7 +218,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
                   {open ? <ChevronDown size={16} className="shrink-0 text-[#5a6a82]" /> : <ChevronRight size={16} className="shrink-0 text-[#5a6a82]" />}
                 </button>
               </div>
-              {open && <div className="grid gap-x-6 gap-y-1 border-t border-[#0d1b2e]/5 bg-[#f8fafc] px-5 py-3 md:grid-cols-2">{section.fields.map(field => <CheckOption key={field.key} checked={value.selectedFields.has(field.key)} label={field.label} onChange={() => toggleField(field.key)} />)}</div>}
+              {open && <div className="grid gap-x-6 gap-y-1 border-t border-[#0d1b2e]/5 bg-[#f8fafc] px-5 py-3 md:grid-cols-2">{section.fields.map(field => <CheckOption key={field.key} checked={value.selectedFields.has(field.key)} label={field.label} disabled={isRequiredSignatureField(value, field.key)} onChange={() => toggleField(field.key)} />)}</div>}
             </div>;
           })}</div>
         </AdminCard>
@@ -152,10 +249,9 @@ function Field({ label, children, wide = false }: { label: string; children: Rea
   return <label className={cn("block", wide && "md:col-span-2")}><span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</span>{children}</label>;
 }
 
-function CheckOption({ checked, label, onChange }: { checked: boolean; label: string; onChange: () => void }) {
-  return <label className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-[#0d1b2e] hover:bg-[#eef3f8]">
-    <Checkbox checked={checked} onCheckedChange={() => onChange()} />
+function CheckOption({ checked, label, onChange, disabled = false }: { checked: boolean; label: string; onChange: () => void; disabled?: boolean }) {
+  return <label className={cn("flex min-h-9 items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-[#0d1b2e]", disabled ? "cursor-not-allowed bg-[#f5f7fa] opacity-70" : "cursor-pointer hover:bg-[#eef3f8]")}>
+    <Checkbox checked={checked} disabled={disabled} onCheckedChange={() => { if (!disabled) onChange(); }} />
     <span className="min-w-0 break-words">{label}</span>
   </label>;
 }
-
