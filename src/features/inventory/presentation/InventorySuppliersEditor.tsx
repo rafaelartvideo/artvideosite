@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link2, Search, Unlink } from "lucide-react";
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { Link2, Unlink } from "lucide-react";
+import { AdminListSection, AdminListSectionRow } from "@/shared/ui/admin/AdminListSection";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { formatCnpj, formatCpf } from "@/shared/domain/formatters";
 import {
   listAvailableInventorySuppliers,
@@ -25,6 +26,8 @@ export function InventorySuppliersEditor({
 }) {
   const [available, setAvailable] = useState<InventorySupplier[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +70,13 @@ export function InventorySuppliersEditor({
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   }, [available, value, search]);
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedRows = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
   const selectedIds = useMemo(() => new Set(value.map(supplier => supplier.id)), [value]);
+
+  useEffect(() => { setPage(1); }, [search, pageSize]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const toggle = (supplier: InventorySupplier) => {
     if (disabled) return;
@@ -79,66 +88,48 @@ export function InventorySuppliersEditor({
     onChange([...value, supplier]);
   };
 
-  return <section data-inventory-suppliers-section="true" className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
-    <style>{`
-      .admin-page-mobile-safe div:has(> div > section[data-inventory-suppliers-section="true"]) {
-        border: 0 !important;
-        box-shadow: none !important;
-        background: transparent !important;
-        overflow: visible !important;
-      }
-      .admin-page-mobile-safe div:has(> div > section[data-inventory-suppliers-section="true"]) > div:first-child {
-        display: none !important;
-      }
-      .admin-page-mobile-safe div:has(> div > section[data-inventory-suppliers-section="true"]) > div:nth-child(2) {
-        padding: 0 !important;
-      }
-    `}</style>
-    <div className="border-b border-[#0d1b2e]/8 px-4 py-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-black text-[#0d1b2e]">Fornecedores</p>
-          <p className="mt-0.5 text-[11px] text-[#5a6a82]">Vincule os fornecedores disponíveis a este item do estoque.</p>
-        </div>
-        <span className="shrink-0 text-[10px] font-bold text-[#7c899c]">{rows.length} fornecedor{rows.length === 1 ? "" : "es"}</span>
-      </div>
-      <div className="relative mx-auto mt-3 w-full max-w-md">
-        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7c899c]" />
-        <input
-          id="inventory-supplier-search"
-          value={search}
-          onChange={event => setSearch(event.target.value)}
-          placeholder="Buscar por nome ou CPF/CNPJ"
-          className={`${INPUT} h-10 w-full pl-9 pr-3 text-sm`}
-        />
-      </div>
-    </div>
-
-    {error && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Erro ao carregar fornecedores: {error}</div>}
-    {loading ? <div className="flex min-h-32 items-center justify-center px-4 text-sm text-[#5a6a82]">Carregando fornecedores...</div> : rows.length === 0 ? <div className="flex min-h-32 items-center justify-center px-4 text-sm text-[#5a6a82]">Nenhum fornecedor disponível.</div> : <div className="px-4">
-      {rows.map((supplier, index) => {
-        const selected = selectedIds.has(supplier.id);
-        const inactive = supplier.is_active === false;
-        return <div key={supplier.id} className={`flex min-w-0 flex-col gap-3 py-3.5 sm:flex-row sm:items-center ${index > 0 ? "border-t border-[#0d1b2e]/8" : ""}`}>
-          <div className="min-w-0 flex-1">
-            <p className="break-words text-sm font-bold text-[#0d1b2e]">{supplier.name}</p>
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#7c899c]">
-              {supplier.legal_name && supplier.legal_name !== supplier.name && <span className="break-words">{supplier.legal_name}</span>}
-              <span className="font-mono">{supplierDocument(supplier)}</span>
-              <span className={inactive ? "text-[#7c899c]" : "font-semibold text-emerald-700"}>{inactive ? "Inativo" : "Ativo"}</span>
-              <span className={selected ? "font-bold text-emerald-700" : "text-[#7c899c]"}>{selected ? "Vinculado" : "Não vinculado"}</span>
-            </div>
+  return <AdminListSection
+    title="Fornecedores"
+    description="Vincule os fornecedores disponíveis a este item do estoque."
+    count={rows.length}
+    countSingular="fornecedor"
+    countPlural="fornecedores"
+    searchValue={search}
+    onSearchChange={setSearch}
+    searchPlaceholder="Buscar por nome ou CPF/CNPJ"
+    loading={loading}
+    loadingText="Carregando fornecedores..."
+    error={error ? `Erro ao carregar fornecedores: ${error}` : undefined}
+    empty={!loading && !error && rows.length === 0}
+    emptyText="Nenhum fornecedor disponível."
+    footer={!loading && !error && rows.length > 0 ? <PaginationBar
+      page={safePage}
+      pageSize={pageSize}
+      totalItems={rows.length}
+      onPageChange={setPage}
+      onPageSizeChange={setPageSize}
+    /> : undefined}
+  >
+    {pagedRows.map(supplier => {
+      const selected = selectedIds.has(supplier.id);
+      const inactive = supplier.is_active === false;
+      return <AdminListSectionRow key={supplier.id} className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <p className="break-words text-sm font-bold text-[#0d1b2e]">{supplier.name}</p>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#7c899c]">
+            {supplier.legal_name && supplier.legal_name !== supplier.name && <span className="break-words">{supplier.legal_name}</span>}
+            <span className="font-mono">{supplierDocument(supplier)}</span>
+            <span className={inactive ? "text-[#7c899c]" : "font-semibold text-emerald-700"}>{inactive ? "Inativo" : "Ativo"}</span>
+            <span className={selected ? "font-bold text-emerald-700" : "text-[#7c899c]"}>{selected ? "Vinculado" : "Não vinculado"}</span>
           </div>
-          {!disabled && <button
-            type="button"
-            disabled={!selected && inactive}
-            onClick={() => toggle(supplier)}
-            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${selected ? "border-red-200 text-red-600 hover:bg-red-50" : "border-[#0d1b2e]/15 bg-white text-[#0057e7] hover:bg-[#f5f7fa]"}`}
-          >{selected ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>}
-        </div>;
-      })}
-    </div>}
-
-    {value.length > 0 && <p className="border-t border-[#0d1b2e]/8 px-4 py-3 text-xs font-semibold text-[#5a6a82]">{value.length} fornecedor{value.length === 1 ? "" : "es"} vinculado{value.length === 1 ? "" : "s"} ao item.</p>}
-  </section>;
+        </div>
+        {!disabled && <button
+          type="button"
+          disabled={!selected && inactive}
+          onClick={() => toggle(supplier)}
+          className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${selected ? "border-red-200 text-red-600 hover:bg-red-50" : "border-[#0d1b2e]/15 bg-white text-[#0057e7] hover:bg-[#f5f7fa]"}`}
+        >{selected ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>}
+      </AdminListSectionRow>;
+    })}
+  </AdminListSection>;
 }
