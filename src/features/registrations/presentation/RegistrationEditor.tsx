@@ -21,6 +21,7 @@ import {
   type RegistrationFormState,
 } from "../domain/registration-form";
 import type { RegistrationRole, SupplierInventoryItem } from "../infrastructure/registrations.repository";
+import { EmployeeSignatureSection } from "./EmployeeSignatureSection";
 import { RegistrationAddressesEditor } from "./RegistrationAddressesEditor";
 import { SupplierItemsEditor } from "./SupplierItemsEditor";
 
@@ -38,6 +39,7 @@ const roleIcons: Record<RegistrationRole, typeof Users> = {
 
 export function RegistrationEditor({
   creating,
+  registrationId,
   form,
   setForm,
   addresses,
@@ -46,6 +48,7 @@ export function RegistrationEditor({
   setSupplierItems,
   organizationId,
   canModify,
+  canManageEmployeeSignature,
   showAccess,
   accessForm,
   onAccessChange,
@@ -59,6 +62,7 @@ export function RegistrationEditor({
   onToggleRole,
 }: {
   creating: boolean;
+  registrationId?: string | null;
   form: RegistrationFormState;
   setForm: Dispatch<SetStateAction<RegistrationFormState>>;
   addresses: RegistrationAddressForm[];
@@ -67,6 +71,7 @@ export function RegistrationEditor({
   setSupplierItems: Dispatch<SetStateAction<SupplierInventoryItem[]>>;
   organizationId: string | null;
   canModify: boolean;
+  canManageEmployeeSignature: boolean;
   showAccess?: boolean;
   accessForm: EmployeeAccessFormState;
   onAccessChange: (next: EmployeeAccessFormState) => void;
@@ -165,6 +170,8 @@ export function RegistrationEditor({
           />
         </div>}
       </Section>}
+
+      {form.roles.includes("employee") && <EmployeeSignatureSection organizationId={organizationId} entityId={registrationId} canManage={canManageEmployeeSignature} />}
 
       {form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
     </div>
