@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link2, Search, Unlink } from "lucide-react";
-import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf } from "@/shared/domain/formatters";
 import {
@@ -59,11 +58,11 @@ export function InventorySuppliersEditor({
     return Array.from(byId.values())
       .filter(supplier => {
         if (!query) return true;
-        const text = [supplier.name, supplier.trade_name, supplier.legal_name, supplier.document]
+        return [supplier.name, supplier.trade_name, supplier.legal_name, supplier.document]
           .filter(Boolean)
           .join(" ")
-          .toLocaleLowerCase("pt-BR");
-        return text.includes(query);
+          .toLocaleLowerCase("pt-BR")
+          .includes(query);
       })
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   }, [available, value, search]);
@@ -80,61 +79,52 @@ export function InventorySuppliersEditor({
     onChange([...value, supplier]);
   };
 
-  return <div className="min-w-0">
+  return <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
     <div className="border-b border-[#0d1b2e]/8 px-4 py-4">
-      <div className="mx-auto w-full max-w-md">
-      <label htmlFor="inventory-supplier-search" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Pesquisar</label>
-      <div className="relative">
-      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
-      <input
-        id="inventory-supplier-search"
-        value={search}
-        onChange={event => setSearch(event.target.value)}
-        placeholder="Buscar fornecedor por nome ou CPF/CNPJ"
-        className={`${INPUT} pl-9`}
-      />
-    </div>
-
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-black text-[#0d1b2e]">Fornecedores</p>
+          <p className="mt-0.5 text-[11px] text-[#5a6a82]">Vincule os fornecedores disponíveis a este item do estoque.</p>
+        </div>
+        <span className="shrink-0 text-[10px] font-bold text-[#7c899c]">{rows.length} fornecedor{rows.length === 1 ? "" : "es"}</span>
+      </div>
+      <div className="relative mx-auto mt-3 w-full max-w-md">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7c899c]" />
+        <input
+          id="inventory-supplier-search"
+          value={search}
+          onChange={event => setSearch(event.target.value)}
+          placeholder="Buscar por nome ou CPF/CNPJ"
+          className={`${INPUT} h-10 w-full pl-9 pr-3 text-sm`}
+        />
       </div>
     </div>
-    {error && <p className="text-xs font-semibold text-red-600">Erro ao carregar fornecedores: {error}</p>}
-    {loading ? <p className="py-4 text-center text-sm text-[#5a6a82]">Carregando fornecedores...</p> : rows.length === 0 ? <p className="py-4 text-center text-sm text-[#5a6a82]">Nenhum fornecedor disponível.</p> : <>
-      <div className="divide-y divide-[#0d1b2e]/8 px-4 md:hidden">{rows.map(supplier => {
-        const selected = selectedIds.has(supplier.id);
-        return <article key={supplier.id} className="py-3.5">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Fornecedor</p><p className="mt-1 break-words text-sm font-bold text-[#0d1b2e]">{supplier.name}</p></div>
-            <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">CPF/CNPJ</p><p className="mt-1 break-all text-xs">{supplierDocument(supplier)}</p></div>
-            <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Status</p><p className="mt-1 text-xs">{supplier.is_active !== false ? "Ativo" : "Inativo"}</p></div>
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <span className="text-xs text-[#5a6a82]">{selected ? "Vinculado" : "Não vinculado"}</span>
-            <AdminButton size="sm" variant="secondary" disabled={disabled || (!selected && supplier.is_active === false)} onClick={() => toggle(supplier)} className={selected ? "border-red-200 text-red-600" : "text-[#0057e7]"}>{selected ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</AdminButton>
-          </div>
-        </article>;
-      })}</div>
-      <div className="hidden overflow-x-auto md:block">
-      <table className="min-w-[620px]">
-        <thead><tr><th className="text-left">Fornecedor</th><th className="text-left">CPF/CNPJ</th><th className="text-left">Status</th><th className="text-right">Vínculo</th></tr></thead>
-        <tbody>{rows.map(supplier => {
-          const selected = selectedIds.has(supplier.id);
-          return <tr key={supplier.id}>
-            <td><div className="font-semibold text-[#0d1b2e]">{supplier.name}</div>{supplier.legal_name && supplier.legal_name !== supplier.name && <div className="text-[11px] text-[#5a6a82]">{supplier.legal_name}</div>}</td>
-            <td className="font-mono text-xs text-[#5a6a82]">{supplierDocument(supplier)}</td>
-            <td><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${supplier.is_active !== false ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]"}`}>{supplier.is_active !== false ? "Ativo" : "Inativo"}</span></td>
-            <td><div className="flex justify-end"><AdminButton
-              type="button"
-              size="sm"
-              variant={selected ? "secondary" : "primary"}
-              disabled={disabled || (!selected && supplier.is_active === false)}
-              onClick={() => toggle(supplier)}
-              className="min-w-[110px]"
-            >{selected ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</AdminButton></div></td>
-          </tr>;
-        })}</tbody>
-      </table>
-    </div></>}
 
-    {value.length > 0 && <p className="border-t border-[#0d1b2e]/8 px-4 py-3 text-xs font-semibold text-[#5a6a82]">{value.length} fornecedor(es) vinculado(s) ao item.</p>}
-  </div>;
+    {error && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Erro ao carregar fornecedores: {error}</div>}
+    {loading ? <div className="flex min-h-32 items-center justify-center px-4 text-sm text-[#5a6a82]">Carregando fornecedores...</div> : rows.length === 0 ? <div className="flex min-h-32 items-center justify-center px-4 text-sm text-[#5a6a82]">Nenhum fornecedor disponível.</div> : <div className="px-4">
+      {rows.map((supplier, index) => {
+        const selected = selectedIds.has(supplier.id);
+        const inactive = supplier.is_active === false;
+        return <div key={supplier.id} className={`flex min-w-0 flex-col gap-3 py-3.5 sm:flex-row sm:items-center ${index > 0 ? "border-t border-[#0d1b2e]/8" : ""}`}>
+          <div className="min-w-0 flex-1">
+            <p className="break-words text-sm font-bold text-[#0d1b2e]">{supplier.name}</p>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#7c899c]">
+              {supplier.legal_name && supplier.legal_name !== supplier.name && <span className="break-words">{supplier.legal_name}</span>}
+              <span className="font-mono">{supplierDocument(supplier)}</span>
+              <span className={inactive ? "text-[#7c899c]" : "font-semibold text-emerald-700"}>{inactive ? "Inativo" : "Ativo"}</span>
+              <span className={selected ? "font-bold text-emerald-700" : "text-[#7c899c]"}>{selected ? "Vinculado" : "Não vinculado"}</span>
+            </div>
+          </div>
+          {!disabled && <button
+            type="button"
+            disabled={!selected && inactive}
+            onClick={() => toggle(supplier)}
+            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${selected ? "border-red-200 text-red-600 hover:bg-red-50" : "border-[#0d1b2e]/15 bg-white text-[#0057e7] hover:bg-[#f5f7fa]"}`}
+          >{selected ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>}
+        </div>;
+      })}
+    </div>}
+
+    {value.length > 0 && <p className="border-t border-[#0d1b2e]/8 px-4 py-3 text-xs font-semibold text-[#5a6a82]">{value.length} fornecedor{value.length === 1 ? "" : "es"} vinculado{value.length === 1 ? "" : "s"} ao item.</p>}
+  </section>;
 }
