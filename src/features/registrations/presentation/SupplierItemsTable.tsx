@@ -31,62 +31,70 @@ export function SupplierItemsTable({
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
-  if (items.length === 0) return <p className="py-5 text-center text-sm text-[#5a6a82]">{emptyText}</p>;
-
-  return <div className="min-w-0">
-    <div className="divide-y divide-[#0d1b2e]/8 px-4 md:hidden">
-      {paged.map(item => <article key={item.id} className="py-3.5">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <div className="col-span-2"><MobileField label="Item"><span className="break-words text-sm font-black">{item.name}</span></MobileField></div>
-          <MobileField label="SKU"><span className="break-all font-mono">{item.sku || "—"}</span></MobileField>
-          <MobileField label="Status"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></MobileField>
-        </div>
-        {onRemove && <div className="mt-3 flex items-center justify-between border-t border-[#0d1b2e]/8 pt-3">
-          <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">Ações</span>
-          <button
-            type="button"
-            onClick={() => onRemove(item.id)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-            aria-label={`Remover ${item.name}`}
-            title="Remover vínculo"
-          ><X size={14} /></button>
-        </div>}
-      </article>)}
+  return <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
+    <div className="flex items-center justify-between gap-3 border-b border-[#0d1b2e]/8 px-4 py-4">
+      <div className="min-w-0">
+        <p className="text-sm font-black text-[#0d1b2e]">Itens fornecidos</p>
+        <p className="mt-0.5 text-[11px] text-[#5a6a82]">Itens do estoque vinculados a este fornecedor.</p>
+      </div>
+      <span className="shrink-0 text-[10px] font-bold text-[#7c899c]">{items.length} item{items.length === 1 ? "" : "s"}</span>
     </div>
 
-    <div className="hidden overflow-x-auto md:block">
-      <table className="w-full">
-        <thead><tr>
-          <th className="text-left">Item</th>
-          <th className="text-left">SKU</th>
-          <th className="text-left">Status</th>
-          {onRemove && <th className="text-right">Ações</th>}
-        </tr></thead>
-        <tbody>
-          {paged.map(item => <tr key={item.id}>
-            <td className="font-bold text-[#0d1b2e]">{item.name}</td>
-            <td className="text-xs text-[#5a6a82]">{item.sku || "—"}</td>
-            <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>
-            {onRemove && <td className="text-right">
-              <button
-                type="button"
-                onClick={() => onRemove(item.id)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                aria-label={`Remover ${item.name}`}
-                title="Remover vínculo"
-              ><X size={14} /></button>
-            </td>}
-          </tr>)}
-        </tbody>
-      </table>
-    </div>
+    {items.length === 0 ? <p className="py-6 text-center text-sm text-[#5a6a82]">{emptyText}</p> : <>
+      <div className="divide-y divide-[#0d1b2e]/8 px-4 md:hidden">
+        {paged.map(item => <article key={item.id} className="py-3.5">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <div className="col-span-2"><MobileField label="Item"><span className="break-words text-sm font-black">{item.name}</span></MobileField></div>
+            <MobileField label="SKU"><span className="break-all font-mono">{item.sku || "—"}</span></MobileField>
+            <MobileField label="Status"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></MobileField>
+          </div>
+          {onRemove && <div className="mt-3 flex items-center justify-between border-t border-[#0d1b2e]/8 pt-3">
+            <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">Ações</span>
+            <button
+              type="button"
+              onClick={() => onRemove(item.id)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+              aria-label={`Remover ${item.name}`}
+              title="Remover vínculo"
+            ><X size={14} /></button>
+          </div>}
+        </article>)}
+      </div>
 
-    <PaginationBar
-      page={safePage}
-      pageSize={pageSize}
-      totalItems={items.length}
-      onPageChange={setPage}
-      onPageSizeChange={setPageSize}
-    />
-  </div>;
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full">
+          <thead><tr>
+            <th className="text-left">Item</th>
+            <th className="text-left">SKU</th>
+            <th className="text-left">Status</th>
+            {onRemove && <th className="text-right">Ações</th>}
+          </tr></thead>
+          <tbody>
+            {paged.map(item => <tr key={item.id}>
+              <td className="font-bold text-[#0d1b2e]">{item.name}</td>
+              <td className="text-xs text-[#5a6a82]">{item.sku || "—"}</td>
+              <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>
+              {onRemove && <td className="text-right">
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                  aria-label={`Remover ${item.name}`}
+                  title="Remover vínculo"
+                ><X size={14} /></button>
+              </td>}
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+
+      <PaginationBar
+        page={safePage}
+        pageSize={pageSize}
+        totalItems={items.length}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
+    </>}
+  </section>;
 }
