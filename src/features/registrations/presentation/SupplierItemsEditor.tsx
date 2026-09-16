@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link2, Search, Unlink } from "lucide-react";
-import { Section } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -8,13 +7,6 @@ import {
   listSupplierInventoryItems,
   type SupplierInventoryItem,
 } from "../infrastructure/registrations.repository";
-
-function MobileField({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="min-w-0">
-    <div className="mb-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">{label}</div>
-    <div className="min-w-0 text-xs font-semibold text-[#0d1b2e]">{children}</div>
-  </div>;
-}
 
 export function SupplierItemsEditor({
   organizationId,
@@ -60,15 +52,12 @@ export function SupplierItemsEditor({
     if (!query) return items;
     return items.filter(item => `${item.name} ${item.sku || ""}`.toLocaleLowerCase("pt-BR").includes(query));
   }, [items, search]);
-
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   useEffect(() => { setPage(1); }, [search, pageSize]);
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const toggleItem = (item: SupplierInventoryItem) => {
     if (disabled) return;
@@ -76,84 +65,54 @@ export function SupplierItemsEditor({
     else onChange([...value, item]);
   };
 
-  return <Section title="Itens fornecidos" flush>
-    <div className="min-w-0">
-      <div className="border-b border-[#0d1b2e]/8 px-4 py-4">
-      <div className="mx-auto w-full max-w-md">
-        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Pesquisar</label>
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
-          <input
-            className={`${INPUT} pl-9`}
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder="Nome ou SKU"
-          />
+  return <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
+    <div className="border-b border-[#0d1b2e]/8 px-4 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-black text-[#0d1b2e]">Itens fornecidos</p>
+          <p className="mt-0.5 text-[11px] text-[#5a6a82]">Vincule os itens do estoque fornecidos por este cadastro.</p>
         </div>
+        <span className="shrink-0 text-[10px] font-bold text-[#7c899c]">{filtered.length} item{filtered.length === 1 ? "" : "s"}</span>
       </div>
-
-      </div>
-      {error && <p className="text-xs font-semibold text-red-600">Erro ao consultar estoque: {error}</p>}
-
-      {loading ? <LoadingState text="Carregando estoque..." /> : items.length === 0 ? <p className="py-5 text-center text-sm text-[#5a6a82]">Nenhum item de estoque disponível.</p> : <>
-        <div className="divide-y divide-[#0d1b2e]/8 px-4 md:hidden">
-          {paged.length ? paged.map(item => {
-            const linked = selectedIds.has(item.id);
-            return <article key={item.id} className="py-3.5">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                <div className="col-span-2"><MobileField label="Item"><span className="break-words text-sm font-black">{item.name}</span></MobileField></div>
-                <MobileField label="SKU"><span className="break-all font-mono">{item.sku || "—"}</span></MobileField>
-                <MobileField label="Status"><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></MobileField>
-                <div className="col-span-2"><MobileField label="Fornecedor"><span className={linked ? "font-bold text-emerald-700" : "text-[#8a98aa]"}>{linked ? "Vinculado" : "Não vinculado"}</span></MobileField></div>
-              </div>
-              {!disabled && <div className="mt-3 flex justify-end border-t border-[#0d1b2e]/8 pt-3">
-                <button
-                  type="button"
-                  onClick={() => toggleItem(item)}
-                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold ${linked ? "border-red-200 text-red-600 hover:bg-red-50" : "border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}`}
-                >{linked ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>
-              </div>}
-            </article>;
-          }) : <p className="py-6 text-center text-sm text-[#5a6a82]">Nenhum item encontrado.</p>}
-        </div>
-
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full">
-            <thead><tr>
-              <th className="text-left">Item</th>
-              <th className="text-left">SKU</th>
-              <th className="text-left">Status</th>
-              <th className="text-left">Fornecedor</th>
-              {!disabled && <th className="text-right">Ações</th>}
-            </tr></thead>
-            <tbody>
-              {paged.length ? paged.map(item => {
-                const linked = selectedIds.has(item.id);
-                return <tr key={item.id}>
-                  <td className="font-bold text-[#0d1b2e]">{item.name}</td>
-                  <td className="text-xs text-[#5a6a82]">{item.sku || "—"}</td>
-                  <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>
-                  <td><span className={linked ? "font-bold text-emerald-700" : "text-xs text-[#8a98aa]"}>{linked ? "Vinculado" : "Não vinculado"}</span></td>
-                  {!disabled && <td className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => toggleItem(item)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold ${linked ? "border-red-200 text-red-600 hover:bg-red-50" : "border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}`}
-                    >{linked ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>
-                  </td>}
-                </tr>;
-              }) : <tr><td colSpan={disabled ? 4 : 5} className="py-6 text-center text-sm text-[#5a6a82]">Nenhum item encontrado.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-        <PaginationBar
-          page={safePage}
-          pageSize={pageSize}
-          totalItems={filtered.length}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+      <div className="relative mx-auto mt-3 w-full max-w-md">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7c899c]" />
+        <input
+          className={`${INPUT} h-10 w-full pl-9 pr-3 text-sm`}
+          value={search}
+          onChange={event => setSearch(event.target.value)}
+          placeholder="Buscar por nome ou SKU"
         />
-      </>}
+      </div>
     </div>
-  </Section>;
+
+    {error && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Erro ao consultar estoque: {error}</div>}
+    {loading ? <LoadingState text="Carregando estoque..." /> : items.length === 0 ? <div className="flex min-h-32 items-center justify-center px-4 text-sm text-[#5a6a82]">Nenhum item de estoque disponível.</div> : paged.length === 0 ? <div className="flex min-h-32 items-center justify-center px-4 text-sm text-[#5a6a82]">Nenhum item encontrado.</div> : <div className="px-4">
+      {paged.map((item, index) => {
+        const linked = selectedIds.has(item.id);
+        return <div key={item.id} className={`flex min-w-0 flex-col gap-3 py-3.5 sm:flex-row sm:items-center ${index > 0 ? "border-t border-[#0d1b2e]/8" : ""}`}>
+          <div className="min-w-0 flex-1">
+            <p className="break-words text-sm font-bold text-[#0d1b2e]">{item.name}</p>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#7c899c]">
+              <span>{item.sku ? `SKU ${item.sku}` : "Sem SKU"}</span>
+              <StatusBadge status={item.is_active ? "Ativo" : "Inativo"} />
+              <span className={linked ? "font-bold text-emerald-700" : "text-[#7c899c]"}>{linked ? "Vinculado" : "Não vinculado"}</span>
+            </div>
+          </div>
+          {!disabled && <button
+            type="button"
+            onClick={() => toggleItem(item)}
+            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors ${linked ? "border-red-200 text-red-600 hover:bg-red-50" : "border-[#0d1b2e]/15 bg-white text-[#0057e7] hover:bg-[#f5f7fa]"}`}
+          >{linked ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>}
+        </div>;
+      })}
+    </div>}
+
+    {!loading && !error && filtered.length > 0 && <PaginationBar
+      page={safePage}
+      pageSize={pageSize}
+      totalItems={filtered.length}
+      onPageChange={setPage}
+      onPageSizeChange={setPageSize}
+    />}
+  </section>;
 }
