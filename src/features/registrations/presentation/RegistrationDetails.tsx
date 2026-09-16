@@ -10,11 +10,7 @@ import type { EmployeeAccessFormState } from "@/features/access/presentation/Use
 import { SupplierItemsTable } from "./SupplierItemsTable";
 import { RegistrationDetailsToolbar } from "./RegistrationDetailsToolbar";
 
-const roleLabels: Record<RegistrationRole, string> = {
-  customer: "Cliente",
-  employee: "Funcionário",
-  supplier: "Fornecedor",
-};
+const roleLabels: Record<RegistrationRole, string> = { customer: "Cliente", employee: "Funcionário", supplier: "Fornecedor" };
 
 function detailValue(label: string, value: string) {
   return <div key={label} className="min-w-0">
@@ -28,7 +24,7 @@ function formatZipCode(value?: string | null) {
   return digits.length === 8 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : value || "";
 }
 
-function formatBrazilianAddress(address: Registration["addresses"] extends Array<infer T> | null | undefined ? T : never) {
+function formatBrazilianAddress(address: NonNullable<Registration["addresses"]>[number]) {
   const streetNumber = [address.street, address.number].filter(Boolean).join(", ");
   const complement = address.complement ? `, ${address.complement}` : "";
   const neighborhood = address.neighborhood ? ` - ${address.neighborhood}` : "";
@@ -38,23 +34,7 @@ function formatBrazilianAddress(address: Registration["addresses"] extends Array
   return `${streetNumber}${complement}${neighborhood}${locality}${zipCode}`.trim() || "Endereço sem dados informados";
 }
 
-export function RegistrationDetails({
-  selected,
-  supplierItems,
-  accessForm,
-  accessExisting,
-  accessLoading,
-  permissionUserId,
-  canViewAccess,
-  canViewPermissionOverrides,
-  canEdit,
-  onClose,
-  onEdit,
-  onOpenContacts,
-  onOpenRecords,
-  onOpenCustomerHistory,
-  onOpenPermissions,
-}: {
+type RegistrationDetailsProps = {
   selected: Registration;
   supplierItems: SupplierInventoryItem[];
   accessForm: EmployeeAccessFormState;
@@ -70,17 +50,16 @@ export function RegistrationDetails({
   onOpenRecords: () => void;
   onOpenCustomerHistory?: (customerId: string) => void;
   onOpenPermissions: () => void;
-}) {
+};
+
+export function RegistrationDetails({ selected, supplierItems, accessForm, accessExisting, accessLoading, permissionUserId, canViewAccess, canViewPermissionOverrides, canEdit, onClose, onEdit, onOpenContacts, onOpenRecords, onOpenCustomerHistory, onOpenPermissions }: RegistrationDetailsProps) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const roles = activeRegistrationRoles(selected);
   const employee = selected.employee_details?.[0];
   const employeeRecord = selected.legacy_employee;
   const accessActive = employeeRecord?.is_active !== false && accessForm.enabled !== false;
   const accessUsername = accessForm.username || usernameFromAuthEmail(accessForm.email) || "—";
-  const activeAddresses = (selected.addresses || [])
-    .filter(address => address.is_active !== false)
-    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
-
+  const activeAddresses = (selected.addresses || []).filter(address => address.is_active !== false).sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
   const canManageContacts = hasPermission("registrations.contacts.manage");
   const canViewContacts = hasPermission("registrations.contacts.view") || canManageContacts;
   const canCreateRecords = hasPermission("registrations.records.create");
@@ -90,17 +69,8 @@ export function RegistrationDetails({
   return <AdminPage open onClose={onClose} breadcrumb="Cadastros" title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-6xl">
     <div className="space-y-5 p-4 sm:p-5">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
-        </div>
-        <RegistrationDetailsToolbar
-          canViewContacts={Boolean(activeOrganizationId && canViewContacts)}
-          canViewRecords={Boolean(activeOrganizationId && canViewRecords)}
-          canViewPermissions={canOpenPermissions}
-          onOpenContacts={onOpenContacts}
-          onOpenRecords={onOpenRecords}
-          onOpenPermissions={onOpenPermissions}
-        />
+        <div className="flex min-w-0 flex-wrap items-center gap-2">{roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div>
+        <RegistrationDetailsToolbar canViewContacts={Boolean(activeOrganizationId && canViewContacts)} canViewRecords={Boolean(activeOrganizationId && canViewRecords)} canViewPermissions={canOpenPermissions} onOpenContacts={onOpenContacts} onOpenRecords={onOpenRecords} onOpenPermissions={onOpenPermissions} />
       </div>
 
       <Section title="Dados Pessoais"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -120,16 +90,7 @@ export function RegistrationDetails({
 
       <Section title="Endereços">
         {activeAddresses.length ? <div className="divide-y divide-[#0d1b2e]/8">{activeAddresses.map((address, index) => {
-          const mapUrl = getAddressMapUrl({
-            zip_code: address.zip_code || "",
-            street: address.street || "",
-            number: address.number || "",
-            complement: address.complement || "",
-            neighborhood: address.neighborhood || "",
-            city: address.city || "",
-            state: address.state || "",
-            shared_map_url: address.location_url || "",
-          });
+          const mapUrl = getAddressMapUrl({ zip_code: address.zip_code || "", street: address.street || "", number: address.number || "", complement: address.complement || "", neighborhood: address.neighborhood || "", city: address.city || "", state: address.state || "", shared_map_url: address.location_url || "" });
           return <div key={address.id} className="py-4 first:pt-0 last:pb-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-black text-[#0d1b2e]">{address.type || `Endereço ${index + 1}`}</span>
@@ -143,11 +104,7 @@ export function RegistrationDetails({
       </Section>
 
       {roles.includes("employee") && <Section title="Geral">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {detailValue("Cargo", employee?.job_title || "—")}
-          {detailValue("Setor", employee?.team_name || "—")}
-          {detailValue("Admissão", formatDateOnly(employee?.admission_date, "—"))}
-        </div>
+        <div className="grid gap-4 sm:grid-cols-3">{detailValue("Cargo", employee?.job_title || "—")}{detailValue("Setor", employee?.team_name || "—")}{detailValue("Admissão", formatDateOnly(employee?.admission_date, "—"))}</div>
         {canViewAccess && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-5" aria-busy={accessLoading}>
           <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -160,9 +117,7 @@ export function RegistrationDetails({
         </div>}
       </Section>}
 
-      {roles.includes("supplier") && <Section title="Itens fornecidos" flush>
-        <SupplierItemsTable items={supplierItems} />
-      </Section>}
+      {roles.includes("supplier") && <SupplierItemsTable items={supplierItems} />}
     </div>
 
     <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
