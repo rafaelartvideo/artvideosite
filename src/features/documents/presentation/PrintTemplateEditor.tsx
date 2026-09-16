@@ -156,7 +156,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
                   <AdminSelect
                     value={ttlPreset}
                     onValueChange={preset => {
-                      if (preset !== "custom") setSignatureConfig({ signature_link_ttl_hours: Number(preset) });
+                      setSignatureConfig({ signature_link_ttl_hours: preset === "custom" ? (TTL_PRESETS.has(value.signature_link_ttl_hours) ? 96 : value.signature_link_ttl_hours) : Number(preset) });
                     }}
                     ariaLabel="Validade do link de assinatura"
                     options={[
