@@ -19,7 +19,7 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Checklists", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
-const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Checklists", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Tipos de Anexo", "Calendário", "Endereços", "Funcionários", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
+const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Checklists", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Assinaturas", "Tipos de Anexo", "Calendário", "Endereços", "Funcionários", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
@@ -68,7 +68,10 @@ export function permissionSectionName(permission: PermissionRecord) {
   }
   if (module === "employees") return key === "employees.view" ? "Acesso" : "Ações";
   if (module === "checklists") return key === "checklists.view" ? "Acesso" : "Ações";
-  if (module === "documents") return key.startsWith("documents.attachment_types.") ? "Tipos de Anexo" : "Impressão / Modelos";
+  if (module === "documents") {
+    if (key.startsWith("documents.signatures.")) return "Assinaturas";
+    return key.startsWith("documents.attachment_types.") ? "Tipos de Anexo" : "Impressão / Modelos";
+  }
   if (module === "inventory") {
     if (key.includes("movement")) return "Movimentações";
     if (key.includes("supplier")) return "Fornecedores";
@@ -149,6 +152,11 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "registrations.contacts.view": ["customers.view"], "registrations.contacts.manage": ["registrations.contacts.view", "customers.view"],
   "registrations.records.view": ["customers.view"], "registrations.records.create": ["registrations.records.view", "customers.view"],
   "registrations.employee_signature.manage": ["customers.view"],
+  "documents.signatures.view": ["documents.view"],
+  "documents.signatures.send": ["documents.signatures.view", "documents.print"],
+  "documents.signatures.resend": ["documents.signatures.view"],
+  "documents.signatures.cancel": ["documents.signatures.view"],
+  "documents.signatures.audit": ["documents.signatures.view"],
   "quotes.status.change": ["quotes.edit", "quotes.view"], "quotes.convert_to_order": ["quotes.view", "orders.create"],
   "agenda.create": ["agenda.view"], "agenda.reschedule": ["agenda.view"], "agenda.view_others": ["agenda.view"],
   "situations.table.view": ["situations.view"], "situations.create": ["situations.view"], "situations.edit": ["situations.view"], "situations.delete": ["situations.view"],
