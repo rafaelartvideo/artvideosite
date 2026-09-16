@@ -1,7 +1,37 @@
 import { supabase } from "@/lib/supabase";
 import { getActiveOrganizationId } from "@/lib/active-organization";
 import { PRINT_FIELD_REGISTRY, normalizePrintSelectedFields } from "../domain/print-field-registry";
-import { normalizePrintLayoutSettings, type PrintTemplate, type PrintTemplateEditorValue } from "../domain/print-template";
+import {
+  normalizePrintLayoutSettings,
+  type EmployeeSignatureSource,
+  type PrintTemplate,
+  type PrintTemplateEditorValue,
+} from "../domain/print-template";
+
+const EMPLOYEE_SIGNATURE_SOURCES = new Set<EmployeeSignatureSource>(["responsible", "technician", "completed_by", "manual"]);
+
+function normalizeSignatureLinkTtlHours(value: unknown) {
+  const hours = Number(value);
+  return Number.isInteger(hours) && hours >= 1 && hours <= 720 ? hours : 72;
+}
+
+function normalizeEmployeeSignatureSource(value: unknown): EmployeeSignatureSource | null {
+  return typeof value === "string" && EMPLOYEE_SIGNATURE_SOURCES.has(value as EmployeeSignatureSource)
+    ? value as EmployeeSignatureSource
+    : null;
+}
+
+function normalizeTemplateSignatureFields(value: PrintTemplateEditorValue): PrintTemplateEditorValue {
+  const selectedFields = normalizePrintSelectedFields(value.selectedFields);
+  if (value.allow_online_signature && value.require_external_signature) selectedFields.add("signatures.customer");
+  if (value.allow_online_signature && value.require_employee_signature) selectedFields.add("signatures.employee");
+  return {
+    ...value,
+    signature_link_ttl_hours: normalizeSignatureLinkTtlHours(value.signature_link_ttl_hours),
+    employee_signature_source: value.require_employee_signature ? normalizeEmployeeSignatureSource(value.employee_signature_source) : null,
+    selectedFields,
+  };
+}
 
 export async function listPrintTemplates() {
   const organizationId = await getActiveOrganizationId();
@@ -32,7 +62,7 @@ export async function loadPrintTemplateEditorValue(template: PrintTemplate) {
     : { data: [], error: null };
   if (fieldsError) throw fieldsError;
 
-  return {
+  const value = {
     id: template.id,
     name: template.name,
     description: template.description || "",
@@ -52,11 +82,18 @@ export async function loadPrintTemplateEditorValue(template: PrintTemplate) {
     footer_text: template.footer_text || "",
     layout: normalizePrintLayoutSettings(template.settings),
     selectedFields: normalizePrintSelectedFields((fields || []).filter((field: any) => field.is_enabled !== false && (sections || []).some((section: any) => section.id === field.template_section_id && section.is_enabled !== false)).map((field: any) => field.field_key).filter(Boolean)),
+    allow_online_signature: template.allow_online_signature === true,
+    signature_link_ttl_hours: normalizeSignatureLinkTtlHours(template.signature_link_ttl_hours),
+    require_external_signature: template.require_external_signature !== false,
+    require_employee_signature: template.require_employee_signature === true,
+    employee_signature_source: normalizeEmployeeSignatureSource(template.employee_signature_source),
   } satisfies PrintTemplateEditorValue;
+
+  return normalizeTemplateSignatureFields(value);
 }
 
 export async function savePrintTemplate(value: PrintTemplateEditorValue) {
-  value = { ...value, selectedFields: normalizePrintSelectedFields(value.selectedFields) };
+  value = normalizeTemplateSignatureFields(value);
   const organizationId = await getActiveOrganizationId();
   const payload = {
     organization_id: organizationId,
@@ -77,6 +114,11 @@ export async function savePrintTemplate(value: PrintTemplateEditorValue) {
     header_text: value.header_text.trim() || null,
     footer_text: value.footer_text.trim() || null,
     settings: value.layout,
+    allow_online_signature: value.allow_online_signature,
+    signature_link_ttl_hours: value.signature_link_ttl_hours,
+    require_external_signature: value.require_external_signature,
+    require_employee_signature: value.require_employee_signature,
+    employee_signature_source: value.require_employee_signature ? value.employee_signature_source : null,
   };
 
   let templateId = value.id;
@@ -212,4 +254,3 @@ export async function deleteAttachmentType(id: string) {
     .eq("organization_id", organizationId);
   if (error) throw error;
 }
-
