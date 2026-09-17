@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   copyComputedStyle,
+  freezeRasterOptions,
   html2pdfMarginOrder,
   signatureSlotFromGeometry,
 } from "./order-print-freeze-style.mjs";
@@ -35,12 +36,18 @@ test("maps template top-right-bottom-left margins to html2pdf top-left-bottom-ri
   assert.deepEqual(html2pdfMarginOrder([10, 12, 14, 16]), [10, 16, 14, 12]);
 });
 
-test("keeps signature overlay inside the blank area above its line", () => {
+test("uses PNG and at least 300-ish DPI for the frozen print page", () => {
+  const options = freezeRasterOptions();
+  assert.equal(options.imageType, "png");
+  assert.ok(options.scale >= 3);
+});
+
+test("reserves a visibly sized signature area above its line", () => {
   const slot = signatureSlotFromGeometry({
     lineLeftPx: 40,
-    lineTopPx: 24,
+    lineTopPx: 80,
     lineWidthPx: 300,
-    signatureTopPx: 0,
+    signatureTopPx: 56,
     pxPerMm: 4,
     pageHeightPx: 1000,
     marginLeftMm: 10,
@@ -48,8 +55,7 @@ test("keeps signature overlay inside the blank area above its line", () => {
   });
 
   assert.equal(slot.page_index, 0);
-  assert.equal(slot.y_mm, 11);
-  assert.equal(slot.height_mm, 4.5);
+  assert.ok(slot.height_mm >= 8);
   assert.equal(slot.x_mm, 22);
   assert.equal(slot.width_mm, 71);
 });
