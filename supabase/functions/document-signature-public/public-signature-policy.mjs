@@ -30,14 +30,6 @@ async function hmacHex(secret, value) {
   return bytesToHex(new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(String(value)))));
 }
 
-export function normalizeOtp(value) {
-  return String(value ?? "").trim();
-}
-
-export function isOtpFormat(value) {
-  return /^\d{6}$/.test(normalizeOtp(value));
-}
-
 export function constantTimeEqualHex(left, right) {
   const a = String(left || "").toLowerCase();
   const b = String(right || "").toLowerCase();
@@ -55,55 +47,43 @@ export function publicRequestState(row, now = Date.now()) {
   return status === "viewed" ? "viewed" : "pending";
 }
 
-export function otpSendPolicy({ now = Date.now(), lastSentAt = null, sendsLastHour = 0 }) {
-  if (Number(sendsLastHour) >= 5) return { allowed: false, retryAfterSeconds: 3600, reason: "hourly_limit" };
-  if (lastSentAt) {
-    const sentAt = Date.parse(String(lastSentAt));
-    if (Number.isFinite(sentAt)) {
-      const elapsedSeconds = Math.floor((now - sentAt) / 1000);
-      if (elapsedSeconds < 60) return { allowed: false, retryAfterSeconds: Math.max(1, 60 - elapsedSeconds), reason: "cooldown" };
-    }
-  }
-  return { allowed: true, retryAfterSeconds: 0 };
-}
-
-export async function buildOtpProof(secret, binding, now = Date.now(), ttlMs = 15 * 60 * 1000) {
+export async function buildIdentityProof(secret, binding, now = Date.now(), ttlMs = 15 * 60 * 1000) {
   const payload = {
-    v: 1,
+    v: 2,
     request_id: String(binding.requestId || ""),
     token_hash: String(binding.tokenHash || ""),
-    challenge_id: String(binding.challengeId || ""),
     iat: Math.trunc(now),
     exp: Math.trunc(now + ttlMs),
   };
   const payloadPart = bytesToBase64Url(encoder.encode(JSON.stringify(payload)));
-  const signature = await hmacHex(secret, `document-signature-proof:${payloadPart}`);
+  const signature = await hmacHex(secret, `document-signature-identity-proof:${payloadPart}`);
   return `${payloadPart}.${signature}`;
 }
 
-export async function verifyOtpProof(secret, proof, expected, now = Date.now()) {
+export async function verifyIdentityProof(secret, proof, expected, now = Date.now()) {
   const [payloadPart, signature, ...extra] = String(proof || "").split(".");
-  if (!payloadPart || !signature || extra.length) throw new Error("Prova de validação inválida.");
-  const expectedSignature = await hmacHex(secret, `document-signature-proof:${payloadPart}`);
-  if (!constantTimeEqualHex(signature, expectedSignature)) throw new Error("Prova de validação inválida.");
+  if (!payloadPart || !signature || extra.length) throw new Error("Prova de identidade inválida.");
+  const expectedSignature = await hmacHex(secret, `document-signature-identity-proof:${payloadPart}`);
+  if (!constantTimeEqualHex(signature, expectedSignature)) throw new Error("Prova de identidade inválida.");
 
   let payload;
   try {
     payload = JSON.parse(decoder.decode(base64UrlToBytes(payloadPart)));
   } catch {
-    throw new Error("Prova de validação inválida.");
+    throw new Error("Prova de identidade inválida.");
   }
-  if (payload?.v !== 1 || !payload.request_id || !payload.token_hash || !payload.challenge_id) {
-    throw new Error("Prova de validação inválida.");
+  if (payload?.v !== 2 || !payload.request_id || !payload.token_hash) {
+    throw new Error("Prova de identidade inválida.");
   }
   if (String(payload.request_id) !== String(expected.requestId) || String(payload.token_hash) !== String(expected.tokenHash)) {
-    throw new Error("Prova de validação inválida para este documento.");
+    throw new Error("Prova de identidade inválida para este documento.");
   }
-  if (!Number.isFinite(payload.exp) || payload.exp < now) throw new Error("A prova de validação expirou. Valide o código novamente.");
+  if (!Number.isFinite(payload.exp) || payload.exp < now) {
+    throw new Error("A validação de identidade expirou. Confirme o CPF/CNPJ novamente.");
+  }
   return {
     requestId: String(payload.request_id),
     tokenHash: String(payload.token_hash),
-    challengeId: String(payload.challenge_id),
     issuedAt: Number(payload.iat || 0),
     expiresAt: Number(payload.exp),
   };
