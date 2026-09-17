@@ -1,4 +1,4 @@
-import { CheckCircle2, ClipboardList, Edit2 } from "lucide-react";
+import { ClipboardList, Edit2 } from "lucide-react";
 import { EmptyState, LoadingSpinner, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -29,12 +29,6 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const canComplete = (order: any) => canCompleteOrder && isSolvedPendingCompletion(order);
   const rowNumber = (index: number) => filteredRowNumber({ page: safePage, pageSize, index });
 
-  const solvedIndicator = (order: any) => isSolvedPendingCompletion(order) ? (
-    <span className="inline-flex shrink-0 items-center justify-center text-green-600" title="Solucionada" aria-label="OS solucionada">
-      <CheckCircle2 size={16} strokeWidth={2.5} />
-    </span>
-  ) : null;
-
   return (
     <AdminCard>
       {loading ? (
@@ -55,7 +49,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                       {hasActiveFilters && <span className="flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] px-1.5 font-mono text-[11px] font-black text-[#0057e7]">{rowNumber(index)}</span>}
                       <span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} />
                       <div className="min-w-0">
-                        {hasPermission("orders.table.os") && <div className="flex min-w-0 flex-wrap items-center gap-1.5"><p className="font-mono text-lg font-black text-[#0057e7]">OS {o.os_number || "—"}</p>{solvedIndicator(o)}</div>}
+                        {hasPermission("orders.table.os") && <p className="font-mono text-lg font-black text-[#0057e7]">OS {o.os_number || "—"}</p>}
                         {hasPermission("orders.table.external_os") && o.external_os_number && <p className="truncate text-sm font-black text-[#5a6a82]">OS Externa {o.external_os_number}</p>}
                         {hasPermission("orders.table.customer") && <p className="truncate text-sm font-bold text-[#0d1b2e]">{(o.customer as any)?.full_name || "—"}</p>}
                       </div>
@@ -72,7 +66,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                 </div>
                 {hasPermission("orders.table.actions") && <div onClick={event => event.stopPropagation()} className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-[#0d1b2e]/8 pt-3">
                   {canChangeSituation && <div className="min-w-[150px] flex-1"><AdminSelect value={o.situation_id || ""} onValueChange={value => void onSituationChange(o, value)} options={situationOptions(o)} className="h-9 min-h-9 min-w-0 px-2 py-1 text-[10px] font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div>}
-                  {canComplete(o) && <AdminButton variant="primary" size="sm" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} title="Concluir OS" className="h-9 shrink-0 px-2.5"><CheckCircle2 size={15} /><span>Concluir</span></AdminButton>}
+                  {canComplete(o) && <AdminButton variant="primary" size="sm" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} title="Concluir OS" className="h-9 shrink-0 px-2.5"><span>Concluir</span></AdminButton>}
                   {canEditOrder && !o.is_solved && !isCancelled(o) && <AdminButton variant="secondary" size="sm" onClick={event => { event.stopPropagation(); void onEdit(o); }} aria-label={`Editar OS ${o.os_number || ""}`} title="Editar" className="h-9 w-9 min-w-0 shrink-0 border-[#0057e7]/30 p-0 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={15} /></AdminButton>}
                 </div>}
               </article>
@@ -95,7 +89,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
               </tr></thead>
               <tbody>{pagedOrders.map((o, index) => <tr key={o.id} onClick={() => openDetails(o)} className="cursor-default">
                 {hasActiveFilters && <td className="font-mono text-xs font-black text-[#5a6a82]">{rowNumber(index)}</td>}
-                {hasPermission("orders.table.os") && <td><div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="font-mono text-base font-black text-[#0057e7]">{o.os_number || "—"}</span>{solvedIndicator(o)}{o.cannot_be_solved && !isCancelled(o) && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></div></td>}
+                {hasPermission("orders.table.os") && <td><div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="font-mono text-base font-black text-[#0057e7]">{o.os_number || "—"}</span>{o.cannot_be_solved && !isCancelled(o) && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></div></td>}
                 {hasPermission("orders.table.external_os") && <td className="font-mono text-base font-black text-[#5a6a82]">{o.external_os_number || "—"}</td>}
                 {hasPermission("orders.table.customer") && <td><p className="text-sm font-semibold text-[#0d1b2e]">{(o.customer as any)?.full_name || "—"}</p><p className="text-[11px] text-[#5a6a82]">{formatPhone((o.customer as any)?.whatsapp || (o.customer as any)?.phone)}</p></td>}
                 {hasPermission("orders.table.service_type") && <td className="text-xs text-[#5a6a82]">{(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}</td>}
@@ -105,7 +99,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                 {hasPermission("orders.table.situation") && <td>{(o.situation as any)?.name ? <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>}
                 {hasPermission("orders.table.actions") && <td><div className="flex items-center justify-end gap-2">
                   {canChangeSituation && <div onClick={event => event.stopPropagation()} className="w-40"><AdminSelect value={o.situation_id || ""} onValueChange={value => void onSituationChange(o, value)} options={situationOptions(o)} className="min-h-9 py-1.5 text-[11px] font-bold" ariaLabel={`Situação da OS ${o.os_number || ""}`} /></div>}
-                  {canComplete(o) && <AdminButton variant="primary" size="sm" onClick={event => { event.stopPropagation(); onComplete(o); }}><CheckCircle2 size={14} /> Concluir</AdminButton>}
+                  {canComplete(o) && <AdminButton variant="primary" size="sm" onClick={event => { event.stopPropagation(); onComplete(o); }}>Concluir</AdminButton>}
                   {canEditOrder && !o.is_solved && !isCancelled(o) && <AdminButton variant="secondary" size="sm" onClick={event => { event.stopPropagation(); void onEdit(o); }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={14} /> Editar</AdminButton>}
                 </div></td>}
               </tr>)}</tbody>
@@ -117,8 +111,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#16a34a]" aria-hidden="true" />Aberta</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#0057e7]" aria-hidden="true" />Fechada</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#dc2626]" aria-hidden="true" />Cancelada</span>
-            <span className="inline-flex items-center gap-1.5"><span className="inline-flex items-center justify-center text-green-600" aria-hidden="true"><CheckCircle2 size={14} strokeWidth={2.5} /></span>Solucionada</span>
-            {hasActiveFilters && <span className="inline-flex items-center border-l border-[#0d1b2e]/10 pl-4 font-black text-[#0d1b2e]">Total do filtro: {totalItems} OS</span>}
+            {hasActiveFilters && <span className="inline-flex items-center border-l border-[#0d1b2e]/10 pl-4 font-normal text-[#0057e7]">Total do filtro: {totalItems} OS</span>}
           </div>
         </>
       )}
