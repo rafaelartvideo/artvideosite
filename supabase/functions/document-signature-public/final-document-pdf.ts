@@ -1,5 +1,15 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "npm:pdf-lib@1.17.1";
 import QRCode from "npm:qrcode@1.5.4";
+import { signatureKindsFromSnapshot, signatureSlotLayout } from "./base-pdf-policy.mjs";
+
+export type SignatureSlot = {
+  signer_type: "employee" | "external";
+  page_index: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 type FinalSignatureEvidence = {
   signer_type: "employee" | "external";
@@ -10,9 +20,31 @@ type FinalSignatureEvidence = {
   image_bytes?: Uint8Array | null;
 };
 
-type ChecklistMediaValue = {
+type MediaValue = {
   mime_type?: string | null;
   bytes: Uint8Array;
+};
+
+export type RenderBaseDocumentPdfInput = {
+  snapshot: any;
+  checklistMedia?: Record<string, MediaValue>;
+  companyLogo?: MediaValue | null;
+};
+
+export type RenderBaseDocumentPdfResult = {
+  pdfBytes: Uint8Array;
+  signatureSlots: SignatureSlot[];
+};
+
+export type ApplySignatureEvidenceInput = {
+  basePdfBytes: Uint8Array;
+  basePdfHash?: string | null;
+  snapshotHash: string;
+  verificationCode: string;
+  verificationUrl: string;
+  signedAt: string;
+  signatures: FinalSignatureEvidence[];
+  signatureSlots?: SignatureSlot[];
 };
 
 export type RenderSignedDocumentPdfInput = {
@@ -22,7 +54,8 @@ export type RenderSignedDocumentPdfInput = {
   verificationUrl: string;
   signedAt: string;
   signatures: FinalSignatureEvidence[];
-  checklistMedia?: Record<string, ChecklistMediaValue>;
+  checklistMedia?: Record<string, MediaValue>;
+  companyLogo?: MediaValue | null;
 };
 
 const A4 = [595.28, 841.89] as const;
@@ -42,9 +75,13 @@ function printable(value: unknown) {
     .replace(/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/g, "?");
 }
 
+function clamp(value: unknown, fallback: number, min: number, max: number) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
+}
+
 function ptFromMm(value: unknown, fallbackMm: number) {
-  const mm = Number(value);
-  return (Number.isFinite(mm) ? Math.max(5, Math.min(40, mm)) : fallbackMm) * 72 / 25.4;
+  return clamp(value, fallbackMm, 5, 40) * 72 / 25.4;
 }
 
 function dimensions(template: any) {
@@ -54,8 +91,15 @@ function dimensions(template: any) {
     : base;
 }
 
+function fontNames(template: any) {
+  const family = String(template?.layout?.font_family || "Arial");
+  if (family === "Times New Roman") return [StandardFonts.TimesRoman, StandardFonts.TimesRomanBold] as const;
+  if (family === "Courier New") return [StandardFonts.Courier, StandardFonts.CourierBold] as const;
+  return [StandardFonts.Helvetica, StandardFonts.HelveticaBold] as const;
+}
+
 function splitLines(font: PDFFont, value: unknown, size: number, maxWidth: number) {
-  const paragraphs = printable(value || "-").split(/\r?\n/);
+  const paragraphs = printable(value || "-").replaceAll("\\n", "\n").split(/\r?\n/);
   const lines: string[] = [];
   for (const paragraph of paragraphs) {
     const words = paragraph.split(/\s+/).filter(Boolean);
@@ -96,33 +140,55 @@ function dataUrlBytes(dataUrl: string) {
   return Uint8Array.from(binary, char => char.charCodeAt(0));
 }
 
-export async function renderSignedDocumentPdf(input: RenderSignedDocumentPdfInput): Promise<Uint8Array> {
+async function embedMedia(pdf: PDFDocument, media?: MediaValue | null): Promise<PDFImage | null> {
+  if (!media?.bytes?.length) return null;
+  try {
+    const mime = String(media.mime_type || "").toLowerCase();
+    if (mime.includes("png")) return await pdf.embedPng(media.bytes);
+    if (mime.includes("jpeg") || mime.includes("jpg")) return await pdf.embedJpg(media.bytes);
+    try { return await pdf.embedPng(media.bytes); } catch { return await pdf.embedJpg(media.bytes); }
+  } catch { return null; }
+}
+
+function validationLabel(method: FinalSignatureEvidence["validation_method"]) {
+  if (method === "email_otp") return "Validação por e-mail + OTP";
+  if (method === "cpf_cnpj") return "Validação por CPF/CNPJ";
+  return "Assinatura cadastrada do funcionário";
+}
+
+export async function renderBaseDocumentPdf(input: RenderBaseDocumentPdfInput): Promise<RenderBaseDocumentPdfResult> {
   const snapshot = input.snapshot || {};
   const template = snapshot.template || {};
   const company = snapshot.company || {};
   const order = snapshot.order || {};
+  const layout = template.layout || {};
   const [pageWidth, pageHeight] = dimensions(template);
   const marginLeft = ptFromMm(template.margin_left, 14);
   const marginRight = ptFromMm(template.margin_right, 14);
   const marginTop = ptFromMm(template.margin_top, 14);
   const marginBottom = ptFromMm(template.margin_bottom, 14);
   const contentWidth = pageWidth - marginLeft - marginRight;
+  const bodySize = clamp(layout.body_font_size, 9, 7, 14);
+  const labelSize = clamp(layout.label_font_size, 7, 6, 11);
+  const sectionSize = clamp(layout.section_title_font_size, 8, 7, 13);
+  const lineHeightFactor = clamp(layout.line_height, 1.25, 1.15, 1.8);
+  const sectionSpacing = clamp(layout.section_spacing, 4, 0, 18);
+  const fieldSpacing = clamp(layout.field_spacing, 2, 0, 12);
+  const showSectionBorders = layout.show_section_borders !== false;
+  const showFieldBorders = layout.show_field_borders === true;
 
   const pdf = await PDFDocument.create();
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const signedDate = new Date(input.signedAt);
-  if (!Number.isNaN(signedDate.getTime())) {
-    pdf.setCreationDate(signedDate);
-    pdf.setModificationDate(signedDate);
-  }
-  pdf.setTitle(printable(template.name || "Documento assinado"));
+  const [regularName, boldName] = fontNames(template);
+  const regular = await pdf.embedFont(regularName);
+  const bold = await pdf.embedFont(boldName);
+  pdf.setTitle(printable(template.name || "Documento"));
   pdf.setAuthor(printable(company.name || "ArtVideo"));
-  pdf.setProducer("ArtVideo - Assinatura eletrônica");
+  pdf.setProducer("ArtVideo - Documento eletrônico");
 
   let page: PDFPage;
   let y = 0;
   const pages: PDFPage[] = [];
+  const signatureSlots: SignatureSlot[] = [];
 
   const addPage = () => {
     page = pdf.addPage([pageWidth, pageHeight]);
@@ -132,153 +198,282 @@ export async function renderSignedDocumentPdf(input: RenderSignedDocumentPdfInpu
   };
 
   const ensure = (height: number) => {
-    if (y - height >= marginBottom) return;
+    if (y - height >= marginBottom + 14) return;
     addPage();
   };
 
-  const line = (value: unknown, options: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb>; gapAfter?: number; indent?: number } = {}) => {
+  const line = (value: unknown, options: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb>; gapAfter?: number; x?: number; maxWidth?: number } = {}) => {
     const font = options.font || regular;
-    const size = options.size || 9;
-    const indent = options.indent || 0;
-    const maxWidth = contentWidth - indent;
+    const size = options.size || bodySize;
+    const x = options.x ?? marginLeft;
+    const maxWidth = options.maxWidth ?? contentWidth;
     const lines = splitLines(font, value, size, maxWidth);
-    const lineHeight = size * 1.35;
+    const lineHeight = size * lineHeightFactor;
     ensure(lines.length * lineHeight + (options.gapAfter || 0));
     for (const item of lines) {
-      page.drawText(item, { x: marginLeft + indent, y: y - size, size, font, color: options.color || DARK });
+      page.drawText(item, { x, y: y - size, size, font, color: options.color || DARK });
       y -= lineHeight;
     }
     y -= options.gapAfter || 0;
   };
 
   const sectionTitle = (value: unknown) => {
-    ensure(27);
-    page.drawRectangle({ x: marginLeft, y: y - 21, width: contentWidth, height: 21, color: LIGHT, borderColor: BORDER, borderWidth: 0.6 });
-    page.drawText(printable(value).toUpperCase().slice(0, 120), { x: marginLeft + 8, y: y - 14, size: 8, font: bold, color: DARK });
-    y -= 27;
-  };
-
-  const field = (label: unknown, value: unknown) => {
-    const labelText = printable(label || "Campo");
-    const valueText = printable(value == null || value === "" ? "-" : value).replaceAll("\\n", "\n");
-    const valueLines = splitLines(regular, valueText, 9, contentWidth - 12);
-    const height = 13 + Math.max(1, valueLines.length) * 12 + 7;
-    ensure(height);
-    page.drawText(labelText.toUpperCase().slice(0, 140), { x: marginLeft + 4, y: y - 8, size: 6.8, font: bold, color: MUTED });
-    let fy = y - 20;
-    for (const item of valueLines) {
-      page.drawText(item, { x: marginLeft + 4, y: fy, size: 9, font: regular, color: DARK });
-      fy -= 12;
+    const height = sectionSize + 13;
+    ensure(height + sectionSpacing);
+    if (showSectionBorders || layout.section_style === "boxed") {
+      page.drawRectangle({ x: marginLeft, y: y - height, width: contentWidth, height, color: LIGHT, borderColor: BORDER, borderWidth: showSectionBorders ? 0.6 : 0 });
+    } else {
+      page.drawLine({ start: { x: marginLeft, y: y - height + 2 }, end: { x: marginLeft + contentWidth, y: y - height + 2 }, color: BORDER, thickness: 0.6 });
     }
-    page.drawLine({ start: { x: marginLeft, y: y - height + 3 }, end: { x: marginLeft + contentWidth, y: y - height + 3 }, color: BORDER, thickness: 0.45 });
-    y -= height;
+    page.drawText(printable(value).toUpperCase().slice(0, 120), { x: marginLeft + 7, y: y - sectionSize - 3, size: sectionSize, font: bold, color: DARK });
+    y -= height + sectionSpacing;
   };
 
-  const embedMedia = async (media: ChecklistMediaValue): Promise<PDFImage | null> => {
-    try {
-      const mime = String(media.mime_type || "").toLowerCase();
-      if (mime.includes("png")) return await pdf.embedPng(media.bytes);
-      if (mime.includes("jpeg") || mime.includes("jpg")) return await pdf.embedJpg(media.bytes);
-      try { return await pdf.embedPng(media.bytes); } catch { return await pdf.embedJpg(media.bytes); }
-    } catch { return null; }
+  const renderFieldGrid = (fields: any[], columnsRaw: unknown) => {
+    const columns = Math.max(1, Math.min(4, Math.trunc(Number(columnsRaw) || 2)));
+    const gap = 8;
+    const cellWidth = (contentWidth - gap * (columns - 1)) / columns;
+    for (let offset = 0; offset < fields.length; offset += columns) {
+      const row = fields.slice(offset, offset + columns);
+      const prepared = row.map(field => {
+        const value = field?.value == null || field.value === "" ? "-" : field.value;
+        const lines = splitLines(regular, value, bodySize, cellWidth - 12);
+        return { field, lines };
+      });
+      const valueHeight = Math.max(...prepared.map(item => Math.max(1, item.lines.length))) * bodySize * lineHeightFactor;
+      const rowHeight = labelSize * 1.35 + valueHeight + 12 + fieldSpacing;
+      ensure(rowHeight);
+      prepared.forEach((item, index) => {
+        const x = marginLeft + index * (cellWidth + gap);
+        if (showFieldBorders) page.drawRectangle({ x, y: y - rowHeight + fieldSpacing, width: cellWidth, height: rowHeight - fieldSpacing, borderColor: BORDER, borderWidth: 0.5 });
+        page.drawText(printable(item.field?.label || item.field?.key || "Campo").toUpperCase().slice(0, 120), { x: x + 5, y: y - labelSize - 2, size: labelSize, font: bold, color: MUTED });
+        let valueY = y - labelSize * 1.35 - bodySize - 5;
+        for (const textLine of item.lines) {
+          page.drawText(textLine, { x: x + 5, y: valueY, size: bodySize, font: regular, color: DARK });
+          valueY -= bodySize * lineHeightFactor;
+        }
+      });
+      y -= rowHeight;
+      if (!showFieldBorders) page.drawLine({ start: { x: marginLeft, y: y + fieldSpacing }, end: { x: marginLeft + contentWidth, y: y + fieldSpacing }, color: BORDER, thickness: 0.35 });
+    }
+  };
+
+  const renderMultilineTable = (section: any, fields: any[]) => {
+    const rows = Math.max(0, ...fields.map(field => String(field?.value ?? "").replaceAll("\\n", "\n").split("\n").length));
+    const columnWidth = contentWidth / Math.max(1, fields.length);
+    const headerHeight = 22;
+    ensure(headerHeight + 25);
+    fields.forEach((field, index) => {
+      const x = marginLeft + index * columnWidth;
+      page.drawText(printable(field.label || field.key).toUpperCase().slice(0, 60), { x: x + 4, y: y - 14, size: labelSize, font: bold, color: MUTED });
+    });
+    y -= headerHeight;
+    for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
+      const values = fields.map(field => String(field?.value ?? "").replaceAll("\\n", "\n").split("\n")[rowIndex] || "-");
+      const lineSets = values.map(value => splitLines(regular, value, bodySize, columnWidth - 8));
+      const rowHeight = Math.max(...lineSets.map(lines => Math.max(1, lines.length))) * bodySize * lineHeightFactor + 9;
+      ensure(rowHeight);
+      lineSets.forEach((lines, index) => {
+        const x = marginLeft + index * columnWidth + 4;
+        let ty = y - bodySize - 2;
+        for (const item of lines) { page.drawText(item, { x, y: ty, size: bodySize, font: regular, color: DARK }); ty -= bodySize * lineHeightFactor; }
+      });
+      page.drawLine({ start: { x: marginLeft, y: y - rowHeight + 2 }, end: { x: marginLeft + contentWidth, y: y - rowHeight + 2 }, color: BORDER, thickness: 0.35 });
+      y -= rowHeight;
+    }
+    if (!rows) line(`Nenhum item em ${section?.label || "esta seção"}.`, { size: bodySize, color: MUTED, gapAfter: 3 });
   };
 
   addPage();
-  line(company.name || "Empresa", { font: bold, size: 10, color: BLUE, gapAfter: 2 });
-  line(template.name || "Documento", { font: bold, size: 17, gapAfter: 3 });
+  const logo = template.show_logo !== false ? await embedMedia(pdf, input.companyLogo) : null;
+  if (logo) {
+    const maxW = 54;
+    const maxH = 34;
+    const scale = Math.min(maxW / logo.width, maxH / logo.height, 1);
+    page.drawImage(logo, { x: marginLeft, y: y - logo.height * scale, width: logo.width * scale, height: logo.height * scale });
+    const headerX = marginLeft + 64;
+    page.drawText(printable(company.name || "Empresa"), { x: headerX, y: y - 10, size: 10, font: bold, color: BLUE });
+    page.drawText(printable(template.name || "Documento"), { x: headerX, y: y - 28, size: 16, font: bold, color: DARK });
+    y -= 43;
+  } else {
+    line(company.name || "Empresa", { font: bold, size: 10, color: BLUE, gapAfter: 2 });
+    line(template.name || "Documento", { font: bold, size: 17, gapAfter: 3 });
+  }
   line(`OS ${order.os_number || "-"}${order.external_os_number ? ` | Externa ${order.external_os_number}` : ""}`, { font: bold, size: 9, color: MUTED, gapAfter: 3 });
   if (template.header_text) line(template.header_text, { size: 8.5, color: MUTED, gapAfter: 5 });
-  const companyDetails = [company.document, company.phone, company.email, company.address].filter(Boolean).join(" | ");
-  if (companyDetails) line(companyDetails, { size: 7.5, color: MUTED, gapAfter: 8 });
+  if (template.show_company_info !== false) {
+    const companyDetails = [company.document, company.phone, company.email, company.address].filter(Boolean).join(" | ");
+    if (companyDetails) line(companyDetails, { size: 7.5, color: MUTED, gapAfter: 8 });
+  }
 
   for (const section of Array.isArray(snapshot.sections) ? snapshot.sections : []) {
     const visibleFields = (Array.isArray(section?.fields) ? section.fields : []).filter((item: any) => item?.kind !== "signature");
     if (!visibleFields.length) continue;
     sectionTitle(section.label || section.key || "Informações");
-    for (const item of visibleFields) field(item.label || item.key, item.value);
-    y -= 5;
+    if (["used_parts", "part_requests"].includes(String(section.key))) renderMultilineTable(section, visibleFields);
+    else renderFieldGrid(visibleFields, section.columns || 2);
+    y -= sectionSpacing;
   }
 
   for (const stage of Array.isArray(snapshot.checklists) ? snapshot.checklists : []) {
     sectionTitle(`Checklist - ${stage.name || stage.stage_code || "Etapa"}`);
     if (stage.situation_name) line(`Situação: ${stage.situation_name}`, { size: 7.5, color: MUTED, gapAfter: 3 });
     for (const item of Array.isArray(stage.items) ? stage.items : []) {
-      field(item.title || "Item", `${checklistAnswer(item)}${item.observation ? `\nObservação: ${item.observation}` : ""}`);
+      const answer = `${checklistAnswer(item)}${item.observation ? ` | Observação: ${item.observation}` : ""}`;
+      renderFieldGrid([{ label: item.title || "Item", value: answer }], 1);
       const mediaRows = Array.isArray(item.media) ? item.media : [];
+      const images: PDFImage[] = [];
       for (const mediaRef of mediaRows) {
         const media = input.checklistMedia?.[String(mediaRef.media_id || "")];
-        if (!media) continue;
-        const image = await embedMedia(media);
-        if (!image) continue;
-        const maxW = Math.min(180, contentWidth);
-        const maxH = 120;
-        const scale = Math.min(maxW / image.width, maxH / image.height, 1);
-        const width = image.width * scale;
-        const height = image.height * scale;
-        ensure(height + 13);
-        page.drawImage(image, { x: marginLeft + 4, y: y - height, width, height });
-        y -= height + 13;
+        const image = await embedMedia(pdf, media);
+        if (image) images.push(image);
+      }
+      for (let offset = 0; offset < images.length; offset += 3) {
+        const group = images.slice(offset, offset + 3);
+        const gap = 8;
+        const maxW = Math.min(165, (contentWidth - gap * 2) / 3);
+        const maxH = 105;
+        const scaled = group.map(image => {
+          const scale = Math.min(maxW / image.width, maxH / image.height, 1);
+          return { image, width: image.width * scale, height: image.height * scale };
+        });
+        const height = Math.max(...scaled.map(item => item.height), 0);
+        ensure(height + 12);
+        scaled.forEach((item, index) => page.drawImage(item.image, { x: marginLeft + index * (maxW + gap), y: y - item.height, width: item.width, height: item.height }));
+        y -= height + 12;
       }
     }
-    y -= 5;
+    y -= sectionSpacing;
   }
 
-  sectionTitle("Assinaturas");
-  for (const signature of input.signatures) {
-    ensure(105);
-    const imageBytes = signature.image_bytes || null;
-    if (imageBytes) {
-      try {
-        const image = await pdf.embedPng(imageBytes);
-        const maxW = Math.min(175, contentWidth * 0.45);
-        const maxH = 58;
-        const scale = Math.min(maxW / image.width, maxH / image.height, 1);
-        const width = image.width * scale;
-        const height = image.height * scale;
-        page.drawImage(image, { x: marginLeft + 8, y: y - height, width, height });
-      } catch { /* evidence text remains */ }
-    }
-    y -= 62;
-    page.drawLine({ start: { x: marginLeft + 4, y }, end: { x: marginLeft + Math.min(230, contentWidth * 0.48), y }, color: DARK, thickness: 0.65 });
-    y -= 13;
-    line(signature.signer_type === "employee" ? "Assinatura do funcionário" : "Assinatura do cliente/responsável", { font: bold, size: 7.5, gapAfter: 1, indent: 4 });
-    line(signature.signer_name || "-", { size: 8.5, gapAfter: 0, indent: 4 });
-    if (signature.signer_document_masked) line(signature.signer_document_masked, { size: 7.2, color: MUTED, indent: 4 });
-    const validationLabel = signature.validation_method === "email_otp"
-      ? "Validação por e-mail + OTP"
-      : signature.validation_method === "cpf_cnpj"
-        ? "Validação por CPF/CNPJ"
-        : "Assinatura cadastrada do funcionário";
-    line(`${validationLabel} | ${new Date(signature.signed_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { size: 6.8, color: MUTED, gapAfter: 7, indent: 4 });
-  }
-
-  ensure(250);
-  sectionTitle("Autenticidade da assinatura eletrônica");
-  line(`Código de verificação: ${input.verificationCode}`, { font: bold, size: 10, color: BLUE, gapAfter: 4 });
-  line(`Assinado em: ${new Date(input.signedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { size: 8.5, gapAfter: 3 });
-  line(`Hash do conteúdo congelado (SHA-256): ${input.snapshotHash}`, { size: 6.8, color: MUTED, gapAfter: 4 });
-  line(`Verifique a autenticidade em: ${input.verificationUrl}`, { size: 7.2, color: MUTED, gapAfter: 8 });
-  try {
-    const qrDataUrl = await QRCode.toDataURL(input.verificationUrl, { margin: 1, width: 220, errorCorrectionLevel: "M" });
-    const qr = await pdf.embedPng(dataUrlBytes(qrDataUrl));
-    ensure(112);
-    page.drawImage(qr, { x: marginLeft, y: y - 105, width: 105, height: 105 });
-    page.drawText("QR Code de verificação", { x: marginLeft + 118, y: y - 24, size: 8, font: bold, color: DARK });
-    page.drawText("A página pública confirma os hashes e as evidências mínimas", { x: marginLeft + 118, y: y - 40, size: 6.8, font: regular, color: MUTED });
-    page.drawText("sem expor CPF/CNPJ completo, e-mail, IP ou o documento integral.", { x: marginLeft + 118, y: y - 53, size: 6.8, font: regular, color: MUTED });
-    y -= 116;
-  } catch { /* URL textual already provides verification path */ }
-
-  if (template.footer_text) {
-    ensure(35);
-    line(template.footer_text, { size: 7.2, color: MUTED, gapAfter: 4 });
+  const signatureKinds = signatureKindsFromSnapshot(snapshot);
+  if (signatureKinds.length) {
+    sectionTitle("Assinaturas");
+    const slotHeight = 92;
+    ensure(slotHeight + 8);
+    const topY = y;
+    const planned = signatureSlotLayout(signatureKinds, marginLeft, contentWidth);
+    planned.forEach((slot: any) => {
+      const lineY = topY - 58;
+      page.drawLine({ start: { x: slot.x + 4, y: lineY }, end: { x: slot.x + slot.width - 4, y: lineY }, color: DARK, thickness: 0.65 });
+      const label = slot.signer_type === "external" ? "Assinatura do cliente/responsável" : "Assinatura do funcionário";
+      page.drawText(label, { x: slot.x + 4, y: lineY - 13, size: 7.4, font: bold, color: DARK });
+      signatureSlots.push({
+        signer_type: slot.signer_type,
+        page_index: pages.length - 1,
+        x: slot.x + 6,
+        y: lineY + 4,
+        width: slot.width - 12,
+        height: 50,
+      });
+    });
+    y -= slotHeight;
   }
 
   const pageCount = pages.length;
   pages.forEach((currentPage, index) => {
-    const footer = `Documento assinado eletronicamente | ${input.verificationCode}${template.show_page_number !== false ? ` | Página ${index + 1}/${pageCount}` : ""}`;
-    currentPage.drawText(printable(footer), { x: marginLeft, y: Math.max(10, marginBottom * 0.45), size: 6.5, font: regular, color: MUTED });
+    const footerParts = [template.footer_text ? printable(template.footer_text) : "", template.show_page_number !== false ? `Página ${index + 1}/${pageCount}` : ""].filter(Boolean);
+    if (footerParts.length) currentPage.drawText(footerParts.join(" | ").slice(0, 220), { x: marginLeft, y: Math.max(10, marginBottom * 0.42), size: 6.5, font: regular, color: MUTED });
   });
 
+  return {
+    pdfBytes: await pdf.save({ useObjectStreams: false, addDefaultPage: false }),
+    signatureSlots,
+  };
+}
+
+export async function applySignatureEvidenceToBasePdf(input: ApplySignatureEvidenceInput): Promise<Uint8Array> {
+  const pdf = await PDFDocument.load(input.basePdfBytes, { updateMetadata: false });
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const slots = Array.isArray(input.signatureSlots) ? input.signatureSlots : [];
+
+  for (const signature of input.signatures) {
+    const slot = slots.find(item => item.signer_type === signature.signer_type);
+    if (!slot || !signature.image_bytes?.length) continue;
+    const page = pdf.getPages()[slot.page_index];
+    if (!page) continue;
+    try {
+      const image = await pdf.embedPng(signature.image_bytes);
+      const scale = Math.min(slot.width / image.width, slot.height / image.height, 1);
+      const width = image.width * scale;
+      const height = image.height * scale;
+      page.drawImage(image, {
+        x: slot.x + (slot.width - width) / 2,
+        y: slot.y + Math.max(0, (slot.height - height) / 2),
+        width,
+        height,
+      });
+    } catch { /* textual evidence remains on authenticity page */ }
+  }
+
+  const lastPage = pdf.getPages()[pdf.getPageCount() - 1];
+  const size = lastPage?.getSize() || { width: A4[0], height: A4[1] };
+  const auth = pdf.addPage([size.width, size.height]);
+  const left = 42;
+  const top = size.height - 48;
+  const maxWidth = size.width - 84;
+  auth.drawText("AUTENTICIDADE DA ASSINATURA ELETRÔNICA", { x: left, y: top, size: 13, font: bold, color: DARK });
+  auth.drawText(`Código de verificação: ${printable(input.verificationCode)}`, { x: left, y: top - 25, size: 10, font: bold, color: BLUE });
+  auth.drawText(`Assinado em: ${new Date(input.signedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { x: left, y: top - 43, size: 8.5, font: regular, color: DARK });
+  let y = top - 66;
+  if (input.basePdfHash) {
+    auth.drawText("Hash do PDF-base visualizado pelo assinante (SHA-256):", { x: left, y, size: 7.2, font: bold, color: MUTED });
+    y -= 12;
+    splitLines(regular, input.basePdfHash, 6.7, maxWidth).forEach(item => { auth.drawText(item, { x: left, y, size: 6.7, font: regular, color: MUTED }); y -= 10; });
+    y -= 4;
+  }
+  auth.drawText("Hash do conteúdo congelado (SHA-256):", { x: left, y, size: 7.2, font: bold, color: MUTED });
+  y -= 12;
+  splitLines(regular, input.snapshotHash, 6.7, maxWidth).forEach(item => { auth.drawText(item, { x: left, y, size: 6.7, font: regular, color: MUTED }); y -= 10; });
+  y -= 8;
+
+  for (const signature of input.signatures) {
+    if (y < 210) break;
+    auth.drawText(signature.signer_type === "employee" ? "Funcionário" : "Cliente / responsável", { x: left, y, size: 7.4, font: bold, color: BLUE });
+    y -= 14;
+    auth.drawText(printable(signature.signer_name || "-"), { x: left, y, size: 9, font: bold, color: DARK });
+    y -= 13;
+    if (signature.signer_document_masked) { auth.drawText(printable(signature.signer_document_masked), { x: left, y, size: 7.3, font: regular, color: MUTED }); y -= 12; }
+    auth.drawText(`${validationLabel(signature.validation_method)} | ${new Date(signature.signed_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { x: left, y, size: 7.2, font: regular, color: MUTED });
+    if (signature.image_bytes?.length) {
+      try {
+        const image = await pdf.embedPng(signature.image_bytes);
+        const maxW = 150;
+        const maxH = 44;
+        const scale = Math.min(maxW / image.width, maxH / image.height, 1);
+        auth.drawImage(image, { x: size.width - left - image.width * scale, y: y - 10, width: image.width * scale, height: image.height * scale });
+      } catch { /* optional on evidence page */ }
+    }
+    y -= 28;
+  }
+
+  auth.drawText(`Verifique a autenticidade em: ${printable(input.verificationUrl)}`.slice(0, 220), { x: left, y: 156, size: 7.2, font: regular, color: MUTED });
+  try {
+    const qrDataUrl = await QRCode.toDataURL(input.verificationUrl, { margin: 1, width: 220, errorCorrectionLevel: "M" });
+    const qr = await pdf.embedPng(dataUrlBytes(qrDataUrl));
+    auth.drawImage(qr, { x: left, y: 36, width: 105, height: 105 });
+    auth.drawText("QR Code de verificação", { x: left + 118, y: 118, size: 8, font: bold, color: DARK });
+    auth.drawText("A página pública confirma os hashes e as evidências mínimas", { x: left + 118, y: 101, size: 6.8, font: regular, color: MUTED });
+    auth.drawText("sem expor CPF/CNPJ completo, e-mail, IP ou o documento integral.", { x: left + 118, y: 88, size: 6.8, font: regular, color: MUTED });
+  } catch { /* textual verification URL remains */ }
+
+  const signedDate = new Date(input.signedAt);
+  if (!Number.isNaN(signedDate.getTime())) pdf.setModificationDate(signedDate);
+  pdf.setProducer("ArtVideo - Assinatura eletrônica");
   return await pdf.save({ useObjectStreams: false, addDefaultPage: false });
+}
+
+export async function renderSignedDocumentPdf(input: RenderSignedDocumentPdfInput): Promise<Uint8Array> {
+  const base = await renderBaseDocumentPdf({ snapshot: input.snapshot, checklistMedia: input.checklistMedia, companyLogo: input.companyLogo });
+  return applySignatureEvidenceToBasePdf({
+    basePdfBytes: base.pdfBytes,
+    basePdfHash: null,
+    snapshotHash: input.snapshotHash,
+    verificationCode: input.verificationCode,
+    verificationUrl: input.verificationUrl,
+    signedAt: input.signedAt,
+    signatures: input.signatures,
+    signatureSlots: base.signatureSlots,
+  });
 }
