@@ -29,7 +29,7 @@ export type PartnerUserInput = {
   full_name: string;
   cpf: string;
   phone: string | null;
-  email?: string;
+  username?: string;
   password?: string;
   function_name: string | null;
   role_id: string;
