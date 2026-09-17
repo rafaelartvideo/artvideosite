@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, Package } from "lucide-react";
 import { buildInstallments, inventoryPurchaseTotal } from "@/features/finance/domain/finance-integration.mjs";
@@ -103,10 +103,11 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
   const item = dataQuery.data?.item as any;
   const suppliers = (dataQuery.data?.suppliers || []).filter((supplier: any) => supplier.is_active !== false);
 
-  if (item && initializedItemId !== item.id) {
+  useEffect(() => {
+    if (!item || initializedItemId === item.id) return;
     setInitializedItemId(item.id);
     setForm(current => ({ ...current, input_unit: item.unit === "cx" ? "cx" : "un" }));
-  }
+  }, [item, initializedItemId]);
 
   const quantity = Number(form.quantity || 0);
   const cost = Number(form.input_unit_cost || 0);
@@ -117,7 +118,6 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
   const purchaseTotal = useMemo(() => inventoryPurchaseTotal({ quantity, unitCost: cost, discount, freight, otherCosts }), [quantity, cost, discount, freight, otherCosts]);
   const inputUnit = form.type === "adjust" ? (item?.unit === "cx" ? "cx" : "un") : form.input_unit;
   const baseQuantity = inputUnit === "cx" ? quantity * conversionFactor(item) : quantity;
-
   const changeType = (type: MovementType) => {
     setForm(emptyForm(type === "adjust" ? (item?.unit === "cx" ? "cx" : "un") : (item?.unit === "cx" ? "cx" : "un")));
     setForm(current => ({ ...current, type }));
