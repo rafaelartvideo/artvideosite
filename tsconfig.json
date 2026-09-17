@@ -17,6 +17,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
+      "@/features/documents/domain/order-print-document": ["src/features/documents/domain/order-print-document-canonical.ts"],
       "@/*": ["src/*"]
     },
     "types": ["vite/client"]
