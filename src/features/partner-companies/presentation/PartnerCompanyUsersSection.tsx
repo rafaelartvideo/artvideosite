@@ -1,17 +1,18 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Users } from "lucide-react";
-import { isValidBrazilianPhone, isValidCpf, isValidEmail } from "@/shared/domain/formatters";
+import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
+import { isValidBrazilianPhone, isValidCpf } from "@/shared/domain/formatters";
 import { AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { FCpfInput, FEmailInput, FInput, FPhoneInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FCpfInput, FInput, FPhoneInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { createPartnerUser, listPartnerRoles, listPartnerUsers, updatePartnerUser } from "../infrastructure/partner-companies.repository";
 
 type Form = {
   full_name: string;
   cpf: string;
   phone: string;
-  email: string;
+  username: string;
   password: string;
   function_name: string;
   role_id: string;
@@ -25,7 +26,7 @@ const empty: Form = {
   full_name: "",
   cpf: "",
   phone: "",
-  email: "",
+  username: "",
   password: "",
   function_name: "",
   role_id: "",
@@ -40,10 +41,10 @@ function validateUser(form: Form, editing: boolean): FormErrors {
   if (!form.full_name.trim()) errors.full_name = "Informe o nome completo.";
   if (!isValidCpf(form.cpf)) errors.cpf = "Informe um CPF válido.";
   if (form.phone && !isValidBrazilianPhone(form.phone)) errors.phone = "Informe um telefone brasileiro válido.";
-  if (!editing && !form.email.trim()) errors.email = "Informe o e-mail do usuário.";
-  else if (form.email && !isValidEmail(form.email)) errors.email = "Informe um e-mail válido.";
+  if (!editing && !form.username.trim()) errors.username = "Informe o usuário de acesso.";
+  else if (form.username && !isValidUsername(form.username)) errors.username = "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado.";
   if (!form.role_id) errors.role_id = "Selecione uma função.";
-  if (!editing && form.password && form.password.length < 8) errors.password = "A senha temporária deve ter pelo menos 8 caracteres.";
+  if (!editing && form.password && form.password.length < 8) errors.password = "A senha deve ter pelo menos 8 caracteres.";
   return errors;
 }
 
@@ -85,7 +86,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
         full_name: form.full_name.trim(),
         cpf: form.cpf,
         phone: form.phone.trim() || null,
-        email: form.email.trim(),
+        username: normalizeUsername(form.username),
         password: form.password,
         function_name: form.function_name.trim() || null,
         role_id: form.role_id,
@@ -132,7 +133,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
       full_name: user.full_name || "",
       cpf: user.cpf || "",
       phone: user.phone || "",
-      email: user.email || "",
+      username: user.username || "",
       password: "",
       function_name: user.function_name || "",
       role_id: user.role_id || "",
@@ -180,8 +181,29 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
           <FInput label="Nome completo" required error={errors.full_name} value={form.full_name} onChange={(e: any) => setField("full_name", e.target.value)} />
           <FCpfInput label="CPF" required error={errors.cpf} value={form.cpf} onChange={(e: any) => setField("cpf", e.target.value)} />
           <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(e: any) => setField("phone", e.target.value)} />
-          <FEmailInput label="E-mail" required={!editing} disabled={Boolean(editing)} error={errors.email} value={form.email} onChange={(e: any) => setField("email", e.target.value)} />
-          {!editing && <FInput label="Senha temporária" type="password" error={errors.password} hint="Se informada, deve ter no mínimo 8 caracteres. Login existente pode ser reutilizado pelo e-mail." value={form.password} onChange={(e: any) => setField("password", e.target.value)} />}
+          <FInput
+            label="Usuário"
+            required={!editing}
+            disabled={Boolean(editing)}
+            error={errors.username}
+            autoComplete="username"
+            spellCheck={false}
+            maxLength={32}
+            placeholder="ex.: rafael.lima"
+            hint={editing ? "O usuário de acesso é global e não é alterado por esta edição." : "O usuário é global e único em todo o sistema."}
+            value={form.username}
+            onChange={(e: any) => setField("username", normalizeUsername(e.target.value))}
+          />
+          {!editing && <FInput
+            label="Senha"
+            type="password"
+            autoComplete="new-password"
+            minLength={8}
+            error={errors.password}
+            hint="Obrigatória para um usuário novo. Se este usuário já existir, deixe em branco para apenas vinculá-lo à empresa."
+            value={form.password}
+            onChange={(e: any) => setField("password", e.target.value)}
+          />}
           <FSelect label="Função" required error={errors.role_id} value={form.role_id} options={roleOptions} onChange={(e: any) => setField("role_id", e.target.value)} />
           <FInput label="Cargo/Função exibida" value={form.function_name} onChange={(e: any) => setField("function_name", e.target.value)} />
           <div className="space-y-3 sm:col-span-2">
@@ -197,7 +219,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
         </div>
       </AdminCardContent>}
 
-      {usersQuery.isPending ? <LoadingState /> : usersQuery.isError ? <AdminCardContent><p className="text-sm font-semibold text-red-700">{(usersQuery.error as any)?.message || "Não foi possível carregar os usuários."}</p></AdminCardContent> : (usersQuery.data || []).length === 0 ? <AdminCardContent><EmptyState icon={Users} title="Nenhum usuário vinculado" message="Esta empresa ainda não possui usuários cadastrados." /></AdminCardContent> : <div className="overflow-x-auto"><table className="min-w-[760px]"><thead><tr><th className="text-left">Usuário</th><th className="text-left">E-mail</th><th className="text-left">Função</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{(usersQuery.data || []).map((user: any) => <tr key={user.membership_id}><td><p className="font-bold text-[#0d1b2e]">{user.full_name || "—"}</p><p className="text-xs text-[#5a6a82]">{user.phone || user.cpf || "—"}</p></td><td>{user.email || "—"}</td><td>{user.role_name || user.function_name || "Sem função"}</td><td><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{statusLabel(user.status)}</span></td><td><div className="flex justify-end"><AdminIconButton title="Editar usuário" onClick={() => openEdit(user)}><Edit2 size={14} /></AdminIconButton></div></td></tr>)}</tbody></table></div>}
+      {usersQuery.isPending ? <LoadingState /> : usersQuery.isError ? <AdminCardContent><p className="text-sm font-semibold text-red-700">{(usersQuery.error as any)?.message || "Não foi possível carregar os usuários."}</p></AdminCardContent> : (usersQuery.data || []).length === 0 ? <AdminCardContent><EmptyState icon={Users} title="Nenhum usuário vinculado" message="Esta empresa ainda não possui usuários cadastrados." /></AdminCardContent> : <div className="overflow-x-auto"><table className="min-w-[760px]"><thead><tr><th className="text-left">Usuário</th><th className="text-left">Login</th><th className="text-left">Função</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{(usersQuery.data || []).map((user: any) => <tr key={user.membership_id}><td><p className="font-bold text-[#0d1b2e]">{user.full_name || "—"}</p><p className="text-xs text-[#5a6a82]">{user.phone || user.cpf || "—"}</p></td><td>{user.username || "—"}</td><td>{user.role_name || user.function_name || "Sem função"}</td><td><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{statusLabel(user.status)}</span></td><td><div className="flex justify-end"><AdminIconButton title="Editar usuário" onClick={() => openEdit(user)}><Edit2 size={14} /></AdminIconButton></div></td></tr>)}</tbody></table></div>}
     </AdminCard>
   </div>;
 }

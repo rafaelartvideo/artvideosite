@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -40,16 +40,35 @@ function respond(request: Request, body: unknown, status = 200) {
   });
 }
 
+const usernamePattern = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+
 function isUuid(value: unknown) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value ?? ""));
 }
 
-function normalizeEmail(value: unknown) {
-  return String(value ?? "").trim().replace(/\s+/g, "").toLowerCase();
+function normalizeUsername(value: unknown) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function validUsername(value: string) {
+  return usernamePattern.test(value);
 }
 
 function normalizeDigits(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
+}
+
+function internalAuthEmail() {
+  return `partner-${crypto.randomUUID()}@auth.artvideo.app`;
+}
+
+function authFailureMessage(error: any) {
+  const code = String(error?.code ?? "").toLowerCase();
+  const message = String(error?.message ?? "").toLowerCase();
+  if (code === "weak_password" || code.includes("password") || message.includes("password")) {
+    return "A senha informada não atende aos requisitos de segurança.";
+  }
+  return "Não foi possível criar o usuário de acesso.";
 }
 
 async function hasRolePermission(roleId: string | null, permissionKey: string) {
@@ -97,37 +116,32 @@ async function getActiveRole(roleId: string) {
   return data?.is_active === false ? null : data;
 }
 
-async function findAuthUserByEmail(email: string) {
-  const perPage = 1000;
-  for (let page = 1; page <= 20; page += 1) {
-    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
-    if (error) throw error;
-    const found = data.users.find((user) => user.email?.trim().toLowerCase() === email);
-    if (found) return found;
-    if (data.users.length < perPage) return null;
-  }
-  return null;
+async function findProfileByUsername(username: string) {
+  const { data, error } = await adminClient
+    .from("profiles")
+    .select("id,username,is_active,role_id")
+    .eq("username", username)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 async function listPartnerUsers(organizationId: string) {
-  const [{ data: members, error: membersError }, { data: employees, error: employeesError }, authUsersResult] = await Promise.all([
+  const [{ data: members, error: membersError }, { data: employees, error: employeesError }] = await Promise.all([
     adminClient
       .from("organization_members")
-      .select("id,organization_id,user_id,role_id,status,is_owner,joined_at,profile:profiles!user_id(id,full_name,is_active),role:roles(id,name)")
+      .select("id,organization_id,user_id,role_id,status,is_owner,joined_at,profile:profiles!organization_members_user_id_fkey(id,full_name,username,is_active),role:roles(id,name)")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: true }),
     adminClient
       .from("employees")
       .select("id,profile_id,full_name,cpf,phone,function_name,role_id,is_active")
       .eq("organization_id", organizationId),
-    adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 }),
   ]);
   if (membersError) throw membersError;
   if (employeesError) throw employeesError;
-  if (authUsersResult.error) throw authUsersResult.error;
 
   const employeeByProfile = new Map((employees ?? []).map((employee: any) => [employee.profile_id, employee]));
-  const emailByUser = new Map(authUsersResult.data.users.map((authUser) => [authUser.id, authUser.email ?? null]));
 
   return (members ?? []).map((member: any) => {
     const employee = employeeByProfile.get(member.user_id) as any;
@@ -141,7 +155,7 @@ async function listPartnerUsers(organizationId: string) {
       is_owner: member.is_owner === true,
       joined_at: member.joined_at,
       full_name: employee?.full_name ?? member.profile?.full_name ?? "",
-      email: emailByUser.get(member.user_id) ?? null,
+      username: member.profile?.username ?? "",
       cpf: employee?.cpf ?? "",
       phone: employee?.phone ?? "",
       function_name: employee?.function_name ?? member.role?.name ?? "",
@@ -226,25 +240,41 @@ Deno.serve(async (request) => {
         return respond(request, { error: "Ative a empresa antes de cadastrar novos usuários." }, 400);
       }
 
-      const email = normalizeEmail(body?.email);
+      const username = normalizeUsername(body?.username);
       const password = String(body?.password ?? "");
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return respond(request, { error: "Informe um e-mail válido." }, 400);
+      if (!validUsername(username)) {
+        return respond(request, { error: "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado." }, 400);
       }
 
-      let authUser = await findAuthUserByEmail(email);
+      let existingProfile = await findProfileByUsername(username);
+      let authUser: any = null;
       let createdAuthUserId: string | null = null;
       let createdMembership = false;
 
       try {
-        if (!authUser) {
-          if (password.length < 8) return respond(request, { error: "A senha temporária deve ter pelo menos 8 caracteres." }, 400);
+        if (existingProfile) {
+          if (existingProfile.is_active === false) {
+            return respond(request, { error: "O usuário já existe, mas o perfil global está inativo." }, 400);
+          }
+          const authResult = await adminClient.auth.admin.getUserById(existingProfile.id);
+          if (authResult.error || !authResult.data.user) {
+            return respond(request, { error: "O usuário existente não possui um login válido no sistema." }, 400);
+          }
+          authUser = authResult.data.user;
+        } else {
+          if (password.length < 8) {
+            return respond(request, { error: "A senha deve ter pelo menos 8 caracteres para um novo usuário." }, 400);
+          }
+          const authEmail = internalAuthEmail();
           const { data: createdAuth, error: createAuthError } = await adminClient.auth.admin.createUser({
-            email,
+            email: authEmail,
             password,
             email_confirm: true,
+            user_metadata: { full_name: fullName, username },
           });
-          if (createAuthError || !createdAuth.user) throw createAuthError ?? new Error("Não foi possível criar o login.");
+          if (createAuthError || !createdAuth.user) {
+            return respond(request, { error: authFailureMessage(createAuthError) }, 400);
+          }
           authUser = createdAuth.user;
           createdAuthUserId = authUser.id;
         }
@@ -258,28 +288,28 @@ Deno.serve(async (request) => {
         if (membershipLookupError) throw membershipLookupError;
         if (existingMembership) return respond(request, { error: "Este usuário já pertence à empresa selecionada." }, 400);
 
-        const { data: existingProfile, error: profileLookupError } = await adminClient
-          .from("profiles")
-          .select("id,is_active,role_id")
-          .eq("id", authUser.id)
-          .maybeSingle();
-        if (profileLookupError) throw profileLookupError;
-        if (existingProfile?.is_active === false) {
-          return respond(request, { error: "O usuário já existe, mas o perfil global está inativo." }, 400);
-        }
-
         if (!existingProfile) {
-          const { error: profileInsertError } = await adminClient.from("profiles").insert({
+          const { error: profileUpsertError } = await adminClient.from("profiles").upsert({
             id: authUser.id,
+            username,
             full_name: fullName,
+            email: authUser.email ?? null,
+            phone,
             role_id: roleId,
             is_active: true,
+            updated_at: new Date().toISOString(),
           });
-          if (profileInsertError) throw profileInsertError;
+          if (profileUpsertError) {
+            if (String((profileUpsertError as any)?.code ?? "") === "23505") {
+              return respond(request, { error: "Este usuário já está em uso." }, 409);
+            }
+            throw profileUpsertError;
+          }
+          existingProfile = await findProfileByUsername(username);
         } else {
           const { error: profileUpdateError } = await adminClient
             .from("profiles")
-            .update({ full_name: fullName })
+            .update({ full_name: fullName, updated_at: new Date().toISOString() })
             .eq("id", authUser.id);
           if (profileUpdateError) throw profileUpdateError;
         }
@@ -327,6 +357,7 @@ Deno.serve(async (request) => {
         return respond(request, {
           success: true,
           user_id: authUser.id,
+          username,
           reused_existing_login: createdAuthUserId === null,
         });
       } catch (error) {
@@ -395,7 +426,7 @@ Deno.serve(async (request) => {
 
     const { error: profileNameError } = await adminClient
       .from("profiles")
-      .update({ full_name: fullName })
+      .update({ full_name: fullName, updated_at: new Date().toISOString() })
       .eq("id", userId);
     if (profileNameError) throw profileNameError;
 
