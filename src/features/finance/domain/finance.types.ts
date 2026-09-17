@@ -94,6 +94,7 @@ export interface FinancialEntry {
   counterpart_document_snapshot: string | null;
   origin_type: FinancialEntryOriginType;
   origin_reference: string | null;
+  source_details: Record<string, unknown>;
   notes: string | null;
   created_by: string | null;
   updated_by: string | null;
