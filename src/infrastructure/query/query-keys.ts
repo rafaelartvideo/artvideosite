@@ -76,6 +76,8 @@ export const queryKeys = {
     settings: (organizationId: string) => ["finance", "settings", organizationId] as const,
     entries: (organizationId: string, type: "payable" | "receivable") => ["finance", organizationId, "entries", type] as const,
     entry: (organizationId: string, id: string) => ["finance", organizationId, "entry", id] as const,
+    approvals: (organizationId: string, id: string) => ["finance", organizationId, "approvals", id] as const,
+    pendingApprovals: (organizationId: string) => ["finance", organizationId, "pending-approvals"] as const,
     counterparties: (organizationId: string, type: "payable" | "receivable") => ["finance", organizationId, "counterparties", type] as const,
   },
   appointments: {
