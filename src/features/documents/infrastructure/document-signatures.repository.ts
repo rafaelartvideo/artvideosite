@@ -4,8 +4,11 @@ import type {
   DocumentSignatureAuditEvent,
   DocumentSignatureRequestSummary,
 } from "../domain/document-signature";
+import type { FrozenOrderPrintPdf } from "../domain/order-print-pdf-freeze";
 
 const FUNCTION_NAME = "document-signature-admin";
+const PDF_FUNCTION_NAME = "document-signature-pdf";
+const SIGNED_DOCUMENTS_BUCKET = "signed-documents";
 
 export type DocumentSignatureEmployeeCandidate = {
   entity_id: string;
@@ -31,6 +34,15 @@ async function invokeSignatureAdmin<T>(action: string, payload: Record<string, u
   return data as T & { success: true };
 }
 
+async function invokeSignaturePdf<T>(action: string, payload: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke(PDF_FUNCTION_NAME, {
+    body: { action, ...payload },
+  });
+  if (error) throw error;
+  if (!data || data.success !== true) throw new Error(String(data?.error || "Não foi possível preparar o PDF para assinatura."));
+  return data as T & { success: true };
+}
+
 export async function createSignatureRequest(input: CreateDocumentSignatureRequestInput) {
   return invokeSignatureAdmin<{
     request: DocumentSignatureRequestSummary;
@@ -38,6 +50,30 @@ export async function createSignatureRequest(input: CreateDocumentSignatureReque
     email_warning?: string | null;
     finalization_warning?: string | null;
   }>("create", input as unknown as Record<string, unknown>);
+}
+
+export async function attachFrozenPrintPdf(
+  organizationId: string,
+  requestId: string,
+  frozenPdf: FrozenOrderPrintPdf,
+) {
+  const prepared = await invokeSignaturePdf<{ storage_path: string; upload_token: string }>("prepare_upload", {
+    organization_id: organizationId,
+    request_id: requestId,
+  });
+  const { error: uploadError } = await supabase.storage
+    .from(SIGNED_DOCUMENTS_BUCKET)
+    .uploadToSignedUrl(prepared.storage_path, prepared.upload_token, frozenPdf.blob, {
+      contentType: "application/pdf",
+      cacheControl: "3600",
+    });
+  if (uploadError) throw uploadError;
+  return invokeSignaturePdf<{ base_pdf_hash: string; page_count: number; final_pdf_hash?: string | null }>("commit_base_pdf", {
+    organization_id: organizationId,
+    request_id: requestId,
+    page_count: frozenPdf.page_count,
+    signature_slots: frozenPdf.signature_slots,
+  });
 }
 
 export async function listOrderSignatureRequests(organizationId: string, serviceOrderId: string) {
