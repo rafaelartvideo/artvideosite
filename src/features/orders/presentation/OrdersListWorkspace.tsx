@@ -56,11 +56,14 @@ export function OrdersListWorkspace(props: Props) {
   const sharedView = compactSharedView || isOrganizationOverride;
   const resolvedDisplayMode: "list" | "kanban" = sharedView ? "list" : displayMode;
   const loading = workspace.loading || listLoading;
+  const hasActiveFilters = sharedView
+    ? Boolean(osNumberSearch || documentSearch)
+    : Boolean(osNumberSearch || externalOsSearch || documentSearch || serialNumberSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo);
 
   if (!visible) return null;
 
   return <>
-    <OrdersHeader total={totalItems} displayMode={resolvedDisplayMode} canCreate={canCreate} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
+    <OrdersHeader total={totalItems} hasActiveFilters={hasActiveFilters} displayMode={resolvedDisplayMode} canCreate={canCreate} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
 
     {sharedView ? <PartnerOrdersFilters
       numberSearch={osNumberSearch}
@@ -117,17 +120,13 @@ export function OrdersListWorkspace(props: Props) {
       filteredOrders={filteredOrders}
       pagedOrders={pagedOrders}
       totalItems={totalItems}
-      hasActiveFilters={sharedView
-        ? Boolean(osNumberSearch || documentSearch || orderSort)
-        : Boolean(osNumberSearch || externalOsSearch || documentSearch || serialNumberSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || orderSort || selectedStates.length || selectedCities.length || dateFrom || dateTo)}
+      hasActiveFilters={hasActiveFilters}
       hasPermission={hasPermission}
       onOpen={openDetail}
       onSituationChange={updateOrderSituation}
       getSituations={getSituationsForType}
       onEdit={(order) => { void openEdit(order); }}
       onComplete={completeOrder}
-      onCancel={cancelOrder}
-      cancellingId={cancellingId}
       formatDate={fmtDate}
       equipmentSummary={equipmentSummary}
       page={safePage}
