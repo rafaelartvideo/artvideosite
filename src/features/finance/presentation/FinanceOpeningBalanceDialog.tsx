@@ -4,6 +4,13 @@ import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialAccount } from "../domain/finance.types";
 
+function parseMoneyInput(value: string) {
+  const raw = value.trim();
+  if (!raw) return Number.NaN;
+  const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  return Number(normalized);
+}
+
 export function FinanceOpeningBalanceDialog({
   open,
   account,
@@ -33,8 +40,7 @@ export function FinanceOpeningBalanceDialog({
   if (!open || !account) return null;
 
   const submit = async () => {
-    const normalized = amount.trim().replace(/\./g, "").replace(",", ".");
-    const parsed = Number(normalized);
+    const parsed = parseMoneyInput(amount);
     if (!Number.isFinite(parsed)) {
       setMessage("Informe um saldo inicial válido.");
       return;
