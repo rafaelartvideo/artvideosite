@@ -39,3 +39,21 @@ export function previewPdfPath(input) {
   }
   return `${organizationId}/${serviceOrderId}/print-previews/${templateId}/${snapshotHash}.pdf`;
 }
+
+export function signatureSlotLayout(kinds, marginLeft, contentWidth) {
+  const normalized = (Array.isArray(kinds) ? kinds : [])
+    .filter(kind => kind === "external" || kind === "employee")
+    .slice(0, 2);
+  if (!normalized.length) return [];
+  if (normalized.length === 1) {
+    const width = contentWidth * 0.55;
+    return [{ signer_type: normalized[0], x: marginLeft + (contentWidth - width) / 2, width }];
+  }
+  const gap = 16;
+  const width = (contentWidth - gap) / 2;
+  return normalized.map((kind, index) => ({
+    signer_type: kind,
+    x: marginLeft + index * (width + gap),
+    width,
+  }));
+}
