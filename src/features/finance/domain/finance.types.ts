@@ -5,6 +5,7 @@ export type FinancialCategoryNature = "revenue" | "expense";
 export type FinancialPaymentMethodType = "cash" | "pix" | "debit_card" | "credit_card" | "boleto" | "transfer" | "other";
 export type FinancialEntryType = "receivable" | "payable";
 export type FinancialApprovalStatus = "draft" | "pending" | "approved" | "rejected" | "cancelled" | "reversed";
+export type FinancialApprovalAction = "approve" | "reject";
 export type FinancialEntryOriginType = "manual" | "service_order" | "inventory_purchase" | "recurring" | "other";
 export type FinancialOperationalStatus = "open" | "partial" | "settled" | "overdue" | "cancelled";
 export type FinancialAllocationMode = "amount" | "percentage";
@@ -75,6 +76,10 @@ export interface FinancialEntry {
   original_amount: number;
   approval_status: FinancialApprovalStatus;
   required_approvals: number;
+  approved_at?: string | null;
+  rejected_at?: string | null;
+  cancelled_at?: string | null;
+  reversed_at?: string | null;
   counterpart_entity_id: string | null;
   counterpart_name_snapshot: string | null;
   counterpart_document_snapshot: string | null;
@@ -87,6 +92,7 @@ export interface FinancialEntry {
   updated_at: string;
   next_due_date?: string | null;
   operational_status?: FinancialOperationalStatus;
+  approval_count?: number;
 }
 
 export interface FinancialInstallment {
@@ -117,6 +123,18 @@ export interface FinancialAllocation {
   created_at: string;
 }
 
+export interface FinancialApproval {
+  id: string;
+  organization_id: string;
+  financial_entry_id: string;
+  approver_user_id: string;
+  approver_name_snapshot: string;
+  action: FinancialApprovalAction;
+  approval_order: number | null;
+  note: string | null;
+  created_at: string;
+}
+
 export interface FinancialEvent {
   id: string;
   organization_id: string;
@@ -130,6 +148,7 @@ export interface FinancialEvent {
 export interface FinancialEntryDetail extends FinancialEntry {
   installments: FinancialInstallment[];
   allocations: FinancialAllocation[];
+  approvals: FinancialApproval[];
   events: FinancialEvent[];
 }
 
