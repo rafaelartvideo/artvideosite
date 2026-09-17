@@ -1,8 +1,13 @@
-export type FinanceSection = "overview" | "accounts" | "registries";
+export type FinanceSection = "overview" | "receivables" | "payables" | "accounts" | "registries";
 export type FinanceRegistrySection = "categories" | "cost-centers" | "payment-methods" | "settings";
 export type FinancialAccountType = "cash" | "bank" | "pix" | "other";
 export type FinancialCategoryNature = "revenue" | "expense";
 export type FinancialPaymentMethodType = "cash" | "pix" | "debit_card" | "credit_card" | "boleto" | "transfer" | "other";
+export type FinancialEntryType = "receivable" | "payable";
+export type FinancialApprovalStatus = "draft" | "pending" | "approved" | "rejected" | "cancelled" | "reversed";
+export type FinancialEntryOriginType = "manual" | "service_order" | "inventory_purchase" | "recurring" | "other";
+export type FinancialOperationalStatus = "open" | "partial" | "settled" | "overdue" | "cancelled";
+export type FinancialAllocationMode = "amount" | "percentage";
 
 export interface FinancialAccount {
   id: string;
@@ -58,4 +63,101 @@ export interface FinancialSettings {
   default_receivable_category_id: string | null;
   default_payable_category_id: string | null;
   default_cost_center_id: string | null;
+}
+
+export interface FinancialEntry {
+  id: string;
+  organization_id: string;
+  entry_type: FinancialEntryType;
+  description: string;
+  issue_date: string;
+  competence_date: string;
+  original_amount: number;
+  approval_status: FinancialApprovalStatus;
+  required_approvals: number;
+  counterpart_entity_id: string | null;
+  counterpart_name_snapshot: string | null;
+  counterpart_document_snapshot: string | null;
+  origin_type: FinancialEntryOriginType;
+  origin_reference: string | null;
+  notes: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  next_due_date?: string | null;
+  operational_status?: FinancialOperationalStatus;
+}
+
+export interface FinancialInstallment {
+  id: string;
+  organization_id: string;
+  financial_entry_id: string;
+  installment_number: number;
+  total_installments: number;
+  due_date: string;
+  original_amount: number;
+  settled_amount: number;
+  settled_at: string | null;
+  created_at: string;
+}
+
+export interface FinancialAllocation {
+  id: string;
+  organization_id: string;
+  financial_entry_id: string;
+  category_id: string;
+  category_name_snapshot: string;
+  category_nature_snapshot: FinancialCategoryNature;
+  cost_center_id: string | null;
+  cost_center_name_snapshot: string | null;
+  allocation_mode: FinancialAllocationMode;
+  percentage: number | null;
+  amount: number;
+  created_at: string;
+}
+
+export interface FinancialEvent {
+  id: string;
+  organization_id: string;
+  financial_entry_id: string;
+  event_type: string;
+  event_data: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface FinancialEntryDetail extends FinancialEntry {
+  installments: FinancialInstallment[];
+  allocations: FinancialAllocation[];
+  events: FinancialEvent[];
+}
+
+export interface FinancialInstallmentDraft {
+  installment_number: number;
+  due_date: string;
+  amount: number;
+}
+
+export interface FinancialAllocationDraft {
+  category_id: string;
+  cost_center_id?: string | null;
+  mode: FinancialAllocationMode;
+  value: number;
+  amount: number;
+}
+
+export interface FinancialEntryDraft {
+  id?: string | null;
+  entry_type: FinancialEntryType;
+  description: string;
+  issue_date: string;
+  competence_date: string;
+  original_amount: number;
+  counterpart_entity_id?: string | null;
+  counterpart_name?: string | null;
+  counterpart_document?: string | null;
+  notes?: string | null;
+  installments: FinancialInstallmentDraft[];
+  allocations: FinancialAllocationDraft[];
 }
