@@ -13,6 +13,12 @@ test("normalizes finance foundation routes", () => {
   assert.deepEqual(financeRoute("unknown", "anything"), { section: "overview", registry: null });
 });
 
+test("preserves finance title id inside payable and receivable sections", () => {
+  assert.deepEqual(financeRoute("receivables", "abc"), { section: "receivables", registry: null, entryId: "abc" });
+  assert.deepEqual(financeRoute("payables", "def"), { section: "payables", registry: null, entryId: "def" });
+  assert.deepEqual(financeRoute("payables", null), { section: "payables", registry: null, entryId: null });
+});
+
 test("calculates net value after percentage and fixed fees", () => {
   assert.equal(paymentMethodNetAmount(1000, 3.5, 1.5), 963.5);
   assert.equal(paymentMethodNetAmount(100, 0, 0), 100);
