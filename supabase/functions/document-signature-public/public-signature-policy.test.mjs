@@ -42,6 +42,32 @@ test("builds an identity proof without OTP challenge", async () => {
   );
 });
 
+test("keeps OTP proof helpers available alongside direct identity proof", async () => {
+  assert.ok(policy, "public signature policy module must exist");
+  assert.equal(typeof policy.buildOtpProof, "function");
+  assert.equal(typeof policy.verifyOtpProof, "function");
+  assert.equal(typeof policy.normalizeOtp, "function");
+  assert.equal(typeof policy.isOtpFormat, "function");
+  assert.equal(typeof policy.otpSendPolicy, "function");
+
+  const now = 1_800_000_000_000;
+  const proof = await policy.buildOtpProof("secret-key-with-enough-length", {
+    requestId: "11111111-1111-4111-8111-111111111111",
+    tokenHash: "a".repeat(64),
+    challengeId: "22222222-2222-4222-8222-222222222222",
+  }, now, 15 * 60 * 1000);
+
+  const verified = await policy.verifyOtpProof("secret-key-with-enough-length", proof, {
+    requestId: "11111111-1111-4111-8111-111111111111",
+    tokenHash: "a".repeat(64),
+  }, now + 1_000);
+  assert.equal(verified.challengeId, "22222222-2222-4222-8222-222222222222");
+  assert.equal(policy.normalizeOtp(" 123456 "), "123456");
+  assert.equal(policy.isOtpFormat("123456"), true);
+  assert.equal(policy.isOtpFormat("12345"), false);
+  assert.equal(policy.otpSendPolicy({ now, sendsLastHour: 5 }).allowed, false);
+});
+
 test("decodes only PNG data URLs up to one megabyte", () => {
   assert.ok(policy, "public signature policy module must exist");
   const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
