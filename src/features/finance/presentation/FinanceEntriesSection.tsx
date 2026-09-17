@@ -7,7 +7,7 @@ import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { useFinanceEntries } from "../application/useFinanceEntries";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
-import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType } from "../domain/finance.types";
+import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
 import { FinanceEntryEditorDialog } from "./FinanceEntryEditorDialog";
 
@@ -46,10 +46,14 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const canCreate = hasPermission(isReceivable ? "finance.receivables.create" : "finance.payables.create");
   const canEdit = hasPermission(isReceivable ? "finance.receivables.edit" : "finance.payables.edit");
   const canApprove = hasPermission(isReceivable ? "finance.receivables.approve" : "finance.payables.approve");
+  const canSettle = hasPermission("finance.settlements.create");
+  const canReverseSettlement = hasPermission("finance.settlements.reverse");
   const entries = finance.entriesQuery.data || [];
   const counterparties = finance.counterpartiesQuery.data || [];
   const categories = foundation.categoriesQuery.data || [];
   const costCenters = foundation.costCentersQuery.data || [];
+  const accounts = foundation.accountsQuery.data || [];
+  const paymentMethods = foundation.paymentMethodsQuery.data || [];
 
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
@@ -73,15 +77,26 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     if (finance.detailQuery.data) return <>
       <FinanceEntryDetail
         detail={finance.detailQuery.data}
+        accounts={accounts}
+        paymentMethods={paymentMethods}
         canEdit={canEdit}
         canApprove={canApprove}
+        canSettle={canSettle}
+        canReverseSettlement={canReverseSettlement}
         currentUserId={user?.id || null}
         decisionPending={finance.decisionMutation.isPending}
         decisionError={finance.decisionMutation.error}
+        settlementPending={finance.settlementMutation.isPending}
+        confirmSettlementPending={finance.confirmSettlementMutation.isPending}
+        reverseSettlementPending={finance.reverseSettlementMutation.isPending}
+        settlementError={finance.settlementMutation.error || finance.confirmSettlementMutation.error || finance.reverseSettlementMutation.error}
         onBack={() => onSelectEntry(null)}
         onEdit={() => { setEditing(finance.detailQuery.data || null); setEditorOpen(true); }}
         onApprove={async () => { await finance.decisionMutation.mutateAsync({ id: finance.detailQuery.data!.id, action: "approve" }); }}
         onReject={async note => { await finance.decisionMutation.mutateAsync({ id: finance.detailQuery.data!.id, action: "reject", note }); }}
+        onRegisterSettlement={async (draft: FinancialSettlementDraft) => { await finance.settlementMutation.mutateAsync(draft); }}
+        onConfirmSettlement={async settlementId => { await finance.confirmSettlementMutation.mutateAsync({ settlementId }); }}
+        onReverseSettlement={async (settlementId, reason) => { await finance.reverseSettlementMutation.mutateAsync({ settlementId, reason }); }}
       />
       <FinanceEntryEditorDialog open={editorOpen} entryType={entryType} initial={editing} counterparties={counterparties} categories={categories} costCenters={costCenters} saving={finance.saveMutation.isPending} onClose={() => { if (!finance.saveMutation.isPending) { setEditorOpen(false); setEditing(null); } }} onSave={save} />
     </>;
@@ -89,7 +104,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   const Icon = isReceivable ? BanknoteArrowUp : BanknoteArrowDown;
   return <div className="space-y-4">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-lg font-black text-[#0d1b2e]">{title}</h2><p className="mt-1 text-xs text-[#5a6a82]">Lançamentos manuais, parcelas, rateio e histórico financeiro.</p></div>{canCreate && <AdminButton onClick={() => { setEditing(null); setEditorOpen(true); }}><Plus size={16} /> Novo lançamento</AdminButton>}</div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-lg font-black text-[#0d1b2e]">{title}</h2><p className="mt-1 text-xs text-[#5a6a82]">Lançamentos, parcelas, rateio, aprovações, baixas e histórico financeiro.</p></div>{canCreate && <AdminButton onClick={() => { setEditing(null); setEditorOpen(true); }}><Plus size={16} /> Novo lançamento</AdminButton>}</div>
 
     <AdminCard>
       <AdminCardToolbar><div className="grid w-full gap-3 sm:grid-cols-[1fr_220px_auto] sm:items-end"><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><FInput aria-label="Pesquisar lançamentos" className="pl-9" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição, contraparte ou documento" /></div><FSelect label="Aprovação" value={approvalFilter} options={[{ value: "all", label: "Todos" }, { value: "pending", label: "Pendente" }, { value: "approved", label: "Aprovado" }, { value: "rejected", label: "Rejeitado" }, { value: "cancelled", label: "Cancelado" }]} onChange={(event: any) => setApprovalFilter(event.target.value)} /><p className="pb-2 text-xs font-semibold text-[#5a6a82]">{filtered.length} {filtered.length === 1 ? "lançamento" : "lançamentos"}</p></div></AdminCardToolbar>
