@@ -1,5 +1,6 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { buildInstallments, normalizePaymentSplits } from "@/features/finance/domain/finance-integration.mjs";
+import { completeServiceOrder } from "../infrastructure/orders.repository";
 import {
   completeServiceOrderWithFinance,
   getOrderCompletionFinanceOptions,
@@ -41,6 +42,12 @@ function newPaymentDraft(amount = 0): OrderCompletionPaymentDraft {
   };
 }
 
+const emptyFinanceOptions = (): OrderCompletionFinanceOptions => ({
+  finance_enabled: false,
+  accounts: [],
+  payment_methods: [],
+});
+
 export function useOrderCompletion({
   detail,
   usedItems,
@@ -68,10 +75,11 @@ export function useOrderCompletion({
   const [payments, setPayments] = useState<OrderCompletionPaymentDraft[]>([]);
   const [installmentCount, setInstallmentCount] = useState("1");
   const [firstDueDate, setFirstDueDate] = useState(todayIsoDate());
-  const [financeOptions, setFinanceOptions] = useState<OrderCompletionFinanceOptions>({ accounts: [], payment_methods: [] });
+  const [financeOptions, setFinanceOptions] = useState<OrderCompletionFinanceOptions>(emptyFinanceOptions);
   const [financeOptionsLoading, setFinanceOptionsLoading] = useState(false);
   const [financeOptionsError, setFinanceOptionsError] = useState("");
 
+  const financeEnabled = financeOptions.finance_enabled;
   const servicePrice = Number(detail?.general_service?.price || 0);
   const partsTotal = useMemo(() => usedItems.reduce((total, item) =>
     total + Number(item.total_sale_price ?? Number(item.quantity || 0) * Number(item.unit_sale_price || item.inventory_item?.sale_price || 0)), 0), [usedItems]);
@@ -92,7 +100,8 @@ export function useOrderCompletion({
 
   const installmentCountNumber = Math.trunc(Number(installmentCount) || 0);
   const financeValidationMessage = useMemo(() => {
-    if (finalTotal <= 0) return "";
+    if (financeOptionsError) return `Não foi possível carregar as opções financeiras: ${financeOptionsError}`;
+    if (!financeEnabled || finalTotal <= 0) return "";
     if (paymentMode === "open") {
       if (installmentCountNumber < 1 || installmentCountNumber > 60) return "Informe entre 1 e 60 parcelas.";
       if (!firstDueDate) return "Informe o primeiro vencimento.";
@@ -108,15 +117,16 @@ export function useOrderCompletion({
     if (openAmount > 0 && (installmentCountNumber < 1 || installmentCountNumber > 60)) return "Informe entre 1 e 60 parcelas para o saldo em aberto.";
     if (openAmount > 0 && !firstDueDate) return "Informe o primeiro vencimento do saldo em aberto.";
     return "";
-  }, [finalTotal, paymentMode, paymentSplit, payments.length, totalPaidNow, openAmount, installmentCountNumber, firstDueDate]);
+  }, [financeOptionsError, financeEnabled, finalTotal, paymentMode, paymentSplit, payments.length, totalPaidNow, openAmount, installmentCountNumber, firstDueDate]);
 
   const loadFinanceOptions = async (organizationId: string) => {
     setFinanceOptionsLoading(true);
     setFinanceOptionsError("");
+    setFinanceOptions(emptyFinanceOptions());
     try {
       setFinanceOptions(await getOrderCompletionFinanceOptions(organizationId));
     } catch (error) {
-      setFinanceOptions({ accounts: [], payment_methods: [] });
+      setFinanceOptions(emptyFinanceOptions());
       setFinanceOptionsError(formatError(error));
     } finally {
       setFinanceOptionsLoading(false);
@@ -128,6 +138,7 @@ export function useOrderCompletion({
     setPayments([]);
     setInstallmentCount("1");
     setFirstDueDate(todayIsoDate());
+    setFinanceOptionsError("");
     if (targetTotal <= 0) setPayments([]);
   };
 
@@ -147,8 +158,10 @@ export function useOrderCompletion({
     }
     setDiscount("0");
     resetPaymentState();
+    setFinanceOptions(emptyFinanceOptions());
     setOpen(true);
-    if (target?.organization_id) void loadFinanceOptions(String(target.organization_id));
+    const organizationId = target?.organization_id || detail?.organization_id;
+    if (organizationId) void loadFinanceOptions(String(organizationId));
   };
 
   const setPaymentMode = (mode: OrderCompletionPaymentMode) => {
@@ -175,7 +188,7 @@ export function useOrderCompletion({
   };
 
   const buildFinancePayload = () => {
-    if (finalTotal <= 0) return { installments: [], payments: [] };
+    if (!financeEnabled || finalTotal <= 0) return { installments: [], payments: [] };
     const normalizedPayments = paymentMode === "open" ? [] : paymentSplit.payments;
     const installments: Array<{ installment_number: number; due_date: string; amount: number }> = [];
     let offset = 0;
@@ -200,20 +213,23 @@ export function useOrderCompletion({
   };
 
   const submit = async () => {
-    if (!detail?.id || discountPercentage > maxDiscount) return;
+    if (!detail?.id || discountPercentage > maxDiscount || financeOptionsLoading) return;
     if (financeValidationMessage) {
       showToast({ msg: financeValidationMessage, type: "error" });
       return;
     }
     setSaving(true);
     try {
-      const { data, error } = await completeServiceOrderWithFinance(detail.id, discountPercentage, buildFinancePayload());
+      const response = financeEnabled
+        ? await completeServiceOrderWithFinance(detail.id, discountPercentage, buildFinancePayload())
+        : await completeServiceOrder(detail.id, discountPercentage);
+      const { data, error } = response;
       if (error) throw error;
       const financial = (data || {}) as any;
       setDetail((current: any) => ({ ...current, ...financial }));
       setOrders(current => current.map(order => order.id === detail.id ? { ...order, ...financial } : order));
       setOpen(false);
-      showToast({ msg: "OS concluída e integrada ao Financeiro com sucesso.", type: "success" });
+      showToast({ msg: financeEnabled ? "OS concluída e integrada ao Financeiro com sucesso." : "OS concluída com sucesso.", type: "success" });
       await reloadOrders();
     } catch (error) {
       showToast({ msg: `Não foi possível concluir a OS: ${formatError(error)}`, type: "error" });
@@ -225,7 +241,7 @@ export function useOrderCompletion({
   return {
     open, setOpen, discount, setDiscount, usedItems, servicePrice, partsTotal, subtotal,
     maxDiscount, discountPercentage, discountAmount, finalTotal,
-    paymentMode, setPaymentMode, payments, addPayment, removePayment, updatePayment,
+    financeEnabled, paymentMode, setPaymentMode, payments, addPayment, removePayment, updatePayment,
     installmentCount, setInstallmentCount, firstDueDate, setFirstDueDate,
     financeOptions, financeOptionsLoading, financeOptionsError,
     totalPaidNow, openAmount, financeValidationMessage,
