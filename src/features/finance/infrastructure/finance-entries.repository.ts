@@ -10,12 +10,14 @@ import type {
   FinancialEntryType,
   FinancialEvent,
   FinancialInstallment,
+  FinancialSettlement,
 } from "../domain/finance.types";
 
 const ENTRY_COLUMNS = "id,organization_id,entry_type,description,issue_date,competence_date,original_amount,approval_status,required_approvals,approval_cycle,approved_at,rejected_at,cancelled_at,reversed_at,counterpart_entity_id,counterpart_name_snapshot,counterpart_document_snapshot,origin_type,origin_reference,notes,created_by,updated_by,created_at,updated_at";
 const INSTALLMENT_COLUMNS = "id,organization_id,financial_entry_id,installment_number,total_installments,due_date,original_amount,settled_amount,settled_at,created_at";
 const ALLOCATION_COLUMNS = "id,organization_id,financial_entry_id,category_id,category_name_snapshot,category_nature_snapshot,cost_center_id,cost_center_name_snapshot,allocation_mode,percentage,amount,created_at";
 const APPROVAL_COLUMNS = "id,organization_id,financial_entry_id,approval_cycle,approver_user_id,approver_name_snapshot,action,approval_order,note,created_at";
+const SETTLEMENT_COLUMNS = "id,organization_id,financial_entry_id,financial_installment_id,entry_type,payment_method_id,payment_method_name_snapshot,financial_account_id,financial_account_name_snapshot,principal_amount,interest_amount,penalty_amount,other_additions,discount_amount,gross_amount,percentage_fee_snapshot,fixed_fee_snapshot,fee_amount,net_amount,occurred_at,expected_settlement_at,settlement_status,posted_at,reversed_at,reversed_by,reversal_reason,created_by,created_at";
 const EVENT_COLUMNS = "id,organization_id,financial_entry_id,event_type,event_data,created_by,created_at";
 
 function requiredOrganizationId(organizationId: string) {
@@ -118,17 +120,19 @@ export async function listPendingFinancialApprovals(organizationId: string): Pro
 
 export async function getFinancialEntryDetail(organizationId: string, id: string): Promise<FinancialEntryDetail> {
   const org = requiredOrganizationId(organizationId);
-  const [{ data: entry, error }, installmentsResult, allocationsResult, approvalsResult, eventsResult] = await Promise.all([
+  const [{ data: entry, error }, installmentsResult, allocationsResult, approvalsResult, settlementsResult, eventsResult] = await Promise.all([
     supabase.from("financial_entries").select(ENTRY_COLUMNS).eq("organization_id", org).eq("id", id).single(),
     supabase.from("financial_installments").select(INSTALLMENT_COLUMNS).eq("organization_id", org).eq("financial_entry_id", id).order("installment_number"),
     supabase.from("financial_allocations").select(ALLOCATION_COLUMNS).eq("organization_id", org).eq("financial_entry_id", id).order("created_at"),
     supabase.from("financial_approvals").select(APPROVAL_COLUMNS).eq("organization_id", org).eq("financial_entry_id", id).order("created_at", { ascending: false }),
+    supabase.from("financial_settlements").select(SETTLEMENT_COLUMNS).eq("organization_id", org).eq("financial_entry_id", id).order("created_at", { ascending: false }),
     supabase.from("financial_events").select(EVENT_COLUMNS).eq("organization_id", org).eq("financial_entry_id", id).order("created_at", { ascending: false }),
   ]);
   if (error) throw error;
   if (installmentsResult.error) throw installmentsResult.error;
   if (allocationsResult.error) throw allocationsResult.error;
   if (approvalsResult.error) throw approvalsResult.error;
+  if (settlementsResult.error) throw settlementsResult.error;
   if (eventsResult.error) throw eventsResult.error;
 
   const typedEntry = entry as FinancialEntry;
@@ -142,6 +146,7 @@ export async function getFinancialEntryDetail(organizationId: string, id: string
     installments: (installmentsResult.data || []) as FinancialInstallment[],
     allocations: (allocationsResult.data || []) as FinancialAllocation[],
     approvals,
+    settlements: (settlementsResult.data || []) as FinancialSettlement[],
     events: (eventsResult.data || []) as FinancialEvent[],
   };
 }
