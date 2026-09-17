@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
 import type { FinancialEntryDraft, FinancialEntryType } from "../domain/finance.types";
 import {
@@ -8,14 +9,6 @@ import {
   saveFinancialEntry,
 } from "../infrastructure/finance-entries.repository";
 
-export function financeEntriesKey(organizationId: string, entryType: FinancialEntryType) {
-  return ["finance", organizationId, "entries", entryType] as const;
-}
-
-export function financeEntryKey(organizationId: string, id: string) {
-  return ["finance", organizationId, "entry", id] as const;
-}
-
 export function useFinanceEntries(entryType: FinancialEntryType, selectedEntryId?: string | null) {
   const { activeOrganizationId } = useAuth();
   const queryClient = useQueryClient();
@@ -23,19 +16,19 @@ export function useFinanceEntries(entryType: FinancialEntryType, selectedEntryId
   const organizationKey = activeOrganizationId || "none";
 
   const entriesQuery = useQuery({
-    queryKey: financeEntriesKey(organizationKey, entryType),
+    queryKey: queryKeys.finance.entries(organizationKey, entryType),
     enabled: Boolean(activeOrganizationId),
     queryFn: () => listFinancialEntries(organizationId, entryType),
   });
 
   const counterpartiesQuery = useQuery({
-    queryKey: ["finance", organizationKey, "counterparties", entryType] as const,
+    queryKey: queryKeys.finance.counterparties(organizationKey, entryType),
     enabled: Boolean(activeOrganizationId),
     queryFn: () => listFinancialCounterparties(organizationId, entryType),
   });
 
   const detailQuery = useQuery({
-    queryKey: financeEntryKey(organizationKey, selectedEntryId || "none"),
+    queryKey: queryKeys.finance.entry(organizationKey, selectedEntryId || "none"),
     enabled: Boolean(activeOrganizationId && selectedEntryId),
     queryFn: () => getFinancialEntryDetail(organizationId, String(selectedEntryId)),
   });
@@ -44,8 +37,8 @@ export function useFinanceEntries(entryType: FinancialEntryType, selectedEntryId
     mutationFn: (draft: FinancialEntryDraft) => saveFinancialEntry(organizationId, draft),
     onSuccess: async id => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: financeEntriesKey(organizationKey, entryType) }),
-        queryClient.invalidateQueries({ queryKey: financeEntryKey(organizationKey, id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.finance.entries(organizationKey, entryType) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.finance.entry(organizationKey, id) }),
       ]);
     },
   });
