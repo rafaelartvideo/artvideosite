@@ -6,6 +6,7 @@ import { FDecimalInput } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatNumber, formatPhone } from "@/shared/domain/formatters";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
+import { OrderCompletionPaymentSection } from "./OrderCompletionPaymentSection";
 
 function customerAddress(customer: any): Address | null {
   const addresses = (Array.isArray(customer?.addresses) ? customer.addresses : []) as Address[];
@@ -135,7 +136,7 @@ export function OrderCompletionModal({
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0057e7]">Ordens de Serviço</p>
           <h2 className="mt-1 break-words text-xl font-black leading-tight text-[#0d1b2e]">Concluir OS {detail.os_number || ""}</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#5a6a82]">Revise o cliente, os itens utilizados e os valores antes de confirmar a conclusão financeira.</p>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#5a6a82]">Revise o cliente, os itens utilizados, os valores e a forma de recebimento antes de confirmar a conclusão financeira.</p>
         </div>
         <AdminIconButton ariaLabel="Fechar" onClick={() => completion.setOpen(false)} disabled={saving} variant="ghost" className="shrink-0"><X size={18} /></AdminIconButton>
       </div>
@@ -257,6 +258,10 @@ export function OrderCompletionModal({
               </div>
             </div>
           </Section>
+
+          <Section title="Pagamento">
+            <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
+          </Section>
         </div>
       </div>
 
@@ -264,7 +269,7 @@ export function OrderCompletionModal({
         <BtnSecondary onClick={() => completion.setOpen(false)} disabled={saving}>Cancelar</BtnSecondary>
         <BtnPrimary
           onClick={() => void completion.submit()}
-          disabled={completion.discountPercentage > completion.maxDiscount}
+          disabled={completion.discountPercentage > completion.maxDiscount || Boolean(completion.financeValidationMessage) || completion.financeOptionsLoading}
           loading={saving}
           loadingText="Concluindo..."
         >
