@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Download, FileCheck2, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Check, Download, ExternalLink, FileCheck2, LockKeyhole, ShieldCheck } from "lucide-react";
 import { useParams } from "react-router";
 import {
   completePublicSignature,
@@ -40,94 +40,25 @@ function formatIdentity(value: string) {
     .replace(/(\/\d{4})(\d{1,2})$/, "$1-$2");
 }
 
-function fieldValue(value: unknown) {
-  const text = value == null || value === "" ? "—" : String(value);
-  return text.split("\\n").join("\n");
-}
-
-function checklistAnswer(item: any) {
-  const labels: Record<string, string> = {
-    ok: "Conforme",
-    not_ok: "Não conforme",
-    yes: "Sim",
-    no: "Não",
-    confirmed: "Confirmado",
-    na: "Não se aplica",
-  };
-  if (item?.response_code && labels[item.response_code]) return labels[item.response_code];
-  if (item?.response_number != null) return String(item.response_number);
-  return item?.response_text || "Não respondido";
-}
-
-function DocumentSnapshot({ document }: { document: PublicSignatureDocument }) {
-  const snapshot = document.snapshot || {};
-  const company = snapshot.company || {};
-  const template = snapshot.template || {};
-  const order = snapshot.order || {};
-  const sections = Array.isArray(snapshot.sections) ? snapshot.sections : [];
-  const checklists = Array.isArray(snapshot.checklists) ? snapshot.checklists : [];
-
+function FrozenPdfPreview({ document }: { document: PublicSignatureDocument }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-[#dbe2ea] bg-white shadow-sm">
-      <header className="border-b border-[#dbe2ea] bg-[#f8fafc] p-5 sm:p-6">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0057e7]">{company.name || "Documento"}</p>
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-xl font-black text-[#0d1b2e]">{template.name || "Documento"}</h2>
-            {template.header_text && <p className="mt-1 whitespace-pre-wrap text-sm text-[#64748b]">{String(template.header_text)}</p>}
-          </div>
-          <div className="shrink-0 rounded-xl bg-[#edf3ff] px-4 py-2 text-right">
-            <span className="block text-[10px] font-bold uppercase tracking-wide text-[#64748b]">OS</span>
-            <strong className="text-lg text-[#0057e7]">{order.os_number || "—"}</strong>
-          </div>
+      <div className="flex flex-col gap-2 border-b border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-black text-[#0d1b2e]">Documento original congelado</p>
+          <p className="mt-0.5 text-[10px] text-[#64748b]">Este é o PDF que receberá sua assinatura, sem remontagem do conteúdo.</p>
         </div>
-        {(company.document || company.phone || company.email || company.address) && (
-          <div className="mt-4 grid gap-1 text-xs text-[#64748b] sm:grid-cols-2">
-            {company.document && <span>{String(company.document)}</span>}
-            {company.phone && <span>{String(company.phone)}</span>}
-            {company.email && <span>{String(company.email)}</span>}
-            {company.address && <span>{String(company.address)}</span>}
-          </div>
-        )}
-      </header>
-
-      <div className="space-y-4 p-4 sm:p-6">
-        {sections.map((section: any) => (
-          <section key={section.key} className="overflow-hidden rounded-xl border border-[#e2e8f0]">
-            <h3 className="border-b border-[#e2e8f0] bg-[#f8fafc] px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.08em] text-[#334155]">{section.label || section.key}</h3>
-            <div className="grid sm:grid-cols-2">
-              {(section.fields || []).map((field: any) => field.kind === "signature" ? (
-                <div key={field.key} className="p-4 text-center sm:col-span-1">
-                  <div className="mt-8 border-t border-[#94a3b8] pt-2 text-xs font-semibold text-[#64748b]">{field.label}</div>
-                </div>
-              ) : (
-                <div key={field.key} className="min-w-0 border-b border-[#eef2f6] p-3 last:border-b-0 sm:border-r sm:last:border-r-0">
-                  <span className="block text-[10px] font-bold uppercase tracking-wide text-[#64748b]">{field.label || field.key}</span>
-                  <strong className="mt-1 block whitespace-pre-wrap break-words text-sm font-semibold text-[#172536]">{fieldValue(field.value)}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
-
-        {checklists.map((stage: any) => (
-          <section key={stage.id || stage.stage_code} className="overflow-hidden rounded-xl border border-[#e2e8f0]">
-            <div className="border-b border-[#e2e8f0] bg-[#f8fafc] px-4 py-2.5">
-              <h3 className="text-[11px] font-black uppercase tracking-[0.08em] text-[#334155]">Checklist · {stage.name || stage.stage_code}</h3>
-            </div>
-            <div className="divide-y divide-[#eef2f6]">
-              {(stage.items || []).map((item: any) => (
-                <div key={item.id || item.title} className="grid gap-2 p-3 sm:grid-cols-[1.3fr_.8fr_1fr]">
-                  <div><span className="text-xs font-bold text-[#172536]">{item.title}</span>{item.description && <p className="mt-0.5 text-[11px] text-[#64748b]">{item.description}</p>}</div>
-                  <div><span className="text-[10px] font-bold uppercase text-[#94a3b8]">Resultado</span><p className="text-xs font-semibold text-[#334155]">{checklistAnswer(item)}</p></div>
-                  <div><span className="text-[10px] font-bold uppercase text-[#94a3b8]">Observação</span><p className="text-xs text-[#475569]">{item.observation || "—"}</p>{Array.isArray(item.media) && item.media.length > 0 && <p className="mt-1 text-[10px] font-semibold text-[#0057e7]">{item.media.length} {item.media.length === 1 ? "foto registrada" : "fotos registradas"}</p>}</div>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
-
-        {template.footer_text && <p className="border-t border-[#e2e8f0] pt-3 text-center text-xs text-[#64748b]">{String(template.footer_text)}</p>}
+        <a href={document.preview_url} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#0057e7]/25 bg-white px-3 text-xs font-black text-[#0057e7] hover:bg-[#f4f8ff]">
+          <ExternalLink size={14} /> Abrir PDF
+        </a>
+      </div>
+      <iframe
+        src={`${document.preview_url}#toolbar=1&navpanes=0&view=FitH`}
+        title="PDF original para assinatura"
+        className="block h-[68vh] min-h-[520px] w-full bg-[#eef2f6]"
+      />
+      <div className="border-t border-[#eef2f6] px-4 py-2 text-[10px] text-[#94a3b8]">
+        Integridade do PDF original: <span className="font-mono">{document.base_pdf_hash.slice(0, 16)}…</span>
       </div>
     </div>
   );
@@ -271,7 +202,7 @@ export function PublicDocumentSignaturePage() {
 
         {step === "terminal" && <div className="rounded-2xl border border-[#dbe2ea] bg-white p-6 text-center shadow-sm"><FileCheck2 className="mx-auto text-[#0057e7]" size={30} /><h2 className="mt-3 text-lg font-black">{inspection?.document_name || "Documento"}</h2><p className="mt-2 text-sm text-[#64748b]">{terminalMessage}</p></div>}
 
-        {step === "signed" && <div className="rounded-2xl border border-emerald-200 bg-white p-6 text-center shadow-sm sm:p-8"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check size={28} strokeWidth={3} /></div><h2 className="mt-4 text-xl font-black">Documento assinado</h2><p className="mt-2 text-sm leading-6 text-[#64748b]">{inspection?.document_name || "O documento"} foi finalizado e preservado como uma versão imutável.</p>{signedAt && <p className="mt-3 text-xs font-semibold text-[#475569]">Assinado em {formatDateTime(signedAt)}</p>}{verificationCode && <p className="mx-auto mt-4 max-w-md rounded-xl bg-[#f8fafc] px-3 py-2 font-mono text-sm font-bold">Código: {verificationCode}</p>}{error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}<div className="mx-auto mt-5 grid max-w-md gap-2 sm:grid-cols-2"><button type="button" onClick={() => void downloadPdf()} disabled={busy} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white hover:bg-[#0048c7] disabled:opacity-60"><Download size={16} />{busy ? "Preparando..." : "Baixar PDF"}</button><button type="button" onClick={openVerification} disabled={!verificationCode} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#0057e7]/30 bg-white px-4 text-sm font-black text-[#0057e7] hover:bg-[#f7faff] disabled:opacity-50"><ShieldCheck size={16} /> Verificar autenticidade</button></div><p className="mt-4 text-[11px] leading-5 text-[#64748b]">Uma cópia do PDF também é enviada automaticamente ao e-mail do assinante quando o serviço de e-mail está disponível.</p></div>}
+        {step === "signed" && <div className="rounded-2xl border border-emerald-200 bg-white p-6 text-center shadow-sm sm:p-8"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check size={28} strokeWidth={3} /></div><h2 className="mt-4 text-xl font-black">Documento assinado</h2><p className="mt-2 text-sm leading-6 text-[#64748b]">{inspection?.document_name || "O documento"} foi finalizado a partir do mesmo PDF visualizado antes da assinatura.</p>{signedAt && <p className="mt-3 text-xs font-semibold text-[#475569]">Assinado em {formatDateTime(signedAt)}</p>}{verificationCode && <p className="mx-auto mt-4 max-w-md rounded-xl bg-[#f8fafc] px-3 py-2 font-mono text-sm font-bold">Código: {verificationCode}</p>}{error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}<div className="mx-auto mt-5 grid max-w-md gap-2 sm:grid-cols-2"><button type="button" onClick={() => void downloadPdf()} disabled={busy} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white hover:bg-[#0048c7] disabled:opacity-60"><Download size={16} />{busy ? "Preparando..." : "Baixar PDF"}</button><button type="button" onClick={openVerification} disabled={!verificationCode} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#0057e7]/30 bg-white px-4 text-sm font-black text-[#0057e7] hover:bg-[#f7faff] disabled:opacity-50"><ShieldCheck size={16} /> Verificar autenticidade</button></div><p className="mt-4 text-[11px] leading-5 text-[#64748b]">Uma cópia do PDF também é enviada automaticamente ao e-mail do assinante quando o serviço de e-mail está disponível.</p></div>}
 
         {step === "identity" && inspection && <div className="rounded-2xl border border-[#dbe2ea] bg-white p-5 shadow-sm sm:p-6">
           <div className="rounded-xl bg-[#f8fafc] p-4"><p className="text-xs font-bold uppercase tracking-wide text-[#64748b]">Documento</p><p className="mt-1 text-base font-black">{inspection.document_name}</p><p className="mt-1 text-xs text-[#64748b]">OS {inspection.order_number} · link válido até {formatDateTime(inspection.expires_at)}</p></div>
@@ -284,16 +215,16 @@ export function PublicDocumentSignaturePage() {
         </div>}
 
         {step === "document" && signatureDocument && <div className="space-y-5">
-          <DocumentSnapshot document={signatureDocument} />
+          <FrozenPdfPreview document={signatureDocument} />
           <div className="rounded-2xl border border-[#dbe2ea] bg-white p-5 shadow-sm sm:p-6">
-            <h2 className="text-lg font-black">Assine o documento</h2><p className="mt-1 text-sm leading-6 text-[#64748b]">Confira o conteúdo acima. Sua assinatura será vinculada a esta versão congelada do documento.</p>
+            <h2 className="text-lg font-black">Assine o documento</h2><p className="mt-1 text-sm leading-6 text-[#64748b]">Confira o PDF acima. Sua assinatura será aplicada sobre esta mesma versão congelada, sem recriar o conteúdo.</p>
             <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-[#dbe2ea] bg-[#f8fafc] p-4">
               <input type="checkbox" checked={consentAccepted} onChange={event => setConsentAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0057e7]" />
               <span className="text-xs font-semibold leading-5 text-[#334155]">{signatureDocument.consent_text}</span>
             </label>
             <div className="mt-5"><span className="mb-2 block text-xs font-bold uppercase tracking-wide text-[#475569]">Sua assinatura</span><SignaturePad ref={padRef} disabled={busy} onInkChange={setHasInk} /></div>
             {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
-            <button type="button" onClick={() => void complete()} disabled={busy || !consentAccepted || !hasInk} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-5 text-sm font-black text-white hover:bg-[#0048c7] disabled:cursor-not-allowed disabled:opacity-50"><FileCheck2 size={17} />{busy ? "Finalizando documento..." : "Confirmar assinatura"}</button>
+            <button type="button" onClick={() => void complete()} disabled={busy || !consentAccepted || !hasInk} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-5 text-sm font-black text-white hover:bg-[#0048c7] disabled:cursor-not-allowed disabled:opacity-50"><FileCheck2 size={17} />{busy ? "Aplicando assinatura ao PDF..." : "Confirmar assinatura"}</button>
             <p className="mt-4 text-center text-[11px] leading-5 text-[#64748b]">Validação por CPF/CNPJ · {signatureDocument.signer_document_masked}</p>
           </div>
         </div>}
