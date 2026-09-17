@@ -13,7 +13,7 @@ import type {
   FinancialSettlement,
 } from "../domain/finance.types";
 
-const ENTRY_COLUMNS = "id,organization_id,entry_type,description,issue_date,competence_date,original_amount,approval_status,required_approvals,approval_cycle,approved_at,rejected_at,cancelled_at,reversed_at,counterpart_entity_id,counterpart_name_snapshot,counterpart_document_snapshot,origin_type,origin_reference,notes,created_by,updated_by,created_at,updated_at";
+const ENTRY_COLUMNS = "id,organization_id,entry_type,description,issue_date,competence_date,original_amount,approval_status,required_approvals,approval_cycle,approved_at,rejected_at,cancelled_at,reversed_at,counterpart_entity_id,counterpart_name_snapshot,counterpart_document_snapshot,origin_type,origin_reference,source_details,notes,created_by,updated_by,created_at,updated_at";
 const INSTALLMENT_COLUMNS = "id,organization_id,financial_entry_id,installment_number,total_installments,due_date,original_amount,settled_amount,settled_at,created_at";
 const ALLOCATION_COLUMNS = "id,organization_id,financial_entry_id,category_id,category_name_snapshot,category_nature_snapshot,cost_center_id,cost_center_name_snapshot,allocation_mode,percentage,amount,created_at";
 const APPROVAL_COLUMNS = "id,organization_id,financial_entry_id,approval_cycle,approver_user_id,approver_name_snapshot,action,approval_order,note,created_at";
@@ -84,6 +84,7 @@ async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Pr
     const approvalUsers = new Set(currentApprovals.map(item => item.approver_user_id));
     return {
       ...entry,
+      source_details: entry.source_details || {},
       approval_count: approvalUsers.size,
       next_due_date: pending[0]?.due_date || null,
       operational_status: entry.approval_status === "cancelled" || entry.approval_status === "reversed"
@@ -135,7 +136,7 @@ export async function getFinancialEntryDetail(organizationId: string, id: string
   if (settlementsResult.error) throw settlementsResult.error;
   if (eventsResult.error) throw eventsResult.error;
 
-  const typedEntry = entry as FinancialEntry;
+  const typedEntry = { ...(entry as FinancialEntry), source_details: (entry as FinancialEntry).source_details || {} };
   const approvals = (approvalsResult.data || []) as FinancialApproval[];
   const currentApprovers = new Set(approvals
     .filter(item => item.approval_cycle === typedEntry.approval_cycle && item.action === "approve")
