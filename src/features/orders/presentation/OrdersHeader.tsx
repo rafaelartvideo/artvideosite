@@ -1,8 +1,10 @@
 import { LayoutDashboard, List, Plus } from "lucide-react";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { filteredTotalLabel } from "../domain/order-list-display.mjs";
 
 export function OrdersHeader({
   total,
+  hasActiveFilters = false,
   displayMode,
   canCreate,
   onDisplayModeChange,
@@ -10,6 +12,7 @@ export function OrdersHeader({
   showViewToggle = true,
 }: {
   total: number;
+  hasActiveFilters?: boolean;
   displayMode: "list" | "kanban";
   canCreate: boolean;
   onDisplayModeChange: (mode: "list" | "kanban") => void;
@@ -20,7 +23,7 @@ export function OrdersHeader({
   return (
     <PageHeader
       title="Ordens de Serviço"
-      subtitle={`${total} OS encontrada${total !== 1 ? "s" : ""}`}
+      subtitle={filteredTotalLabel(total, hasActiveFilters)}
       actions={hasActions ? (
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           {showViewToggle && <div className="flex items-center rounded-lg border border-[#0d1b2e]/15 bg-white p-1">
