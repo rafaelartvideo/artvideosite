@@ -25,6 +25,12 @@ export function OrderCompletionPaymentSection({
   const needsOpenInstallments = completion.openAmount > 0.009;
   const immediateMode = completion.paymentMode !== "open";
 
+  if (!completion.financeOptionsLoading && !completion.financeOptionsError && !completion.financeEnabled) {
+    return <div className="rounded-xl border border-[#0d1b2e]/10 bg-white px-4 py-3 text-sm text-[#5a6a82]">
+      O módulo Financeiro está desativado para esta empresa. A OS será concluída normalmente, sem gerar lançamento financeiro.
+    </div>;
+  }
+
   return <div className="space-y-4">
     <FSelect
       label="Forma de conclusão financeira"
@@ -42,7 +48,7 @@ export function OrderCompletionPaymentSection({
       Carregando contas e formas de pagamento...
     </div>}
 
-    {completion.financeOptionsError && immediateMode && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {completion.financeOptionsError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
       Não foi possível carregar as opções financeiras: {completion.financeOptionsError}
     </div>}
 
