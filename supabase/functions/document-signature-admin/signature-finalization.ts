@@ -9,7 +9,7 @@ function publicBaseUrl(request: Request) {
   return /^https?:\/\//i.test(value) ? value : null;
 }
 
-async function invokePublicInternal(request: Request, body: Record<string, unknown>, fallbackError: string) {
+export async function finalizeEmployeeOnlyRequest(request: Request, requestId: string) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRole) throw new Error("Supabase da finalização de assinatura não configurado.");
@@ -23,36 +23,13 @@ async function invokePublicInternal(request: Request, body: Record<string, unkno
   const response = await fetch(`${supabaseUrl.replace(/\/+$/, "")}/functions/v1/document-signature-public`, {
     method: "POST",
     headers,
-    body: JSON.stringify(body),
+    body: JSON.stringify({ action: "finalize_internal", request_id: requestId }),
   });
   const result = await response.json().catch(() => null);
-  if (!response.ok || result?.success !== true) throw new Error(String(result?.error || fallbackError));
+  if (!response.ok || result?.success !== true) {
+    throw new Error(String(result?.error || "Não foi possível gerar o PDF final do documento."));
+  }
   return result;
-}
-
-export async function prepareSignatureBasePdf(request: Request, requestId: string) {
-  return invokePublicInternal(request, { action: "prepare_base_internal", request_id: requestId }, "Não foi possível congelar o PDF-base do documento.");
-}
-
-export async function renderCanonicalPrintPreview(request: Request, input: {
-  organizationId: string;
-  serviceOrderId: string;
-  printTemplateId: string;
-  snapshotHash: string;
-  snapshot: any;
-}) {
-  return invokePublicInternal(request, {
-    action: "render_preview_internal",
-    organization_id: input.organizationId,
-    service_order_id: input.serviceOrderId,
-    print_template_id: input.printTemplateId,
-    snapshot_hash: input.snapshotHash,
-    snapshot: input.snapshot,
-  }, "Não foi possível gerar o PDF de impressão.");
-}
-
-export async function finalizeEmployeeOnlyRequest(request: Request, requestId: string) {
-  return invokePublicInternal(request, { action: "finalize_internal", request_id: requestId }, "Não foi possível gerar o PDF final do documento.");
 }
 
 export async function createAdminSignedDocumentAccess(adminClient: any, request: Request, row: any) {
@@ -67,7 +44,6 @@ export async function createAdminSignedDocumentAccess(adminClient: any, request:
     download_url: data.signedUrl,
     verification_url: base ? `${base}${verificationPath}` : verificationPath,
     verification_code: row.verification_code,
-    base_pdf_hash: row.base_pdf_hash || null,
     final_pdf_hash: row.final_pdf_hash,
     snapshot_hash: row.snapshot_hash,
     signed_at: row.signed_at,

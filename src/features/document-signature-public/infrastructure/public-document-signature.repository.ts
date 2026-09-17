@@ -13,7 +13,6 @@ export type PublicSignatureInspection = {
   signer_email_masked: string | null;
   expires_at: string;
   verification_code: string | null;
-  base_pdf_hash: string | null;
   final_pdf_hash: string | null;
   snapshot_hash: string | null;
   signed_at: string | null;
@@ -22,8 +21,7 @@ export type PublicSignatureInspection = {
 };
 
 export type PublicSignatureDocument = {
-  preview_url: string;
-  base_pdf_hash: string;
+  snapshot: any;
   consent_text: string;
   signer_name: string;
   signer_document_masked: string;
@@ -35,7 +33,6 @@ export type PublicSignedDocumentAccess = {
   download_url: string;
   verification_url: string;
   verification_code: string;
-  base_pdf_hash: string | null;
   final_pdf_hash: string;
   snapshot_hash: string;
   signed_at: string;
@@ -49,7 +46,6 @@ export type PublicDocumentVerification = {
   signed_at: string;
   verification_code: string;
   snapshot_hash: string;
-  base_pdf_hash?: string | null;
   final_pdf_hash: string;
   signers: Array<{
     signer_type: "employee" | "external";
@@ -70,6 +66,7 @@ async function invokePublicSignature<T>(action: string, payload: Record<string, 
     body: JSON.stringify({ action, ...payload }),
   });
   const data = await response.json().catch(() => null);
+
   if (!response.ok || !data || data.success !== true) {
     throw Object.assign(
       new Error(String(data?.error || "Não foi possível acessar a assinatura eletrônica.")),
@@ -101,7 +98,11 @@ export async function loadPublicSignatureDocument(token: string, proof: string) 
   return result.document;
 }
 
-export async function completePublicSignature({ token, proof, signatureDataUrl }: {
+export async function completePublicSignature({
+  token,
+  proof,
+  signatureDataUrl,
+}: {
   token: string;
   proof: string;
   signatureDataUrl: string;
@@ -114,7 +115,6 @@ export async function completePublicSignature({ token, proof, signatureDataUrl }
     verification_code: string;
     verification_url: string;
     download_url: string;
-    base_pdf_hash: string | null;
     final_pdf_hash: string;
     snapshot_hash: string;
   }>("complete", {

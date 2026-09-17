@@ -22,16 +22,9 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
-    alias: [
-      {
-        find: '@/features/documents/domain/order-print-document',
-        replacement: path.resolve(__dirname, './src/features/documents/domain/order-print-document-canonical.ts'),
-      },
-      {
-        find: '@',
-        replacement: path.resolve(__dirname, './src'),
-      },
-    ],
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
 
   build: {
