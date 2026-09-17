@@ -91,7 +91,7 @@ export async function applySignaturesToFrozenPdf(input: ApplyFrozenPdfSignatures
       const widthLimit = slot.width_mm * MM_TO_PT;
       const heightLimit = slot.height_mm * MM_TO_PT;
       const y = pageHeight - (slot.y_mm + slot.height_mm) * MM_TO_PT;
-      const scale = Math.min(widthLimit / image.width, heightLimit / image.height, 1);
+      const scale = Math.min(widthLimit / image.width, heightLimit / image.height);
       const width = image.width * scale;
       const height = image.height * scale;
       page.drawImage(image, {
@@ -100,7 +100,7 @@ export async function applySignaturesToFrozenPdf(input: ApplyFrozenPdfSignatures
         width,
         height,
       });
-    } catch { /* authenticity page still preserves textual evidence */ }
+    } catch { /* textual evidence remains on authenticity page */ }
   }
 
   const sourcePage = pages[pages.length - 1];
@@ -139,20 +139,6 @@ export async function applySignaturesToFrozenPdf(input: ApplyFrozenPdfSignatures
       y -= 12;
     }
     auth.drawText(`${validationLabel(signature.validation_method)} | ${new Date(signature.signed_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { x: left, y, size: 7.2, font: regular, color: MUTED });
-    if (signature.image_bytes?.length) {
-      try {
-        const image = await pdf.embedPng(signature.image_bytes);
-        const maxW = 150;
-        const maxH = 44;
-        const scale = Math.min(maxW / image.width, maxH / image.height, 1);
-        auth.drawImage(image, {
-          x: size.width - left - image.width * scale,
-          y: y - 10,
-          width: image.width * scale,
-          height: image.height * scale,
-        });
-      } catch { /* optional image on evidence page */ }
-    }
     y -= 31;
   }
 
