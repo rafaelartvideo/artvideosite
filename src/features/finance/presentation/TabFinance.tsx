@@ -4,6 +4,7 @@ import { PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { financeRoute } from "../domain/finance-foundation.mjs";
 import type { FinanceRegistrySection, FinanceSection } from "../domain/finance.types";
 import { FinanceAccountsSection } from "./FinanceAccountsSection";
+import { FinanceEntriesSection } from "./FinanceEntriesSection";
 import { FinanceOverviewFoundation } from "./FinanceOverviewFoundation";
 import { FinanceRegistriesSection } from "./FinanceRegistriesSection";
 import { FinanceSectionTabs } from "./FinanceSectionTabs";
@@ -18,10 +19,12 @@ export function TabFinance({
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 }) {
   const { hasPermission } = useAuth();
-  const requested = financeRoute(routeResourceId || null, routeSubpage || null) as { section: FinanceSection; registry: FinanceRegistrySection | null };
+  const requested = financeRoute(routeResourceId || null, routeSubpage || null) as { section: FinanceSection; registry: FinanceRegistrySection | null; entryId?: string | null };
   const allowedSections = useMemo<FinanceSection[]>(() => {
     const sections: FinanceSection[] = [];
     if (hasPermission("finance.dashboard.view")) sections.push("overview");
+    if (hasPermission("finance.receivables.view")) sections.push("receivables");
+    if (hasPermission("finance.payables.view")) sections.push("payables");
     if (hasPermission("finance.accounts.view") || hasPermission("finance.accounts.manage")) sections.push("accounts");
     if (hasPermission("finance.view")) sections.push("registries");
     return sections;
@@ -31,21 +34,23 @@ export function TabFinance({
   useEffect(() => {
     if (section === requested.section || !onRouteChange) return;
     if (section === "overview") onRouteChange(null, null);
-    else if (section === "accounts") onRouteChange("accounts", null);
-    else onRouteChange("registries", "categories");
+    else if (section === "registries") onRouteChange("registries", "categories");
+    else onRouteChange(section, null);
   }, [section, requested.section, onRouteChange]);
 
   const selectSection = (next: FinanceSection) => {
     if (next === "overview") onRouteChange?.(null, null);
-    else if (next === "accounts") onRouteChange?.("accounts", null);
-    else onRouteChange?.("registries", requested.registry || "categories");
+    else if (next === "registries") onRouteChange?.("registries", requested.registry || "categories");
+    else onRouteChange?.(next, null);
   };
 
   return <div className="min-w-0 space-y-5">
-    <PageHeader title="Financeiro" subtitle="Gerencie a estrutura financeira da empresa em um único módulo." />
+    <PageHeader title="Financeiro" subtitle="Contas a pagar e receber, caixas, cadastros e gestão financeira em um único módulo." />
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} />
 
     {section === "overview" && <FinanceOverviewFoundation />}
+    {section === "receivables" && <FinanceEntriesSection entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
+    {section === "payables" && <FinanceEntriesSection entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
     {section === "accounts" && <FinanceAccountsSection />}
     {section === "registries" && <FinanceRegistriesSection registry={requested.registry} onSelect={registry => onRouteChange?.("registries", registry)} />}
   </div>;
