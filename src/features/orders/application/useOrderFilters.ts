@@ -30,6 +30,7 @@ export function useOrderFilters({
   const queryClient = useQueryClient();
   const [osNumberSearch, setOsNumberSearch] = useState("");
   const [externalOsSearch, setExternalOsSearch] = useState("");
+  const [customerNameSearch, setCustomerNameSearch] = useState("");
   const [documentSearch, setDocumentSearch] = useState("");
   const [serialNumberSearch, setSerialNumberSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -45,6 +46,7 @@ export function useOrderFilters({
   const [pageSize, setPageSize] = useState(5);
   const debouncedOsNumberSearch = useDebouncedValue(osNumberSearch);
   const debouncedExternalOsSearch = useDebouncedValue(externalOsSearch);
+  const debouncedCustomerNameSearch = useDebouncedValue(customerNameSearch);
   const debouncedDocumentSearch = useDebouncedValue(documentSearch);
   const debouncedSerialNumberSearch = useDebouncedValue(serialNumberSearch);
 
@@ -81,6 +83,7 @@ export function useOrderFilters({
     pageSize,
     osNumberSearch: debouncedOsNumberSearch,
     externalOsSearch: debouncedExternalOsSearch,
+    customerNameSearch: debouncedCustomerNameSearch,
     documentSearch: debouncedDocumentSearch,
     serialNumberSearch: debouncedSerialNumberSearch,
     statusId: filterStatus,
@@ -94,7 +97,7 @@ export function useOrderFilters({
     dateTo,
     sort: orderSort,
     matchOrderNumberOrExternal,
-  }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, selectedStates, stateNames, selectedCities, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
+  }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedCustomerNameSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, selectedStates, stateNames, selectedCities, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
   const listKey = queryKeys.orders.list(queryFilters);
 
   const ordersQuery = useQuery({
@@ -107,6 +110,7 @@ export function useOrderFilters({
       pageSize,
       osNumberSearch: debouncedOsNumberSearch,
       externalOsSearch: debouncedExternalOsSearch,
+      customerNameSearch: debouncedCustomerNameSearch,
       documentSearch: debouncedDocumentSearch,
       serialNumberSearch: debouncedSerialNumberSearch,
       statusId: filterStatus,
@@ -139,6 +143,7 @@ export function useOrderFilters({
   const clearFilters = () => {
     setOsNumberSearch("");
     setExternalOsSearch("");
+    setCustomerNameSearch("");
     setDocumentSearch("");
     setSerialNumberSearch("");
     setFilterStatus("");
@@ -155,7 +160,7 @@ export function useOrderFilters({
 
   useEffect(() => {
     setPage(1);
-  }, [osNumberSearch, externalOsSearch, documentSearch, serialNumberSearch, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
+  }, [osNumberSearch, externalOsSearch, customerNameSearch, documentSearch, serialNumberSearch, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -176,6 +181,8 @@ export function useOrderFilters({
     setOsNumberSearch,
     externalOsSearch,
     setExternalOsSearch,
+    customerNameSearch,
+    setCustomerNameSearch,
     documentSearch,
     setDocumentSearch,
     serialNumberSearch,
