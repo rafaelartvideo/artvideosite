@@ -24,10 +24,11 @@ import {
 } from "../infrastructure/finance-foundation.repository";
 
 export function useFinanceFoundation() {
-  const { activeOrganizationId } = useAuth();
+  const { activeOrganizationId, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
+  const canReadAccounts = hasPermission("finance.accounts.view") || hasPermission("finance.accounts.manage");
 
   const invalidate = async (queryKey: readonly unknown[]) => {
     await Promise.all([
@@ -38,7 +39,7 @@ export function useFinanceFoundation() {
 
   const accountsQuery = useQuery({
     queryKey: queryKeys.finance.accounts(organizationKey),
-    enabled: Boolean(activeOrganizationId),
+    enabled: Boolean(activeOrganizationId) && canReadAccounts,
     queryFn: () => listFinancialAccounts(organizationId),
   });
 

@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FileText,
   FolderTree,
+  Landmark,
   LayoutDashboard,
   List,
   Package,
@@ -28,6 +29,7 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "customers", label: "Cadastros", icon: Users },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "inventory", label: "Estoque", icon: Package },
+  { id: "finance", label: "Financeiro", icon: Landmark },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
 ];
 
@@ -69,6 +71,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   generalServices: "general_services.view",
   serviceTypes: "service_types.view",
   inventory: "inventory.view",
+  finance: "finance.view",
   documents: "documents.view",
   situations: "situations.view",
   orderStatuses: "order_statuses.view",
@@ -88,6 +91,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   customers: "customers",
   agenda: "agenda",
   inventory: "inventory",
+  finance: "finance",
   equipment: "equipment",
   checklists: "checklists",
   generalServices: "services",

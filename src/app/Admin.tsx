@@ -25,6 +25,7 @@ const EquipmentAdminPanel = lazy(() => import("@/features/equipment/presentation
 const TabPartnerCompanies = lazy(() => import("@/features/partner-companies/presentation/TabPartnerCompanies").then(({ TabPartnerCompanies }) => ({ default: TabPartnerCompanies })));
 const GeneralServicesPanel = lazy(() => import("@/features/general-services/presentation/GeneralServicesPanel").then(({ GeneralServicesPanel }) => ({ default: GeneralServicesPanel })));
 const TabInventory = lazy(() => import("@/features/inventory/presentation/TabInventory").then(({ TabInventory }) => ({ default: TabInventory })));
+const TabFinance = lazy(() => import("@/features/finance/presentation/TabFinance").then(({ TabFinance }) => ({ default: TabFinance })));
 const OrderStatusesAdminPanel = lazy(() => import("@/features/order-statuses/presentation/OrderStatusesAdminPanel").then(({ OrderStatusesAdminPanel }) => ({ default: OrderStatusesAdminPanel })));
 const TabProducts = lazy(() => import("@/features/products/presentation/TabProducts").then(({ TabProducts }) => ({ default: TabProducts })));
 const TabQuotes = lazy(() => import("@/features/quotes/presentation/TabQuotes").then(({ TabQuotes }) => ({ default: TabQuotes })));
@@ -42,7 +43,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "dashboard", "orders", "customers", "agenda", "inventory", "quotes", "partnerCompanies", "site", "operation", "roles", "settings", "contact",
+  "dashboard", "orders", "customers", "agenda", "inventory", "finance", "quotes", "partnerCompanies", "site", "operation", "roles", "settings", "contact",
 ];
 
 function AdminRouteLoading() { return <LoadingState text="Carregando módulo..." />; }
@@ -73,7 +74,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const fallbackTab = ACCESS_FALLBACK_TABS.find(canAccessTab) ?? null;
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
   const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
-  const mobileLabelModule = operationModule || siteModule || activeTab === "partnerCompanies";
+  const mobileLabelModule = operationModule || siteModule || activeTab === "partnerCompanies" || activeTab === "finance";
 
   const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] }) => {
     navigate(adminPath(tab, resourceId, subpage), { replace: options?.replace, state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined });
@@ -143,6 +144,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
             <Route path="agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
             <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
+            <Route path="finance/*" element={<TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
             <Route path="settings/*" element={<TabSettings routeResourceId={route.resourceId} onRouteChange={resourceId => navigateAdmin("settings", resourceId, null)} />} />
             <Route path="contact/*" element={<TabContact />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
