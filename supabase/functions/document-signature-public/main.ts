@@ -20,8 +20,11 @@ import {
   sha256Hex,
 } from "./public-signature-crypto.mjs";
 import {
+  createBaseDocumentAccess,
   createSignedDocumentAccess,
   finalizeSignatureRequest,
+  prepareSignatureBasePdf,
+  renderPrintPreviewPdf,
   signedRequestById,
   verifySignedDocumentByCode,
 } from "./final-document-service.ts";
@@ -31,10 +34,11 @@ const MAX_TOKEN_LENGTH = 512;
 const PROOF_TTL_MS = 15 * 60 * 1000;
 const OTP_TTL_MS = 10 * 60 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/i;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type, x-client-info, apikey",
+  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -73,6 +77,14 @@ function adminClient() {
   const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceRole) throw new Error("Supabase da assinatura pública não configurado.");
   return createClient(url, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+function assertServiceRole(request: Request) {
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const authorization = request.headers.get("Authorization") || "";
+  if (!serviceRole || authorization !== `Bearer ${serviceRole}`) {
+    throw Object.assign(new Error("Acesso interno não autorizado."), { status: 403 });
+  }
 }
 
 async function recordEvent(client: any, request: Request, row: any, eventType: string, metadata: Record<string, unknown> = {}) {
@@ -235,6 +247,7 @@ function finalPublicPayload(finalized: any) {
     verification_code: finalized.row?.verification_code || finalized.verification_code,
     verification_url: finalized.verification_url,
     download_url: finalized.download_url,
+    base_pdf_hash: finalized.base_pdf_hash || finalized.row?.base_pdf_hash || null,
     final_pdf_hash: finalized.final_pdf_hash,
     snapshot_hash: finalized.snapshot_hash,
   };
@@ -261,6 +274,7 @@ async function inspectAction(client: any, request: Request, body: any) {
     signer_email_masked: maskEmail(row.external_signer_email || ""),
     expires_at: row.expires_at,
     verification_code: row.status === "signed" ? row.verification_code : null,
+    base_pdf_hash: row.base_pdf_hash || null,
     final_pdf_hash: row.status === "signed" ? row.final_pdf_hash : null,
     snapshot_hash: row.status === "signed" ? row.snapshot_hash : null,
     signed_at: row.status === "signed" ? row.signed_at : null,
@@ -277,7 +291,6 @@ async function validateIdentityAction(client: any, request: Request, body: any, 
     const finalized = await finalizeSignatureRequest(client, request, row);
     return { success: true, already_captured: true, ...finalPublicPayload(finalized) };
   }
-
   const document = normalizeDocument(body.document);
   if (![11, 14].includes(document.length)) {
     await recordEvent(client, request, row, "identity_failed");
@@ -288,7 +301,6 @@ async function validateIdentityAction(client: any, request: Request, body: any, 
     await recordEvent(client, request, row, "identity_failed");
     throw Object.assign(new Error("Não foi possível validar os dados informados."), { status: 401 });
   }
-
   const proof = await buildIdentityProof(tokenKey, { requestId: row.id, tokenHash }, Date.now(), PROOF_TTL_MS);
   await recordEvent(client, request, row, "identity_verified", { validation_method: "cpf_cnpj" });
   return { success: true, proof, expires_in_seconds: Math.floor(PROOF_TTL_MS / 1000) };
@@ -302,7 +314,6 @@ async function requestOtpAction(client: any, request: Request, body: any, identi
     const finalized = await finalizeSignatureRequest(client, request, row);
     return { success: true, already_captured: true, ...finalPublicPayload(finalized) };
   }
-
   const document = normalizeDocument(body.document);
   if (![11, 14].includes(document.length)) {
     await recordEvent(client, request, row, "identity_failed");
@@ -325,22 +336,14 @@ async function requestOtpAction(client: any, request: Request, body: any, identi
     .gte("created_at", hourAgo);
   if (ip) eventCountQuery = eventCountQuery.eq("ip_address", ip);
   const [{ data: latestRows, error: latestError }, countResult] = await Promise.all([
-    client
-      .from("document_signature_otp_challenges")
-      .select("last_sent_at")
-      .eq("request_id", row.id)
-      .eq("organization_id", row.organization_id)
-      .order("last_sent_at", { ascending: false })
-      .limit(1),
+    client.from("document_signature_otp_challenges").select("last_sent_at").eq("request_id", row.id).eq("organization_id", row.organization_id).order("last_sent_at", { ascending: false }).limit(1),
     eventCountQuery,
   ]);
   if (latestError) throw latestError;
   if (countResult.error) throw countResult.error;
   const sendPolicy = otpSendPolicy({ now: Date.now(), lastSentAt: latestRows?.[0]?.last_sent_at || null, sendsLastHour: countResult.count || 0 });
   if (!sendPolicy.allowed) {
-    const message = sendPolicy.reason === "hourly_limit"
-      ? "Limite de códigos atingido. Tente novamente mais tarde."
-      : `Aguarde ${sendPolicy.retryAfterSeconds} segundos antes de solicitar outro código.`;
+    const message = sendPolicy.reason === "hourly_limit" ? "Limite de códigos atingido. Tente novamente mais tarde." : `Aguarde ${sendPolicy.retryAfterSeconds} segundos antes de solicitar outro código.`;
     throw Object.assign(new Error(message), { status: 429, retryAfterSeconds: sendPolicy.retryAfterSeconds });
   }
 
@@ -361,7 +364,6 @@ async function requestOtpAction(client: any, request: Request, body: any, identi
     last_sent_at: now.toISOString(),
   });
   if (insertError) throw insertError;
-
   try {
     const companyName = await loadCompanyName(client, row.organization_id);
     await sendOtpEmail({ recipient: row.external_signer_email, code, companyName, documentName: row.template_name_snapshot, orderNumber: row.order_number_snapshot });
@@ -370,16 +372,9 @@ async function requestOtpAction(client: any, request: Request, body: any, identi
     await recordEvent(client, request, row, "otp_email_failed", { recipient: maskEmail(row.external_signer_email || "") });
     throw Object.assign(emailError instanceof Error ? emailError : new Error("Não foi possível enviar o código por e-mail."), { status: 502 });
   }
-
   await recordEvent(client, request, row, "identity_verified", { validation_method: "email_otp" });
   await recordEvent(client, request, row, "otp_sent", { recipient: maskEmail(row.external_signer_email || ""), challenge_id: challengeId });
-  return {
-    success: true,
-    challenge_id: challengeId,
-    destination: maskEmail(row.external_signer_email || ""),
-    expires_in_seconds: Math.floor(OTP_TTL_MS / 1000),
-    retry_after_seconds: 60,
-  };
+  return { success: true, challenge_id: challengeId, destination: maskEmail(row.external_signer_email || ""), expires_in_seconds: Math.floor(OTP_TTL_MS / 1000), retry_after_seconds: 60 };
 }
 
 async function verifyOtpAction(client: any, request: Request, body: any, identityPepper: string, tokenKey: string) {
@@ -393,7 +388,6 @@ async function verifyOtpAction(client: any, request: Request, body: any, identit
   const challengeId = text(body.challenge_id, 64);
   const code = normalizeOtp(body.code);
   if (!challengeId || !isOtpFormat(code)) throw Object.assign(new Error("Código inválido ou expirado."), { status: 401 });
-
   const { data: challenge, error: challengeError } = await client
     .from("document_signature_otp_challenges")
     .select("id,request_id,organization_id,code_hmac,expires_at,attempts,verified_at")
@@ -402,10 +396,7 @@ async function verifyOtpAction(client: any, request: Request, body: any, identit
     .eq("organization_id", row.organization_id)
     .maybeSingle();
   if (challengeError) throw challengeError;
-  if (!challenge || challenge.verified_at || Number(challenge.attempts) >= 5 || Date.parse(challenge.expires_at) <= Date.now()) {
-    throw Object.assign(new Error("Código inválido ou expirado."), { status: 401 });
-  }
-
+  if (!challenge || challenge.verified_at || Number(challenge.attempts) >= 5 || Date.parse(challenge.expires_at) <= Date.now()) throw Object.assign(new Error("Código inválido ou expirado."), { status: 401 });
   const nextAttempts = Number(challenge.attempts) + 1;
   const { data: consumed, error: consumeError } = await client
     .from("document_signature_otp_challenges")
@@ -419,35 +410,30 @@ async function verifyOtpAction(client: any, request: Request, body: any, identit
     .maybeSingle();
   if (consumeError) throw consumeError;
   if (!consumed) throw Object.assign(new Error("Código inválido ou expirado. Tente novamente."), { status: 409 });
-
   const candidateHmac = await hmacHex(identityPepper, `otp:${row.id}:${challenge.id}:${code}`);
   if (!constantTimeEqualHex(candidateHmac, consumed.code_hmac)) {
     await recordEvent(client, request, row, "otp_failed", { attempt: consumed.attempts });
     throw Object.assign(new Error(consumed.attempts >= 5 ? "Código inválido e limite de tentativas atingido." : "Código inválido ou expirado."), { status: 401 });
   }
-
   const verifiedAt = new Date().toISOString();
-  const { error: verifyError } = await client
-    .from("document_signature_otp_challenges")
-    .update({ verified_at: verifiedAt })
-    .eq("id", challenge.id)
-    .eq("request_id", row.id)
-    .is("verified_at", null);
+  const { error: verifyError } = await client.from("document_signature_otp_challenges").update({ verified_at: verifiedAt }).eq("id", challenge.id).eq("request_id", row.id).is("verified_at", null);
   if (verifyError) throw verifyError;
-
   const proof = await buildOtpProof(tokenKey, { requestId: row.id, tokenHash, challengeId: challenge.id }, Date.now(), PROOF_TTL_MS);
   await recordEvent(client, request, row, "otp_verified", { challenge_id: challenge.id });
   return { success: true, proof, expires_in_seconds: Math.floor(PROOF_TTL_MS / 1000) };
 }
 
 async function documentAction(client: any, request: Request, body: any, tokenKey: string) {
-  const { row, tokenHash } = await requestFromToken(client, request, body.token, { markView: true });
+  let { row, tokenHash } = await requestFromToken(client, request, body.token, { markView: true });
   assertCanValidate(row);
   await verifiedProof(client, row, tokenHash, body.proof, tokenKey);
+  if (!row.base_pdf_storage_path || !row.base_pdf_hash) row = (await prepareSignatureBasePdf(client, request, row.id)).row;
+  const access = await createBaseDocumentAccess(client, row);
   return {
     success: true,
     document: {
-      snapshot: row.document_snapshot,
+      preview_url: access.preview_url,
+      base_pdf_hash: access.base_pdf_hash,
       consent_text: row.consent_text_snapshot,
       signer_name: row.external_signer_name,
       signer_document_masked: row.external_document_masked,
@@ -458,28 +444,24 @@ async function documentAction(client: any, request: Request, body: any, tokenKey
 }
 
 async function completeAction(client: any, request: Request, body: any, tokenKey: string) {
-  const { row, tokenHash } = await requestFromToken(client, request, body.token, { markView: true });
+  let { row, tokenHash } = await requestFromToken(client, request, body.token, { markView: true });
   assertCanValidate(row);
   const validation = await verifiedProof(client, row, tokenHash, body.proof, tokenKey);
   const validationMethod = validation?.method === "cpf_cnpj" ? "cpf_cnpj" : "email_otp";
-
+  if (!row.base_pdf_storage_path || !row.base_pdf_hash) row = (await prepareSignatureBasePdf(client, request, row.id)).row;
   const existing = await externalSignature(client, row);
   if (existing) {
     const finalized = await finalizeSignatureRequest(client, request, row);
     return { success: true, captured: true, captured_at: existing.signed_at, ...finalPublicPayload(finalized) };
   }
   if (body.consent_accepted !== true) throw new Error("Confirme o aceite do documento antes de assinar.");
-
   const bytes = decodePngDataUrl(body.signature_data_url);
   const signatureHash = await sha256BytesHex(bytes);
   const signatureId = crypto.randomUUID();
   const storagePath = `${row.organization_id}/${row.service_order_id}/${row.id}/external-signature-${signatureId}.png`;
   const signedAt = new Date().toISOString();
-  const { error: uploadError } = await client.storage
-    .from("signed-documents")
-    .upload(storagePath, new Blob([bytes], { type: "image/png" }), { contentType: "image/png", upsert: false, cacheControl: "3600" });
+  const { error: uploadError } = await client.storage.from("signed-documents").upload(storagePath, new Blob([bytes], { type: "image/png" }), { contentType: "image/png", upsert: false, cacheControl: "3600" });
   if (uploadError) throw uploadError;
-
   const { data: inserted, error: insertError } = await client
     .from("document_signatures")
     .insert({
@@ -500,7 +482,6 @@ async function completeAction(client: any, request: Request, body: any, tokenKey
     })
     .select("id,signed_at")
     .maybeSingle();
-
   if (insertError) {
     await client.storage.from("signed-documents").remove([storagePath]);
     const concurrent = await externalSignature(client, row);
@@ -510,9 +491,8 @@ async function completeAction(client: any, request: Request, body: any, tokenKey
     }
     throw insertError;
   }
-
   await recordEvent(client, request, row, "consent_accepted", { consent_text: row.consent_text_snapshot });
-  await recordEvent(client, request, row, "signature_captured", { signature_id: inserted?.id || signatureId, validation_method: validationMethod });
+  await recordEvent(client, request, row, "signature_captured", { signature_id: inserted?.id || signatureId, validation_method: validationMethod, base_pdf_hash: row.base_pdf_hash });
   const finalized = await finalizeSignatureRequest(client, request, row);
   return { success: true, captured: true, captured_at: inserted?.signed_at || signedAt, ...finalPublicPayload(finalized) };
 }
@@ -527,18 +507,35 @@ async function verifyDocumentAction(client: any, body: any) {
   return { success: true, document: await verifySignedDocumentByCode(client, body.verification_code) };
 }
 
-async function finalizeInternalAction(client: any, request: Request, body: any) {
-  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const authorization = request.headers.get("Authorization") || "";
-  if (!serviceRole || authorization !== `Bearer ${serviceRole}`) {
-    throw Object.assign(new Error("Acesso interno não autorizado."), { status: 403 });
-  }
+async function prepareBaseInternalAction(client: any, request: Request, body: any) {
+  assertServiceRole(request);
   const requestId = text(body.request_id, 64);
   if (!UUID_PATTERN.test(requestId)) throw new Error("Solicitação inválida.");
-  const row = await signedRequestById(client, requestId);
-  if (row.require_external_signature === true) {
-    throw Object.assign(new Error("A finalização interna é reservada a documentos sem assinante externo."), { status: 409 });
+  const prepared = await prepareSignatureBasePdf(client, request, requestId);
+  return { success: true, request_id: prepared.row.id, base_pdf_hash: prepared.base_pdf_hash, preview_url: prepared.preview_url };
+}
+
+async function renderPreviewInternalAction(client: any, request: Request, body: any) {
+  assertServiceRole(request);
+  const organizationId = text(body.organization_id, 64);
+  const serviceOrderId = text(body.service_order_id, 64);
+  const templateId = text(body.print_template_id, 64);
+  const snapshotHash = text(body.snapshot_hash, 64).toLowerCase();
+  if (!UUID_PATTERN.test(organizationId) || !UUID_PATTERN.test(serviceOrderId) || !UUID_PATTERN.test(templateId) || !SHA256_PATTERN.test(snapshotHash)) {
+    throw new Error("Dados inválidos para gerar o PDF de impressão.");
   }
+  if (!body.snapshot || typeof body.snapshot !== "object") throw new Error("Snapshot do documento inválido.");
+  const rendered = await renderPrintPreviewPdf(client, request, { organizationId, serviceOrderId, templateId, snapshotHash, snapshot: body.snapshot });
+  return { success: true, ...rendered };
+}
+
+async function finalizeInternalAction(client: any, request: Request, body: any) {
+  assertServiceRole(request);
+  const requestId = text(body.request_id, 64);
+  if (!UUID_PATTERN.test(requestId)) throw new Error("Solicitação inválida.");
+  let row = await signedRequestById(client, requestId);
+  if (!row.base_pdf_storage_path || !row.base_pdf_hash) row = (await prepareSignatureBasePdf(client, request, requestId)).row;
+  if (row.require_external_signature === true) throw Object.assign(new Error("A finalização interna é reservada a documentos sem assinante externo."), { status: 409 });
   const finalized = await finalizeSignatureRequest(client, request, row);
   return {
     success: true,
@@ -546,6 +543,7 @@ async function finalizeInternalAction(client: any, request: Request, body: any) 
     status: finalized.row.status,
     signed_at: finalized.row.signed_at,
     verification_code: finalized.row.verification_code,
+    base_pdf_hash: finalized.row.base_pdf_hash || null,
     final_pdf_hash: finalized.final_pdf_hash,
     snapshot_hash: finalized.snapshot_hash,
   };
@@ -554,20 +552,13 @@ async function finalizeInternalAction(client: any, request: Request, body: any) 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ success: false, error: "Método não permitido." }, 405);
-
   try {
     const body = await request.json().catch(() => ({}));
     const action = text(body?.action, 40);
     const identityPepper = Deno.env.get("SIGNATURE_IDENTITY_PEPPER") || "";
     const tokenKey = Deno.env.get("SIGNATURE_TOKEN_KEY") || "";
-
-    if (["validate_identity", "request_otp", "verify_otp"].includes(action) && identityPepper.length < 16) {
-      return json({ success: false, error: "Validação de identidade não configurada no servidor." }, 503);
-    }
-    if (["validate_identity", "verify_otp", "document", "complete"].includes(action) && tokenKey.length < 16) {
-      return json({ success: false, error: "Assinatura eletrônica não configurada no servidor." }, 503);
-    }
-
+    if (["validate_identity", "request_otp", "verify_otp"].includes(action) && identityPepper.length < 16) return json({ success: false, error: "Validação de identidade não configurada no servidor." }, 503);
+    if (["validate_identity", "verify_otp", "document", "complete"].includes(action) && tokenKey.length < 16) return json({ success: false, error: "Assinatura eletrônica não configurada no servidor." }, 503);
     const client = adminClient();
     if (action === "inspect") return json(await inspectAction(client, request, body));
     if (action === "validate_identity") return json(await validateIdentityAction(client, request, body, identityPepper, tokenKey));
@@ -577,21 +568,19 @@ Deno.serve(async (request) => {
     if (action === "complete") return json(await completeAction(client, request, body, tokenKey));
     if (action === "signed_document") return json(await signedDocumentAction(client, request, body));
     if (action === "verify_document") return json(await verifyDocumentAction(client, body));
+    if (action === "prepare_base_internal") return json(await prepareBaseInternalAction(client, request, body));
+    if (action === "render_preview_internal") return json(await renderPreviewInternalAction(client, request, body));
     if (action === "finalize_internal") return json(await finalizeInternalAction(client, request, body));
     return json({ success: false, error: "Ação inválida." }, 400);
   } catch (error) {
     const status = Number((error as any)?.status) || 400;
     const retryAfterSeconds = Number((error as any)?.retryAfterSeconds) || 0;
     console.error("[DOCUMENT SIGNATURE PUBLIC]", error instanceof Error ? error.message : "Erro inesperado");
-    return json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Não foi possível concluir a assinatura eletrônica.",
-        code: (error as any)?.code || null,
-        retry_after_seconds: retryAfterSeconds || undefined,
-      },
-      status >= 400 && status < 600 ? status : 400,
-      retryAfterSeconds ? { "Retry-After": String(retryAfterSeconds) } : {},
-    );
+    return json({
+      success: false,
+      error: error instanceof Error ? error.message : "Não foi possível concluir a assinatura eletrônica.",
+      code: (error as any)?.code || null,
+      retry_after_seconds: retryAfterSeconds || undefined,
+    }, status >= 400 && status < 600 ? status : 400, retryAfterSeconds ? { "Retry-After": String(retryAfterSeconds) } : {});
   }
 });
