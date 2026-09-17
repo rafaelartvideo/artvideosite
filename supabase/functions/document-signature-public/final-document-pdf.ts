@@ -5,7 +5,7 @@ type FinalSignatureEvidence = {
   signer_type: "employee" | "external";
   signer_name: string;
   signer_document_masked?: string | null;
-  validation_method: "stored_employee_signature" | "email_otp";
+  validation_method: "stored_employee_signature" | "cpf_cnpj" | "email_otp";
   signed_at: string;
   image_bytes?: Uint8Array | null;
 };
@@ -244,7 +244,12 @@ export async function renderSignedDocumentPdf(input: RenderSignedDocumentPdfInpu
     line(signature.signer_type === "employee" ? "Assinatura do funcionário" : "Assinatura do cliente/responsável", { font: bold, size: 7.5, gapAfter: 1, indent: 4 });
     line(signature.signer_name || "-", { size: 8.5, gapAfter: 0, indent: 4 });
     if (signature.signer_document_masked) line(signature.signer_document_masked, { size: 7.2, color: MUTED, indent: 4 });
-    line(`${signature.validation_method === "email_otp" ? "Validação por e-mail + OTP" : "Assinatura cadastrada do funcionário"} | ${new Date(signature.signed_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { size: 6.8, color: MUTED, gapAfter: 7, indent: 4 });
+    const validationLabel = signature.validation_method === "email_otp"
+      ? "Validação por e-mail + OTP"
+      : signature.validation_method === "cpf_cnpj"
+        ? "Validação por CPF/CNPJ"
+        : "Assinatura cadastrada do funcionário";
+    line(`${validationLabel} | ${new Date(signature.signed_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { size: 6.8, color: MUTED, gapAfter: 7, indent: 4 });
   }
 
   ensure(250);
