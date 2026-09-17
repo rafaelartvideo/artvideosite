@@ -82,7 +82,7 @@ export function useOrderFormState() {
         .filter(Boolean)
         .concat(order.seller_id ? [order.seller_id] : []),
     )));
-    setNeedsScheduling(true);
+    setNeedsScheduling(Boolean(order.scheduled_at));
     setForm({
       ...createEmptyOrderForm(),
       service_id: order.service_id || "",
