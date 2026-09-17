@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { allocationAmount, validateAllocationTotal } from "../domain/finance-entry.mjs";
 import type {
@@ -34,6 +35,17 @@ export function FinanceAllocationEditor({
     { value: "", label: "Sem centro de custo" },
     ...costCenters.filter(item => item.is_active).map(item => ({ value: item.id, label: item.name })),
   ];
+
+  useEffect(() => {
+    let changed = false;
+    const next = value.map(row => {
+      const amount = allocationAmount(total, row.mode, row.value);
+      if (Math.round(amount * 100) !== Math.round(Number(row.amount || 0) * 100)) changed = true;
+      return changed || amount !== row.amount ? { ...row, amount } : row;
+    });
+    if (changed) onChange(next);
+  }, [total, value, onChange]);
+
   const validation = validateAllocationTotal(total, value);
 
   const updateRow = (index: number, patch: Partial<FinancialAllocationDraft>) => {
@@ -63,7 +75,7 @@ export function FinanceAllocationEditor({
       <FSelect label="Categoria" value={row.category_id} options={categoryOptions} onChange={(event: any) => updateRow(index, { category_id: event.target.value })} />
       <FSelect label="Centro de custo" value={row.cost_center_id || ""} options={costCenterOptions} onChange={(event: any) => updateRow(index, { cost_center_id: event.target.value || null })} />
       <FSelect label="Modo" value={row.mode} options={[{ value: "percentage", label: "%" }, { value: "amount", label: "R$" }]} onChange={(event: any) => updateRow(index, { mode: event.target.value, value: 0 })} />
-      <FInput label={row.mode === "percentage" ? "Percentual" : "Valor"} type="number" min="0" step={row.mode === "percentage" ? "0.01" : "0.01"} value={row.value || ""} onChange={(event: any) => updateRow(index, { value: Number(event.target.value || 0) })} />
+      <FInput label={row.mode === "percentage" ? "Percentual" : "Valor"} type="number" min="0" step="0.01" value={row.value || ""} onChange={(event: any) => updateRow(index, { value: Number(event.target.value || 0) })} />
       <div className="flex items-center justify-between gap-2 sm:block"><span className="text-xs font-bold text-[#0057e7] sm:hidden">{formatCurrency(row.amount)}</span><AdminIconButton ariaLabel="Remover rateio" variant="danger" onClick={() => onChange(value.filter((_, rowIndex) => rowIndex !== index))}><Trash2 size={15} /></AdminIconButton></div>
       <div className="hidden text-right text-xs font-bold text-[#0057e7] sm:col-span-5 sm:block">Valor deste rateio: {formatCurrency(row.amount)}</div>
     </div>)}
