@@ -18,6 +18,7 @@ export type OrderCompletionPaymentMethod = {
 };
 
 export type OrderCompletionFinanceOptions = {
+  finance_enabled: boolean;
   accounts: OrderCompletionFinancialAccount[];
   payment_methods: OrderCompletionPaymentMethod[];
 };
@@ -40,6 +41,7 @@ export async function getOrderCompletionFinanceOptions(organizationId: string): 
   if (error) throw error;
   const raw = (data || {}) as any;
   return {
+    finance_enabled: raw.finance_enabled !== false,
     accounts: Array.isArray(raw.accounts) ? raw.accounts.map((item: any) => ({
       id: String(item.id),
       name: String(item.name || "Conta"),
