@@ -76,6 +76,7 @@ export interface FinancialEntry {
   original_amount: number;
   approval_status: FinancialApprovalStatus;
   required_approvals: number;
+  approval_cycle: number;
   approved_at?: string | null;
   rejected_at?: string | null;
   cancelled_at?: string | null;
@@ -127,6 +128,7 @@ export interface FinancialApproval {
   id: string;
   organization_id: string;
   financial_entry_id: string;
+  approval_cycle: number;
   approver_user_id: string;
   approver_name_snapshot: string;
   action: FinancialApprovalAction;
@@ -179,4 +181,11 @@ export interface FinancialEntryDraft {
   notes?: string | null;
   installments: FinancialInstallmentDraft[];
   allocations: FinancialAllocationDraft[];
+}
+
+export interface FinancialDecisionResult {
+  status: "pending" | "approved" | "rejected";
+  approvals: number;
+  required_approvals: number;
+  approval_cycle: number;
 }
