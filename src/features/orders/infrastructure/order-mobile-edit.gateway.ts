@@ -28,9 +28,22 @@ export type MobileOrderEditorData = {
   technical_fields: any[];
 };
 
+async function edgeFunctionErrorMessage(error: any) {
+  const fallback = error?.message || "Não foi possível acessar a edição móvel da OS.";
+  const context = error?.context;
+  if (!context || typeof context.clone !== "function") return fallback;
+
+  try {
+    const payload = await context.clone().json();
+    return String(payload?.error || payload?.message || fallback);
+  } catch {
+    return fallback;
+  }
+}
+
 async function invoke(body: Record<string, unknown> | FormData) {
   const { data, error } = await supabase.functions.invoke("order-mobile-edit", { body });
-  if (error) throw new Error(error.message || "Não foi possível acessar a edição móvel da OS.");
+  if (error) throw new Error(await edgeFunctionErrorMessage(error));
   if (!data?.success) throw new Error(data?.error || "Não foi possível acessar a edição móvel da OS.");
   return data;
 }
