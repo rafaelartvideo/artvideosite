@@ -7,7 +7,7 @@ import type {
   FinancialSettings,
 } from "../domain/finance.types";
 
-const ACCOUNT_COLUMNS = "id,organization_id,name,account_type,description,bank_name,agency,account_number,pix_key,allows_cash_session,is_active";
+const ACCOUNT_COLUMNS = "id,organization_id,name,account_type,description,bank_name,agency,account_number,pix_key,allows_cash_session,opening_balance_configured_at,opening_balance_configured_by,is_active";
 const CATEGORY_COLUMNS = "id,organization_id,name,nature,parent_category_id,report_group,description,is_active";
 const COST_CENTER_COLUMNS = "id,organization_id,name,description,is_active";
 const PAYMENT_METHOD_COLUMNS = "id,organization_id,name,method_type,percentage_fee,fixed_fee,settlement_days,requires_financial_account,creates_future_settlement,default_financial_account_id,is_active";
@@ -24,7 +24,7 @@ function requiredOrganizationId(organizationId: string) {
   return normalized;
 }
 
-export type FinancialAccountInput = Omit<FinancialAccount, "id" | "organization_id" | "is_active"> & {
+export type FinancialAccountInput = Omit<FinancialAccount, "id" | "organization_id" | "is_active" | "balance" | "opening_balance_configured_at" | "opening_balance_configured_by"> & {
   id?: string;
   is_active?: boolean;
 };
