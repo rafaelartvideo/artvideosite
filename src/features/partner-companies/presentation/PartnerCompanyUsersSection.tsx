@@ -44,7 +44,8 @@ function validateUser(form: Form, editing: boolean): FormErrors {
   if (!editing && !form.username.trim()) errors.username = "Informe o usuário de acesso.";
   else if (form.username && !isValidUsername(form.username)) errors.username = "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado.";
   if (!form.role_id) errors.role_id = "Selecione uma função.";
-  if (!editing && form.password && form.password.length < 8) errors.password = "A senha deve ter pelo menos 8 caracteres.";
+  if (!editing && !form.password) errors.password = "Informe a senha.";
+  else if (!editing && form.password.length < 8) errors.password = "A senha deve ter pelo menos 8 caracteres.";
   return errors;
 }
 
@@ -99,13 +100,13 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
       if (result.error) throw result.error;
       return result.data;
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["partner-companies", "users", organizationId] });
       setFormOpen(false);
       setEditing(null);
       setForm(empty);
       setErrors({});
-      setToast({ msg: data?.reused_existing_login ? "Usuário existente vinculado à empresa." : "Usuário salvo com sucesso.", type: "success" });
+      setToast({ msg: "Usuário salvo com sucesso.", type: "success" });
     },
     onError: (error: any) => setToast({ msg: `Não foi possível salvar o usuário: ${error?.message || "Erro desconhecido"}`, type: "error" }),
   });
@@ -190,17 +191,18 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
             spellCheck={false}
             maxLength={32}
             placeholder="ex.: rafael.lima"
-            hint={editing ? "O usuário de acesso é global e não é alterado por esta edição." : "O usuário é global e único em todo o sistema."}
+            hint={editing ? "O usuário de acesso é global e não é alterado por esta edição." : "O usuário é global e único em todo o sistema. Se já existir, o cadastro será recusado."}
             value={form.username}
             onChange={(e: any) => setField("username", normalizeUsername(e.target.value))}
           />
           {!editing && <FInput
             label="Senha"
             type="password"
+            required
             autoComplete="new-password"
             minLength={8}
             error={errors.password}
-            hint="Obrigatória para um usuário novo. Se este usuário já existir, deixe em branco para apenas vinculá-lo à empresa."
+            hint="Obrigatória. Use pelo menos 8 caracteres."
             value={form.password}
             onChange={(e: any) => setField("password", e.target.value)}
           />}
