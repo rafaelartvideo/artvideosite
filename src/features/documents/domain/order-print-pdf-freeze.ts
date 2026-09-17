@@ -1,5 +1,10 @@
 import html2pdf from "html2pdf.js";
 import { buildOrderPrintDocumentHtml, type PrintOrderContext } from "./order-print-document";
+import {
+  copyComputedStyle,
+  html2pdfMarginOrder,
+  signatureSlotFromGeometry,
+} from "./order-print-freeze-style.mjs";
 import type { PrintTemplateEditorValue } from "./print-template";
 
 export type FrozenSignatureSlot = {
@@ -18,7 +23,6 @@ export type FrozenOrderPrintPdf = {
 };
 
 const A4 = { portrait: [210, 297] as const, landscape: [297, 210] as const };
-const SLOT_HEIGHT_MM = 18;
 
 function waitForFrameLoad(frame: HTMLIFrameElement) {
   return new Promise<void>((resolve, reject) => {
@@ -47,6 +51,15 @@ async function waitForAssets(doc: Document) {
   }));
 }
 
+function inlineComputedStyles(doc: Document, root: HTMLElement) {
+  const view = doc.defaultView;
+  if (!view) throw new Error("Não foi possível ler os estilos do documento de impressão.");
+  const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
+  for (const element of elements) {
+    copyComputedStyle(view.getComputedStyle(element), element.style);
+  }
+}
+
 function signatureKinds(template: PrintTemplateEditorValue) {
   const result: Array<"external" | "employee"> = [];
   if (template.selectedFields.has("signatures.customer")) result.push("external");
@@ -55,50 +68,39 @@ function signatureKinds(template: PrintTemplateEditorValue) {
 }
 
 function collectSignatureSlots(
-  doc: Document,
+  captureRoot: HTMLElement,
   template: PrintTemplateEditorValue,
   pageWidthMm: number,
   pageHeightMm: number,
 ): FrozenSignatureSlot[] {
-  const body = doc.body;
-  const bodyRect = body.getBoundingClientRect();
+  const rootRect = captureRoot.getBoundingClientRect();
   const margins = [template.margin_top, template.margin_right, template.margin_bottom, template.margin_left]
     .map(value => Math.max(6, Number(value) || 6));
   const [marginTop, marginRight, marginBottom, marginLeft] = margins;
   const innerWidthMm = Math.max(1, pageWidthMm - marginLeft - marginRight);
   const innerHeightMm = Math.max(1, pageHeightMm - marginTop - marginBottom);
-  const pxPerMm = bodyRect.width > 0 ? bodyRect.width / innerWidthMm : 96 / 25.4;
+  const pxPerMm = rootRect.width > 0 ? rootRect.width / innerWidthMm : 96 / 25.4;
   const pageHeightPx = innerHeightMm * pxPerMm;
-  const slotHeightPx = SLOT_HEIGHT_MM * pxPerMm;
   const kinds = signatureKinds(template);
-  const lines = Array.from(doc.querySelectorAll<HTMLElement>(".signature-line"));
-  const section = doc.querySelector<HTMLElement>(".signature-section");
-  const sectionRect = section?.getBoundingClientRect() || null;
-  let sectionShiftPx = 0;
-
-  // The existing renderer marks the signature section break-inside:avoid. Mirror that
-  // page break when deriving overlay coordinates without changing the renderer itself.
-  if (sectionRect && pageHeightPx > 0) {
-    const sectionTop = sectionRect.top - bodyRect.top;
-    const sectionHeight = sectionRect.height;
-    const positionInPage = ((sectionTop % pageHeightPx) + pageHeightPx) % pageHeightPx;
-    if (positionInPage + sectionHeight > pageHeightPx) sectionShiftPx = pageHeightPx - positionInPage;
-  }
+  const lines = Array.from(captureRoot.querySelectorAll<HTMLElement>(".signature-line"));
 
   return lines.slice(0, kinds.length).map((line, index) => {
-    const rect = line.getBoundingClientRect();
-    const leftPx = rect.left - bodyRect.left;
-    const lineTopPx = rect.top - bodyRect.top + sectionShiftPx;
-    const slotTopPx = Math.max(0, lineTopPx - slotHeightPx - 2 * pxPerMm);
-    const pageIndex = Math.max(0, Math.floor(slotTopPx / pageHeightPx));
-    const localTopPx = slotTopPx - pageIndex * pageHeightPx;
+    const lineRect = line.getBoundingClientRect();
+    const signature = line.closest<HTMLElement>(".signature");
+    const signatureRect = signature?.getBoundingClientRect() || lineRect;
+    const geometry = signatureSlotFromGeometry({
+      lineLeftPx: lineRect.left - rootRect.left,
+      lineTopPx: lineRect.top - rootRect.top,
+      lineWidthPx: lineRect.width,
+      signatureTopPx: signatureRect.top - rootRect.top,
+      pxPerMm,
+      pageHeightPx,
+      marginLeftMm: marginLeft,
+      marginTopMm: marginTop,
+    });
     return {
       signer_type: kinds[index],
-      page_index: pageIndex,
-      x_mm: Number((marginLeft + leftPx / pxPerMm).toFixed(3)),
-      y_mm: Number((marginTop + localTopPx / pxPerMm).toFixed(3)),
-      width_mm: Number((rect.width / pxPerMm).toFixed(3)),
-      height_mm: SLOT_HEIGHT_MM,
+      ...geometry,
     };
   });
 }
@@ -136,8 +138,8 @@ export async function freezeOrderPrintPdf(
     await loaded;
     await waitForAssets(doc);
 
-    // Emulate the renderer's @media print body geometry. The HTML/CSS and content are
-    // still exactly the same; html2pdf is only freezing the browser-rendered result.
+    // Reproduce only the geometry that the existing renderer applies under @media print.
+    // The renderer itself remains untouched and is still the single source of HTML/CSS.
     doc.documentElement.style.background = "#fff";
     doc.body.style.width = `${innerWidthMm}mm`;
     doc.body.style.maxWidth = "none";
@@ -146,14 +148,17 @@ export async function freezeOrderPrintPdf(
     doc.body.style.background = "#fff";
     doc.body.style.setProperty("-webkit-print-color-adjust", "exact");
     doc.body.style.setProperty("print-color-adjust", "exact");
-
-    // Force layout before measuring the immutable signature locations.
     void doc.body.offsetHeight;
-    const signatureSlots = collectSignatureSlots(doc, template, pageWidthMm, pageHeightMm);
+
+    // html2pdf clones only the supplied node into the main document. Persist every
+    // computed rule inline first so grid, logo sizing, typography and break rules
+    // survive that clone exactly as rendered in the print iframe.
+    inlineComputedStyles(doc, doc.body);
+    void doc.body.offsetHeight;
 
     const worker: any = (html2pdf as any)()
       .set({
-        margin: [marginTop, marginRight, marginBottom, marginLeft],
+        margin: html2pdfMarginOrder(margins),
         filename: `${template.name || "documento"}.pdf`,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
@@ -168,8 +173,16 @@ export async function freezeOrderPrintPdf(
         pagebreak: { mode: ["css", "legacy"] },
       })
       .from(doc.body)
-      .toPdf();
+      .toContainer();
 
+    // Wait for html2pdf's clone and page-break plugin. Signature coordinates must be
+    // measured from this exact paginated container, not from the pre-pagination iframe.
+    const container = await worker.get("container");
+    if (!(container instanceof HTMLElement)) throw new Error("Não foi possível paginar o documento para assinatura.");
+    void container.offsetHeight;
+    const signatureSlots = collectSignatureSlots(container, template, pageWidthMm, pageHeightMm);
+
+    await worker.toCanvas().toPdf();
     const pdf: any = await worker.get("pdf");
     const pageCount = Number(pdf?.internal?.getNumberOfPages?.() || 0);
     if (!Number.isInteger(pageCount) || pageCount < 1) throw new Error("Não foi possível congelar o PDF de impressão.");
