@@ -1,5 +1,10 @@
 import { buildVerificationPath, minimalVerificationPayload, requiredSignatureKinds } from "./final-document-policy.mjs";
-import { renderSignedDocumentPdf } from "./final-document-pdf.ts";
+import {
+  applySignatureEvidenceToBasePdf,
+  renderBaseDocumentPdf,
+  renderSignedDocumentPdf,
+} from "./final-document-pdf.ts";
+import { previewPdfPath, requestBasePdfPath } from "./base-pdf-policy.mjs";
 import { maskEmail, sha256BytesHex } from "./public-signature-crypto.mjs";
 
 function text(value: unknown, max = 500) {
@@ -164,6 +169,21 @@ async function allowedChecklistMedia(client: any, row: any) {
   return result;
 }
 
+async function companyLogoMedia(client: any, snapshot: any) {
+  const mediaId = text(snapshot?.company?.logo_media_id, 64);
+  if (!mediaId) return null;
+  const { data: media, error } = await client
+    .from("media")
+    .select("id,bucket_id,storage_path,mime_type,file_size")
+    .eq("id", mediaId)
+    .maybeSingle();
+  if (error || !media) return null;
+  if (!String(media.mime_type || "").toLowerCase().startsWith("image/") || Number(media.file_size || 0) > 8 * 1024 * 1024) return null;
+  const { data: blob, error: downloadError } = await client.storage.from(media.bucket_id).download(media.storage_path);
+  if (downloadError || !blob) return null;
+  return { mime_type: media.mime_type || null, bytes: new Uint8Array(await blob.arrayBuffer()) };
+}
+
 async function getRequest(client: any, requestId: string) {
   const { data, error } = await client.from("document_signature_requests").select("*").eq("id", requestId).maybeSingle();
   if (error) throw error;
@@ -175,6 +195,114 @@ async function existingPdfBytes(client: any, path: string) {
   const { data, error } = await client.storage.from("signed-documents").download(path);
   if (error || !data) return null;
   return new Uint8Array(await data.arrayBuffer());
+}
+
+async function signedUrlForPath(client: any, path: string, expiresIn = 10 * 60) {
+  const { data, error } = await client.storage.from("signed-documents").createSignedUrl(path, expiresIn);
+  if (error || !data?.signedUrl) throw error || new Error("Não foi possível preparar o PDF.");
+  return data.signedUrl;
+}
+
+export async function prepareSignatureBasePdf(client: any, request: Request, requestId: string) {
+  let row = await getRequest(client, requestId);
+  if (row.base_pdf_storage_path && row.base_pdf_hash) {
+    const existing = await existingPdfBytes(client, row.base_pdf_storage_path);
+    if (existing) {
+      return {
+        row,
+        preview_url: await signedUrlForPath(client, row.base_pdf_storage_path),
+        base_pdf_hash: row.base_pdf_hash,
+      };
+    }
+  }
+
+  const [checklistMedia, logo] = await Promise.all([
+    allowedChecklistMedia(client, row),
+    companyLogoMedia(client, row.document_snapshot),
+  ]);
+  const rendered = await renderBaseDocumentPdf({ snapshot: row.document_snapshot, checklistMedia, companyLogo: logo });
+  const path = requestBasePdfPath(row);
+  const hash = await sha256BytesHex(rendered.pdfBytes);
+  const { error: uploadError } = await client.storage
+    .from("signed-documents")
+    .upload(path, new Blob([rendered.pdfBytes], { type: "application/pdf" }), { contentType: "application/pdf", upsert: true, cacheControl: "3600" });
+  if (uploadError) throw uploadError;
+
+  const { data: updated, error: updateError } = await client
+    .from("document_signature_requests")
+    .update({
+      base_pdf_storage_path: path,
+      base_pdf_hash: hash,
+      base_pdf_signature_slots: rendered.signatureSlots,
+      base_pdf_created_at: new Date().toISOString(),
+    })
+    .eq("id", row.id)
+    .eq("organization_id", row.organization_id)
+    .select("*")
+    .maybeSingle();
+  if (updateError || !updated) {
+    await client.storage.from("signed-documents").remove([path]);
+    throw updateError || new Error("Não foi possível congelar o PDF-base da assinatura.");
+  }
+  row = updated;
+  await recordSystemEvent(client, request, row, "base_pdf_generated", { base_pdf_hash: hash, path });
+  return {
+    row,
+    preview_url: await signedUrlForPath(client, path),
+    base_pdf_hash: hash,
+  };
+}
+
+export async function createBaseDocumentAccess(client: any, row: any) {
+  if (!row?.base_pdf_storage_path || !row?.base_pdf_hash) {
+    throw Object.assign(new Error("O PDF-base deste documento ainda não está disponível."), { status: 409 });
+  }
+  return {
+    preview_url: await signedUrlForPath(client, row.base_pdf_storage_path),
+    base_pdf_hash: row.base_pdf_hash,
+  };
+}
+
+export async function renderPrintPreviewPdf(client: any, request: Request, input: {
+  organizationId: string;
+  serviceOrderId: string;
+  templateId: string;
+  snapshotHash: string;
+  snapshot: any;
+}) {
+  const rowLike = {
+    organization_id: input.organizationId,
+    service_order_id: input.serviceOrderId,
+    document_snapshot: input.snapshot,
+  };
+  const [checklistMedia, logo] = await Promise.all([
+    allowedChecklistMedia(client, rowLike),
+    companyLogoMedia(client, input.snapshot),
+  ]);
+  const rendered = await renderBaseDocumentPdf({ snapshot: input.snapshot, checklistMedia, companyLogo: logo });
+  const hash = await sha256BytesHex(rendered.pdfBytes);
+  const path = previewPdfPath({
+    organizationId: input.organizationId,
+    serviceOrderId: input.serviceOrderId,
+    templateId: input.templateId,
+    snapshotHash: input.snapshotHash,
+  });
+  const { error: uploadError } = await client.storage
+    .from("signed-documents")
+    .upload(path, new Blob([rendered.pdfBytes], { type: "application/pdf" }), { contentType: "application/pdf", upsert: true, cacheControl: "300" });
+  if (uploadError) throw uploadError;
+
+  const folder = `${input.organizationId}/${input.serviceOrderId}/print-previews/${input.templateId}`;
+  const { data: siblings } = await client.storage.from("signed-documents").list(folder, { limit: 100 });
+  const keepName = `${input.snapshotHash}.pdf`;
+  const stale = (siblings || []).filter((item: any) => item?.name && item.name !== keepName).map((item: any) => `${folder}/${item.name}`);
+  if (stale.length) await client.storage.from("signed-documents").remove(stale);
+
+  return {
+    preview_url: await signedUrlForPath(client, path),
+    pdf_hash: hash,
+    signature_slots: rendered.signatureSlots,
+  };
 }
 
 async function sendFinalCopyEmail(client: any, request: Request, row: any, pdfBytes: Uint8Array, verificationUrl: string) {
@@ -215,15 +343,14 @@ export async function createSignedDocumentAccess(client: any, request: Request, 
   if (row.status !== "signed" || !row.final_pdf_storage_path || !row.final_pdf_hash) {
     throw Object.assign(new Error("O PDF final ainda não está disponível."), { status: 409 });
   }
-  const { data, error } = await client.storage.from("signed-documents").createSignedUrl(row.final_pdf_storage_path, 10 * 60);
-  if (error || !data?.signedUrl) throw error || new Error("Não foi possível preparar o download do PDF.");
   const baseUrl = publicBaseUrl(request);
   const verificationPath = buildVerificationPath(row.verification_code);
   return {
-    download_url: data.signedUrl,
+    download_url: await signedUrlForPath(client, row.final_pdf_storage_path),
     verification_url: baseUrl ? `${baseUrl}${verificationPath}` : verificationPath,
     verification_code: row.verification_code,
     final_pdf_hash: row.final_pdf_hash,
+    base_pdf_hash: row.base_pdf_hash || null,
     snapshot_hash: row.snapshot_hash,
     signed_at: row.signed_at,
   };
@@ -247,16 +374,37 @@ export async function finalizeSignatureRequest(client: any, request: Request, so
   let pdfBytes = await existingPdfBytes(client, finalPath);
   let newlyGenerated = false;
   if (!pdfBytes) {
-    const checklistMedia = await allowedChecklistMedia(client, row);
-    pdfBytes = await renderSignedDocumentPdf({
-      snapshot: row.document_snapshot,
-      snapshotHash: row.snapshot_hash,
-      verificationCode: row.verification_code,
-      verificationUrl,
-      signedAt,
-      signatures: withImages,
-      checklistMedia,
-    });
+    const basePdfBytes = row.base_pdf_storage_path ? await existingPdfBytes(client, row.base_pdf_storage_path) : null;
+    if (basePdfBytes && row.base_pdf_hash) {
+      const actualBaseHash = await sha256BytesHex(basePdfBytes);
+      if (actualBaseHash !== row.base_pdf_hash) throw new Error("O PDF-base congelado não passou na verificação de integridade.");
+      pdfBytes = await applySignatureEvidenceToBasePdf({
+        basePdfBytes,
+        basePdfHash: row.base_pdf_hash,
+        snapshotHash: row.snapshot_hash,
+        verificationCode: row.verification_code,
+        verificationUrl,
+        signedAt,
+        signatures: withImages,
+        signatureSlots: Array.isArray(row.base_pdf_signature_slots) ? row.base_pdf_signature_slots : [],
+      });
+    } else {
+      const [checklistMedia, logo] = await Promise.all([
+        allowedChecklistMedia(client, row),
+        companyLogoMedia(client, row.document_snapshot),
+      ]);
+      pdfBytes = await renderSignedDocumentPdf({
+        snapshot: row.document_snapshot,
+        snapshotHash: row.snapshot_hash,
+        verificationCode: row.verification_code,
+        verificationUrl,
+        signedAt,
+        signatures: withImages,
+        checklistMedia,
+        companyLogo: logo,
+      });
+    }
+
     const { error: uploadError } = await client.storage
       .from("signed-documents")
       .upload(finalPath, new Blob([pdfBytes], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false, cacheControl: "3600" });
@@ -289,8 +437,8 @@ export async function finalizeSignatureRequest(client: any, request: Request, so
   }
 
   row = updated;
-  if (newlyGenerated) await recordSystemEvent(client, request, row, "pdf_generated", { final_pdf_hash: finalHash });
-  await recordSystemEvent(client, request, row, "signed", { verification_code: row.verification_code, final_pdf_hash: finalHash });
+  if (newlyGenerated) await recordSystemEvent(client, request, row, "pdf_generated", { final_pdf_hash: finalHash, base_pdf_hash: row.base_pdf_hash || null });
+  await recordSystemEvent(client, request, row, "signed", { verification_code: row.verification_code, final_pdf_hash: finalHash, base_pdf_hash: row.base_pdf_hash || null });
   await sendFinalCopyEmail(client, request, row, pdfBytes, verificationUrl);
   return { row, ...(await createSignedDocumentAccess(client, request, row)) };
 }
@@ -300,7 +448,7 @@ export async function verifySignedDocumentByCode(client: any, rawCode: unknown) 
   if (!code || code.length < 8) throw Object.assign(new Error("Documento assinado não encontrado."), { status: 404 });
   const { data: row, error } = await client
     .from("document_signature_requests")
-    .select("id,verification_code,organization_id,template_name_snapshot,order_number_snapshot,signed_at,snapshot_hash,final_pdf_hash,status")
+    .select("id,verification_code,organization_id,template_name_snapshot,order_number_snapshot,signed_at,snapshot_hash,base_pdf_hash,final_pdf_hash,status")
     .eq("verification_code", code)
     .eq("status", "signed")
     .maybeSingle();
@@ -316,7 +464,7 @@ export async function verifySignedDocumentByCode(client: any, rawCode: unknown) 
     companySettings(client, row.organization_id),
   ]);
   if (signatureError) throw signatureError;
-  return minimalVerificationPayload(row, signatures || [], company);
+  return { ...minimalVerificationPayload(row, signatures || [], company), base_pdf_hash: row.base_pdf_hash || null };
 }
 
 export async function signedRequestById(client: any, requestId: string) {
