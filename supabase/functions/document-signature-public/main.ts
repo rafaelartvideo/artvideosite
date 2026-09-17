@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 import {
+  buildIdentityProof,
   buildOtpProof,
   constantTimeEqualHex,
   decodePngDataUrl,
@@ -7,6 +8,7 @@ import {
   normalizeOtp,
   otpSendPolicy,
   publicRequestState,
+  verifyIdentityProof,
   verifyOtpProof,
 } from "./public-signature-policy.mjs";
 import {
@@ -50,8 +52,7 @@ function clientIp(request: Request) {
     || request.headers.get("x-real-ip")
     || request.headers.get("x-forwarded-for")?.split(",")[0]
     || "";
-  const value = text(raw, 80);
-  return value || null;
+  return text(raw, 80) || null;
 }
 
 function userAgent(request: Request) {
@@ -208,6 +209,12 @@ async function sendOtpEmail({ recipient, code, companyName, documentName, orderN
 
 async function verifiedProof(client: any, row: any, tokenHash: string, rawProof: unknown, tokenKey: string) {
   const proof = text(rawProof, 4000);
+  try {
+    return await verifyIdentityProof(tokenKey, proof, { requestId: row.id, tokenHash });
+  } catch (identityError) {
+    if (identityError instanceof Error && /expirou|CPF\/CNPJ/i.test(identityError.message)) throw identityError;
+  }
+
   const payload = await verifyOtpProof(tokenKey, proof, { requestId: row.id, tokenHash });
   const { data: challenge, error } = await client
     .from("document_signature_otp_challenges")
@@ -262,6 +269,31 @@ async function inspectAction(client: any, request: Request, body: any) {
   };
 }
 
+async function validateIdentityAction(client: any, request: Request, body: any, identityPepper: string, tokenKey: string) {
+  const { row, tokenHash } = await requestFromToken(client, request, body.token, { markView: true });
+  assertCanValidate(row);
+  const existing = await externalSignature(client, row);
+  if (existing) {
+    const finalized = await finalizeSignatureRequest(client, request, row);
+    return { success: true, already_captured: true, ...finalPublicPayload(finalized) };
+  }
+
+  const document = normalizeDocument(body.document);
+  if (![11, 14].includes(document.length)) {
+    await recordEvent(client, request, row, "identity_failed");
+    throw Object.assign(new Error("Não foi possível validar os dados informados."), { status: 401 });
+  }
+  const calculated = await hmacHex(identityPepper, document);
+  if (!constantTimeEqualHex(calculated, row.external_document_hmac || "")) {
+    await recordEvent(client, request, row, "identity_failed");
+    throw Object.assign(new Error("Não foi possível validar os dados informados."), { status: 401 });
+  }
+
+  const proof = await buildIdentityProof(tokenKey, { requestId: row.id, tokenHash }, Date.now(), PROOF_TTL_MS);
+  await recordEvent(client, request, row, "identity_verified", { validation_method: "cpf_cnpj" });
+  return { success: true, proof, expires_in_seconds: Math.floor(PROOF_TTL_MS / 1000) };
+}
+
 async function requestOtpAction(client: any, request: Request, body: any, identityPepper: string) {
   const { row } = await requestFromToken(client, request, body.token, { markView: true });
   assertCanValidate(row);
@@ -304,11 +336,7 @@ async function requestOtpAction(client: any, request: Request, body: any, identi
   ]);
   if (latestError) throw latestError;
   if (countResult.error) throw countResult.error;
-  const sendPolicy = otpSendPolicy({
-    now: Date.now(),
-    lastSentAt: latestRows?.[0]?.last_sent_at || null,
-    sendsLastHour: countResult.count || 0,
-  });
+  const sendPolicy = otpSendPolicy({ now: Date.now(), lastSentAt: latestRows?.[0]?.last_sent_at || null, sendsLastHour: countResult.count || 0 });
   if (!sendPolicy.allowed) {
     const message = sendPolicy.reason === "hourly_limit"
       ? "Limite de códigos atingido. Tente novamente mais tarde."
@@ -336,20 +364,14 @@ async function requestOtpAction(client: any, request: Request, body: any, identi
 
   try {
     const companyName = await loadCompanyName(client, row.organization_id);
-    await sendOtpEmail({
-      recipient: row.external_signer_email,
-      code,
-      companyName,
-      documentName: row.template_name_snapshot,
-      orderNumber: row.order_number_snapshot,
-    });
+    await sendOtpEmail({ recipient: row.external_signer_email, code, companyName, documentName: row.template_name_snapshot, orderNumber: row.order_number_snapshot });
   } catch (emailError) {
     await client.from("document_signature_otp_challenges").delete().eq("id", challengeId).eq("request_id", row.id);
     await recordEvent(client, request, row, "otp_email_failed", { recipient: maskEmail(row.external_signer_email || "") });
     throw Object.assign(emailError instanceof Error ? emailError : new Error("Não foi possível enviar o código por e-mail."), { status: 502 });
   }
 
-  await recordEvent(client, request, row, "identity_verified");
+  await recordEvent(client, request, row, "identity_verified", { validation_method: "email_otp" });
   await recordEvent(client, request, row, "otp_sent", { recipient: maskEmail(row.external_signer_email || ""), challenge_id: challengeId });
   return {
     success: true,
@@ -412,6 +434,7 @@ async function verifyOtpAction(client: any, request: Request, body: any, identit
     .eq("request_id", row.id)
     .is("verified_at", null);
   if (verifyError) throw verifyError;
+
   const proof = await buildOtpProof(tokenKey, { requestId: row.id, tokenHash, challengeId: challenge.id }, Date.now(), PROOF_TTL_MS);
   await recordEvent(client, request, row, "otp_verified", { challenge_id: challenge.id });
   return { success: true, proof, expires_in_seconds: Math.floor(PROOF_TTL_MS / 1000) };
@@ -437,13 +460,16 @@ async function documentAction(client: any, request: Request, body: any, tokenKey
 async function completeAction(client: any, request: Request, body: any, tokenKey: string) {
   const { row, tokenHash } = await requestFromToken(client, request, body.token, { markView: true });
   assertCanValidate(row);
-  await verifiedProof(client, row, tokenHash, body.proof, tokenKey);
+  const validation = await verifiedProof(client, row, tokenHash, body.proof, tokenKey);
+  const validationMethod = validation?.method === "cpf_cnpj" ? "cpf_cnpj" : "email_otp";
+
   const existing = await externalSignature(client, row);
   if (existing) {
     const finalized = await finalizeSignatureRequest(client, request, row);
     return { success: true, captured: true, captured_at: existing.signed_at, ...finalPublicPayload(finalized) };
   }
   if (body.consent_accepted !== true) throw new Error("Confirme o aceite do documento antes de assinar.");
+
   const bytes = decodePngDataUrl(body.signature_data_url);
   const signatureHash = await sha256BytesHex(bytes);
   const signatureId = crypto.randomUUID();
@@ -467,7 +493,7 @@ async function completeAction(client: any, request: Request, body: any, tokenKey
       employee_signature_version: null,
       signature_storage_path: storagePath,
       signature_hash: signatureHash,
-      validation_method: "email_otp",
+      validation_method: validationMethod,
       consent_accepted: true,
       consent_text_snapshot: row.consent_text_snapshot,
       signed_at: signedAt,
@@ -486,7 +512,7 @@ async function completeAction(client: any, request: Request, body: any, tokenKey
   }
 
   await recordEvent(client, request, row, "consent_accepted", { consent_text: row.consent_text_snapshot });
-  await recordEvent(client, request, row, "signature_captured", { signature_id: inserted?.id || signatureId, validation_method: "email_otp" });
+  await recordEvent(client, request, row, "signature_captured", { signature_id: inserted?.id || signatureId, validation_method: validationMethod });
   const finalized = await finalizeSignatureRequest(client, request, row);
   return { success: true, captured: true, captured_at: inserted?.signed_at || signedAt, ...finalPublicPayload(finalized) };
 }
@@ -528,19 +554,23 @@ async function finalizeInternalAction(client: any, request: Request, body: any) 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ success: false, error: "Método não permitido." }, 405);
+
   try {
     const body = await request.json().catch(() => ({}));
     const action = text(body?.action, 40);
     const identityPepper = Deno.env.get("SIGNATURE_IDENTITY_PEPPER") || "";
     const tokenKey = Deno.env.get("SIGNATURE_TOKEN_KEY") || "";
-    if (["request_otp", "verify_otp"].includes(action) && identityPepper.length < 16) {
+
+    if (["validate_identity", "request_otp", "verify_otp"].includes(action) && identityPepper.length < 16) {
       return json({ success: false, error: "Validação de identidade não configurada no servidor." }, 503);
     }
-    if (["verify_otp", "document", "complete"].includes(action) && tokenKey.length < 16) {
+    if (["validate_identity", "verify_otp", "document", "complete"].includes(action) && tokenKey.length < 16) {
       return json({ success: false, error: "Assinatura eletrônica não configurada no servidor." }, 503);
     }
+
     const client = adminClient();
     if (action === "inspect") return json(await inspectAction(client, request, body));
+    if (action === "validate_identity") return json(await validateIdentityAction(client, request, body, identityPepper, tokenKey));
     if (action === "request_otp") return json(await requestOtpAction(client, request, body, identityPepper));
     if (action === "verify_otp") return json(await verifyOtpAction(client, request, body, identityPepper, tokenKey));
     if (action === "document") return json(await documentAction(client, request, body, tokenKey));
