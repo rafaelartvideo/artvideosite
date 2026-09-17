@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { listExactServiceOrdersPage, type ExactOrderPage } from "../infrastructure/orders-filtered-page.repository";
+import { type ExactOrderPage } from "../infrastructure/orders-filtered-page.repository";
+import { listServiceOrdersPageWithCustomerName } from "../infrastructure/orders-customer-name-filter.repository";
 
 export type CityFilterOption = { name: string; state: string };
 
@@ -104,7 +105,7 @@ export function useOrderFilters({
     queryKey: listKey,
     enabled: Boolean(organizationId) && !invalidPeriod,
     placeholderData: keepPreviousData,
-    queryFn: () => listExactServiceOrdersPage({
+    queryFn: () => listServiceOrdersPageWithCustomerName({
       organizationId: organizationId!,
       page,
       pageSize,
