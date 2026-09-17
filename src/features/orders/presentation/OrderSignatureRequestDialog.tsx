@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { FileSignature, X } from "lucide-react";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { buildOrderDocumentSignatureSnapshot } from "@/features/documents/domain/document-signature";
+import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import {
+  attachFrozenPrintPdf,
+  cancelSignatureRequest,
   createSignatureRequest,
   listDocumentSignatureEmployeeCandidates,
   type DocumentSignatureEmployeeCandidate,
 } from "@/features/documents/infrastructure/document-signatures.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
+import { getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
 import { normalizeDigits } from "@/shared/domain/formatters";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -104,7 +108,7 @@ export function OrderSignatureRequestDialog({
       if (signerType === "customer") {
         if (!customerName(customer)) { setError("O cliente da OS não possui nome para assinatura."); return; }
         if (![11, 14].includes(normalizeDigits(customerDocument(customer)).length)) { setError("O cliente precisa ter CPF/CNPJ cadastrado para assinatura online."); return; }
-        if (!String(customer.email || "").trim()) { setError("O cliente precisa ter e-mail cadastrado para receber o código de validação."); return; }
+        if (!String(customer.email || "").trim()) { setError("O cliente precisa ter e-mail cadastrado para receber o convite de assinatura."); return; }
       } else {
         if (!contactName.trim()) { setError("Informe o nome do responsável/contato."); return; }
         if (![11, 14].includes(normalizeDigits(contactDocument).length)) { setError("Informe o CPF/CNPJ do responsável/contato."); return; }
@@ -117,6 +121,7 @@ export function OrderSignatureRequestDialog({
     }
 
     setSaving(true);
+    let createdRequestId: string | null = null;
     try {
       const configuredTemplate = await loadPrintTemplateEditorValue(selectedTemplate);
       const needsChecklist = [...configuredTemplate.selectedFields].some(key => key.startsWith("checklists."));
@@ -124,15 +129,27 @@ export function OrderSignatureRequestDialog({
         getCompanyPrintContext(order.organization_id),
         needsChecklist ? getOrderChecklist(order.id) : Promise.resolve(null),
       ]);
-      const snapshot = buildOrderDocumentSignatureSnapshot(configuredTemplate, {
+      const checklistPhotoUrls = Object.fromEntries((checklist?.stages || [])
+        .filter(stage => configuredTemplate.selectedFields.has(`checklists.${stage.stage_type_snapshot}`))
+        .flatMap(stage => stage.items.flatMap(item => item.media.flatMap(link =>
+          link.media ? [[link.media_id, getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)]] : [],
+        ))));
+      const printContext = {
         order,
         checklist,
+        checklistPhotoUrls,
         usedItems,
         partRequests,
         history,
         printedBy,
         company,
-      });
+      };
+      const snapshot = buildOrderDocumentSignatureSnapshot(configuredTemplate, printContext);
+
+      // Freeze exactly the same HTML/CSS used by the existing Imprimir flow before
+      // creating the online request. No secondary document renderer is involved here.
+      const frozenPdf = await freezeOrderPrintPdf(configuredTemplate, printContext);
+
       const externalSigner = selectedTemplate.require_external_signature
         ? signerType === "customer"
           ? {
@@ -158,14 +175,21 @@ export function OrderSignatureRequestDialog({
         external_signer: externalSigner,
         manual_employee_entity_id: manualEmployeeEntityId || null,
       });
+      createdRequestId = result.request.id;
+
+      const frozenResult = await attachFrozenPrintPdf(order.organization_id, result.request.id, frozenPdf);
       onCreated({
         link: result.link,
         email_warning: result.email_warning,
-        finalization_warning: result.finalization_warning,
+        finalization_warning: frozenResult.final_pdf_hash ? null : result.finalization_warning,
         request: result.request,
       });
       onClose();
     } catch (submitError) {
+      if (createdRequestId) {
+        try { await cancelSignatureRequest(order.organization_id, createdRequestId); }
+        catch { /* best effort: prevent a partially prepared link from remaining active */ }
+      }
       setError(submitError instanceof Error ? submitError.message : String(submitError));
     } finally {
       setSaving(false);
@@ -175,7 +199,7 @@ export function OrderSignatureRequestDialog({
   return <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label="Enviar documento para assinatura">
     <div className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
       <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[#0d1b2e]/10 bg-white px-5 py-4">
-        <div className="flex min-w-0 items-start gap-3"><span className="mt-0.5 rounded-xl bg-[#edf3ff] p-2 text-[#0057e7]"><FileSignature size={20} /></span><div className="min-w-0"><h2 className="text-lg font-black text-[#0d1b2e]">Enviar para assinatura</h2><p className="mt-0.5 text-xs text-[#5a6a82]">O conteúdo será congelado no momento do envio.</p></div></div>
+        <div className="flex min-w-0 items-start gap-3"><span className="mt-0.5 rounded-xl bg-[#edf3ff] p-2 text-[#0057e7]"><FileSignature size={20} /></span><div className="min-w-0"><h2 className="text-lg font-black text-[#0d1b2e]">Enviar para assinatura</h2><p className="mt-0.5 text-xs text-[#5a6a82]">O mesmo documento de impressão será congelado em PDF no momento do envio.</p></div></div>
         <button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa] disabled:opacity-50" aria-label="Fechar"><X size={18} /></button>
       </div>
 
@@ -194,7 +218,7 @@ export function OrderSignatureRequestDialog({
           </div>}
 
           {selectedTemplate?.require_external_signature && <div className="space-y-4 rounded-xl border border-[#0d1b2e]/10 p-4">
-            <div><h3 className="text-sm font-black text-[#0d1b2e]">Assinante externo</h3><p className="mt-1 text-xs text-[#5a6a82]">O CPF/CNPJ será confirmado antes do envio do código por e-mail.</p></div>
+            <div><h3 className="text-sm font-black text-[#0d1b2e]">Assinante externo</h3><p className="mt-1 text-xs text-[#5a6a82]">O CPF/CNPJ será confirmado antes de liberar o PDF para assinatura.</p></div>
             <AdminSelect value={signerType} onValueChange={value => { setSignerType(value as "customer" | "contact"); setError(""); }} ariaLabel="Tipo de assinante" options={signerOptions} />
             {signerType === "customer" ? <div className="grid gap-3 sm:grid-cols-2">
               <Info label="Nome" value={customerName(customer) || "Não informado"} />
@@ -224,7 +248,7 @@ export function OrderSignatureRequestDialog({
 
       <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-[#0d1b2e]/10 bg-white px-5 py-4 sm:flex-row sm:justify-end">
         <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-        <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Criando solicitação..." disabled={onlineTemplates.length === 0}>Criar e enviar</BtnPrimary>
+        <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Congelando e enviando PDF..." disabled={onlineTemplates.length === 0}>Criar e enviar</BtnPrimary>
       </div>
     </div>
   </div>;
