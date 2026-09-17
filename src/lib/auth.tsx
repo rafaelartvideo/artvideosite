@@ -103,7 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === "SIGNED_IN" || event === "USER_UPDATED") {
         if (!newSession?.user) return;
         const activeUserId = signedInUserRef.current;
-        if (activeUserId && newSession.user.id !== activeUserId) return;
+
+        if (activeUserId && newSession.user.id !== activeUserId) {
+          cancelScheduledAccessLoad();
+          resetAccessState(true);
+        }
 
         setSession(newSession);
         if (newSession.user.id === activeUserId) {
@@ -325,7 +329,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const roleId = selectedOrganization.role_id;
-    const [employeeResult, roleResult, permissionResult] = await Promise.all([
+    const [employeeResult, roleResult, permissionResult, moduleResult] = await Promise.all([
       supabase
         .from("employees")
         .select("*")
@@ -336,6 +340,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? supabase.from("roles").select("*").eq("id", roleId).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       supabase.rpc("my_organization_permissions", {
+        p_organization_id: selectedOrganization.organization_id,
+      }),
+      supabase.rpc("my_organization_modules", {
         p_organization_id: selectedOrganization.organization_id,
       }),
     ]);
@@ -356,27 +363,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (moduleResult.error) {
+      console.error("Auth modules load error:", moduleResult.error);
+      activeOrganizationIdRef.current = selectedOrganization.organization_id;
+      setActiveOrganizationState(selectedOrganization);
+      setEmployee(employeeResult.data ?? null);
+      setRole(!roleResult.error ? roleResult.data ?? null : null);
+      setPermissions([]);
+      setAccessError("Não foi possível carregar os módulos liberados para esta empresa. Tente novamente.");
+      setLoading(false);
+      return;
+    }
+
     const permissionKeys = (permissionResult.data || [])
       .map((permission: any) => typeof permission === "string" ? permission : permission?.permission_key)
       .filter((permissionKey: unknown): permissionKey is string =>
         typeof permissionKey === "string" && permissionKey.length > 0,
       );
+    const moduleKeys = (moduleResult.data || [])
+      .map((module: any) => typeof module === "string" ? module : module?.module_key)
+      .filter((moduleKey: unknown): moduleKey is string =>
+        typeof moduleKey === "string" && moduleKey.length > 0,
+      );
+    const resolvedOrganization: OrganizationAccess = {
+      ...selectedOrganization,
+      enabled_modules: moduleKeys,
+    };
+    const resolvedOrganizations = availableOrganizations.map(organization =>
+      organization.organization_id === resolvedOrganization.organization_id
+        ? resolvedOrganization
+        : organization,
+    );
 
     const previousOrganizationId = activeOrganizationIdRef.current;
-    activeOrganizationIdRef.current = selectedOrganization.organization_id;
-    setActiveOrganizationState(selectedOrganization);
+    activeOrganizationIdRef.current = resolvedOrganization.organization_id;
+    setOrganizations(resolvedOrganizations);
+    setActiveOrganizationState(resolvedOrganization);
     setEmployee(employeeResult.data ?? null);
     setRole(!roleResult.error ? roleResult.data ?? null : null);
     setPermissions(permissionKeys.map(key => ({ key })));
     setAccessError(null);
-    persistActiveOrganization(userId, selectedOrganization.organization_id);
+    persistActiveOrganization(userId, resolvedOrganization.organization_id);
     setLoading(false);
 
-    if (previousOrganizationId && previousOrganizationId !== selectedOrganization.organization_id) {
+    if (previousOrganizationId && previousOrganizationId !== resolvedOrganization.organization_id) {
       window.dispatchEvent(new CustomEvent(ORGANIZATION_CHANGED_EVENT, {
         detail: {
           previousOrganizationId,
-          organizationId: selectedOrganization.organization_id,
+          organizationId: resolvedOrganization.organization_id,
         },
       }));
     }
