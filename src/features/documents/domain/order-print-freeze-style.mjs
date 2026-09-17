@@ -20,6 +20,13 @@ export function html2pdfMarginOrder(margins) {
   return [top, left, bottom, right];
 }
 
+export function freezeRasterOptions() {
+  return {
+    imageType: "png",
+    scale: 3.125,
+  };
+}
+
 export function signatureSlotFromGeometry({
   lineLeftPx,
   lineTopPx,
@@ -37,15 +44,21 @@ export function signatureSlotFromGeometry({
   }
 
   const horizontalInsetPx = 2 * mm;
-  const topInsetPx = 1 * mm;
   const bottomInsetPx = 0.5 * mm;
-  const slotTopPx = Math.max(0, Number(signatureTopPx) + topInsetPx);
-  const slotBottomPx = Math.max(slotTopPx + mm, Number(lineTopPx) - bottomInsetPx);
-  const pageIndex = Math.max(0, Math.floor(slotTopPx / pageHeight));
-  const localTopPx = slotTopPx - pageIndex * pageHeight;
+  const desiredHeightPx = 9 * mm;
+  const lineTop = Number(lineTopPx);
+  const linePageIndex = Math.max(0, Math.floor(lineTop / pageHeight));
+  const pageStartPx = linePageIndex * pageHeight;
+  const desiredTopPx = lineTop - desiredHeightPx;
+  const naturalTopPx = Number.isFinite(Number(signatureTopPx)) ? Number(signatureTopPx) : desiredTopPx;
+  // Prefer a larger handwritten signature while never crossing the current page boundary.
+  // The printed layout intentionally leaves whitespace above the signature line.
+  const slotTopPx = Math.max(pageStartPx, Math.min(naturalTopPx, desiredTopPx));
+  const slotBottomPx = Math.max(slotTopPx + mm, lineTop - bottomInsetPx);
+  const localTopPx = slotTopPx - pageStartPx;
 
   return {
-    page_index: pageIndex,
+    page_index: linePageIndex,
     x_mm: rounded(Number(marginLeftMm) + (Number(lineLeftPx) + horizontalInsetPx) / mm),
     y_mm: rounded(Number(marginTopMm) + localTopPx / mm),
     width_mm: rounded(Math.max(1, (Number(lineWidthPx) - 2 * horizontalInsetPx) / mm)),
