@@ -55,8 +55,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                       {hasActiveFilters && <span className="flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] px-1.5 font-mono text-[11px] font-black text-[#0057e7]">{rowNumber(index)}</span>}
                       <span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} />
                       <div className="min-w-0">
-                        {hasPermission("orders.table.os") && <div className="flex min-w-0 flex-wrap items-center gap-1.5"><p className="font-mono text-sm font-black text-[#0057e7]">OS {o.os_number || "—"}</p>{solvedIndicator(o)}</div>}
-                        {hasPermission("orders.table.external_os") && o.external_os_number && <p className="truncate text-xs font-bold text-[#5a6a82]">OS Externa {o.external_os_number}</p>}
+                        {hasPermission("orders.table.os") && <div className="flex min-w-0 flex-wrap items-center gap-1.5"><p className="font-mono text-lg font-black text-[#0057e7]">OS {o.os_number || "—"}</p>{solvedIndicator(o)}</div>}
+                        {hasPermission("orders.table.external_os") && o.external_os_number && <p className="truncate text-sm font-black text-[#5a6a82]">OS Externa {o.external_os_number}</p>}
                         {hasPermission("orders.table.customer") && <p className="truncate text-sm font-bold text-[#0d1b2e]">{(o.customer as any)?.full_name || "—"}</p>}
                       </div>
                     </div>
@@ -95,8 +95,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
               </tr></thead>
               <tbody>{pagedOrders.map((o, index) => <tr key={o.id} onClick={() => openDetails(o)} className="cursor-default">
                 {hasActiveFilters && <td className="font-mono text-xs font-black text-[#5a6a82]">{rowNumber(index)}</td>}
-                {hasPermission("orders.table.os") && <td><div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="font-mono text-xs font-black text-[#0057e7]">{o.os_number || "—"}</span>{solvedIndicator(o)}{o.cannot_be_solved && !isCancelled(o) && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></div></td>}
-                {hasPermission("orders.table.external_os") && <td className="font-mono text-xs font-semibold text-[#5a6a82]">{o.external_os_number || "—"}</td>}
+                {hasPermission("orders.table.os") && <td><div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: (o.order_status as any)?.color || "transparent" }} /><div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="font-mono text-base font-black text-[#0057e7]">{o.os_number || "—"}</span>{solvedIndicator(o)}{o.cannot_be_solved && !isCancelled(o) && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></div></td>}
+                {hasPermission("orders.table.external_os") && <td className="font-mono text-base font-black text-[#5a6a82]">{o.external_os_number || "—"}</td>}
                 {hasPermission("orders.table.customer") && <td><p className="text-sm font-semibold text-[#0d1b2e]">{(o.customer as any)?.full_name || "—"}</p><p className="text-[11px] text-[#5a6a82]">{formatPhone((o.customer as any)?.whatsapp || (o.customer as any)?.phone)}</p></td>}
                 {hasPermission("orders.table.service_type") && <td className="text-xs text-[#5a6a82]">{(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}</td>}
                 {hasPermission("orders.table.equipment") && <td className="text-xs text-[#5a6a82]">{equipmentSummary(o)}</td>}
@@ -118,6 +118,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#0057e7]" aria-hidden="true" />Fechada</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#dc2626]" aria-hidden="true" />Cancelada</span>
             <span className="inline-flex items-center gap-1.5"><span className="inline-flex items-center justify-center text-green-600" aria-hidden="true"><CheckCircle2 size={14} strokeWidth={2.5} /></span>Solucionada</span>
+            {hasActiveFilters && <span className="inline-flex items-center border-l border-[#0d1b2e]/10 pl-4 font-black text-[#0d1b2e]">Total do filtro: {totalItems} OS</span>}
           </div>
         </>
       )}
