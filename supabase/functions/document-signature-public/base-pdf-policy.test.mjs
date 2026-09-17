@@ -22,3 +22,14 @@ test("builds deterministic preview path from snapshot hash", () => {
   assert.ok(policy);
   assert.equal(policy.previewPdfPath({ organizationId: "org", serviceOrderId: "os", templateId: "tpl", snapshotHash: "a".repeat(64) }), `org/os/print-previews/tpl/${"a".repeat(64)}.pdf`);
 });
+
+test("plans one centered or two side-by-side signature slots", () => {
+  assert.ok(policy);
+  assert.deepEqual(policy.signatureSlotLayout(["external"], 40, 500), [
+    { signer_type: "external", x: 152.5, width: 275 },
+  ]);
+  assert.deepEqual(policy.signatureSlotLayout(["external", "employee"], 40, 500), [
+    { signer_type: "external", x: 40, width: 242 },
+    { signer_type: "employee", x: 298, width: 242 },
+  ]);
+});
