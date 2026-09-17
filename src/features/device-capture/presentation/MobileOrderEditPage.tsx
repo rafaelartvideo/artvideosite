@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, CheckCircle2, Clock3, Hash, ImagePlus, Loader2, LogOut, Save, Smartphone } from "lucide-react";
 import { useLocation } from "react-router";
+import { EmployeeMultiSelect } from "@/features/orders/presentation/OrderFormControls";
 import {
   getMobileOrderEditor,
   getMobileOrderEditStatus,
@@ -69,10 +70,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function EmployeePicker({ title, employees, selected, onChange }: { title: string; employees: any[]; selected: string[]; onChange: (ids: string[]) => void }) {
-  return <div><p className="mb-2 text-[11px] font-black uppercase tracking-wide text-[#64748b]">{title}</p><div className="grid gap-2 sm:grid-cols-2">{employees.map(employee => {
-    const checked = selected.includes(employee.id);
-    return <label key={employee.id} className={`flex min-h-11 items-center gap-3 rounded-xl border px-3 py-2 text-sm font-bold ${checked ? "border-[#0057e7]/40 bg-[#eef5ff] text-[#0057e7]" : "border-[#d9e1ec] bg-white text-[#334155]"}`}><input type="checkbox" checked={checked} onChange={() => onChange(checked ? selected.filter(id => id !== employee.id) : [...selected, employee.id])} className="h-4 w-4 accent-[#0057e7]" /><span className="min-w-0 truncate">{employee.full_name}</span></label>;
-  })}</div></div>;
+  return <EmployeeMultiSelect
+    label={title}
+    employees={employees}
+    selectedIds={selected}
+    onChange={onChange}
+    placeholder={`Selecionar ${title.toLocaleLowerCase("pt-BR")}`}
+    clearLabel={`Limpar ${title}`}
+  />;
 }
 
 export function MobileOrderEditPage() {
