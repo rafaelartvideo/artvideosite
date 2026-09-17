@@ -185,7 +185,9 @@ Deno.serve(async (request) => {
       .select("id,is_active")
       .eq("id", callerData.user.id)
       .maybeSingle();
-    if (callerProfileError || !callerProfile?.is_active) return respond(request, { error: "Perfil do usuário não está ativo." }, 403);
+    if (callerProfileError || !callerProfile?.is_active) {
+      return respond(request, { error: "Perfil do usuário não está ativo." }, 403);
+    }
 
     if (!(await requirePlatformManager(callerData.user.id))) {
       return respond(request, { error: "Você não possui permissão para gerenciar usuários de empresas parceiras." }, 403);
@@ -245,80 +247,58 @@ Deno.serve(async (request) => {
       if (!validUsername(username)) {
         return respond(request, { error: "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado." }, 400);
       }
+      if (password.length < 8) {
+        return respond(request, { error: "A senha deve ter pelo menos 8 caracteres." }, 400);
+      }
 
-      let existingProfile = await findProfileByUsername(username);
-      let authUser: any = null;
+      const existingProfile = await findProfileByUsername(username);
+      if (existingProfile) {
+        return respond(request, { error: "Este usuário já está em uso. Escolha outro usuário." }, 409);
+      }
+
       let createdAuthUserId: string | null = null;
       let createdMembership = false;
 
       try {
-        if (existingProfile) {
-          if (existingProfile.is_active === false) {
-            return respond(request, { error: "O usuário já existe, mas o perfil global está inativo." }, 400);
-          }
-          const authResult = await adminClient.auth.admin.getUserById(existingProfile.id);
-          if (authResult.error || !authResult.data.user) {
-            return respond(request, { error: "O usuário existente não possui um login válido no sistema." }, 400);
-          }
-          authUser = authResult.data.user;
-        } else {
-          if (password.length < 8) {
-            return respond(request, { error: "A senha deve ter pelo menos 8 caracteres para um novo usuário." }, 400);
-          }
-          const authEmail = internalAuthEmail();
-          const { data: createdAuth, error: createAuthError } = await adminClient.auth.admin.createUser({
-            email: authEmail,
-            password,
-            email_confirm: true,
-            user_metadata: { full_name: fullName, username },
-          });
-          if (createAuthError || !createdAuth.user) {
-            return respond(request, { error: authFailureMessage(createAuthError) }, 400);
-          }
-          authUser = createdAuth.user;
-          createdAuthUserId = authUser.id;
+        const authEmail = internalAuthEmail();
+        const { data: createdAuth, error: createAuthError } = await adminClient.auth.admin.createUser({
+          email: authEmail,
+          password,
+          email_confirm: true,
+          user_metadata: { full_name: fullName, username },
+        });
+        if (createAuthError || !createdAuth.user) {
+          return respond(request, { error: authFailureMessage(createAuthError) }, 400);
         }
 
-        const { data: existingMembership, error: membershipLookupError } = await adminClient
-          .from("organization_members")
-          .select("id")
-          .eq("organization_id", organizationId)
-          .eq("user_id", authUser.id)
-          .maybeSingle();
-        if (membershipLookupError) throw membershipLookupError;
-        if (existingMembership) return respond(request, { error: "Este usuário já pertence à empresa selecionada." }, 400);
+        const authUser = createdAuth.user;
+        createdAuthUserId = authUser.id;
 
-        if (!existingProfile) {
-          const { error: profileUpsertError } = await adminClient.from("profiles").upsert({
-            id: authUser.id,
-            username,
-            full_name: fullName,
-            email: authUser.email ?? null,
-            phone,
-            role_id: roleId,
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          });
-          if (profileUpsertError) {
-            if (String((profileUpsertError as any)?.code ?? "") === "23505") {
-              return respond(request, { error: "Este usuário já está em uso." }, 409);
-            }
-            throw profileUpsertError;
+        const { error: profileUpsertError } = await adminClient.from("profiles").upsert({
+          id: authUser.id,
+          username,
+          full_name: fullName,
+          email: authUser.email ?? null,
+          phone,
+          role_id: roleId,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        });
+        if (profileUpsertError) {
+          if (String((profileUpsertError as any)?.code ?? "") === "23505") {
+            await adminClient.from("profiles").delete().eq("id", authUser.id);
+            await adminClient.auth.admin.deleteUser(authUser.id);
+            createdAuthUserId = null;
+            return respond(request, { error: "Este usuário já está em uso. Escolha outro usuário." }, 409);
           }
-          existingProfile = await findProfileByUsername(username);
-        } else {
-          const { error: profileUpdateError } = await adminClient
-            .from("profiles")
-            .update({ full_name: fullName, updated_at: new Date().toISOString() })
-            .eq("id", authUser.id);
-          if (profileUpdateError) throw profileUpdateError;
+          throw profileUpsertError;
         }
 
         const { error: membershipInsertError } = await adminClient.from("organization_members").insert({
           organization_id: organizationId,
           user_id: authUser.id,
           role_id: roleId,
-          status: "active",
+          status: isActive ? "active" : "blocked",
           is_owner: isOwner,
           joined_at: new Date().toISOString(),
           created_by: callerData.user.id,
@@ -326,44 +306,28 @@ Deno.serve(async (request) => {
         if (membershipInsertError) throw membershipInsertError;
         createdMembership = true;
 
-        const { data: existingEmployee, error: employeeLookupError } = await adminClient
-          .from("employees")
-          .select("id")
-          .eq("organization_id", organizationId)
-          .eq("profile_id", authUser.id)
-          .maybeSingle();
-        if (employeeLookupError) throw employeeLookupError;
-
-        const employeePayload = {
+        const { error: employeeInsertError } = await adminClient.from("employees").insert({
+          organization_id: organizationId,
+          profile_id: authUser.id,
           full_name: fullName,
           cpf,
           phone,
           function_name: functionName || role.name,
           role_id: roleId,
-          is_active: true,
-        };
-        if (existingEmployee) {
-          const { error } = await adminClient.from("employees").update(employeePayload).eq("id", existingEmployee.id);
-          if (error) throw error;
-        } else {
-          const { error } = await adminClient.from("employees").insert({
-            organization_id: organizationId,
-            profile_id: authUser.id,
-            ...employeePayload,
-          });
-          if (error) throw error;
-        }
+          is_active: isActive,
+        });
+        if (employeeInsertError) throw employeeInsertError;
 
         return respond(request, {
           success: true,
           user_id: authUser.id,
           username,
-          reused_existing_login: createdAuthUserId === null,
+          reused_existing_login: false,
         });
       } catch (error) {
-        if (authUser && createdMembership) {
-          await adminClient.from("organization_members").delete().eq("organization_id", organizationId).eq("user_id", authUser.id);
-          await adminClient.from("employees").delete().eq("organization_id", organizationId).eq("profile_id", authUser.id);
+        if (createdAuthUserId && createdMembership) {
+          await adminClient.from("employees").delete().eq("organization_id", organizationId).eq("profile_id", createdAuthUserId);
+          await adminClient.from("organization_members").delete().eq("organization_id", organizationId).eq("user_id", createdAuthUserId);
         }
         if (createdAuthUserId) {
           await adminClient.from("profiles").delete().eq("id", createdAuthUserId);
@@ -424,20 +388,22 @@ Deno.serve(async (request) => {
       if (error) throw error;
     }
 
-    const { error: profileNameError } = await adminClient
-      .from("profiles")
-      .update({ full_name: fullName, updated_at: new Date().toISOString() })
-      .eq("id", userId);
-    if (profileNameError) throw profileNameError;
-
     const { count: membershipCount, error: membershipCountError } = await adminClient
       .from("organization_members")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId);
     if (membershipCountError) throw membershipCountError;
+
     if ((membershipCount ?? 0) <= 1) {
-      const { error } = await adminClient.from("profiles").update({ role_id: roleId }).eq("id", userId);
-      if (error) throw error;
+      const { error: profileUpdateError } = await adminClient
+        .from("profiles")
+        .update({
+          full_name: fullName,
+          role_id: roleId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId);
+      if (profileUpdateError) throw profileUpdateError;
     }
 
     return respond(request, { success: true, user_id: userId });
