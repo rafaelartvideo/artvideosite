@@ -78,11 +78,6 @@ export function OrderMobileEditBridge({
     lastOrderUpdateRef.current = "";
   };
 
-  useEffect(() => () => {
-    const current = sessionRef.current;
-    if (current) void closeMobileOrderEditSession(current.id).catch(() => undefined);
-  }, []);
-
   useEffect(() => {
     if (!session || expired) return;
     let cancelled = false;
