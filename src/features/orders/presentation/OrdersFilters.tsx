@@ -25,11 +25,11 @@ type StateOption = { sigla: string; nome: string };
 type OrderSort = "" | "asc" | "desc";
 type MobileFilterKey =
   | "osNumber"
+  | "customerName"
   | "document"
   | "serialNumber"
   | "status"
   | "situation"
-  | "orderType"
   | "serviceType"
   | "states"
   | "cities"
@@ -37,11 +37,11 @@ type MobileFilterKey =
 
 const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
   { value: "osNumber", label: "Número da OS / Externa" },
+  { value: "customerName", label: "Nome do cliente" },
   { value: "document", label: "CPF ou CNPJ" },
   { value: "serialNumber", label: "Número de série" },
   { value: "status", label: "Status" },
   { value: "situation", label: "Situação" },
-  { value: "orderType", label: "Tipo da OS" },
   { value: "serviceType", label: "Tipo de Atendimento" },
   { value: "states", label: "Estado" },
   { value: "cities", label: "Cidade" },
@@ -50,11 +50,11 @@ const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
 
 export function OrdersFilters({
   osNumberSearch,
+  customerNameSearch,
   documentSearch,
   serialNumberSearch,
   statusId,
   situationId,
-  orderType,
   serviceTypeId,
   selectedStates,
   selectedCities,
@@ -70,11 +70,11 @@ export function OrdersFilters({
   citiesLoading,
   invalidPeriod,
   onOsNumberSearchChange,
+  onCustomerNameSearchChange,
   onDocumentSearchChange,
   onSerialNumberSearchChange,
   onStatusChange,
   onSituationChange,
-  onOrderTypeChange,
   onServiceTypeChange,
   onStateSelect,
   onStateRemove,
@@ -87,11 +87,11 @@ export function OrdersFilters({
   onClear,
 }: {
   osNumberSearch: string;
+  customerNameSearch: string;
   documentSearch: string;
   serialNumberSearch: string;
   statusId: string;
   situationId: string;
-  orderType: string;
   serviceTypeId: string;
   selectedStates: string[];
   selectedCities: CityOption[];
@@ -107,11 +107,11 @@ export function OrdersFilters({
   citiesLoading: boolean;
   invalidPeriod: boolean;
   onOsNumberSearchChange: (value: string) => void;
+  onCustomerNameSearchChange: (value: string) => void;
   onDocumentSearchChange: (value: string) => void;
   onSerialNumberSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onSituationChange: (value: string) => void;
-  onOrderTypeChange: (value: string) => void;
   onServiceTypeChange: (value: string) => void;
   onStateSelect: (value: string) => void;
   onStateRemove: (value: string) => void;
@@ -166,9 +166,9 @@ export function OrdersFilters({
       if (generation === serialScanGeneration.current) setSerialScanBusy(false);
     }
   };
+
   const filterStatus = statusId;
   const filterSituation = situationId;
-  const filterOrderType = orderType;
   const selectedServiceTypeId = serviceTypeId;
   const ibgeStates = stateOptions;
   const cityFilterOptions = cityOptions;
@@ -178,7 +178,7 @@ export function OrdersFilters({
   const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
   const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
-    osNumberSearch || documentSearch || serialNumberSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId ||
+    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || filterStatus || filterSituation || selectedServiceTypeId ||
     selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo || orderSort
   );
 
@@ -207,6 +207,7 @@ export function OrdersFilters({
   const renderMobileFilter = () => {
     switch (mobileFilter) {
       case "osNumber": return <MobileSearchField value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" ariaLabel="Buscar por número da OS ou externa" />;
+      case "customerName": return <MobileSearchField value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" ariaLabel="Buscar por nome do cliente" />;
       case "document": return <MobileSearchField value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
       case "serialNumber": return <>
         <div className="flex min-w-0 items-center gap-2">
@@ -224,7 +225,6 @@ export function OrdersFilters({
       </>;
       case "status": return <AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />;
       case "situation": return <AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por situação" />;
-      case "orderType": return <AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo da OS" />;
       case "serviceType": return <AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo de atendimento" />;
       case "states": return <div className="min-w-0"><OrderFilterMultiSelect label="Estado" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estado" loading={ibgeStatesLoading} />{selectedStates.length > 0 && <button type="button" onClick={onStatesClear} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-red-600"><Eraser size={13} />Limpar Estados</button>}</div>;
       case "cities": return <OrderFilterMultiSelect label="Cidade" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione primeiro um Estado" : "Selecionar Cidade"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />;
@@ -248,11 +248,11 @@ export function OrdersFilters({
       <div className="hidden space-y-3 md:block">
         <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <SearchField label="Número da OS / Externa" value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" />
+          <SearchField label="Nome do cliente" value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" />
           <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
           <SearchField label="Número de série" value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" />
           <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="text-xs" ariaLabel="Filtrar por status" /></div>
           <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Situação</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="text-xs" ariaLabel="Filtrar por situação" /></div>
-          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo</label><AdminSelect value={filterOrderType} onValueChange={onOrderTypeChange} options={[{ value: "", label: "Todos os tipos" }, { value: "internal", label: "Interna" }, { value: "external", label: "Externa" }]} className="text-xs" ariaLabel="Filtrar por tipo da OS" /></div>
           <div><OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />{selectedStates.length > 0 && <AdminButton variant="ghost" size="sm" onClick={onStatesClear} className="mt-1 px-0 py-1 text-[11px] font-semibold text-red-600 hover:bg-transparent hover:text-red-700 hover:underline"><Eraser size={12} />Limpar Estados</AdminButton>}</div>
           <OrderFilterMultiSelect label="Cidades" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione ao menos um Estado" : "Selecionar Cidades"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />
           <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} /></div>
