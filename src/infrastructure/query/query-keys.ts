@@ -66,6 +66,15 @@ export const queryKeys = {
     active: () => ["inventory", "active"] as const,
     movements: (itemId: string) => ["inventory", "movements", itemId] as const,
   },
+  finance: {
+    all: ["finance"] as const,
+    foundation: (organizationId: string) => ["finance", "foundation", organizationId] as const,
+    accounts: (organizationId: string) => ["finance", "accounts", organizationId] as const,
+    categories: (organizationId: string) => ["finance", "categories", organizationId] as const,
+    costCenters: (organizationId: string) => ["finance", "cost-centers", organizationId] as const,
+    paymentMethods: (organizationId: string) => ["finance", "payment-methods", organizationId] as const,
+    settings: (organizationId: string) => ["finance", "settings", organizationId] as const,
+  },
   appointments: {
     all: ["appointments"] as const,
     lists: () => ["appointments", "list"] as const,
