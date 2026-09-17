@@ -10,6 +10,10 @@ export const removeOrderImageFile = (path: string) =>
   supabase.storage.from(ORDER_IMAGE_BUCKET).remove([path]);
 
 export async function uploadOrderImage(file: File, organizationId?: string | null) {
+  if (!organizationId) {
+    throw new Error("Não foi possível identificar a empresa para enviar a imagem da OS.");
+  }
+
   const extension =
     file.name
       .split(".")
@@ -17,9 +21,7 @@ export async function uploadOrderImage(file: File, organizationId?: string | nul
       ?.toLowerCase() || "jpg";
 
   const path =
-    `orders/${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}.${extension}`;
+    `orders/${organizationId}/draft/${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
   const { error: uploadError } = await uploadOrderImageFile(path, file);
 
