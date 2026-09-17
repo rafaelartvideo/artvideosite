@@ -132,7 +132,7 @@ export function OrderMobileEditBridge({
         title="Abrir a edição desta OS no celular"
       >
         <Smartphone size={14} />
-        <span>{connected ? "Celular conectado" : "Editar pelo celular"}</span>
+        <span>{connected ? "Celular conectado" : "Usar celular"}</span>
         {connected && <span className="h-2 w-2 rounded-full bg-white" />}
       </AdminButton>
 
