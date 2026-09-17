@@ -2,6 +2,7 @@ import html2pdf from "html2pdf.js";
 import { buildOrderPrintDocumentHtml, type PrintOrderContext } from "./order-print-document";
 import {
   copyComputedStyle,
+  freezeRasterOptions,
   html2pdfMarginOrder,
   signatureSlotFromGeometry,
 } from "./order-print-freeze-style.mjs";
@@ -60,6 +61,17 @@ function inlineComputedStyles(doc: Document, root: HTMLElement) {
   }
 }
 
+function unlockCaptureRoot(root: HTMLElement) {
+  // Computed styles include the body's current pixel height. Keeping that value
+  // fixed makes html2pdf clip content after its page-break plugin adjusts layout.
+  root.style.height = "auto";
+  root.style.minHeight = "0";
+  root.style.maxHeight = "none";
+  root.style.overflow = "visible";
+  root.style.overflowX = "visible";
+  root.style.overflowY = "visible";
+}
+
 function signatureKinds(template: PrintTemplateEditorValue) {
   const result: Array<"external" | "employee"> = [];
   if (template.selectedFields.has("signatures.customer")) result.push("external");
@@ -115,6 +127,7 @@ export async function freezeOrderPrintPdf(
     .map(value => Math.max(6, Number(value) || 6));
   const [marginTop, marginRight, marginBottom, marginLeft] = margins;
   const innerWidthMm = Math.max(1, pageWidthMm - marginLeft - marginRight);
+  const raster = freezeRasterOptions();
 
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
@@ -141,6 +154,8 @@ export async function freezeOrderPrintPdf(
     // Reproduce only the geometry that the existing renderer applies under @media print.
     // The renderer itself remains untouched and is still the single source of HTML/CSS.
     doc.documentElement.style.background = "#fff";
+    doc.documentElement.style.height = "auto";
+    doc.documentElement.style.overflow = "visible";
     doc.body.style.width = `${innerWidthMm}mm`;
     doc.body.style.maxWidth = "none";
     doc.body.style.margin = "0";
@@ -154,22 +169,26 @@ export async function freezeOrderPrintPdf(
     // computed rule inline first so grid, logo sizing, typography and break rules
     // survive that clone exactly as rendered in the print iframe.
     inlineComputedStyles(doc, doc.body);
+    unlockCaptureRoot(doc.body);
     void doc.body.offsetHeight;
 
     const worker: any = (html2pdf as any)()
       .set({
         margin: html2pdfMarginOrder(margins),
         filename: `${template.name || "documento"}.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
+        image: { type: raster.imageType, quality: 1 },
         html2canvas: {
-          scale: Math.min(2, Math.max(1, window.devicePixelRatio || 1)),
+          scale: raster.scale,
           useCORS: true,
           allowTaint: false,
           backgroundColor: "#ffffff",
           logging: false,
           windowWidth: Math.ceil(doc.body.scrollWidth),
+          windowHeight: Math.ceil(doc.body.scrollHeight + 64),
+          scrollX: 0,
+          scrollY: 0,
         },
-        jsPDF: { unit: "mm", format: "a4", orientation },
+        jsPDF: { unit: "mm", format: "a4", orientation, compress: true },
         pagebreak: { mode: ["css", "legacy"] },
       })
       .from(doc.body)
@@ -179,6 +198,7 @@ export async function freezeOrderPrintPdf(
     // measured from this exact paginated container, not from the pre-pagination iframe.
     const container = await worker.get("container");
     if (!(container instanceof HTMLElement)) throw new Error("Não foi possível paginar o documento para assinatura.");
+    unlockCaptureRoot(container);
     void container.offsetHeight;
     const signatureSlots = collectSignatureSlots(container, template, pageWidthMm, pageHeightMm);
 
