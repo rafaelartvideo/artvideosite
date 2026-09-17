@@ -51,7 +51,7 @@ export type PublicDocumentVerification = {
     signer_type: "employee" | "external";
     signer_name: string;
     signer_document_masked: string | null;
-    validation_method: "stored_employee_signature" | "email_otp";
+    validation_method: "stored_employee_signature" | "cpf_cnpj" | "email_otp";
     signed_at: string | null;
   }>;
 };
@@ -70,10 +70,7 @@ async function invokePublicSignature<T>(action: string, payload: Record<string, 
   if (!response.ok || !data || data.success !== true) {
     throw Object.assign(
       new Error(String(data?.error || "Não foi possível acessar a assinatura eletrônica.")),
-      {
-        code: data?.code || null,
-        retryAfterSeconds: Number(data?.retry_after_seconds || response.headers.get("Retry-After")) || 0,
-      },
+      { code: data?.code || null },
     );
   }
   return data as T & { success: true };
@@ -83,22 +80,7 @@ export async function inspectPublicSignature(token: string) {
   return invokePublicSignature<PublicSignatureInspection>("inspect", { token });
 }
 
-export async function requestPublicSignatureOtp(token: string, document: string) {
-  return invokePublicSignature<{
-    challenge_id?: string;
-    destination?: string;
-    expires_in_seconds?: number;
-    retry_after_seconds?: number;
-    already_captured?: boolean;
-    signed?: boolean;
-    signed_at?: string;
-    verification_code?: string;
-    verification_url?: string;
-    download_url?: string;
-  }>("request_otp", { token, document });
-}
-
-export async function verifyPublicSignatureOtp(token: string, challengeId: string, code: string) {
+export async function validatePublicSignatureIdentity(token: string, document: string) {
   return invokePublicSignature<{
     proof?: string;
     expires_in_seconds?: number;
@@ -108,7 +90,7 @@ export async function verifyPublicSignatureOtp(token: string, challengeId: strin
     verification_code?: string;
     verification_url?: string;
     download_url?: string;
-  }>("verify_otp", { token, challenge_id: challengeId, code });
+  }>("validate_identity", { token, document });
 }
 
 export async function loadPublicSignatureDocument(token: string, proof: string) {
