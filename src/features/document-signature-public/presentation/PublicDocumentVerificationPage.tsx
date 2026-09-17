@@ -17,10 +17,10 @@ function signerTypeLabel(value: "employee" | "external") {
   return value === "employee" ? "Funcionário" : "Cliente / responsável";
 }
 
-function validationLabel(value: "stored_employee_signature" | "email_otp") {
-  return value === "stored_employee_signature"
-    ? "Assinatura cadastrada do funcionário"
-    : "CPF/CNPJ + código por e-mail";
+function validationLabel(value: "stored_employee_signature" | "cpf_cnpj" | "email_otp") {
+  if (value === "stored_employee_signature") return "Assinatura cadastrada do funcionário";
+  if (value === "cpf_cnpj") return "Validação por CPF/CNPJ";
+  return "CPF/CNPJ + código por e-mail";
 }
 
 export function PublicDocumentVerificationPage() {
