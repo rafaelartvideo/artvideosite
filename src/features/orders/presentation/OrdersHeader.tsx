@@ -23,7 +23,7 @@ export function OrdersHeader({
   return (
     <PageHeader
       title="Ordens de Serviço"
-      subtitle={filteredTotalLabel(total, hasActiveFilters)}
+      subtitle={hasActiveFilters ? undefined : filteredTotalLabel(total, false)}
       actions={hasActions ? (
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           {showViewToggle && <div className="flex items-center rounded-lg border border-[#0d1b2e]/15 bg-white p-1">
