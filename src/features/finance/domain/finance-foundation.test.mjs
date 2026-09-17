@@ -8,6 +8,7 @@ import {
 
 test("normalizes finance foundation routes", () => {
   assert.deepEqual(financeRoute(null, null), { section: "overview", registry: null });
+  assert.deepEqual(financeRoute("movements", null), { section: "movements", registry: null });
   assert.deepEqual(financeRoute("accounts", null), { section: "accounts", registry: null });
   assert.deepEqual(financeRoute("registries", "categories"), { section: "registries", registry: "categories" });
   assert.deepEqual(financeRoute("unknown", "anything"), { section: "overview", registry: null });
