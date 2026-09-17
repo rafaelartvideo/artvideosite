@@ -47,6 +47,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     concurrency:
       group: deploy-hostgator-production
@@ -113,6 +114,7 @@ jobs:
         if: steps.current.outputs.deploy == 'true'
         id: ftp_deploy
         continue-on-error: true
+        timeout-minutes: 5
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -123,10 +125,12 @@ jobs:
           local-dir: ./dist/
           server-dir: ./
           timeout: 120000
+          log-level: verbose
 
       - name: Retry FTPS deploy after transient failure
         if: steps.current.outputs.deploy == 'true' && steps.ftp_deploy.outcome == 'failure'
         id: ftp_retry
+        timeout-minutes: 5
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -137,6 +141,7 @@ jobs:
           local-dir: ./dist/
           server-dir: ./
           timeout: 120000
+          log-level: verbose
 
       - name: Save current production assets for next deploy
         if: steps.current.outputs.deploy == 'true' && (steps.ftp_deploy.outcome == 'success' || steps.ftp_retry.outcome == 'success')
