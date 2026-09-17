@@ -9,7 +9,6 @@ import type { useOrdersWorkspace } from "../application/useOrdersWorkspace";
 import type { useOrderServiceAddress } from "../application/useOrderServiceAddress";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
-type OrderType = "internal" | "external";
 type PermissionCheck = (permission: string) => boolean;
 
 type Props = {
@@ -41,8 +40,8 @@ export function OrdersListWorkspace(props: Props) {
 
   const { statuses, situations, serviceTypes, isOrganizationOverride } = workspace;
   const {
-    osNumberSearch, setOsNumberSearch, externalOsSearch, documentSearch, setDocumentSearch, serialNumberSearch, setSerialNumberSearch,
-    filterStatus, setFilterStatus, filterSituation, setFilterSituation, filterOrderType, setFilterOrderType,
+    osNumberSearch, setOsNumberSearch, externalOsSearch, customerNameSearch, setCustomerNameSearch, documentSearch, setDocumentSearch,
+    serialNumberSearch, setSerialNumberSearch, filterStatus, setFilterStatus, filterSituation, setFilterSituation, filterOrderType,
     selectedServiceTypeId, setSelectedServiceTypeId, orderSort, setOrderSort, selectedStates, setSelectedStates,
     selectedCities, setSelectedCities, cityFilterOptions, cityFiltersLoading, dateFrom, setDateFrom, dateTo, setDateTo,
     page, setPage, pageSize, setPageSize, invalidPeriod, filteredOrders, pagedOrders, totalItems, totalPages, safePage,
@@ -58,7 +57,7 @@ export function OrdersListWorkspace(props: Props) {
   const loading = workspace.loading || listLoading;
   const hasActiveFilters = sharedView
     ? Boolean(osNumberSearch || documentSearch)
-    : Boolean(osNumberSearch || externalOsSearch || documentSearch || serialNumberSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo);
+    : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo);
 
   if (!visible) return null;
 
@@ -75,11 +74,11 @@ export function OrdersListWorkspace(props: Props) {
       onClear={() => { setOsNumberSearch(""); setDocumentSearch(""); setOrderSort(""); setPage(1); }}
     /> : <OrdersFilters
       osNumberSearch={osNumberSearch}
+      customerNameSearch={customerNameSearch}
       documentSearch={documentSearch}
       serialNumberSearch={serialNumberSearch}
       statusId={filterStatus}
       situationId={filterSituation}
-      orderType={filterOrderType}
       serviceTypeId={selectedServiceTypeId}
       selectedStates={selectedStates}
       selectedCities={selectedCities}
@@ -95,11 +94,11 @@ export function OrdersListWorkspace(props: Props) {
       citiesLoading={cityFiltersLoading}
       invalidPeriod={invalidPeriod}
       onOsNumberSearchChange={(value) => { setOsNumberSearch(value); setPage(1); }}
+      onCustomerNameSearchChange={(value) => { setCustomerNameSearch(value); setPage(1); }}
       onDocumentSearchChange={(value) => { setDocumentSearch(value); setPage(1); }}
       onSerialNumberSearchChange={(value) => { setSerialNumberSearch(value); setPage(1); }}
       onStatusChange={(value) => { setFilterStatus(value); setPage(1); }}
       onSituationChange={(value) => { setFilterSituation(value); setPage(1); }}
-      onOrderTypeChange={(value) => { setFilterOrderType(value as OrderType | ""); setPage(1); }}
       onServiceTypeChange={(value) => { setSelectedServiceTypeId(value); setPage(1); }}
       onStateSelect={(value) => setSelectedStates(current => current.includes(value) ? current : [...current, value])}
       onStateRemove={(value) => setSelectedStates(current => current.filter(state => state !== value))}
