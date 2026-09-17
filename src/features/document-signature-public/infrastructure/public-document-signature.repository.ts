@@ -1,7 +1,9 @@
 import { projectId, publicAnonKey } from "../../../../utils/supabase/info";
 
 const FUNCTION_NAME = "document-signature-public";
+const PDF_FUNCTION_NAME = "document-signature-pdf";
 const FUNCTION_URL = `https://${projectId}.supabase.co/functions/v1/${FUNCTION_NAME}`;
+const PDF_FUNCTION_URL = `https://${projectId}.supabase.co/functions/v1/${PDF_FUNCTION_NAME}`;
 
 export type PublicSignatureInspection = {
   state: "pending" | "viewed" | "signed" | "expired" | "cancelled";
@@ -21,7 +23,8 @@ export type PublicSignatureInspection = {
 };
 
 export type PublicSignatureDocument = {
-  snapshot: any;
+  preview_url: string;
+  base_pdf_hash: string;
   consent_text: string;
   signer_name: string;
   signer_document_masked: string;
@@ -56,8 +59,8 @@ export type PublicDocumentVerification = {
   }>;
 };
 
-async function invokePublicSignature<T>(action: string, payload: Record<string, unknown>) {
-  const response = await fetch(FUNCTION_URL, {
+async function invokeAt<T>(url: string, action: string, payload: Record<string, unknown>) {
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -66,7 +69,6 @@ async function invokePublicSignature<T>(action: string, payload: Record<string, 
     body: JSON.stringify({ action, ...payload }),
   });
   const data = await response.json().catch(() => null);
-
   if (!response.ok || !data || data.success !== true) {
     throw Object.assign(
       new Error(String(data?.error || "Não foi possível acessar a assinatura eletrônica.")),
@@ -74,6 +76,14 @@ async function invokePublicSignature<T>(action: string, payload: Record<string, 
     );
   }
   return data as T & { success: true };
+}
+
+async function invokePublicSignature<T>(action: string, payload: Record<string, unknown>) {
+  return invokeAt<T>(FUNCTION_URL, action, payload);
+}
+
+async function invokePublicSignaturePdf<T>(action: string, payload: Record<string, unknown>) {
+  return invokeAt<T>(PDF_FUNCTION_URL, action, payload);
 }
 
 export async function inspectPublicSignature(token: string) {
@@ -94,7 +104,7 @@ export async function validatePublicSignatureIdentity(token: string, document: s
 }
 
 export async function loadPublicSignatureDocument(token: string, proof: string) {
-  const result = await invokePublicSignature<{ document: PublicSignatureDocument }>("document", { token, proof });
+  const result = await invokePublicSignaturePdf<{ document: PublicSignatureDocument }>("preview", { token, proof });
   return result.document;
 }
 
@@ -107,14 +117,15 @@ export async function completePublicSignature({
   proof: string;
   signatureDataUrl: string;
 }) {
-  return invokePublicSignature<{
-    captured: boolean;
-    captured_at: string;
+  return invokePublicSignaturePdf<{
+    captured?: boolean;
+    captured_at?: string;
     signed: boolean;
     signed_at: string;
     verification_code: string;
     verification_url: string;
     download_url: string;
+    base_pdf_hash?: string | null;
     final_pdf_hash: string;
     snapshot_hash: string;
   }>("complete", {
