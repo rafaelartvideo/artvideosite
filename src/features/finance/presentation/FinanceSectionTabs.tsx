@@ -3,6 +3,8 @@ import type { FinanceSection } from "../domain/finance.types";
 
 const LABELS: Record<FinanceSection, string> = {
   overview: "Visão geral",
+  receivables: "Contas a receber",
+  payables: "Contas a pagar",
   accounts: "Caixas e contas",
   registries: "Cadastros financeiros",
 };
