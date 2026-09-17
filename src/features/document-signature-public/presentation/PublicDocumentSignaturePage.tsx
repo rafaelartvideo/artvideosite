@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Download, FileCheck2, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { Check, Download, FileCheck2, LockKeyhole, ShieldCheck } from "lucide-react";
 import { useParams } from "react-router";
 import {
   completePublicSignature,
   getPublicSignedDocument,
   inspectPublicSignature,
   loadPublicSignatureDocument,
-  requestPublicSignatureOtp,
-  verifyPublicSignatureOtp,
+  validatePublicSignatureIdentity,
   type PublicSignatureDocument,
   type PublicSignatureInspection,
 } from "../infrastructure/public-document-signature.repository";
 import { SignaturePad, type SignaturePadHandle } from "./SignaturePad";
 
-type Step = "loading" | "identity" | "otp" | "document" | "signed" | "terminal" | "error";
+type Step = "loading" | "identity" | "document" | "signed" | "terminal" | "error";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -140,15 +139,12 @@ export function PublicDocumentSignaturePage() {
   const [step, setStep] = useState<Step>("loading");
   const [inspection, setInspection] = useState<PublicSignatureInspection | null>(null);
   const [documentValue, setDocumentValue] = useState("");
-  const [challengeId, setChallengeId] = useState("");
-  const [otp, setOtp] = useState("");
   const [proof, setProof] = useState("");
   const [signatureDocument, setSignatureDocument] = useState<PublicSignatureDocument | null>(null);
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [hasInk, setHasInk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [cooldown, setCooldown] = useState(0);
   const [signedAt, setSignedAt] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState<string | null>(null);
 
@@ -158,12 +154,6 @@ export function PublicDocumentSignaturePage() {
     setStep("signed");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = window.setInterval(() => setCooldown(value => Math.max(0, value - 1)), 1000);
-    return () => window.clearInterval(timer);
-  }, [cooldown > 0]);
 
   useEffect(() => {
     let cancelled = false;
@@ -196,50 +186,31 @@ export function PublicDocumentSignaturePage() {
     return "Esta solicitação não está disponível.";
   }, [inspection]);
 
-  const sendOtp = async () => {
-    if (![11, 14].includes(digits(documentValue).length)) { setError("Informe o CPF ou CNPJ usado nesta solicitação."); return; }
-    setBusy(true);
-    setError("");
-    try {
-      const result = await requestPublicSignatureOtp(token, documentValue);
-      if (result.signed || result.already_captured) { enterSignedState(result); return; }
-      if (!result.challenge_id) throw new Error("Não foi possível gerar o código de validação.");
-      setChallengeId(result.challenge_id);
-      setCooldown(result.retry_after_seconds || 60);
-      setOtp("");
-      setStep("otp");
-    } catch (sendError: any) {
-      setError(sendError instanceof Error ? sendError.message : "Não foi possível enviar o código.");
-      if (sendError?.retryAfterSeconds) setCooldown(sendError.retryAfterSeconds);
-    } finally {
-      setBusy(false);
+  const validateIdentity = async () => {
+    if (![11, 14].includes(digits(documentValue).length)) {
+      setError("Informe o CPF ou CNPJ usado nesta solicitação.");
+      return;
     }
-  };
-
-  const verifyOtp = async () => {
-    if (!/^\d{6}$/.test(otp)) { setError("Digite os 6 dígitos enviados por e-mail."); return; }
     setBusy(true);
     setError("");
     try {
-      const result = await verifyPublicSignatureOtp(token, challengeId, otp);
-      if (result.signed || result.already_captured) { enterSignedState(result); return; }
-      if (!result.proof) throw new Error("Não foi possível concluir a validação.");
+      const result = await validatePublicSignatureIdentity(token, documentValue);
+      if (result.signed || result.already_captured) {
+        enterSignedState(result);
+        return;
+      }
+      if (!result.proof) throw new Error("Não foi possível validar sua identidade.");
       const loadedDocument = await loadPublicSignatureDocument(token, result.proof);
       setProof(result.proof);
       setSignatureDocument(loadedDocument);
       setConsentAccepted(false);
       setHasInk(false);
       setStep("document");
-    } catch (verifyError) {
-      setError(verifyError instanceof Error ? verifyError.message : "Código inválido ou expirado.");
+    } catch (validationError) {
+      setError(validationError instanceof Error ? validationError.message : "Não foi possível validar sua identidade.");
     } finally {
       setBusy(false);
     }
-  };
-
-  const resendOtp = async () => {
-    if (cooldown > 0 || busy) return;
-    await sendOtp();
   };
 
   const complete = async () => {
@@ -304,21 +275,12 @@ export function PublicDocumentSignaturePage() {
 
         {step === "identity" && inspection && <div className="rounded-2xl border border-[#dbe2ea] bg-white p-5 shadow-sm sm:p-6">
           <div className="rounded-xl bg-[#f8fafc] p-4"><p className="text-xs font-bold uppercase tracking-wide text-[#64748b]">Documento</p><p className="mt-1 text-base font-black">{inspection.document_name}</p><p className="mt-1 text-xs text-[#64748b]">OS {inspection.order_number} · link válido até {formatDateTime(inspection.expires_at)}</p></div>
-          <div className="mt-5"><h2 className="text-lg font-black">Confirme sua identidade</h2><p className="mt-1 text-sm leading-6 text-[#64748b]">Informe o CPF ou CNPJ associado a esta assinatura. Depois enviaremos um código para <strong>{inspection.signer_email_masked}</strong>.</p></div>
+          <div className="mt-5"><h2 className="text-lg font-black">Confirme sua identidade</h2><p className="mt-1 text-sm leading-6 text-[#64748b]">Informe o CPF ou CNPJ associado a esta assinatura para liberar o documento.</p></div>
           <label className="mt-5 block text-xs font-bold uppercase tracking-wide text-[#475569]">CPF ou CNPJ</label>
           <input value={documentValue} onChange={event => setDocumentValue(formatIdentity(event.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" className="mt-2 h-12 w-full rounded-xl border border-[#cbd5e1] bg-white px-4 text-base font-semibold outline-none transition focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/10" />
           {error && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
-          <button type="button" onClick={() => void sendOtp()} disabled={busy} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-5 text-sm font-black text-white hover:bg-[#0048c7] disabled:cursor-wait disabled:opacity-60"><Mail size={17} />{busy ? "Validando..." : "Enviar código por e-mail"}</button>
-          <p className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-[#64748b]"><LockKeyhole size={14} className="mt-0.5 shrink-0" />O conteúdo do documento só será liberado após a validação do código.</p>
-        </div>}
-
-        {step === "otp" && inspection && <div className="rounded-2xl border border-[#dbe2ea] bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-black">Digite o código de validação</h2><p className="mt-1 text-sm leading-6 text-[#64748b]">Enviamos 6 dígitos para {inspection.signer_email_masked}. O código expira em 10 minutos.</p>
-          <input value={otp} onChange={event => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" className="mt-5 h-14 w-full rounded-xl border border-[#cbd5e1] bg-white px-4 text-center font-mono text-2xl font-black tracking-[0.35em] outline-none transition focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/10" />
-          {error && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
-          <button type="button" onClick={() => void verifyOtp()} disabled={busy || otp.length !== 6} className="mt-5 h-12 w-full rounded-xl bg-[#0057e7] px-5 text-sm font-black text-white hover:bg-[#0048c7] disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Verificando..." : "Validar e abrir documento"}</button>
-          <button type="button" onClick={() => void resendOtp()} disabled={busy || cooldown > 0} className="mt-2 h-10 w-full rounded-xl text-xs font-bold text-[#0057e7] hover:bg-[#f7faff] disabled:text-[#94a3b8]">{cooldown > 0 ? `Reenviar código em ${cooldown}s` : "Reenviar código"}</button>
-          <button type="button" onClick={() => { setStep("identity"); setError(""); }} disabled={busy} className="mt-1 h-9 w-full text-xs font-semibold text-[#64748b]">Alterar CPF/CNPJ</button>
+          <button type="button" onClick={() => void validateIdentity()} disabled={busy} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-5 text-sm font-black text-white hover:bg-[#0048c7] disabled:cursor-wait disabled:opacity-60"><ShieldCheck size={17} />{busy ? "Validando..." : "Validar e abrir documento"}</button>
+          <p className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-[#64748b]"><LockKeyhole size={14} className="mt-0.5 shrink-0" />O conteúdo do documento só será liberado após a validação do CPF ou CNPJ.</p>
         </div>}
 
         {step === "document" && signatureDocument && <div className="space-y-5">
@@ -332,7 +294,7 @@ export function PublicDocumentSignaturePage() {
             <div className="mt-5"><span className="mb-2 block text-xs font-bold uppercase tracking-wide text-[#475569]">Sua assinatura</span><SignaturePad ref={padRef} disabled={busy} onInkChange={setHasInk} /></div>
             {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
             <button type="button" onClick={() => void complete()} disabled={busy || !consentAccepted || !hasInk} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-5 text-sm font-black text-white hover:bg-[#0048c7] disabled:cursor-not-allowed disabled:opacity-50"><FileCheck2 size={17} />{busy ? "Finalizando documento..." : "Confirmar assinatura"}</button>
-            <p className="mt-4 text-center text-[11px] leading-5 text-[#64748b]">Validação por e-mail · {signatureDocument.signer_document_masked}</p>
+            <p className="mt-4 text-center text-[11px] leading-5 text-[#64748b]">Validação por CPF/CNPJ · {signatureDocument.signer_document_masked}</p>
           </div>
         </div>}
 
