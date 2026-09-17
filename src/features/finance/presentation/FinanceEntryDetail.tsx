@@ -3,6 +3,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialAccount, FinancialEntryDetail, FinancialPaymentMethod, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceApprovalPanel } from "./FinanceApprovalPanel";
+import { FinanceEntrySourceBlock } from "./FinanceEntrySourceBlock";
 import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
 
 function formatDate(value: string | null | undefined) {
@@ -21,6 +22,7 @@ function eventLabel(type: string) {
     submitted: "Enviado para aprovação",
     updated: "Lançamento alterado",
     resubmitted: "Reenviado para aprovação",
+    integrated_created: "Lançamento criado pela integração",
     approval_recorded: "Aprovação parcial registrada",
     approved: "Lançamento aprovado",
     rejected: "Lançamento rejeitado",
@@ -82,7 +84,9 @@ export function FinanceEntryDetail({
   return <div className="space-y-4">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-3"><AdminButton variant="secondary" size="sm" onClick={onBack}><ArrowLeft size={15} /> Voltar</AdminButton><div className="min-w-0"><h2 className="truncate text-lg font-black text-[#0d1b2e]">{detail.description}</h2><p className="text-xs text-[#5a6a82]">{detail.entry_type === "receivable" ? "Conta a receber" : "Conta a pagar"} · {approvalLabel(detail.approval_status)}</p></div></div>{canEdit && ["draft", "pending", "rejected"].includes(detail.approval_status) && detail.origin_type === "manual" && <AdminButton onClick={onEdit}><Pencil size={15} /> Editar</AdminButton>}</div>
 
-    <AdminCard><AdminCardHeader><h3 className="text-sm font-black text-[#0d1b2e]">Resumo</h3></AdminCardHeader><AdminCardContent><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Info label="Valor original" value={<span className="text-base font-black text-[#0057e7]">{formatCurrency(detail.original_amount)}</span>} /><Info label="Contraparte" value={detail.counterpart_name_snapshot || "Sem contraparte"} /><Info label="Emissão" value={formatDate(detail.issue_date)} /><Info label="Competência" value={formatDate(detail.competence_date)} /><Info label="Aprovação" value={approvalLabel(detail.approval_status)} /><Info label="Aprovações" value={`${detail.approval_count || 0}/${detail.required_approvals}`} /><Info label="Origem" value={detail.origin_type === "manual" ? "Manual" : detail.origin_type} /><Info label="Documento" value={detail.counterpart_document_snapshot || "—"} /></div>{detail.notes && <div className="mt-4 border-t border-[#0d1b2e]/8 pt-4"><Info label="Observações" value={detail.notes} /></div>}</AdminCardContent></AdminCard>
+    <AdminCard><AdminCardHeader><h3 className="text-sm font-black text-[#0d1b2e]">Resumo</h3></AdminCardHeader><AdminCardContent><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Info label="Valor original" value={<span className="text-base font-black text-[#0057e7]">{formatCurrency(detail.original_amount)}</span>} /><Info label="Contraparte" value={detail.counterpart_name_snapshot || "Sem contraparte"} /><Info label="Emissão" value={formatDate(detail.issue_date)} /><Info label="Competência" value={formatDate(detail.competence_date)} /><Info label="Aprovação" value={approvalLabel(detail.approval_status)} /><Info label="Aprovações" value={`${detail.approval_count || 0}/${detail.required_approvals}`} /><Info label="Origem" value={detail.origin_type === "manual" ? "Manual" : detail.origin_type === "service_order" ? "Ordem de Serviço" : detail.origin_type === "inventory_purchase" ? "Compra de estoque" : detail.origin_type} /><Info label="Documento" value={detail.counterpart_document_snapshot || "—"} /></div>{detail.notes && <div className="mt-4 border-t border-[#0d1b2e]/8 pt-4"><Info label="Observações" value={detail.notes} /></div>}</AdminCardContent></AdminCard>
+
+    <FinanceEntrySourceBlock detail={detail} />
 
     <FinanceApprovalPanel detail={detail} canApprove={canApprove} currentUserId={currentUserId} pending={decisionPending} error={decisionError} onApprove={onApprove} onReject={onReject} />
 
