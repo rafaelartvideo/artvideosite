@@ -1,8 +1,11 @@
-const SECTIONS = new Set(["overview", "accounts", "registries"]);
+const SECTIONS = new Set(["overview", "receivables", "payables", "accounts", "registries"]);
 const REGISTRIES = new Set(["categories", "cost-centers", "payment-methods", "settings"]);
 
 export function financeRoute(resourceId, subpage) {
   const section = SECTIONS.has(resourceId) ? resourceId : "overview";
+  if (section === "receivables" || section === "payables") {
+    return { section, registry: null, entryId: subpage || null };
+  }
   if (section !== "registries") return { section, registry: null };
   return {
     section,
