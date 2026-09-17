@@ -3,13 +3,14 @@ import { useAuth } from "@/lib/auth";
 import { AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { financeRoute } from "../domain/finance-foundation.mjs";
 import type { FinanceSection } from "../domain/finance.types";
+import { FinanceAccountsSection } from "./FinanceAccountsSection";
 import { FinanceOverviewFoundation } from "./FinanceOverviewFoundation";
 import { FinanceSectionTabs } from "./FinanceSectionTabs";
 
-function placeholder(title: string, description: string) {
+function registriesPlaceholder() {
   return <AdminCard className="p-6">
-    <h2 className="text-lg font-black text-[#0d1b2e]">{title}</h2>
-    <p className="mt-2 text-sm leading-relaxed text-[#5a6a82]">{description}</p>
+    <h2 className="text-lg font-black text-[#0d1b2e]">Cadastros financeiros</h2>
+    <p className="mt-2 text-sm leading-relaxed text-[#5a6a82]">Configure categorias, centros de custo, formas de pagamento e regras financeiras.</p>
   </AdminCard>;
 }
 
@@ -51,7 +52,7 @@ export function TabFinance({
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} />
 
     {section === "overview" && <FinanceOverviewFoundation />}
-    {section === "accounts" && placeholder("Caixas e contas", "Cadastre as contas financeiras e caixas utilizados pela empresa.")}
-    {section === "registries" && placeholder("Cadastros financeiros", "Configure categorias, centros de custo, formas de pagamento e regras financeiras.")}
+    {section === "accounts" && <FinanceAccountsSection />}
+    {section === "registries" && registriesPlaceholder()}
   </div>;
 }
