@@ -20,7 +20,8 @@ export function paymentMethodNetAmount(amount, percentageFee, fixedFee) {
 export function validateSecondApprovalThreshold(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return { ok: true, value: null };
-  const parsed = Number(raw.replace(/\./g, "").replace(",", "."));
+  const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) && parsed >= 0
     ? { ok: true, value: parsed }
     : { ok: false, value: null };

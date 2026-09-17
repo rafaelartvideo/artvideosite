@@ -21,7 +21,8 @@ test("calculates net value after percentage and fixed fees", () => {
 
 test("accepts nullable non-negative second approval threshold", () => {
   assert.deepEqual(validateSecondApprovalThreshold(""), { ok: true, value: null });
-  assert.deepEqual(validateSecondApprovalThreshold("2000,50"), { ok: true, value: 2000.5 });
+  assert.deepEqual(validateSecondApprovalThreshold("2.000,50"), { ok: true, value: 2000.5 });
+  assert.deepEqual(validateSecondApprovalThreshold("2000.50"), { ok: true, value: 2000.5 });
   assert.equal(validateSecondApprovalThreshold("-1").ok, false);
   assert.equal(validateSecondApprovalThreshold("abc").ok, false);
 });

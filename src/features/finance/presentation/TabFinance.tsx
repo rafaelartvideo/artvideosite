@@ -1,18 +1,12 @@
 import { useEffect, useMemo } from "react";
 import { useAuth } from "@/lib/auth";
-import { AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { financeRoute } from "../domain/finance-foundation.mjs";
-import type { FinanceSection } from "../domain/finance.types";
+import type { FinanceRegistrySection, FinanceSection } from "../domain/finance.types";
 import { FinanceAccountsSection } from "./FinanceAccountsSection";
 import { FinanceOverviewFoundation } from "./FinanceOverviewFoundation";
+import { FinanceRegistriesSection } from "./FinanceRegistriesSection";
 import { FinanceSectionTabs } from "./FinanceSectionTabs";
-
-function registriesPlaceholder() {
-  return <AdminCard className="p-6">
-    <h2 className="text-lg font-black text-[#0d1b2e]">Cadastros financeiros</h2>
-    <p className="mt-2 text-sm leading-relaxed text-[#5a6a82]">Configure categorias, centros de custo, formas de pagamento e regras financeiras.</p>
-  </AdminCard>;
-}
 
 export function TabFinance({
   routeResourceId,
@@ -24,7 +18,7 @@ export function TabFinance({
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 }) {
   const { hasPermission } = useAuth();
-  const requested = financeRoute(routeResourceId || null, routeSubpage || null) as { section: FinanceSection; registry: string | null };
+  const requested = financeRoute(routeResourceId || null, routeSubpage || null) as { section: FinanceSection; registry: FinanceRegistrySection | null };
   const allowedSections = useMemo<FinanceSection[]>(() => {
     const sections: FinanceSection[] = [];
     if (hasPermission("finance.dashboard.view")) sections.push("overview");
@@ -53,6 +47,6 @@ export function TabFinance({
 
     {section === "overview" && <FinanceOverviewFoundation />}
     {section === "accounts" && <FinanceAccountsSection />}
-    {section === "registries" && registriesPlaceholder()}
+    {section === "registries" && <FinanceRegistriesSection registry={requested.registry} onSelect={registry => onRouteChange?.("registries", registry)} />}
   </div>;
 }
