@@ -102,26 +102,19 @@ export async function getFinancialEntryDetail(organizationId: string, id: string
 
 export async function listFinancialCounterparties(organizationId: string, entryType: FinancialEntryType): Promise<FinancialCounterparty[]> {
   const org = requiredOrganizationId(organizationId);
-  const { data, error } = await supabase
-    .from("entities")
-    .select("id,name,legal_name,trade_name,document,is_active,roles:entity_roles(role,is_active)")
-    .eq("organization_id", org)
-    .eq("is_active", true)
-    .order("name");
+  const { data, error } = await supabase.rpc("list_financial_counterparties", {
+    p_organization_id: org,
+    p_entry_type: entryType,
+  });
   if (error) throw error;
 
   const preferredRole = entryType === "payable" ? "supplier" : "customer";
-  return (data || []).map((item: any) => {
-    const roles = Array.isArray(item.roles)
-      ? item.roles.filter((role: any) => role?.is_active !== false).map((role: any) => String(role.role))
-      : [];
-    return {
-      id: String(item.id),
-      name: String(item.trade_name || item.name || item.legal_name || "Cadastro"),
-      document: item.document || null,
-      roles,
-    };
-  }).sort((left, right) => {
+  return (data || []).map((item: any) => ({
+    id: String(item.id),
+    name: String(item.name || "Cadastro"),
+    document: item.document || null,
+    roles: Array.isArray(item.roles) ? item.roles.map(String) : [],
+  })).sort((left, right) => {
     const leftPreferred = left.roles.includes(preferredRole) ? 0 : 1;
     const rightPreferred = right.roles.includes(preferredRole) ? 0 : 1;
     return leftPreferred - rightPreferred || left.name.localeCompare(right.name, "pt-BR");
