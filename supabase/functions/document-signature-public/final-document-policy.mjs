@@ -16,13 +16,22 @@ export function requiredSignatureKinds(row) {
 }
 
 export function minimalVerificationPayload(row, signatures = [], company = {}) {
-  const safeSignatures = (Array.isArray(signatures) ? signatures : []).map(signature => ({
-    signer_type: signature?.signer_type === "employee" ? "employee" : "external",
-    signer_name: text(signature?.signer_name, 220) || "—",
-    signer_document_masked: text(signature?.signer_document_masked, 80) || null,
-    validation_method: signature?.validation_method === "stored_employee_signature" ? "stored_employee_signature" : "email_otp",
-    signed_at: signature?.signed_at || null,
-  }));
+  const safeSignatures = (Array.isArray(signatures) ? signatures : []).map(signature => {
+    const rawMethod = String(signature?.validation_method || "");
+    const validationMethod = rawMethod === "stored_employee_signature"
+      ? "stored_employee_signature"
+      : rawMethod === "cpf_cnpj"
+        ? "cpf_cnpj"
+        : "email_otp";
+
+    return {
+      signer_type: signature?.signer_type === "employee" ? "employee" : "external",
+      signer_name: text(signature?.signer_name, 220) || "—",
+      signer_document_masked: text(signature?.signer_document_masked, 80) || null,
+      validation_method: validationMethod,
+      signed_at: signature?.signed_at || null,
+    };
+  });
 
   return {
     valid: true,
