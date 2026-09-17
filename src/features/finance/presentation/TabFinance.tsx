@@ -48,7 +48,7 @@ export function TabFinance({
     <PageHeader title="Financeiro" subtitle="Contas a pagar e receber, caixas, cadastros e gestão financeira em um único módulo." />
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} />
 
-    {section === "overview" && <FinanceOverviewFoundation />}
+    {section === "overview" && <FinanceOverviewFoundation onSelectEntry={(type, id) => onRouteChange?.(type === "receivable" ? "receivables" : "payables", id)} />}
     {section === "receivables" && <FinanceEntriesSection entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
     {section === "payables" && <FinanceEntriesSection entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
     {section === "accounts" && <FinanceAccountsSection />}
