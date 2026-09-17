@@ -41,6 +41,7 @@ function respond(request: Request, body: unknown, status = 200) {
 }
 
 const usernamePattern = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isUuid(value: unknown) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value ?? ""));
@@ -54,12 +55,16 @@ function validUsername(value: string) {
   return usernamePattern.test(value);
 }
 
-function normalizeDigits(value: unknown) {
-  return String(value ?? "").replace(/\D/g, "");
+function normalizeEmail(value: unknown) {
+  return String(value ?? "").trim().toLowerCase();
 }
 
-function internalAuthEmail() {
-  return `partner-${crypto.randomUUID()}@auth.artvideo.app`;
+function validEmail(value: string) {
+  return emailPattern.test(value);
+}
+
+function normalizeDigits(value: unknown) {
+  return String(value ?? "").replace(/\D/g, "");
 }
 
 function authFailureMessage(error: any) {
@@ -68,7 +73,10 @@ function authFailureMessage(error: any) {
   if (code === "weak_password" || code.includes("password") || message.includes("password")) {
     return "A senha informada não atende aos requisitos de segurança.";
   }
-  return "Não foi possível criar o usuário de acesso.";
+  if (code.includes("email") || message.includes("email") || message.includes("already been registered")) {
+    return "Este e-mail já está em uso ou não é válido.";
+  }
+  return "Não foi possível salvar o usuário de acesso.";
 }
 
 async function hasRolePermission(roleId: string | null, permissionKey: string) {
@@ -130,7 +138,7 @@ async function listPartnerUsers(organizationId: string) {
   const [{ data: members, error: membersError }, { data: employees, error: employeesError }] = await Promise.all([
     adminClient
       .from("organization_members")
-      .select("id,organization_id,user_id,role_id,status,is_owner,joined_at,profile:profiles!organization_members_user_id_fkey(id,full_name,username,is_active),role:roles(id,name)")
+      .select("id,organization_id,user_id,role_id,status,is_owner,joined_at,profile:profiles!organization_members_user_id_fkey(id,full_name,username,email,is_active),role:roles(id,name)")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: true }),
     adminClient
@@ -156,6 +164,7 @@ async function listPartnerUsers(organizationId: string) {
       joined_at: member.joined_at,
       full_name: employee?.full_name ?? member.profile?.full_name ?? "",
       username: member.profile?.username ?? "",
+      email: member.profile?.email ?? "",
       cpf: employee?.cpf ?? "",
       phone: employee?.phone ?? "",
       function_name: employee?.function_name ?? member.role?.name ?? "",
@@ -226,12 +235,13 @@ Deno.serve(async (request) => {
     const fullName = String(body?.full_name ?? "").trim();
     const cpf = normalizeDigits(body?.cpf);
     const phone = String(body?.phone ?? "").trim() || null;
+    const email = normalizeEmail(body?.email);
     const functionName = String(body?.function_name ?? "").trim();
     const isOwner = body?.is_owner === true;
     const isActive = body?.is_active !== false;
 
-    if (!isUuid(roleId) || !fullName || !cpf) {
-      return respond(request, { error: "Nome, CPF e função são obrigatórios." }, 400);
+    if (!isUuid(roleId) || !fullName || !cpf || !validEmail(email)) {
+      return respond(request, { error: "Nome, CPF, e-mail e função são obrigatórios e devem ser válidos." }, 400);
     }
 
     const role = await getActiveRole(roleId);
@@ -260,9 +270,8 @@ Deno.serve(async (request) => {
       let createdMembership = false;
 
       try {
-        const authEmail = internalAuthEmail();
         const { data: createdAuth, error: createAuthError } = await adminClient.auth.admin.createUser({
-          email: authEmail,
+          email,
           password,
           email_confirm: true,
           user_metadata: { full_name: fullName, username },
@@ -278,7 +287,7 @@ Deno.serve(async (request) => {
           id: authUser.id,
           username,
           full_name: fullName,
-          email: authUser.email ?? null,
+          email,
           phone,
           role_id: roleId,
           is_active: true,
@@ -289,7 +298,7 @@ Deno.serve(async (request) => {
             await adminClient.from("profiles").delete().eq("id", authUser.id);
             await adminClient.auth.admin.deleteUser(authUser.id);
             createdAuthUserId = null;
-            return respond(request, { error: "Este usuário já está em uso. Escolha outro usuário." }, 409);
+            return respond(request, { error: "Este usuário ou e-mail já está em uso." }, 409);
           }
           throw profileUpsertError;
         }
@@ -322,6 +331,7 @@ Deno.serve(async (request) => {
           success: true,
           user_id: authUser.id,
           username,
+          email,
           reused_existing_login: false,
         });
       } catch (error) {
@@ -348,6 +358,13 @@ Deno.serve(async (request) => {
       .maybeSingle();
     if (membershipError) throw membershipError;
     if (!membership) return respond(request, { error: "Usuário não pertence à empresa selecionada." }, 404);
+
+    const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, {
+      email,
+      email_confirm: true,
+      user_metadata: { full_name: fullName },
+    });
+    if (authUpdateError) return respond(request, { error: authFailureMessage(authUpdateError) }, 400);
 
     const { error: membershipUpdateError } = await adminClient
       .from("organization_members")
@@ -394,19 +411,22 @@ Deno.serve(async (request) => {
       .eq("user_id", userId);
     if (membershipCountError) throw membershipCountError;
 
+    const profilePayload: Record<string, unknown> = {
+      email,
+      updated_at: new Date().toISOString(),
+    };
     if ((membershipCount ?? 0) <= 1) {
-      const { error: profileUpdateError } = await adminClient
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          role_id: roleId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId);
-      if (profileUpdateError) throw profileUpdateError;
+      profilePayload.full_name = fullName;
+      profilePayload.role_id = roleId;
     }
 
-    return respond(request, { success: true, user_id: userId });
+    const { error: profileUpdateError } = await adminClient
+      .from("profiles")
+      .update(profilePayload)
+      .eq("id", userId);
+    if (profileUpdateError) throw profileUpdateError;
+
+    return respond(request, { success: true, user_id: userId, email });
   } catch (error) {
     console.error("[PARTNER USERS]", error);
     return respond(request, {
