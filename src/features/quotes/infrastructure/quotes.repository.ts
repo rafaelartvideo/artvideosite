@@ -20,7 +20,14 @@ export type QuotePage = { items: any[]; total: number };
 const normalizeDocument = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const normalizeText = (value: unknown) => String(value ?? "").trim().toLocaleLowerCase("pt-BR");
 
-export async function listQuotesPage(input: QuotePageInput): Promise<QuotePage> {
+function requireOrganizationId(organizationId: string) {
+  const value = String(organizationId || "").trim();
+  if (!value) throw new Error("Empresa ativa não encontrada.");
+  return value;
+}
+
+export async function listQuotesPage(organizationId: string, input: QuotePageInput): Promise<QuotePage> {
+  const org = requireOrganizationId(organizationId);
   const {
     page,
     pageSize,
@@ -35,7 +42,8 @@ export async function listQuotesPage(input: QuotePageInput): Promise<QuotePage> 
 
   const { data: index, error: indexError } = await supabase
     .from("quote_requests")
-    .select(QUOTE_FILTER_SELECT);
+    .select(QUOTE_FILTER_SELECT)
+    .eq("organization_id", org);
   if (indexError) throw indexError;
 
   const desktopNeedle = normalizeText(search);
@@ -81,26 +89,32 @@ export async function listQuotesPage(input: QuotePageInput): Promise<QuotePage> 
   const ids = sorted.slice(start, start + safeSize).map((quote: any) => quote.id);
   if (ids.length === 0) return { items: [], total: sorted.length };
 
-  const { data, error } = await supabase.from("quote_requests").select(QUOTE_SELECT).in("id", ids);
+  const { data, error } = await supabase.from("quote_requests").select(QUOTE_SELECT).eq("organization_id", org).in("id", ids);
   if (error) throw error;
   const byId = new Map((data ?? []).map((quote: any) => [quote.id, { ...quote, statusName: quote.request_status?.name || "Sem status" }]));
   return { items: ids.map(id => byId.get(id)).filter(Boolean), total: sorted.length };
 }
 
-export async function getQuote(quoteId: string) {
-  const { data, error } = await supabase.from("quote_requests").select(QUOTE_SELECT).eq("id", quoteId).maybeSingle();
+export async function getQuote(organizationId: string, quoteId: string) {
+  const org = requireOrganizationId(organizationId);
+  const { data, error } = await supabase.from("quote_requests").select(QUOTE_SELECT).eq("organization_id", org).eq("id", quoteId).maybeSingle();
   if (error) throw error;
   return data ? { ...data, statusName: (data.request_status as any)?.name || "Sem status" } : null;
 }
 
-export const listRequestStatuses = () =>
-  supabase
+export const listRequestStatuses = (organizationId: string) => {
+  const org = requireOrganizationId(organizationId);
+  return supabase
     .from("request_statuses")
     .select("id, name, color, sort_order")
+    .eq("organization_id", org)
     .order("sort_order");
+};
 
-export const updateQuoteStatus = (quoteId: string, statusId: string) =>
-  supabase.from("quote_requests").update({ status_id: statusId }).eq("id", quoteId);
+export const updateQuoteStatus = (organizationId: string, quoteId: string, statusId: string) => {
+  const org = requireOrganizationId(organizationId);
+  return supabase.from("quote_requests").update({ status_id: statusId }).eq("organization_id", org).eq("id", quoteId);
+};
 
 export const insertQuoteStatusHistory = (
   quoteId: string,
@@ -113,19 +127,30 @@ export const insertQuoteStatusHistory = (
     created_by: createdBy,
   });
 
-export const deleteQuote = (quoteId: string) =>
-  supabase.from("quote_requests").delete().eq("id", quoteId);
+export const deleteQuote = (organizationId: string, quoteId: string) => {
+  const org = requireOrganizationId(organizationId);
+  return supabase.from("quote_requests").delete().eq("organization_id", org).eq("id", quoteId);
+};
 
-export const findServiceOrderByQuote = (quoteId: string) =>
-  supabase
+export const findServiceOrderByQuote = (organizationId: string, quoteId: string) => {
+  const org = requireOrganizationId(organizationId);
+  return supabase
     .from("service_orders")
     .select("id, os_number")
+    .eq("organization_id", org)
     .eq("quote_request_id", quoteId)
     .maybeSingle();
+};
 
-export const listOrderStatuses = () =>
-  supabase.from("order_statuses").select("id,name,sort_order").order("sort_order");
+export const listOrderStatuses = (organizationId: string) => {
+  const org = requireOrganizationId(organizationId);
+  return supabase.from("order_statuses").select("id,name,sort_order").eq("organization_id", org).order("sort_order");
+};
 
 export const createServiceOrderFromQuote = (
+  organizationId: string,
   order: Record<string, unknown>,
-) => supabase.from("service_orders").insert(order);
+) => {
+  const org = requireOrganizationId(organizationId);
+  return supabase.from("service_orders").insert({ ...order, organization_id: org });
+};
