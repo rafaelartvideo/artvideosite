@@ -151,6 +151,7 @@ export function listSystemModules() {
     .from("system_modules")
     .select("key,name,description,category,sort_order,is_active")
     .eq("is_active", true)
+    .not("key", "like", "site_%")
     .order("category")
     .order("sort_order");
 }
@@ -163,6 +164,9 @@ export function listOrganizationModules(organizationId: string) {
 }
 
 export function setOrganizationModuleEnabled(organizationId: string, moduleKey: string, enabled: boolean, userId?: string | null) {
+  if (moduleKey.startsWith("site_")) {
+    throw new Error("Os módulos do site são exclusivos da ArtVideo.");
+  }
   return supabase
     .from("organization_modules")
     .upsert({
