@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
+import { toPartnerCompanyError, toPartnerFunctionError } from "./partner-companies.errors";
 
 export type PartnerCompanySettings = {
   person_type?: "PF" | "PJ";
@@ -69,43 +70,55 @@ export async function listPartnerCompanies({ page, pageSize }: PartnerCompanyPag
     .neq("id", PLATFORM_ORGANIZATION_ID)
     .order("name")
     .range(from, to);
-  if (error) throw error;
+  if (error) throw toPartnerCompanyError(error, "Não foi possível carregar as empresas parceiras.");
   return { items: data ?? [], total: count ?? 0 };
 }
 
-export function getPartnerCompany(id: string) {
-  return supabase
+export async function getPartnerCompany(id: string) {
+  const result = await supabase
     .from("organizations")
     .select(COMPANY_SELECT)
     .eq("id", id)
     .neq("id", PLATFORM_ORGANIZATION_ID)
     .single();
+  return result.error
+    ? { ...result, error: toPartnerCompanyError(result.error, "Não foi possível carregar a empresa parceira.") }
+    : result;
 }
 
-export function createPartnerCompany(payload: PartnerCompanyInput) {
-  return supabase
+export async function createPartnerCompany(payload: PartnerCompanyInput) {
+  const result = await supabase
     .from("organizations")
     .insert({ ...payload, organization_type: "partner", parent_organization_id: null })
     .select(COMPANY_SELECT)
     .single();
+  return result.error
+    ? { ...result, error: toPartnerCompanyError(result.error, "Não foi possível cadastrar a empresa parceira.") }
+    : result;
 }
 
-export function updatePartnerCompany(id: string, payload: PartnerCompanyInput) {
-  return supabase
+export async function updatePartnerCompany(id: string, payload: PartnerCompanyInput) {
+  const result = await supabase
     .from("organizations")
     .update({ ...payload, parent_organization_id: null, organization_type: "partner" })
     .eq("id", id)
     .select(COMPANY_SELECT)
     .single();
+  return result.error
+    ? { ...result, error: toPartnerCompanyError(result.error, "Não foi possível atualizar a empresa parceira.") }
+    : result;
 }
 
-export function setPartnerCompanyStatus(id: string, status: "active" | "suspended") {
-  return supabase
+export async function setPartnerCompanyStatus(id: string, status: "active" | "suspended") {
+  const result = await supabase
     .from("organizations")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", id)
     .select(COMPANY_SELECT)
     .single();
+  return result.error
+    ? { ...result, error: toPartnerCompanyError(result.error, "Não foi possível alterar o status da empresa parceira.") }
+    : result;
 }
 
 export function listPartnerMembers(organizationId?: string | null) {
@@ -118,32 +131,42 @@ export function listPartnerMembers(organizationId?: string | null) {
   return query;
 }
 
+async function invokePartnerUsers(body: Record<string, unknown>, fallback: string) {
+  const result = await supabase.functions.invoke("partner-users", { body });
+  const normalizedError = await toPartnerFunctionError(result.error, result.data, fallback);
+  return { ...result, error: normalizedError };
+}
+
 export async function listPartnerUsers(organizationId: string) {
-  const result = await supabase.functions.invoke("partner-users", {
-    body: { action: "list_partner_users", organization_id: organizationId },
-  });
-  return { data: result.data?.users ?? [], error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
+  const result = await invokePartnerUsers(
+    { action: "list_partner_users", organization_id: organizationId },
+    "Não foi possível carregar os usuários da empresa parceira.",
+  );
+  return { data: result.data?.users ?? [], error: result.error };
 }
 
 export async function listPartnerRoles(organizationId: string) {
-  const result = await supabase.functions.invoke("partner-users", {
-    body: { action: "list_partner_roles", organization_id: organizationId },
-  });
-  return { data: result.data?.roles ?? [], error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
+  const result = await invokePartnerUsers(
+    { action: "list_partner_roles", organization_id: organizationId },
+    "Não foi possível carregar as funções da empresa parceira.",
+  );
+  return { data: result.data?.roles ?? [], error: result.error };
 }
 
 export async function createPartnerUser(payload: PartnerUserInput) {
-  const result = await supabase.functions.invoke("partner-users", {
-    body: { action: "create_partner_user", ...payload },
-  });
-  return { data: result.data, error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
+  const result = await invokePartnerUsers(
+    { action: "create_partner_user", ...payload },
+    "Não foi possível cadastrar o usuário da empresa parceira.",
+  );
+  return { data: result.data, error: result.error };
 }
 
 export async function updatePartnerUser(payload: PartnerUserInput & { user_id: string }) {
-  const result = await supabase.functions.invoke("partner-users", {
-    body: { action: "update_partner_user", ...payload },
-  });
-  return { data: result.data, error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
+  const result = await invokePartnerUsers(
+    { action: "update_partner_user", ...payload },
+    "Não foi possível atualizar o usuário da empresa parceira.",
+  );
+  return { data: result.data, error: result.error };
 }
 
 export function listSystemModules() {
