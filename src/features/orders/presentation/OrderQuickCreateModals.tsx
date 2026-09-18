@@ -46,6 +46,34 @@ function cleanCatalogValue(value: unknown) {
   return String(value ?? "").trim().replace(/\s+/g, " ");
 }
 
+function getQuickCreateErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+
+  if (error && typeof error === "object") {
+    const typed = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+    const code = typeof typed.code === "string" ? typed.code : "";
+    const raw = [typed.message, typed.details, typed.hint]
+      .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+      .join(" ");
+
+    if (code === "23505") {
+      if (raw.includes("equipment_types_organization_name_uidx")) return "Já existe um equipamento com este nome nesta empresa.";
+      if (raw.includes("equipment_brands_type_name_uidx")) return "Já existe uma marca com este nome neste equipamento.";
+      if (raw.includes("equipment_models_brand_name_uidx")) return "Já existe um modelo com este nome nesta marca.";
+      return "Já existe um cadastro igual.";
+    }
+
+    if (code === "23502" && raw.includes("organization_id")) {
+      return "Não foi possível identificar a empresa ativa para salvar o equipamento.";
+    }
+
+    if (raw) return raw;
+  }
+
+  return "Não foi possível salvar o equipamento. Tente novamente.";
+}
+
 function findExactCatalogOption(options: CatalogOption[], value: string) {
   const normalized = normalizeCatalogValue(value);
   if (!normalized) return null;
@@ -409,7 +437,7 @@ export function QuickEquipmentModal({
       onClose();
     } catch (error) {
       console.error("[ADMIN] quick equipment save error:", error);
-      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setErrorMessage(getQuickCreateErrorMessage(error));
     } finally {
       setSaving(false);
     }
