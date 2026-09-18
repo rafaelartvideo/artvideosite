@@ -32,6 +32,15 @@ function normalizeDashboard(data: any): FinancialDashboardSummary {
   return {
     from: String(data?.from || ""),
     to: String(data?.to || ""),
+    visibility: {
+      balance: Boolean(data?.visibility?.balance),
+      receivables: Boolean(data?.visibility?.receivables),
+      payables: Boolean(data?.visibility?.payables),
+      result: Boolean(data?.visibility?.result),
+      approvals: Boolean(data?.visibility?.approvals),
+      collections: Boolean(data?.visibility?.collections),
+      scheduled_settlements: Boolean(data?.visibility?.scheduled_settlements),
+    },
     available_balance: numberValue(data?.available_balance),
     receivable_open: numberValue(data?.receivable_open),
     payable_open: numberValue(data?.payable_open),
