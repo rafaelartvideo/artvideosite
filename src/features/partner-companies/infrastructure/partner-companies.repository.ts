@@ -7,6 +7,8 @@ export type PartnerCompanySettings = {
   phone?: string;
   whatsapp?: string;
   email?: string;
+  state_registration?: string;
+  municipal_registration?: string;
   zip_code?: string;
   street?: string;
   number?: string;
