@@ -58,6 +58,31 @@ Deno.serve(async (request) => {
     }
 
     const body = await request.json().catch(() => ({}));
+    const organizationId = String(body?.organization_id || "").trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organizationId)) {
+      return json({ success: false, error: "Empresa inválida." }, 400);
+    }
+
+    const { data: permissions, error: permissionError } = await client.rpc("my_organization_permissions", {
+      p_organization_id: organizationId,
+    });
+    if (permissionError) {
+      return json({ success: false, error: "Não foi possível validar sua permissão para consultar CPF." }, 403);
+    }
+    const permissionKeys = new Set((permissions || []).map((item: any) =>
+      String(typeof item === "string" ? item : item?.permission_key || "")
+    ));
+    const canLookup = [
+      "customers.create",
+      "customers.edit",
+      "registrations.records.create",
+      "employees.create",
+      "employees.edit",
+    ].some(key => permissionKeys.has(key));
+    if (!canLookup) {
+      return json({ success: false, error: "Você não possui permissão para consultar CPF nesta empresa." }, 403);
+    }
+
     const cpf = String(body?.cpf || "").replace(/\D/g, "");
     if (!isValidCpfDigits(cpf)) {
       return json({ success: false, error: "CPF inválido. Verifique os números informados." });
