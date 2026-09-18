@@ -115,8 +115,17 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     if (routeResourceId === "fields") { setActiveArea("fields"); if (formOpen) setFormOpen(false); if (fieldFormOpen) setFieldFormOpen(false); return; }
     if (routeResourceId === "new") { if (canCreate && !formOpen) openNew(); return; }
     if (routeResourceId === "new-field") { if (canManageFields && !fieldFormOpen) openNewField(); return; }
-    if (routeSubpage === "edit") { const type = types.find(item => item.id === routeResourceId); if (type && canViewDetails && canEdit && !isSharedFromArtVideo(type) && (!formOpen || drafts[0]?.id !== type.id)) openEdit(type); return; }
-    if (routeSubpage === "field") { const field = technicalFields.find(item => item.id === routeResourceId); if (field && canManageFields && !isSharedFromArtVideo(field) && (!fieldFormOpen || editingField?.id !== field.id)) openEditField(field); }
+    if (routeSubpage === "edit") {
+      const type = types.find(item => item.id === routeResourceId);
+      if (type && isSharedFromArtVideo(type)) { onRouteChange?.(null, null); return; }
+      if (type && canViewDetails && canEdit && (!formOpen || drafts[0]?.id !== type.id)) openEdit(type);
+      return;
+    }
+    if (routeSubpage === "field") {
+      const field = technicalFields.find(item => item.id === routeResourceId);
+      if (field && isSharedFromArtVideo(field)) { onRouteChange?.("fields", null); return; }
+      if (field && canManageFields && (!fieldFormOpen || editingField?.id !== field.id)) openEditField(field);
+    }
   }, [routeResourceId, routeSubpage, types, technicalFields, formOpen, fieldFormOpen, drafts, editingField?.id, canCreate, canViewDetails, canEdit, canManageFields]);
 
   const saveField = async () => {
