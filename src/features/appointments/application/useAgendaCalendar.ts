@@ -17,13 +17,14 @@ import {
 } from "./agenda-calendar";
 
 type Options = {
+  organizationId: string;
   userId: string | null;
   canView: boolean;
   canViewOthers: boolean;
   onToast: (message: string, type: "success" | "error") => void;
 };
 
-export function useAgendaCalendar({ userId, canView, canViewOthers, onToast }: Options) {
+export function useAgendaCalendar({ organizationId, userId, canView, canViewOthers, onToast }: Options) {
   const queryClient = useQueryClient();
   const [orders, setOrders] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
@@ -36,8 +37,8 @@ export function useAgendaCalendar({ userId, canView, canViewOthers, onToast }: O
   const [search, setSearch] = useState("");
 
   const query = useQuery({
-    queryKey: queryKeys.appointments.list({ userId, canViewOtherAgendas: canViewOthers }),
-    queryFn: () => loadAgendaData({ userId, canViewOtherAgendas: canViewOthers }),
+    queryKey: queryKeys.appointments.list({ organizationId, userId, canViewOtherAgendas: canViewOthers }),
+    queryFn: () => loadAgendaData({ organizationId, userId, canViewOtherAgendas: canViewOthers }),
     enabled: canView,
   });
   const loading = canView && query.isPending;
@@ -94,7 +95,7 @@ export function useAgendaCalendar({ userId, canView, canViewOthers, onToast }: O
     }
     if (event.kind === "appointment") {
       try {
-        await updateAppointmentDate(event.id, targetDay);
+        await updateAppointmentDate(organizationId, event.id, targetDay);
         setAppointments(current => current.map(item => item.id === event.id ? { ...item, appointment_date: targetDay } : item));
         onToast("Agendamento atualizado.", "success");
         await queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
@@ -108,7 +109,7 @@ export function useAgendaCalendar({ userId, canView, canViewOthers, onToast }: O
     const next = parseDay(targetDay);
     next.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0);
     try {
-      await updateServiceOrderSchedule(event.order.id, next.toISOString());
+      await updateServiceOrderSchedule(organizationId, event.order.id, next.toISOString());
       setOrders(current => current.map(item => item.id === event.order.id ? { ...item, scheduled_at: next.toISOString() } : item));
       onToast("Agendamento atualizado.", "success");
       await Promise.all([
