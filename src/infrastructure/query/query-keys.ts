@@ -88,6 +88,20 @@ export const queryKeys = {
     attachments: (organizationId: string, entryId: string) => ["finance", organizationId, "attachments", entryId] as const,
     collections: (organizationId: string, entryId: string) => ["finance", organizationId, "collections", entryId] as const,
     scheduledSettlements: (organizationId: string) => ["finance", organizationId, "scheduled-settlements"] as const,
+    dashboard: (organizationId: string, from: string, to: string) =>
+      ["finance", organizationId, "dashboard", from, to] as const,
+    dre: (organizationId: string, from: string, to: string, categoryId: string, costCenterId: string, originType: string) =>
+      ["finance", organizationId, "reports", "dre", from, to, categoryId, costCenterId, originType] as const,
+    cashFlow: (
+      organizationId: string,
+      from: string,
+      to: string,
+      accountId: string,
+      categoryId: string,
+      costCenterId: string,
+      originType: string,
+      paymentMethodId: string,
+    ) => ["finance", organizationId, "reports", "cash-flow", from, to, accountId, categoryId, costCenterId, originType, paymentMethodId] as const,
   },
   appointments: {
     all: ["appointments"] as const,
