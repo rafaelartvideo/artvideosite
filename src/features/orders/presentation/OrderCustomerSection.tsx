@@ -11,7 +11,7 @@ import {
   formatPhone,
   todayDateOnly,
 } from "@/shared/domain/formatters";
-import { CustomerTypeToggle, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { CustomerTypeToggle, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { type CustomerForm } from "@/features/customers/domain/customer-form";
 import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
 import { InfoRow } from "./OrderDetailsContent";
@@ -116,8 +116,8 @@ export function OrderCustomerSection({
                   <FInput label="Inscrição estadual" disabled={saving} value={customerDraft.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setCustomerDraft({ ...customerDraft, state_registration: e.target.value })} />
                   <FInput label="Fundação" disabled={saving} value={customerDraft.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setCustomerDraft({ ...customerDraft, foundation_date: formatFoundationDate(e.target.value) })} />
                 </>}
-                <FInput label="WhatsApp" disabled={saving} value={customerDraft.whatsapp} onChange={(e: any) => setCustomerDraft({ ...customerDraft, whatsapp: formatPhone(e.target.value) })} />
-                <FInput label="Telefone" disabled={saving} value={customerDraft.phone} onChange={(e: any) => setCustomerDraft({ ...customerDraft, phone: formatPhone(e.target.value) })} />
+                <FPhoneInput label="WhatsApp" mobile disabled={saving} value={customerDraft.whatsapp} onChange={(e: any) => setCustomerDraft({ ...customerDraft, whatsapp: e.target.value })} />
+                <FPhoneInput label="Telefone" disabled={saving} value={customerDraft.phone} onChange={(e: any) => setCustomerDraft({ ...customerDraft, phone: e.target.value })} />
                 <div className="sm:col-span-2"><FInput label="E-mail" type="email" disabled={saving} value={customerDraft.email} onChange={(e: any) => setCustomerDraft({ ...customerDraft, email: e.target.value })} /></div>
               </div>
               <Section title="Endereço do cliente">
