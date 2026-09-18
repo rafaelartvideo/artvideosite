@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "test:finance": "node --test src/features/finance/domain/*.test.mjs"
   },
   "dependencies": {
     "@popperjs/core": "2.11.8",
