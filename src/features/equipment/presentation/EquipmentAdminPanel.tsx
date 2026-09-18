@@ -89,6 +89,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
   ]);
 
   const makeDraft = (type?: EquipmentTypeRow): EquipmentDraft => ({
