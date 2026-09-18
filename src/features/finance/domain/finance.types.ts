@@ -1,4 +1,4 @@
-export type FinanceSection = "overview" | "receivables" | "payables" | "movements" | "accounts" | "recurring" | "registries";
+export type FinanceSection = "overview" | "receivables" | "payables" | "movements" | "accounts" | "recurring" | "reports" | "registries";
 export type FinanceRegistrySection = "categories" | "cost-centers" | "payment-methods" | "settings";
 export type FinancialAccountType = "cash" | "bank" | "pix" | "other";
 export type FinancialCategoryNature = "revenue" | "expense";
@@ -365,4 +365,82 @@ export interface FinancialTransferDraft {
   amount: number;
   occurred_at: string;
   note?: string | null;
+}
+
+
+export interface FinancialReportFilters {
+  from: string;
+  to: string;
+  category_id?: string | null;
+  cost_center_id?: string | null;
+  origin_type?: FinancialEntryOriginType | null;
+  account_id?: string | null;
+  payment_method_id?: string | null;
+}
+
+export interface FinancialDashboardSummary {
+  from: string;
+  to: string;
+  available_balance: number;
+  receivable_open: number;
+  payable_open: number;
+  overdue_receivable: number;
+  overdue_payable: number;
+  due_today_receivable: number;
+  due_today_payable: number;
+  upcoming_receivable: number;
+  upcoming_payable: number;
+  period_revenue: number;
+  period_expense: number;
+  period_result: number;
+  pending_approvals: number;
+  collection_followups: number;
+  overdue_scheduled_settlements: number;
+}
+
+export interface FinancialDreRow {
+  competence_month: string;
+  category_id: string;
+  category_name: string;
+  nature: FinancialCategoryNature;
+  report_group: string;
+  cost_center_id: string | null;
+  cost_center_name: string;
+  origin_type: FinancialEntryOriginType;
+  amount: number;
+}
+
+export interface FinancialDreReport {
+  from: string;
+  to: string;
+  rows: FinancialDreRow[];
+  totals: {
+    revenue: number;
+    expense: number;
+    result: number;
+  };
+}
+
+export interface FinancialCashFlowRow {
+  date: string;
+  forecast_in: number;
+  forecast_out: number;
+  forecast_net: number;
+  realized_in: number;
+  realized_out: number;
+  realized_net: number;
+}
+
+export interface FinancialCashFlowReport {
+  from: string;
+  to: string;
+  rows: FinancialCashFlowRow[];
+  totals: {
+    forecast_in: number;
+    forecast_out: number;
+    forecast_net: number;
+    realized_in: number;
+    realized_out: number;
+    realized_net: number;
+  };
 }
