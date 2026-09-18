@@ -105,7 +105,6 @@ export function AddressFields({
       </div>
     </div>
   );
-  );
 }
 
 export function normalizeAddress(value?: Partial<Address> | null): Address {
