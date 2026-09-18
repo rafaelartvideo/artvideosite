@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle, Edit2, Plus, Wrench } from "lucide-react";
+import { Edit2, Plus, Wrench } from "lucide-react";
 import type { GeneralService } from "@/lib/database.types";
 import { useAuth } from "@/lib/auth";
 import { AdminBackContext } from "@/features/admin-shell/application/AdminNavigationContext";
