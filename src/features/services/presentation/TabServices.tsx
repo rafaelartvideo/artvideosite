@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle, Clock, Activity, DollarSign, Edit2, FileText, HelpCircle, List, Plus, Search, Star, Trash2, Wrench, X } from "lucide-react";
+import { CheckCircle, Clock, Activity, DollarSign, Edit2, FileText, HelpCircle, List, Plus, Search, Star, Trash2, Wrench, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { deleteService, loadServicesCatalog, saveServiceAggregate, setServiceActive } from "../infrastructure/services.repository";
