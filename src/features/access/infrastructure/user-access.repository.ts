@@ -1,5 +1,6 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
 import {
   authEmailForUsername,
   isValidUsername,
@@ -107,12 +108,10 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
     return { data: null, error: new Error("Informe um usuário válido com 3 a 32 caracteres.") };
   }
 
-  let currentProfileId: string | null = null;
   let currentUsername = "";
   if (input.enabled && username) {
     const current = await getEmployeeAccess(input.organizationId, input.employeeId);
     if (!current.error && current.data?.access) {
-      currentProfileId = current.data.access.profile_id ?? null;
       currentUsername = normalizeUsername(current.data.access.username || usernameFromAuthEmail(current.data.access.email));
     }
 
@@ -167,8 +166,27 @@ export type PermissionAccess = {
   individualPermissionIds: string[];
 };
 
+const artvideoOnlyPermissionPrefixes = [
+  "organizations.",
+  "integrations.",
+  "audit.",
+  "products.",
+  "categories.",
+  "brands.",
+  "services.",
+  "filters.",
+  "site.",
+  "site_settings.",
+  "contact.",
+];
+
 export async function getUserPermissionAccess(organizationId: string, userId: string): Promise<PermissionAccess> {
-  const [{ data: membership, error: membershipError }, { data: permissions, error: permissionsError }, { data: overrides, error: overridesError }] = await Promise.all([
+  const [
+    { data: membership, error: membershipError },
+    { data: permissions, error: permissionsError },
+    { data: overrides, error: overridesError },
+    { data: situations, error: situationsError },
+  ] = await Promise.all([
     supabase
       .from("organization_members")
       .select("role_id,role:roles(id,name)")
@@ -185,10 +203,29 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
       .select("permission_id")
       .eq("organization_id", organizationId)
       .eq("user_id", userId),
+    supabase
+      .from("os_situations")
+      .select("id")
+      .eq("organization_id", organizationId),
   ]);
 
-  const error = membershipError || permissionsError || overridesError;
+  const error = membershipError || permissionsError || overridesError || situationsError;
   if (error) throw error;
+
+  const situationIds = new Set((situations || []).map((item: any) => String(item.id)));
+  const visiblePermissions = (permissions || []).filter((permission: any) => {
+    const key = String(permission.key || "");
+    if (
+      organizationId !== PLATFORM_ORGANIZATION_ID
+      && artvideoOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
+    ) {
+      return false;
+    }
+
+    const situationMatch = key.match(/^orders\.images\.situation\.([0-9a-f-]{36})\.upload$/i);
+    return !situationMatch || situationIds.has(situationMatch[1]);
+  }) as PermissionAccess["permissions"];
+  const visiblePermissionIds = new Set(visiblePermissions.map(permission => permission.id));
 
   const roleId = membership?.role_id ?? null;
   const { data: inherited, error: inheritedError } = roleId
@@ -203,9 +240,13 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
   return {
     roleId,
     roleName: roleValue?.name ?? null,
-    permissions: (permissions || []) as PermissionAccess["permissions"],
-    inheritedPermissionIds: (inherited || []).map((item: any) => String(item.permission_id)),
-    individualPermissionIds: (overrides || []).map((item: any) => String(item.permission_id)),
+    permissions: visiblePermissions,
+    inheritedPermissionIds: (inherited || [])
+      .map((item: any) => String(item.permission_id))
+      .filter((permissionId: string) => visiblePermissionIds.has(permissionId)),
+    individualPermissionIds: (overrides || [])
+      .map((item: any) => String(item.permission_id))
+      .filter((permissionId: string) => visiblePermissionIds.has(permissionId)),
   };
 }
 
