@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Building2, CheckCircle, Search } from "lucide-react";
+import { ArrowLeft, Building2, CheckCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useCompanySettingsQuery, useSaveCompanySettingsMutation } from "./useCompanySettingsQuery";
-import { lookupCompanyByCnpj } from "../infrastructure/company-registry.gateway";
 import { AdminButton, AdminCard, AdminPage, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -14,6 +13,8 @@ type CompanyForm = {
   company_name: string;
   company_legal_name: string;
   company_cnpj: string;
+  company_state_registration: string;
+  company_municipal_registration: string;
   company_phone: string;
   company_email: string;
   company_zip_code: string;
@@ -28,7 +29,7 @@ type CompanyForm = {
 };
 
 const EMPTY_COMPANY: CompanyForm = {
-  company_name: "", company_legal_name: "", company_cnpj: "", company_phone: "", company_email: "",
+  company_name: "", company_legal_name: "", company_cnpj: "", company_state_registration: "", company_municipal_registration: "", company_phone: "", company_email: "",
   company_zip_code: "", company_street: "", company_number: "", company_complement: "",
   company_neighborhood: "", company_city: "", company_state: "", company_logo_media_id: "",
   company_menu_logo_media_id: "",
@@ -44,14 +45,12 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
   const canView = hasPermission("settings.view");
   const canViewDetails = hasPermission("settings.details.view");
   const canUpdate = hasPermission("settings.update");
-  const canLookupCnpj = hasPermission("settings.lookup_cnpj");
   const query = useCompanySettingsQuery(activeOrganizationId);
   const saveSettings = useSaveCompanySettingsMutation();
   const [form, setForm] = useState<CompanyForm>(EMPTY_COMPANY);
-  const [lookingUp, setLookingUp] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const companyOpen = routeResourceId === "company" && canViewDetails;
-  const busy = lookingUp || saveSettings.isPending;
+  const busy = saveSettings.isPending;
   const isPartnerOrganization = activeOrganization?.organization_type === "partner";
   const canEditOfficialData = canUpdate && !isPartnerOrganization;
   const canEditContacts = canUpdate;
@@ -79,38 +78,6 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       && key !== "company_menu_logo_media_id"
     ) return;
     setForm((current) => ({ ...current, [key]: value }));
-  };
-
-  const lookupCnpj = async () => {
-    if (!canLookupCnpj || !canEditOfficialData || busy) return;
-    if (!isValidCnpj(form.company_cnpj)) {
-      setToast({ msg: "Informe um CNPJ válido antes de consultar.", type: "error" });
-      return;
-    }
-    setLookingUp(true);
-    try {
-      const company = await lookupCompanyByCnpj(form.company_cnpj);
-      setForm((current) => ({
-        ...current,
-        company_cnpj: formatCnpj(company.cnpj),
-        company_legal_name: company.legalName,
-        company_name: company.tradeName || company.legalName,
-        company_phone: formatPhone(company.phone),
-        company_email: company.email,
-        company_zip_code: formatZipCode(company.zipCode),
-        company_street: company.street,
-        company_number: company.number,
-        company_complement: company.complement,
-        company_neighborhood: company.neighborhood,
-        company_city: company.city,
-        company_state: company.state.toUpperCase().slice(0, 2),
-      }));
-      setToast({ msg: "Dados do CNPJ preenchidos. Confira antes de salvar.", type: "success" });
-    } catch (error) {
-      setToast({ msg: error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.", type: "error" });
-    } finally {
-      setLookingUp(false);
-    }
   };
 
   const save = async () => {
@@ -175,16 +142,11 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       <div className="min-w-0 space-y-5 p-4 sm:p-5">
         {isPartnerOrganization && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-sm leading-6 text-[#35506f]">Estas informações são administradas pelo administrador da empresa.</div>}
         <Section title="Identificação"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="min-w-0 w-full">
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ</label>
-            <div className="flex min-w-0 w-full flex-col gap-2 sm:flex-row">
-              <FInput label="" inputMode="numeric" maxLength={18} value={form.company_cnpj} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" className="min-w-0 flex-1" />
-              {canEditOfficialData && canLookupCnpj && <AdminButton variant="secondary" onClick={lookupCnpj} loading={lookingUp} loadingText="Consultando..." disabled={saveSettings.isPending}><Search size={15} /> Consultar CNPJ</AdminButton>}
-            </div>
-            <p className="mt-2 break-words text-xs leading-relaxed text-[#718096]">A consulta preenche automaticamente os dados públicos disponíveis. Revise antes de salvar.</p>
-          </div>
+          <div className="min-w-0 w-full"><FInput label="CNPJ" inputMode="numeric" maxLength={18} value={form.company_cnpj} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" /></div>
           <div className="min-w-0 w-full"><FInput label="Nome da empresa / Nome fantasia" value={form.company_name} required disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_name", event.target.value)} /></div>
           <div className="min-w-0 w-full"><FInput label="Razão social" value={form.company_legal_name} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_legal_name", event.target.value)} /></div>
+          {isPartnerOrganization && <div className="min-w-0 w-full"><FInput label="Inscrição estadual" value={form.company_state_registration} disabled /></div>}
+          {isPartnerOrganization && <div className="min-w-0 w-full"><FInput label="Inscrição municipal" value={form.company_municipal_registration} disabled /></div>}
           <div className="min-w-0 w-full"><FPhoneInput label="Telefone" value={form.company_phone} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_phone", event.target.value)} /></div>
           <div className="min-w-0 w-full md:col-span-2"><FInput label="E-mail" type="email" autoComplete="email" value={form.company_email} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_email", event.target.value.trimStart())} /></div>
         </div></Section>
@@ -202,7 +164,7 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo do menu" />
         </div></Section>
       </div>
-      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => onRouteChange?.(null)} disabled={busy}>Voltar</BtnSecondary>{canUpdate && <BtnPrimary onClick={save} loading={saveSettings.isPending} loadingText="Salvando..." disabled={lookingUp}><CheckCircle size={15} /> Salvar dados</BtnPrimary>}</div>
+      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => onRouteChange?.(null)} disabled={busy}>Voltar</BtnSecondary>{canUpdate && <BtnPrimary onClick={save} loading={saveSettings.isPending} loadingText="Salvando..."><CheckCircle size={15} /> Salvar dados</BtnPrimary>}</div>
     </AdminPage>
   </div>;
 }
