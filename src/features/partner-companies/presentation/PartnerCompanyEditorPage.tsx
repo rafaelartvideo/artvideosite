@@ -14,6 +14,7 @@ import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { AdminCard, AdminCardContent, AdminCardHeader, AdminPage, AdminSegmentedControl, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCnpjInput, FCpfInput, FEmailInput, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import {
   createPartnerCompany,
   updatePartnerCompany,
@@ -38,6 +39,8 @@ type CompanyDraft = {
   neighborhood: string;
   city: string;
   state: string;
+  companyLogoMediaId: string;
+  menuLogoMediaId: string;
 };
 
 type FormErrors = Partial<Record<keyof CompanyDraft | "address", string>>;
@@ -57,6 +60,8 @@ const emptyDraft: CompanyDraft = {
   neighborhood: "",
   city: "",
   state: "",
+  companyLogoMediaId: "",
+  menuLogoMediaId: "",
 };
 
 function normalizeSlug(value: string) {
@@ -90,6 +95,8 @@ function toDraft(company?: any | null): CompanyDraft {
     neighborhood: settings.neighborhood || "",
     city: settings.city || "",
     state: settings.state || "",
+    companyLogoMediaId: settings.company_logo_media_id || "",
+    menuLogoMediaId: settings.menu_logo_media_id || "",
   };
 }
 
@@ -265,6 +272,8 @@ export function PartnerCompanyEditorPage({
       neighborhood: form.neighborhood.trim(),
       city: form.city.trim(),
       state: form.state.trim().toUpperCase(),
+      company_logo_media_id: form.companyLogoMediaId || "",
+      menu_logo_media_id: form.menuLogoMediaId || "",
     };
     const payload: PartnerCompanyInput = {
       name: form.name.trim(),
@@ -357,6 +366,35 @@ export function PartnerCompanyEditorPage({
         <AdminCardContent>
           <AddressFields value={addressValue} onChange={setAddress} inputClassName={INPUT} />
           {errors.address && <p className="mt-2 text-[10px] font-semibold text-red-600">{errors.address}</p>}
+        </AdminCardContent>
+      </AdminCard>
+
+      <AdminCard>
+        <AdminCardHeader>
+          <div>
+            <h3 className="text-sm font-black text-[#0d1b2e]">Identidade visual</h3>
+            <p className="mt-0.5 text-xs text-[#5a6a82]">Configure a logo usada nos documentos e a logo exibida no menu da empresa parceira.</p>
+          </div>
+        </AdminCardHeader>
+        <AdminCardContent>
+          {editing ? <div className="grid gap-5 sm:grid-cols-2">
+            <ImageUpload
+              bucket="public-assets"
+              organizationId={company.id}
+              currentMediaId={form.companyLogoMediaId}
+              onUpload={(mediaId) => setField("companyLogoMediaId", mediaId)}
+              canUpload={canSave && !saving}
+              label="Logo dos documentos"
+            />
+            <ImageUpload
+              bucket="public-assets"
+              organizationId={company.id}
+              currentMediaId={form.menuLogoMediaId}
+              onUpload={(mediaId) => setField("menuLogoMediaId", mediaId)}
+              canUpload={canSave && !saving}
+              label="Logo do menu"
+            />
+          </div> : <p className="text-sm leading-6 text-[#5a6a82]">Cadastre a empresa primeiro. Depois, abra a edição para enviar as logos específicas desta empresa.</p>}
         </AdminCardContent>
       </AdminCard>
     </div>
