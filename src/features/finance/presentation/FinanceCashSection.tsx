@@ -87,7 +87,10 @@ export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] 
           note: note.trim(),
         });
       }
-      closeDialog();
+      setDialog(null);
+      setAmount("");
+      setNote("");
+      setMessage("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível concluir a operação do caixa.");
     }
