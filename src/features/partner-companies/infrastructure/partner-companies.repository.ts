@@ -13,6 +13,8 @@ export type PartnerCompanySettings = {
   neighborhood?: string;
   city?: string;
   state?: string;
+  company_logo_media_id?: string;
+  menu_logo_media_id?: string;
 };
 
 export type PartnerCompanyInput = {
