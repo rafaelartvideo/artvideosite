@@ -5,7 +5,6 @@ import {
   isValidUsername,
   normalizeUsername,
   usernameFromAuthEmail,
-  usernameHash,
 } from "@/features/auth/domain/username";
 
 export type EmployeeAccess = {
@@ -83,20 +82,19 @@ export async function getEmployeeAccess(organizationId: string, employeeId: stri
   };
 }
 
-export async function checkEmployeeUsernameAvailability(username: string, currentUserId?: string | null) {
+export async function checkEmployeeUsernameAvailability(organizationId: string, username: string) {
   const normalized = normalizeUsername(username);
   if (!isValidUsername(normalized)) return { available: false, error: null };
 
-  const hash = await usernameHash(normalized);
-  const { data, error } = await supabase
-    .from("username_registry")
-    .select("user_id")
-    .eq("username_hash", hash)
-    .maybeSingle();
+  const result = await invokeEmployeeAccess({
+    action: "check_username_availability",
+    organization_id: organizationId,
+    username: normalized,
+  });
+  if (result.error) return { available: false, error: result.error };
 
-  if (error) return { available: false, error };
   return {
-    available: !data?.user_id || data.user_id === currentUserId,
+    available: result.data?.available === true,
     error: null,
   };
 }
@@ -119,7 +117,7 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
     }
 
     if (currentUsername !== username) {
-      const availability = await checkEmployeeUsernameAvailability(username, currentProfileId);
+      const availability = await checkEmployeeUsernameAvailability(input.organizationId, username);
       if (availability.error) {
         return { data: null, error: new Error("Não foi possível verificar a disponibilidade do usuário.") };
       }
