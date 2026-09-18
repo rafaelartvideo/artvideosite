@@ -7,7 +7,6 @@ import {
   createServiceOrderFromQuote,
   findServiceOrderByQuote,
   getQuote,
-  insertQuoteStatusHistory,
   listOrderStatuses,
   listQuotesPage,
   listRequestStatuses,
@@ -56,7 +55,8 @@ function useDebouncedValue<T>(value: T, delay = 300) {
 }
 
 export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuotesProps) {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, activeOrganizationId } = useAuth();
+  const organizationId = activeOrganizationId || "";
   const canViewTable = hasPermission("quotes.table.view");
   const canViewDetails = hasPermission("quotes.details.view");
   const canChangeStatus = hasPermission("quotes.status.change");
@@ -90,13 +90,13 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const debouncedProtocolSearch = useDebouncedValue(mobileProtocolSearch);
 
   const statusesQuery = useQuery({
-    queryKey: [...queryKeys.quotes.all, "statuses"],
+    queryKey: [...queryKeys.quotes.all, organizationId, "statuses"],
     queryFn: async () => {
-      const { data, error } = await listRequestStatuses();
+      const { data, error } = await listRequestStatuses(organizationId);
       if (error) throw error;
       return data || [];
     },
-    enabled: canViewTable || canViewDetails,
+    enabled: Boolean(organizationId) && (canViewTable || canViewDetails),
   });
   const statuses = statusesQuery.data ?? [];
 
@@ -113,9 +113,9 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   }), [page, pageSize, debouncedSearch, debouncedCustomerSearch, debouncedDocumentSearch, debouncedWhatsappSearch, debouncedProtocolSearch, filterStatus, orderSort]);
 
   const quotesQuery = useQuery({
-    queryKey: [...queryKeys.quotes.lists(), listFilters],
-    enabled: canViewTable && !routeResourceId,
-    queryFn: () => listQuotesPage(listFilters),
+    queryKey: [...queryKeys.quotes.lists(), organizationId, listFilters],
+    enabled: Boolean(organizationId) && canViewTable && !routeResourceId,
+    queryFn: () => listQuotesPage(organizationId, listFilters),
   });
   const quotes = quotesQuery.data?.items ?? [];
   const totalItems = quotesQuery.data?.total ?? 0;
@@ -141,7 +141,8 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
       return () => { cancelled = true; };
     }
     if (!canViewDetails || detail?.id === routeResourceId) return () => { cancelled = true; };
-    void getQuote(routeResourceId).then(quote => {
+    if (!organizationId) return () => { cancelled = true; };
+    void getQuote(organizationId, routeResourceId).then(quote => {
       if (cancelled) return;
       if (!quote) {
         setToast({ msg: "Orçamento não encontrado.", type: "error" });
@@ -153,7 +154,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
       if (!cancelled) setToast({ msg: `Erro ao carregar orçamento: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
     });
     return () => { cancelled = true; };
-  }, [routeResourceId, detail?.id, canViewDetails]);
+  }, [routeResourceId, detail?.id, canViewDetails, organizationId]);
 
   const syncQuotes = async () => {
     await Promise.all([
@@ -166,13 +167,11 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const updateStatus = async (id: string, statusId: string) => {
     if (!canChangeStatus) return;
     const selectedStatus = statuses.find(status => status.id === statusId);
-    const { error: updateError } = await updateQuoteStatus(id, statusId);
+    const { error: updateError } = await updateQuoteStatus(organizationId, id, statusId);
     if (updateError) {
       setToast({ msg: `Erro ao atualizar status: ${updateError.message}`, type: "error" });
       return;
     }
-    const { error: historyError } = await insertQuoteStatusHistory(id, statusId, user?.id || null);
-    if (historyError) console.warn("[ADMIN] quote status history warning:", historyError.message);
     if (detail?.id === id) setDetail({ ...detail, status_id: statusId, statusName: selectedStatus?.name || "Sem status", request_status: selectedStatus || detail.request_status });
     setToast({ msg: "Status atualizado!", type: "success" });
     await syncQuotes();
@@ -266,12 +265,12 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
         <Section title="Dados do orçamento"><div className="grid min-w-0 gap-3 sm:grid-cols-2"><InfoRow label="Protocolo" value={detail.protocol || detail.id} /><InfoRow label="Serviço" value={(detail.service as any)?.title} /><InfoRow label="Marca" value={(detail.brand as any)?.name} /><InfoRow label="Produto" value={(detail.product as any)?.name} /><InfoRow label="Data de criação" value={formatDateTime(detail.created_at)} /><InfoRow label="Valor estimado" value={detail.estimated_price == null ? null : formatCurrency(detail.estimated_price)} /></div>{detail.customer_message && <div className="mt-4"><InfoRow label="Mensagem do cliente" value={detail.customer_message} /></div>}</Section>
       </div>
       <div className="sticky bottom-0 flex flex-col gap-2 border-t border-[#0d1b2e]/8 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertToOrder && <AdminButton className="w-full sm:w-auto" onClick={async () => {
-        const { data: existing } = await findServiceOrderByQuote(detail.id);
+        const { data: existing } = await findServiceOrderByQuote(organizationId, detail.id);
         if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
-        const { data: availableStatuses, error: statusError } = await listOrderStatuses();
+        const { data: availableStatuses, error: statusError } = await listOrderStatuses(organizationId);
         const status = initialOrderStatus(availableStatuses || []);
         if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status inicial válido para a OS.", type: "error" }); return; }
-        const { error } = await createServiceOrderFromQuote({ service_id: detail.service_id, quote_request_id: detail.id, customer_id: detail.customer_id, status_id: status.id, customer_notes: detail.customer_message || null });
+        const { error } = await createServiceOrderFromQuote(organizationId, { service_id: detail.service_id, quote_request_id: detail.id, customer_id: detail.customer_id, status_id: status.id, customer_notes: detail.customer_message || null });
         if (error) { setToast({ msg: `Erro ao criar OS: ${error.message}`, type: "error" }); return; }
         closeDetails();
         setToast({ msg: "OS criada com sucesso e vinculada ao orçamento.", type: "success" });
