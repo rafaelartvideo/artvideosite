@@ -55,6 +55,7 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
   const isPartnerOrganization = activeOrganization?.organization_type === "partner";
   const canEditOfficialData = canUpdate && !isPartnerOrganization;
   const canEditContacts = canUpdate;
+  const canEditBranding = canUpdate;
 
   useEffect(() => {
     if (!query.data) return;
@@ -70,7 +71,13 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
 
   const update = (key: keyof CompanyForm, value: string) => {
     if (!canUpdate || busy) return;
-    if (isPartnerOrganization && key !== "company_phone" && key !== "company_email") return;
+    if (
+      isPartnerOrganization
+      && key !== "company_phone"
+      && key !== "company_email"
+      && key !== "company_logo_media_id"
+      && key !== "company_menu_logo_media_id"
+    ) return;
     setForm((current) => ({ ...current, [key]: value }));
   };
 
@@ -155,15 +162,15 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       </AdminCard>}
     </div>
 
-    <AdminPage open={companyOpen} onClose={() => { if (!busy) onRouteChange?.(null); }} breadcrumb="Configurações" title="Dados da empresa" subtitle={isPartnerOrganization ? "Dados cadastrais definidos pela ArtVideo. Você pode atualizar apenas telefone e e-mail." : "Informações oficiais utilizadas nos documentos da empresa ativa."} maxW="max-w-6xl">
+    <AdminPage open={companyOpen} onClose={() => { if (!busy) onRouteChange?.(null); }} breadcrumb="Configurações" title="Dados da empresa" subtitle={isPartnerOrganization ? "Dados cadastrais definidos pela ArtVideo. Você pode atualizar telefone, e-mail e as logos." : "Informações oficiais utilizadas nos documentos da empresa ativa."} maxW="max-w-6xl">
       <div className="min-w-0 space-y-5 p-4 sm:p-5">
-        {isPartnerOrganization && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-sm leading-6 text-[#35506f]">Nome, CNPJ, razão social, endereço e identidade visual são administrados pela ArtVideo. Nesta empresa, somente telefone e e-mail podem ser alterados.</div>}
+        {isPartnerOrganization && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-sm leading-6 text-[#35506f]">Nome, CNPJ, razão social e endereço são administrados pela ArtVideo. Nesta empresa, telefone, e-mail e as logos podem ser alterados.</div>}
         <Section title="Identificação"><div className="grid min-w-0 gap-4 md:grid-cols-2">
           <div className="min-w-0 md:col-span-2"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ</label><div className="flex min-w-0 flex-col gap-2 sm:flex-row"><FInput label="" inputMode="numeric" maxLength={18} value={form.company_cnpj} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" className="min-w-0 flex-1" />{canEditOfficialData && canLookupCnpj && <AdminButton variant="secondary" onClick={lookupCnpj} loading={lookingUp} loadingText="Consultando..." disabled={saveSettings.isPending}><Search size={15} /> Consultar CNPJ</AdminButton>}</div><p className="mt-2 break-words text-xs leading-relaxed text-[#718096]">A consulta preenche automaticamente os dados públicos disponíveis. Revise antes de salvar.</p></div>
           <FInput label="Nome da empresa / Nome fantasia" value={form.company_name} required disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_name", event.target.value)} /><FInput label="Razão social" value={form.company_legal_name} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_legal_name", event.target.value)} /><FInput label="Telefone" inputMode="tel" maxLength={16} placeholder="(79) 9 9999-9999" value={form.company_phone} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_phone", formatPhone(event.target.value))} /><FInput label="E-mail" type="email" autoComplete="email" value={form.company_email} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_email", event.target.value.trimStart())} />
         </div></Section>
         <Section title="Endereço"><div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-4"><FInput label="CEP" inputMode="numeric" maxLength={9} placeholder="00000-000" value={form.company_zip_code} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_zip_code", formatZipCode(event.target.value))} /><div className="min-w-0 lg:col-span-2"><FInput label="Rua / Logradouro" value={form.company_street} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_street", event.target.value)} /></div><FInput label="Número" inputMode="numeric" value={form.company_number} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_number", event.target.value.replace(/[^0-9A-Za-z/-]/g, ""))} /><div className="min-w-0 lg:col-span-2"><FInput label="Complemento" value={form.company_complement} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_complement", event.target.value)} /></div><div className="min-w-0 lg:col-span-2"><FInput label="Bairro" value={form.company_neighborhood} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_neighborhood", event.target.value)} /></div><div className="min-w-0 lg:col-span-2"><FInput label="Cidade" value={form.company_city} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_city", event.target.value)} /></div><FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_state", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2))} /></div></Section>
-        <Section title="Identidade visual"><div className="grid gap-5 sm:grid-cols-2"><ImageUpload bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={canEditOfficialData && !busy} label="Logo utilizada nos documentos" /><ImageUpload bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} canUpload={canEditOfficialData && !busy} label="Logo do menu" /></div></Section>
+        <Section title="Identidade visual"><div className="grid gap-5 sm:grid-cols-2"><ImageUpload bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" /><ImageUpload bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo do menu" /></div></Section>
       </div>
       <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={() => onRouteChange?.(null)} disabled={busy}>Voltar</BtnSecondary>{canUpdate && <BtnPrimary onClick={save} loading={saveSettings.isPending} loadingText="Salvando..." disabled={lookingUp}><CheckCircle size={15} /> Salvar dados</BtnPrimary>}</div>
     </AdminPage>
