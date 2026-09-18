@@ -71,7 +71,10 @@ export function AdminHeader({
               <span className="max-w-[220px] truncate" title={page.title}>{page.title}</span>
             </div>
 
-            <h2 className="break-words text-[15px] font-black text-[#0d1b2e]">{page.title}</h2>
+            <h2 className={page.titleVariant === "order-number"
+              ? "break-words text-2xl font-black leading-tight text-[#0057e7]"
+              : "break-words text-[15px] font-black text-[#0d1b2e]"
+            }>{page.title}</h2>
             {page.subtitle && <p className="mt-0.5 max-w-4xl break-words text-[14px] text-[#5a6a82]">{page.subtitle}</p>}
           </div>
         </header>
