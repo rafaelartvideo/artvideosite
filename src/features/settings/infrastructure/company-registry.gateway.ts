@@ -20,13 +20,27 @@ export async function lookupCompanyByCnpj(cnpj: string): Promise<CompanyRegistry
   const digits = cnpj.replace(/\D/g, "");
   if (digits.length !== 14) throw new Error("Informe um CNPJ válido com 14 números.");
 
-  const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
-  if (!response.ok) {
-    if (response.status === 404) throw new Error("CNPJ não encontrado.");
-    throw new Error("Não foi possível consultar o CNPJ agora. Tente novamente.");
+  let response: Response;
+  try {
+    response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+  } catch {
+    throw new Error("Não foi possível conectar ao serviço de consulta de CNPJ. Você pode continuar preenchendo os dados manualmente.");
   }
 
-  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 400) throw new Error("O CNPJ informado não pôde ser consultado.");
+    if (response.status === 404) throw new Error("CNPJ não encontrado.");
+    if (response.status === 429) throw new Error("O serviço de consulta de CNPJ recebeu muitas solicitações. Tente novamente em instantes ou preencha manualmente.");
+    if (response.status >= 500) throw new Error("O serviço de consulta de CNPJ está temporariamente indisponível. Preencha os dados manualmente ou tente novamente.");
+    throw new Error("Não foi possível consultar o CNPJ agora. Você pode continuar preenchendo os dados manualmente.");
+  }
+
+  let data: any;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("O serviço de consulta de CNPJ retornou uma resposta inválida. Preencha os dados manualmente.");
+  }
   return {
     cnpj: text(data.cnpj) || digits,
     legalName: text(data.razao_social),
