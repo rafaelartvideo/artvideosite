@@ -40,6 +40,62 @@ function respond(request: Request, body: unknown, status = 200) {
   });
 }
 
+function fail(
+  request: Request,
+  error: string,
+  status: number,
+  code: string,
+  extra: Record<string, unknown> = {},
+) {
+  return respond(request, { success: false, error, code, ...extra }, status);
+}
+
+function unexpectedFailure(request: Request, error: any) {
+  const databaseCode = String(error?.code ?? "");
+  const details = String(error?.details ?? "");
+
+  if (databaseCode === "23505") {
+    return fail(
+      request,
+      "Já existe um cadastro com estes dados.",
+      409,
+      "duplicate_data",
+    );
+  }
+  if (databaseCode === "23503") {
+    return fail(
+      request,
+      "Um dos vínculos informados não existe mais. Atualize a página e tente novamente.",
+      409,
+      "invalid_reference",
+    );
+  }
+  if (databaseCode === "23514" || databaseCode === "22P02") {
+    return fail(
+      request,
+      "Há um dado inválido no cadastro. Revise os campos informados.",
+      400,
+      "invalid_data",
+    );
+  }
+  if (databaseCode === "42501") {
+    return fail(
+      request,
+      "Você não possui permissão para executar esta operação.",
+      403,
+      "permission_denied",
+    );
+  }
+
+  return fail(
+    request,
+    "O servidor não conseguiu concluir a operação. Tente novamente.",
+    500,
+    "internal_error",
+    details ? { details } : {},
+  );
+}
+
 const usernamePattern = /^[a-z0-9][a-z0-9._-]{2,31}$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -184,15 +240,15 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders(request) });
   }
-  if (request.method !== "POST") return respond(request, { error: "Método não permitido." }, 405);
+  if (request.method !== "POST") return fail(request, "Método não permitido.", 405, "method_not_allowed");
 
   try {
     const authorization = request.headers.get("Authorization");
     const token = authorization?.replace(/^Bearer\s+/i, "");
-    if (!token) return respond(request, { error: "Usuário não autenticado." }, 401);
+    if (!token) return fail(request, "Usuário não autenticado.", 401, "unauthenticated");
 
     const { data: callerData, error: callerError } = await authClient.auth.getUser(token);
-    if (callerError || !callerData.user) return respond(request, { error: "Sessão inválida ou expirada." }, 401);
+    if (callerError || !callerData.user) return fail(request, "Sessão inválida ou expirada.", 401, "invalid_session");
 
     const { data: callerProfile, error: callerProfileError } = await adminClient
       .from("profiles")
@@ -200,11 +256,11 @@ Deno.serve(async (request) => {
       .eq("id", callerData.user.id)
       .maybeSingle();
     if (callerProfileError || !callerProfile?.is_active) {
-      return respond(request, { error: "Perfil do usuário não está ativo." }, 403);
+      return fail(request, "Perfil do usuário não está ativo.", 403, "inactive_profile");
     }
 
     if (!(await requirePlatformManager(callerData.user.id))) {
-      return respond(request, { error: "Você não possui permissão para gerenciar usuários de empresas parceiras." }, 403);
+      return fail(request, "Você não possui permissão para gerenciar usuários de empresas parceiras.", 403, "forbidden");
     }
 
     const body = await request.json().catch(() => ({}));
@@ -213,11 +269,11 @@ Deno.serve(async (request) => {
     if (action === "list_partner_roles") {
       const roleOrganizationId = String(body?.organization_id ?? "").trim();
       if (!isUuid(roleOrganizationId)) {
-        return respond(request, { error: "Empresa não informada ou inválida." }, 400);
+        return fail(request, "Empresa não informada ou inválida.", 400, "invalid_organization");
       }
       const roleOrganization = await getPartnerOrganization(roleOrganizationId);
       if (!roleOrganization) {
-        return respond(request, { error: "Empresa parceira não encontrada." }, 404);
+        return fail(request, "Empresa parceira não encontrada.", 404, "organization_not_found");
       }
 
       const { data, error } = await adminClient
@@ -232,10 +288,10 @@ Deno.serve(async (request) => {
     }
 
     const organizationId = String(body?.organization_id ?? "").trim();
-    if (!isUuid(organizationId)) return respond(request, { error: "Empresa não informada ou inválida." }, 400);
+    if (!isUuid(organizationId)) return fail(request, "Empresa não informada ou inválida.", 400, "invalid_organization");
 
     const organization = await getPartnerOrganization(organizationId);
-    if (!organization) return respond(request, { error: "Empresa parceira não encontrada." }, 404);
+    if (!organization) return fail(request, "Empresa parceira não encontrada.", 404, "organization_not_found");
 
     if (action === "list_partner_users") {
       const users = await listPartnerUsers(organizationId);
@@ -243,7 +299,7 @@ Deno.serve(async (request) => {
     }
 
     if (action !== "create_partner_user" && action !== "update_partner_user") {
-      return respond(request, { error: "Ação não suportada." }, 400);
+      return fail(request, "Ação não suportada.", 400, "unsupported_action");
     }
 
     const roleId = String(body?.role_id ?? "").trim();
@@ -256,32 +312,32 @@ Deno.serve(async (request) => {
     const isActive = body?.is_active !== false;
 
     if (!isUuid(roleId) || !fullName || !cpf) {
-      return respond(request, { error: "Nome, CPF e função são obrigatórios." }, 400);
+      return fail(request, "Nome, CPF e função são obrigatórios.", 400, "required_fields");
     }
     if (!validOptionalEmail(email)) {
-      return respond(request, { error: "O e-mail informado não é válido." }, 400);
+      return fail(request, "O e-mail informado não é válido.", 400, "invalid_email");
     }
 
     const role = await getActiveRole(organizationId, roleId);
-    if (!role) return respond(request, { error: "A função selecionada não está disponível." }, 400);
+    if (!role) return fail(request, "A função selecionada não está disponível.", 400, "invalid_role");
 
     if (action === "create_partner_user") {
       if (organization.status !== "active") {
-        return respond(request, { error: "Ative a empresa antes de cadastrar novos usuários." }, 400);
+        return fail(request, "Ative a empresa antes de cadastrar novos usuários.", 400, "company_inactive");
       }
 
       const username = normalizeUsername(body?.username);
       const password = String(body?.password ?? "");
       if (!validUsername(username)) {
-        return respond(request, { error: "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado." }, 400);
+        return fail(request, "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado.", 400, "invalid_username");
       }
       if (password.length < 8) {
-        return respond(request, { error: "A senha deve ter pelo menos 8 caracteres." }, 400);
+        return fail(request, "A senha deve ter pelo menos 8 caracteres.", 400, "weak_password");
       }
 
       const existingProfile = await findProfileByUsername(username);
       if (existingProfile) {
-        return respond(request, { error: "Este usuário já está em uso. Escolha outro usuário." }, 409);
+        return fail(request, "Este usuário já está em uso. Escolha outro usuário.", 409, "username_already_exists");
       }
 
       const { data: existingCpfEmployee, error: existingCpfError } = await adminClient
@@ -292,11 +348,13 @@ Deno.serve(async (request) => {
         .maybeSingle();
       if (existingCpfError) throw existingCpfError;
       if (existingCpfEmployee) {
-        return respond(request, {
-          error: `Este CPF já está cadastrado nesta empresa para ${existingCpfEmployee.full_name || "outro funcionário"}.`,
-          code: "cpf_already_exists",
-          employee_id: existingCpfEmployee.id,
-        }, 409);
+        return fail(
+          request,
+          `Este CPF já está cadastrado nesta empresa para ${existingCpfEmployee.full_name || "outro funcionário"}.`,
+          409,
+          "cpf_already_exists",
+          { employee_id: existingCpfEmployee.id },
+        );
       }
 
       let createdAuthUserId: string | null = null;
@@ -311,7 +369,7 @@ Deno.serve(async (request) => {
           user_metadata: { full_name: fullName, username },
         });
         if (createAuthError || !createdAuth.user) {
-          return respond(request, { error: authFailureMessage(createAuthError) }, 400);
+          return fail(request, authFailureMessage(createAuthError), 400, "auth_create_failed");
         }
 
         const authUser = createdAuth.user;
@@ -332,7 +390,7 @@ Deno.serve(async (request) => {
             await adminClient.from("profiles").delete().eq("id", authUser.id);
             await adminClient.auth.admin.deleteUser(authUser.id);
             createdAuthUserId = null;
-            return respond(request, { error: "Este usuário já está em uso." }, 409);
+            return fail(request, "Este usuário já está em uso.", 409, "username_already_exists");
           }
           throw profileUpsertError;
         }
@@ -382,7 +440,7 @@ Deno.serve(async (request) => {
     }
 
     const userId = String(body?.user_id ?? "").trim();
-    if (!isUuid(userId)) return respond(request, { error: "Usuário não informado." }, 400);
+    if (!isUuid(userId)) return fail(request, "Usuário não informado.", 400, "invalid_user");
 
     const { data: membership, error: membershipError } = await adminClient
       .from("organization_members")
@@ -391,7 +449,7 @@ Deno.serve(async (request) => {
       .eq("user_id", userId)
       .maybeSingle();
     if (membershipError) throw membershipError;
-    if (!membership) return respond(request, { error: "Usuário não pertence à empresa selecionada." }, 404);
+    if (!membership) return fail(request, "Usuário não pertence à empresa selecionada.", 404, "user_not_in_organization");
 
     const { data: conflictingCpfEmployee, error: conflictingCpfError } = await adminClient
       .from("employees")
@@ -402,11 +460,13 @@ Deno.serve(async (request) => {
       .maybeSingle();
     if (conflictingCpfError) throw conflictingCpfError;
     if (conflictingCpfEmployee) {
-      return respond(request, {
-        error: `Este CPF já está cadastrado nesta empresa para ${conflictingCpfEmployee.full_name || "outro funcionário"}.`,
-        code: "cpf_already_exists",
-        employee_id: conflictingCpfEmployee.id,
-      }, 409);
+      return fail(
+        request,
+        `Este CPF já está cadastrado nesta empresa para ${conflictingCpfEmployee.full_name || "outro funcionário"}.`,
+        409,
+        "cpf_already_exists",
+        { employee_id: conflictingCpfEmployee.id },
+      );
     }
 
     const authPayload: Record<string, unknown> = {
@@ -415,13 +475,13 @@ Deno.serve(async (request) => {
     const newPassword = String(body?.password ?? "");
     if (newPassword) {
       if (newPassword.length < 8) {
-        return respond(request, { error: "A nova senha deve ter pelo menos 8 caracteres." }, 400);
+        return fail(request, "A nova senha deve ter pelo menos 8 caracteres.", 400, "weak_password");
       }
       authPayload.password = newPassword;
     }
 
     const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, authPayload);
-    if (authUpdateError) return respond(request, { error: authFailureMessage(authUpdateError) }, 400);
+    if (authUpdateError) return fail(request, authFailureMessage(authUpdateError), 400, "auth_update_failed");
 
     const { error: membershipUpdateError } = await adminClient
       .from("organization_members")
@@ -486,8 +546,6 @@ Deno.serve(async (request) => {
     return respond(request, { success: true, user_id: userId, email: email || null });
   } catch (error) {
     console.error("[PARTNER USERS]", error);
-    return respond(request, {
-      error: error instanceof Error ? error.message : "Não foi possível executar a operação.",
-    }, 400);
+    return unexpectedFailure(request, error);
   }
 });
