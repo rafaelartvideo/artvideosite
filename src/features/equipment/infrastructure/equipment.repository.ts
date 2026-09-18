@@ -4,6 +4,28 @@ import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.reposito
 import { saveEquipmentChecklistConfiguration } from "@/features/checklists/infrastructure/checklists.repository";
 import type { EquipmentCatalog, EquipmentDraft } from "../domain/equipment";
 
+type CatalogWriteError = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
+
+function toCatalogError(error: unknown, fallback: string): Error {
+  const typed = (error ?? {}) as CatalogWriteError;
+  const raw = [typed.message, typed.details, typed.hint].filter(Boolean).join(" ");
+
+  if (typed.code === "23505") {
+    if (raw.includes("equipment_types_organization_name_uidx")) return new Error("Já existe um equipamento com este nome nesta empresa.");
+    if (raw.includes("equipment_brands_type_name_uidx")) return new Error("Já existe uma marca com este nome neste equipamento.");
+    if (raw.includes("equipment_models_brand_name_uidx")) return new Error("Já existe um modelo com este nome nesta marca.");
+    return new Error("Já existe um cadastro com este nome.");
+  }
+
+  if (error instanceof Error) return error;
+  return new Error(raw || fallback);
+}
+
 export async function loadEquipmentCatalog(): Promise<EquipmentCatalog> {
   const organizationId = await getActiveOrganizationId();
   const [typesResult, brandsResult, modelsResult, fieldsResult, linksResult, checklistProfilesResult, checklistStagesResult, checklistItemsResult] = await Promise.all([
@@ -73,7 +95,8 @@ export async function saveServiceOrderTechnicalValues(serviceOrderId: string, va
 async function saveAndGetId(table: string, payload: Record<string, unknown>, id: string | undefined, organizationId: string, errorMessage: string): Promise<string> {
   const query = id ? supabase.from(table).update(payload).eq("id", id).eq("organization_id", organizationId) : supabase.from(table).insert({ ...payload, organization_id: organizationId });
   const { data, error } = await query.select("id").single();
-  if (error || !data?.id) throw error ?? new Error(errorMessage);
+  if (error) throw toCatalogError(error, errorMessage);
+  if (!data?.id) throw new Error(errorMessage);
   return data.id;
 }
 
@@ -99,7 +122,7 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
         const modelSlug = await generateUniqueSlug("equipment_models", model.name, model.id);
         const payload = { name: model.name.trim(), slug: modelSlug, equipment_brand_id: brandId, is_active: model.is_active, sort_order: 0 };
         const { error } = model.id ? await supabase.from("equipment_models").update(payload).eq("id", model.id).eq("organization_id", organizationId) : await supabase.from("equipment_models").insert({ ...payload, organization_id: organizationId });
-        if (error) throw error;
+        if (error) throw toCatalogError(error, "Modelo não foi salvo.");
       }
       for (const oldModel of originalModels.filter(item => !brand.models.some(model => model.id === item.id))) {
         const { error } = await supabase.from("equipment_models").delete().eq("id", oldModel.id).eq("organization_id", organizationId);
