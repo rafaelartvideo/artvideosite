@@ -40,7 +40,7 @@ export async function lookupCpf(
   await ensureCpfIsNotRegistered(digits, organizationId, excludeRegistrationId);
 
   const { data, error } = await supabase.functions.invoke("lookup-cpf", {
-    body: { cpf: digits },
+    body: { cpf: digits, organization_id: organizationId },
   });
 
   if (error) {
