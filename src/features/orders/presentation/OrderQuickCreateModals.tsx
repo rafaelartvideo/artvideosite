@@ -3,6 +3,7 @@ import { AlertCircle, Check, ChevronDown, Search, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
 import { AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FIntegerInput, FTextarea, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import {
@@ -434,6 +435,7 @@ export function QuickEquipmentModal({
       }
 
       onSaved({ type, brand, model });
+      notifyAdmin(mode === "model" ? "Modelo criado com sucesso." : "Equipamento criado com sucesso.", "success");
       onClose();
     } catch (error) {
       console.error("[ADMIN] quick equipment save error:", error);
