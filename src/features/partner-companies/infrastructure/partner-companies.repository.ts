@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
-import { toPartnerCompanyError, toPartnerFunctionError } from "./partner-companies.errors";
+import { PartnerCompanyError, toPartnerCompanyError, toPartnerFunctionError } from "./partner-companies.errors";
 
 export type PartnerCompanySettings = {
   person_type?: "PF" | "PJ";
@@ -134,7 +134,17 @@ export function listPartnerMembers(organizationId?: string | null) {
 async function invokePartnerUsers(body: Record<string, unknown>, fallback: string) {
   const result = await supabase.functions.invoke("partner-users", { body });
   const normalizedError = await toPartnerFunctionError(result.error, result.data, fallback);
-  return { ...result, error: normalizedError };
+  if (normalizedError) return { ...result, error: normalizedError };
+  if (result.data?.success !== true) {
+    return {
+      ...result,
+      error: new PartnerCompanyError(
+        "A função do servidor respondeu sem confirmar a operação. Tente novamente.",
+        "invalid_function_response",
+      ),
+    };
+  }
+  return { ...result, error: null };
 }
 
 export async function listPartnerUsers(organizationId: string) {
