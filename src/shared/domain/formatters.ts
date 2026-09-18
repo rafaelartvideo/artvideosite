@@ -42,6 +42,38 @@ export function formatPhone(value: string | number | null | undefined) {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 3)} ${digits.slice(3, 7)}-${digits.slice(7)}`;
 }
 
+export function formatPhoneInput(
+  value: string,
+  previousValue?: string | number | null,
+  cursorPosition?: number | null,
+) {
+  const rawValue = String(value ?? "");
+  const formatted = formatPhone(rawValue);
+  const previousFormatted = formatPhone(previousValue);
+
+  // When Backspace/Delete removes only a mask separator, formatting would
+  // immediately recreate it. Remove the adjacent digit as well so deletion
+  // keeps moving naturally through spaces, parentheses and hyphens.
+  if (
+    previousFormatted
+    && rawValue.length < previousFormatted.length
+    && formatted === previousFormatted
+  ) {
+    const chars = rawValue.split("");
+    let index = Math.min(
+      Math.max((cursorPosition ?? rawValue.length) - 1, 0),
+      Math.max(chars.length - 1, 0),
+    );
+    while (index >= 0 && !/\d/.test(chars[index] || "")) index -= 1;
+    if (index >= 0) {
+      chars.splice(index, 1);
+      return formatPhone(chars.join(""));
+    }
+  }
+
+  return formatted;
+}
+
 export function isValidBrazilianPhone(value: unknown) {
   const digits = normalizeDigits(value);
   if (digits.length !== 10 && digits.length !== 11) return false;
