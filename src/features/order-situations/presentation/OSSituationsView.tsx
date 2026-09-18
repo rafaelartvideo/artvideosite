@@ -72,11 +72,11 @@ export function OSSituationsView({ onBack, routeResourceId, routeSubpage, onRout
     if (!Number.isInteger(Number(form.sort_order)) || Number(form.sort_order) < 0) { setToast({ msg: "A ordem de exibição deve ser um número inteiro maior ou igual a zero.", type: "error" }); return; }
     setSaving(true);
     try {
-      const slug = await generateUniqueSlug("order_situations", form.name, editItem?.id);
+      const slug = await generateUniqueSlug("os_situations", form.name, editItem?.id);
       const payload = { name: form.name.trim(), slug, color: form.color.trim().toUpperCase() || null, hours: form.hours === "" ? null : Number(form.hours), is_active: form.is_active, sort_order: Number(form.sort_order) };
       if (editItem) await updateOrderSituation(editItem.id, payload); else await createOrderSituation(payload);
       setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Situação atualizada." : "Situação criada.", type: "success" }); await refresh();
-    } catch (error) { setToast({ msg: `Erro ao salvar situação: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar situação: ${error instanceof Error ? error.message : (error && typeof error === "object" && "message" in error ? String((error as { message?: unknown }).message ?? "Erro desconhecido") : String(error))}`, type: "error" }); }
     finally { setSaving(false); }
   };
   const remove = async (id: string) => { if (!canDelete) return; try { await deleteOrderSituation(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível remover a situação: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
