@@ -220,7 +220,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
 
             <QuickCustomerAddressesEditor value={addresses} onChange={setAddresses} disabled={saving} />
 
-            {errorMessage && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{errorMessage}</p>}
+            {errorMessage && <p className="text-xs font-semibold leading-5 text-red-600">{errorMessage}</p>}
           </div>
 
           <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#0d1b2e]/10 bg-white px-3 py-3 sm:flex-row sm:justify-end sm:px-5">
