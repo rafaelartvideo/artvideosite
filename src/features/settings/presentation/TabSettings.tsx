@@ -53,7 +53,7 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
   const companyOpen = routeResourceId === "company" && canViewDetails;
   const busy = lookingUp || saveSettings.isPending;
   const isPartnerOrganization = activeOrganization?.organization_type === "partner";
-  const canEditOfficialData = canUpdate;
+  const canEditOfficialData = canUpdate && !isPartnerOrganization;
   const canEditContacts = canUpdate;
   const canEditBranding = canUpdate;
 
@@ -71,6 +71,13 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
 
   const update = (key: keyof CompanyForm, value: string) => {
     if (!canUpdate || busy) return;
+    if (
+      isPartnerOrganization
+      && key !== "company_phone"
+      && key !== "company_email"
+      && key !== "company_logo_media_id"
+      && key !== "company_menu_logo_media_id"
+    ) return;
     setForm((current) => ({ ...current, [key]: value }));
   };
 
@@ -129,7 +136,16 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       return;
     }
     try {
-      await saveSettings.mutateAsync({ organizationId: activeOrganizationId, settings: form, updatedBy: user?.id ?? null });
+      const settingsToSave = isPartnerOrganization && query.data
+        ? {
+            ...query.data,
+            company_phone: form.company_phone,
+            company_email: form.company_email,
+            company_logo_media_id: form.company_logo_media_id,
+            company_menu_logo_media_id: form.company_menu_logo_media_id,
+          }
+        : form;
+      await saveSettings.mutateAsync({ organizationId: activeOrganizationId, settings: settingsToSave, updatedBy: user?.id ?? null });
       setToast({ msg: "Dados da empresa salvos com sucesso.", type: "success" });
     } catch (error) {
       setToast({ msg: error instanceof Error ? error.message : "Não foi possível salvar os dados.", type: "error" });
