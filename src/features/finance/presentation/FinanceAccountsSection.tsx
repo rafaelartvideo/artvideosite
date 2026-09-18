@@ -5,6 +5,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, BtnPrimary } from "@/shared/ui/admin/AdminLayout";
+import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceMovements } from "../application/useFinanceMovements";
 import type { FinancialAccount, FinancialAccountType } from "../domain/finance.types";
@@ -142,7 +143,7 @@ export function FinanceAccountsSection() {
             <td className={`text-right text-sm font-black ${Number(account.balance || 0) < 0 ? "text-red-700" : "text-[#0057e7]"}`}>{formatCurrency(account.balance || 0)}</td>
             <td>{account.opening_balance_configured_at ? <span className="text-xs font-semibold text-emerald-700">Configurado</span> : <span className="text-xs font-semibold text-amber-700">Não configurado</span>}</td>
             <td><StatusBadge status={account.is_active ? "Ativo" : "Inativo"} /></td>
-            {canManage && <td><div className="flex justify-end gap-1">{!account.opening_balance_configured_at && <AdminIconButton ariaLabel="Configurar saldo inicial" title="Configurar saldo inicial" onClick={() => { setOpeningAccount(account); setMessage(""); }}><Banknote size={15} /></AdminIconButton>}<AdminIconButton ariaLabel="Editar conta" title="Editar conta" onClick={() => openEdit(account)}><Pencil size={15} /></AdminIconButton><AdminIconButton ariaLabel={account.is_active ? "Inativar conta" : "Ativar conta"} title={account.is_active ? "Inativar conta" : "Ativar conta"} onClick={() => finance.toggleAccount.mutateAsync({ id: account.id, isActive: !account.is_active })}><span className="text-xs font-black">{account.is_active ? "II" : "▶"}</span></AdminIconButton></div></td>}
+            {canManage && <td><div className="flex justify-end gap-1">{!account.opening_balance_configured_at && <AdminIconButton ariaLabel="Configurar saldo inicial" title="Configurar saldo inicial" onClick={() => { setOpeningAccount(account); setMessage(""); }}><Banknote size={15} /></AdminIconButton>}<AdminIconButton ariaLabel="Editar conta" title="Editar conta" onClick={() => openEdit(account)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={account.is_active} entityLabel="conta" onClick={() => void finance.toggleAccount.mutateAsync({ id: account.id, isActive: !account.is_active })} /></div></td>}
           </tr>)}</tbody>
         </table>
       </div>}
