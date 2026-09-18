@@ -16,6 +16,7 @@ export type CompanySettings = {
   company_city: string;
   company_state: string;
   company_logo_media_id: string;
+  company_menu_logo_media_id: string;
 };
 
 export const EMPTY_COMPANY_SETTINGS: CompanySettings = {
@@ -32,6 +33,7 @@ export const EMPTY_COMPANY_SETTINGS: CompanySettings = {
   company_city: "",
   company_state: "",
   company_logo_media_id: "",
+  company_menu_logo_media_id: "",
 };
 
 function text(value: unknown) {
@@ -54,6 +56,7 @@ function fromRow(row: any): CompanySettings {
     company_city: text(row.city),
     company_state: text(row.state),
     company_logo_media_id: text(row.logo_media_id),
+    company_menu_logo_media_id: text(row.menu_logo_media_id),
   };
 }
 
@@ -61,7 +64,7 @@ export async function getCompanySettings(organizationId?: string | null): Promis
   const resolvedOrganizationId = organizationId || await getActiveOrganizationId();
   const { data, error } = await (supabase as any)
     .from("organization_company_settings")
-    .select("organization_id,name,legal_name,document,phone,email,zip_code,street,number,complement,neighborhood,city,state,logo_media_id,updated_at")
+    .select("organization_id,name,legal_name,document,phone,email,zip_code,street,number,complement,neighborhood,city,state,logo_media_id,menu_logo_media_id,updated_at")
     .eq("organization_id", resolvedOrganizationId)
     .maybeSingle();
   if (error) throw error;
@@ -89,6 +92,7 @@ export async function saveCompanySettings(
     city: settings.company_city.trim() || null,
     state: settings.company_state.trim().toUpperCase() || null,
     logo_media_id: settings.company_logo_media_id || null,
+    menu_logo_media_id: settings.company_menu_logo_media_id || null,
     updated_by: updatedBy,
     updated_at: new Date().toISOString(),
   };
