@@ -28,7 +28,7 @@ export function useFinanceFoundation() {
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
-  const canReadAccounts = hasPermission("finance.accounts.view") || hasPermission("finance.accounts.manage");
+  const canReadAccounts = hasPermission("finance.accounts.view") || hasPermission("finance.accounts.manage") || hasPermission("finance.reports.cash_flow");
 
   const invalidate = async (queryKey: readonly unknown[]) => {
     await Promise.all([
