@@ -30,6 +30,8 @@ type CompanyDraft = {
   name: string;
   legalName: string;
   document: string;
+  stateRegistration: string;
+  municipalRegistration: string;
   phone: string;
   whatsapp: string;
   email: string;
@@ -51,6 +53,8 @@ const emptyDraft: CompanyDraft = {
   name: "",
   legalName: "",
   document: "",
+  stateRegistration: "",
+  municipalRegistration: "",
   phone: "",
   whatsapp: "",
   email: "",
@@ -86,6 +90,8 @@ function toDraft(company?: any | null): CompanyDraft {
     name: company.name || "",
     legalName: company.legal_name || "",
     document: company.document || "",
+    stateRegistration: settings.state_registration || "",
+    municipalRegistration: settings.municipal_registration || "",
     phone: settings.phone || "",
     whatsapp: settings.whatsapp || "",
     email: settings.email || "",
@@ -266,6 +272,8 @@ export function PartnerCompanyEditorPage({
       phone: form.phone.trim(),
       whatsapp: form.whatsapp.trim(),
       email: form.email.trim(),
+      state_registration: form.stateRegistration.trim(),
+      municipal_registration: form.municipalRegistration.trim(),
       zip_code: form.zipCode.trim(),
       street: form.street.trim(),
       number: form.number.trim(),
@@ -309,7 +317,7 @@ export function PartnerCompanyEditorPage({
     breadcrumb={editing ? `Empresas Parceiras > ${company.name}` : "Empresas Parceiras"}
     title={editing ? "Editar empresa" : "Nova empresa"}
     subtitle={editing ? "Atualize os dados cadastrais da empresa parceira." : "Cadastre uma nova empresa parceira independente."}
-    maxW="max-w-2xl"
+    maxW="max-w-5xl"
     fullPage
   >
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -322,8 +330,8 @@ export function PartnerCompanyEditorPage({
           </div>
         </AdminCardHeader>
         <AdminCardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="min-w-0 md:col-span-2">
               <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de cadastro</label>
               <AdminSegmentedControl
                 value={form.personType}
@@ -333,9 +341,13 @@ export function PartnerCompanyEditorPage({
               />
             </div>
 
-            {form.personType === "PF" ? (
+            {form.personType === "PF" ? <>
               <FCpfInput label="CPF" required error={errors.document} value={form.document} onChange={(event: any) => setField("document", event.target.value)} />
-            ) : (
+              <FInput label="Nome completo" required error={errors.name} value={form.name} onChange={(event: any) => setField("name", event.target.value)} />
+              <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(event: any) => setField("phone", event.target.value)} />
+              <FPhoneInput label="WhatsApp" mobile error={errors.whatsapp} value={form.whatsapp} onChange={(event: any) => setField("whatsapp", event.target.value)} />
+              <div className="min-w-0 md:col-span-2"><FEmailInput label="E-mail" error={errors.email} value={form.email} onChange={(event: any) => setField("email", event.target.value)} /></div>
+            </> : <>
               <FCnpjInput
                 label="CNPJ"
                 required
@@ -344,19 +356,14 @@ export function PartnerCompanyEditorPage({
                 value={form.document}
                 onChange={(event: any) => setField("document", event.target.value)}
               />
-            )}
-
-            <FInput
-              label={form.personType === "PJ" ? "Nome fantasia" : "Nome completo"}
-              required
-              error={errors.name}
-              value={form.name}
-              onChange={(event: any) => setField("name", event.target.value)}
-            />
-            {form.personType === "PJ" && <FInput label="Razão social" required error={errors.legalName} value={form.legalName} onChange={(event: any) => setField("legalName", event.target.value)} />}
-            <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(event: any) => setField("phone", event.target.value)} />
-            <FPhoneInput label="WhatsApp" mobile error={errors.whatsapp} value={form.whatsapp} onChange={(event: any) => setField("whatsapp", event.target.value)} />
-            <div className="sm:col-span-2"><FEmailInput label="E-mail" error={errors.email} value={form.email} onChange={(event: any) => setField("email", event.target.value)} /></div>
+              <FInput label="Nome fantasia" required error={errors.name} value={form.name} onChange={(event: any) => setField("name", event.target.value)} />
+              <FInput label="Razão social" required error={errors.legalName} value={form.legalName} onChange={(event: any) => setField("legalName", event.target.value)} />
+              <FInput label="Inscrição estadual" value={form.stateRegistration} onChange={(event: any) => setField("stateRegistration", event.target.value)} />
+              <FInput label="Inscrição municipal" value={form.municipalRegistration} onChange={(event: any) => setField("municipalRegistration", event.target.value)} />
+              <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(event: any) => setField("phone", event.target.value)} />
+              <FPhoneInput label="WhatsApp" mobile error={errors.whatsapp} value={form.whatsapp} onChange={(event: any) => setField("whatsapp", event.target.value)} />
+              <FEmailInput label="E-mail" error={errors.email} value={form.email} onChange={(event: any) => setField("email", event.target.value)} />
+            </>}
           </div>
         </AdminCardContent>
       </AdminCard>
@@ -369,7 +376,7 @@ export function PartnerCompanyEditorPage({
           </div>
         </AdminCardHeader>
         <AdminCardContent>
-          <AddressFields value={addressValue} onChange={setAddress} inputClassName={INPUT} />
+          <AddressFields value={addressValue} onChange={setAddress} inputClassName={INPUT} twoColumns />
           {errors.address && <p className="mt-2 text-[10px] font-semibold text-red-600">{errors.address}</p>}
         </AdminCardContent>
       </AdminCard>
@@ -382,7 +389,7 @@ export function PartnerCompanyEditorPage({
           </div>
         </AdminCardHeader>
         <AdminCardContent>
-          {editing ? <div className="grid gap-5 sm:grid-cols-2">
+          {editing ? <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <ImageUpload
               bucket="public-assets"
               organizationId={company.id}
