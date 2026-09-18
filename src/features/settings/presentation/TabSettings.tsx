@@ -175,20 +175,27 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       <div className="min-w-0 space-y-5 p-4 sm:p-5">
         {isPartnerOrganization && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-sm leading-6 text-[#35506f]">Estas informações são administradas pelo administrador da empresa.</div>}
         <Section title="Identificação"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="min-w-0"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ</label><div className="flex min-w-0 flex-col gap-2 sm:flex-row"><FInput label="" inputMode="numeric" maxLength={18} value={form.company_cnpj} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" className="min-w-0 flex-1" />{canEditOfficialData && canLookupCnpj && <AdminButton variant="secondary" onClick={lookupCnpj} loading={lookingUp} loadingText="Consultando..." disabled={saveSettings.isPending}><Search size={15} /> Consultar CNPJ</AdminButton>}</div><p className="mt-2 break-words text-xs leading-relaxed text-[#718096]">A consulta preenche automaticamente os dados públicos disponíveis. Revise antes de salvar.</p></div>
-          <FInput label="Nome da empresa / Nome fantasia" value={form.company_name} required disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_name", event.target.value)} />
-          <FInput label="Razão social" value={form.company_legal_name} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_legal_name", event.target.value)} />
-          <FPhoneInput label="Telefone" value={form.company_phone} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_phone", event.target.value)} />
-          <FInput label="E-mail" type="email" autoComplete="email" value={form.company_email} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_email", event.target.value.trimStart())} />
+          <div className="min-w-0 w-full">
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ</label>
+            <div className="flex min-w-0 w-full flex-col gap-2 sm:flex-row">
+              <FInput label="" inputMode="numeric" maxLength={18} value={form.company_cnpj} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" className="min-w-0 flex-1" />
+              {canEditOfficialData && canLookupCnpj && <AdminButton variant="secondary" onClick={lookupCnpj} loading={lookingUp} loadingText="Consultando..." disabled={saveSettings.isPending}><Search size={15} /> Consultar CNPJ</AdminButton>}
+            </div>
+            <p className="mt-2 break-words text-xs leading-relaxed text-[#718096]">A consulta preenche automaticamente os dados públicos disponíveis. Revise antes de salvar.</p>
+          </div>
+          <div className="min-w-0 w-full"><FInput label="Nome da empresa / Nome fantasia" value={form.company_name} required disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_name", event.target.value)} /></div>
+          <div className="min-w-0 w-full"><FInput label="Razão social" value={form.company_legal_name} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_legal_name", event.target.value)} /></div>
+          <div className="min-w-0 w-full"><FPhoneInput label="Telefone" value={form.company_phone} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_phone", event.target.value)} /></div>
+          <div className="min-w-0 w-full md:col-span-2"><FInput label="E-mail" type="email" autoComplete="email" value={form.company_email} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_email", event.target.value.trimStart())} /></div>
         </div></Section>
         <Section title="Endereço"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-          <FInput label="CEP" inputMode="numeric" maxLength={9} placeholder="00000-000" value={form.company_zip_code} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_zip_code", formatZipCode(event.target.value))} />
-          <FInput label="Rua / Logradouro" value={form.company_street} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_street", event.target.value)} />
-          <FInput label="Número" inputMode="numeric" value={form.company_number} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_number", event.target.value.replace(/[^0-9A-Za-z/-]/g, ""))} />
-          <FInput label="Complemento" value={form.company_complement} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_complement", event.target.value)} />
-          <FInput label="Bairro" value={form.company_neighborhood} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_neighborhood", event.target.value)} />
-          <FInput label="Cidade" value={form.company_city} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_city", event.target.value)} />
-          <FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_state", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2))} />
+          <div className="min-w-0 w-full"><FInput label="CEP" inputMode="numeric" maxLength={9} placeholder="00000-000" value={form.company_zip_code} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_zip_code", formatZipCode(event.target.value))} /></div>
+          <div className="min-w-0 w-full"><FInput label="Rua / Logradouro" value={form.company_street} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_street", event.target.value)} /></div>
+          <div className="min-w-0 w-full"><FInput label="Número" inputMode="numeric" value={form.company_number} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_number", event.target.value.replace(/[^0-9A-Za-z/-]/g, ""))} /></div>
+          <div className="min-w-0 w-full"><FInput label="Complemento" value={form.company_complement} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_complement", event.target.value)} /></div>
+          <div className="min-w-0 w-full"><FInput label="Bairro" value={form.company_neighborhood} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_neighborhood", event.target.value)} /></div>
+          <div className="min-w-0 w-full"><FInput label="Cidade" value={form.company_city} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_city", event.target.value)} /></div>
+          <div className="min-w-0 w-full md:col-span-2"><FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_state", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2))} /></div>
         </div></Section>
         <Section title="Identidade visual"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
