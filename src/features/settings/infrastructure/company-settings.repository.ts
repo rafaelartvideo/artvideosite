@@ -6,6 +6,8 @@ export type CompanySettings = {
   company_name: string;
   company_legal_name: string;
   company_cnpj: string;
+  company_state_registration: string;
+  company_municipal_registration: string;
   company_phone: string;
   company_email: string;
   company_zip_code: string;
@@ -23,6 +25,8 @@ export const EMPTY_COMPANY_SETTINGS: CompanySettings = {
   company_name: "",
   company_legal_name: "",
   company_cnpj: "",
+  company_state_registration: "",
+  company_municipal_registration: "",
   company_phone: "",
   company_email: "",
   company_zip_code: "",
@@ -40,12 +44,17 @@ function text(value: unknown) {
   return value == null ? "" : String(value);
 }
 
-function fromRow(row: any): CompanySettings {
+function fromRow(row: any, organizationSettings?: any): CompanySettings {
   if (!row) return { ...EMPTY_COMPANY_SETTINGS };
+  const officialSettings = organizationSettings && typeof organizationSettings === "object"
+    ? organizationSettings
+    : {};
   return {
     company_name: text(row.name),
     company_legal_name: text(row.legal_name),
     company_cnpj: text(row.document),
+    company_state_registration: text(officialSettings.state_registration),
+    company_municipal_registration: text(officialSettings.municipal_registration),
     company_phone: text(row.phone),
     company_email: text(row.email),
     company_zip_code: text(row.zip_code),
@@ -62,13 +71,21 @@ function fromRow(row: any): CompanySettings {
 
 export async function getCompanySettings(organizationId?: string | null): Promise<CompanySettings> {
   const resolvedOrganizationId = organizationId || await getActiveOrganizationId();
-  const { data, error } = await (supabase as any)
-    .from("organization_company_settings")
-    .select("organization_id,name,legal_name,document,phone,email,zip_code,street,number,complement,neighborhood,city,state,logo_media_id,menu_logo_media_id,updated_at")
-    .eq("organization_id", resolvedOrganizationId)
-    .maybeSingle();
-  if (error) throw error;
-  return fromRow(data);
+  const [companyResult, organizationResult] = await Promise.all([
+    (supabase as any)
+      .from("organization_company_settings")
+      .select("organization_id,name,legal_name,document,phone,email,zip_code,street,number,complement,neighborhood,city,state,logo_media_id,menu_logo_media_id,updated_at")
+      .eq("organization_id", resolvedOrganizationId)
+      .maybeSingle(),
+    (supabase as any)
+      .from("organizations")
+      .select("settings")
+      .eq("id", resolvedOrganizationId)
+      .maybeSingle(),
+  ]);
+  if (companyResult.error) throw companyResult.error;
+  if (organizationResult.error) throw organizationResult.error;
+  return fromRow(companyResult.data, organizationResult.data?.settings);
 }
 
 export async function saveCompanySettings(
@@ -103,7 +120,10 @@ export async function saveCompanySettings(
     .select("*")
     .single();
   if (error) throw error;
-  return fromRow(data);
+  return fromRow(data, {
+    state_registration: settings.company_state_registration,
+    municipal_registration: settings.company_municipal_registration,
+  });
 }
 
 export async function getCompanyPrintContext(organizationId: string) {
