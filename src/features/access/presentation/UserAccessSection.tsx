@@ -87,16 +87,16 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
   }, [organizationId, isArtVideo]);
 
   useEffect(() => {
-    if (!value.enabled || !username || !valid) return setAvailability("idle");
+    if (!organizationId || !value.enabled || !username || !valid) return setAvailability("idle");
     if (existingAccess && initialUsername.current === username) return setAvailability("available");
     let cancelled = false;
     setAvailability("checking");
-    const timer = window.setTimeout(() => void checkEmployeeUsernameAvailability(username, value.profile_id).then(result => {
+    const timer = window.setTimeout(() => void checkEmployeeUsernameAvailability(organizationId, username).then(result => {
       if (cancelled) return;
       setAvailability(result.error ? "error" : result.available ? "available" : "unavailable");
     }), 400);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [existingAccess, username, valid, value.enabled, value.profile_id]);
+  }, [existingAccess, organizationId, username, valid, value.enabled]);
 
   const roleOptions = useMemo(() => [{ value: "", label: "Selecionar função..." }, ...roles.map(item => ({ value: item.id, label: item.name }))], [roles]);
   const uniqOptions = useMemo(() => {
