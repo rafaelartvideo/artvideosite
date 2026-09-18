@@ -1,4 +1,4 @@
-import { getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
+import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useEffect, useState } from "react";
 import { ChevronDown, FileText, Mail, PackagePlus, Printer } from "lucide-react";
@@ -144,11 +144,15 @@ export function OrderDetailsPage(props: Props) {
       const needsChecklist = [...configuredTemplate.selectedFields].some(key => key.startsWith("checklists."));
       if (needsChecklist && !hasPermission("orders.section.checklists")) throw new Error("Você não possui permissão para imprimir os checklists desta OS.");
       const checklist = needsChecklist ? await getOrderChecklist(detail.id) : null;
-      const checklistPhotoUrls = Object.fromEntries((checklist?.stages || [])
+      const checklistMedia = (checklist?.stages || [])
         .filter(stage => configuredTemplate.selectedFields.has("checklists." + stage.stage_type_snapshot))
-        .flatMap(stage => stage.items.flatMap(item => item.media.flatMap(link =>
-          link.media ? [[link.media_id, getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)]] : [],
-        ))));
+        .flatMap(stage => stage.items.flatMap(item => item.media.flatMap(link => link.media ? [link] : [])));
+      const checklistPhotoUrls = Object.fromEntries(await Promise.all(
+        checklistMedia.map(async link => [
+          link.media_id,
+          await resolveMediaStorageUrl(link.media!.bucket_id, link.media!.storage_path),
+        ] as const),
+      ));
       renderOrderPrintDocument(popup, configuredTemplate, { order: detail, checklist, checklistPhotoUrls, usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName, company });
     } catch (error) { popup.close(); setPrintError(error instanceof Error ? error.message : "Não foi possível preparar o documento."); }
     finally { setPrintingTemplateId(null); }
@@ -165,11 +169,15 @@ export function OrderDetailsPage(props: Props) {
       const needsChecklist = [...configuredTemplate.selectedFields].some(key => key.startsWith("checklists."));
       if (needsChecklist && !hasPermission("orders.section.checklists")) throw new Error("Você não possui permissão para imprimir os checklists desta OS.");
       const checklist = needsChecklist ? await getOrderChecklist(detail.id) : null;
-      const checklistPhotoUrls = Object.fromEntries((checklist?.stages || [])
+      const checklistMedia = (checklist?.stages || [])
         .filter(stage => configuredTemplate.selectedFields.has("checklists." + stage.stage_type_snapshot))
-        .flatMap(stage => stage.items.flatMap(item => item.media.flatMap(link =>
-          link.media ? [[link.media_id, getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)]] : [],
-        ))));
+        .flatMap(stage => stage.items.flatMap(item => item.media.flatMap(link => link.media ? [link] : [])));
+      const checklistPhotoUrls = Object.fromEntries(await Promise.all(
+        checklistMedia.map(async link => [
+          link.media_id,
+          await resolveMediaStorageUrl(link.media!.bucket_id, link.media!.storage_path),
+        ] as const),
+      ));
       const html = buildOrderPrintDocumentHtml(configuredTemplate, { order: detail, checklist, checklistPhotoUrls, usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName, company });
       const result = await sendOrderDocumentEmail({ orderId: detail.id, documentName: template.name, documentHtml: html });
       setEmailMessage({ text: `Documento enviado para ${result.recipient}.`, type: "success" });
