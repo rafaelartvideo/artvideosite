@@ -93,7 +93,7 @@ function CounterCard({
   warning = false,
 }: {
   title: string;
-  value: number;
+  value: string | number;
   detail: string;
   icon: typeof CalendarClock;
   warning?: boolean;
@@ -173,9 +173,9 @@ export function FinanceOverviewFoundation({ onSelectEntry }: { onSelectEntry: (t
             <CounterCard title="Aprovações" value={dashboard.pending_approvals} detail="lançamentos pendentes" icon={CalendarClock} warning />
             <CounterCard title="Cobranças" value={dashboard.collection_followups} detail="retornos em até 7 dias" icon={CalendarClock} warning />
             <CounterCard title="Repasses atrasados" value={dashboard.overdue_scheduled_settlements} detail="liquidações a confirmar" icon={AlertTriangle} warning />
-            <CounterCard title="Receber hoje" value={dashboard.due_today_receivable ? 1 : 0} detail={formatCurrency(dashboard.due_today_receivable)} icon={TrendingUp} />
-            <CounterCard title="Pagar hoje" value={dashboard.due_today_payable ? 1 : 0} detail={formatCurrency(dashboard.due_today_payable)} icon={TrendingDown} />
-            <CounterCard title="Próximos 7 dias" value={(dashboard.upcoming_receivable || dashboard.upcoming_payable) ? 1 : 0} detail={`${formatCurrency(dashboard.upcoming_receivable)} a receber · ${formatCurrency(dashboard.upcoming_payable)} a pagar`} icon={CalendarClock} />
+            <CounterCard title="Receber hoje" value={formatCurrency(dashboard.due_today_receivable)} detail="vencimentos com data de hoje" icon={TrendingUp} />
+            <CounterCard title="Pagar hoje" value={formatCurrency(dashboard.due_today_payable)} detail="vencimentos com data de hoje" icon={TrendingDown} />
+            <CounterCard title="Próximos 7 dias" value={formatCurrency(dashboard.upcoming_receivable - dashboard.upcoming_payable)} detail={`${formatCurrency(dashboard.upcoming_receivable)} a receber · ${formatCurrency(dashboard.upcoming_payable)} a pagar`} icon={CalendarClock} />
           </div>
         </AdminCardContent>
       </AdminCard>
