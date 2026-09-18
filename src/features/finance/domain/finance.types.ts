@@ -378,9 +378,20 @@ export interface FinancialReportFilters {
   payment_method_id?: string | null;
 }
 
+export interface FinancialDashboardVisibility {
+  balance: boolean;
+  receivables: boolean;
+  payables: boolean;
+  result: boolean;
+  approvals: boolean;
+  collections: boolean;
+  scheduled_settlements: boolean;
+}
+
 export interface FinancialDashboardSummary {
   from: string;
   to: string;
+  visibility: FinancialDashboardVisibility;
   available_balance: number;
   receivable_open: number;
   payable_open: number;
