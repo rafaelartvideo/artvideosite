@@ -8,6 +8,7 @@ const LABELS: Record<FinanceSection, string> = {
   movements: "Movimentações",
   accounts: "Caixas e contas",
   recurring: "Recorrências",
+  reports: "Relatórios",
   registries: "Cadastros financeiros",
 };
 
