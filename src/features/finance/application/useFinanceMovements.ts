@@ -4,8 +4,10 @@ import { useAuth } from "@/lib/auth";
 import type { FinancialTransferDraft } from "../domain/finance.types";
 import {
   configureFinancialOpeningBalance,
+  confirmFinancialSettlement,
   getFinancialAccountBalances,
   listFinancialMovements,
+  listScheduledFinancialSettlements,
   listFinancialTransfers,
   reverseFinancialTransfer,
   transferFinancialFunds,
@@ -30,6 +32,12 @@ export function useFinanceMovements() {
     queryFn: () => listFinancialMovements(organizationId),
   });
 
+  const scheduledSettlementsQuery = useQuery({
+    queryKey: queryKeys.finance.scheduledSettlements(organizationKey),
+    enabled,
+    queryFn: () => listScheduledFinancialSettlements(organizationId),
+  });
+
   const transfersQuery = useQuery({
     queryKey: queryKeys.finance.transfers(organizationKey),
     enabled,
@@ -41,6 +49,7 @@ export function useFinanceMovements() {
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.balances(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.movements(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.transfers(organizationKey) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.scheduledSettlements(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.accounts(organizationKey) }),
     ]);
   };
@@ -55,6 +64,12 @@ export function useFinanceMovements() {
     onSuccess: invalidateMoney,
   });
 
+  const confirmScheduledSettlementMutation = useMutation({
+    mutationFn: ({ settlementId, postedAt }: { settlementId: string; postedAt?: string }) =>
+      confirmFinancialSettlement(organizationId, settlementId, postedAt || new Date().toISOString()),
+    onSuccess: invalidateMoney,
+  });
+
   const openingBalanceMutation = useMutation({
     mutationFn: ({ accountId, amount, note }: { accountId: string; amount: number; note?: string | null }) =>
       configureFinancialOpeningBalance(organizationId, accountId, amount, note),
@@ -66,7 +81,9 @@ export function useFinanceMovements() {
     balancesQuery,
     movementsQuery,
     transfersQuery,
+    scheduledSettlementsQuery,
     transferMutation,
+    confirmScheduledSettlementMutation,
     reverseTransferMutation,
     openingBalanceMutation,
   };
