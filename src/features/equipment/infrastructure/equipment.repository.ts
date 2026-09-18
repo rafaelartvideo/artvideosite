@@ -70,6 +70,20 @@ export async function saveTechnicalField(field: { id?: string; label: string; fi
   return result.data;
 }
 
+export async function setEquipmentTypeActive(equipmentTypeId: string, isActive: boolean) {
+  const organizationId = await getActiveOrganizationId();
+  const result = await supabase
+    .from("equipment_types")
+    .update({ is_active: isActive })
+    .eq("organization_id", organizationId)
+    .eq("id", equipmentTypeId)
+    .select("id,name,is_active")
+    .single();
+
+  if (result.error) throw toCatalogError(result.error, isActive ? "Equipamento não foi ativado." : "Equipamento não foi inativado.");
+  return result.data;
+}
+
 export async function saveEquipmentTypeTechnicalFields(equipmentTypeId: string, links: Array<{ technical_field_id: string; required: boolean; sort_order: number }>) {
   const organizationId = await getActiveOrganizationId();
   const current = await supabase.from("equipment_type_technical_fields").select("technical_field_id").eq("organization_id", organizationId).eq("equipment_type_id", equipmentTypeId);
