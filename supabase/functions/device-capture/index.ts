@@ -108,23 +108,41 @@ async function activeMember(admin: AdminClient, organizationId: string, userId: 
   return data;
 }
 
-async function memberCanCreateOrders(admin: AdminClient, organizationId: string, userId: string) {
+async function memberHasPermission(admin: AdminClient, organizationId: string, userId: string, permissionKey: string) {
   const member = await activeMember(admin, organizationId, userId);
-  if (!member?.role_id) return false;
-  const { data, error } = await admin
-    .from("role_permissions")
-    .select("permission:permissions!inner(key)")
-    .eq("role_id", member.role_id)
-    .eq("permission.key", "orders.create")
-    .limit(1);
-  if (error) throw error;
-  return Boolean(data?.length);
+  if (!member) return false;
+  const [roleResult, overrideResult] = await Promise.all([
+    member.role_id
+      ? admin.from("role_permissions").select("permission:permissions!inner(key)")
+          .eq("role_id", member.role_id).eq("permission.key", permissionKey).limit(1)
+      : Promise.resolve({ data: [], error: null }),
+    admin.from("user_permission_overrides").select("permission:permissions!inner(key)")
+      .eq("organization_id", organizationId).eq("user_id", userId)
+      .eq("permission.key", permissionKey).limit(1),
+  ]);
+  if (roleResult.error) throw roleResult.error;
+  if (overrideResult.error) throw overrideResult.error;
+  return Boolean(roleResult.data?.length || overrideResult.data?.length);
+}
+
+async function canCreateOrders(admin: AdminClient, organizationId: string, userId: string) {
+  const { data: moduleRow, error: moduleError } = await admin.from("organization_modules")
+    .select("is_enabled").eq("organization_id", organizationId).eq("module_key", "orders").maybeSingle();
+  if (moduleError) throw moduleError;
+  if (moduleRow?.is_enabled !== true) return false;
+  return memberHasPermission(admin, organizationId, userId, "orders.create");
+}
+
+async function requireCaptureAccess(admin: AdminClient, session: CaptureSession) {
+  if (!(await canCreateOrders(admin, session.organization_id, session.created_by))) {
+    throw Object.assign(new Error("O acesso que originou esta captura não está mais disponível."), { status: 403 });
+  }
 }
 
 async function sessionByToken(admin: AdminClient, sessionId: string, token: string) {
   if (!sessionId || !token) return null;
 
-  let query = admin.from("device_capture_sessions").select(SESSION_SELECT).eq("id", sessionId);
+  let query = admin.from("device_capture_sessions").select(SESSION_SELECT).eq("id", sessionId).eq("purpose", "capture");
   if (token.startsWith("code:")) {
     const code = normalizePairingCode(token.slice(5));
     if (!code) return null;
@@ -151,6 +169,7 @@ async function ownedSession(admin: AdminClient, sessionId: string, userId: strin
     .select(SESSION_SELECT)
     .eq("id", sessionId)
     .eq("created_by", userId)
+    .eq("purpose", "capture")
     .maybeSingle();
   if (error) throw error;
   return data as CaptureSession | null;
@@ -196,7 +215,7 @@ Deno.serve(async (request) => {
       if (!user) return json({ success: false, error: "Usuário não autenticado." });
       const organizationId = String(input.organization_id || "").trim();
       if (!organizationId) return json({ success: false, error: "Empresa ativa não informada." });
-      if (!(await memberCanCreateOrders(admin, organizationId, user.id))) {
+      if (!(await canCreateOrders(admin, organizationId, user.id))) {
         return json({ success: false, error: "Você não possui permissão para iniciar a captura desta OS." });
       }
 
@@ -224,6 +243,7 @@ Deno.serve(async (request) => {
             created_by: user.id,
             token_hash: tokenHash,
             pairing_code_hash: await pairingCodeHash(pairingCode),
+            purpose: "capture",
             expires_at: expiresAt,
           })
           .select("id,expires_at")
@@ -261,6 +281,7 @@ Deno.serve(async (request) => {
       const { data, error } = await admin
         .from("device_capture_sessions")
         .select(SESSION_SELECT)
+        .eq("purpose", "capture")
         .eq("pairing_code_hash", await pairingCodeHash(code))
         .eq("status", "active")
         .gt("expires_at", now)
@@ -271,6 +292,7 @@ Deno.serve(async (request) => {
       }
 
       const session = data as CaptureSession;
+      await requireCaptureAccess(admin, session);
       return json({
         success: true,
         session: {
@@ -287,8 +309,8 @@ Deno.serve(async (request) => {
       const sessionId = String(input.session_id || "").trim();
       const session = await ownedSession(admin, sessionId, user.id);
       if (!session) return json({ success: false, error: "Sessão de captura não encontrada." });
-      if (!(await activeMember(admin, session.organization_id, user.id))) {
-        return json({ success: false, error: "Acesso à empresa não permitido." });
+      if (!(await canCreateOrders(admin, session.organization_id, user.id))) {
+        return json({ success: false, error: "Acesso à empresa não permitido." }, 403);
       }
 
       const isExpired = new Date(session.expires_at).getTime() <= Date.now();
@@ -363,6 +385,7 @@ Deno.serve(async (request) => {
       const token = String(input.token || "").trim();
       const session = await sessionByToken(admin, sessionId, token);
       if (!session) return json({ success: false, error: "A conexão expirou ou foi encerrada." });
+      await requireCaptureAccess(admin, session);
       const now = new Date().toISOString();
       await admin
         .from("device_capture_sessions")
@@ -381,6 +404,7 @@ Deno.serve(async (request) => {
       const token = String(input.token || "").trim();
       const session = await sessionByToken(admin, sessionId, token);
       if (!session) return json({ success: false, error: "A conexão expirou ou foi encerrada." });
+      await requireCaptureAccess(admin, session);
       const serial = cleanSerial(input.serial);
       if (!serial) return json({ success: false, error: "Número de série vazio." });
       const { error } = await admin.from("device_capture_events").insert({
@@ -400,6 +424,7 @@ Deno.serve(async (request) => {
       const file = input.file;
       const session = await sessionByToken(admin, sessionId, token);
       if (!session) return json({ success: false, error: "A conexão expirou ou foi encerrada." });
+      await requireCaptureAccess(admin, session);
       if (kind !== "label" && kind !== "equipment") {
         return json({ success: false, error: "Tipo de foto inválido." });
       }
