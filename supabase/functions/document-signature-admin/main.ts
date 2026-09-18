@@ -151,6 +151,15 @@ async function hasEffectivePermission(adminClient: any, userId: string, organiza
   if (!organization || organization.status !== "active") return false;
   if (await membershipPermission(adminClient, userId, organizationId, permissionKey)) return true;
   if (organizationId === PLATFORM_ORGANIZATION_ID) return false;
+
+  const canManagePartners = await membershipPermission(
+    adminClient,
+    userId,
+    PLATFORM_ORGANIZATION_ID,
+    "organizations.view",
+  );
+  if (!canManagePartners) return false;
+
   return membershipPermission(adminClient, userId, PLATFORM_ORGANIZATION_ID, permissionKey);
 }
 
