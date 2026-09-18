@@ -20,6 +20,19 @@ type EquipmentAdminPanelProps = {
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 };
 
+const normalizeCatalogName = (value: string) => value.trim().replace(/\\s+/g, " ").toLocaleLowerCase("pt-BR");
+
+const findDuplicateName = (values: string[]) => {
+  const seen = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeCatalogName(value);
+    if (!normalized) continue;
+    if (seen.has(normalized)) return value.trim();
+    seen.add(normalized);
+  }
+  return null;
+};
+
 export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onRouteChange }: EquipmentAdminPanelProps) {
   const { hasPermission } = useAuth();
   const canView = hasPermission("equipment.view");
@@ -147,7 +160,33 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const save = async () => {
     if (!catalog || !drafts.every(type => type.id ? canEdit : canCreate)) return;
     if (drafts.some(type => !type.name.trim() || type.brands.some(brand => !brand.name.trim() || brand.models.some(model => !model.name.trim())))) { setToast({ msg: "Preencha equipamento, marcas e modelos antes de salvar.", type: "error" }); return; }
+
+    const editingTypeIds = new Set(drafts.flatMap(type => type.id ? [type.id] : []));
+    const existingEquipmentNames = new Set(catalog.types.filter(type => !editingTypeIds.has(type.id)).map(type => normalizeCatalogName(type.name)));
+    const draftEquipmentNames = new Set<string>();
+
     for (const draft of drafts) {
+      const equipmentName = normalizeCatalogName(draft.name);
+      if (existingEquipmentNames.has(equipmentName) || draftEquipmentNames.has(equipmentName)) {
+        setToast({ msg: `Já existe um equipamento chamado "${draft.name.trim()}" nesta empresa.`, type: "error" });
+        return;
+      }
+      draftEquipmentNames.add(equipmentName);
+
+      const duplicateBrand = findDuplicateName(draft.brands.map(brand => brand.name));
+      if (duplicateBrand) {
+        setToast({ msg: `Já existe a marca "${duplicateBrand}" neste equipamento.`, type: "error" });
+        return;
+      }
+
+      for (const brand of draft.brands) {
+        const duplicateModel = findDuplicateName(brand.models.map(model => model.name));
+        if (duplicateModel) {
+          setToast({ msg: `Já existe o modelo "${duplicateModel}" na marca "${brand.name.trim()}".`, type: "error" });
+          return;
+        }
+      }
+
       if (draft.checklistItems.some(item => !item.title.trim())) { setToast({ msg: `Preencha todos os itens adicionais do checklist de ${draft.name || "equipamento"}.`, type: "error" }); return; }
       if (draft.checklistItems.length && !draft.checklist_profile_id) { setToast({ msg: "Selecione um perfil de checklist antes de adicionar itens específicos.", type: "error" }); return; }
       const stageCodes = new Set(catalog.checklistStages.filter(stage => stage.profile_id === draft.checklist_profile_id).map(stage => stage.code));
