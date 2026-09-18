@@ -25,6 +25,7 @@ export const listActiveRoles = (organizationId: string) =>
 const artvideoOnlyPermissionPrefixes = [
   "organizations.",
   "integrations.",
+  "audit.",
   "products.",
   "categories.",
   "brands.",
