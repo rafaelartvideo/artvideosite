@@ -13,7 +13,7 @@ import {
   type DocumentSignatureEmployeeCandidate,
 } from "@/features/documents/infrastructure/document-signatures.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
-import { getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
+import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { normalizeDigits } from "@/shared/domain/formatters";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -129,11 +129,15 @@ export function OrderSignatureRequestDialog({
         getCompanyPrintContext(order.organization_id),
         needsChecklist ? getOrderChecklist(order.id) : Promise.resolve(null),
       ]);
-      const checklistPhotoUrls = Object.fromEntries((checklist?.stages || [])
+      const checklistMedia = (checklist?.stages || [])
         .filter(stage => configuredTemplate.selectedFields.has(`checklists.${stage.stage_type_snapshot}`))
-        .flatMap(stage => stage.items.flatMap(item => item.media.flatMap(link =>
-          link.media ? [[link.media_id, getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)]] : [],
-        ))));
+        .flatMap(stage => stage.items.flatMap(item => item.media.flatMap(link => link.media ? [link] : [])));
+      const checklistPhotoUrls = Object.fromEntries(await Promise.all(
+        checklistMedia.map(async link => [
+          link.media_id,
+          await resolveMediaStorageUrl(link.media!.bucket_id, link.media!.storage_path),
+        ] as const),
+      ));
       const printContext = {
         order,
         checklist,
