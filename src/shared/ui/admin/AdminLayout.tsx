@@ -260,11 +260,12 @@ export function AdminDialog({
   </Dialog>;
 }
 
-export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children, maxW = "max-w-6xl", fullPage = false }: {
+export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false }: {
   open: boolean;
   onClose: () => void;
   title: string;
   subtitle?: string;
+  titleVariant?: "default" | "order-number";
   breadcrumb: string;
   children: React.ReactNode;
   maxW?: string;
@@ -278,14 +279,14 @@ export function AdminPage({ open, onClose, title, subtitle, breadcrumb, children
 
   useEffect(() => {
     if (!open) return;
-    setPage?.({ breadcrumb, title, subtitle, onBack: stableOnClose });
+    setPage?.({ breadcrumb, title, subtitle, titleVariant, onBack: stableOnClose });
     const handleKeyDown = (event: KeyboardEvent) => event.key === "Escape" && stableOnClose();
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       setPage?.(null);
     };
-  }, [open, breadcrumb, title, subtitle, stableOnClose, setPage]);
+  }, [open, breadcrumb, title, subtitle, titleVariant, stableOnClose, setPage]);
 
   useEffect(() => {
     if (!open) return;
