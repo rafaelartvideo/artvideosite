@@ -1,4 +1,4 @@
-export type FinanceSection = "overview" | "receivables" | "payables" | "movements" | "accounts" | "registries";
+export type FinanceSection = "overview" | "receivables" | "payables" | "movements" | "accounts" | "recurring" | "registries";
 export type FinanceRegistrySection = "categories" | "cost-centers" | "payment-methods" | "settings";
 export type FinancialAccountType = "cash" | "bank" | "pix" | "other";
 export type FinancialCategoryNature = "revenue" | "expense";
@@ -11,8 +11,8 @@ export type FinancialOperationalStatus = "open" | "partial" | "settled" | "overd
 export type FinancialAllocationMode = "amount" | "percentage";
 export type FinancialSettlementStatus = "scheduled" | "posted" | "reversed";
 export type FinancialMovementDirection = "credit" | "debit";
-export type FinancialMovementType = "opening_balance" | "receipt" | "payment" | "fee" | "transfer_in" | "transfer_out" | "reversal";
-export type FinancialMovementSourceType = "opening_balance" | "settlement" | "transfer" | "settlement_reversal" | "transfer_reversal";
+export type FinancialMovementType = "opening_balance" | "receipt" | "payment" | "fee" | "transfer_in" | "transfer_out" | "reversal" | "supply" | "withdraw" | "cash_adjustment";
+export type FinancialMovementSourceType = "opening_balance" | "settlement" | "transfer" | "settlement_reversal" | "transfer_reversal" | "cash_session";
 export type FinancialTransferStatus = "posted" | "reversed";
 
 export interface FinancialAccount {
@@ -188,6 +188,7 @@ export interface FinancialMovement {
   source_type: FinancialMovementSourceType;
   source_id: string;
   reversal_of_movement_id: string | null;
+  cash_session_id?: string | null;
   description_snapshot: string;
   created_by: string | null;
   created_at: string;
@@ -205,6 +206,88 @@ export interface FinancialTransfer {
   reversed_at: string | null;
   reversed_by: string | null;
   reversal_reason: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export type FinancialCashSessionStatus = "open" | "closed";
+export type FinancialRecurringFrequency = "weekly" | "monthly" | "yearly" | "custom";
+export type FinancialAttachmentType = "invoice" | "boleto" | "receipt" | "proof" | "other";
+export type FinancialCollectionChannel = "phone" | "whatsapp" | "email" | "sms" | "in_person" | "other";
+
+export interface FinancialCashSession {
+  id: string;
+  organization_id: string;
+  financial_account_id: string;
+  status: FinancialCashSessionStatus;
+  opening_expected_amount: number;
+  opening_counted_amount: number;
+  opening_difference: number;
+  opening_note: string | null;
+  opened_at: string;
+  opened_by: string | null;
+  closing_expected_amount: number | null;
+  closing_counted_amount: number | null;
+  closing_difference: number | null;
+  closing_reason: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
+  created_at: string;
+}
+
+export interface FinancialRecurringRule {
+  id: string;
+  organization_id: string;
+  entry_type: FinancialEntryType;
+  description: string;
+  original_amount: number;
+  counterpart_entity_id: string | null;
+  counterpart_name_snapshot: string | null;
+  counterpart_document_snapshot: string | null;
+  frequency: FinancialRecurringFrequency;
+  interval_value: number;
+  custom_days: number | null;
+  start_date: string;
+  end_date: string | null;
+  next_occurrence_date: string;
+  installment_count: number;
+  first_due_offset_days: number;
+  allocations: FinancialAllocationDraft[];
+  notes: string | null;
+  is_active: boolean;
+  last_generated_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinancialAttachment {
+  id: string;
+  organization_id: string;
+  financial_entry_id: string;
+  financial_settlement_id: string | null;
+  attachment_type: FinancialAttachmentType;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  created_by: string | null;
+  created_at: string;
+  archived_at: string | null;
+  archived_by: string | null;
+  archive_reason: string | null;
+}
+
+export interface FinancialCollectionLog {
+  id: string;
+  organization_id: string;
+  financial_entry_id: string;
+  financial_installment_id: string | null;
+  channel: FinancialCollectionChannel;
+  note: string;
+  contacted_at: string;
+  next_follow_up_at: string | null;
   created_by: string | null;
   created_at: string;
 }
