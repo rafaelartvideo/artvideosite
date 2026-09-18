@@ -7,5 +7,6 @@ export type AdminPageState = {
   breadcrumb: string;
   title: string;
   subtitle?: string;
+  titleVariant?: "default" | "order-number";
   onBack: () => void;
 } | null;
