@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { CalendarClock, Pause, Pencil, Play, Plus, RefreshCw, X } from "lucide-react";
+import { CalendarClock, Pencil, Plus, RefreshCw, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FIntegerInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { validateAllocationTotal } from "../domain/finance-entry.mjs";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceRecurring } from "../application/useFinanceRecurring";
@@ -196,7 +197,7 @@ export function FinanceRecurringSection() {
             {canManage && <td><div className="flex justify-end gap-1">
               <AdminIconButton ariaLabel="Gerar ocorrências" title="Gerar próximos 90 dias" onClick={() => void generate(rule)}><RefreshCw size={15} /></AdminIconButton>
               <AdminIconButton ariaLabel="Editar recorrência" title="Editar" onClick={() => edit(rule)}><Pencil size={15} /></AdminIconButton>
-              <AdminIconButton ariaLabel={rule.is_active ? "Pausar recorrência" : "Ativar recorrência"} title={rule.is_active ? "Pausar" : "Ativar"} onClick={() => recurring.activeMutation.mutateAsync({ id: rule.id, active: !rule.is_active })}>{rule.is_active ? <Pause size={15} /> : <Play size={15} />}</AdminIconButton>
+              <AdminActiveStateButton active={rule.is_active} entityLabel="recorrência" onClick={() => void recurring.activeMutation.mutateAsync({ id: rule.id, active: !rule.is_active })} />
             </div></td>}
           </tr>)}</tbody>
         </table>
