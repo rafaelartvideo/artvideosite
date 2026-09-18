@@ -140,7 +140,9 @@ export function QuickCustomerModal({ onClose, onSaved }: {
         return { ...current, full_name: result.name, birth_date: result.birthDate || current.birth_date };
       });
     } catch (error) {
-      setCpfMessage(error instanceof Error ? error.message : "Não foi possível consultar o CPF.");
+      const message = error instanceof Error ? error.message : "Não foi possível consultar o CPF.";
+      const existingMatch = message.match(/^Cadastro já existente:\s*(.+?)\.\s*Use o cadastro existente\.?$/i);
+      setCpfMessage(existingMatch ? `Cliente já cadastrado: ${existingMatch[1]}` : message);
     } finally {
       setCpfLoading(false);
     }
@@ -199,7 +201,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
                     <FCpfInput label="CPF" required value={form.document} onChange={(e: any) => { setErrorMessage(""); setCpfMessage(""); setForm({ ...form, document: e.target.value }); }} />
                     <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfName()} disabled={saving || !isValidCpf(form.document)} className="h-[42px] shrink-0 border-[#0057e7]/30 px-4 text-[#0057e7] hover:bg-[#0057e7]/5" aria-label="Consultar CPF" title="Consultar CPF">Consultar</AdminButton>
                   </div>
-                  {cpfMessage && <p className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] font-semibold leading-4 text-amber-800">{cpfMessage}</p>}
+                  {cpfMessage && <p className="mt-1.5 text-[11px] font-semibold leading-4 text-red-600">{cpfMessage}</p>}
                 </div>
                 <FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} />
                 <FInput label="Data de nascimento" type="date" required value={form.birth_date} max={todayDateOnly()} onChange={(e: any) => setForm({ ...form, birth_date: e.target.value })} />
