@@ -6,7 +6,6 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   AdminButton,
   AdminCard,
-  AdminCardHeader,
   AdminIconButton,
   AdminPage,
   BtnPrimary,
@@ -17,6 +16,7 @@ import {
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import type { ChecklistProfileDraftItem, ChecklistProfileDraftStage, ChecklistStageType } from "../domain/checklist";
 import { loadChecklistAdminData, profileEditorFromAdminData, saveChecklistProfile } from "../infrastructure/checklists.repository";
 
@@ -69,6 +69,8 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const editorOpen = routeResourceId === "new" || Boolean(routeResourceId && routeSubpage === "edit");
 
   const linkedCounts = useMemo(() => {
@@ -76,6 +78,13 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     for (const equipment of data?.equipmentTypes ?? []) if (equipment.checklist_profile_id) counts.set(equipment.checklist_profile_id, (counts.get(equipment.checklist_profile_id) || 0) + 1);
     return counts;
   }, [data?.equipmentTypes]);
+
+  const profiles = data?.profiles ?? [];
+  const totalPages = Math.max(1, Math.ceil(profiles.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedProfiles = profiles.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   useEffect(() => {
     if (!editorOpen) { setDraft(null); return; }
@@ -142,27 +151,41 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!editorOpen && <>
-      <PageHeader title="Checklists" subtitle="Perfis técnicos vinculados aos equipamentos e às etapas das ordens de serviço" actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{canManage && <AdminButton onClick={() => onRouteChange?.("new", null)}><Plus size={17} /> Novo perfil</AdminButton>}</div>} />
-      {!data?.profiles.length ? <EmptyState icon={ClipboardCheck} title="Nenhum perfil de checklist" message="Crie o primeiro perfil para organizar Entrada, Diagnóstico e Saída/QC dos equipamentos." onAdd={canManage ? () => onRouteChange?.("new", null) : undefined} addLabel="Criar perfil" /> : <div className="grid gap-3 lg:grid-cols-2">
-        {data.profiles.map(profile => {
-          const stages = data.stages.filter(stage => stage.profile_id === profile.id); const itemCount = stages.reduce((total, stage) => total + stage.items.length, 0);
-          return <AdminCard key={profile.id}><AdminCardHeader title={profile.name} subtitle={`Versão ${profile.version} • ${stages.length} etapa(s) • ${itemCount} item(ns)`} actions={<StatusBadge status={profile.is_active ? "Ativo" : "Inativo"} color={profile.is_active ? "#16a34a" : "#64748b"} />} /><div className="space-y-3 p-4">
-            {profile.description && <p className="text-xs leading-5 text-[#5a6a82]">{profile.description}</p>}
-            <div className="grid grid-cols-3 gap-2 text-xs"><Metric label="Equipamentos" value={linkedCounts.get(profile.id) || 0} /><Metric label="Etapas" value={stages.length} /><Metric label="Itens" value={itemCount} /></div>
-            {canManage && <div className="flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 pt-3"><AdminActiveStateButton active={profile.is_active} entityLabel="perfil" onClick={() => void toggleProfile(profile.id)} className="h-9 w-9" iconSize={14} /><AdminButton onClick={() => onRouteChange?.(profile.id, "edit")}><Edit2 size={14} /> Editar</AdminButton></div>}
-          </div></AdminCard>;
-        })}
-      </div>}
+      <PageHeader title="Checklists" subtitle={`${profiles.length} checklist${profiles.length === 1 ? "" : "s"} cadastrado${profiles.length === 1 ? "" : "s"}`} actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{canManage && <AdminButton onClick={() => onRouteChange?.("new", null)}><Plus size={17} /> Novo checklist</AdminButton>}</div>} />
+      <AdminCard>
+        {!profiles.length ? <div className="p-8"><EmptyState icon={ClipboardCheck} title="Nenhum checklist cadastrado" message="Crie o primeiro checklist para organizar Entrada, Diagnóstico e Saída/QC dos equipamentos." onAdd={canManage ? () => onRouteChange?.("new", null) : undefined} addLabel="Novo checklist" /></div> : <>
+          <div className="overflow-x-auto">
+            <table className="min-w-[980px]">
+              <thead><tr><th className="text-left">Checklist</th><th className="text-left">Descrição</th><th className="text-left">Versão</th><th className="text-left">Equipamentos</th><th className="text-left">Etapas</th><th className="text-left">Itens</th><th className="text-left">Status</th>{canManage && <th className="text-right">Ações</th>}</tr></thead>
+              <tbody>{pagedProfiles.map(profile => {
+                const stages = data?.stages.filter(stage => stage.profile_id === profile.id) ?? [];
+                const itemCount = stages.reduce((total, stage) => total + stage.items.length, 0);
+                return <tr key={profile.id}>
+                  <td className="font-bold text-[#0d1b2e]">{profile.name}</td>
+                  <td className="max-w-sm text-xs text-[#5a6a82]">{profile.description || "—"}</td>
+                  <td className="text-xs text-[#5a6a82]">v{profile.version}</td>
+                  <td className="text-xs font-semibold text-[#0d1b2e]">{linkedCounts.get(profile.id) || 0}</td>
+                  <td className="text-xs text-[#5a6a82]">{stages.length}</td>
+                  <td className="text-xs text-[#5a6a82]">{itemCount}</td>
+                  <td><StatusBadge status={profile.is_active ? "Ativo" : "Inativo"} /></td>
+                  {canManage && <td><div className="flex items-center justify-end gap-1"><AdminIconButton ariaLabel="Editar checklist" title="Editar checklist" onClick={() => onRouteChange?.(profile.id, "edit")}><Edit2 size={14} /></AdminIconButton><AdminActiveStateButton active={profile.is_active} entityLabel="checklist" onClick={() => void toggleProfile(profile.id)} /></div></td>}
+                </tr>;
+              })}</tbody>
+            </table>
+          </div>
+          <PaginationBar page={safePage} pageSize={pageSize} totalItems={profiles.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
+        </>}
+      </AdminCard>
     </>}
 
-    {editorOpen && draft && <AdminPage open onClose={closeEditor} breadcrumb="Operação > Checklists" title={draft.id ? "Editar perfil de checklist" : "Novo perfil de checklist"} subtitle="Configure etapas, situação vinculada, bloqueios e itens técnicos" maxW="max-w-7xl">
+    {editorOpen && draft && <AdminPage open onClose={closeEditor} breadcrumb="Operação > Checklists" title={draft.id ? "Editar checklist" : "Novo checklist"} subtitle="Configure etapas, situação vinculada, bloqueios e itens técnicos" maxW="max-w-7xl">
       <div className="space-y-5 p-5">
         <section className="overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white">
           <div className="flex flex-col gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><h3 className="text-sm font-black text-[#0d1b2e]">Perfil</h3><p className="mt-1 text-xs text-[#6b7c93]">Defina a identificação e disponibilidade deste perfil.</p></div>
-            <div className="flex justify-end"><FToggle label="Perfil ativo" checked={draft.is_active} onChange={checked => setDraft(current => current ? { ...current, is_active: checked } : current)} /></div>
+            <div><h3 className="text-sm font-black text-[#0d1b2e]">Checklist</h3><p className="mt-1 text-xs text-[#6b7c93]">Defina a identificação e disponibilidade deste checklist.</p></div>
+            <div className="flex justify-end"><FToggle label="Checklist ativo" checked={draft.is_active} onChange={checked => setDraft(current => current ? { ...current, is_active: checked } : current)} /></div>
           </div>
-          <div className="grid gap-4 p-5 lg:grid-cols-2"><FInput label="Nome do perfil" value={draft.name} onChange={event => setDraft(current => current ? { ...current, name: event.target.value } : current)} placeholder="Ex.: Televisor — Padrão" /><FInput label="Descrição" value={draft.description} onChange={event => setDraft(current => current ? { ...current, description: event.target.value } : current)} /></div>
+          <div className="grid gap-4 p-5 lg:grid-cols-2"><FInput label="Nome do checklist" value={draft.name} onChange={event => setDraft(current => current ? { ...current, name: event.target.value } : current)} placeholder="Ex.: Televisor — Padrão" /><FInput label="Descrição" value={draft.description} onChange={event => setDraft(current => current ? { ...current, description: event.target.value } : current)} /></div>
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white">
@@ -192,11 +215,8 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
           </AdminCard>)}</div>
         </section>
       </div>
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary disabled={saving} onClick={() => void persist()}>{saving ? "Salvando..." : "Salvar perfil"}</BtnPrimary></div>
+      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary disabled={saving} onClick={() => void persist()}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div>
     </AdminPage>}
   </div>;
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return <div className="rounded-lg bg-[#f5f7fa] p-2.5"><span className="block text-[10px] font-bold uppercase text-[#7a8aa0]">{label}</span><strong>{value}</strong></div>;
-}
