@@ -29,8 +29,8 @@ export function TabSiteSettings({ onBack }: { onBack: () => void }) {
 
   const groups = [
     { title: "Identidade Visual", keys: [
-      { key: "primary_color", label: "Cor primária", type: "text", placeholder: "#0057e7" },
-      { key: "secondary_color", label: "Cor secundária", type: "text", placeholder: "#0d1b2e" },
+      { key: "primary_color", label: "Cor primária", type: "color", placeholder: "#0057e7" },
+      { key: "secondary_color", label: "Cor secundária", type: "color", placeholder: "#0d1b2e" },
       { key: "logo_url", label: "URL do logo", type: "text", placeholder: "https://..." },
     ] },
     { title: "Home — Textos", keys: [
