@@ -7,7 +7,7 @@ export type SlugTable =
   | "products"
   | "brands"
   | "services"
-  | "order_situations"
+  | "os_situations"
   | "equipment_types"
   | "equipment_brands"
   | "equipment_models";
