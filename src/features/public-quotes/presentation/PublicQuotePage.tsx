@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CheckCircle, MessageCircle } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
-import { formatPhone } from "@/shared/domain/formatters";
+import { formatPhone, formatPhoneInput } from "@/shared/domain/formatters";
 import { emptyAddress } from "@/lib/address";
 import { useBrands, useServiceCategories, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { submitPublicQuote } from "../application/submit-public-quote";
@@ -129,12 +129,12 @@ export function PublicQuotePage() {
               {/* WhatsApp em destaque */}
               <div className="bg-[#f0fdf4] border-2 border-[#25d366]/40 rounded-xl p-4">
                 <label className="text-xs font-black text-[#16a34a] uppercase tracking-wide block mb-1.5 flex items-center gap-1"><MessageCircle size={12} /> WhatsApp * — principal canal de contato</label>
-                <input className="w-full bg-white border border-[#25d366]/40 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#25d366] transition-all" placeholder="(79) 9 9999-9999" value={f.whatsapp} onChange={e => up("whatsapp", formatPhone(e.target.value))} required />
+                <input className="w-full bg-white border border-[#25d366]/40 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#25d366] transition-all" placeholder="(79) 9 9999-9999" value={f.whatsapp} onChange={e => up("whatsapp", formatPhoneInput(e.target.value, f.whatsapp, e.target.selectionStart))} required />
               </div>
               {f.customerType === "PF" ? <div className="grid sm:grid-cols-2 gap-4">
                 <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome completo *</label><input className={inputCls} placeholder="Seu nome" value={f.nome} onChange={e => up("nome", e.target.value)} required /></div>
                 <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">CPF *</label><input className={inputCls} placeholder="000.000.000-00" value={f.cpf} maxLength={14} onChange={e => up("cpf", formatCpf(e.target.value))} required /><p className="text-xs text-[#5a6a82] mt-1">Usado para identificar seu cadastro.</p></div>
-                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Telefone</label><input className={inputCls} placeholder="(79) 3333-3333" value={f.phone} onChange={e => up("phone", formatPhone(e.target.value))} /></div>
+                <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Telefone</label><input className={inputCls} placeholder="(79) 3333-3333" value={f.phone} onChange={e => up("phone", formatPhoneInput(e.target.value, f.phone, e.target.selectionStart))} /></div>
                 <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Data de nascimento *</label><input className={inputCls} placeholder="dd/mm/aaaa" inputMode="numeric" maxLength={10} value={f.birthDate} onChange={e => up("birthDate", formatPublicDate(e.target.value))} required /></div>
               </div> : <div className="grid sm:grid-cols-2 gap-4">
                 <div><label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">Nome fantasia *</label><input className={inputCls} placeholder="Nome comercial da empresa" value={f.tradeName} onChange={e => up("tradeName", e.target.value)} required /></div>
