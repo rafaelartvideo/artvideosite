@@ -302,10 +302,27 @@ Deno.serve(async (req) => {
     const employeeId = String(body?.employee_id ?? "").trim();
 
     if (!uuidPattern.test(organizationId)) return json({ error: "Empresa inválida." }, 400);
-    if (!uuidPattern.test(employeeId)) return json({ error: "Funcionário inválido." }, 400);
     if (!(await employeeModuleEnabled(organizationId))) {
       return json({ error: "O módulo de funcionários não está disponível para esta empresa." }, 403);
     }
+
+    if (action === "check_username_availability") {
+      if (!await requireAnyPermission(caller.id, organizationId, ["employees.view", "employees.create", "employees.edit", "roles.view"])) {
+        return json({ error: "Você não possui permissão para verificar este usuário." }, 403);
+      }
+      const username = normalizeUsername(body.username);
+      if (!validUsername(username)) {
+        return json({ error: "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado." }, 400);
+      }
+      const existing = await findProfileByUsername(username);
+      return json({
+        success: true,
+        username,
+        available: !existing,
+      });
+    }
+
+    if (!uuidPattern.test(employeeId)) return json({ error: "Funcionário inválido." }, 400);
 
     const employee = await getEmployee(organizationId, employeeId);
     if (!employee) return json({ error: "Funcionário não encontrado nesta empresa." }, 404);
