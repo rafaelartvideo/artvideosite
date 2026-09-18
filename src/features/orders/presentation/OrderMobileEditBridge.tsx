@@ -124,11 +124,11 @@ export function OrderMobileEditBridge({
   return (
     <>
       <AdminButton
-        variant={connected ? "primary" : "secondary"}
+        variant="primary"
         size="sm"
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        className={connected ? "bg-emerald-600 hover:bg-emerald-700" : "border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
+        className="bg-[#0057e7] text-white hover:bg-[#0046bd]"
         title="Abrir a edição desta OS no celular"
       >
         <Smartphone size={14} />
