@@ -11,7 +11,7 @@ import { AppointmentDetailsDialog } from "./AppointmentDetailsDialog";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 
 export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, activeOrganizationId } = useAuth();
   const canViewAgenda = hasPermission("agenda.view");
   const canViewList = hasPermission("agenda.table.view");
   const canViewCalendar = hasPermission("agenda.calendar.view");
@@ -24,8 +24,9 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const agenda = useAgendaCalendar({ userId: user?.id ?? null, canView: canViewAgenda && (canViewList || canViewCalendar), canViewOthers: canViewOtherAgendas, onToast: (msg, type) => setToast({ msg, type }) });
-  const newAppointment = useNewAppointment({ userId: user?.id ?? null, cursor: agenda.cursor, situations: agenda.appointmentSituations, situationsLoading: agenda.loading, technicians: agenda.technicians, onCreated: agenda.addAppointment, onToast: (msg, type) => setToast({ msg, type }) });
+  const organizationId = activeOrganizationId || "";
+  const agenda = useAgendaCalendar({ organizationId, userId: user?.id ?? null, canView: Boolean(organizationId) && canViewAgenda && (canViewList || canViewCalendar), canViewOthers: canViewOtherAgendas, onToast: (msg, type) => setToast({ msg, type }) });
+  const newAppointment = useNewAppointment({ organizationId, userId: user?.id ?? null, cursor: agenda.cursor, situations: agenda.appointmentSituations, situationsLoading: agenda.loading, technicians: agenda.technicians, onCreated: agenda.addAppointment, onToast: (msg, type) => setToast({ msg, type }) });
 
   useEffect(() => {
     if (!canViewCalendar && canViewList && agenda.view !== "list") agenda.setView("list");
