@@ -125,6 +125,7 @@ export function FinanceOverviewFoundation({ onSelectEntry }: { onSelectEntry: (t
   const canViewAccounts = hasPermission("finance.accounts.view") || hasPermission("finance.accounts.manage");
 
   const dashboard = reports.dashboardQuery.data;
+  const visibility = dashboard?.visibility;
   const cashFlow = reports.cashFlowQuery.data;
   const chartRows = useMemo(() => (cashFlow?.rows || []).map(row => ({ ...row, label: dayLabel(row.date) })), [cashFlow?.rows]);
 
@@ -140,6 +141,29 @@ export function FinanceOverviewFoundation({ onSelectEntry }: { onSelectEntry: (t
   const costCenters = foundation.costCentersQuery.data || [];
   const paymentMethods = foundation.paymentMethodsQuery.data || [];
   const settings = foundation.settingsQuery.data;
+  const hasPrimaryMetrics = Boolean(
+    visibility?.balance
+    || visibility?.receivables
+    || visibility?.payables
+    || visibility?.result,
+  );
+  const hasCommitmentAccess = Boolean(
+    visibility?.approvals
+    || visibility?.collections
+    || visibility?.scheduled_settlements
+    || visibility?.receivables
+    || visibility?.payables,
+  );
+  const upcomingNet = dashboard
+    ? (visibility?.receivables ? dashboard.upcoming_receivable : 0)
+      - (visibility?.payables ? dashboard.upcoming_payable : 0)
+    : 0;
+  const upcomingDetail = dashboard
+    ? [
+        visibility?.receivables ? `${formatCurrency(dashboard.upcoming_receivable)} a receber` : null,
+        visibility?.payables ? `${formatCurrency(dashboard.upcoming_payable)} a pagar` : null,
+      ].filter(Boolean).join(" · ")
+    : "";
 
   return <div className="space-y-4">
     <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
@@ -156,30 +180,30 @@ export function FinanceOverviewFoundation({ onSelectEntry }: { onSelectEntry: (t
     {dashboardError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{dashboardError}</div>}
 
     {reports.dashboardQuery.isLoading ? <AdminCard className="p-10"><LoadingState text="Carregando indicadores financeiros..." /></AdminCard> : dashboard && <>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard title="Saldo disponível" value={dashboard.available_balance} detail="Saldo derivado das movimentações financeiras realizadas." icon={Banknote} />
-        <MetricCard title="A receber" value={dashboard.receivable_open} detail="Saldo aberto de títulos aprovados." icon={TrendingUp} tone="positive" />
-        <MetricCard title="A pagar" value={dashboard.payable_open} detail="Saldo aberto de obrigações aprovadas." icon={TrendingDown} tone="negative" />
-        <MetricCard title="Vencido a receber" value={dashboard.overdue_receivable} detail="Recebíveis vencidos e ainda em aberto." icon={AlertTriangle} tone={dashboard.overdue_receivable > 0 ? "warning" : "neutral"} />
-        <MetricCard title="Vencido a pagar" value={dashboard.overdue_payable} detail="Obrigações vencidas e ainda em aberto." icon={AlertTriangle} tone={dashboard.overdue_payable > 0 ? "warning" : "neutral"} />
-        <MetricCard title="Resultado do período" value={dashboard.period_result} detail={`Receitas ${formatCurrency(dashboard.period_revenue)} · despesas ${formatCurrency(dashboard.period_expense)}`} icon={WalletCards} tone={dashboard.period_result >= 0 ? "positive" : "negative"} />
-      </div>
+      {hasPrimaryMetrics ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {visibility?.balance && <MetricCard title="Saldo disponível" value={dashboard.available_balance} detail="Saldo derivado das movimentações financeiras realizadas." icon={Banknote} />}
+        {visibility?.receivables && <MetricCard title="A receber" value={dashboard.receivable_open} detail="Saldo aberto de títulos aprovados." icon={TrendingUp} tone="positive" />}
+        {visibility?.payables && <MetricCard title="A pagar" value={dashboard.payable_open} detail="Saldo aberto de obrigações aprovadas." icon={TrendingDown} tone="negative" />}
+        {visibility?.receivables && <MetricCard title="Vencido a receber" value={dashboard.overdue_receivable} detail="Recebíveis vencidos e ainda em aberto." icon={AlertTriangle} tone={dashboard.overdue_receivable > 0 ? "warning" : "neutral"} />}
+        {visibility?.payables && <MetricCard title="Vencido a pagar" value={dashboard.overdue_payable} detail="Obrigações vencidas e ainda em aberto." icon={AlertTriangle} tone={dashboard.overdue_payable > 0 ? "warning" : "neutral"} />}
+        {visibility?.result && <MetricCard title="Resultado do período" value={dashboard.period_result} detail={`Receitas ${formatCurrency(dashboard.period_revenue)} · despesas ${formatCurrency(dashboard.period_expense)}`} icon={WalletCards} tone={dashboard.period_result >= 0 ? "positive" : "negative"} />}
+      </div> : <AdminCard className="p-5"><p className="text-sm text-[#5a6a82]">Seu perfil pode acessar a visão geral, mas não possui permissão para visualizar os indicadores financeiros consolidados.</p></AdminCard>}
 
-      <AdminCard>
+      {hasCommitmentAccess && <AdminCard>
         <AdminCardHeader>
           <div><h3 className="text-sm font-black text-[#0d1b2e]">Pendências e próximos compromissos</h3><p className="mt-1 text-xs text-[#5a6a82]">Alertas para ação imediata e próximos sete dias.</p></div>
         </AdminCardHeader>
         <AdminCardContent>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <CounterCard title="Aprovações" value={dashboard.pending_approvals} detail="lançamentos pendentes" icon={CalendarClock} warning />
-            <CounterCard title="Cobranças" value={dashboard.collection_followups} detail="retornos em até 7 dias" icon={CalendarClock} warning />
-            <CounterCard title="Repasses atrasados" value={dashboard.overdue_scheduled_settlements} detail="liquidações a confirmar" icon={AlertTriangle} warning />
-            <CounterCard title="Receber hoje" value={formatCurrency(dashboard.due_today_receivable)} detail="vencimentos com data de hoje" icon={TrendingUp} />
-            <CounterCard title="Pagar hoje" value={formatCurrency(dashboard.due_today_payable)} detail="vencimentos com data de hoje" icon={TrendingDown} />
-            <CounterCard title="Próximos 7 dias" value={formatCurrency(dashboard.upcoming_receivable - dashboard.upcoming_payable)} detail={`${formatCurrency(dashboard.upcoming_receivable)} a receber · ${formatCurrency(dashboard.upcoming_payable)} a pagar`} icon={CalendarClock} />
+            {visibility?.approvals && <CounterCard title="Aprovações" value={dashboard.pending_approvals} detail="lançamentos pendentes" icon={CalendarClock} warning />}
+            {visibility?.collections && <CounterCard title="Cobranças" value={dashboard.collection_followups} detail="retornos em até 7 dias" icon={CalendarClock} warning />}
+            {visibility?.scheduled_settlements && <CounterCard title="Repasses atrasados" value={dashboard.overdue_scheduled_settlements} detail="liquidações a confirmar" icon={AlertTriangle} warning />}
+            {visibility?.receivables && <CounterCard title="Receber hoje" value={formatCurrency(dashboard.due_today_receivable)} detail="vencimentos com data de hoje" icon={TrendingUp} />}
+            {visibility?.payables && <CounterCard title="Pagar hoje" value={formatCurrency(dashboard.due_today_payable)} detail="vencimentos com data de hoje" icon={TrendingDown} />}
+            {(visibility?.receivables || visibility?.payables) && <CounterCard title="Próximos 7 dias" value={formatCurrency(upcomingNet)} detail={upcomingDetail} icon={CalendarClock} />}
           </div>
         </AdminCardContent>
-      </AdminCard>
+      </AdminCard>}
     </>}
 
     {reports.canCashFlow && <AdminCard>
@@ -203,7 +227,7 @@ export function FinanceOverviewFoundation({ onSelectEntry }: { onSelectEntry: (t
       </AdminCardContent>
     </AdminCard>}
 
-    <FinancePendingApprovals onSelectEntry={onSelectEntry} />
+    {visibility?.approvals && <FinancePendingApprovals onSelectEntry={onSelectEntry} />}
 
     <div>
       <h3 className="text-sm font-black text-[#0d1b2e]">Estrutura financeira</h3>
