@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { getActiveOrganizationId } from "@/lib/active-organization";
+import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
 
 type ServiceVariantInput = {
   title: string;
@@ -48,7 +48,7 @@ type SaveServiceAggregateInput = {
 };
 
 export async function loadServicesCatalog() {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = PLATFORM_ORGANIZATION_ID;
   const [servicesResult, categoriesResult, brandsResult, productsResult] = await Promise.all([
     supabase.from("services").select("*, service_variants(*), service_inclusions(*), service_exclusions(*), service_price_factors(*), service_faqs(*), service_sections(*)").eq("organization_id", organizationId).order("sort_order"),
     supabase.from("service_categories").select("id, name").eq("organization_id", organizationId).order("sort_order"),
@@ -63,13 +63,13 @@ export async function loadServicesCatalog() {
 }
 
 export async function deleteService(serviceId: string): Promise<void> {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = PLATFORM_ORGANIZATION_ID;
   const { error } = await supabase.from("services").delete().eq("organization_id", organizationId).eq("id", serviceId);
   if (error) throw error;
 }
 
 export async function setServiceActive(serviceId: string, isActive: boolean): Promise<void> {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = PLATFORM_ORGANIZATION_ID;
   const { error } = await supabase.from("services").update({ is_active: isActive }).eq("organization_id", organizationId).eq("id", serviceId);
   if (error) throw error;
 }
@@ -83,7 +83,7 @@ async function replaceServiceRows(table: string, organizationId: string, service
 }
 
 export async function saveServiceAggregate({ serviceId: existingServiceId, payload, userId, variants, inclusions, exclusions, priceFactors, sections, faqs, scope }: SaveServiceAggregateInput): Promise<string> {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = PLATFORM_ORGANIZATION_ID;
   let serviceId = existingServiceId;
   const shouldReplace = (key: keyof ServiceAggregateScope) => scope?.[key] !== false;
 
