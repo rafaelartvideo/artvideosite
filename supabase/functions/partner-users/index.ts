@@ -52,7 +52,6 @@ function fail(
 
 function unexpectedFailure(request: Request, error: any) {
   const databaseCode = String(error?.code ?? "");
-  const details = String(error?.details ?? "");
 
   if (databaseCode === "23505") {
     return fail(
@@ -92,7 +91,6 @@ function unexpectedFailure(request: Request, error: any) {
     "O servidor não conseguiu concluir a operação. Tente novamente.",
     500,
     "internal_error",
-    details ? { details } : {},
   );
 }
 
