@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Clock, Instagram, Mail, MapPin, Phone } from "lucide-react";
-import { formatPhone } from "@/shared/domain/formatters";
+import { formatPhone, formatPhoneInput } from "@/shared/domain/formatters";
 import { getBusinessHours, getSettingText } from "@/features/public-shell/application/site-settings";
 import { PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
@@ -88,7 +88,7 @@ export function ContactPage() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide block mb-1.5">WhatsApp</label>
-                    <input className={inputCls} placeholder="(79) 9 9999-9999" value={form.whatsapp} onChange={(e) => update("whatsapp", formatPhone(e.target.value))} />
+                    <input className={inputCls} placeholder="(79) 9 9999-9999" value={form.whatsapp} onChange={(e) => update("whatsapp", formatPhoneInput(e.target.value, form.whatsapp, e.target.selectionStart))} />
                   </div>
                 </div>
                 <div>
