@@ -40,7 +40,8 @@ async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File, 
 
 export async function uploadMediaFile(bucket: MediaBucket, file: File, organizationId?: string | null) {
   const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const path = organizationId ? `${organizationId}/${fileName}` : fileName;
   return uploadMediaAtPath(bucket, path, file, organizationId);
 }
 
@@ -97,4 +98,14 @@ export async function getMediaById(mediaId: string) {
 export function getPublicStorageUrl(bucket: string, path: string) {
   if (!bucket || !path) return "";
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+}
+
+export async function resolveMediaStorageUrl(bucket: string, path: string, expiresIn = 3600) {
+  if (!bucket || !path) return "";
+  if (bucket === "service-images") {
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
+    if (error || !data?.signedUrl) throw new Error(error?.message || "Não foi possível abrir a imagem.");
+    return data.signedUrl;
+  }
+  return getPublicStorageUrl(bucket, path);
 }
