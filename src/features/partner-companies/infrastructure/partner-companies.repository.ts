@@ -123,9 +123,9 @@ export async function listPartnerUsers(organizationId: string) {
   return { data: result.data?.users ?? [], error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
 }
 
-export async function listPartnerRoles() {
+export async function listPartnerRoles(organizationId: string) {
   const result = await supabase.functions.invoke("partner-users", {
-    body: { action: "list_partner_roles" },
+    body: { action: "list_partner_roles", organization_id: organizationId },
   });
   return { data: result.data?.roles ?? [], error: result.error || (result.data?.error ? new Error(result.data.error) : null) };
 }
