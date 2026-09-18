@@ -6,11 +6,13 @@ export function AddressFields({
   onChange,
   inputClassName,
   labelClassName = "text-xs font-bold text-[#5a6a82] uppercase tracking-wide",
+  twoColumns = false,
 }: {
   value: Address;
   onChange: (value: Address) => void;
   inputClassName: string;
   labelClassName?: string;
+  twoColumns?: boolean;
 }) {
   const [loadingZip, setLoadingZip] = useState(false);
   const [zipError, setZipError] = useState("");
@@ -42,11 +44,11 @@ export function AddressFields({
     </div>
   );
 
-  return (
-    <div className="space-y-4">
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div>
-          <label className={`${labelClassName} block mb-1.5`}>CEP</label>
+  if (twoColumns) {
+    return (
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="min-w-0">
+          <label className={`${labelClassName} mb-1.5 block`}>CEP</label>
           <input
             className={inputClassName}
             value={value.zip_code}
@@ -55,13 +57,39 @@ export function AddressFields({
             onChange={(event) => update("zip_code", formatZipCode(event.target.value))}
             autoComplete="postal-code"
           />
-          {loadingZip && <p className="text-[10px] text-[#5a6a82] mt-1">Consultando CEP...</p>}
-          {zipError && <p className="text-[10px] text-amber-700 mt-1">{zipError}</p>}
+          {loadingZip && <p className="mt-1 text-[10px] text-[#5a6a82]">Consultando CEP...</p>}
+          {zipError && <p className="mt-1 text-[10px] text-amber-700">{zipError}</p>}
+        </div>
+        {field("street", "Rua / Logradouro", "min-w-0")}
+        {field("number", "Número", "min-w-0")}
+        {field("complement", "Complemento", "min-w-0")}
+        {field("neighborhood", "Bairro", "min-w-0")}
+        {field("city", "Cidade", "min-w-0")}
+        {field("state", "Estado (UF)", "min-w-0 sm:col-span-2")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className={`${labelClassName} mb-1.5 block`}>CEP</label>
+          <input
+            className={inputClassName}
+            value={value.zip_code}
+            maxLength={9}
+            placeholder="00000-000"
+            onChange={(event) => update("zip_code", formatZipCode(event.target.value))}
+            autoComplete="postal-code"
+          />
+          {loadingZip && <p className="mt-1 text-[10px] text-[#5a6a82]">Consultando CEP...</p>}
+          {zipError && <p className="mt-1 text-[10px] text-amber-700">{zipError}</p>}
         </div>
         {field("number", "Número")}
       </div>
       <div>
-        <label className={`${labelClassName} block mb-1.5`}>Rua / Logradouro</label>
+        <label className={`${labelClassName} mb-1.5 block`}>Rua / Logradouro</label>
         <input
           className={inputClassName}
           value={value.street}
@@ -69,13 +97,14 @@ export function AddressFields({
           autoComplete="street-address"
         />
       </div>
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         {field("complement", "Complemento")}
         {field("neighborhood", "Bairro")}
         {field("city", "Cidade")}
         {field("state", "Estado (UF)")}
       </div>
     </div>
+  );
   );
 }
 
