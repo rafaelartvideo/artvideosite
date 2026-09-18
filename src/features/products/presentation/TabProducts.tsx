@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, Edit2, Package, Plus, Search, Star, Trash2 } from "lucide-react";
+import { Edit2, Package, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { deleteProduct, loadProductCatalog, saveProduct, updateProductFlags } from "../infrastructure/products.repository";
