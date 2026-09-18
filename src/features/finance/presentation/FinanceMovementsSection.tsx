@@ -18,6 +18,9 @@ const MOVEMENT_LABELS: Record<FinancialMovementType, string> = {
   transfer_in: "Transferência recebida",
   transfer_out: "Transferência enviada",
   reversal: "Estorno",
+  supply: "Suprimento",
+  withdraw: "Sangria",
+  cash_adjustment: "Ajuste de caixa",
 };
 
 function formatDateTime(value: string) {
@@ -29,6 +32,7 @@ export function FinanceMovementsSection() {
   const foundation = useFinanceFoundation();
   const finance = useFinanceMovements();
   const canTransfer = hasPermission("finance.transfers.create");
+  const canConfirmSettlements = hasPermission("finance.settlements.create");
   const [search, setSearch] = useState("");
   const [accountFilter, setAccountFilter] = useState("all");
   const [transferOpen, setTransferOpen] = useState(false);
@@ -41,6 +45,7 @@ export function FinanceMovementsSection() {
   const accountById = new Map(accounts.map(item => [item.id, item]));
   const movements = finance.movementsQuery.data || [];
   const transfers = finance.transfersQuery.data || [];
+  const scheduledSettlements = finance.scheduledSettlementsQuery.data || [];
   const totalBalance = accounts.reduce((sum, item) => sum + Number(item.balance || 0), 0);
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
@@ -51,7 +56,7 @@ export function FinanceMovementsSection() {
         .some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(term));
     });
   }, [movements, search, accountFilter, accounts.length]);
-  const error = finance.movementsQuery.error || finance.balancesQuery.error || finance.transfersQuery.error || finance.transferMutation.error || finance.reverseTransferMutation.error;
+  const error = finance.movementsQuery.error || finance.balancesQuery.error || finance.transfersQuery.error || finance.scheduledSettlementsQuery.error || finance.transferMutation.error || finance.reverseTransferMutation.error || finance.confirmScheduledSettlementMutation.error;
   const errorText = message || (error instanceof Error ? error.message : "");
 
   const saveTransfer = async (draft: FinancialTransferDraft) => {
@@ -81,6 +86,25 @@ export function FinanceMovementsSection() {
     </div>
 
     {errorText && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
+
+    <AdminCard>
+      <AdminCardHeader>
+        <div><h3 className="text-sm font-black text-[#0d1b2e]">Liquidações futuras</h3><p className="mt-1 text-xs text-[#5a6a82]">Valores previstos de cartão/adquirente. Só entram no saldo real quando a liquidação for confirmada.</p></div>
+      </AdminCardHeader>
+      <AdminCardContent className="space-y-2">
+        {finance.scheduledSettlementsQuery.isLoading ? <p className="text-sm text-[#5a6a82]">Carregando liquidações futuras...</p> : scheduledSettlements.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhuma liquidação futura pendente.</p> : scheduledSettlements.map(item => {
+          const overdue = new Date(item.expected_settlement_at).getTime() < Date.now();
+          return <div key={item.id} className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${overdue ? "border-red-200 bg-red-50/50" : "border-[#0d1b2e]/8"}`}>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-black text-[#0d1b2e]">{item.payment_method_name_snapshot}</p>{overdue && <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-black uppercase text-red-700">Repasse atrasado</span>}</div>
+              <p className="mt-1 text-xs text-[#5a6a82]">{item.financial_account_name_snapshot} · previsto para {formatDateTime(item.expected_settlement_at)}</p>
+              <p className="mt-1 text-xs text-[#5a6a82]">Bruto {formatCurrency(item.gross_amount)} · taxa {formatCurrency(item.fee_amount)} · <strong className="text-[#0d1b2e]">líquido {formatCurrency(item.net_amount)}</strong></p>
+            </div>
+            {canConfirmSettlements && <AdminButton size="sm" onClick={() => finance.confirmScheduledSettlementMutation.mutateAsync({ settlementId: item.id })} loading={finance.confirmScheduledSettlementMutation.isPending} loadingText="Confirmando...">Confirmar liquidação</AdminButton>}
+          </div>;
+        })}
+      </AdminCardContent>
+    </AdminCard>
 
     <AdminCard>
       <AdminCardToolbar><div className="grid w-full gap-3 sm:grid-cols-[1fr_260px_auto] sm:items-end"><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><FInput aria-label="Pesquisar movimentações" className="pl-9" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição, tipo ou conta" /></div><FSelect label="Conta" value={accountFilter} onChange={(event: any) => setAccountFilter(event.target.value)} options={[{ value: "all", label: "Todas as contas" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} /><p className="pb-2 text-xs font-semibold text-[#5a6a82]">{filtered.length} movimentos</p></div></AdminCardToolbar>
