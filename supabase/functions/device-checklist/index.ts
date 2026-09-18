@@ -70,7 +70,8 @@ async function sessionByToken(admin: AdminClient, sessionId: string, token: stri
   let query = admin
     .from("device_capture_sessions")
     .select("id,organization_id,created_by,equipment_type_id,status,expires_at,token_hash,pairing_code_hash")
-    .eq("id", sessionId);
+    .eq("id", sessionId)
+    .eq("purpose", "capture");
 
   if (token.startsWith("code:")) {
     const code = normalizeCode(token.slice(5));
@@ -86,6 +87,31 @@ async function sessionByToken(admin: AdminClient, sessionId: string, token: stri
   const session = data as Session;
   if (session.status !== "active" || new Date(session.expires_at).getTime() <= Date.now()) return null;
   return session;
+}
+
+async function canCreateOrders(admin: AdminClient, organizationId: string, userId: string) {
+  const [{ data: member, error: memberError }, { data: moduleRow, error: moduleError }] = await Promise.all([
+    admin.from("organization_members").select("role_id,status")
+      .eq("organization_id", organizationId).eq("user_id", userId).eq("status", "active").maybeSingle(),
+    admin.from("organization_modules").select("is_enabled")
+      .eq("organization_id", organizationId).eq("module_key", "orders").maybeSingle(),
+  ]);
+  if (memberError) throw memberError;
+  if (moduleError) throw moduleError;
+  if (!member || moduleRow?.is_enabled !== true) return false;
+
+  const [roleResult, overrideResult] = await Promise.all([
+    member.role_id
+      ? admin.from("role_permissions").select("permission:permissions!inner(key)")
+          .eq("role_id", member.role_id).eq("permission.key", "orders.create").limit(1)
+      : Promise.resolve({ data: [], error: null }),
+    admin.from("user_permission_overrides").select("permission:permissions!inner(key)")
+      .eq("organization_id", organizationId).eq("user_id", userId)
+      .eq("permission.key", "orders.create").limit(1),
+  ]);
+  if (roleResult.error) throw roleResult.error;
+  if (overrideResult.error) throw overrideResult.error;
+  return Boolean(roleResult.data?.length || overrideResult.data?.length);
 }
 
 async function authenticatedUser(request: Request, url: string, anon: string) {
@@ -204,9 +230,13 @@ Deno.serve(async request => {
         .select("id,organization_id,created_by,equipment_type_id")
         .eq("id", sessionId)
         .eq("created_by", user.id)
+        .eq("purpose", "capture")
         .maybeSingle();
       if (error) throw error;
       if (!session) return json({ success: false, error: "Sessão não encontrada." }, 404);
+      if (!(await canCreateOrders(admin, session.organization_id, session.created_by))) {
+        return json({ success: false, error: "O acesso que originou esta captura não está mais disponível." }, 403);
+      }
 
       if (equipmentTypeId) {
         const { data: equipment, error: equipmentError } = await admin
@@ -240,6 +270,9 @@ Deno.serve(async request => {
     const token = String(input.token || "").trim();
     const session = await sessionByToken(admin, sessionId, token);
     if (!session) return json({ success: false, error: "A conexão expirou ou foi encerrada." }, 401);
+    if (!(await canCreateOrders(admin, session.organization_id, session.created_by))) {
+      return json({ success: false, error: "O acesso que originou esta captura não está mais disponível." }, 403);
+    }
     const config = await loadEntryConfig(admin, session);
 
     if (action === "get_entry") {
