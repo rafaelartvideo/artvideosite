@@ -7,6 +7,7 @@ const LABELS: Record<FinanceSection, string> = {
   payables: "Contas a pagar",
   movements: "Movimentações",
   accounts: "Caixas e contas",
+  recurring: "Recorrências",
   registries: "Cadastros financeiros",
 };
 
