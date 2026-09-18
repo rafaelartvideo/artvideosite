@@ -9,8 +9,8 @@ import { useAdminSidebarLayout } from "./AdminLayout";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 import type { OrganizationAccess } from "@/lib/organization.types";
 import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
-import { supabase } from "@/lib/supabase";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
 
 type AdminSidebarProps = {
   activeTab: AdminTab;
@@ -43,21 +43,11 @@ export function AdminSidebar({
   const isPlatformOrganization = activeOrganizationId === PLATFORM_ORGANIZATION_ID;
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
   const brandingQuery = useQuery({
-    queryKey: ["organization-menu-branding", activeOrganizationId || "none"],
+    queryKey: ["company-settings", activeOrganizationId || "none"],
     enabled: Boolean(activeOrganizationId && !isPlatformOrganization),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("organizations")
-        .select("settings")
-        .eq("id", activeOrganizationId!)
-        .maybeSingle();
-      if (error) throw error;
-      const settings = data?.settings && typeof data.settings === "object" ? data.settings as Record<string, unknown> : {};
-      const mediaId = settings.menu_logo_media_id;
-      return typeof mediaId === "string" && mediaId ? mediaId : null;
-    },
+    queryFn: () => getCompanySettings(activeOrganizationId),
   });
-  const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data ?? null);
+  const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data?.company_menu_logo_media_id ?? null);
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "partnerCompanies" && !isPlatformOrganization) return false;
