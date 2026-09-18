@@ -107,7 +107,34 @@ async function hasEffectivePermission(userId: string, organizationId: string, pe
 
   if (await membershipPermission(userId, organizationId, permissionKey)) return true;
   if (organizationId === PLATFORM_ORGANIZATION_ID) return false;
+
+  const { data: platform, error: platformError } = await adminClient
+    .from("organizations")
+    .select("id,status,settings")
+    .eq("id", PLATFORM_ORGANIZATION_ID)
+    .maybeSingle();
+  if (platformError) throw platformError;
+  if (!platform || platform.status !== "active" || platform.settings?.is_platform_operator !== true) return false;
+
+  const canManagePartners = await membershipPermission(
+    userId,
+    PLATFORM_ORGANIZATION_ID,
+    "organizations.view",
+  );
+  if (!canManagePartners) return false;
+
   return membershipPermission(userId, PLATFORM_ORGANIZATION_ID, permissionKey);
+}
+
+async function employeeModuleEnabled(organizationId: string) {
+  const { data, error } = await adminClient
+    .from("organization_modules")
+    .select("is_enabled")
+    .eq("organization_id", organizationId)
+    .eq("module_key", "employees")
+    .maybeSingle();
+  if (error) throw error;
+  return data?.is_enabled === true;
 }
 
 async function requireAnyPermission(userId: string, organizationId: string, keys: string[]) {
@@ -276,6 +303,9 @@ Deno.serve(async (req) => {
 
     if (!uuidPattern.test(organizationId)) return json({ error: "Empresa inválida." }, 400);
     if (!uuidPattern.test(employeeId)) return json({ error: "Funcionário inválido." }, 400);
+    if (!(await employeeModuleEnabled(organizationId))) {
+      return json({ error: "O módulo de funcionários não está disponível para esta empresa." }, 403);
+    }
 
     const employee = await getEmployee(organizationId, employeeId);
     if (!employee) return json({ error: "Funcionário não encontrado nesta empresa." }, 404);
