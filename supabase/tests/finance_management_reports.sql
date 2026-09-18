@@ -33,7 +33,11 @@ begin
     where n.nspname='finance_reporting_private'
       and p.proname in ('finance_management_dashboard_impl','finance_dre_report_impl','finance_cash_flow_report_impl')
       and p.prosecdef
-      and p.proconfig @> array['search_path=']
+      and exists (
+        select 1
+        from unnest(coalesce(p.proconfig, '{}'::text[])) as config(value)
+        where config.value like 'search_path=%'
+      )
   ) <> 3 then
     raise exception 'private finance reporting implementations must pin search_path';
   end if;
