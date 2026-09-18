@@ -21,6 +21,7 @@ import {
   type PartnerCompanyInput,
   type PartnerCompanySettings,
 } from "../infrastructure/partner-companies.repository";
+import { toPartnerCompanyError } from "../infrastructure/partner-companies.errors";
 
 type PersonType = "PF" | "PJ";
 
@@ -292,7 +293,11 @@ export function PartnerCompanyEditorPage({
       if (result.error) throw result.error;
       onSaved(result.data);
     } catch (error) {
-      setToast({ msg: `Não foi possível salvar a empresa: ${error instanceof Error ? error.message : "Erro desconhecido"}`, type: "error" });
+      const normalizedError = toPartnerCompanyError(error, "Não foi possível salvar a empresa parceira.");
+      if (normalizedError.code === "duplicate_document") {
+        setErrors(current => ({ ...current, document: normalizedError.message }));
+      }
+      setToast({ msg: normalizedError.message, type: "error" });
     } finally {
       setSaving(false);
     }
