@@ -3,6 +3,8 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialAccount, FinancialEntryDetail, FinancialPaymentMethod, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceApprovalPanel } from "./FinanceApprovalPanel";
+import { FinanceCollectionsPanel } from "./FinanceCollectionsPanel";
+import { FinanceDocumentsPanel } from "./FinanceDocumentsPanel";
 import { FinanceEntrySourceBlock } from "./FinanceEntrySourceBlock";
 import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
 
@@ -29,6 +31,10 @@ function eventLabel(type: string) {
     settlement_registered: "Baixa registrada",
     settlement_posted: "Liquidação confirmada",
     settlement_reversed: "Baixa estornada",
+    document_attached: "Documento anexado",
+    document_archived: "Documento arquivado",
+    collection_recorded: "Contato de cobrança registrado",
+    recurring_generated: "Ocorrência recorrente gerada",
   } as Record<string, string>)[type] || type;
 }
 
@@ -104,6 +110,10 @@ export function FinanceEntryDetail({
       onConfirm={onConfirmSettlement}
       onReverse={onReverseSettlement}
     />
+
+    <FinanceDocumentsPanel entryId={detail.id} />
+
+    <FinanceCollectionsPanel detail={detail} />
 
     <AdminCard><AdminCardHeader><h3 className="text-sm font-black text-[#0d1b2e]">Parcelas</h3></AdminCardHeader><div className="overflow-x-auto"><table className="min-w-[620px]"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-right">Valor original</th><th className="text-right">Liquidado</th><th className="text-right">Saldo</th></tr></thead><tbody>{detail.installments.map(item => <tr key={item.id}><td className="font-bold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right font-semibold">{formatCurrency(item.original_amount)}</td><td className="text-right">{formatCurrency(item.settled_amount)}</td><td className="text-right font-black text-[#0057e7]">{formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td></tr>)}</tbody></table></div></AdminCard>
 
