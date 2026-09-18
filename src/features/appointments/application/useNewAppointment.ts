@@ -18,6 +18,7 @@ type ToastType = "success" | "error";
 type AppointmentSubmodal = "address" | "technicians" | null;
 
 type Options = {
+  organizationId: string;
   userId: string | null;
   cursor: Date;
   situations: AppointmentSituation[];
@@ -28,6 +29,7 @@ type Options = {
 };
 
 export function useNewAppointment({
+  organizationId,
   userId,
   cursor,
   situations,
@@ -75,7 +77,7 @@ export function useNewAppointment({
     }
     setCustomerSearchLoading(true);
     try {
-      setCustomers(await searchAppointmentCustomers(value.trim()));
+      setCustomers(await searchAppointmentCustomers(organizationId, value.trim()));
     } catch (error) {
       console.error("[ADMIN] appointment customer search error:", error);
       setCustomers([]);
@@ -92,7 +94,7 @@ export function useNewAppointment({
     setCustomers([]);
     setCustomerSearch("");
     try {
-      setOrders(await listCustomerServiceOrders(selectedCustomer.id));
+      setOrders(await listCustomerServiceOrders(organizationId, selectedCustomer.id));
     } catch (error) {
       setOrders([]);
       onToast(`Erro ao carregar OS do cliente: ${supabaseErrorMessage(error)}`, "error");
@@ -171,7 +173,7 @@ export function useNewAppointment({
         state: form.state || null,
         created_by: userId,
       };
-      const data = await createAppointment(payload, selectedTechnicianIds);
+      const data = await createAppointment(organizationId, payload, selectedTechnicianIds);
       onCreated({
         ...data,
         appointment_technicians: selectedTechnicianIds.map(employee_id => ({
