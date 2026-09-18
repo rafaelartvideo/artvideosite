@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { CustomerType } from "@/features/customers/domain/customer-form";
 import {
   cn,
@@ -7,6 +7,7 @@ import {
   formatCpf,
   formatCurrency,
   formatPhone,
+  formatPhoneInput,
   normalizeDecimalInput,
   normalizeIntegerInput,
 } from "@/shared/domain/formatters";
@@ -26,13 +27,41 @@ export function AdminSelect({ value, defaultValue, onValueChange, options, disab
 
 export function FInput({ label, required, hint, error, disabled = false, ...props }: { label?: string; required?: boolean; hint?: string; error?: string; disabled?: boolean; [key: string]: any }) {
   const isColorInput = props.type === "color";
-  const { className, ...restProps } = props;
-  const inputProps = { ...restProps, type: isColorInput ? "text" : props.type, maxLength: isColorInput ? 7 : props.maxLength, placeholder: isColorInput ? "#2563EB" : props.placeholder };
-  return <div className="min-w-0">{label && <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}{required && <span className="text-red-400">*</span>}</label>}<input aria-invalid={Boolean(error) || undefined} className={cn(INPUT, disabled && "disabled:cursor-default disabled:bg-slate-100/60 disabled:text-slate-500 disabled:opacity-70 disabled:hover:bg-slate-100/60 disabled:focus:ring-0", error && "border-red-500 focus:border-red-500 focus:ring-red-500/40", className)} disabled={disabled} {...inputProps} />{error ? <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{error}</p> : (hint || isColorInput) && <p className="mt-1 break-words text-[10px] leading-relaxed text-[#5a6a82]">{hint || "Use o formato #RRGGBB."}</p>}</div>;
+  const { className, type, onChange, value, ...restProps } = props;
+  const commonClassName = cn(INPUT, disabled && "disabled:cursor-default disabled:bg-slate-100/60 disabled:text-slate-500 disabled:opacity-70 disabled:hover:bg-slate-100/60 disabled:focus:ring-0", error && "border-red-500 focus:border-red-500 focus:ring-red-500/40", className);
+  const colorText = String(value ?? "");
+  const pickerColor = /^#[0-9A-Fa-f]{6}$/.test(colorText.trim()) ? colorText.trim() : "#0057E7";
+
+  return <div className="min-w-0">
+    {label && <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}{required && <span className="text-red-400">*</span>}</label>}
+    {isColorInput ? <div className="flex min-w-0 items-stretch gap-2">
+      <input
+        aria-invalid={Boolean(error) || undefined}
+        className={commonClassName}
+        disabled={disabled}
+        {...restProps}
+        type="text"
+        maxLength={7}
+        placeholder="#2563EB"
+        value={colorText}
+        onChange={onChange}
+      />
+      <input
+        type="color"
+        aria-label={label ? `Selecionar ${label.toLowerCase()}` : "Selecionar cor"}
+        title="Selecionar cor"
+        disabled={disabled}
+        value={pickerColor}
+        onChange={(event) => onChange?.({ target: { value: event.target.value.toUpperCase() } })}
+        className="h-[42px] w-14 shrink-0 cursor-pointer rounded-lg border border-[#0d1b2e]/15 bg-white p-1 disabled:cursor-default disabled:opacity-60"
+      />
+    </div> : <input aria-invalid={Boolean(error) || undefined} className={commonClassName} disabled={disabled} {...restProps} type={type} value={value} onChange={onChange} />}
+    {error ? <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{error}</p> : (hint || isColorInput) && <p className="mt-1 break-words text-[10px] leading-relaxed text-[#5a6a82]">{hint || "Digite o HEX ou clique no seletor de cor."}</p>}
+  </div>;
 }
 
 export function FPhoneInput({ value, onChange, mobile = false, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; mobile?: boolean; [key: string]: any }) {
-  return <FInput {...props} type="tel" inputMode="tel" autoComplete="tel" maxLength={16} placeholder={props.placeholder || (mobile ? "(79) 9 9999-9999" : "(79) 3333-3333")} value={formatPhone(value as any)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: formatPhone(event.target.value) } })} />;
+  return <FInput {...props} type="tel" inputMode="tel" autoComplete="tel" maxLength={16} placeholder={props.placeholder || (mobile ? "(79) 9 9999-9999" : "(79) 3333-3333")} value={formatPhone(value as any)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: formatPhoneInput(event.target.value, value as any, event.target.selectionStart) } })} />;
 }
 
 export function FCpfInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) {
@@ -78,16 +107,63 @@ function hoursInputDisplay(value: unknown) {
   const minutes = totalMinutes % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
+function normalizeHoursInputText(value: string) {
+  const raw = String(value ?? "").replace(/[^\d:]/g, "");
+  if (!raw.includes(":")) return raw.replace(/:/g, "");
+  const [hoursPart = "", ...minuteParts] = raw.split(":");
+  const hours = hoursPart.replace(/\D/g, "");
+  const minutes = minuteParts.join("").replace(/\D/g, "").slice(0, 2);
+  if (minutes && Number(minutes) > 59) return null;
+  return `${hours}:${minutes}`;
+}
 function hoursInputValue(value: string) {
-  const rawDigits = value.replace(/\D/g, "");
-  if (!rawDigits) return "";
-  const minutesDigits = rawDigits.length > 2 ? rawDigits.slice(-2) : rawDigits;
-  const hoursDigits = rawDigits.length > 2 ? rawDigits.slice(0, -2) : "0";
-  const hours = Number(hoursDigits || 0);
-  const minutes = Math.min(59, Number(minutesDigits || 0));
+  const normalized = normalizeHoursInputText(value);
+  if (normalized == null || normalized === "") return normalized === "" ? "" : null;
+  if (!normalized.includes(":")) {
+    const hours = Number(normalized);
+    return Number.isFinite(hours) && hours >= 0 ? String(hours) : null;
+  }
+  const [hoursText = "", minutesText = ""] = normalized.split(":");
+  const hours = Number(hoursText || 0);
+  const minutes = Number(minutesText || 0);
+  if (!Number.isFinite(hours) || hours < 0 || !Number.isFinite(minutes) || minutes < 0 || minutes > 59) return null;
   return String(hours + minutes / 60);
 }
-export function FHoursInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) { return <FInput {...props} type="text" inputMode="numeric" placeholder={props.placeholder || "00:00"} value={hoursInputDisplay(value)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: hoursInputValue(event.target.value) } })} />; }
+export function FHoursInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) {
+  const [draft, setDraft] = useState(() => hoursInputDisplay(value));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(hoursInputDisplay(value));
+  }, [value]);
+
+  return <FInput
+    {...props}
+    type="text"
+    inputMode="numeric"
+    placeholder={props.placeholder || "00:00"}
+    value={draft}
+    onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
+      focused.current = true;
+      props.onFocus?.(event);
+    }}
+    onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+      const nextDraft = normalizeHoursInputText(event.target.value);
+      if (nextDraft == null) return;
+      setDraft(nextDraft);
+      const nextValue = hoursInputValue(nextDraft);
+      if (nextValue != null) onChange({ target: { value: nextValue } });
+    }}
+    onBlur={(event: React.FocusEvent<HTMLInputElement>) => {
+      focused.current = false;
+      const parsed = hoursInputValue(draft);
+      const committed = parsed == null ? String(value ?? "") : parsed;
+      setDraft(hoursInputDisplay(committed));
+      if (parsed != null) onChange({ target: { value: parsed } });
+      props.onBlur?.(event);
+    }}
+  />;
+}
 
 export function CustomerTypeToggle({ value, onChange, disabled = false }: { value: CustomerType; onChange: (value: CustomerType) => void; disabled?: boolean }) {
   return <div className="min-w-0 sm:col-span-2"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de cliente</label><div className="grid grid-cols-2 overflow-hidden rounded-lg border border-[#0d1b2e]/15">{[{ value: "PF" as const, label: "PESSOA FÍSICA" }, { value: "PJ" as const, label: "PESSOA JURÍDICA" }].map(option => <button key={option.value} type="button" disabled={disabled} onClick={() => onChange(option.value)} className={`cursor-default px-3 py-2.5 text-xs font-black tracking-wide transition-colors ${value === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]"} ${disabled ? "opacity-70" : ""}`} aria-pressed={value === option.value}>{option.label}</button>)}</div></div>;
