@@ -98,7 +98,8 @@ export async function saveCompanySettings(
   };
   const { data, error } = await (supabase as any)
     .from("organization_company_settings")
-    .upsert(payload, { onConflict: "organization_id" })
+    .update(payload)
+    .eq("organization_id", resolvedOrganizationId)
     .select("*")
     .single();
   if (error) throw error;
