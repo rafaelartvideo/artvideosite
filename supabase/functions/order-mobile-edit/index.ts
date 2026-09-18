@@ -103,11 +103,57 @@ async function activeMember(admin: AdminClient, organizationId: string, userId: 
 
 async function memberHasPermission(admin: AdminClient, organizationId: string, userId: string, permissionKey: string) {
   const member = await activeMember(admin, organizationId, userId);
-  if (!member?.role_id) return false;
-  const { data, error } = await admin.from("role_permissions").select("permission:permissions!inner(key)")
-    .eq("role_id", member.role_id).eq("permission.key", permissionKey).limit(1);
+  if (!member) return false;
+
+  const [roleResult, overrideResult] = await Promise.all([
+    member.role_id
+      ? admin.from("role_permissions").select("permission:permissions!inner(key)")
+          .eq("role_id", member.role_id).eq("permission.key", permissionKey).limit(1)
+      : Promise.resolve({ data: [], error: null }),
+    admin.from("user_permission_overrides").select("permission:permissions!inner(key)")
+      .eq("organization_id", organizationId).eq("user_id", userId)
+      .eq("permission.key", permissionKey).limit(1),
+  ]);
+  if (roleResult.error) throw roleResult.error;
+  if (overrideResult.error) throw overrideResult.error;
+  return Boolean(roleResult.data?.length || overrideResult.data?.length);
+}
+
+async function moduleEnabled(admin: AdminClient, organizationId: string, moduleKey: string) {
+  const { data, error } = await admin.from("organization_modules").select("is_enabled")
+    .eq("organization_id", organizationId).eq("module_key", moduleKey).maybeSingle();
   if (error) throw error;
-  return Boolean(data?.length);
+  return data?.is_enabled === true;
+}
+
+async function requireSessionPermission(admin: AdminClient, session: MobileSession, permissionKey: string, message: string) {
+  if (!(await moduleEnabled(admin, session.organization_id, "orders"))) {
+    throw Object.assign(new Error("O módulo de Ordens de Serviço não está disponível para esta empresa."), { status: 403 });
+  }
+  if (!(await memberHasPermission(admin, session.organization_id, session.created_by, permissionKey))) {
+    throw Object.assign(new Error(message), { status: 403 });
+  }
+}
+
+function sameIdSet(left: string[], right: string[]) {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every(id => rightSet.has(id));
+}
+
+async function currentEmployeeRelations(admin: AdminClient, session: MobileSession) {
+  const [technicians, sellers] = await Promise.all([
+    admin.from("service_order_technicians").select("employee_id")
+      .eq("organization_id", session.organization_id).eq("service_order_id", session.service_order_id!),
+    admin.from("service_order_sellers").select("employee_id")
+      .eq("organization_id", session.organization_id).eq("service_order_id", session.service_order_id!),
+  ]);
+  if (technicians.error) throw technicians.error;
+  if (sellers.error) throw sellers.error;
+  return {
+    technicians: (technicians.data || []).map(item => String(item.employee_id)),
+    sellers: (sellers.data || []).map(item => String(item.employee_id)),
+  };
 }
 
 async function orderById(admin: AdminClient, organizationId: string, orderId: string) {
@@ -288,7 +334,8 @@ async function createSession(context: any) {
   if (!user) throw Object.assign(new Error("Usuário não autenticado."), { status: 401 });
   const organizationId = requireUuid(input.organization_id, "Empresa");
   const orderId = requireUuid(input.service_order_id, "OS");
-  if (!(await memberHasPermission(admin, organizationId, user.id, "orders.edit"))) {
+  if (!(await moduleEnabled(admin, organizationId, "orders"))
+      || !(await memberHasPermission(admin, organizationId, user.id, "orders.edit"))) {
     throw Object.assign(new Error("Você não possui permissão para editar esta OS."), { status: 403 });
   }
   const order = await orderById(admin, organizationId, orderId);
@@ -335,6 +382,7 @@ async function publicStatus(context: any) {
   const { input, admin } = context;
   const session = await sessionByToken(admin, input.session_id, input.token);
   if (!session) throw Object.assign(new Error("A conexão expirou ou foi encerrada."), { status: 401 });
+  await requireSessionPermission(admin, session, "orders.edit", "Seu acesso para editar esta OS foi removido.");
   await touchSession(admin, session);
   const order = await orderById(admin, session.organization_id, session.service_order_id!);
   assertEditableOrder(order);
@@ -368,6 +416,7 @@ async function getEditor(context: any) {
   const { input, admin } = context;
   const session = await sessionByToken(admin, input.session_id, input.token);
   if (!session) throw Object.assign(new Error("A conexão expirou ou foi encerrada."), { status: 401 });
+  await requireSessionPermission(admin, session, "orders.edit", "Seu acesso para editar esta OS foi removido.");
   await touchSession(admin, session);
   return { success: true, expires_at: session.expires_at, ...(await loadMobileEditor(admin, session)) };
 }
@@ -376,9 +425,17 @@ async function saveEditor(context: any) {
   const { input, admin } = context;
   const session = await sessionByToken(admin, input.session_id, input.token);
   if (!session) throw Object.assign(new Error("A conexão expirou ou foi encerrada."), { status: 401 });
+  await requireSessionPermission(admin, session, "orders.edit", "Seu acesso para editar esta OS foi removido.");
   const order = await orderById(admin, session.organization_id, session.service_order_id!);
   assertEditableOrder(order);
   const patch: Record<string, any> = sanitizeMobileOrderPatch(input.patch);
+
+  if (Object.prototype.hasOwnProperty.call(patch, "status_id") && patch.status_id !== order.status_id) {
+    await requireSessionPermission(admin, session, "orders.status.change", "Você não possui permissão para alterar o status desta OS.");
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "situation_id") && patch.situation_id !== order.situation_id) {
+    await requireSessionPermission(admin, session, "orders.situation.change", "Você não possui permissão para alterar a situação desta OS.");
+  }
 
   await scopedId(admin, "order_statuses", session.organization_id, patch.status_id);
   await scopedId(admin, "os_situations", session.organization_id, patch.situation_id);
@@ -401,7 +458,17 @@ async function saveEditor(context: any) {
     });
   }
 
-  const relations = await replaceEmployees(admin, session, input.technician_ids, input.seller_ids);
+  const requestedTechnicians = normalizeEmployeeIds(input.technician_ids);
+  const requestedSellers = normalizeEmployeeIds(input.seller_ids);
+  const currentRelations = await currentEmployeeRelations(admin, session);
+  const relationsChanged = !sameIdSet(requestedTechnicians, currentRelations.technicians)
+    || !sameIdSet(requestedSellers, currentRelations.sellers);
+
+  let relations = { technicians: currentRelations.technicians, sellers: currentRelations.sellers };
+  if (relationsChanged) {
+    await requireSessionPermission(admin, session, "orders.assign", "Você não possui permissão para alterar técnicos ou vendedores desta OS.");
+    relations = await replaceEmployees(admin, session, requestedTechnicians, requestedSellers);
+  }
   patch.technician_id = relations.technicians[0] || null;
   patch.seller_id = relations.sellers[0] || null;
   patch.updated_at = new Date().toISOString();
@@ -418,6 +485,8 @@ async function uploadPhoto(context: any) {
   const { input, admin } = context;
   const session = await sessionByToken(admin, input.session_id, input.token);
   if (!session) throw Object.assign(new Error("A conexão expirou ou foi encerrada."), { status: 401 });
+  await requireSessionPermission(admin, session, "orders.edit", "Seu acesso para editar esta OS foi removido.");
+  await requireSessionPermission(admin, session, "orders.section.images", "Você não possui permissão para anexar imagens nesta OS.");
   const order = await orderById(admin, session.organization_id, session.service_order_id!);
   assertEditableOrder(order);
   const kind = text(input.kind, 20);
