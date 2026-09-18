@@ -8,6 +8,7 @@ import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, BtnPrimary }
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceMovements } from "../application/useFinanceMovements";
 import type { FinancialAccount, FinancialAccountType } from "../domain/finance.types";
+import { FinanceCashSection } from "./FinanceCashSection";
 import { FinanceOpeningBalanceDialog } from "./FinanceOpeningBalanceDialog";
 
 const ACCOUNT_TYPES: { value: FinancialAccountType; label: string }[] = [
@@ -146,6 +147,8 @@ export function FinanceAccountsSection() {
         </table>
       </div>}
     </AdminCard>
+
+    {Boolean(finance.settingsQuery.data?.cash_session_enabled) && <FinanceCashSection accounts={accounts} />}
 
     {formOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
       <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
