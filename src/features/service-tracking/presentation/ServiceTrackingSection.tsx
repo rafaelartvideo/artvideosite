@@ -102,7 +102,7 @@ export function ServiceTrackingSection() {
               <div>
                 <span className="text-xs font-bold text-[#0057e7] uppercase tracking-wider block mb-1">Ordem de Serviço</span>
                 <h3 className="text-2xl font-black text-[#0d1b2e]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                  #{order.id}
+                  #{order.os_number || order.id}
                 </h3>
               </div>
               <div className="flex flex-wrap gap-2">
