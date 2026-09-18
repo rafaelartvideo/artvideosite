@@ -114,7 +114,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const removeItem = (stageIndex: number, itemIndex: number) => setDraft(current => current ? { ...current, stages: current.stages.map((stage, index) => index === stageIndex ? { ...stage, items: stage.items.filter((_, childIndex) => childIndex !== itemIndex) } : stage) } : current);
 
   const validate = (value: Draft) => {
-    if (!value.name.trim()) return "Informe o nome do perfil.";
+    if (!value.name.trim()) return "Informe o nome do checklist.";
     if (!value.stages.length) return "Adicione ao menos uma etapa.";
     const codes = new Set<string>();
     for (const [index, stage] of value.stages.entries()) {
@@ -134,7 +134,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     try {
       await saveChecklistProfile({ id: value.id, name: value.name, description: value.description, is_active: value.is_active, stages: value.stages.map((stage, index) => ({ ...stage, code: stage.id ? stage.code : stageCode(stage.name, stage.code || `etapa_${index + 1}`), sort_order: index * 10, items: stage.items.map((item, itemIndex) => ({ ...item, sort_order: itemIndex * 10 })) })) });
       await Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all }), queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all })]);
-      setToast({ msg: value.id ? "Perfil de checklist atualizado." : "Perfil de checklist criado.", type: "success" });
+      setToast({ msg: value.id ? "Checklist atualizado." : "Checklist criado.", type: "success" });
       if (close) closeEditor();
     } catch (error) { setToast({ msg: `Erro ao salvar checklist: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
     finally { setSaving(false); }
