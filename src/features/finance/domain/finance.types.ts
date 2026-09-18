@@ -388,9 +388,20 @@ export interface FinancialDashboardVisibility {
   scheduled_settlements: boolean;
 }
 
+export interface FinancialDashboardVisibility {
+  balance: boolean;
+  receivables: boolean;
+  payables: boolean;
+  result: boolean;
+  approvals: boolean;
+  collections: boolean;
+  scheduled_settlements: boolean;
+}
+
 export interface FinancialDashboardSummary {
   from: string;
   to: string;
+  visibility: FinancialDashboardVisibility;
   visibility: FinancialDashboardVisibility;
   available_balance: number;
   receivable_open: number;
