@@ -1,4 +1,5 @@
-import { ArrowLeft, ExternalLink, Globe, LogOut, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
+import { ArrowLeft, Building2, ExternalLink, Globe, LogOut, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { isAdminModuleEnabled, mainItems, operationItems, siteItems, utilityItems } from "../navigation-config";
@@ -8,6 +9,8 @@ import { useAdminSidebarLayout } from "./AdminLayout";
 import logoSolo from "@/imports/LogoSoloSemFundo.png";
 import type { OrganizationAccess } from "@/lib/organization.types";
 import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
+import { supabase } from "@/lib/supabase";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
 
 type AdminSidebarProps = {
   activeTab: AdminTab;
@@ -27,7 +30,7 @@ export function AdminSidebar({
   activeTab,
   userName,
   roleName,
-  organizations: _organizations,
+  organizations,
   activeOrganizationId,
   hasPermission,
   hasModule,
@@ -38,6 +41,23 @@ export function AdminSidebar({
 }: AdminSidebarProps) {
   const { collapsed, canCollapse, toggleCollapsed } = useAdminSidebarLayout();
   const isPlatformOrganization = activeOrganizationId === PLATFORM_ORGANIZATION_ID;
+  const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
+  const brandingQuery = useQuery({
+    queryKey: ["organization-menu-branding", activeOrganizationId || "none"],
+    enabled: Boolean(activeOrganizationId && !isPlatformOrganization),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("organizations")
+        .select("settings")
+        .eq("id", activeOrganizationId!)
+        .maybeSingle();
+      if (error) throw error;
+      const settings = data?.settings && typeof data.settings === "object" ? data.settings as Record<string, unknown> : {};
+      const mediaId = settings.menu_logo_media_id;
+      return typeof mediaId === "string" && mediaId ? mediaId : null;
+    },
+  });
+  const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data ?? null);
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "partnerCompanies" && !isPlatformOrganization) return false;
@@ -60,13 +80,26 @@ export function AdminSidebar({
         collapsed ? "flex-col justify-center gap-1 px-2" : "justify-center px-10",
       )}>
         <div className={cn("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-2.5")}>
-          <img src={logoSolo} alt="" aria-hidden="true" className={cn("shrink-0 object-contain transition-all", collapsed ? "h-7 w-7" : "h-8 w-8")} />
-          {!collapsed && (
-            <div className="min-w-0">
-              <span className="block text-[8px] font-bold uppercase tracking-[0.3em] text-[#00b4ff]">Eletrônica</span>
-              <span className="block text-base font-black leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>ARTVIDEO</span>
+          {isPlatformOrganization ? <>
+            <img src={logoSolo} alt="" aria-hidden="true" className={cn("shrink-0 object-contain transition-all", collapsed ? "h-7 w-7" : "h-8 w-8")} />
+            {!collapsed && (
+              <div className="min-w-0">
+                <span className="block text-[8px] font-bold uppercase tracking-[0.3em] text-[#00b4ff]">Eletrônica</span>
+                <span className="block text-base font-black leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>ARTVIDEO</span>
+              </div>
+            )}
+          </> : menuLogoUrl ? (
+            <img
+              src={menuLogoUrl}
+              alt={activeOrganization?.organization_name || "Logo da empresa"}
+              className={cn("shrink-0 object-contain transition-all", collapsed ? "h-9 w-9" : "max-h-11 max-w-[150px]")}
+            />
+          ) : <>
+            <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-[#0057e7]/25 text-[#00b4ff]", collapsed ? "h-9 w-9" : "h-8 w-8")}>
+              <Building2 size={collapsed ? 18 : 16} />
             </div>
-          )}
+            {!collapsed && <span className="max-w-[145px] truncate text-sm font-black text-white">{activeOrganization?.organization_name || "Empresa"}</span>}
+          </>}
         </div>
 
         {canCollapse && (
