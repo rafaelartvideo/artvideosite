@@ -83,6 +83,11 @@ export const queryKeys = {
     approvals: (organizationId: string, id: string) => ["finance", organizationId, "approvals", id] as const,
     pendingApprovals: (organizationId: string) => ["finance", organizationId, "pending-approvals"] as const,
     counterparties: (organizationId: string, type: "payable" | "receivable") => ["finance", organizationId, "counterparties", type] as const,
+    cashSessions: (organizationId: string) => ["finance", organizationId, "cash-sessions"] as const,
+    recurring: (organizationId: string) => ["finance", organizationId, "recurring"] as const,
+    attachments: (organizationId: string, entryId: string) => ["finance", organizationId, "attachments", entryId] as const,
+    collections: (organizationId: string, entryId: string) => ["finance", organizationId, "collections", entryId] as const,
+    scheduledSettlements: (organizationId: string) => ["finance", organizationId, "scheduled-settlements"] as const,
   },
   appointments: {
     all: ["appointments"] as const,
