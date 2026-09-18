@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, Mail, MessageCircle, Pause, Phone, Play, Plus, UserRound } from "lucide-react";
+import { Edit2, Mail, MessageCircle, Phone, Plus, UserRound } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cn, formatPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import type { Registration } from "../infrastructure/registrations.repository";
@@ -191,7 +192,7 @@ export function RegistrationContactsPage({
             </div>
             {canManage && <div className="flex shrink-0 items-center gap-1.5">
               <AdminIconButton ariaLabel="Editar contato" title="Editar contato" onClick={() => openEdit(contact)}><Edit2 size={14} /></AdminIconButton>
-              <AdminIconButton ariaLabel={contact.is_active ? "Inativar contato" : "Ativar contato"} title={contact.is_active ? "Inativar contato" : "Ativar contato"} variant={contact.is_active ? "danger" : "secondary"} onClick={() => void toggleActive(contact)}>{contact.is_active ? <Pause size={14} /> : <Play size={14} />}</AdminIconButton>
+              <AdminActiveStateButton active={contact.is_active} entityLabel="contato" onClick={() => void toggleActive(contact)} iconSize={14} />
             </div>}
           </div>
           <ContactChannels phone={contact.phone} whatsapp={contact.whatsapp} email={contact.email} />
