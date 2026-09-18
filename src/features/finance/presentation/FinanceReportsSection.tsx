@@ -110,7 +110,7 @@ export function FinanceReportsSection() {
     label: dayLabel(row.date),
   })), [cashFlow?.rows]);
 
-  const setFilter = <K extends keyof FinancialReportFilters>(key: K, value: FinancialReportFilters[K]) => {
+  const setFilter = <K extends keyof FinancialReportFilters,>(key: K, value: FinancialReportFilters[K]) => {
     setFilters(current => ({ ...current, [key]: value }));
   };
 
