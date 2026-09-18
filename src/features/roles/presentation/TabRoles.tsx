@@ -97,7 +97,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     setLoading(true);
     const [rolesResult, permissionsResult, membersResult] = await Promise.all([
       listRoles(activeOrganizationId),
-      listPermissions(),
+      listPermissions(activeOrganizationId),
       listRoleMembers(activeOrganizationId),
     ]);
     setLoading(false);
