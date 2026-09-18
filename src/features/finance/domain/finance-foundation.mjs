@@ -1,4 +1,4 @@
-const SECTIONS = new Set(["overview", "receivables", "payables", "movements", "accounts", "recurring", "registries"]);
+const SECTIONS = new Set(["overview", "receivables", "payables", "movements", "accounts", "recurring", "reports", "registries"]);
 const REGISTRIES = new Set(["categories", "cost-centers", "payment-methods", "settings"]);
 
 export function financeRoute(resourceId, subpage) {
