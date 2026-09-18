@@ -22,7 +22,9 @@ export const listActiveRoles = (organizationId: string) =>
     .order("sort_order")
     .order("name");
 
-const sitePermissionPrefixes = [
+const artvideoOnlyPermissionPrefixes = [
+  "organizations.",
+  "integrations.",
   "products.",
   "categories.",
   "brands.",
@@ -52,7 +54,7 @@ export async function listPermissions(organizationId: string) {
   const situationIds = new Set((situationsResult.data || []).map((item: any) => String(item.id)));
   const data = (permissionsResult.data || []).filter((permission: any) => {
     const key = String(permission.key || "");
-    if (organizationId !== PLATFORM_ORGANIZATION_ID && sitePermissionPrefixes.some(prefix => key.startsWith(prefix))) {
+    if (organizationId !== PLATFORM_ORGANIZATION_ID && artvideoOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))) {
       return false;
     }
     const match = key.match(/^orders\.images\.situation\.([0-9a-f-]{36})\.upload$/i);
