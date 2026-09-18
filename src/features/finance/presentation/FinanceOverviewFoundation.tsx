@@ -98,9 +98,10 @@ function CounterCard({
   icon: typeof CalendarClock;
   warning?: boolean;
 }) {
-  return <div className={`rounded-xl border p-3 ${warning && value > 0 ? "border-amber-200 bg-amber-50/60" : "border-[#0d1b2e]/8 bg-white"}`}>
+  const highlighted = warning && typeof value === "number" && value > 0;
+  return <div className={`rounded-xl border p-3 ${highlighted ? "border-amber-200 bg-amber-50/60" : "border-[#0d1b2e]/8 bg-white"}`}>
     <div className="flex items-start gap-2">
-      <Icon size={16} className={warning && value > 0 ? "mt-0.5 text-amber-600" : "mt-0.5 text-[#0057e7]"} />
+      <Icon size={16} className={highlighted ? "mt-0.5 text-amber-600" : "mt-0.5 text-[#0057e7]"} />
       <div><p className="text-[10px] font-bold uppercase tracking-wide text-[#7b899c]">{title}</p><p className="mt-0.5 text-lg font-black text-[#0d1b2e]">{value}</p><p className="text-[11px] text-[#5a6a82]">{detail}</p></div>
     </div>
   </div>;
