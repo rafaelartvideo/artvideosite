@@ -150,7 +150,9 @@ export function FinanceRecurringSection() {
       });
       const generated = await recurring.generateMutation.mutateAsync({ id });
       setSuccess(`Recorrência salva. ${generated.generated} ocorrência(s) gerada(s) para a janela de 90 dias.`);
-      close();
+      setOpen(false);
+      setForm(emptyForm());
+      setMessage("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível salvar a recorrência.");
     }
