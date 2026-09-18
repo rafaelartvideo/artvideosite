@@ -123,6 +123,25 @@ function normalizeDigits(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+function validCpf(value: string) {
+  if (!/^\d{11}$/.test(value) || /^(\d)\1{10}$/.test(value)) return false;
+  const calculateDigit = (length: number) => {
+    let sum = 0;
+    for (let index = 0; index < length; index += 1) {
+      sum += Number(value[index]) * (length + 1 - index);
+    }
+    const remainder = (sum * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+  return calculateDigit(9) === Number(value[9]) && calculateDigit(10) === Number(value[10]);
+}
+
+function validOptionalPhone(value: string | null) {
+  if (!value) return true;
+  const digits = normalizeDigits(value);
+  return digits.length === 10 || digits.length === 11;
+}
+
 function internalAuthEmail() {
   return `partner-${crypto.randomUUID()}@auth.artvideo.app`;
 }
@@ -313,6 +332,12 @@ Deno.serve(async (request) => {
 
     if (!isUuid(roleId) || !fullName || !cpf) {
       return fail(request, "Nome, CPF e função são obrigatórios.", 400, "required_fields");
+    }
+    if (!validCpf(cpf)) {
+      return fail(request, "O CPF informado não é válido.", 400, "invalid_cpf");
+    }
+    if (!validOptionalPhone(phone)) {
+      return fail(request, "O telefone informado não é válido.", 400, "invalid_phone");
     }
     if (!validOptionalEmail(email)) {
       return fail(request, "O e-mail informado não é válido.", 400, "invalid_email");
