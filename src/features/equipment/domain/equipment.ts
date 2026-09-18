@@ -28,6 +28,7 @@ export type EquipmentTypeRow = {
   name: string;
   is_active: boolean;
   checklist_profile_id: string | null;
+  source_artvideo_id?: string | null;
 };
 
 export type EquipmentBrandRow = {
@@ -35,6 +36,7 @@ export type EquipmentBrandRow = {
   name: string;
   is_active: boolean;
   equipment_type_id: string;
+  source_artvideo_id?: string | null;
 };
 
 export type EquipmentModelRow = {
@@ -42,6 +44,7 @@ export type EquipmentModelRow = {
   name: string;
   is_active: boolean;
   equipment_brand_id: string;
+  source_artvideo_id?: string | null;
 };
 
 export type TechnicalFieldType = "text" | "number";
@@ -55,6 +58,7 @@ export type TechnicalField = {
   sort_order: number;
   created_at?: string;
   updated_at?: string;
+  source_artvideo_id?: string | null;
 };
 
 export type EquipmentTypeTechnicalField = {
