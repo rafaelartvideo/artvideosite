@@ -297,7 +297,7 @@ begin
     )
   );
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION finance_reporting_private.finance_dre_report_impl(p_organization_id uuid, p_from date, p_to date, p_category_id uuid, p_cost_center_id uuid, p_origin_type text)
  RETURNS jsonb
@@ -411,7 +411,7 @@ begin
     )
   );
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION finance_reporting_private.finance_management_dashboard_impl(p_organization_id uuid, p_from date, p_to date)
  RETURNS jsonb
@@ -535,7 +535,7 @@ begin
     'overdue_scheduled_settlements', v_overdue_scheduled_settlements
   );
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_financial_cash_flow(p_organization_id uuid, p_from date, p_to date, p_account_id uuid DEFAULT NULL::uuid, p_category_id uuid DEFAULT NULL::uuid, p_cost_center_id uuid DEFAULT NULL::uuid, p_origin_type text DEFAULT NULL::text, p_payment_method_id uuid DEFAULT NULL::uuid)
  RETURNS jsonb
@@ -546,7 +546,7 @@ AS $function$
   select finance_reporting_private.finance_cash_flow_report_impl(
     p_organization_id,p_from,p_to,p_account_id,p_category_id,p_cost_center_id,p_origin_type,p_payment_method_id
   );
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_financial_dashboard(p_organization_id uuid, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date)
  RETURNS jsonb
@@ -555,7 +555,7 @@ CREATE OR REPLACE FUNCTION public.get_financial_dashboard(p_organization_id uuid
  SET search_path TO ''
 AS $function$
   select finance_reporting_private.finance_management_dashboard_impl(p_organization_id, p_from, p_to);
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_financial_dre(p_organization_id uuid, p_from date, p_to date, p_category_id uuid DEFAULT NULL::uuid, p_cost_center_id uuid DEFAULT NULL::uuid, p_origin_type text DEFAULT NULL::text)
  RETURNS jsonb
@@ -566,7 +566,7 @@ AS $function$
   select finance_reporting_private.finance_dre_report_impl(
     p_organization_id,p_from,p_to,p_category_id,p_cost_center_id,p_origin_type
   );
-$function$
+$function$;
 
 revoke all on function finance_reporting_private.finance_management_dashboard_impl(uuid,date,date) from public, anon;
 revoke all on function finance_reporting_private.finance_dre_report_impl(uuid,date,date,uuid,uuid,text) from public, anon;
