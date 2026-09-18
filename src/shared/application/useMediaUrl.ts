@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { getMediaById, getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
+import { getMediaById, resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 
 export function useMediaUrl(mediaId: string | null | undefined) {
   const query = useQuery({
@@ -11,7 +11,7 @@ export function useMediaUrl(mediaId: string | null | undefined) {
       const bucketName = media.bucket_id ?? media.bucket_name ?? null;
       const storagePath = media.storage_path ?? null;
       if (!bucketName || !storagePath) throw new Error("Imagem indisponível");
-      const url = getPublicStorageUrl(bucketName, storagePath);
+      const url = await resolveMediaStorageUrl(bucketName, storagePath);
       if (!url) throw new Error("Imagem indisponível");
       return url;
     },
