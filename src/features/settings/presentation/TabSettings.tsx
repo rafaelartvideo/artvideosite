@@ -136,7 +136,16 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       return;
     }
     try {
-      await saveSettings.mutateAsync({ organizationId: activeOrganizationId, settings: form, updatedBy: user?.id ?? null });
+      const settingsToSave = isPartnerOrganization && query.data
+        ? {
+            ...query.data,
+            company_phone: form.company_phone,
+            company_email: form.company_email,
+            company_logo_media_id: form.company_logo_media_id,
+            company_menu_logo_media_id: form.company_menu_logo_media_id,
+          }
+        : form;
+      await saveSettings.mutateAsync({ organizationId: activeOrganizationId, settings: settingsToSave, updatedBy: user?.id ?? null });
       setToast({ msg: "Dados da empresa salvos com sucesso.", type: "success" });
     } catch (error) {
       setToast({ msg: error instanceof Error ? error.message : "Não foi possível salvar os dados.", type: "error" });
