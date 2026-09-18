@@ -5,7 +5,7 @@ import {
   changeAdminPassword,
 } from "@/features/auth/infrastructure/auth.repository";
 import { LoadingSpinner, Toast } from "@/shared/ui/admin/AdminFeedback";
-import logo from "@/imports/Logo1Semfundo.png";
+import logo from "@/imports/Logo2Semfundo.png";
 import loginHero from "./assets/login-hero/login-hero.png";
 
 type AdminLoginProps = {
