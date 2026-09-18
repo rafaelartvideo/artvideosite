@@ -1,14 +1,18 @@
 import { supabase } from "@/lib/supabase";
+import { getActiveOrganizationId } from "@/lib/active-organization";
 
 export async function loadProductCatalog() {
+  const organizationId = await getActiveOrganizationId();
   const [productsResult, categoriesResult] = await Promise.all([
     supabase
       .from("products")
       .select("*, product_categories(name)")
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false }),
     supabase
       .from("product_categories")
       .select("id, name")
+      .eq("organization_id", organizationId)
       .order("sort_order"),
   ]);
 
@@ -26,9 +30,10 @@ export async function saveProduct(
   productId: string | undefined,
   createdBy: string | null,
 ) {
+  const organizationId = await getActiveOrganizationId();
   const query = productId
-    ? supabase.from("products").update(payload).eq("id", productId)
-    : supabase.from("products").insert({ ...payload, created_by: createdBy });
+    ? supabase.from("products").update(payload).eq("organization_id", organizationId).eq("id", productId)
+    : supabase.from("products").insert({ ...payload, organization_id: organizationId, created_by: createdBy });
 
   const { data, error } = await query.select().single();
   if (error) throw error;
@@ -36,7 +41,8 @@ export async function saveProduct(
 }
 
 export async function deleteProduct(productId: string): Promise<void> {
-  const { error } = await supabase.from("products").delete().eq("id", productId);
+  const organizationId = await getActiveOrganizationId();
+  const { error } = await supabase.from("products").delete().eq("organization_id", organizationId).eq("id", productId);
   if (error) throw error;
 }
 
@@ -45,9 +51,11 @@ export async function updateProductFlags(
   flags: { is_active?: boolean; is_featured?: boolean },
   updatedBy: string | null,
 ): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
   const { error } = await supabase
     .from("products")
     .update({ ...flags, updated_by: updatedBy })
+    .eq("organization_id", organizationId)
     .eq("id", productId);
 
   if (error) throw error;
