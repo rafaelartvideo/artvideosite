@@ -8,6 +8,7 @@ import { FinanceEntriesSection } from "./FinanceEntriesSection";
 import { FinanceMovementsSection } from "./FinanceMovementsSection";
 import { FinanceOverviewFoundation } from "./FinanceOverviewFoundation";
 import { FinanceRegistriesSection } from "./FinanceRegistriesSection";
+import { FinanceRecurringSection } from "./FinanceRecurringSection";
 import { FinanceSectionTabs } from "./FinanceSectionTabs";
 
 export function TabFinance({
@@ -29,6 +30,7 @@ export function TabFinance({
     if (hasPermission("finance.payables.view")) sections.push("payables");
     if (canViewAccounts) sections.push("movements");
     if (canViewAccounts) sections.push("accounts");
+    if (hasPermission("finance.recurring.view") || hasPermission("finance.recurring.manage")) sections.push("recurring");
     if (hasPermission("finance.view")) sections.push("registries");
     return sections;
   }, [hasPermission]);
@@ -56,6 +58,7 @@ export function TabFinance({
     {section === "payables" && <FinanceEntriesSection entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
     {section === "movements" && <FinanceMovementsSection />}
     {section === "accounts" && <FinanceAccountsSection />}
+    {section === "recurring" && <FinanceRecurringSection />}
     {section === "registries" && <FinanceRegistriesSection registry={requested.registry} onSelect={registry => onRouteChange?.("registries", registry)} />}
   </div>;
 }
