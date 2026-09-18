@@ -43,8 +43,7 @@ function validateUser(form: Form, editing: boolean): FormErrors {
   if (!form.full_name.trim()) errors.full_name = "Informe o nome completo.";
   if (!isValidCpf(form.cpf)) errors.cpf = "Informe um CPF válido.";
   if (form.phone && !isValidBrazilianPhone(form.phone)) errors.phone = "Informe um telefone brasileiro válido.";
-  if (!form.email.trim()) errors.email = "Informe o e-mail do usuário.";
-  else if (!isValidEmail(form.email)) errors.email = "Informe um e-mail válido.";
+  if (form.email.trim() && !isValidEmail(form.email)) errors.email = "Informe um e-mail válido.";
   if (!editing && !form.username.trim()) errors.username = "Informe o usuário de acesso.";
   else if (form.username && !isValidUsername(form.username)) errors.username = "Use de 3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou sublinhado.";
   if (!form.role_id) errors.role_id = "Selecione uma função.";
@@ -71,9 +70,9 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
   });
 
   const rolesQuery = useQuery({
-    queryKey: ["partner-companies", "roles"],
+    queryKey: ["partner-companies", "roles", organizationId],
     queryFn: async () => {
-      const { data, error } = await listPartnerRoles();
+      const { data, error } = await listPartnerRoles(organizationId);
       if (error) throw error;
       return data || [];
     },
@@ -188,7 +187,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
           <FInput label="Nome completo" required error={errors.full_name} value={form.full_name} onChange={(e: any) => setField("full_name", e.target.value)} />
           <FCpfInput label="CPF" required error={errors.cpf} value={form.cpf} onChange={(e: any) => setField("cpf", e.target.value)} />
           <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(e: any) => setField("phone", e.target.value)} />
-          <FEmailInput label="E-mail" required error={errors.email} autoComplete="email" value={form.email} onChange={(e: any) => setField("email", e.target.value)} />
+          <FEmailInput label="E-mail" error={errors.email} autoComplete="email" value={form.email} onChange={(e: any) => setField("email", e.target.value)} />
           <FInput
             label="Usuário"
             required={!editing}
