@@ -112,7 +112,24 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
       setErrors({});
       setToast({ msg: "Usuário salvo com sucesso.", type: "success" });
     },
-    onError: (error: any) => setToast({ msg: `Não foi possível salvar o usuário: ${error?.message || "Erro desconhecido"}`, type: "error" }),
+    onError: (error: any) => {
+      const code = String(error?.code || "");
+      const message = error?.message || "Não foi possível salvar o usuário.";
+      if (code === "cpf_already_exists" || code === "invalid_cpf") {
+        setErrors(current => ({ ...current, cpf: message }));
+      } else if (code === "username_already_exists" || code === "invalid_username") {
+        setErrors(current => ({ ...current, username: message }));
+      } else if (code === "invalid_email") {
+        setErrors(current => ({ ...current, email: message }));
+      } else if (code === "invalid_phone") {
+        setErrors(current => ({ ...current, phone: message }));
+      } else if (code === "weak_password") {
+        setErrors(current => ({ ...current, password: message }));
+      } else if (code === "invalid_role") {
+        setErrors(current => ({ ...current, role_id: message }));
+      }
+      setToast({ msg: message, type: "error" });
+    },
   });
 
   const setField = (key: keyof Form, value: string | boolean) => {
@@ -181,6 +198,10 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
           <Plus size={15} /> <span className="hidden sm:inline">Novo usuário</span>
         </BtnPrimary>
       </AdminCardHeader>
+
+      {rolesQuery.isError && <AdminCardContent className="border-b border-red-100 bg-red-50/60">
+        <p className="text-sm font-semibold text-red-700">{(rolesQuery.error as any)?.message || "Não foi possível carregar as funções disponíveis para esta empresa."}</p>
+      </AdminCardContent>}
 
       {formOpen && <AdminCardContent className="border-b border-[#0d1b2e]/8">
         <div className="grid gap-4 sm:grid-cols-2">
