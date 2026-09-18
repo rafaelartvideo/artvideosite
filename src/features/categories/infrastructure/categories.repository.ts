@@ -1,8 +1,8 @@
 import { supabase } from "@/lib/supabase";
-import { getActiveOrganizationId } from "@/lib/active-organization";
+import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
 
 export async function listCategories() {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = PLATFORM_ORGANIZATION_ID;
   const { data, error } = await supabase
     .from("service_categories")
     .select("*")
@@ -17,7 +17,7 @@ export async function saveCategory(
   payload: Record<string, unknown>,
   categoryId?: string,
 ) {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = PLATFORM_ORGANIZATION_ID;
   const query = categoryId
     ? supabase.from("service_categories").update(payload).eq("organization_id", organizationId).eq("id", categoryId)
     : supabase.from("service_categories").insert({ ...payload, organization_id: organizationId });
@@ -28,7 +28,7 @@ export async function saveCategory(
 }
 
 export async function deleteCategory(categoryId: string): Promise<void> {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = PLATFORM_ORGANIZATION_ID;
   const { error } = await supabase
     .from("service_categories")
     .delete()
@@ -42,7 +42,7 @@ export async function setCategoryActive(
   categoryId: string,
   isActive: boolean,
 ): Promise<void> {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = PLATFORM_ORGANIZATION_ID;
   const { error } = await supabase
     .from("service_categories")
     .update({ is_active: isActive })
