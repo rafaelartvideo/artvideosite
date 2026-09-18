@@ -20,7 +20,7 @@ export function AdminSelect({ value, defaultValue, onValueChange, options, disab
   const toSelectValue = (optionValue: unknown) => optionValue === "" || optionValue == null ? EMPTY_SELECT_VALUE : String(optionValue);
   return <Select value={value !== undefined ? toSelectValue(value) : undefined} defaultValue={defaultValue !== undefined ? toSelectValue(defaultValue) : undefined} onValueChange={nextValue => onValueChange(nextValue === EMPTY_SELECT_VALUE ? "" : nextValue)} disabled={disabled} required={required} name={name}>
     <SelectTrigger className={cn(INPUT, "h-auto min-h-[42px] cursor-default text-left", className)} aria-label={ariaLabel}><SelectValue /></SelectTrigger>
-    <SelectContent className="border-[#0d1b2e]/10 bg-white text-[#0d1b2e] shadow-xl">{options.map(option => <SelectItem key={String(option.value) || EMPTY_SELECT_VALUE} value={toSelectValue(option.value)} className="cursor-default focus:bg-[#eef5ff] focus:text-[#0057e7]">{option.label}</SelectItem>)}</SelectContent>
+    <SelectContent position="popper" side="bottom" align="start" sideOffset={4} collisionPadding={8} className="z-[300] max-h-[min(20rem,var(--radix-select-content-available-height))] w-[var(--radix-select-trigger-width)] border-[#0d1b2e]/10 bg-white text-[#0d1b2e] shadow-xl">{options.map(option => <SelectItem key={String(option.value) || EMPTY_SELECT_VALUE} value={toSelectValue(option.value)} className="cursor-default focus:bg-[#eef5ff] focus:text-[#0057e7]">{option.label}</SelectItem>)}</SelectContent>
   </Select>;
 }
 
