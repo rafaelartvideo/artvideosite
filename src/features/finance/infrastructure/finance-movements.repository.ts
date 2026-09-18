@@ -6,7 +6,7 @@ import type {
   FinancialTransferDraft,
 } from "../domain/finance.types";
 
-const MOVEMENT_COLUMNS = "id,organization_id,financial_account_id,direction,movement_type,amount,occurred_at,source_type,source_id,reversal_of_movement_id,description_snapshot,created_by,created_at";
+const MOVEMENT_COLUMNS = "id,organization_id,financial_account_id,direction,movement_type,amount,occurred_at,source_type,source_id,reversal_of_movement_id,cash_session_id,description_snapshot,created_by,created_at";
 const TRANSFER_COLUMNS = "id,organization_id,from_account_id,to_account_id,amount,occurred_at,note,transfer_status,reversed_at,reversed_by,reversal_reason,created_by,created_at";
 
 function requiredOrganizationId(organizationId: string) {
@@ -39,6 +39,19 @@ export async function listFinancialMovements(organizationId: string): Promise<Fi
     .limit(500);
   if (error) throw error;
   return (data || []) as FinancialMovement[];
+}
+
+export async function listScheduledFinancialSettlements(organizationId: string) {
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase
+    .from("financial_settlements")
+    .select("id,organization_id,financial_entry_id,financial_installment_id,entry_type,payment_method_id,payment_method_name_snapshot,financial_account_id,financial_account_name_snapshot,principal_amount,interest_amount,penalty_amount,other_additions,discount_amount,gross_amount,percentage_fee_snapshot,fixed_fee_snapshot,fee_amount,net_amount,occurred_at,expected_settlement_at,settlement_status,posted_at,reversed_at,reversed_by,reversal_reason,created_by,created_at")
+    .eq("organization_id", org)
+    .eq("settlement_status", "scheduled")
+    .order("expected_settlement_at", { ascending: true })
+    .limit(300);
+  if (error) throw error;
+  return (data || []) as any[];
 }
 
 export async function listFinancialTransfers(organizationId: string): Promise<FinancialTransfer[]> {
