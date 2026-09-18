@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle, ChevronRight, Clock, Package, X } from "lucide-react";
 import { useServiceDetailBySlug } from "@/features/public-catalog/application/usePublicCatalog";
-import { publicMediaUrl } from "@/features/public-catalog/infrastructure/public-media";
+import { resolvePublicMediaUrl } from "@/features/public-catalog/infrastructure/public-media";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";
 import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
@@ -9,7 +10,15 @@ import { formatCurrency } from "@/shared/domain/formatters";
 
 export function ServiceDetailPage({ slug, setPage }: { slug: string | null; setPage: (page: PublicPage) => void }) {
   const { detail, loading, error } = useServiceDetailBySlug(slug);
-  const imageUrl = publicMediaUrl(detail?.media);
+  const mediaBucket = detail?.media?.bucket_id ?? detail?.media?.bucket_name ?? "";
+  const mediaPath = detail?.media?.storage_path ?? "";
+  const imageQuery = useQuery({
+    queryKey: ["public-service-media", mediaBucket, mediaPath],
+    enabled: Boolean(mediaBucket && mediaPath),
+    queryFn: () => resolvePublicMediaUrl(detail?.media),
+    staleTime: 30 * 60_000,
+  });
+  const imageUrl = imageQuery.data ?? null;
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   if (loading) return <div className="min-h-[55vh] flex items-center justify-center text-[#5a6a82] text-sm"><Clock size={20} className="animate-spin mr-2 text-[#0057e7]" /> Carregando serviço...</div>;
