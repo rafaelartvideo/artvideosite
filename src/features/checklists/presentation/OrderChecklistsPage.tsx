@@ -18,7 +18,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminButton, AdminCard, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import type { OrderChecklistItem, OrderChecklistStage } from "../domain/checklist";
 import { checklistProgress, checklistStageProgress, isChecklistFailure } from "../domain/checklist";
 import {
@@ -561,16 +561,11 @@ function OrderChecklistItemEditor({
           </div>
           <div className="flex flex-wrap gap-2">
             {item.media.map(link => link.media && (
-              <a
+              <ChecklistMediaThumb
                 key={link.id}
-                href={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)}
-                target="_blank"
-                rel="noreferrer"
-                className="group relative h-16 w-16 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f5f7fa]"
-              >
-                <img src={getPublicStorageUrl(link.media.bucket_id, link.media.storage_path)} alt={link.media.file_name || "Foto do checklist"} className="h-full w-full object-cover" />
-                <span className="absolute inset-0 hidden items-center justify-center bg-black/35 text-white group-hover:flex"><ImageIcon size={16} /></span>
-              </a>
+                mediaId={link.media_id}
+                fileName={link.media.file_name}
+              />
             ))}
           </div>
         </div>
@@ -604,6 +599,21 @@ function OrderChecklistItemEditor({
       )}
     </div>
   );
+}
+
+function ChecklistMediaThumb({ mediaId, fileName }: { mediaId: string; fileName?: string | null }) {
+  const { url, loading } = useMediaUrl(mediaId);
+  if (loading) return <div className="h-16 w-16 animate-pulse rounded-lg border border-[#0d1b2e]/10 bg-[#eef2f7]" />;
+  if (!url) return null;
+  return <a
+    href={url}
+    target="_blank"
+    rel="noreferrer"
+    className="group relative h-16 w-16 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f5f7fa]"
+  >
+    <img src={url} alt={fileName || "Foto do checklist"} className="h-full w-full object-cover" />
+    <span className="absolute inset-0 hidden items-center justify-center bg-black/35 text-white group-hover:flex"><ImageIcon size={16} /></span>
+  </a>;
 }
 
 function answerOptions(item: OrderChecklistItem) {
