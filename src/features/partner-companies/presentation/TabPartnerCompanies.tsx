@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Edit2, PauseCircle, PlayCircle, Plus } from "lucide-react";
+import { Building2, Edit2, Plus } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
 import { AdminCard, AdminIconButton, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { getPartnerCompany, listPartnerCompanies, setPartnerCompanyStatus } from "../infrastructure/partner-companies.repository";
@@ -75,7 +76,7 @@ export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RoutePro
     },
     onSuccess: (data: any) => {
       void queryClient.invalidateQueries({ queryKey: ["partner-companies"] });
-      setToast({ msg: data?.status === "active" ? "Empresa reativada." : "Empresa suspensa.", type: "success" });
+      setToast({ msg: data?.status === "active" ? "Empresa ativada." : "Empresa inativada.", type: "success" });
     },
     onError: (error: any) => setToast({ msg: `Não foi possível alterar o status: ${error?.message || "Erro desconhecido"}`, type: "error" }),
   });
@@ -143,7 +144,7 @@ export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RoutePro
               <td><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusClass(company.status)}`}>{statusLabel(company.status)}</span></td>
               <td onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-2">
                 {canEdit && <AdminIconButton title="Editar empresa" onClick={() => onRouteChange?.(`edit-${company.id}`, null)}><Edit2 size={14} /></AdminIconButton>}
-                {canSuspend && company.status !== "cancelled" && <AdminIconButton title={company.status === "active" ? "Suspender empresa" : "Reativar empresa"} onClick={() => statusMutation.mutate(company)} loading={statusMutation.isPending}>{company.status === "active" ? <PauseCircle size={14} /> : <PlayCircle size={14} />}</AdminIconButton>}
+                {canSuspend && company.status !== "cancelled" && <AdminActiveStateButton active={company.status === "active"} entityLabel="empresa" onClick={() => statusMutation.mutate(company)} loading={statusMutation.isPending} iconSize={14} />}
               </div></td>
             </tr>)}</tbody>
           </table>
