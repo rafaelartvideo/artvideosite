@@ -38,7 +38,9 @@ export interface GeneralService {
   id: string;
   name: string;
   price: number | null;
+  price_at_completion: boolean;
   max_discount_percentage: number | null;
+  max_discount_amount: number | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -398,6 +400,8 @@ export interface ServiceOrder {
   situation_started_at: string | null;
   service_price: number | null;
   parts_total: number | null;
+  subtotal: number | null;
+  discount_type: "percentage" | "amount";
   discount_percentage: number | null;
   discount_amount: number | null;
   final_total: number | null;
