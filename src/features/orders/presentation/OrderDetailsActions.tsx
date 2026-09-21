@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, CheckCircle, Edit2, PackagePlus, X } from "lucide-react";
+import { Ban, CheckCircle, X } from "lucide-react";
 import { AdminButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -80,10 +80,10 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {canChangeSituation && <div className="min-w-0 flex-1 md:min-w-40 md:flex-none"><AdminSelect value={detail.situation_id || ""} onValueChange={onSituationChange} options={[{ value: "", label: "Situação: selecionar" }, ...situations.map(situation => ({ value: situation.id, label: `Situação: ${situation.name}` }))]} className="min-h-10 w-full min-w-0 py-1.5 text-xs font-bold" ariaLabel="Alterar situação da OS" /></div>}
         </div>
         {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel) && <div className="grid min-w-0 auto-cols-fr grid-flow-col gap-2 md:flex md:flex-wrap md:justify-end">
-          {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 min-w-0 px-2 md:px-4"><PackagePlus size={15} /><span className="hidden md:inline">Pedir peças</span></AdminButton>}
-          {canResolve && <BtnPrimary onClick={onResolve} className="h-10 min-w-0 px-2.5 md:px-4"><CheckCircle size={15} /><span className="md:hidden">Resolver</span><span className="hidden md:inline">Resolver OS</span></BtnPrimary>}
+          {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 min-w-0 px-3 md:px-4">Pedir peças</AdminButton>}
+          {canResolve && <BtnPrimary onClick={onResolve} className="h-10 min-w-0 px-3 md:px-4">Solucionar</BtnPrimary>}
           {canComplete && <BtnPrimary onClick={() => onComplete()} className="h-10 min-w-0 px-2.5 md:px-4"><CheckCircle size={15} /><span className="md:hidden">Concluir</span><span className="hidden md:inline">Concluir OS</span></BtnPrimary>}
-          {canEditOrder && <BtnPrimary onClick={onEdit} className="h-10 min-w-0 px-2 md:px-4" aria-label="Editar OS" title="Editar"><Edit2 size={15} /><span className="hidden md:inline">Editar</span></BtnPrimary>}
+          {canEditOrder && <BtnPrimary onClick={onEdit} className="h-10 min-w-0 px-3 md:px-4" aria-label="Editar OS" title="Editar">Editar</BtnPrimary>}
           {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-10 min-w-0 border-red-200 px-2 text-red-600 hover:bg-red-50 md:px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban size={15} /><span className="hidden md:inline">Cancelar</span></AdminButton>}
         </div>}
       </div>
