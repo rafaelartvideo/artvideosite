@@ -201,8 +201,8 @@ begin
     raise exception 'Tipo de desconto inválido.' using errcode='22023';
   end if;
 
-  if v_discount_amount>v_subtotal then
-    raise exception 'O desconto não pode ser maior que o subtotal da OS.' using errcode='22023';
+  if v_discount_amount>v_service_price then
+    raise exception 'O desconto não pode ser maior que o valor do serviço.' using errcode='22023';
   end if;
 
   v_final_total:=greatest(round(v_subtotal-v_discount_amount,2),0);
