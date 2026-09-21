@@ -78,7 +78,7 @@ export function createServiceOrderLabelDataUrl(
   context.textAlign = "start";
 
   context.font = "700 13px Arial, Helvetica, sans-serif";
-  context.fillText("ARTVIDEO • ETIQUETA DE EQUIPAMENTO", leftX, 283);
+  context.fillText("ETIQUETA DE EQUIPAMENTO", leftX, 283);
 
   return canvas.toDataURL("image/png");
 }
