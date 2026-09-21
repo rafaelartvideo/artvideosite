@@ -9,6 +9,7 @@ import {
 
 type Toast = { msg: string; type: "success" | "error" };
 export type OrderCompletionPaymentMode = "open" | "now" | "partial";
+export type OrderCompletionDiscountMode = "percentage" | "amount";
 export type OrderCompletionPaymentDraft = {
   id: string;
   principal_amount: string;
@@ -71,6 +72,8 @@ export function useOrderCompletion({
 }) {
   const [open, setOpen] = useState(false);
   const [discount, setDiscount] = useState("0");
+  const [discountMode, setDiscountModeState] = useState<OrderCompletionDiscountMode>("percentage");
+  const [servicePriceInput, setServicePriceInput] = useState("");
   const [paymentMode, setPaymentModeState] = useState<OrderCompletionPaymentMode>("open");
   const [payments, setPayments] = useState<OrderCompletionPaymentDraft[]>([]);
   const [installmentCount, setInstallmentCount] = useState("1");
@@ -80,13 +83,35 @@ export function useOrderCompletion({
   const [financeOptionsError, setFinanceOptionsError] = useState("");
 
   const financeEnabled = financeOptions.finance_enabled;
-  const servicePrice = Number(detail?.general_service?.price || 0);
+  const priceAtCompletion = Boolean(detail?.general_service?.price_at_completion);
+  const configuredServicePrice = Number(detail?.general_service?.price || 0);
+  const parsedServicePriceInput = Number(servicePriceInput);
+  const servicePrice = priceAtCompletion
+    ? (Number.isFinite(parsedServicePriceInput) ? Math.max(0, parsedServicePriceInput) : 0)
+    : configuredServicePrice;
+  const servicePriceValidationMessage = priceAtCompletion
+    ? servicePriceInput.trim() === ""
+      ? "Informe o valor do serviço."
+      : !Number.isFinite(parsedServicePriceInput) || parsedServicePriceInput < 0
+        ? "Informe um valor de serviço válido."
+        : ""
+    : "";
+
   const partsTotal = useMemo(() => usedItems.reduce((total, item) =>
     total + Number(item.total_sale_price ?? Number(item.quantity || 0) * Number(item.unit_sale_price || item.inventory_item?.sale_price || 0)), 0), [usedItems]);
   const subtotal = servicePrice + partsTotal;
-  const maxDiscount = Number(detail?.general_service?.max_discount_percentage || 0);
-  const discountPercentage = Math.max(0, Number(discount) || 0);
-  const discountAmount = subtotal * discountPercentage / 100;
+  const maxDiscountPercentage = Number(detail?.general_service?.max_discount_percentage || 0);
+  const maxDiscountAmount = Number(detail?.general_service?.max_discount_amount || 0);
+  const discountValue = Math.max(0, Number(discount) || 0);
+  const discountAmount = discountMode === "amount"
+    ? discountValue
+    : subtotal * discountValue / 100;
+  const discountPercentage = discountMode === "percentage"
+    ? discountValue
+    : subtotal > 0 ? discountAmount * 100 / subtotal : 0;
+  const maxDiscount = discountMode === "percentage" ? maxDiscountPercentage : maxDiscountAmount;
+  const discountExceedsMax = discountValue > maxDiscount;
+  const discountExceedsSubtotal = discountAmount > subtotal + 0.009;
   const finalTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
   const effectivePaymentRows = paymentMode === "open" ? [] : payments;
@@ -156,12 +181,20 @@ export function useOrderCompletion({
       showToast({ msg: "Esta OS já foi concluída.", type: "error" });
       return;
     }
+    const targetService = target?.general_service || detail?.general_service;
     setDiscount("0");
+    setDiscountModeState("percentage");
+    setServicePriceInput(targetService?.price_at_completion ? "" : (targetService?.price == null ? "" : String(targetService.price)));
     resetPaymentState();
     setFinanceOptions(emptyFinanceOptions());
     setOpen(true);
     const organizationId = target?.organization_id || detail?.organization_id;
     if (organizationId) void loadFinanceOptions(String(organizationId));
+  };
+
+  const setDiscountMode = (mode: OrderCompletionDiscountMode) => {
+    setDiscountModeState(mode);
+    setDiscount("0");
   };
 
   const setPaymentMode = (mode: OrderCompletionPaymentMode) => {
@@ -213,16 +246,17 @@ export function useOrderCompletion({
   };
 
   const submit = async () => {
-    if (!detail?.id || discountPercentage > maxDiscount || financeOptionsLoading) return;
+    if (!detail?.id || discountExceedsMax || discountExceedsSubtotal || Boolean(servicePriceValidationMessage) || financeOptionsLoading) return;
     if (financeValidationMessage) {
       showToast({ msg: financeValidationMessage, type: "error" });
       return;
     }
     setSaving(true);
     try {
+      const priceOverride = priceAtCompletion ? servicePrice : null;
       const response = financeEnabled
-        ? await completeServiceOrderWithFinance(detail.id, discountPercentage, buildFinancePayload())
-        : await completeServiceOrder(detail.id, discountPercentage);
+        ? await completeServiceOrderWithFinance(detail.id, priceOverride, discountMode, discountValue, buildFinancePayload())
+        : await completeServiceOrder(detail.id, priceOverride, discountMode, discountValue);
       const { data, error } = response;
       if (error) throw error;
       const financial = (data || {}) as any;
@@ -239,8 +273,10 @@ export function useOrderCompletion({
   };
 
   return {
-    open, setOpen, discount, setDiscount, usedItems, servicePrice, partsTotal, subtotal,
-    maxDiscount, discountPercentage, discountAmount, finalTotal,
+    open, setOpen, discount, setDiscount, discountMode, setDiscountMode, discountValue, usedItems,
+    priceAtCompletion, servicePriceInput, setServicePriceInput, servicePrice, servicePriceValidationMessage,
+    partsTotal, subtotal, maxDiscount, maxDiscountPercentage, maxDiscountAmount,
+    discountPercentage, discountAmount, discountExceedsMax, discountExceedsSubtotal, finalTotal,
     financeEnabled, paymentMode, setPaymentMode, payments, addPayment, removePayment, updatePayment,
     installmentCount, setInstallmentCount, firstDueDate, setFirstDueDate,
     financeOptions, financeOptionsLoading, financeOptionsError,
