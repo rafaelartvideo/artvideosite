@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { CheckCircle, Clock3, Mail, MapPin, MessageCircle, Phone, Share2 } from "lucide-react";
+import { Clock3, Mail, MapPin, MessageCircle, Phone, Share2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   useSaveSiteSettingsMutation,
@@ -61,7 +61,7 @@ export function TabContact() {
       subtitle="Configure os canais, endereço e horários exibidos no site público."
       actions={<div className="flex items-center gap-2">
         <InternalBackButton onBack={() => navigate("/admin/site")} />
-        {canUpdate && <BtnPrimary onClick={() => void handleSave()} loading={saveSettings.isPending} loadingText="Salvando..."><CheckCircle size={15} /> Salvar</BtnPrimary>}
+        {canUpdate && <BtnPrimary onClick={() => void handleSave()} loading={saveSettings.isPending} loadingText="Salvando...">Salvar</BtnPrimary>}
       </div>}
     />
 
