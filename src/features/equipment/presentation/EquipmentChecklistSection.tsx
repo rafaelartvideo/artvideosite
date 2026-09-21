@@ -1,7 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import type { EquipmentChecklistItem } from "@/features/checklists/domain/checklist";
 import type { EquipmentDraft, EquipmentCatalog } from "../domain/equipment";
-import { AdminButton, AdminCard, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 
 const RESPONSE_OPTIONS = [
@@ -59,7 +59,8 @@ export function EquipmentChecklistSection({ draft, catalog, onChange }: {
   };
   const removeItem = (index: number) => onChange({ checklistItems: draft.checklistItems.filter((_, itemIndex) => itemIndex !== index) });
 
-  return <Section title="Checklist">
+  return <div className="border-t border-[#0d1b2e]/8 pt-4">
+    <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Checklist</p></div>
     <div className="space-y-4">
       <FSelect
         label="Perfil de checklist"
@@ -93,5 +94,5 @@ export function EquipmentChecklistSection({ draft, catalog, onChange }: {
         </AdminCard>)}</div>}
       </>}
     </div>
-  </Section>;
+  </div>;
 }
