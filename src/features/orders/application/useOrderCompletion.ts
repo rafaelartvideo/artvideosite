@@ -105,13 +105,13 @@ export function useOrderCompletion({
   const discountValue = Math.max(0, Number(discount) || 0);
   const discountAmount = discountMode === "amount"
     ? discountValue
-    : subtotal * discountValue / 100;
+    : servicePrice * discountValue / 100;
   const discountPercentage = discountMode === "percentage"
     ? discountValue
-    : subtotal > 0 ? discountAmount * 100 / subtotal : 0;
+    : servicePrice > 0 ? discountAmount * 100 / servicePrice : 0;
   const maxDiscount = discountMode === "percentage" ? maxDiscountPercentage : maxDiscountAmount;
   const discountExceedsMax = discountValue > maxDiscount;
-  const discountExceedsSubtotal = discountAmount > subtotal + 0.009;
+  const discountExceedsServicePrice = discountAmount > servicePrice + 0.009;
   const finalTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
   const effectivePaymentRows = paymentMode === "open" ? [] : payments;
@@ -246,7 +246,7 @@ export function useOrderCompletion({
   };
 
   const submit = async () => {
-    if (!detail?.id || discountExceedsMax || discountExceedsSubtotal || Boolean(servicePriceValidationMessage) || financeOptionsLoading) return;
+    if (!detail?.id || discountExceedsMax || discountExceedsServicePrice || Boolean(servicePriceValidationMessage) || financeOptionsLoading) return;
     if (financeValidationMessage) {
       showToast({ msg: financeValidationMessage, type: "error" });
       return;
@@ -276,7 +276,7 @@ export function useOrderCompletion({
     open, setOpen, discount, setDiscount, discountMode, setDiscountMode, discountValue, usedItems,
     priceAtCompletion, servicePriceInput, setServicePriceInput, servicePrice, servicePriceValidationMessage,
     partsTotal, subtotal, maxDiscount, maxDiscountPercentage, maxDiscountAmount,
-    discountPercentage, discountAmount, discountExceedsMax, discountExceedsSubtotal, finalTotal,
+    discountPercentage, discountAmount, discountExceedsMax, discountExceedsServicePrice, finalTotal,
     financeEnabled, paymentMode, setPaymentMode, payments, addPayment, removePayment, updatePayment,
     installmentCount, setInstallmentCount, firstDueDate, setFirstDueDate,
     financeOptions, financeOptionsLoading, financeOptionsError,
