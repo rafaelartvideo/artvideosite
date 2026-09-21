@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, Plus, Users } from "lucide-react";
+import { Edit2, Plus, Users, X } from "lucide-react";
 import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
 import { isValidBrazilianPhone, isValidCpf, isValidEmail } from "@/shared/domain/formatters";
 import { AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -203,50 +203,61 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
         <p className="text-sm font-semibold text-red-700">{(rolesQuery.error as any)?.message || "Não foi possível carregar as funções disponíveis para esta empresa."}</p>
       </AdminCardContent>}
 
-      {formOpen && <AdminCardContent className="border-b border-[#0d1b2e]/8">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FInput label="Nome completo" required error={errors.full_name} value={form.full_name} onChange={(e: any) => setField("full_name", e.target.value)} />
-          <FCpfInput label="CPF" required error={errors.cpf} value={form.cpf} onChange={(e: any) => setField("cpf", e.target.value)} />
-          <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(e: any) => setField("phone", e.target.value)} />
-          <FEmailInput label="E-mail" error={errors.email} autoComplete="email" value={form.email} onChange={(e: any) => setField("email", e.target.value)} />
-          <FInput
-            label="Usuário"
-            required={!editing}
-            disabled={Boolean(editing)}
-            error={errors.username}
-            autoComplete="username"
-            spellCheck={false}
-            maxLength={32}
-            placeholder="ex.: rafael.lima"
-            hint={editing ? "O usuário de acesso é global e não é alterado por esta edição." : "O usuário é global e único em todo o sistema. Se já existir, o cadastro será recusado."}
-            value={form.username}
-            onChange={(e: any) => setField("username", normalizeUsername(e.target.value))}
-          />
-          {!editing && <FInput
-            label="Senha"
-            type="password"
-            required
-            autoComplete="new-password"
-            minLength={8}
-            error={errors.password}
-            hint="Obrigatória. Use pelo menos 8 caracteres."
-            value={form.password}
-            onChange={(e: any) => setField("password", e.target.value)}
-          />}
-          <FSelect label="Função" required error={errors.role_id} value={form.role_id} options={roleOptions} onChange={(e: any) => setField("role_id", e.target.value)} />
-          <FInput label="Cargo/Função exibida" value={form.function_name} onChange={(e: any) => setField("function_name", e.target.value)} />
-          <div className="space-y-3 sm:col-span-2">
-            <FToggle label="Usuário ativo" checked={form.is_active} onChange={value => setField("is_active", value)} />
-            <FToggle label="Proprietário da empresa" checked={form.is_owner} onChange={value => setField("is_owner", value)} />
+      {formOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label={editing ? "Editar usuário" : "Novo usuário"}>
+        <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[#0d1b2e]/8 bg-white px-5 py-4">
+            <div className="min-w-0">
+              <h3 className="text-base font-black text-[#0d1b2e]">{editing ? "Editar usuário" : "Novo usuário"}</h3>
+              <p className="mt-0.5 text-xs text-[#5a6a82]">{editing ? "Atualize os dados e o acesso deste usuário." : "Cadastre um novo usuário para acessar esta empresa."}</p>
+            </div>
+            <button type="button" onClick={cancelForm} disabled={saveMutation.isPending} aria-label="Fechar" title="Fechar" className="rounded-lg p-2 text-[#5a6a82] transition-colors hover:bg-slate-100 hover:text-[#0d1b2e] disabled:opacity-40"><X size={18} /></button>
+          </div>
+          <div className="p-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FInput label="Nome completo" required error={errors.full_name} value={form.full_name} onChange={(e: any) => setField("full_name", e.target.value)} />
+              <FCpfInput label="CPF" required error={errors.cpf} value={form.cpf} onChange={(e: any) => setField("cpf", e.target.value)} />
+              <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(e: any) => setField("phone", e.target.value)} />
+              <FEmailInput label="E-mail" error={errors.email} autoComplete="email" value={form.email} onChange={(e: any) => setField("email", e.target.value)} />
+              <FInput
+                label="Usuário"
+                required={!editing}
+                disabled={Boolean(editing)}
+                error={errors.username}
+                autoComplete="username"
+                spellCheck={false}
+                maxLength={32}
+                placeholder="ex.: rafael.lima"
+                hint={editing ? "O usuário de acesso é global e não é alterado por esta edição." : "O usuário é global e único em todo o sistema. Se já existir, o cadastro será recusado."}
+                value={form.username}
+                onChange={(e: any) => setField("username", normalizeUsername(e.target.value))}
+              />
+              {!editing && <FInput
+                label="Senha"
+                type="password"
+                required
+                autoComplete="new-password"
+                minLength={8}
+                error={errors.password}
+                hint="Obrigatória. Use pelo menos 8 caracteres."
+                value={form.password}
+                onChange={(e: any) => setField("password", e.target.value)}
+              />}
+              <FSelect label="Função" required error={errors.role_id} value={form.role_id} options={roleOptions} onChange={(e: any) => setField("role_id", e.target.value)} />
+              <FInput label="Cargo/Função exibida" value={form.function_name} onChange={(e: any) => setField("function_name", e.target.value)} />
+              <div className="space-y-3 sm:col-span-2">
+                <FToggle label="Usuário ativo" checked={form.is_active} onChange={value => setField("is_active", value)} />
+                <FToggle label="Proprietário da empresa" checked={form.is_owner} onChange={value => setField("is_owner", value)} />
+              </div>
+            </div>
+          </div>
+          <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
+            <BtnSecondary onClick={cancelForm} disabled={saveMutation.isPending}>Cancelar</BtnSecondary>
+            <BtnPrimary onClick={saveUser} disabled={saveMutation.isPending || rolesQuery.isPending || rolesQuery.isError}>
+              {saveMutation.isPending ? "Salvando..." : "Salvar"}
+            </BtnPrimary>
           </div>
         </div>
-        <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <BtnSecondary onClick={cancelForm}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={saveUser} disabled={saveMutation.isPending || rolesQuery.isPending || rolesQuery.isError}>
-            {saveMutation.isPending ? "Salvando..." : "Salvar usuário"}
-          </BtnPrimary>
-        </div>
-      </AdminCardContent>}
+      </div>}
 
       {usersQuery.isPending ? <LoadingState /> : usersQuery.isError ? <AdminCardContent><p className="text-sm font-semibold text-red-700">{(usersQuery.error as any)?.message || "Não foi possível carregar os usuários."}</p></AdminCardContent> : (usersQuery.data || []).length === 0 ? <AdminCardContent><EmptyState icon={Users} title="Nenhum usuário vinculado" message="Esta empresa ainda não possui usuários cadastrados." /></AdminCardContent> : <div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr><th className="text-left">Usuário</th><th className="text-left">Login</th><th className="text-left">E-mail</th><th className="text-left">Função</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{(usersQuery.data || []).map((user: any) => <tr key={user.membership_id}><td><p className="font-bold text-[#0d1b2e]">{user.full_name || "—"}</p><p className="text-xs text-[#5a6a82]">{user.phone || user.cpf || "—"}</p></td><td>{user.username || "—"}</td><td>{user.email || "—"}</td><td>{user.role_name || user.function_name || "Sem função"}</td><td><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{statusLabel(user.status)}</span></td><td><div className="flex justify-end"><AdminIconButton title="Editar usuário" onClick={() => openEdit(user)}><Edit2 size={14} /></AdminIconButton></div></td></tr>)}</tbody></table></div>}
     </AdminCard>
