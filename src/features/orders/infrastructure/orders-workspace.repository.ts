@@ -13,7 +13,7 @@ export const loadOrdersReferenceData = (organizationId: string) => Promise.all([
   supabase.from("technical_fields").select("id,field_key,label,field_type,is_active,sort_order").eq("organization_id", organizationId).order("sort_order").order("label"),
   supabase.from("equipment_type_technical_fields").select("equipment_type_id,technical_field_id,required,sort_order,technical_field:technical_fields(id,field_key,label,field_type,is_active,sort_order)").eq("organization_id", organizationId).order("sort_order"),
   supabase.from("employees").select("id,full_name,is_active").eq("organization_id", organizationId).eq("is_active", true).order("full_name"),
-  supabase.from("general_services").select("id,name,price,max_discount_percentage,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
+  supabase.from("general_services").select("id,name,price,price_at_completion,max_discount_percentage,max_discount_amount,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
   supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("title"),
   supabase.from("service_type_situations").select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order,situation:os_situations(id,name,color,hours,is_active)").eq("organization_id", organizationId).order("sort_order"),
 ]);
