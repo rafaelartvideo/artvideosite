@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Edit2, Link2, MapPin, Plus, RefreshCcw, Search } from "lucide-react";
+import { Link2, MapPin, Plus, RefreshCcw, Search } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { formatZipCode, getAddressMapUrl, type Address } from "@/lib/address";
 import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -164,7 +164,7 @@ export function OrderCustomerSection({
 
               <button type="button" disabled={saving} onClick={() => setAddressExpanded(value => !value)} className="text-xs font-bold text-[#0057e7] hover:underline disabled:opacity-50">{addressExpanded ? "Ocultar endereço ▲" : "Mostrar endereço ▼"}</button>
               {addressExpanded && <div className="border-t border-[#0d1b2e]/8 pt-4"><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Endereço selecionado</p><div className="grid sm:grid-cols-3 gap-3">{(() => { const address = selectedAddress; const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" }; return (["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null); })()}</div></div>}
-              <div className="flex min-w-0 flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={onClearCustomer} disabled={saving} aria-label="Trocar cliente" title="Trocar cliente" className={compactActionClass}><RefreshCcw size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Trocar cliente</span></BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)} disabled={saving} aria-label="Editar dados" title="Editar dados" className={compactActionClass}><Edit2 size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Editar dados</span></BtnSecondary>}</div>
+              <div className="flex min-w-0 flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={onClearCustomer} disabled={saving} aria-label="Trocar cliente" title="Trocar cliente" className={compactActionClass}><RefreshCcw size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Trocar cliente</span></BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)} disabled={saving} aria-label="Editar dados" title="Editar dados">Editar</BtnSecondary>}</div>
             </>
           )}
           {editingCustomer && <button type="button" disabled={saving} onClick={() => setEditingCustomer(false)} className="text-xs text-[#5a6a82] hover:underline disabled:opacity-50">Cancelar edição</button>}
