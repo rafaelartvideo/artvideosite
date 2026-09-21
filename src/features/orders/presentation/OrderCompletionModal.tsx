@@ -274,7 +274,7 @@ export function OrderCompletionModal({
                   decimalPlaces={2}
                   onChange={(event: any) => completion.setDiscount(event.target.value)}
                   hint={`Máximo permitido: ${formatNumber(completion.maxDiscountPercentage, { maximumFractionDigits: 2 })}%`}
-                  error={completion.discountExceedsMax ? "O desconto ultrapassa o máximo permitido." : completion.discountExceedsSubtotal ? "O desconto não pode ser maior que o subtotal da OS." : undefined}
+                  error={completion.discountExceedsMax ? "O desconto ultrapassa o máximo permitido." : completion.discountExceedsServicePrice ? "O desconto não pode ser maior que o valor do serviço." : undefined}
                 />
               ) : (
                 <FCurrencyInput
@@ -282,7 +282,7 @@ export function OrderCompletionModal({
                   value={completion.discount}
                   onChange={(event: any) => completion.setDiscount(event.target.value)}
                   hint={`Máximo permitido: ${formatCurrency(completion.maxDiscountAmount)}`}
-                  error={completion.discountExceedsMax ? "O desconto ultrapassa o máximo permitido." : completion.discountExceedsSubtotal ? "O desconto não pode ser maior que o subtotal da OS." : undefined}
+                  error={completion.discountExceedsMax ? "O desconto ultrapassa o máximo permitido." : completion.discountExceedsServicePrice ? "O desconto não pode ser maior que o valor do serviço." : undefined}
                 />
               )}
             </div>
@@ -315,7 +315,7 @@ export function OrderCompletionModal({
         <BtnSecondary onClick={() => completion.setOpen(false)} disabled={saving}>Cancelar</BtnSecondary>
         <BtnPrimary
           onClick={() => void completion.submit()}
-          disabled={completion.discountExceedsMax || completion.discountExceedsSubtotal || Boolean(completion.servicePriceValidationMessage) || Boolean(completion.financeValidationMessage) || completion.financeOptionsLoading}
+          disabled={completion.discountExceedsMax || completion.discountExceedsServicePrice || Boolean(completion.servicePriceValidationMessage) || Boolean(completion.financeValidationMessage) || completion.financeOptionsLoading}
           loading={saving}
           loadingText="Concluindo..."
         >
