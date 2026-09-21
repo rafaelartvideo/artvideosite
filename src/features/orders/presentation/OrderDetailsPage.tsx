@@ -1,7 +1,7 @@
 import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
-import { useEffect, useState } from "react";
-import { ChevronDown, FileText, Mail, PackagePlus, Printer } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, FileText, Mail, PackagePlus, Printer, Tag } from "lucide-react";
 import { AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -20,6 +20,8 @@ import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
+import { renderServiceOrderLabel } from "../domain/order-label-print";
+import { QRCodeSVG } from "qrcode.react";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import { sendOrderDocumentEmail } from "@/features/documents/infrastructure/order-document-email.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
@@ -77,6 +79,7 @@ export function OrderDetailsPage(props: Props) {
     onEdit: openEdit, onClose,
   } = props;
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
+  const labelQrContainerRef = useRef<HTMLDivElement | null>(null);
   const [printError, setPrintError] = useState("");
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -123,6 +126,9 @@ export function OrderDetailsPage(props: Props) {
   const canPrintDocuments = hasPermission("documents.print");
   const canUseSignatureDocuments = hasPermission("documents.signatures.view") || hasPermission("documents.signatures.send");
   const printTemplates = useOrderPrintTemplates(canPrintDocuments || canUseSignatureDocuments);
+  const labelUrl = detail?.id && detail?.organization_id
+    ? `${window.location.origin}/admin/orders/${encodeURIComponent(detail.id)}?org=${encodeURIComponent(detail.organization_id)}`
+    : "";
 
   useEffect(() => {
     setSolutionRecordsOpen(false);
@@ -156,6 +162,33 @@ export function OrderDetailsPage(props: Props) {
       renderOrderPrintDocument(popup, configuredTemplate, { order: detail, checklist, checklistPhotoUrls, usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName, company });
     } catch (error) { popup.close(); setPrintError(error instanceof Error ? error.message : "Não foi possível preparar o documento."); }
     finally { setPrintingTemplateId(null); }
+  };
+
+  const printLabel = () => {
+    setPrintError("");
+    if (!detail?.id || !detail?.organization_id || !labelUrl) {
+      setPrintError("Não foi possível montar a etiqueta desta OS.");
+      return;
+    }
+
+    const qrSvg = labelQrContainerRef.current?.querySelector("svg")?.outerHTML;
+    if (!qrSvg) {
+      setPrintError("Não foi possível gerar o QR Code da etiqueta.");
+      return;
+    }
+
+    const popup = openPrintWindow();
+    if (!popup) {
+      setPrintError("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
+      return;
+    }
+
+    try {
+      renderServiceOrderLabel(popup, { order: detail, qrSvg });
+    } catch (error) {
+      popup.close();
+      setPrintError(error instanceof Error ? error.message : "Não foi possível preparar a etiqueta.");
+    }
   };
 
   const emailTemplate = async (template: PrintTemplate) => {
@@ -192,6 +225,7 @@ export function OrderDetailsPage(props: Props) {
   }
 
   return <>
+    {detail && labelUrl && <div ref={labelQrContainerRef} aria-hidden="true" className="hidden"><QRCodeSVG value={labelUrl} size={256} level="M" /></div>}
     <OrderDocumentsPage
       open={documentsPageOpen}
       order={detail}
@@ -215,7 +249,7 @@ export function OrderDetailsPage(props: Props) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2"><StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />{(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}{detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}</div>
           <div className="flex flex-wrap items-center gap-2 border-t border-[#0d1b2e]/10 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
-            {canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72">{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => <DropdownMenuItem key={template.id} disabled={Boolean(printingTemplateId)} onSelect={event => { event.preventDefault(); void printTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4"><span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>{printingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Preparando...</span>}</DropdownMenuItem>)}{printError && <DropdownMenuItem disabled className="max-w-72 whitespace-normal text-red-600">{printError}</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
+            {canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72"><DropdownMenuItem onSelect={event => { event.preventDefault(); printLabel(); }} className="flex cursor-pointer items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><Tag size={15} /></span><span className="min-w-0"><span className="block truncate font-semibold">Etiqueta</span><span className="block text-[10px] text-[#5a6a82]">60 × 40 mm • QR para abrir a OS</span></span></DropdownMenuItem>{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => <DropdownMenuItem key={template.id} disabled={Boolean(printingTemplateId)} onSelect={event => { event.preventDefault(); void printTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4"><span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>{printingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Preparando...</span>}</DropdownMenuItem>)}{printError && <DropdownMenuItem disabled className="max-w-72 whitespace-normal text-red-600">{printError}</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum outro modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
             {ORDER_EMAIL_ACTION_VISIBLE && canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Mail size={14} /> Enviar e-mail <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72">{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => <DropdownMenuItem key={template.id} disabled={Boolean(emailingTemplateId)} onSelect={event => { event.preventDefault(); void emailTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4"><span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>{emailingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Enviando...</span>}</DropdownMenuItem>)}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
             {hasPermission("orders.section.checklists") && <OrderChecklistToolbarButton orderId={detail.id} onClick={() => onOpenSubpage("checklists")} />}
             {hasPermission("orders.section.parts") && <button type="button" onClick={() => onOpenSubpage("part-requests")} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button>}
