@@ -62,10 +62,14 @@ export async function getOrderCompletionFinanceOptions(organizationId: string): 
 
 export const completeServiceOrderWithFinance = (
   serviceOrderId: string,
-  discountPercentage: number,
+  servicePrice: number | null,
+  discountType: "percentage" | "amount",
+  discountValue: number,
   financePayload: OrderCompletionFinancePayload,
-) => supabase.rpc("complete_service_order", {
+) => supabase.rpc("complete_service_order_v2", {
   p_service_order_id: serviceOrderId,
-  p_discount_percentage: discountPercentage,
+  p_service_price: servicePrice,
+  p_discount_type: discountType,
+  p_discount_value: discountValue,
   p_finance_payload: financePayload,
 });
