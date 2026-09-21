@@ -182,7 +182,7 @@ export function RegistrationEditor({
 
     <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
       <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
-      <BtnPrimary disabled={!canModify} onClick={onSave} loading={saving} loadingText="Salvando...">{creating ? "Criar cadastro" : "Salvar alterações"}</BtnPrimary>
+      <BtnPrimary disabled={!canModify} onClick={onSave} loading={saving} loadingText="Salvando...">{creating ? "Criar" : "Salvar alterações"}</BtnPrimary>
     </div>
   </AdminPage>;
 }
