@@ -20,8 +20,8 @@ import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
-import { renderServiceOrderLabel } from "../domain/order-label-print";
-import { QRCodeSVG } from "qrcode.react";
+import { createServiceOrderLabelDataUrl, renderServiceOrderLabel } from "../domain/order-label-print";
+import { QRCodeCanvas } from "qrcode.react";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import { sendOrderDocumentEmail } from "@/features/documents/infrastructure/order-document-email.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
@@ -79,7 +79,7 @@ export function OrderDetailsPage(props: Props) {
     onEdit: openEdit, onClose,
   } = props;
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
-  const labelQrContainerRef = useRef<HTMLDivElement | null>(null);
+  const labelQrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [printError, setPrintError] = useState("");
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -171,8 +171,8 @@ export function OrderDetailsPage(props: Props) {
       return;
     }
 
-    const qrSvg = labelQrContainerRef.current?.querySelector("svg")?.outerHTML;
-    if (!qrSvg) {
+    const qrCanvas = labelQrCanvasRef.current;
+    if (!qrCanvas) {
       setPrintError("Não foi possível gerar o QR Code da etiqueta.");
       return;
     }
@@ -184,7 +184,8 @@ export function OrderDetailsPage(props: Props) {
     }
 
     try {
-      renderServiceOrderLabel(popup, { order: detail, qrSvg });
+      const imageDataUrl = createServiceOrderLabelDataUrl(detail, qrCanvas);
+      renderServiceOrderLabel(popup, imageDataUrl, detail.os_number);
     } catch (error) {
       popup.close();
       setPrintError(error instanceof Error ? error.message : "Não foi possível preparar a etiqueta.");
@@ -225,7 +226,7 @@ export function OrderDetailsPage(props: Props) {
   }
 
   return <>
-    {detail && labelUrl && <div ref={labelQrContainerRef} aria-hidden="true" className="hidden"><QRCodeSVG value={labelUrl} size={256} level="M" marginSize={2} /></div>}
+    {detail && labelUrl && <div aria-hidden="true" className="pointer-events-none absolute left-[-9999px] top-0 h-px w-px overflow-hidden opacity-0"><QRCodeCanvas ref={labelQrCanvasRef} value={labelUrl} size={256} level="M" marginSize={2} /></div>}
     <OrderDocumentsPage
       open={documentsPageOpen}
       order={detail}
