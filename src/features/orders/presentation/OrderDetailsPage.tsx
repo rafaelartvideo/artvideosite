@@ -225,7 +225,7 @@ export function OrderDetailsPage(props: Props) {
   }
 
   return <>
-    {detail && labelUrl && <div ref={labelQrContainerRef} aria-hidden="true" className="hidden"><QRCodeSVG value={labelUrl} size={256} level="M" /></div>}
+    {detail && labelUrl && <div ref={labelQrContainerRef} aria-hidden="true" className="hidden"><QRCodeSVG value={labelUrl} size={256} level="M" marginSize={2} /></div>}
     <OrderDocumentsPage
       open={documentsPageOpen}
       order={detail}
