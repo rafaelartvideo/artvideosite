@@ -1,4 +1,4 @@
-import { Edit2, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
 import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -142,7 +142,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
     <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
       <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>
       {roles.includes("customer") && selected.legacy_customer_id && onOpenCustomerHistory && <BtnSecondary onClick={() => onOpenCustomerHistory(selected.legacy_customer_id!)}>Ficha do cliente</BtnSecondary>}
-      {canEdit && <BtnPrimary onClick={onEdit}><Edit2 size={15} /> Editar cadastro</BtnPrimary>}
+      {canEdit && <BtnPrimary onClick={onEdit}>Editar</BtnPrimary>}
     </div>
   </AdminPage>;
 }
