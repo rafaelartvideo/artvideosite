@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 export const getServiceOrderDetail = (serviceOrderId: string) =>
   supabase
     .from("service_orders")
-    .select("is_solved,solved_at,completed_at,completed_by,situation_started_at,service_price,parts_total,discount_percentage,discount_amount,final_total,cannot_be_solved,cannot_be_solved_reason,assigned_profile:profiles!assigned_to(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active))")
+    .select("is_solved,solved_at,completed_at,completed_by,situation_started_at,service_price,parts_total,discount_type,discount_percentage,discount_amount,final_total,cannot_be_solved,cannot_be_solved_reason,assigned_profile:profiles!assigned_to(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active))")
     .eq("id", serviceOrderId)
     .maybeSingle();
 
@@ -54,7 +54,7 @@ export const loadOrdersWorkspace = (organizationId: string) =>
   Promise.all([
     supabase
       .from("service_orders")
-      .select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,max_discount_percentage), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)")
+      .select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,price_at_completion,max_discount_percentage,max_discount_amount), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false }),
     supabase.from("order_statuses").select("id,name,color,sort_order").eq("organization_id", organizationId).order("sort_order"),
@@ -69,7 +69,7 @@ export const loadOrdersWorkspace = (organizationId: string) =>
     supabase.from("technical_fields").select("id,field_key,label,field_type,is_active,sort_order").eq("organization_id", organizationId).order("sort_order").order("label"),
     supabase.from("equipment_type_technical_fields").select("equipment_type_id,technical_field_id,required,sort_order,technical_field:technical_fields(id,field_key,label,field_type,is_active,sort_order)").eq("organization_id", organizationId).order("sort_order"),
     supabase.from("employees").select("id,full_name,is_active").eq("organization_id", organizationId).eq("is_active", true).order("full_name"),
-    supabase.from("general_services").select("id,name,price,max_discount_percentage,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
+    supabase.from("general_services").select("id,name,price,price_at_completion,max_discount_percentage,max_discount_amount,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
     supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("title"),
     supabase.from("service_type_situations").select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order,situation:os_situations(id,name,color,hours,is_active)").eq("organization_id", organizationId).order("sort_order"),
   ]);
@@ -284,7 +284,7 @@ export const resolveServiceOrder = ({
 export const getFullServiceOrder = (serviceOrderId: string) =>
   supabase
     .from("service_orders")
-    .select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,max_discount_percentage), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)")
+    .select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,price_at_completion,max_discount_percentage,max_discount_amount), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)")
     .eq("id", serviceOrderId)
     .maybeSingle();
 
@@ -298,8 +298,13 @@ export const listApprovedResolutionPartRequests = (serviceOrderId: string) =>
 
 export const completeServiceOrder = (
   serviceOrderId: string,
-  discountPercentage: number,
-) => supabase.rpc("complete_service_order", {
+  servicePrice: number | null,
+  discountType: "percentage" | "amount",
+  discountValue: number,
+) => supabase.rpc("complete_service_order_v2", {
   p_service_order_id: serviceOrderId,
-  p_discount_percentage: discountPercentage,
+  p_service_price: servicePrice,
+  p_discount_type: discountType,
+  p_discount_value: discountValue,
+  p_finance_payload: {},
 });
