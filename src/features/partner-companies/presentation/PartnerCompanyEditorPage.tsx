@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
 import { lookupCompanyByCnpj } from "@/features/settings/infrastructure/company-registry.gateway";
 import { type Address } from "@/lib/address";
 import {
@@ -414,7 +413,7 @@ export function PartnerCompanyEditorPage({
     <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
       <BtnPrimary onClick={() => void save()} disabled={!canSave || saving || consultingCnpj}>
-        <CheckCircle2 size={15} /> {saving ? "Salvando..." : editing ? "Salvar alterações" : "Cadastrar empresa"}
+        {saving ? "Salvando..." : editing ? "Salvar" : "Cadastrar empresa"}
       </BtnPrimary>
     </div>
   </AdminPage>;
