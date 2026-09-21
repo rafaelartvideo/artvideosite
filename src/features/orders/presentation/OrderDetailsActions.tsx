@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, CheckCircle, X } from "lucide-react";
+import { CheckCircle, X } from "lucide-react";
 import { AdminButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -84,7 +84,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {canResolve && <BtnPrimary onClick={onResolve} className="h-10 min-w-0 px-3 md:px-4">Solucionar</BtnPrimary>}
           {canComplete && <BtnPrimary onClick={() => onComplete()} className="h-10 min-w-0 px-2.5 md:px-4"><CheckCircle size={15} /><span className="md:hidden">Concluir</span><span className="hidden md:inline">Concluir OS</span></BtnPrimary>}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-10 min-w-0 px-3 md:px-4" aria-label="Editar OS" title="Editar">Editar</BtnPrimary>}
-          {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-10 min-w-0 border-red-200 px-2 text-red-600 hover:bg-red-50 md:px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban size={15} /><span className="hidden md:inline">Cancelar</span></AdminButton>}
+          {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-10 min-w-0 border-red-200 px-3 text-red-600 hover:bg-red-50 md:px-4" aria-label="Cancelar OS" title="Cancelar OS">Cancelar</AdminButton>}
         </div>}
       </div>
     </div>
