@@ -1,150 +1,177 @@
-type ServiceOrderLabelContext = {
-  order: {
-    id?: string | null;
-    os_number?: string | null;
-    external_os_number?: string | null;
-  };
-  qrSvg: string;
+type ServiceOrderLabelOrder = {
+  id?: string | null;
+  os_number?: string | null;
+  external_os_number?: string | null;
 };
 
-const labelText = (value: unknown) => value == null || value === "" ? "" : String(value);
-const escapeHtml = (value: unknown) => labelText(value)
-  .replaceAll("&", "&amp;")
-  .replaceAll("<", "&lt;")
-  .replaceAll(">", "&gt;")
-  .replaceAll('"', "&quot;")
-  .replaceAll("'", "&#039;");
+const LABEL_WIDTH_PX = 480;
+const LABEL_HEIGHT_PX = 320;
+const LABEL_WIDTH_MM = 60;
+const LABEL_HEIGHT_MM = 40;
 
-export function buildServiceOrderLabelHtml(context: ServiceOrderLabelContext, autoPrint = true) {
-  const order = context.order || {};
-  const osNumber = escapeHtml(order.os_number || "—");
-  const externalNumber = escapeHtml(order.external_os_number);
-  const qrSvg = context.qrSvg || "";
-  const externalBlock = externalNumber
-    ? `<div class="external"><span>OS externa</span><strong>${externalNumber}</strong></div>`
-    : "";
+function cleanText(value: unknown) {
+  return value == null || value === "" ? "" : String(value).trim();
+}
 
-  return `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Etiqueta OS ${osNumber}</title>
-  <style>
-    @page { size: 60mm 40mm; margin: 0; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; width: 60mm; min-width: 60mm; background: #fff; color: #000; }
-    body { font-family: Arial, Helvetica, sans-serif; }
-    .label {
-      width: 60mm;
-      height: 40mm;
-      padding: 2.2mm;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 25mm;
-      gap: 2mm;
-      align-items: stretch;
-      overflow: hidden;
-    }
-    .info {
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 0.5mm 0;
-    }
-    .eyebrow {
-      margin: 0;
-      font-size: 2.6mm;
-      line-height: 1;
-      font-weight: 800;
-      letter-spacing: 0.16mm;
-      text-transform: uppercase;
-    }
-    .os-number {
-      margin: 1.2mm 0 0;
-      font-size: 7mm;
-      line-height: 0.95;
-      font-weight: 900;
-      overflow-wrap: anywhere;
-    }
-    .external {
-      margin-top: 1.4mm;
-      border-top: 0.35mm solid #000;
-      padding-top: 1.2mm;
-    }
-    .external span,
-    .scan-hint {
-      display: block;
-      font-size: 2.35mm;
-      line-height: 1.15;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08mm;
-    }
-    .external strong {
-      display: block;
-      margin-top: 0.5mm;
-      font-size: 3.7mm;
-      line-height: 1.05;
-      font-weight: 900;
-      overflow-wrap: anywhere;
-    }
-    .qr {
-      width: 25mm;
-      min-width: 25mm;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.8mm;
-    }
-    .qr svg {
-      display: block;
-      width: 23mm !important;
-      height: 23mm !important;
-      max-width: 23mm;
-      max-height: 23mm;
-    }
-    .scan-hint {
-      text-align: center;
-      font-size: 2.15mm;
-      letter-spacing: 0;
-      text-transform: none;
-    }
-    @media screen {
-      body { background: #e5e7eb; padding: 10mm; width: auto; min-width: 0; }
-      .label { margin: 0 auto; background: #fff; outline: 1px solid #cbd5e1; }
-    }
-    @media print {
-      html, body { width: 60mm; height: 40mm; overflow: hidden; }
-      .label { outline: none; }
-    }
-  </style>
-</head>
-<body>
-  <main class="label">
-    <section class="info">
-      <div>
-        <p class="eyebrow">Ordem de serviço</p>
-        <div class="os-number">${osNumber}</div>
-        ${externalBlock}
-      </div>
-    </section>
-    <aside class="qr">
-      ${qrSvg}
-      <span class="scan-hint">Escaneie para abrir a OS</span>
-    </aside>
-  </main>
-  ${autoPrint ? `<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},120);});<\/script>` : ""}
-</body>
-</html>`;
+function fitFont(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  startSize: number,
+  minSize: number,
+  weight = 900,
+) {
+  let size = startSize;
+  do {
+    context.font = `${weight} ${size}px Arial, Helvetica, sans-serif`;
+    if (context.measureText(text).width <= maxWidth) return size;
+    size -= 2;
+  } while (size >= minSize);
+  return minSize;
+}
+
+export function createServiceOrderLabelDataUrl(
+  order: ServiceOrderLabelOrder,
+  qrCanvas: HTMLCanvasElement,
+) {
+  const canvas = document.createElement("canvas");
+  canvas.width = LABEL_WIDTH_PX;
+  canvas.height = LABEL_HEIGHT_PX;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Não foi possível preparar a imagem da etiqueta.");
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#000000";
+  context.textBaseline = "top";
+  context.imageSmoothingEnabled = false;
+
+  const leftX = 20;
+  const leftWidth = 235;
+  const osNumber = cleanText(order.os_number) || "—";
+  const externalNumber = cleanText(order.external_os_number);
+
+  context.font = "800 19px Arial, Helvetica, sans-serif";
+  context.fillText("ORDEM DE SERVIÇO", leftX, 22);
+
+  const osFontSize = fitFont(context, osNumber, leftWidth, 58, 30);
+  context.font = `900 ${osFontSize}px Arial, Helvetica, sans-serif`;
+  context.fillText(osNumber, leftX, 60, leftWidth);
+
+  if (externalNumber) {
+    context.fillRect(leftX, 147, leftWidth, 3);
+    context.font = "800 17px Arial, Helvetica, sans-serif";
+    context.fillText("OS EXTERNA", leftX, 162);
+    const externalFontSize = fitFont(context, externalNumber, leftWidth, 31, 19, 900);
+    context.font = `900 ${externalFontSize}px Arial, Helvetica, sans-serif`;
+    context.fillText(externalNumber, leftX, 187, leftWidth);
+  }
+
+  const qrSize = 196;
+  const qrX = 274;
+  const qrY = 22;
+  context.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+
+  context.font = "700 15px Arial, Helvetica, sans-serif";
+  context.textAlign = "center";
+  context.fillText("Escaneie para abrir a OS", qrX + qrSize / 2, 231, qrSize);
+  context.textAlign = "start";
+
+  context.font = "700 13px Arial, Helvetica, sans-serif";
+  context.fillText("ARTVIDEO • ETIQUETA DE EQUIPAMENTO", leftX, 283);
+
+  return canvas.toDataURL("image/png");
 }
 
 export function renderServiceOrderLabel(
   popup: Window,
-  context: ServiceOrderLabelContext,
+  imageDataUrl: string,
+  osNumber?: string | null,
 ) {
+  const safeTitle = cleanText(osNumber).replace(/[<>]/g, "");
   popup.document.open();
-  popup.document.write(buildServiceOrderLabelHtml(context, true));
+  popup.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Etiqueta OS ${safeTitle}</title>
+  <style>
+    @page { size: ${LABEL_WIDTH_MM}mm ${LABEL_HEIGHT_MM}mm; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: ${LABEL_WIDTH_MM}mm;
+      height: ${LABEL_HEIGHT_MM}mm;
+      overflow: hidden;
+      background: #fff;
+    }
+    .sheet {
+      margin: 0;
+      padding: 0;
+      width: ${LABEL_WIDTH_MM}mm;
+      height: ${LABEL_HEIGHT_MM}mm;
+      overflow: hidden;
+      background: #fff;
+    }
+    .label-image {
+      display: block;
+      width: ${LABEL_WIDTH_MM}mm;
+      height: ${LABEL_HEIGHT_MM}mm;
+      object-fit: fill;
+      margin: 0;
+      padding: 0;
+    }
+    @media screen {
+      html, body {
+        width: auto;
+        height: auto;
+        min-width: ${LABEL_WIDTH_MM}mm;
+        min-height: ${LABEL_HEIGHT_MM}mm;
+        background: #e5e7eb;
+      }
+      .sheet {
+        margin: 10mm auto;
+        outline: 1px solid #cbd5e1;
+      }
+    }
+    @media print {
+      html, body, .sheet {
+        width: ${LABEL_WIDTH_MM}mm !important;
+        height: ${LABEL_HEIGHT_MM}mm !important;
+        min-width: ${LABEL_WIDTH_MM}mm !important;
+        min-height: ${LABEL_HEIGHT_MM}mm !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <img id="label-image" class="label-image" src="${imageDataUrl}" alt="Etiqueta da ordem de serviço" />
+  </main>
+  <script>
+    (function () {
+      var image = document.getElementById("label-image");
+      var printed = false;
+      function startPrint() {
+        if (printed) return;
+        printed = true;
+        setTimeout(function () {
+          window.focus();
+          window.print();
+        }, 700);
+      }
+      if (image && image.complete && image.naturalWidth > 0) startPrint();
+      else if (image) {
+        image.addEventListener("load", startPrint, { once: true });
+        image.addEventListener("error", function () {
+          document.body.innerHTML = "<p style='font-family:Arial;padding:16px'>Não foi possível carregar a etiqueta para impressão.</p>";
+        }, { once: true });
+      }
+    }());
+  <\/script>
+</body>
+</html>`);
   popup.document.close();
 }
