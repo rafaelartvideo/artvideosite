@@ -122,10 +122,28 @@ export default function App() {
 }
 
 function AdminEntry() {
-  const { session, loading, activeOrganization, accessError, refreshAccess, signOut } = useAuth();
+  const { session, loading, activeOrganization, organizations, accessError, refreshAccess, signOut, setActiveOrganization } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestedOrganizationId = new URLSearchParams(location.search).get("org");
+  const canOpenRequestedOrganization = Boolean(
+    requestedOrganizationId
+    && organizations.some(organization => organization.organization_id === requestedOrganizationId),
+  );
+  const shouldSwitchOrganization = Boolean(
+    session
+    && !loading
+    && requestedOrganizationId
+    && canOpenRequestedOrganization
+    && activeOrganization?.organization_id !== requestedOrganizationId,
+  );
 
-  if (loading) return <AdminFallback />;
+  useEffect(() => {
+    if (!shouldSwitchOrganization || !requestedOrganizationId) return;
+    void setActiveOrganization(requestedOrganizationId);
+  }, [shouldSwitchOrganization, requestedOrganizationId, setActiveOrganization]);
+
+  if (loading || shouldSwitchOrganization) return <AdminFallback />;
 
   return (
     <Suspense fallback={<AdminFallback />}>
