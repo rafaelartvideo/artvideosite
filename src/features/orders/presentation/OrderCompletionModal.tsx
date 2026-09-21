@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { MapPin, MessageCircle, Phone, X } from "lucide-react";
+import { DollarSign, MapPin, MessageCircle, Percent, Phone, X } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import { AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
-import { FDecimalInput } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput, FDecimalInput } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatNumber, formatPhone } from "@/shared/domain/formatters";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
@@ -186,10 +186,23 @@ export function OrderCompletionModal({
             <div className="min-w-0 space-y-4">
               <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                 <InfoItem label="Serviço" value={detail.general_service?.name || "—"} />
-                <div className="min-w-0 sm:text-right">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Valor do serviço</p>
-                  <p className="mt-1 text-base font-black text-[#0d1b2e]">{formatCurrency(completion.servicePrice)}</p>
-                </div>
+                {completion.priceAtCompletion ? (
+                  <div className="min-w-0">
+                    <FCurrencyInput
+                      label="Valor do serviço"
+                      value={completion.servicePriceInput}
+                      onChange={(event: any) => completion.setServicePriceInput(event.target.value)}
+                      error={completion.servicePriceValidationMessage || undefined}
+                      hint="Este serviço recebe o valor somente na conclusão da OS."
+                      disabled={saving}
+                    />
+                  </div>
+                ) : (
+                  <div className="min-w-0 sm:text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Valor do serviço</p>
+                    <p className="mt-1 text-base font-black text-[#0d1b2e]">{formatCurrency(completion.servicePrice)}</p>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-[#0d1b2e]/8 pt-4">
@@ -230,15 +243,48 @@ export function OrderCompletionModal({
           </Section>
 
           <Section title="Desconto">
-            <div className="min-w-0">
-              <FDecimalInput
-                label="Desconto (%)"
-                value={completion.discount}
-                decimalPlaces={2}
-                onChange={(event: any) => completion.setDiscount(event.target.value)}
-                hint={`Máximo permitido: ${formatNumber(completion.maxDiscount, { maximumFractionDigits: 2 })}%`}
-                error={completion.discountPercentage > completion.maxDiscount ? "O desconto ultrapassa o máximo permitido." : undefined}
-              />
+            <div className="min-w-0 space-y-3">
+              <div className="inline-flex items-center gap-1 rounded-xl border border-[#0d1b2e]/10 bg-white p-1" aria-label="Tipo de desconto">
+                <button
+                  type="button"
+                  aria-label="Desconto em porcentagem"
+                  aria-pressed={completion.discountMode === "percentage"}
+                  disabled={saving}
+                  onClick={() => completion.setDiscountMode("percentage")}
+                  className={`inline-flex h-9 w-10 items-center justify-center rounded-lg border text-sm font-black transition-colors disabled:opacity-50 ${completion.discountMode === "percentage" ? "border-[#0057e7] bg-[#0057e7] text-white" : "border-transparent text-[#5a6a82] hover:bg-[#eef5ff] hover:text-[#0057e7]"}`}
+                >
+                  <Percent size={16} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Desconto em valor"
+                  aria-pressed={completion.discountMode === "amount"}
+                  disabled={saving}
+                  onClick={() => completion.setDiscountMode("amount")}
+                  className={`inline-flex h-9 w-10 items-center justify-center rounded-lg border text-sm font-black transition-colors disabled:opacity-50 ${completion.discountMode === "amount" ? "border-[#0057e7] bg-[#0057e7] text-white" : "border-transparent text-[#5a6a82] hover:bg-[#eef5ff] hover:text-[#0057e7]"}`}
+                >
+                  <DollarSign size={16} />
+                </button>
+              </div>
+
+              {completion.discountMode === "percentage" ? (
+                <FDecimalInput
+                  label="Desconto (%)"
+                  value={completion.discount}
+                  decimalPlaces={2}
+                  onChange={(event: any) => completion.setDiscount(event.target.value)}
+                  hint={`Máximo permitido: ${formatNumber(completion.maxDiscountPercentage, { maximumFractionDigits: 2 })}%`}
+                  error={completion.discountExceedsMax ? "O desconto ultrapassa o máximo permitido." : completion.discountExceedsSubtotal ? "O desconto não pode ser maior que o subtotal da OS." : undefined}
+                />
+              ) : (
+                <FCurrencyInput
+                  label="Desconto (R$)"
+                  value={completion.discount}
+                  onChange={(event: any) => completion.setDiscount(event.target.value)}
+                  hint={`Máximo permitido: ${formatCurrency(completion.maxDiscountAmount)}`}
+                  error={completion.discountExceedsMax ? "O desconto ultrapassa o máximo permitido." : completion.discountExceedsSubtotal ? "O desconto não pode ser maior que o subtotal da OS." : undefined}
+                />
+              )}
             </div>
           </Section>
 
@@ -249,7 +295,7 @@ export function OrderCompletionModal({
                 <strong className="text-[#0d1b2e]">{formatCurrency(completion.subtotal)}</strong>
               </div>
               <div className="flex min-w-0 items-center justify-between gap-4 text-sm">
-                <span className="text-[#5a6a82]">Desconto ({formatNumber(completion.discountPercentage, { maximumFractionDigits: 2 })}%)</span>
+                <span className="text-[#5a6a82]">{completion.discountMode === "percentage" ? `Desconto (${formatNumber(completion.discountValue, { maximumFractionDigits: 2 })}%)` : "Desconto (R$)"}</span>
                 <strong className="text-[#0d1b2e]">- {formatCurrency(completion.discountAmount)}</strong>
               </div>
               <div className="flex min-w-0 flex-col gap-1 border-t border-[#0d1b2e]/8 pt-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
@@ -269,7 +315,7 @@ export function OrderCompletionModal({
         <BtnSecondary onClick={() => completion.setOpen(false)} disabled={saving}>Cancelar</BtnSecondary>
         <BtnPrimary
           onClick={() => void completion.submit()}
-          disabled={completion.discountPercentage > completion.maxDiscount || Boolean(completion.financeValidationMessage) || completion.financeOptionsLoading}
+          disabled={completion.discountExceedsMax || completion.discountExceedsSubtotal || Boolean(completion.servicePriceValidationMessage) || Boolean(completion.financeValidationMessage) || completion.financeOptionsLoading}
           loading={saving}
           loadingText="Concluindo..."
         >
