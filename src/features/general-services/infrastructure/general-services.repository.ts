@@ -2,11 +2,11 @@ import { supabase } from "@/lib/supabase";
 import { getActiveOrganizationId } from "@/lib/active-organization";
 import type { GeneralService } from "@/lib/database.types";
 
-const generalServiceColumns = "id,name,price,max_discount_percentage,is_active,sort_order,created_at,updated_at,organization_id";
+const generalServiceColumns = "id,name,price,price_at_completion,max_discount_percentage,max_discount_amount,is_active,sort_order,created_at,updated_at,organization_id";
 
 type GeneralServiceWrite = Pick<
   GeneralService,
-  "name" | "price" | "max_discount_percentage" | "is_active" | "sort_order"
+  "name" | "price" | "price_at_completion" | "max_discount_percentage" | "max_discount_amount" | "is_active" | "sort_order"
 >;
 
 export async function listGeneralServices(): Promise<GeneralService[]> {
