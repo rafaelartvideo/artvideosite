@@ -363,7 +363,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       </div>
       <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
         <BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary>
-        {(creating ? canCreate : canEdit || canManagePermissions) && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar função</BtnPrimary>}
+        {(creating ? canCreate : canEdit || canManagePermissions) && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </div>
     </AdminPage>;
   }
