@@ -186,7 +186,7 @@ begin
         coalesce(v_service.max_discount_percentage,0) using errcode='22023';
     end if;
     v_discount_percentage:=v_discount_value;
-    v_discount_amount:=round(v_subtotal*v_discount_percentage/100,2);
+    v_discount_amount:=round(v_service_price*v_discount_percentage/100,2);
   elsif v_discount_type='amount' then
     if v_discount_value>coalesce(v_service.max_discount_amount,0) then
       raise exception 'O desconto informado ultrapassa o máximo permitido de R$ %.',
@@ -194,7 +194,7 @@ begin
     end if;
     v_discount_amount:=v_discount_value;
     v_discount_percentage:=case
-      when v_subtotal>0 then round(v_discount_amount*100/v_subtotal,2)
+      when v_service_price>0 then round(v_discount_amount*100/v_service_price,2)
       else 0
     end;
   else
