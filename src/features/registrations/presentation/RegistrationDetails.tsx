@@ -110,7 +110,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
                 {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/20 px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5"><MapPin size={13} /> Abrir mapa</a>}
               </div>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-[#0d1b2e]">{formatBrazilianAddress(address)}</p>
-              {address.reference && <p className="mt-1 text-xs text-[#5a6a82]">Referência: {address.reference}</p>}
+
             </div>;
           })}</div> : <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>}
         </Section>
