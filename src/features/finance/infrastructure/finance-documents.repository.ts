@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 import type { FinancialAttachment, FinancialAttachmentType } from "../domain/finance.types";
 
 const ATTACHMENT_COLUMNS = "id,organization_id,financial_entry_id,financial_settlement_id,attachment_type,file_name,storage_path,mime_type,size_bytes,created_by,created_at,archived_at,archived_by,archive_reason";
@@ -41,10 +42,11 @@ export async function uploadFinancialAttachment(
   if (!file) throw new Error("Selecione um arquivo.");
   if (file.size > 20 * 1024 * 1024) throw new Error("O arquivo deve ter no máximo 20 MB.");
 
-  const path = `${org}/${entryId}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
+  const preparedFile = await prepareFileForUpload(file, "document-image");
+  const path = `${org}/${entryId}/${crypto.randomUUID()}-${safeFileName(preparedFile.name)}`;
   const { error: uploadError } = await supabase.storage
     .from("financial-documents")
-    .upload(path, file, { contentType: file.type || undefined, upsert: false });
+    .upload(path, preparedFile, { contentType: preparedFile.type || undefined, upsert: false });
   if (uploadError) throw uploadError;
 
   const { data, error } = await supabase.rpc("register_financial_attachment", {
@@ -52,10 +54,10 @@ export async function uploadFinancialAttachment(
     p_entry_id: entryId,
     p_settlement_id: settlementId || null,
     p_attachment_type: attachmentType,
-    p_file_name: file.name,
+    p_file_name: preparedFile.name,
     p_storage_path: path,
-    p_mime_type: file.type || null,
-    p_size_bytes: file.size,
+    p_mime_type: preparedFile.type || null,
+    p_size_bytes: preparedFile.size,
   });
 
   if (error) {
