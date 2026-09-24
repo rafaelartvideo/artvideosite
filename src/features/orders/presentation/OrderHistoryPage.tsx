@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { FilterX, Plus } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -56,7 +56,7 @@ export function OrderHistoryPage({
                 ]}
               />
             </div>
-            {(history.userFilter || history.dateFilter) && <button type="button" onClick={history.clearFilters} className="h-10 self-end rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50">Limpar</button>}
+            {(history.userFilter || history.dateFilter) && <button type="button" onClick={history.clearFilters} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-10 w-10 self-end items-center justify-center gap-1.5 rounded-lg border border-red-200 px-0 text-xs font-bold text-red-600 hover:bg-red-50 sm:w-auto sm:px-3"><FilterX size={15} /><span className="hidden sm:inline">Limpar</span></button>}
           </div>
         </AdminCard>
         {history.loading ? <LoadingState text="Carregando histórico..." /> : history.entries.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/15 p-8 text-center text-sm text-[#5a6a82]">Nenhum registro encontrado.</div> : <div className="space-y-3">{history.entries.map((item) => <AdminCard key={item.id} className={cn("min-w-0 p-4 shadow-none", item.type === "note" ? "border-[#0057e7]/15" : "bg-[#f8fafc]")}>
@@ -66,7 +66,7 @@ export function OrderHistoryPage({
       </div>
       <div className="sticky bottom-0 flex items-center gap-2 border-t border-[#0d1b2e]/8 bg-white px-3 py-3 sm:justify-between sm:px-5 sm:py-4">
         <BtnSecondary onClick={onClose} className="min-w-0 flex-1 sm:flex-none">Voltar para a OS</BtnSecondary>
-        {canCreate && <BtnPrimary onClick={() => { history.setText(""); history.setModalOpen(true); }} className="min-w-0 flex-1 sm:flex-none"><Plus size={14} /> Novo registro</BtnPrimary>}
+        {canCreate && <BtnPrimary onClick={() => { history.setText(""); history.setModalOpen(true); }} className="h-10 w-10 min-w-0 flex-none px-0 sm:h-auto sm:w-auto sm:px-4" ><Plus size={14} /><span className="sr-only sm:not-sr-only">Novo registro</span></BtnPrimary>}
       </div>
     </AdminPage>
     {history.modalOpen && canCreate && <AdminDialog open={history.modalOpen} onClose={() => { if (!history.saving) history.setModalOpen(false); }} title="Novo registro" description="Adicione uma observação permanente ao histórico" className="max-w-lg" footer={<div className="flex w-full gap-2 sm:justify-end sm:gap-3"><BtnSecondary onClick={() => history.setModalOpen(false)} className="min-w-0 flex-1 sm:flex-none">Cancelar</BtnSecondary><BtnPrimary onClick={history.submit} disabled={!history.text.trim() || history.saving} className="min-w-0 flex-1 sm:flex-none">{history.saving ? "Registrando..." : "Registrar no histórico"}</BtnPrimary></div>}>
