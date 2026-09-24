@@ -28,7 +28,7 @@ export async function createMediaRecord({ bucket, path, file, organizationId }: 
 }
 
 async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File, organizationId?: string | null) {
-  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false });
+  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType: file.type || undefined });
   if (error) throw error;
   try {
     return await createMediaRecord({ bucket, path, file, organizationId });
