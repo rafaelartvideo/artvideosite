@@ -9,33 +9,7 @@ import {
   type DeviceEntryChecklistItem,
 } from "@/features/orders/infrastructure/device-capture.gateway";
 
-const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-
 type Notice = { text: string; type: "success" | "error" } | null;
-
-async function normalizeChecklistImage(file: File) {
-  if (ACCEPTED_IMAGE_TYPES.has(file.type) && file.size <= 8 * 1024 * 1024) return file;
-  let bitmap: ImageBitmap | null = null;
-  try {
-    bitmap = await createImageBitmap(file);
-    const maxDimension = 1920;
-    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Não foi possível preparar a foto.");
-    context.drawImage(bitmap, 0, 0, width, height);
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(value => value ? resolve(value) : reject(new Error("Não foi possível preparar a foto.")), "image/jpeg", 0.88);
-    });
-    return new File([blob], `checklist-${Date.now()}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
-  } finally {
-    bitmap?.close();
-  }
-}
 
 function isFailure(item: DeviceEntryChecklistItem) {
   return (item.responseType === "conformity" && item.responseCode === "not_ok")
@@ -147,8 +121,7 @@ export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; 
     setUploadingItemKey(item.key);
     setNotice(null);
     try {
-      const normalized = await normalizeChecklistImage(file);
-      const photo = await uploadDeviceChecklistPhoto(sessionId, token, item.key, normalized);
+      const photo = await uploadDeviceChecklistPhoto(sessionId, token, item.key, file);
       updateItem(item.key, { photos: [...item.photos, photo] });
     } catch (error) {
       setNotice({ text: error instanceof Error ? error.message : "Não foi possível enviar a foto do checklist.", type: "error" });
