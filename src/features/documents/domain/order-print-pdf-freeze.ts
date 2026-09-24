@@ -7,7 +7,6 @@ import {
   signatureSlotFromGeometry,
 } from "./order-print-freeze-style.mjs";
 import type { PrintTemplateEditorValue } from "./print-template";
-import { formatDateTime } from "@/shared/domain/formatters";
 
 export type FrozenSignatureSlot = {
   signer_type: "external" | "employee";
@@ -121,7 +120,6 @@ function collectSignatureSlots(
 export async function freezeOrderPrintPdf(
   template: PrintTemplateEditorValue,
   context: PrintOrderContext,
-  options: { autoPrint?: boolean } = {},
 ): Promise<FrozenOrderPrintPdf> {
   const orientation = template.orientation === "landscape" ? "landscape" : "portrait";
   const [pageWidthMm, pageHeightMm] = A4[orientation];
@@ -209,31 +207,14 @@ export async function freezeOrderPrintPdf(
     const pageCount = Number(pdf?.internal?.getNumberOfPages?.() || 0);
     if (!Number.isInteger(pageCount) || pageCount < 1) throw new Error("Não foi possível congelar o PDF de impressão.");
 
-    const printedAt = template.show_printed_at !== false
-      ? `Impresso em ${formatDateTime(new Date().toISOString(), "—")}`
-      : "";
-
-    if (template.show_page_number !== false || printedAt) {
+    if (template.show_page_number !== false) {
       for (let page = 1; page <= pageCount; page += 1) {
         pdf.setPage(page);
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(8);
         pdf.setTextColor(82, 97, 116);
-        const footer = [
-          printedAt,
-          template.show_page_number !== false ? `Página ${page} de ${pageCount}` : "",
-        ].filter(Boolean).join(" · ");
-        pdf.text(
-          footer,
-          pageWidthMm - marginRight,
-          pageHeightMm - Math.max(2.5, marginBottom * 0.35),
-          { align: "right" },
-        );
+        pdf.text(`Página ${page} de ${pageCount}`, pageWidthMm / 2, pageHeightMm - Math.max(2.5, marginBottom * 0.35), { align: "center" });
       }
-    }
-
-    if (options.autoPrint && typeof pdf.autoPrint === "function") {
-      pdf.autoPrint({ variant: "non-conform" });
     }
 
     const blob = await worker.outputPdf("blob");
