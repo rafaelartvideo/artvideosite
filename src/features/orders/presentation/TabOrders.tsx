@@ -195,6 +195,7 @@ export function TabOrders({
     setDetailUsedItems,
     setDetailSolutionImages,
     openDetail,
+    openFreshDetail,
     closeDetail,
   } = detailsController;
 
@@ -316,6 +317,7 @@ export function TabOrders({
     }
 
     if (routeSubpage !== "edit" && detail?.id === initialOrderId) {
+      if (formOpen && editingOS?.id === initialOrderId) closeOrderForm();
       return () => { cancelled = true; };
     }
     if (routeSubpage === "edit" && formOpen && editingOS?.id === initialOrderId) {
@@ -493,8 +495,29 @@ export function TabOrders({
       return;
     }
 
-    if (initialOrderId) closingRouteRef.current = initialOrderId;
-    onOrderRouteChange?.(null, null);
+    if (!workspaceBase.organizationId) {
+      setToast({ msg: "A OS foi atualizada, mas não foi possível recarregar os detalhes.", type: "error" });
+      return;
+    }
+
+    try {
+      const updatedOrder = await getServiceOrderForRoute(workspaceBase.organizationId, savedOrderId);
+      if (!updatedOrder) throw new Error("OS não encontrada após a atualização.");
+
+      closingRouteRef.current = null;
+      openFreshDetail(updatedOrder);
+
+      if (onOrderRouteChange) {
+        onOrderRouteChange(savedOrderId, null);
+      } else {
+        closeOrderForm();
+      }
+    } catch (error) {
+      setToast({
+        msg: `A OS foi atualizada, mas não foi possível abrir os detalhes atualizados: ${error instanceof Error ? error.message : String(error)}`,
+        type: "error",
+      });
+    }
   };
 
   const setViewMode = (mode: "list" | "kanban") => {
