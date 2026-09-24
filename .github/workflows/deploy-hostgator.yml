@@ -47,7 +47,10 @@ jobs:
     needs: gate
     if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
+    env:
+      FTP_PROD_USERNAME: ${{ secrets.FTP_PROD_USERNAME }}
+      FTP_PROD_PASSWORD: ${{ secrets.FTP_PROD_PASSWORD }}
 
     concurrency:
       group: deploy-hostgator-production
@@ -113,7 +116,7 @@ jobs:
             echo "Nenhum cache de assets anterior disponível neste primeiro deploy protegido."
           fi
 
-      - name: Deploy via FTPS
+      - name: Deploy testeteste.com.br via FTPS
         if: steps.current.outputs.deploy == 'true'
         id: ftp_deploy
         continue-on-error: true
@@ -130,7 +133,7 @@ jobs:
           timeout: 120000
           log-level: verbose
 
-      - name: Retry FTPS deploy after transient failure
+      - name: Retry testeteste.com.br deploy after transient failure
         if: steps.current.outputs.deploy == 'true' && steps.ftp_deploy.outcome == 'failure'
         id: ftp_retry
         timeout-minutes: 15
@@ -139,6 +142,39 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./dist/
+          server-dir: ./
+          timeout: 120000
+          log-level: verbose
+
+      - name: Deploy eletronicaartvideo.com.br via FTPS
+        if: steps.current.outputs.deploy == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != ''
+        id: ftp_prod_deploy
+        continue-on-error: true
+        timeout-minutes: 15
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ env.FTP_PROD_USERNAME }}
+          password: ${{ env.FTP_PROD_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./dist/
+          server-dir: ./
+          timeout: 120000
+          log-level: verbose
+
+      - name: Retry eletronicaartvideo.com.br deploy after transient failure
+        if: steps.current.outputs.deploy == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != '' && steps.ftp_prod_deploy.outcome == 'failure'
+        id: ftp_prod_retry
+        timeout-minutes: 15
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ env.FTP_PROD_USERNAME }}
+          password: ${{ env.FTP_PROD_PASSWORD }}
           protocol: ftps
           port: 21
           local-dir: ./dist/
