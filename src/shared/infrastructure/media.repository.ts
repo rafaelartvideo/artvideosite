@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 
 export type MediaBucket = "service-images" | "product-images" | "brand-images" | "avatars" | "public-assets" | "registration-files";
 
@@ -39,10 +40,16 @@ async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File, 
 }
 
 export async function uploadMediaFile(bucket: MediaBucket, file: File, organizationId?: string | null) {
-  const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
+  const preset = bucket === "product-images" || bucket === "brand-images" || bucket === "public-assets"
+    ? "catalog-image"
+    : bucket === "service-images"
+      ? "service-photo"
+      : "document-image";
+  const preparedFile = await prepareFileForUpload(file, preset);
+  const extension = extensionForUploadFile(preparedFile);
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
   const path = organizationId ? `${organizationId}/${fileName}` : fileName;
-  return uploadMediaAtPath(bucket, path, file, organizationId);
+  return uploadMediaAtPath(bucket, path, preparedFile, organizationId);
 }
 
 export async function uploadServiceOrderMediaFile(
@@ -51,10 +58,11 @@ export async function uploadServiceOrderMediaFile(
   file: File,
   organizationId?: string | null,
 ) {
-  const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
+  const preparedFile = await prepareFileForUpload(file, "service-photo");
+  const extension = extensionForUploadFile(preparedFile);
   const safeScope = scope.replace(/[^a-z0-9/_-]/gi, "-").replace(/^\/+|\/+$/g, "") || "files";
   const path = `orders/${serviceOrderId}/${safeScope}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-  return uploadMediaAtPath("service-images", path, file, organizationId);
+  return uploadMediaAtPath("service-images", path, preparedFile, organizationId);
 }
 
 export async function uploadRegistrationRecordMediaFile(
@@ -63,9 +71,10 @@ export async function uploadRegistrationRecordMediaFile(
   recordId: string,
   file: File,
 ) {
-  const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
+  const preparedFile = await prepareFileForUpload(file, "document-image");
+  const extension = extensionForUploadFile(preparedFile);
   const path = `${organizationId}/registrations/${entityId}/${recordId}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-  return uploadMediaAtPath("registration-files", path, file, organizationId);
+  return uploadMediaAtPath("registration-files", path, preparedFile, organizationId);
 }
 
 export async function createStorageSignedUrl(
