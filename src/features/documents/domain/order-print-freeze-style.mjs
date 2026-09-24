@@ -22,8 +22,9 @@ export function html2pdfMarginOrder(margins) {
 
 export function freezeRasterOptions() {
   return {
-    imageType: "png",
-    scale: 3.125,
+    imageType: "jpeg",
+    imageQuality: 0.92,
+    scale: 2.25,
   };
 }
 
