@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth";
+import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
 import { buildOrderPrintDocumentHtml, type PrintOrderContext } from "../domain/order-print-document";
 import type { ChecklistStageType, OrderChecklistStage } from "@/features/checklists/domain/checklist";
 import type { PrintTemplateEditorValue } from "../domain/print-template";
@@ -97,9 +100,29 @@ export function PrintTemplatePreview({
   template: PrintTemplateEditorValue;
   compact?: boolean;
 }) {
+  const { activeOrganizationId } = useAuth();
+  const companyQuery = useQuery({
+    queryKey: ["document-print-preview-company", activeOrganizationId || "none"],
+    enabled: Boolean(activeOrganizationId),
+    queryFn: () => getCompanyPrintContext(activeOrganizationId!),
+  });
+  const previewContext = useMemo<PrintOrderContext>(() => ({
+    ...PREVIEW_CONTEXT,
+    company: companyQuery.data || {
+      name: companyQuery.isLoading ? "Carregando empresa..." : "Empresa",
+      subtitle: "",
+      logoUrl: "",
+      document: "",
+      stateRegistration: "",
+      municipalRegistration: "",
+      phone: "",
+      email: "",
+      address: "",
+    },
+  }), [companyQuery.data, companyQuery.isLoading]);
   const html = useMemo(
-    () => buildOrderPrintDocumentHtml(template, PREVIEW_CONTEXT),
-    [template],
+    () => buildOrderPrintDocumentHtml(template, previewContext),
+    [template, previewContext],
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const [availableWidth, setAvailableWidth] = useState(0);
