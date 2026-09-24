@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { getNewOrderEntryChecklistDraft } from "@/features/checklists/application/new-order-entry-checklist";
+import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 
 export type DeviceCapturePhotoKind = "label" | "equipment";
 
@@ -153,12 +154,13 @@ export async function uploadDeviceCapturePhoto(
   kind: DeviceCapturePhotoKind,
   file: File,
 ) {
+  const preparedFile = await prepareImageForUpload(file, kind === "label" ? "service-label" : "service-photo");
   const body = new FormData();
   body.append("action", "upload_photo");
   body.append("session_id", sessionId);
   body.append("token", token);
   body.append("kind", kind);
-  body.append("file", file, file.name);
+  body.append("file", preparedFile, preparedFile.name);
   const { data, error } = await supabase.functions.invoke("device-capture", { body });
   if (error) throw new Error("Não foi possível enviar a foto.");
   if (!data?.success) throw new Error(data?.error || "Não foi possível enviar a foto.");
@@ -221,19 +223,20 @@ export async function uploadDeviceChecklistPhoto(
   itemKey: string,
   file: File,
 ): Promise<DeviceEntryChecklistPhoto> {
+  const preparedFile = await prepareImageForUpload(file, "service-photo");
   const body = new FormData();
   body.append("action", "upload_photo");
   body.append("session_id", sessionId);
   body.append("token", token);
   body.append("item_key", itemKey);
-  body.append("file", file, file.name);
+  body.append("file", preparedFile, preparedFile.name);
   const data = await checklistInvoke(body);
   const photo = data.photo || {};
   return {
     id: Number(photo.id),
     signedUrl: String(photo.signed_url || ""),
-    fileName: String(photo.file_name || file.name || "foto.jpg"),
-    mimeType: String(photo.mime_type || file.type || "image/jpeg"),
+    fileName: String(photo.file_name || preparedFile.name || "foto.webp"),
+    mimeType: String(photo.mime_type || preparedFile.type || "image/webp"),
     createdAt: photo.created_at,
   };
 }
