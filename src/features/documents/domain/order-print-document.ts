@@ -43,6 +43,9 @@ const escapeHtml = (value: unknown) => text(value)
   .replaceAll(">", "&gt;")
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#039;");
+const escapeCssContent = (value: unknown) => String(value ?? "")
+  .replaceAll("\\", "\\\\")
+  .replaceAll("'", "\\'");
 const date = (value: unknown) => formatDateTime(value ? String(value) : null, "—");
 const money = (value: unknown) => formatCurrency(value as number | string | null | undefined, "—");
 const formatDocument = (value: unknown) => {
@@ -188,11 +191,11 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     }))
     .filter((section) => section.fields.length > 0);
 
+  const printedAtFooter = template.show_printed_at
+    ? "Impresso em " + resolveField("system.printed_at", context)
+    : "";
   const footerItems = [
     template.footer_text?.trim() || "",
-    template.show_printed_at
-      ? "Impresso em " + resolveField("system.printed_at", context)
-      : "",
     template.selectedFields.has("system.printed_by")
       ? "Impresso por " + resolveField("system.printed_by", context)
       : "",
@@ -297,11 +300,19 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     .map((value) => Math.max(6, Number(value) || 6));
   const pagePadding = margins.map((value) => value + "mm").join(" ");
   const pageWidth = orientation === "landscape" ? 297 : 210;
+  const pageFooterContent = printedAtFooter && template.show_page_number
+    ? "'" + escapeCssContent(printedAtFooter + " · Página ") + "' counter(page) ' de ' counter(pages)"
+    : printedAtFooter
+      ? "'" + escapeCssContent(printedAtFooter) + "'"
+      : template.show_page_number
+        ? "'Página ' counter(page) ' de ' counter(pages)"
+        : "none";
   const printScript = autoPrint
     ? "<script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print()},250)});window.addEventListener('afterprint',function(){window.close()})</script>"
     : "";
-  const html = "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>" + escapeHtml(template.name) + "</title><style>" +
-    "@page{size:A4 " + orientation + ";margin:" + pagePadding + ";" + (template.show_page_number ? "@bottom-center{content:'Página ' counter(page) ' de ' counter(pages);font-family:Arial,sans-serif;font-size:8pt;color:#526174}" : "") + "}" +
+  const documentTitle = autoPrint ? "" : template.name;
+  const html = "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>" + escapeHtml(documentTitle) + "</title><style>" +
+    "@page{size:A4 " + orientation + ";margin:" + pagePadding + ";@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:" + pageFooterContent + ";font-family:Arial,sans-serif;font-size:8pt;color:#526174;text-align:right}}" +
     "*{box-sizing:border-box}html{background:#eef2f6}body{width:" + pageWidth + "mm;max-width:100%;margin:0 auto;padding:" + pagePadding + ";background:#fff;color:#172536;font-family:" + layout.font_family + ",sans-serif;font-size:" + layout.body_font_size + "pt;line-height:" + Math.max(1.2, layout.line_height) + ";overflow-wrap:anywhere}" +
     ".header{display:grid;grid-template-columns:minmax(0,1fr) minmax(95px,.3fr);align-items:start;gap:6px 16px;padding-bottom:4px;margin-bottom:6px;break-inside:avoid}.company{display:flex;align-items:center;gap:12px;min-width:0}.company-logo{display:block;flex-shrink:0;width:64px;height:64px;object-fit:contain}.brand-mark{display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;border-radius:8px;background:#0057e7;color:#fff;font-size:16px;font-weight:800}.company-copy{min-width:0}.brand{font-size:14pt;font-weight:800;line-height:1.2}.company-subtitle{margin-top:3px;font-size:9pt;color:#475569}.company-details{margin-top:5px;font-size:8pt;line-height:1.45;color:#475569}.document{grid-column:1/-1;grid-row:2;padding-top:6px;border-top:1px solid #dbe2ea}.document h1{margin:0;font-size:15pt;line-height:1.25;font-weight:800}.document p{margin:4px 0 0;font-size:9pt;color:#475569;white-space:pre-wrap}.document p:empty{display:none}.order-number{grid-column:2;grid-row:1;text-align:right;min-width:0}.order-number span{display:block;font-size:8pt;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.order-number strong{display:block;margin-top:4px;font-size:21pt;line-height:1.15;color:#0057e7}.order-number small{display:block;margin-top:6px;font-size:8pt;color:#475569}" +
     "section{margin:0 0 " + layout.section_spacing + "px;border:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "6px" : "0") + ";padding:" + (layout.section_style === "boxed" ? "8px" : "0") + ";break-inside:auto}h2{margin:0;padding:3px 6px;background:#eef3f9;color:#24364b;border-bottom:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";font-size:" + layout.section_title_font_size + "pt;line-height:1.25;font-weight:700;text-transform:uppercase;letter-spacing:.035em;break-after:avoid}" +
