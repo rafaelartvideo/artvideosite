@@ -176,7 +176,7 @@ export async function freezeOrderPrintPdf(
       .set({
         margin: html2pdfMarginOrder(margins),
         filename: `${template.name || "documento"}.pdf`,
-        image: { type: raster.imageType, quality: 1 },
+        image: { type: raster.imageType, quality: raster.imageQuality },
         html2canvas: {
           scale: raster.scale,
           useCORS: true,
