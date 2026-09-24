@@ -49,7 +49,7 @@ export function AdminHeader({
 
   return (
     <>
-      <header className="relative z-40 shrink-0 border-b border-[#0d1b2e]/8 bg-white pt-[env(safe-area-inset-top)] shadow-sm md:hidden">
+      <header className="relative z-40 shrink-0 border-b border-white/8 bg-[#0d1b2e] pt-[env(safe-area-inset-top)] shadow-sm md:hidden">
         <div className="relative flex h-16 items-center px-4">
           <button
             type="button"
@@ -57,7 +57,7 @@ export function AdminHeader({
             aria-expanded={sidebarOpen}
             aria-label={sidebarOpen ? "Fechar menu" : "Abrir menu"}
             title={sidebarOpen ? "Fechar menu" : "Abrir menu"}
-            className="relative z-10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-transparent bg-[#0057e7] text-white shadow-sm transition-colors hover:bg-[#0046c0] active:bg-[#003da8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"
+            className="relative z-10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#0057e7] text-white shadow-sm transition-colors hover:bg-[#1268f3] active:bg-[#0046c0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b4ff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1b2e]"
           >
             {sidebarOpen ? <X size={20} strokeWidth={2.4} /> : <Menu size={21} strokeWidth={2.4} />}
           </button>
@@ -68,8 +68,8 @@ export function AdminHeader({
             ) : menuLogoUrl ? (
               <img src={menuLogoUrl} alt={activeOrganizationName || "Logo da empresa"} className="max-h-10 max-w-[150px] object-contain" />
             ) : (
-              <div className="flex max-w-[160px] items-center gap-2 text-[#0d1b2e]">
-                <Building2 size={22} className="shrink-0 text-[#0057e7]" />
+              <div className="flex max-w-[160px] items-center gap-2 text-white">
+                <Building2 size={22} className="shrink-0 text-[#00b4ff]" />
                 <span className="truncate text-xs font-black">{activeOrganizationName || "Empresa"}</span>
               </div>
             )}
