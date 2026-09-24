@@ -28,6 +28,8 @@ export type PrintOrderContext = {
     subtitle?: string | null;
     logoUrl?: string | null;
     document?: string | null;
+    stateRegistration?: string | null;
+    municipalRegistration?: string | null;
     phone?: string | null;
     email?: string | null;
     address?: string | null;
@@ -273,14 +275,23 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
   const orientation = template.orientation === "landscape" ? "landscape" : "portrait";
   const layout = template.layout;
   const company = context.company || {};
-  const companyName = company.name || "Eletrônica Artvideo";
-  const companySubtitle = company.subtitle || "Assistência Técnica";
+  const companyName = company.name || "Empresa";
+  const companySubtitle = company.subtitle || "";
   const companyDocument = company.document ? formatDocument(company.document) : null;
+  const companyStateRegistration = company.stateRegistration ? "IE " + text(company.stateRegistration) : null;
+  const companyMunicipalRegistration = company.municipalRegistration ? "IM " + text(company.municipalRegistration) : null;
   const companyPhone = company.phone ? formatPhone(company.phone) : null;
-  const companyDetails = [companyDocument, companyPhone, company.email, company.address].filter(Boolean);
+  const companyDetails = [
+    companyDocument,
+    companyStateRegistration,
+    companyMunicipalRegistration,
+    companyPhone,
+    company.email,
+    company.address,
+  ].filter(Boolean);
   const companyLogo = company.logoUrl
     ? "<img class='company-logo' src='" + escapeHtml(company.logoUrl) + "' alt='" + escapeHtml(companyName) + "'>"
-    : "<div class='brand-mark'>AV</div>";
+    : "";
   // Keep enough printable area around the sheet even for older 2mm templates.
   const margins = [template.margin_top, template.margin_right, template.margin_bottom, template.margin_left]
     .map((value) => Math.max(6, Number(value) || 6));
