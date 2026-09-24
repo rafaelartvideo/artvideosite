@@ -81,7 +81,7 @@ export function OrderCustomerSection({
     || customerAddressDraft;
   const mapUrl = getAddressMapUrl(selectedAddress);
   const setQuickCustomer = (open: boolean) => { if (open) onCreateCustomer(); };
-  const compactActionClass = "h-11 w-11 shrink-0 justify-center p-0 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5";
+  const compactActionClass = "h-11 w-11 shrink-0 justify-center !p-0 sm:h-auto sm:w-auto sm:!px-4 sm:!py-2.5";
   const compactHeaderLinkClass = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white p-0 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
   const mobileHiddenLabel = "hidden sm:inline";
   const actionIconClass = "h-5 w-5 shrink-0";
