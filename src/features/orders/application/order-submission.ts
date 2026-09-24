@@ -63,7 +63,7 @@ export async function persistServiceOrder({
   selectedSellerIds: string[];
   technicalValues: Array<Record<string, unknown>>;
   orderImages: SubmissionImage[];
-  uploadImage: (file: File) => Promise<string>;
+  uploadImage: (file: File, kind?: OrderImageKind) => Promise<string>;
   onImageUploaded?: (imageKey: string, mediaId: string) => void;
   saveTechnicalValues: (orderId: string) => Promise<{ error: any } | void>;
 }): Promise<SubmissionFailure | SubmissionSuccess> {
@@ -80,7 +80,7 @@ export async function persistServiceOrder({
     try {
       for (const image of preparedImages) {
         if (image.mediaId || !image.file) continue;
-        const mediaId = await uploadImage(image.file);
+        const mediaId = await uploadImage(image.file, image.kind);
         image.mediaId = mediaId;
         uploadedInThisAttempt.push({ key: image.key, mediaId });
       }
@@ -202,7 +202,7 @@ export async function persistServiceOrder({
             if (error) throw error;
           }
         } else if (image.file) {
-          const mediaId = await uploadImage(image.file);
+          const mediaId = await uploadImage(image.file, image.kind);
           image.mediaId = mediaId;
           if (image.key) onImageUploaded?.(image.key, mediaId);
           const { error } = await insertServiceOrderMedia(savedOrderId, mediaId, sortOrder);
