@@ -64,6 +64,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const [page, setPage] = useState<AdminPageState>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
+  const activeOrganizationName = organizations.find(organization => organization.organization_id === activeOrganizationId)?.organization_name || null;
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
@@ -117,7 +118,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const sidebar = <AdminSidebar activeTab={activeMenuTab} userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"} roleName={roleName} organizations={organizations} activeOrganizationId={activeOrganizationId} hasPermission={hasPermission} hasModule={hasModule} onNavigate={tab => navigateAdmin(tab)} onOrganizationChange={handleOrganizationChange} onSignOut={() => signOut()} onBackToSite={onBackToSite} />;
 
   return <AdminPageContext.Provider value={{ page, setPage }}>
-    <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader page={page} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(current => !current)} />}>
+    <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader page={page} sidebarOpen={sidebarOpen} activeOrganizationId={activeOrganizationId} activeOrganizationName={activeOrganizationName} onToggleSidebar={() => setSidebarOpen(current => !current)} />}>
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
         <Suspense fallback={<AdminRouteLoading />}>
           {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes key={activeTab}>
