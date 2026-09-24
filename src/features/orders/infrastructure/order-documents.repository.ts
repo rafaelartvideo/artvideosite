@@ -1,6 +1,7 @@
 import { getActiveOrganizationId } from "@/lib/active-organization";
 import { supabase } from "@/lib/supabase";
 import { createMediaRecord } from "@/shared/infrastructure/media.repository";
+import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 import type {
   AttachmentType,
   OrderSituationDocument,
@@ -70,16 +71,17 @@ export async function attachOrderSituationDocument({
   if (orderError) throw orderError;
   if (!order) throw new Error("A OS não pertence à empresa informada ou não está disponível para este acesso.");
 
-  const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
+  const preparedFile = await prepareFileForUpload(file, "document-image");
+  const extension = extensionForUploadFile(preparedFile);
   const scope = situationId ? `situations/${situationId}` : "attachments";
   const path = `orders/${serviceOrderId}/${scope}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
   const { error: storageError } = await supabase.storage
     .from("service-images")
-    .upload(path, file, { upsert: false, contentType: file.type || undefined });
+    .upload(path, preparedFile, { upsert: false, contentType: preparedFile.type || undefined });
   if (storageError) throw storageError;
 
   try {
-    const mediaId = await createMediaRecord({ bucket: "service-images", path, file, organizationId });
+    const mediaId = await createMediaRecord({ bucket: "service-images", path, file: preparedFile, organizationId });
     const { error } = situationId
       ? await (supabase as any).rpc("attach_service_order_situation_media", {
           p_service_order_id: serviceOrderId,
