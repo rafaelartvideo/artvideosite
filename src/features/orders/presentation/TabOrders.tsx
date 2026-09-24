@@ -254,7 +254,6 @@ export function TabOrders({
     customers: customerSelection,
     address: serviceAddress,
     customerPersistence,
-    details: detailsController,
     hasPermission: effectiveHasPermission,
     showToast: setToast,
     setSaving,
