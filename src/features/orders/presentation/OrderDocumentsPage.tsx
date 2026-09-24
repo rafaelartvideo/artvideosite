@@ -110,8 +110,8 @@ function AttachmentCard({
           <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide text-[#0057e7]">{classification}</p>
         </div>
         <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-[#0d1b2e]/7 pt-2">
-          {url ? <a href={url} target="_blank" rel="noreferrer" download={name} className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7]"><Download size={12} className="shrink-0" /><span>Baixar</span></a> : <span />}
-          {canRemove && <button type="button" disabled={removing} onClick={() => onRemove(document)} className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-red-600 disabled:opacity-50"><X size={12} className="shrink-0" /><span>Remover</span></button>}
+          {url ? <a href={url} target="_blank" rel="noreferrer" download={name} aria-label={`Baixar ${name}`} title="Baixar" className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7]"><Download size={12} className="shrink-0" /><span className="hidden sm:inline">Baixar</span></a> : <span />}
+          {canRemove && <button type="button" disabled={removing} onClick={() => onRemove(document)} aria-label={`Remover ${name}`} title="Remover" className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-red-600 disabled:opacity-50"><X size={12} className="shrink-0" /><span className="hidden sm:inline">Remover</span></button>}
         </div>
       </div>
     </AdminCard>
@@ -385,7 +385,7 @@ export function OrderDocumentsPage({
             />
           ) : (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm"><Plus size={14} /> Novo anexo</AdminButton>}</div>
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm" aria-label="Novo anexo" title="Novo anexo" className="h-9 w-9 px-0 sm:w-auto sm:px-3"><Plus size={14} /><span className="hidden sm:inline">Novo anexo</span></AdminButton>}</div>
               {typedAttachments.length === 0 ? (
                 <div className="max-w-full rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
               ) : (
