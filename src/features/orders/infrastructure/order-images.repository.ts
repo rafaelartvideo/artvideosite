@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { createMediaRecord } from "@/shared/infrastructure/media.repository";
+import { extensionForUploadFile, prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 
 const ORDER_IMAGE_BUCKET = "service-images";
 
@@ -14,16 +15,13 @@ export async function uploadOrderImage(file: File, organizationId?: string | nul
     throw new Error("Não foi possível identificar a empresa para enviar a imagem da OS.");
   }
 
-  const extension =
-    file.name
-      .split(".")
-      .pop()
-      ?.toLowerCase() || "jpg";
+  const preparedFile = await prepareImageForUpload(file, "service-photo");
+  const extension = extensionForUploadFile(preparedFile);
 
   const path =
     `orders/${organizationId}/draft/${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
-  const { error: uploadError } = await uploadOrderImageFile(path, file);
+  const { error: uploadError } = await uploadOrderImageFile(path, preparedFile);
 
   if (uploadError) {
     console.error("[MEDIA] Storage upload error:", uploadError);
@@ -34,7 +32,7 @@ export async function uploadOrderImage(file: File, organizationId?: string | nul
     return await createMediaRecord({
       bucket: "service-images",
       path,
-      file,
+      file: preparedFile,
       organizationId,
     });
   } catch (error) {
