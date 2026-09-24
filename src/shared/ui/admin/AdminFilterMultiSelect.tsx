@@ -1,4 +1,5 @@
-import { Check, ChevronDown } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "./AdminFormControls";
 import { LoadingSpinner } from "./AdminFeedback";
@@ -23,11 +24,23 @@ export function AdminFilterMultiSelect({
   disabled?: boolean;
   loading?: boolean;
 }) {
+  const [search, setSearch] = useState("");
   const selectedLabel = selectedValues.length === 1
     ? options.find(option => option.value === selectedValues[0])?.label || selectedValues[0]
     : selectedValues.length > 1
       ? `${selectedValues.length} selecionados`
       : "";
+  const normalizedSearch = search.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
+  const filteredOptions = useMemo(() => {
+    if (!normalizedSearch) return options;
+    return options.filter(option =>
+      `${option.label} ${option.value}`
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("pt-BR")
+        .includes(normalizedSearch),
+    );
+  }, [options, normalizedSearch]);
 
   return <div className="min-w-0">
     <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label>
@@ -56,8 +69,17 @@ export function AdminFilterMultiSelect({
         collisionPadding={12}
         className="z-[120] w-[var(--radix-popover-trigger-width)] min-w-[220px] max-w-[calc(100vw-24px)] overflow-hidden rounded-md border border-[#0d1b2e]/10 bg-white p-1 text-[#0d1b2e] shadow-xl"
       >
+        {!loading && options.length > 0 && <div className="relative mb-1">
+          <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+          <input
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+            placeholder={`Buscar ${label.toLowerCase()}`}
+            className={cn(INPUT, "h-9 py-1.5 pl-8 text-xs")}
+          />
+        </div>}
         <div className="max-h-64 overflow-y-auto">
-          {loading ? <div className="flex items-center gap-2 px-2 py-3 text-xs text-[#5a6a82]"><LoadingSpinner size="sm" /><span>Carregando...</span></div> : options.length === 0 ? <p className="px-2 py-3 text-xs text-[#5a6a82]">Nenhuma opção encontrada.</p> : options.map(option => {
+          {loading ? <div className="flex items-center gap-2 px-2 py-3 text-xs text-[#5a6a82]"><LoadingSpinner size="sm" /><span>Carregando...</span></div> : filteredOptions.length === 0 ? <p className="px-2 py-3 text-xs text-[#5a6a82]">Nenhuma opção encontrada.</p> : filteredOptions.map(option => {
             const selected = selectedValues.includes(option.value);
             return <button
               key={option.value}
