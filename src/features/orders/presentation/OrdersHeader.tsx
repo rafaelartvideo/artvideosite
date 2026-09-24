@@ -4,7 +4,6 @@ import { filteredTotalLabel } from "../domain/order-list-display.mjs";
 
 export function OrdersHeader({
   total,
-  hasActiveFilters = false,
   displayMode,
   canCreate,
   onDisplayModeChange,
@@ -12,7 +11,6 @@ export function OrdersHeader({
   showViewToggle = true,
 }: {
   total: number;
-  hasActiveFilters?: boolean;
   displayMode: "list" | "kanban";
   canCreate: boolean;
   onDisplayModeChange: (mode: "list" | "kanban") => void;
