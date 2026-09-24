@@ -63,8 +63,7 @@ export function QuickCustomerAddressesEditor({
         </div>
 
         <AddressFields value={address} onChange={next => update(index, { ...address, ...next })} inputClassName={INPUT} />
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <FInput label="Referência" disabled={disabled} value={address.reference || ""} onChange={(event: any) => update(index, { ...address, reference: event.target.value })} />
+        <div className="mt-4">
           <FInput label="Link de localização" disabled={disabled} type="url" placeholder="Google Maps, Waze, Apple Maps..." value={address.shared_map_url || ""} onChange={(event: any) => update(index, { ...address, shared_map_url: event.target.value })} />
         </div>
       </div>)}
