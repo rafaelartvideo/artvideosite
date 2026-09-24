@@ -66,7 +66,7 @@ export function OrderHistoryPage({
       </div>
       <div className="sticky bottom-0 flex items-center gap-2 border-t border-[#0d1b2e]/8 bg-white px-3 py-3 sm:justify-between sm:px-5 sm:py-4">
         <BtnSecondary onClick={onClose} className="min-w-0 flex-1 sm:flex-none">Voltar para a OS</BtnSecondary>
-        {canCreate && <BtnPrimary onClick={() => { history.setText(""); history.setModalOpen(true); }} className="h-11 w-11 min-w-0 flex-none px-0 sm:h-auto sm:w-auto sm:px-4"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="sr-only sm:not-sr-only">Novo registro</span></BtnPrimary>}
+        {canCreate && <BtnPrimary onClick={() => { history.setText(""); history.setModalOpen(true); }} className="h-11 w-11 min-w-0 flex-none !px-0 sm:h-auto sm:w-auto sm:!px-4"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="sr-only sm:not-sr-only">Novo registro</span></BtnPrimary>}
       </div>
     </AdminPage>
     {history.modalOpen && canCreate && <AdminDialog open={history.modalOpen} onClose={() => { if (!history.saving) history.setModalOpen(false); }} title="Novo registro" description="Adicione uma observação permanente ao histórico" className="max-w-lg" footer={<div className="flex w-full gap-2 sm:justify-end sm:gap-3"><BtnSecondary onClick={() => history.setModalOpen(false)} className="min-w-0 flex-1 sm:flex-none">Cancelar</BtnSecondary><BtnPrimary onClick={history.submit} disabled={!history.text.trim() || history.saving} className="min-w-0 flex-1 sm:flex-none">{history.saving ? "Registrando..." : "Registrar no histórico"}</BtnPrimary></div>}>
