@@ -103,8 +103,19 @@ export async function attachOrderSituationDocument({
 }
 
 export async function removeOrderSituationDocument(linkId: string) {
-  const { error } = await supabase.rpc("remove_service_order_situation_media", {
+  const { data, error } = await (supabase as any).rpc("remove_service_order_situation_media_and_cleanup", {
     p_link_id: linkId,
   });
   if (error) throw error;
+
+  const cleanup = Array.isArray(data) ? data[0] : null;
+  if (!cleanup?.bucket_id || !cleanup?.storage_path) return;
+
+  const { error: storageError } = await supabase.storage
+    .from(String(cleanup.bucket_id))
+    .remove([String(cleanup.storage_path)]);
+
+  if (storageError) {
+    console.warn("[MEDIA] Não foi possível remover o arquivo órfão do Storage:", storageError);
+  }
 }
