@@ -19,8 +19,7 @@ import { OrderUndoSolutionDialog } from "./OrderUndoSolutionDialog";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
-import { buildOrderPrintDocumentHtml, openPrintWindow } from "@/features/documents/domain/order-print-document";
-import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
+import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { createServiceOrderLabelDataUrl, renderServiceOrderLabel } from "../domain/order-label-print";
 import { QRCodeCanvas } from "qrcode.react";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
@@ -160,23 +159,16 @@ export function OrderDetailsPage(props: Props) {
           await resolveMediaStorageUrl(link.media!.bucket_id, link.media!.storage_path),
         ] as const),
       ));
-      const frozenPdf = await freezeOrderPrintPdf(
-        configuredTemplate,
-        {
-          order: detail,
-          checklist,
-          checklistPhotoUrls,
-          usedItems: detailUsedItems,
-          partRequests: detailPartRequests,
-          history: details.detailHistory,
-          printedBy: profileName,
-          company,
-        },
-        { autoPrint: true },
-      );
-      const pdfUrl = URL.createObjectURL(frozenPdf.blob);
-      popup.location.replace(pdfUrl);
-      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 120_000);
+      renderOrderPrintDocument(popup, configuredTemplate, {
+        order: detail,
+        checklist,
+        checklistPhotoUrls,
+        usedItems: detailUsedItems,
+        partRequests: detailPartRequests,
+        history: details.detailHistory,
+        printedBy: profileName,
+        company,
+      });
     } catch (error) { popup.close(); setPrintError(error instanceof Error ? error.message : "Não foi possível preparar o documento."); }
     finally { setPrintingTemplateId(null); }
   };
