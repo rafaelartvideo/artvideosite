@@ -283,8 +283,8 @@ export function OrderEquipmentSection({
                 <div className="mb-3 flex items-start gap-2">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7] text-white"><Tag size={16} /></span>
                   <div className="min-w-0">
-                    <p className="text-sm font-black text-[#0057e7]">Etiqueta</p>
-                    <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">Priorize uma foto nítida da etiqueta de identificação do equipamento.</p>
+                    <p className="text-sm font-black text-[#0057e7]">Etiqueta{!editingOS && <span className="ml-1 text-red-600">*</span>}</p>
+                    <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">{editingOS ? "Priorize uma foto nítida da etiqueta de identificação do equipamento." : "Obrigatória para criar a OS. Envie uma foto nítida da etiqueta de identificação do equipamento."}</p>
                   </div>
                 </div>
                 <OrderImagesField
