@@ -276,7 +276,7 @@ export function OrderDocumentsPage({
   onClose: () => void;
   onView: (image: OrderImage) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<DocumentsTab>("situations");
+  const [activeTab, setActiveTab] = useState<DocumentsTab>("attachments");
   const [newAttachmentOpen, setNewAttachmentOpen] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [browserBottomInset, setBrowserBottomInset] = useState(0);
@@ -302,7 +302,7 @@ export function OrderDocumentsPage({
   }, [open]);
 
   useEffect(() => {
-    if (!canViewSignatures && activeTab === "signatures") setActiveTab("situations");
+    if (!canViewSignatures && activeTab === "signatures") setActiveTab("attachments");
   }, [canViewSignatures, activeTab]);
 
   if (!open) return null;
@@ -326,11 +326,11 @@ export function OrderDocumentsPage({
       <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos, imagens e assinaturas da ordem de serviço" maxW="max-w-4xl">
         <div className="border-b border-[#0d1b2e]/10 px-5 pt-2">
           <nav className="flex items-center gap-6 overflow-x-auto" aria-label="Seções de documentos">
-            <button type="button" onClick={() => setActiveTab("situations")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Situações</button>
-            <button type="button" onClick={() => setActiveTab("solution")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "solution" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Solução</button>
-            <button type="button" onClick={() => setActiveTab("checklist")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "checklist" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Checklist</button>
             <button type="button" onClick={() => setActiveTab("attachments")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Anexos</button>
             {canViewSignatures && <button type="button" onClick={() => setActiveTab("signatures")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "signatures" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Assinaturas</button>}
+            <button type="button" onClick={() => setActiveTab("checklist")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "checklist" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Checklist</button>
+            <button type="button" onClick={() => setActiveTab("situations")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Situações</button>
+            <button type="button" onClick={() => setActiveTab("solution")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "solution" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Solução</button>
           </nav>
         </div>
 
