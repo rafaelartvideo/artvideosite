@@ -25,6 +25,7 @@ export function useOrderDetails({
   const { activeOrganizationId } = useAuth();
   const organizationId = organizationIdOverride || activeOrganizationId;
   const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
@@ -102,6 +103,16 @@ export function useOrderDetails({
 
   const openDetail = (order: any) => {
     if (!organizationId || order?.organization_id !== organizationId) return;
+    setSelectedOrder(order);
+    setDetail(order);
+  };
+
+  const openFreshDetail = (order: any) => {
+    if (!organizationId || order?.organization_id !== organizationId) return;
+    queryClient.removeQueries({
+      queryKey: [...queryKeys.orders.detail(order.id), organizationId],
+      exact: true,
+    });
     setSelectedOrder(order);
     setDetail(order);
   };
