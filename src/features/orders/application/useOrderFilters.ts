@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { type ExactOrderPage } from "../infrastructure/orders-filtered-page.repository";
+import { countServiceOrders, type ExactOrderPage } from "../infrastructure/orders-filtered-page.repository";
 import { listServiceOrdersPageWithCustomerName } from "../infrastructure/orders-customer-name-filter.repository";
 
 export type CityFilterOption = { name: string; state: string };
@@ -101,6 +101,12 @@ export function useOrderFilters({
   }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedCustomerNameSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, selectedStates, stateNames, selectedCities, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
   const listKey = queryKeys.orders.list(queryFilters);
 
+  const generalTotalQuery = useQuery({
+    queryKey: [...queryKeys.orders.all, "total", organizationId || "none"],
+    enabled: Boolean(organizationId),
+    queryFn: () => countServiceOrders(organizationId!),
+  });
+
   const ordersQuery = useQuery({
     queryKey: listKey,
     enabled: Boolean(organizationId) && !invalidPeriod,
@@ -175,6 +181,7 @@ export function useOrderFilters({
     orders,
     setOrders,
     totalItems,
+    generalTotalItems: generalTotalQuery.data ?? totalItems,
     loading: Boolean(organizationId) && (ordersQuery.isPending || ordersQuery.isPlaceholderData),
     isFetching: ordersQuery.isFetching,
     error: ordersQuery.error,
