@@ -5,7 +5,6 @@ import {
   ArrowUpNarrowWide,
   Check,
   ChevronDown,
-  Eraser,
   Search,
   ScanLine,
 } from "lucide-react";
@@ -81,6 +80,7 @@ export function OrdersFilters({
   onStatesClear,
   onCitySelect,
   onCityRemove,
+  onCitiesClear,
   onDateFromChange,
   onDateToChange,
   onOrderSortChange,
@@ -118,6 +118,7 @@ export function OrdersFilters({
   onStatesClear: () => void;
   onCitySelect: (value: string) => void;
   onCityRemove: (value: string) => void;
+  onCitiesClear: () => void;
   onDateFromChange: (value: string) => void;
   onDateToChange: (value: string) => void;
   onOrderSortChange: (value: OrderSort) => void;
@@ -226,7 +227,7 @@ export function OrdersFilters({
       case "status": return <AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />;
       case "situation": return <AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por situação" />;
       case "serviceType": return <AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo de atendimento" />;
-      case "states": return <div className="min-w-0"><OrderFilterMultiSelect label="Estado" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estado" loading={ibgeStatesLoading} />{selectedStates.length > 0 && <button type="button" onClick={onStatesClear} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-red-600"><Eraser size={13} />Limpar Estados</button>}</div>;
+      case "states": return <OrderFilterMultiSelect label="Estado" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estado" loading={ibgeStatesLoading} />;
       case "cities": return <OrderFilterMultiSelect label="Cidade" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione primeiro um Estado" : "Selecionar Cidade"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />;
       case "period": return <div className="grid grid-cols-2 gap-2"><div className="min-w-0"><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] min-w-0 px-2 py-2 text-xs")} /></div><div className="min-w-0"><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] min-w-0 px-2 py-2 text-xs")} /></div>{invalidPeriod && <p className="col-span-2 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>;
     }
@@ -235,7 +236,9 @@ export function OrdersFilters({
   return <AdminCard className="overflow-hidden p-0">
     <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0057e7] px-4 py-3 text-white">
       <div className="flex items-center gap-2"><Search size={16} className="shrink-0" /><span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span></div>
-      <div className="ml-auto flex max-w-full items-center justify-end">
+      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-x-3 gap-y-1">
+        {selectedStates.length > 0 && <button type="button" onClick={onStatesClear} aria-label="Limpar Estados" title="Limpar Estados" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar Estados</button>}
+        {selectedCities.length > 0 && <button type="button" onClick={onCitiesClear} aria-label="Limpar Cidades" title="Limpar Cidades" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar Cidades</button>}
         {hasActiveFilters && <button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar filtros</button>}
       </div>
     </div>
@@ -253,7 +256,7 @@ export function OrdersFilters({
           <SearchField label="Número de série" value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" />
           <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="text-xs" ariaLabel="Filtrar por status" /></div>
           <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Situação</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="text-xs" ariaLabel="Filtrar por situação" /></div>
-          <div><OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />{selectedStates.length > 0 && <AdminButton variant="ghost" size="sm" onClick={onStatesClear} className="mt-1 px-0 py-1 text-[11px] font-semibold text-red-600 hover:bg-transparent hover:text-red-700 hover:underline"><Eraser size={12} />Limpar Estados</AdminButton>}</div>
+          <OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />
           <OrderFilterMultiSelect label="Cidades" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione ao menos um Estado" : "Selecionar Cidades"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />
           <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} /></div>
           <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />{invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>
