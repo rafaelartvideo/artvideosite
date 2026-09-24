@@ -62,7 +62,7 @@ export function OrdersListWorkspace(props: Props) {
   if (!visible) return null;
 
   return <>
-    <OrdersHeader total={generalTotalItems} hasActiveFilters={hasActiveFilters} displayMode={resolvedDisplayMode} canCreate={canCreate} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
+    <OrdersHeader total={generalTotalItems} displayMode={resolvedDisplayMode} canCreate={canCreate} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
 
     {sharedView ? <PartnerOrdersFilters
       numberSearch={osNumberSearch}
