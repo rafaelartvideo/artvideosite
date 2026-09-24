@@ -3,15 +3,20 @@ export type UploadImagePreset = "service-photo" | "service-label" | "document-im
 type ImagePresetConfig = {
   maxDimension: number;
   quality: number;
+  minQuality: number;
   minBytesToOptimize: number;
+  targetMaxBytes: number;
 };
 
 const IMAGE_PRESETS: Record<UploadImagePreset, ImagePresetConfig> = {
-  "service-photo": { maxDimension: 1920, quality: 0.82, minBytesToOptimize: 350 * 1024 },
-  "service-label": { maxDimension: 2200, quality: 0.88, minBytesToOptimize: 450 * 1024 },
-  "document-image": { maxDimension: 1920, quality: 0.84, minBytesToOptimize: 350 * 1024 },
-  "catalog-image": { maxDimension: 2200, quality: 0.86, minBytesToOptimize: 400 * 1024 },
+  "service-photo": { maxDimension: 1920, quality: 0.82, minQuality: 0.72, minBytesToOptimize: 350 * 1024, targetMaxBytes: 1200 * 1024 },
+  "service-label": { maxDimension: 2200, quality: 0.88, minQuality: 0.82, minBytesToOptimize: 450 * 1024, targetMaxBytes: 1600 * 1024 },
+  "document-image": { maxDimension: 1920, quality: 0.84, minQuality: 0.76, minBytesToOptimize: 350 * 1024, targetMaxBytes: 1200 * 1024 },
+  "catalog-image": { maxDimension: 2200, quality: 0.86, minQuality: 0.80, minBytesToOptimize: 400 * 1024, targetMaxBytes: 1500 * 1024 },
 };
+
+const MAX_IMAGE_SOURCE_BYTES = 25 * 1024 * 1024;
+const MAX_GENERIC_FILE_BYTES = 20 * 1024 * 1024;
 
 const OPTIMIZABLE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -36,6 +41,9 @@ export async function prepareImageForUpload(
   file: File,
   preset: UploadImagePreset = "service-photo",
 ): Promise<File> {
+  if (file.size > MAX_IMAGE_SOURCE_BYTES) {
+    throw new Error("A imagem deve ter no máximo 25 MB antes da otimização.");
+  }
   if (!OPTIMIZABLE_IMAGE_TYPES.has(file.type)) return file;
   if (typeof createImageBitmap !== "function") return file;
 
@@ -62,8 +70,16 @@ export async function prepareImageForUpload(
 
     context.drawImage(bitmap, 0, 0, width, height);
 
-    const webp = await canvasToBlob(canvas, "image/webp", config.quality);
+    let quality = config.quality;
+    let webp = await canvasToBlob(canvas, "image/webp", quality);
     if (!webp?.size) return file;
+
+    while (webp.size > config.targetMaxBytes && quality - 0.04 >= config.minQuality) {
+      quality = Math.max(config.minQuality, Number((quality - 0.04).toFixed(2)));
+      const next = await canvasToBlob(canvas, "image/webp", quality);
+      if (!next?.size || next.size >= webp.size) break;
+      webp = next;
+    }
 
     // Evita substituir um arquivo que já esteja menor que a versão otimizada.
     if (!shouldResize && webp.size >= file.size * 0.98) return file;
@@ -85,6 +101,11 @@ export async function prepareFileForUpload(
   file: File,
   preset: UploadImagePreset = "document-image",
 ) {
-  if (!file.type.startsWith("image/")) return file;
+  if (!file.type.startsWith("image/")) {
+    if (file.size > MAX_GENERIC_FILE_BYTES) {
+      throw new Error("O arquivo deve ter no máximo 20 MB.");
+    }
+    return file;
+  }
   return prepareImageForUpload(file, preset);
 }
