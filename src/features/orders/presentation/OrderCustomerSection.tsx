@@ -81,8 +81,8 @@ export function OrderCustomerSection({
     || customerAddressDraft;
   const mapUrl = getAddressMapUrl(selectedAddress);
   const setQuickCustomer = (open: boolean) => { if (open) onCreateCustomer(); };
-  const compactActionClass = "h-[42px] w-[42px] shrink-0 justify-center p-0 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5";
-  const compactHeaderLinkClass = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white p-0 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
+  const compactActionClass = "h-11 w-11 shrink-0 justify-center p-0 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5";
+  const compactHeaderLinkClass = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white p-0 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
   const mobileHiddenLabel = "hidden sm:inline";
   const actionIconClass = "h-5 w-5 shrink-0";
 
@@ -95,8 +95,8 @@ export function OrderCustomerSection({
     <Section
       title="Cliente"
       actions={selectedCustomer && !editingCustomer ? <>
-        {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" aria-label="Abrir mapa" title="Abrir mapa" className={compactHeaderLinkClass}><MapPin size={14} /><span className={mobileHiddenLabel}>Abrir mapa</span></a>}
-        {hasPermission("customers.edit") && <BtnSecondary onClick={() => setSharedAddressOpen(value => !value)} disabled={saving} aria-label={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} title={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} className={compactActionClass}><Link2 size={14} /><span className={mobileHiddenLabel}>{selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"}</span></BtnSecondary>}
+        {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" aria-label="Abrir mapa" title="Abrir mapa" className={compactHeaderLinkClass}><MapPin className={actionIconClass} /><span className={mobileHiddenLabel}>Abrir mapa</span></a>}
+        {hasPermission("customers.edit") && <BtnSecondary onClick={() => setSharedAddressOpen(value => !value)} disabled={saving} aria-label={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} title={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} className={compactActionClass}><Link2 className={actionIconClass} /><span className={mobileHiddenLabel}>{selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"}</span></BtnSecondary>}
       </> : undefined}
     >
       {selectedCustomer ? (
