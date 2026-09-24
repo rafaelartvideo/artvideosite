@@ -7,7 +7,6 @@ import { listServiceOrderTechnicalValues, saveServiceOrderTechnicalValues } from
 import { clearNewOrderEntryChecklistDraft, persistNewOrderEntryChecklist, validateNewOrderEntryChecklist } from "@/features/checklists/application/new-order-entry-checklist";
 import type { useOrderCustomerPersistence } from "./useOrderCustomerPersistence";
 import type { useOrderCustomerSelection } from "./useOrderCustomerSelection";
-import type { useOrderDetails } from "./useOrderDetails";
 import type { useOrderFormState } from "./useOrderFormState";
 import type { useOrderImages } from "./useOrderImages";
 import type { useOrdersWorkspace } from "./useOrdersWorkspace";
@@ -15,8 +14,8 @@ import type { useOrderServiceAddress } from "./useOrderServiceAddress";
 import { beginAdminLoading } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
 type PermissionCheck=(permission:string)=>boolean; type Toast={msg:string;type:"success"|"error"};
-type Options={userId?:string;workspace:ReturnType<typeof useOrdersWorkspace>;formState:ReturnType<typeof useOrderFormState>;images:ReturnType<typeof useOrderImages>;customers:ReturnType<typeof useOrderCustomerSelection>;address:ReturnType<typeof useOrderServiceAddress>;customerPersistence:ReturnType<typeof useOrderCustomerPersistence>;details:ReturnType<typeof useOrderDetails>;hasPermission:PermissionCheck;showToast:Dispatch<SetStateAction<Toast|null>>;setSaving:Dispatch<SetStateAction<boolean>>;formatError:(error:unknown)=>string;organizationIdOverride?:string|null;};
-export function useOrderEditorWorkflow({userId,workspace,formState,images,customers,address,customerPersistence,details,hasPermission,showToast,setSaving,formatError,organizationIdOverride}:Options){
+type Options={userId?:string;workspace:ReturnType<typeof useOrdersWorkspace>;formState:ReturnType<typeof useOrderFormState>;images:ReturnType<typeof useOrderImages>;customers:ReturnType<typeof useOrderCustomerSelection>;address:ReturnType<typeof useOrderServiceAddress>;customerPersistence:ReturnType<typeof useOrderCustomerPersistence>;hasPermission:PermissionCheck;showToast:Dispatch<SetStateAction<Toast|null>>;setSaving:Dispatch<SetStateAction<boolean>>;formatError:(error:unknown)=>string;organizationIdOverride?:string|null;};
+export function useOrderEditorWorkflow({userId,workspace,formState,images,customers,address,customerPersistence,hasPermission,showToast,setSaving,formatError,organizationIdOverride}:Options){
  const {activeOrganizationId}=useAuth(); const organizationId=organizationIdOverride||activeOrganizationId; const saveInFlightRef=useRef(false); const creationRequestIdRef=useRef<string|null>(null);
  const selectCustomer=(customer:any)=>{const customerAddress=customers.selectCustomer(customer);formState.updateField("customer_id",customer.id);if(customerAddress){address.setServiceAddressMessage("");address.setServiceCustomerAddressOverride(true);address.copyCustomerAddressToForm(customerAddress);if(formState.form.order_type==="external")address.setServiceUseCustomerAddress(true);return;}address.clearServiceAddress();if(formState.form.order_type==="external"){address.setServiceUseCustomerAddress(false);address.setServiceAddressMessage("Este cliente não possui endereço cadastrado. Preencha o local do atendimento.");}};
  const openNew=()=>{if(!organizationId){showToast({msg:"Selecione uma empresa antes de criar uma OS.",type:"error"});return;}clearNewOrderEntryChecklistDraft();creationRequestIdRef.current=crypto.randomUUID();formState.openNewForm();address.resetServiceAddressState();images.clearOrderImages();images.setViewImage(null);customers.clearCustomer();};
