@@ -153,6 +153,8 @@ export async function getCompanyPrintContext(organizationId: string) {
     subtitle: settings.company_legal_name || "Assistência Técnica",
     logoUrl,
     document: settings.company_cnpj,
+    stateRegistration: settings.company_state_registration,
+    municipalRegistration: settings.company_municipal_registration,
     phone: settings.company_phone,
     email: settings.company_email,
     address,
