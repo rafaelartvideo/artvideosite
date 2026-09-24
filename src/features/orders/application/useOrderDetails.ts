@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../../infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
 import {
@@ -24,6 +24,7 @@ export function useOrderDetails({
 }) {
   const { activeOrganizationId } = useAuth();
   const organizationId = organizationIdOverride || activeOrganizationId;
+  const queryClient = useQueryClient();
   const [detail, setDetail] = useState<any>(null);
   const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
@@ -105,6 +106,16 @@ export function useOrderDetails({
     setDetail(order);
   };
 
+  const openFreshDetail = (order: any) => {
+    if (!organizationId || order?.organization_id !== organizationId) return;
+    queryClient.removeQueries({
+      queryKey: [...queryKeys.orders.detail(order.id), organizationId],
+      exact: true,
+    });
+    setSelectedOrder(order);
+    setDetail(order);
+  };
+
   const closeDetail = () => {
     setDetail(null);
     setSelectedOrder(null);
@@ -120,6 +131,7 @@ export function useOrderDetails({
     detailSolutionImages,
     setDetailSolutionImages,
     openDetail,
+    openFreshDetail,
     closeDetail,
   };
 }
