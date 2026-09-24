@@ -385,7 +385,7 @@ export function OrderDocumentsPage({
             />
           ) : (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm" aria-label="Novo anexo" title="Novo anexo" className="h-11 w-11 px-0 sm:h-9 sm:w-auto sm:px-3"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="hidden sm:inline">Novo anexo</span></AdminButton>}</div>
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm" aria-label="Novo anexo" title="Novo anexo" className="h-11 w-11 !px-0 sm:h-9 sm:w-auto sm:!px-3"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="hidden sm:inline">Novo anexo</span></AdminButton>}</div>
               {typedAttachments.length === 0 ? (
                 <div className="max-w-full rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
               ) : (
