@@ -44,7 +44,7 @@ export function OrdersListWorkspace(props: Props) {
     serialNumberSearch, setSerialNumberSearch, filterStatus, setFilterStatus, filterSituation, setFilterSituation, filterOrderType,
     selectedServiceTypeId, setSelectedServiceTypeId, orderSort, setOrderSort, selectedStates, setSelectedStates,
     selectedCities, setSelectedCities, cityFilterOptions, cityFiltersLoading, dateFrom, setDateFrom, dateTo, setDateTo,
-    page, setPage, pageSize, setPageSize, invalidPeriod, filteredOrders, pagedOrders, totalItems, totalPages, safePage,
+    page, setPage, pageSize, setPageSize, invalidPeriod, filteredOrders, pagedOrders, totalItems, generalTotalItems, totalPages, safePage,
     clearFilters, loading: listLoading,
   } = filters;
   const {
@@ -62,7 +62,7 @@ export function OrdersListWorkspace(props: Props) {
   if (!visible) return null;
 
   return <>
-    <OrdersHeader total={totalItems} hasActiveFilters={hasActiveFilters} displayMode={resolvedDisplayMode} canCreate={canCreate} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
+    <OrdersHeader total={generalTotalItems} hasActiveFilters={hasActiveFilters} displayMode={resolvedDisplayMode} canCreate={canCreate} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
 
     {sharedView ? <PartnerOrdersFilters
       numberSearch={osNumberSearch}
