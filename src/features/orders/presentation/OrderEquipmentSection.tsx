@@ -122,10 +122,12 @@ export function OrderEquipmentSection({
     <Section
       title="Equipamento"
       actions={!editingOS && showImages && canAddImages ? (
-        <DeviceCaptureBridge
-          onSerial={value => upF("serial_number", value)}
-          onPhoto={(file, kind) => onAddImages([file], kind)}
-        />
+        <div className="hidden md:block">
+          <DeviceCaptureBridge
+            onSerial={value => upF("serial_number", value)}
+            onPhoto={(file, kind) => onAddImages([file], kind)}
+          />
+        </div>
       ) : undefined}
     >
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
