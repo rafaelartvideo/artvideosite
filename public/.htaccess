@@ -13,6 +13,12 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # Force HTTPS even when the cPanel toggle is unavailable.
+  # X-Forwarded-Proto avoids redirect loops if the request passes through a proxy.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301,NE]
+
   # Build assets are content-hashed. If an old tab requests an asset that was
   # removed by a newer deploy, let Apache return a real 404 instead of serving
   # index.html with the wrong MIME type. The app can then recover/reload cleanly.
