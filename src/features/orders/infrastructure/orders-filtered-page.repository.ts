@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 const ORDER_LIST_SELECT = "*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,price_at_completion,max_discount_percentage,max_discount_amount), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)";
-const FILTER_SELECT = "id,os_number,external_os_number,serial_number,status_id,situation_id,order_type,service_type_id,service_state,service_city,created_at,is_solved,completed_at,order_status:order_statuses(id,name),customer:customers(id,document,cnpj)";
+const FILTER_SELECT = "id,os_number,external_os_number,serial_number,status_id,situation_id,order_type,service_type_id,service_state,service_city,created_at,is_solved,completed_at,order_status:order_statuses(id,name),customer:customers(id,document,cnpj,addresses:customer_addresses(state,city,is_default))";
 
 export type FilterCity = { name: string; state: string };
 export type ExactOrderPageInput = {
@@ -92,10 +92,17 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
     const matchesSerial = !serialNeedle || normalizeIdentifier(order.serial_number).includes(serialNeedle);
     const customer = order.customer || {};
     const matchesDocument = !documentNeedle || [customer.document, customer.cnpj].some(value => normalizeDigits(value).includes(documentNeedle));
-    const orderState = order.service_state;
-    const orderCity = normalizeText(order.service_city);
-    const matchesState = selectedStateAliases.size === 0 || matchesStateAlias(orderState, selectedStateAliases);
-    const matchesCity = cityFilters.length === 0 || cityFilters.some(city => city.name === orderCity && matchesStateAlias(orderState, city.stateAliases));
+    const locations = [
+      ...(order.service_state || order.service_city ? [{ state: order.service_state, city: order.service_city }] : []),
+      ...((customer.addresses || []) as Array<{ state?: string | null; city?: string | null }>),
+    ];
+    const matchesState = selectedStateAliases.size === 0 || locations.some(location => matchesStateAlias(location.state, selectedStateAliases));
+    const matchesCity = cityFilters.length === 0 || cityFilters.some(city =>
+      locations.some(location =>
+        city.name === normalizeText(location.city) &&
+        matchesStateAlias(location.state, city.stateAliases),
+      ),
+    );
     const createdAt = order.created_at ? new Date(order.created_at) : null;
     const matchesPeriod = !fromDate && !toDate ? true : !!createdAt && (!fromDate || createdAt >= fromDate) && (!toDate || createdAt < toDate);
     return matchesNumber && matchesExternal && matchesSerial && matchesDocument && (!statusId || order.status_id === statusId) && (!situationId || order.situation_id === situationId) && (!orderType || order.order_type === orderType) && (!serviceTypeId || order.service_type_id === serviceTypeId) && matchesState && matchesCity && matchesPeriod;
