@@ -278,8 +278,8 @@ export function OrderEquipmentSection({
           <div className="min-w-0 border-t border-[#0d1b2e]/8 pt-4 sm:col-span-2">
             <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Fotos do equipamento</p>
 
-            <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-2">
-              <div className="min-w-0 overflow-hidden rounded-xl border border-[#0057e7]/30 bg-[#eef5ff]/70 p-3 shadow-sm shadow-[#0057e7]/5">
+            <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 md:grid-cols-2">
+              <div className="h-full min-w-0 overflow-hidden rounded-xl border border-[#0057e7]/30 bg-[#eef5ff]/70 p-3 shadow-sm shadow-[#0057e7]/5">
                 <div className="mb-3 flex items-start gap-2">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7] text-white"><Tag size={16} /></span>
                   <div className="min-w-0">
@@ -299,7 +299,7 @@ export function OrderEquipmentSection({
                 />
               </div>
 
-              <div className="min-w-0 overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white p-3">
+              <div className="h-full min-w-0 overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white p-3">
                 <div className="mb-3">
                   <p className="text-sm font-black text-[#0d1b2e]">Outras fotos</p>
                   <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">Registre o estado geral, detalhes, avarias e outros pontos importantes.</p>
