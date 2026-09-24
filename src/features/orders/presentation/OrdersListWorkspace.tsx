@@ -108,6 +108,7 @@ export function OrdersListWorkspace(props: Props) {
         if (option && !selectedCities.some(city => city.name === option.name && city.state === option.state)) setSelectedCities(current => [...current, option]);
       }}
       onCityRemove={(value) => setSelectedCities(current => current.filter(city => `${city.state}:${city.name}` !== value))}
+      onCitiesClear={() => setSelectedCities([])}
       onDateFromChange={setDateFrom}
       onDateToChange={setDateTo}
       onOrderSortChange={(value) => { setOrderSort(value); setPage(1); }}
