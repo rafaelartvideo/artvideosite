@@ -92,10 +92,11 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
     const matchesSerial = !serialNeedle || normalizeIdentifier(order.serial_number).includes(serialNeedle);
     const customer = order.customer || {};
     const matchesDocument = !documentNeedle || [customer.document, customer.cnpj].some(value => normalizeDigits(value).includes(documentNeedle));
-    const locations = [
-      ...(order.service_state || order.service_city ? [{ state: order.service_state, city: order.service_city }] : []),
-      ...((customer.addresses || []) as Array<{ state?: string | null; city?: string | null }>),
-    ];
+    const serviceLocation = order.service_state || order.service_city
+      ? [{ state: order.service_state, city: order.service_city }]
+      : [];
+    const customerLocations = (customer.addresses || []) as Array<{ state?: string | null; city?: string | null }>;
+    const locations = serviceLocation.length > 0 ? serviceLocation : customerLocations;
     const matchesState = selectedStateAliases.size === 0 || locations.some(location => matchesStateAlias(location.state, selectedStateAliases));
     const matchesCity = cityFilters.length === 0 || cityFilters.some(city =>
       locations.some(location =>
