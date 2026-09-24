@@ -105,6 +105,7 @@ export function TabOrders({
   const cancellingEditRef = useRef(false);
   const closingRouteRef = useRef<string | null>(null);
   const openingEditRouteRef = useRef<string | null>(null);
+  const creatingDetailRouteRef = useRef<string | null>(null);
 
   const workspaceBase = useOrdersWorkspace({ showToast: setToast, organizationIdOverride });
   const {
@@ -310,6 +311,9 @@ export function TabOrders({
         return () => { cancelled = true; };
       }
       if (initialOrderId === "new") {
+        if (creatingDetailRouteRef.current) {
+          return () => { cancelled = true; };
+        }
         if (detail) closeDetail();
         if (!formOpen || editingOS) openNew();
         return () => { cancelled = true; };
@@ -317,7 +321,15 @@ export function TabOrders({
     }
 
     if (routeSubpage !== "edit" && detail?.id === initialOrderId) {
-      if (formOpen && editingOS?.id === initialOrderId) closeOrderForm();
+      if (formOpen && (
+        editingOS?.id === initialOrderId
+        || creatingDetailRouteRef.current === initialOrderId
+      )) {
+        closeOrderForm();
+      }
+      if (creatingDetailRouteRef.current === initialOrderId) {
+        creatingDetailRouteRef.current = null;
+      }
       return () => { cancelled = true; };
     }
     if (routeSubpage === "edit" && formOpen && editingOS?.id === initialOrderId) {
@@ -483,14 +495,34 @@ export function TabOrders({
     openingEditRouteRef.current = null;
 
     if (wasCreating) {
-      closingRouteRef.current = null;
-      if (onOrderRouteChange) {
-        onOrderRouteChange(savedOrderId, null);
+      if (!workspaceBase.organizationId) {
+        setToast({ msg: "A OS foi criada, mas não foi possível carregar os detalhes.", type: "error" });
         return;
       }
-      if (workspaceBase.organizationId) {
+
+      creatingDetailRouteRef.current = savedOrderId;
+      setSaving(true);
+      try {
         const createdOrder = await getServiceOrderForRoute(workspaceBase.organizationId, savedOrderId);
-        if (createdOrder) openDetail(createdOrder);
+        if (!createdOrder) throw new Error("OS não encontrada após a criação.");
+
+        closingRouteRef.current = null;
+        openFreshDetail(createdOrder);
+
+        if (onOrderRouteChange) {
+          onOrderRouteChange(savedOrderId, null);
+        } else {
+          creatingDetailRouteRef.current = null;
+          closeOrderForm();
+        }
+      } catch (error) {
+        creatingDetailRouteRef.current = null;
+        setToast({
+          msg: `A OS foi criada, mas não foi possível abrir os detalhes: ${error instanceof Error ? error.message : String(error)}`,
+          type: "error",
+        });
+      } finally {
+        setSaving(false);
       }
       return;
     }
