@@ -148,7 +148,7 @@ export function OrderEquipmentSection({
 
           {!editingOS && hasPermission("equipment.create") && (
             <BtnPrimary
-              className="h-[42px] w-[42px] shrink-0 justify-center p-0 sm:w-auto sm:px-4"
+              className="h-[42px] w-[42px] shrink-0 justify-center !p-0 sm:w-auto sm:!px-4"
               onClick={() => setQuickEquipment(true)}
               aria-label="Criar equipamento"
               title="Criar equipamento"
@@ -200,7 +200,7 @@ export function OrderEquipmentSection({
               onClick={() => scannerInput.current?.click()}
               aria-label="Escanear número de série"
               title="Escanear número de série"
-              className="h-[42px] w-[42px] shrink-0 p-0 md:hidden"
+              className="h-[42px] w-[42px] shrink-0 !p-0 md:hidden"
             >
               <ScanLine size={22} className="!h-[22px] !w-[22px] shrink-0" />
             </AdminButton>
