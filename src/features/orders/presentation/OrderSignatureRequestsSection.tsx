@@ -204,7 +204,7 @@ export function OrderSignatureRequestsSection({
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="text-sm font-black text-[#0d1b2e]">Assinaturas eletrônicas</h2><p className="mt-1 text-xs text-[#5a6a82]">Solicitações enviadas a partir dos modelos habilitados para assinatura online.</p></div>
-        <div className="flex items-center gap-2"><AdminIconButton ariaLabel="Atualizar assinaturas" title="Atualizar" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /></AdminIconButton>{canSend && <BtnPrimary onClick={() => setCreateOpen(true)} disabled={onlineTemplates.length === 0}><Plus size={15} /> Enviar para assinatura</BtnPrimary>}</div>
+        <div className="flex items-center gap-2"><AdminIconButton ariaLabel="Atualizar assinaturas" title="Atualizar" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /></AdminIconButton>{canSend && <BtnPrimary onClick={() => setCreateOpen(true)} disabled={onlineTemplates.length === 0} className="h-9 w-9 px-0 sm:w-auto sm:px-4"><Plus size={15} /><span className="sr-only sm:not-sr-only">Enviar para assinatura</span></BtnPrimary>}</div>
       </div>
 
       {message && <div className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs ${message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span className="min-w-0 break-words">{message.text}</span><button type="button" onClick={() => setMessage(null)}><X size={13} /></button></div>}
