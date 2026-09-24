@@ -43,7 +43,7 @@ export function OrderSolutionSummary({
 
   const actions = <div className="flex flex-wrap items-center gap-2">
     {hasHistory && <AdminButton variant="secondary" size="sm" onClick={onOpenRecords} aria-label="Ver registros da solução" title="Registros" className="h-10 px-2 text-[11px] sm:h-8 sm:px-2.5"><History className="h-[18px] w-[18px] sm:h-[13px] sm:w-[13px]" /><span className="hidden sm:inline">Registros</span><span className="rounded-full bg-[#eaf2ff] px-1.5 py-0.5 text-[9px] font-black text-[#0057e7]">{solutionCount}</span></AdminButton>}
-    {detail.is_solved && canUndo && <AdminButton variant="secondary" size="sm" onClick={onUndo} aria-label="Desfazer solução" title="Desfazer" className="h-10 w-10 border-[#0057e7]/30 bg-white px-0 text-[11px] text-[#0057e7] hover:border-[#0057e7]/45 hover:bg-[#f0f6ff] hover:text-[#0057e7] sm:w-auto sm:px-2.5"><RotateCcw className="h-[18px] w-[18px] sm:h-[13px] sm:w-[13px]" /><span className="hidden sm:inline">Desfazer</span></AdminButton>}
+    {detail.is_solved && canUndo && <AdminButton variant="secondary" size="sm" onClick={onUndo} aria-label="Desfazer solução" title="Desfazer" className="h-10 w-10 border-[#0057e7]/30 bg-white !px-0 text-[11px] text-[#0057e7] hover:border-[#0057e7]/45 hover:bg-[#f0f6ff] hover:text-[#0057e7] sm:w-auto sm:px-2.5"><RotateCcw className="h-[18px] w-[18px] sm:h-[13px] sm:w-[13px]" /><span className="hidden sm:inline">Desfazer</span></AdminButton>}
   </div>;
 
   return <Section title="Solução da OS" actions={actions}>
