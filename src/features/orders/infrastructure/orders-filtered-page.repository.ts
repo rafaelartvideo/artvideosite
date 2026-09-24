@@ -26,6 +26,15 @@ export type ExactOrderPageInput = {
 };
 export type ExactOrderPage = { items: any[]; total: number };
 
+export async function countServiceOrders(organizationId: string) {
+  const { count, error } = await supabase
+    .from("service_orders")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 const normalizeIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const normalizeText = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
