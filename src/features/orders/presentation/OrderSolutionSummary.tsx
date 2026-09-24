@@ -42,8 +42,8 @@ export function OrderSolutionSummary({
   if (!hasCurrentContent && !hasHistory) return null;
 
   const actions = <div className="flex flex-wrap items-center gap-2">
-    {hasHistory && <AdminButton variant="secondary" size="sm" onClick={onOpenRecords} className="h-8 px-2.5 text-[11px]"><History size={13} /> Registros <span className="rounded-full bg-[#eaf2ff] px-1.5 py-0.5 text-[9px] font-black text-[#0057e7]">{solutionCount}</span></AdminButton>}
-    {detail.is_solved && canUndo && <AdminButton variant="secondary" size="sm" onClick={onUndo} className="h-8 border-[#0057e7]/30 bg-white px-2.5 text-[11px] text-[#0057e7] hover:border-[#0057e7]/45 hover:bg-[#f0f6ff] hover:text-[#0057e7]"><RotateCcw size={13} /> Desfazer</AdminButton>}
+    {hasHistory && <AdminButton variant="secondary" size="sm" onClick={onOpenRecords} aria-label="Ver registros da solução" title="Registros" className="h-8 px-2 text-[11px] sm:px-2.5"><History size={13} /><span className="hidden sm:inline">Registros</span><span className="rounded-full bg-[#eaf2ff] px-1.5 py-0.5 text-[9px] font-black text-[#0057e7]">{solutionCount}</span></AdminButton>}
+    {detail.is_solved && canUndo && <AdminButton variant="secondary" size="sm" onClick={onUndo} aria-label="Desfazer solução" title="Desfazer" className="h-8 w-8 border-[#0057e7]/30 bg-white px-0 text-[11px] text-[#0057e7] hover:border-[#0057e7]/45 hover:bg-[#f0f6ff] hover:text-[#0057e7] sm:w-auto sm:px-2.5"><RotateCcw size={13} /><span className="hidden sm:inline">Desfazer</span></AdminButton>}
   </div>;
 
   return <Section title="Solução da OS" actions={actions}>
