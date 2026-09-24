@@ -68,9 +68,8 @@ export function RegistrationAddressesEditor({
           onChange={next => update(index, { ...address, ...next })}
           inputClassName={`${INPUT} ${disabled ? "pointer-events-none opacity-70" : ""}`}
         />
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <FInput label="Tipo / Apelido" disabled={disabled} value={address.type || ""} onChange={(event: any) => update(index, { ...address, type: event.target.value })} />
-          <FInput label="Referência" disabled={disabled} value={address.reference || ""} onChange={(event: any) => update(index, { ...address, reference: event.target.value })} />
           <FInput label="Link de localização" disabled={disabled} type="url" placeholder="Google Maps, Waze, Apple Maps..." value={address.shared_map_url || ""} onChange={(event: any) => update(index, { ...address, shared_map_url: event.target.value })} />
         </div>
       </div>)}
