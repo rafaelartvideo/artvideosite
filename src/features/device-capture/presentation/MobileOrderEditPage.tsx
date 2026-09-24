@@ -38,26 +38,6 @@ function toInputDate(value: unknown) {
   return raw ? raw.slice(0, 16) : "";
 }
 
-function normalizeCameraImage(file: File) {
-  if (["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 10 * 1024 * 1024) return Promise.resolve(file);
-  return createImageBitmap(file).then(async bitmap => {
-    try {
-      const maxDimension = 1920;
-      const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Não foi possível preparar a foto.");
-      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error("Não foi possível preparar a foto.")), "image/jpeg", 0.9));
-      return new File([blob], `foto-${Date.now()}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
-    } finally {
-      bitmap.close();
-    }
-  });
-}
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="block min-w-0"><span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-[#64748b]">{label}</span>{children}</label>;
 }
@@ -240,8 +220,7 @@ export function MobileOrderEditPage() {
     setUploading(kind);
     setNotice(null);
     try {
-      const normalized = await normalizeCameraImage(file);
-      await uploadMobileOrderEditPhoto(pairing.id, pairing.token, kind, normalized);
+      await uploadMobileOrderEditPhoto(pairing.id, pairing.token, kind, file);
       setNotice({ type: "success", text: kind === "label" ? "Foto da etiqueta adicionada à OS." : "Foto do equipamento adicionada à OS." });
     } catch (error) {
       setNotice({ type: "error", text: error instanceof Error ? error.message : "Não foi possível enviar a foto." });
