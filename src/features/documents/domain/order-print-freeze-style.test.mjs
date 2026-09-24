@@ -36,10 +36,11 @@ test("maps template top-right-bottom-left margins to html2pdf top-left-bottom-ri
   assert.deepEqual(html2pdfMarginOrder([10, 12, 14, 16]), [10, 16, 14, 12]);
 });
 
-test("uses PNG and at least 300-ish DPI for the frozen print page", () => {
+test("uses high-quality JPEG around 216 DPI for compact frozen print pages", () => {
   const options = freezeRasterOptions();
-  assert.equal(options.imageType, "png");
-  assert.ok(options.scale >= 3);
+  assert.equal(options.imageType, "jpeg");
+  assert.ok(options.imageQuality >= 0.9);
+  assert.ok(options.scale >= 2.2);
 });
 
 test("reserves a visibly sized signature area above its line", () => {
