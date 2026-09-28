@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { PLATFORM_OPERATOR_ORGANIZATION_ID } from "@/lib/organization.constants";
+import { getPlatformOperatorOrganizationId } from "@/lib/organization-identity";
 import { PartnerCompanyError, toPartnerCompanyError, toPartnerFunctionError } from "./partner-companies.errors";
 
 export type PartnerCompanySettings = {
@@ -69,7 +69,7 @@ export async function listPartnerCompanies({ page, pageSize }: PartnerCompanyPag
   const { data, error, count } = await supabase
     .from("organizations")
     .select(COMPANY_SELECT, { count: "exact" })
-    .neq("id", PLATFORM_OPERATOR_ORGANIZATION_ID)
+    .eq("organization_type", "partner")
     .order("name")
     .range(from, to);
   if (error) throw toPartnerCompanyError(error, "Não foi possível carregar as empresas parceiras.");
@@ -81,7 +81,7 @@ export async function getPartnerCompany(id: string) {
     .from("organizations")
     .select(COMPANY_SELECT)
     .eq("id", id)
-    .neq("id", PLATFORM_OPERATOR_ORGANIZATION_ID)
+    .eq("organization_type", "partner")
     .single();
   return result.error
     ? { ...result, error: toPartnerCompanyError(result.error, "Não foi possível carregar a empresa parceira.") }
@@ -123,11 +123,12 @@ export async function setPartnerCompanyStatus(id: string, status: "active" | "su
     : result;
 }
 
-export function listPartnerMembers(organizationId?: string | null) {
+export async function listPartnerMembers(organizationId?: string | null) {
+  const platformOrganizationId = await getPlatformOperatorOrganizationId();
   let query = supabase
     .from("organization_members")
     .select("id,organization_id,user_id,role_id,status,is_owner,joined_at,created_at,organization:organizations(id,name),profile:profiles!organization_members_user_id_fkey(id,full_name),role:roles(id,name)")
-    .neq("organization_id", PLATFORM_OPERATOR_ORGANIZATION_ID)
+    .neq("organization_id", platformOrganizationId)
     .order("created_at", { ascending: false });
   if (organizationId) query = query.eq("organization_id", organizationId);
   return query;
@@ -214,11 +215,12 @@ export function setOrganizationModuleEnabled(organizationId: string, moduleKey: 
     }, { onConflict: "organization_id,module_key" });
 }
 
-export function listPartnerShares(organizationId?: string | null) {
+export async function listPartnerShares(organizationId?: string | null) {
+  const platformOrganizationId = await getPlatformOperatorOrganizationId();
   let query = supabase
     .from("organization_data_shares")
     .select("id,parent_organization_id,child_organization_id,resource_key,access_level,updated_at,owner:organizations!organization_data_shares_child_organization_id_fkey(id,name)")
-    .eq("parent_organization_id", PLATFORM_OPERATOR_ORGANIZATION_ID)
+    .eq("parent_organization_id", platformOrganizationId)
     .order("resource_key");
   if (organizationId) query = query.eq("child_organization_id", organizationId);
   return query;
