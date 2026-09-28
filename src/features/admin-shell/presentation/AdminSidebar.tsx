@@ -6,7 +6,6 @@ import { isAdminModuleEnabled, mainItems, operationItems, siteItems, utilityItem
 import { parentAdminTab } from "../admin-routes";
 import { SidebarItem } from "./AdminNavigation";
 import { useAdminSidebarLayout } from "./AdminLayout";
-import logoSolo from "@/imports/LogoSoloSemFundo.png";
 import type { OrganizationAccess } from "@/lib/organization.types";
 import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
@@ -70,15 +69,13 @@ export function AdminSidebar({
         collapsed ? "flex-col justify-center gap-1 px-2" : "justify-center px-10",
       )}>
         <div className={cn("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-2.5")}>
-          {isPlatformOrganization ? <>
-            <img src={logoSolo} alt="" aria-hidden="true" className={cn("shrink-0 object-contain transition-all", collapsed ? "h-7 w-7" : "h-8 w-8")} />
-            {!collapsed && (
-              <div className="min-w-0">
-                <span className="block text-[8px] font-bold uppercase tracking-[0.3em] text-[#00b4ff]">Eletrônica</span>
-                <span className="block text-base font-black leading-none text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>ARTVIDEO</span>
-              </div>
-            )}
-          </> : menuLogoUrl ? (
+          {isPlatformOrganization ? (
+            collapsed ? (
+              <Globe size={20} className="text-[#00b4ff]" aria-label="Union World" />
+            ) : (
+              <span className="truncate text-sm font-black tracking-[0.08em] text-white">UNION WORLD</span>
+            )
+          ) : menuLogoUrl ? (
             <img
               src={menuLogoUrl}
               alt={activeOrganization?.organization_name || "Logo da empresa"}
