@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Users, X } from "lucide-react";
 import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
 import { isValidBrazilianPhone, isValidCpf, isValidEmail } from "@/shared/domain/formatters";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCpfInput, FEmailInput, FInput, FPhoneInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
@@ -83,6 +84,14 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
     ...(rolesQuery.data || []).map((role: any) => ({ value: role.id, label: role.name })),
   ];
 
+  useEffect(() => {
+    if (usersQuery.error) setToast({ msg: systemErrorMessage(usersQuery.error, "Não foi possível carregar os usuários."), type: "error" });
+  }, [usersQuery.error]);
+
+  useEffect(() => {
+    if (rolesQuery.error) setToast({ msg: systemErrorMessage(rolesQuery.error, "Não foi possível carregar as funções disponíveis para esta empresa."), type: "error" });
+  }, [rolesQuery.error]);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -114,7 +123,8 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
     },
     onError: (error: any) => {
       const code = String(error?.code || "");
-      const message = error?.message || "Não foi possível salvar o usuário.";
+      const message = systemErrorMessage(error, "Não foi possível salvar o usuário.");
+      let fieldError = true;
       if (code === "cpf_already_exists" || code === "invalid_cpf") {
         setErrors(current => ({ ...current, cpf: message }));
       } else if (code === "username_already_exists" || code === "invalid_username") {
@@ -127,8 +137,10 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
         setErrors(current => ({ ...current, password: message }));
       } else if (code === "invalid_role") {
         setErrors(current => ({ ...current, role_id: message }));
+      } else {
+        fieldError = false;
       }
-      setToast({ msg: message, type: "error" });
+      if (!fieldError) setToast({ msg: message, type: "error" });
     },
   });
 
@@ -140,11 +152,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
   const saveUser = () => {
     const validationErrors = validateUser(form, Boolean(editing));
     setErrors(validationErrors);
-    const firstError = Object.values(validationErrors).find(Boolean);
-    if (firstError) {
-      setToast({ msg: String(firstError), type: "error" });
-      return;
-    }
+    if (Object.keys(validationErrors).length) return;
     saveMutation.mutate();
   };
 
@@ -200,7 +208,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
       </AdminCardHeader>
 
       {rolesQuery.isError && <AdminCardContent className="border-b border-red-100 bg-red-50/60">
-        <p className="text-sm font-semibold text-red-700">{(rolesQuery.error as any)?.message || "Não foi possível carregar as funções disponíveis para esta empresa."}</p>
+        <p className="text-sm font-semibold text-red-700">Não foi possível carregar as funções disponíveis para esta empresa.</p>
       </AdminCardContent>}
 
       {formOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label={editing ? "Editar usuário" : "Novo usuário"}>
@@ -259,7 +267,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
         </div>
       </div>}
 
-      {usersQuery.isPending ? <LoadingState /> : usersQuery.isError ? <AdminCardContent><p className="text-sm font-semibold text-red-700">{(usersQuery.error as any)?.message || "Não foi possível carregar os usuários."}</p></AdminCardContent> : (usersQuery.data || []).length === 0 ? <AdminCardContent><EmptyState icon={Users} title="Nenhum usuário vinculado" message="Esta empresa ainda não possui usuários cadastrados." /></AdminCardContent> : <div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr><th className="text-left">Usuário</th><th className="text-left">Login</th><th className="text-left">E-mail</th><th className="text-left">Função</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{(usersQuery.data || []).map((user: any) => <tr key={user.membership_id}><td><p className="font-bold text-[#0d1b2e]">{user.full_name || "—"}</p><p className="text-xs text-[#5a6a82]">{user.phone || user.cpf || "—"}</p></td><td>{user.username || "—"}</td><td>{user.email || "—"}</td><td>{user.role_name || user.function_name || "Sem função"}</td><td><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{statusLabel(user.status)}</span></td><td><div className="flex justify-end"><AdminIconButton title="Editar usuário" onClick={() => openEdit(user)}><Edit2 size={14} /></AdminIconButton></div></td></tr>)}</tbody></table></div>}
+      {usersQuery.isPending ? <LoadingState /> : usersQuery.isError ? <AdminCardContent><p className="text-sm font-semibold text-red-700">Não foi possível carregar os usuários.</p></AdminCardContent> : (usersQuery.data || []).length === 0 ? <AdminCardContent><EmptyState icon={Users} title="Nenhum usuário vinculado" message="Esta empresa ainda não possui usuários cadastrados." /></AdminCardContent> : <div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr><th className="text-left">Usuário</th><th className="text-left">Login</th><th className="text-left">E-mail</th><th className="text-left">Função</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{(usersQuery.data || []).map((user: any) => <tr key={user.membership_id}><td><p className="font-bold text-[#0d1b2e]">{user.full_name || "—"}</p><p className="text-xs text-[#5a6a82]">{user.phone || user.cpf || "—"}</p></td><td>{user.username || "—"}</td><td>{user.email || "—"}</td><td>{user.role_name || user.function_name || "Sem função"}</td><td><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{statusLabel(user.status)}</span></td><td><div className="flex justify-end"><AdminIconButton title="Editar usuário" onClick={() => openEdit(user)}><Edit2 size={14} /></AdminIconButton></div></td></tr>)}</tbody></table></div>}
     </AdminCard>
   </div>;
 }
