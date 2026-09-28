@@ -10,6 +10,7 @@ import {
   normalizeDigits,
 } from "@/shared/domain/formatters";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminCard, AdminCardContent, AdminCardHeader, AdminPage, AdminSegmentedControl, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCnpjInput, FCpfInput, FEmailInput, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -208,7 +209,12 @@ export function PartnerCompanyEditorPage({
       })
       .catch(error => {
         if (!active) return;
-        setToast({ msg: error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.", type: "error" });
+        const message = systemErrorMessage(error, "Não foi possível consultar o CNPJ.");
+        if (/cnpj.*(?:não encontrado|inválido)|(?:não encontrado|inválido).*cnpj/i.test(message)) {
+          setErrors(current => ({ ...current, document: message }));
+        } else {
+          setToast({ msg: message, type: "error" });
+        }
       })
       .finally(() => {
         if (active) setConsultingCnpj(false);
@@ -259,11 +265,7 @@ export function PartnerCompanyEditorPage({
   const save = async () => {
     const validationErrors = validateCompany(form);
     setErrors(validationErrors);
-    const firstError = Object.values(validationErrors).find(Boolean);
-    if (firstError) {
-      setToast({ msg: String(firstError), type: "error" });
-      return;
-    }
+    if (Object.keys(validationErrors).length) return;
     if (!canSave) return;
 
     const settings: PartnerCompanySettings = {
@@ -303,8 +305,9 @@ export function PartnerCompanyEditorPage({
       const normalizedError = toPartnerCompanyError(error, "Não foi possível salvar a empresa parceira.");
       if (normalizedError.code === "duplicate_document") {
         setErrors(current => ({ ...current, document: normalizedError.message }));
+      } else {
+        setToast({ msg: normalizedError.message, type: "error" });
       }
-      setToast({ msg: normalizedError.message, type: "error" });
     } finally {
       setSaving(false);
     }
