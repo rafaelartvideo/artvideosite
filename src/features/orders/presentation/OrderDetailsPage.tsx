@@ -1,4 +1,5 @@
 import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, FileText, Mail, PackagePlus, Printer, Tag } from "lucide-react";
@@ -169,7 +170,7 @@ export function OrderDetailsPage(props: Props) {
         printedBy: profileName,
         company,
       });
-    } catch (error) { popup.close(); setPrintError(error instanceof Error ? error.message : "Não foi possível preparar o documento."); }
+    } catch (error) { popup.close(); setPrintError(systemErrorMessage(error, "Não foi possível preparar o documento.")); }
     finally { setPrintingTemplateId(null); }
   };
 
@@ -197,7 +198,7 @@ export function OrderDetailsPage(props: Props) {
       renderServiceOrderLabel(popup, imageDataUrl, detail.os_number);
     } catch (error) {
       popup.close();
-      setPrintError(error instanceof Error ? error.message : "Não foi possível preparar a etiqueta.");
+      setPrintError(systemErrorMessage(error, "Não foi possível preparar a etiqueta."));
     }
   };
 
@@ -224,7 +225,7 @@ export function OrderDetailsPage(props: Props) {
       const html = buildOrderPrintDocumentHtml(configuredTemplate, { order: detail, checklist, checklistPhotoUrls, usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName, company });
       const result = await sendOrderDocumentEmail({ orderId: detail.id, documentName: template.name, documentHtml: html });
       setEmailMessage({ text: `Documento enviado para ${result.recipient}.`, type: "success" });
-    } catch (error) { setEmailMessage({ text: error instanceof Error ? error.message : "Não foi possível enviar o documento.", type: "error" }); }
+    } catch (error) { setEmailMessage({ text: systemErrorMessage(error, "Não foi possível enviar o documento."), type: "error" }); }
     finally { setEmailingTemplateId(null); }
   };
 
