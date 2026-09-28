@@ -1,6 +1,5 @@
 import { Building2, Menu, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import logoSolo from "@/imports/LogoSoloSemFundo.png";
 import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
@@ -64,7 +63,10 @@ export function AdminHeader({
 
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             {isPlatformOrganization ? (
-              <img src={logoSolo} alt="ArtVideo" className="h-9 w-9 object-contain" />
+              <div className="flex items-center gap-2 text-white">
+                <Building2 size={20} className="shrink-0 text-[#00b4ff]" />
+                <span className="text-xs font-black tracking-[0.08em]">UNION WORLD</span>
+              </div>
             ) : menuLogoUrl ? (
               <img src={menuLogoUrl} alt={activeOrganizationName || "Logo da empresa"} className="max-h-10 max-w-[150px] object-contain" />
             ) : (
