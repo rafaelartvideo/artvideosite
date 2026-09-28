@@ -12,7 +12,7 @@ import {
   todayDateOnly,
 } from "@/shared/domain/formatters";
 import { CustomerTypeToggle, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { type CustomerForm } from "@/features/customers/domain/customer-form";
+import { type CustomerFieldErrors, type CustomerForm } from "@/features/customers/domain/customer-form";
 import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
 import { InfoRow } from "./OrderDetailsContent";
 
@@ -31,6 +31,8 @@ export function OrderCustomerSection({
   editingCustomer,
   customerDraft,
   customerAddressDraft,
+  customerFieldErrors,
+  clearCustomerFieldError,
   saving,
   editingOrder,
   addressExpanded,
@@ -54,6 +56,8 @@ export function OrderCustomerSection({
   editingCustomer: boolean;
   customerDraft: CustomerForm;
   customerAddressDraft: Address;
+  customerFieldErrors: CustomerFieldErrors;
+  clearCustomerFieldError: (field: keyof CustomerForm) => void;
   saving: boolean;
   editingOrder: boolean;
   addressExpanded: boolean;
@@ -106,19 +110,19 @@ export function OrderCustomerSection({
               <div className="grid sm:grid-cols-2 gap-3">
                 <CustomerTypeToggle value={customerDraft.customerType} disabled onChange={customerType => setCustomerDraft({ ...customerDraft, customerType })} />
                 {customerDraft.customerType === "PF" ? <>
-                  <FInput label="Nome completo" required disabled={saving} value={customerDraft.full_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, full_name: e.target.value })} />
-                  <FInput label="CPF" value={customerDraft.document} disabled />
-                  <div><FInput label="Data de nascimento" type="date" required disabled={saving} value={customerDraft.birth_date} max={todayDateOnly()} onChange={(e: any) => setCustomerDraft({ ...customerDraft, birth_date: e.target.value })} />{!customerDraft.birth_date && <p className="mt-1 text-xs text-red-600">Informe a data de nascimento.</p>}</div>
+                  <FInput label="Nome completo" required disabled={saving} error={customerFieldErrors.full_name} value={customerDraft.full_name} onChange={(e: any) => { clearCustomerFieldError("full_name"); setCustomerDraft({ ...customerDraft, full_name: e.target.value }); }} />
+                  <FInput label="CPF" error={customerFieldErrors.document} value={customerDraft.document} disabled />
+                  <FInput label="Data de nascimento" type="date" required disabled={saving} error={customerFieldErrors.birth_date} value={customerDraft.birth_date} max={todayDateOnly()} onChange={(e: any) => { clearCustomerFieldError("birth_date"); setCustomerDraft({ ...customerDraft, birth_date: e.target.value }); }} />
                 </> : <>
-                  <FInput label="Nome fantasia" required disabled={saving} value={customerDraft.trade_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, trade_name: e.target.value })} />
-                  <FInput label="CNPJ" required value={customerDraft.cnpj} disabled />
+                  <FInput label="Nome fantasia" required disabled={saving} error={customerFieldErrors.trade_name} value={customerDraft.trade_name} onChange={(e: any) => { clearCustomerFieldError("trade_name"); setCustomerDraft({ ...customerDraft, trade_name: e.target.value }); }} />
+                  <FInput label="CNPJ" required error={customerFieldErrors.cnpj} value={customerDraft.cnpj} disabled />
                   <FInput label="Razão social" disabled={saving} value={customerDraft.legal_name} onChange={(e: any) => setCustomerDraft({ ...customerDraft, legal_name: e.target.value })} />
                   <FInput label="Inscrição estadual" disabled={saving} value={customerDraft.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setCustomerDraft({ ...customerDraft, state_registration: e.target.value })} />
-                  <FInput label="Fundação" disabled={saving} value={customerDraft.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => setCustomerDraft({ ...customerDraft, foundation_date: formatFoundationDate(e.target.value) })} />
+                  <FInput label="Fundação" disabled={saving} error={customerFieldErrors.foundation_date} value={customerDraft.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => { clearCustomerFieldError("foundation_date"); setCustomerDraft({ ...customerDraft, foundation_date: formatFoundationDate(e.target.value) }); }} />
                 </>}
-                <FPhoneInput label="WhatsApp" mobile disabled={saving} value={customerDraft.whatsapp} onChange={(e: any) => setCustomerDraft({ ...customerDraft, whatsapp: e.target.value })} />
-                <FPhoneInput label="Telefone" disabled={saving} value={customerDraft.phone} onChange={(e: any) => setCustomerDraft({ ...customerDraft, phone: e.target.value })} />
-                <div className="sm:col-span-2"><FInput label="E-mail" type="email" disabled={saving} value={customerDraft.email} onChange={(e: any) => setCustomerDraft({ ...customerDraft, email: e.target.value })} /></div>
+                <FPhoneInput label="WhatsApp" mobile disabled={saving} error={customerFieldErrors.whatsapp} value={customerDraft.whatsapp} onChange={(e: any) => { clearCustomerFieldError("whatsapp"); setCustomerDraft({ ...customerDraft, whatsapp: e.target.value }); }} />
+                <FPhoneInput label="Telefone" disabled={saving} error={customerFieldErrors.phone} value={customerDraft.phone} onChange={(e: any) => { clearCustomerFieldError("phone"); clearCustomerFieldError("whatsapp"); setCustomerDraft({ ...customerDraft, phone: e.target.value }); }} />
+                <div className="sm:col-span-2"><FInput label="E-mail" type="email" disabled={saving} error={customerFieldErrors.email} value={customerDraft.email} onChange={(e: any) => { clearCustomerFieldError("email"); setCustomerDraft({ ...customerDraft, email: e.target.value }); }} /></div>
               </div>
               <Section title="Endereço do cliente">
                 <AddressFields value={customerAddressDraft} onChange={setCustomerAddressDraft} inputClassName={INPUT} />
