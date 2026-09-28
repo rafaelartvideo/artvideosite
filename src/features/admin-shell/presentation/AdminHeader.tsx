@@ -1,4 +1,4 @@
-import { Building2, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import type { AdminPageState } from "../domain/admin.types";
 
 type AdminHeaderProps = {
