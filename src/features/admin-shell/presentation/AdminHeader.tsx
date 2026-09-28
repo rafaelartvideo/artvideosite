@@ -1,14 +1,9 @@
 import { Building2, Menu, X } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
-import { useMediaUrl } from "@/shared/application/useMediaUrl";
-import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
 import type { AdminPageState } from "../domain/admin.types";
 
 type AdminHeaderProps = {
   page: AdminPageState;
   sidebarOpen: boolean;
-  activeOrganizationId: string | null;
   activeOrganizationName?: string | null;
   onToggleSidebar: () => void;
 };
@@ -33,18 +28,10 @@ function normalizeBreadcrumb(breadcrumb: string, title: string) {
 export function AdminHeader({
   page,
   sidebarOpen,
-  activeOrganizationId,
   activeOrganizationName,
   onToggleSidebar,
 }: AdminHeaderProps) {
   const parentBreadcrumb = page ? normalizeBreadcrumb(page.breadcrumb, page.title) : "";
-  const isPlatformOrganization = activeOrganizationId === PLATFORM_ORGANIZATION_ID;
-  const brandingQuery = useQuery({
-    queryKey: ["company-settings", activeOrganizationId || "none"],
-    enabled: Boolean(activeOrganizationId && !isPlatformOrganization),
-    queryFn: () => getCompanySettings(activeOrganizationId!),
-  });
-  const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data?.company_menu_logo_media_id ?? null);
 
   return (
     <>
@@ -62,19 +49,10 @@ export function AdminHeader({
           </button>
 
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            {isPlatformOrganization ? (
-              <div className="flex items-center gap-2 text-white">
-                <Building2 size={20} className="shrink-0 text-[#00b4ff]" />
-                <span className="text-xs font-black tracking-[0.08em]">UNION WORLD</span>
-              </div>
-            ) : menuLogoUrl ? (
-              <img src={menuLogoUrl} alt={activeOrganizationName || "Logo da empresa"} className="max-h-10 max-w-[150px] object-contain" />
-            ) : (
-              <div className="flex max-w-[160px] items-center gap-2 text-white">
-                <Building2 size={22} className="shrink-0 text-[#00b4ff]" />
-                <span className="truncate text-xs font-black">{activeOrganizationName || "Empresa"}</span>
-              </div>
-            )}
+            <div className="flex max-w-[180px] flex-col items-center text-white">
+              <span className="text-xs font-black tracking-[0.08em]">UNION WORLD</span>
+              <span className="mt-0.5 max-w-full truncate text-[9px] font-semibold text-white/45">{activeOrganizationName || "Empresa"}</span>
+            </div>
           </div>
         </div>
       </header>
