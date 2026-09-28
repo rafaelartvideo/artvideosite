@@ -14,6 +14,8 @@ export interface OrganizationAccess {
   role_id: string | null;
   is_owner: boolean;
   is_direct_member: boolean;
+  is_platform_operator: boolean;
+  is_artvideo_tenant: boolean;
   enabled_modules: string[];
 }
 
