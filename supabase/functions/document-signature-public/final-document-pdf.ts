@@ -117,8 +117,8 @@ export async function renderSignedDocumentPdf(input: RenderSignedDocumentPdfInpu
     pdf.setModificationDate(signedDate);
   }
   pdf.setTitle(printable(template.name || "Documento assinado"));
-  pdf.setAuthor(printable(company.name || "ArtVideo"));
-  pdf.setProducer("ArtVideo - Assinatura eletrônica");
+  pdf.setAuthor(printable(company.name || "Empresa"));
+  pdf.setProducer("Union World - Assinatura eletrônica");
 
   let page: PDFPage;
   let y = 0;
