@@ -16,6 +16,7 @@ import { createAppointmentForm } from "./appointment-form";
 type Technician = { id: string; full_name: string };
 type ToastType = "success" | "error";
 type AppointmentSubmodal = "address" | "technicians" | null;
+type AppointmentFieldErrors = Partial<Record<"customer_id" | "appointment_date" | "start_time" | "end_time" | "situation_id", string>>;
 
 type Options = {
   organizationId: string;
@@ -49,6 +50,7 @@ export function useNewAppointment({
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [form, setForm] = useState(createAppointmentForm);
+  const [fieldErrors, setFieldErrors] = useState<AppointmentFieldErrors>({});
   const [selectedTechnicianIds, setSelectedTechnicianIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -60,6 +62,7 @@ export function useNewAppointment({
   const openDialog = () => {
     const defaultSituation = situations.find(item => String(item.name).trim().toLowerCase() === "agendado") ?? situations[0];
     setForm(createAppointmentForm(dayKey(cursor), defaultSituation?.id ?? ""));
+    setFieldErrors({});
     setCustomer(null);
     setOrders([]);
     setSelectedTechnicianIds([]);
@@ -90,6 +93,7 @@ export function useNewAppointment({
   const selectCustomer = async (selectedCustomer: any) => {
     const address = (selectedCustomer.addresses || []).find((item: Address) => item.is_default) || selectedCustomer.addresses?.[0];
     setCustomer(selectedCustomer);
+    setFieldErrors(current => ({ ...current, customer_id: undefined }));
     setChangingCustomer(false);
     setCustomers([]);
     setCustomerSearch("");
@@ -131,23 +135,19 @@ export function useNewAppointment({
   };
 
   const save = async () => {
-    if (!form.customer_id || !customer) {
-      onToast("Selecione um cliente para o agendamento.", "error");
-      return;
-    }
-    if (!form.appointment_date || !isValidIsoDate(form.appointment_date)) {
-      onToast("Informe uma data de agendamento válida.", "error");
-      return;
-    }
-    if (form.period === "custom" && (!form.start_time || !form.end_time || form.end_time <= form.start_time)) {
-      onToast("Informe um horário personalizado válido, com término após o início.", "error");
-      return;
+    const nextErrors: AppointmentFieldErrors = {};
+    if (!form.customer_id || !customer) nextErrors.customer_id = "Selecione um cliente para o agendamento.";
+    if (!form.appointment_date || !isValidIsoDate(form.appointment_date)) nextErrors.appointment_date = "Informe uma data de agendamento válida.";
+    if (form.period === "custom") {
+      if (!form.start_time) nextErrors.start_time = "Informe a hora inicial.";
+      if (!form.end_time) nextErrors.end_time = "Informe a hora final.";
+      else if (form.start_time && form.end_time <= form.start_time) nextErrors.end_time = "A hora final deve ser posterior à hora inicial.";
     }
     const selectedSituation = situations.find(item => item.id === form.situation_id);
-    if (!selectedSituation) {
-      onToast("Selecione uma situação válida para o agendamento.", "error");
-      return;
-    }
+    if (!selectedSituation) nextErrors.situation_id = "Selecione uma situação válida para o agendamento.";
+
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
     setSaving(true);
     try {
@@ -195,6 +195,8 @@ export function useNewAppointment({
   return {
     open,
     setOpen,
+    fieldErrors,
+    setFieldErrors,
     openDialog,
     submodal,
     setSubmodal,
