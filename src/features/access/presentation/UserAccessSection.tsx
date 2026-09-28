@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Eye, EyeOff, LoaderCircle, XCircle } from "lucide-react";
-import { ARTVIDEO_ORGANIZATION_ID } from "@/lib/organization.constants";
+import { isArtVideoOrganizationId } from "@/lib/organization-identity";
 import { listActiveRoles } from "@/features/roles/infrastructure/roles.repository";
 import { checkEmployeeUsernameAvailability, listObservedUniqSubscribers } from "../infrastructure/user-access.repository";
 import { invalidAllowedIps } from "../domain/ip-access";
@@ -56,9 +56,19 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
   const [showPassword, setShowPassword] = useState(false);
   const [availability, setAvailability] = useState<Availability>("idle");
   const initialUsername = useRef("");
-  const isArtVideo = organizationId === ARTVIDEO_ORGANIZATION_ID;
+  const [isArtVideo, setIsArtVideo] = useState(false);
   const username = normalizeUsername(value.username || ((value.email === PENDING_USERNAME_AUTH_EMAIL || value.email === LEGACY_PENDING_USERNAME_AUTH_EMAIL) ? "" : usernameFromAuthEmail(value.email)));
   const valid = isValidUsername(username);
+
+  useEffect(() => {
+    let cancelled = false;
+    void isArtVideoOrganizationId(organizationId).then(result => {
+      if (!cancelled) setIsArtVideo(result);
+    }).catch(() => {
+      if (!cancelled) setIsArtVideo(false);
+    });
+    return () => { cancelled = true; };
+  }, [organizationId]);
 
   useEffect(() => {
     if (existingAccess && username && !initialUsername.current) initialUsername.current = username;
