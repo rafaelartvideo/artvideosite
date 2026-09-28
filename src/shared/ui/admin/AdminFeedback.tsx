@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useEffect, useState } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle, Package, Plus, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
@@ -91,8 +92,11 @@ export function beginAdminLoading(text = "Carregando...") {
   };
 }
 
-export function notifyAdmin(message: string, type: FeedbackType = "success") {
-  dispatchAdminFeedback({ kind: "toast", message, type });
+export function notifyAdmin(message: unknown, type: FeedbackType = "success") {
+  const normalized = typeof message === "string" && message.trim()
+    ? message.trim()
+    : systemErrorMessage(message);
+  dispatchAdminFeedback({ kind: "toast", message: normalized, type });
 }
 
 export function isHexColor(value: string) {
@@ -199,18 +203,21 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
   </div>;
 }
 
-export function Toast({ message, type = "success", onClose }: { message: string; type?: FeedbackType; onClose: () => void }) {
+export function Toast({ message, type = "success", onClose }: { message: unknown; type?: FeedbackType; onClose: () => void }) {
+  const displayMessage = typeof message === "string" && message.trim()
+    ? message.trim()
+    : systemErrorMessage(message);
   useEffect(() => {
     const timeout = setTimeout(onClose, 3500);
     return () => clearTimeout(timeout);
-  }, [message, type]);
+  }, [displayMessage, type]);
 
   return <div className={cn(
     "fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[300] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-3.5 text-left text-sm font-semibold shadow-[0_16px_40px_rgba(13,27,46,0.18)] md:bottom-auto md:left-auto md:right-6 md:top-6 md:w-auto md:min-w-[320px] md:max-w-md md:translate-x-0",
     type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800",
   )} role={type === "error" ? "alert" : "status"} aria-live={type === "error" ? "assertive" : "polite"}>
     {type === "success" ? <CheckCircle size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
-    <span className="min-w-0 flex-1 leading-relaxed">{message}</span>
+    <span className="min-w-0 flex-1 leading-relaxed">{displayMessage}</span>
     <button type="button" onClick={onClose} className="shrink-0 rounded-md p-0.5 opacity-70 transition hover:opacity-100" aria-label="Fechar mensagem"><X size={15} /></button>
   </div>;
 }

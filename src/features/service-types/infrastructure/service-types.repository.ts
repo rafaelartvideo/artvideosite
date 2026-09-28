@@ -1,3 +1,4 @@
+import { changedServiceTypeSituationLinks } from "../domain/service-type-links.mjs";
 import { supabase } from "@/lib/supabase";
 import { getActiveOrganizationId } from "@/lib/active-organization";
 
@@ -130,16 +131,7 @@ export async function saveServiceType({
     if (deleteError) throw deleteError;
   }
 
-  const existingBySituation = new Map(existingLinks.map(link => [link.situation_id, link]));
-  const changedLinks = desiredLinks.filter(link => {
-    const current = existingBySituation.get(link.situation_id);
-    if (!current) return true;
-    const currentHours = current.sla_hours == null ? null : Number(current.sla_hours);
-    const nextHours = link.sla_hours == null ? null : Number(link.sla_hours);
-    return current.use_default_hours !== link.use_default_hours
-      || currentHours !== nextHours
-      || Number(current.sort_order) !== link.sort_order;
-  });
+  const changedLinks = changedServiceTypeSituationLinks(desiredLinks, existingLinks);
 
   if (changedLinks.length) {
     const { error: linksError } = await supabase

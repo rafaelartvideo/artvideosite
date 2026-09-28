@@ -5,6 +5,8 @@ type ErrorLike = {
   details?: unknown;
   hint?: unknown;
   code?: unknown;
+  status?: unknown;
+  statusCode?: unknown;
 };
 
 const isUsefulText = (value: unknown): value is string => {
@@ -17,6 +19,13 @@ function errorCode(error: unknown): string {
   if (!error || typeof error !== "object") return "";
   const code = (error as ErrorLike).code;
   return typeof code === "string" || typeof code === "number" ? String(code) : "";
+}
+
+function errorStatus(error: unknown): string {
+  if (!error || typeof error !== "object") return "";
+  const value = error as ErrorLike;
+  const status = value.status ?? value.statusCode;
+  return typeof status === "string" || typeof status === "number" ? String(status) : "";
 }
 
 function extractErrorText(error: unknown, seen = new Set<unknown>()): string {
@@ -38,13 +47,18 @@ export function systemErrorMessage(
   fallback = "Não foi possível concluir a operação.",
 ): string {
   const code = errorCode(error);
+  const status = errorStatus(error);
   const raw = extractErrorText(error);
   const normalized = raw.toLocaleLowerCase("pt-BR");
 
   if (
-    normalized.includes("new row violates row-level security policy")
+    status === "401"
+    || status === "403"
+    || code === "42501"
+    || normalized.includes("new row violates row-level security policy")
     || normalized.includes("permission denied for")
     || normalized.includes("violates row-level security policy")
+    || normalized.includes("forbidden")
   ) return "Você não possui permissão para realizar esta ação nesta empresa.";
 
   if (code === "23505" || normalized.includes("duplicate key value violates unique constraint")) {
