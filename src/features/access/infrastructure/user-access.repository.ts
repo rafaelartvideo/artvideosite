@@ -233,6 +233,7 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
     const key = String(permission.key || "");
     if (
       organizationId !== platformOperatorId
+      && key !== "organizations.audit.view"
       && platformOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
     ) {
       return false;
