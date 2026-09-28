@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const webhookToken = Deno.env.get("UNIQ_WEBHOOK_TOKEN") ?? "";
-const PLATFORM_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
+const ARTVIDEO_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 const MAX_BODY_BYTES = 1_000_000;
 
 const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -170,7 +170,7 @@ Deno.serve(async (request) => {
   const { data, error } = await adminClient
     .from("uniq_webhook_events")
     .insert({
-      organization_id: PLATFORM_ORGANIZATION_ID,
+      organization_id: ARTVIDEO_ORGANIZATION_ID,
       event_key: eventKey,
       call_id: callId,
       direction,
