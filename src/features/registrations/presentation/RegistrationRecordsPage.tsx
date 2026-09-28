@@ -139,7 +139,7 @@ export function RegistrationRecordsPage({
     const result = await getRegistrationRecordAttachmentUrl(attachment, download);
     if (result.error || !result.url) {
       popup?.close();
-      notifyAdmin(`Erro ao abrir anexo: ${result.error?.message || "URL não retornada."}`, "error");
+      notifyAdmin(`Erro ao abrir anexo: ${systemErrorMessage(result.error, "URL não retornada.")}`, "error");
       return;
     }
 
@@ -169,7 +169,7 @@ export function RegistrationRecordsPage({
     const result = await createRegistrationRecord(organizationId, registration.id, content);
     if (result.error || !result.data) {
       setSaving(false);
-      notifyAdmin(`Erro ao adicionar registro: ${result.error?.message || "Registro não retornado após salvar."}`, "error");
+      notifyAdmin(`Erro ao adicionar registro: ${systemErrorMessage(result.error, "Registro não retornado após salvar.")}`, "error");
       return;
     }
 
@@ -193,7 +193,7 @@ export function RegistrationRecordsPage({
     resetComposer();
     setModalOpen(false);
     if (attachmentError) {
-      notifyAdmin(`Registro adicionado, mas nem todos os anexos foram enviados: ${attachmentError.message}`, "error");
+      notifyAdmin(`Registro adicionado, mas nem todos os anexos foram enviados: ${systemErrorMessage(attachmentError)}`, "error");
     } else {
       notifyAdmin(files.length ? "Registro e anexos adicionados." : "Registro adicionado.");
     }
