@@ -1,5 +1,21 @@
 import { supabase } from "@/lib/supabase";
 
+export async function findQuickCustomerByTaxId(
+  organizationId: string,
+  customerType: "PF" | "PJ",
+  value: string,
+) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return { data: null, error: null };
+  return supabase
+    .from("customers")
+    .select("id,full_name,trade_name,legal_name")
+    .eq("organization_id", organizationId)
+    .eq(customerType === "PF" ? "document" : "cnpj", digits)
+    .maybeSingle();
+}
+
+
 export const createQuickCustomer = (organizationId: string, payload: Record<string, unknown>) =>
   supabase.from("customers").insert({ ...payload, organization_id: organizationId }).select().single();
 
