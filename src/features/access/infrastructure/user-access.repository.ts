@@ -1,6 +1,9 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
+import {
+  ARTVIDEO_ORGANIZATION_ID,
+  PLATFORM_OPERATOR_ORGANIZATION_ID,
+} from "@/lib/organization.constants";
 import {
   authEmailForUsername,
   isValidUsername,
@@ -166,10 +169,13 @@ export type PermissionAccess = {
   individualPermissionIds: string[];
 };
 
-const artvideoOnlyPermissionPrefixes = [
+const platformOnlyPermissionPrefixes = [
   "organizations.",
   "integrations.",
   "audit.",
+];
+
+const artvideoSiteOnlyPermissionPrefixes = [
   "products.",
   "categories.",
   "brands.",
@@ -216,8 +222,14 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
   const visiblePermissions = (permissions || []).filter((permission: any) => {
     const key = String(permission.key || "");
     if (
-      organizationId !== PLATFORM_ORGANIZATION_ID
-      && artvideoOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
+      organizationId !== PLATFORM_OPERATOR_ORGANIZATION_ID
+      && platformOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
+    ) {
+      return false;
+    }
+    if (
+      organizationId !== ARTVIDEO_ORGANIZATION_ID
+      && artvideoSiteOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
     ) {
       return false;
     }
