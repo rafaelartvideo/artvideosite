@@ -1,8 +1,8 @@
 import { supabase } from "@/lib/supabase";
-import { ARTVIDEO_ORGANIZATION_ID } from "@/lib/organization.constants";
+import { getArtVideoOrganizationId } from "@/lib/organization-identities";
 
 export async function listBrands() {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const { data, error } = await supabase
     .from("brands")
     .select("*")
@@ -17,7 +17,7 @@ export async function saveBrand(
   payload: Record<string, unknown>,
   brandId?: string,
 ) {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const query = brandId
     ? supabase.from("brands").update(payload).eq("organization_id", organizationId).eq("id", brandId)
     : supabase.from("brands").insert({ ...payload, organization_id: organizationId });
@@ -28,7 +28,7 @@ export async function saveBrand(
 }
 
 export async function deleteBrand(brandId: string): Promise<void> {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const { error } = await supabase.from("brands").delete().eq("organization_id", organizationId).eq("id", brandId);
   if (error) throw error;
 }
@@ -37,7 +37,7 @@ export async function setBrandActive(
   brandId: string,
   isActive: boolean,
 ): Promise<void> {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const { error } = await supabase
     .from("brands")
     .update({ is_active: isActive })
