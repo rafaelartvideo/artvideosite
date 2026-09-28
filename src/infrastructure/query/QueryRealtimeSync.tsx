@@ -2,6 +2,11 @@ import { useEffect } from "react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { queryKeys } from "./query-keys";
+import {
+  ORGANIZATION_CHANGED_EVENT,
+  LEGACY_ORGANIZATION_CHANGED_EVENT,
+  addCompatibleEventListener,
+} from "@/lib/platform-identifiers";
 
 type RealtimePayload = {
   eventType?: string;
@@ -150,11 +155,15 @@ export function QueryRealtimeSync() {
       queryClient.clear();
     };
 
-    window.addEventListener("artvideo:organization-changed", handleOrganizationChange);
+    const removeOrganizationListener = addCompatibleEventListener(
+      ORGANIZATION_CHANGED_EVENT,
+      LEGACY_ORGANIZATION_CHANGED_EVENT,
+      handleOrganizationChange,
+    );
     channel.subscribe();
 
     return () => {
-      window.removeEventListener("artvideo:organization-changed", handleOrganizationChange);
+      removeOrganizationListener();
       for (const timeout of pending.values()) window.clearTimeout(timeout);
       void supabase.removeChannel(channel);
     };
