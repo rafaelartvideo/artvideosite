@@ -12,7 +12,6 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
   });
 
-const ARTVIDEO_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 const DEFAULT_UNIQ_API_BASE_URL = "https://api.uniq.app";
 
 function normalizeBrazilDestination(value: unknown) {
@@ -67,10 +66,17 @@ Deno.serve(async (request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    const { data: artvideoOrganizationId, error: artvideoOrganizationError } = await admin
+      .rpc("artvideo_organization_id");
+    if (artvideoOrganizationError || !artvideoOrganizationId) {
+      console.error("[UNIQ CALL] ArtVideo tenant resolution error", artvideoOrganizationError);
+      return json({ success: false, error: "Integração ArtVideo/Uniq não configurada no servidor." }, 503);
+    }
+
     const { data: employee, error: employeeError } = await admin
       .from("employees")
       .select("id,organization_id,profile_id,is_active,uniq_subscriber_id")
-      .eq("organization_id", ARTVIDEO_ORGANIZATION_ID)
+      .eq("organization_id", artvideoOrganizationId)
       .eq("profile_id", user.id)
       .eq("is_active", true)
       .maybeSingle();
