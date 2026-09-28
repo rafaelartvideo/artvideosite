@@ -43,8 +43,9 @@ import {
   registrationAddressesFromRecord,
   registrationEntityPayload,
   registrationFormFromRecord,
-  validateRegistrationForm,
+  validateRegistrationFormFields,
   type RegistrationAddressForm,
+  type RegistrationFieldErrors,
   type RegistrationFormState,
 } from "../domain/registration-form";
 import {
@@ -205,6 +206,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   });
 
   const [saving, setSaving] = useState(false);
+  const [registrationFieldErrors, setRegistrationFieldErrors] = useState<RegistrationFieldErrors>({});
   const [selected, setSelected] = useState<Registration | null>(null);
   const [form, setForm] = useState<RegistrationFormState>(emptyRegistrationForm());
   const [addresses, setAddresses] = useState<RegistrationAddressForm[]>([emptyRegistrationAddress(true)]);
@@ -418,9 +420,12 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   const save = async () => {
     if (!activeOrganizationId || saving) return;
-    const validation = validateRegistrationForm(form) || validateAccess();
-    if (validation) {
-      setToast({ msg: validation, type: "error" });
+    const nextFieldErrors = validateRegistrationFormFields(form);
+    setRegistrationFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) return;
+    const accessValidation = validateAccess();
+    if (accessValidation) {
+      setToast({ msg: accessValidation, type: "error" });
       return;
     }
 
@@ -501,6 +506,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     } catch (error) {
       const message = systemErrorMessage(error);
       if (message.toLocaleLowerCase("pt-BR").includes("cadastro já existente")) {
+        setRegistrationFieldErrors(current => ({ ...current, document: message }));
         if (form.person_type === "PF") lookups.setCpfError(message);
         else lookups.setCnpjError(message);
       } else {
@@ -512,6 +518,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   };
 
   const openNew = () => {
+    setRegistrationFieldErrors({});
     editorBaseHydratedRef.current = null;
     editorOriginRef.current = "list";
     onRouteChange?.("new", "edit");
@@ -540,8 +547,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, item.legacy_employee_id) });
       setToast({ msg: next ? "Usuário ativado." : "Usuário inativado. O acesso ao sistema foi bloqueado.", type: "success" });
     } catch (error) {
-      const message = error && typeof error === "object" && "message" in error ? String((error as any).message || "Erro desconhecido") : String(error || "Erro desconhecido");
-      setToast({ msg: `Erro ao alterar usuário: ${message}`, type: "error" });
+      setToast({ msg: `Erro ao alterar usuário: ${systemErrorMessage(error)}`, type: "error" });
     } finally {
       setTogglingEmployeeId(null);
     }
@@ -552,6 +558,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     onRouteChange?.(item.id, null);
   };
   const openEditItem = (item: Registration) => {
+    setRegistrationFieldErrors({});
     if (!canEdit) return;
     if (activeOrganizationId) queryClient.setQueryData(queryKeys.registrations.detail(activeOrganizationId, item.id), item);
     editorOriginRef.current = "list";
@@ -609,6 +616,13 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         accessLoading={!creating && employeeAccessQuery.isPending}
         canModifyAccess={accessExisting ? canEditAccess : canCreateAccess}
         lookups={lookups}
+        fieldErrors={registrationFieldErrors}
+        onClearFieldError={(field) => setRegistrationFieldErrors(current => {
+          if (!current[field]) return current;
+          const next = { ...current };
+          delete next[field];
+          return next;
+        })}
         saving={saving}
         onSave={() => void save()}
         onClose={closeEditor}

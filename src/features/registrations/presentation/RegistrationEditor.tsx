@@ -21,6 +21,7 @@ import { useRegistrationLookups } from "../application/useRegistrationLookups";
 import {
   registrationDisplayName,
   type RegistrationAddressForm,
+  type RegistrationFieldErrors,
   type RegistrationFormState,
 } from "../domain/registration-form";
 import type { RegistrationRole, SupplierInventoryItem } from "../infrastructure/registrations.repository";
@@ -57,6 +58,8 @@ export function RegistrationEditor({
   accessLoading,
   canModifyAccess,
   lookups,
+  fieldErrors,
+  onClearFieldError,
   saving,
   onSave,
   onClose,
@@ -79,6 +82,8 @@ export function RegistrationEditor({
   accessLoading: boolean;
   canModifyAccess: boolean;
   lookups: ReturnType<typeof useRegistrationLookups>;
+  fieldErrors: RegistrationFieldErrors;
+  onClearFieldError: (field: keyof RegistrationFieldErrors) => void;
   saving: boolean;
   onSave: () => void;
   onClose: () => void;
@@ -131,6 +136,7 @@ export function RegistrationEditor({
               <Checkbox checked={checked} tabIndex={-1} /><Icon size={17} className="text-[#0057e7]" /><span className="text-sm font-bold text-[#0d1b2e]">{roleLabels[role]}</span>
             </button>;
           })}</div>
+          {fieldErrors.roles && <p className="mt-2 text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.roles}</p>}
         </Section>
       )}
 
@@ -139,31 +145,31 @@ export function RegistrationEditor({
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF<span className="text-red-400">*</span></label>
             <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1"><FCpfInput required error={lookups.cpfError} value={form.document} onChange={(event: any) => { setForm(current => ({ ...current, document: event.target.value })); lookups.setCpfError(""); }} /></div>
+              <div className="min-w-0 flex-1"><FCpfInput required error={lookups.cpfError || fieldErrors.document} value={form.document} onChange={(event: any) => { onClearFieldError("document"); setForm(current => ({ ...current, document: event.target.value })); lookups.setCpfError(""); }} /></div>
               <BtnSecondary className="h-[42px] shrink-0 px-4" onClick={() => void lookups.lookupCpfName()} disabled={lookups.cpfLoading}>Consultar</BtnSecondary>
             </div>
           </div>
-          <FInput label="Nome completo" required value={form.name} onChange={(event: any) => setForm(current => ({ ...current, name: event.target.value }))} />
-          <FPhoneInput label="Telefone" value={form.phone} onChange={(event: any) => setForm(current => ({ ...current, phone: event.target.value }))} />
-          <FPhoneInput label="WhatsApp" mobile value={form.whatsapp} onChange={(event: any) => setForm(current => ({ ...current, whatsapp: event.target.value }))} />
-          <FBrazilianDateInput label="Data de nascimento" required value={form.birth_date} onChange={(event: any) => setForm(current => ({ ...current, birth_date: event.target.value }))} />
-          <FEmailInput label="E-mail de contato" value={form.email} onChange={(event: any) => setForm(current => ({ ...current, email: event.target.value }))} />
+          <FInput label="Nome completo" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { onClearFieldError("name"); setForm(current => ({ ...current, name: event.target.value })); }} />
+          <FPhoneInput label="Telefone" error={fieldErrors.phone} value={form.phone} onChange={(event: any) => { onClearFieldError("phone"); onClearFieldError("whatsapp"); setForm(current => ({ ...current, phone: event.target.value })); }} />
+          <FPhoneInput label="WhatsApp" mobile error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(event: any) => { onClearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: event.target.value })); }} />
+          <FBrazilianDateInput label="Data de nascimento" required error={fieldErrors.birth_date} value={form.birth_date} onChange={(event: any) => { onClearFieldError("birth_date"); setForm(current => ({ ...current, birth_date: event.target.value })); }} />
+          <FEmailInput label="E-mail de contato" error={fieldErrors.email} value={form.email} onChange={(event: any) => { onClearFieldError("email"); setForm(current => ({ ...current, email: event.target.value })); }} />
         </div> : <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ<span className="text-red-400">*</span></label>
             <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1"><FCnpjInput required error={lookups.cnpjError} value={form.document} onChange={(event: any) => { setForm(current => ({ ...current, document: event.target.value })); lookups.setCnpjError(""); }} /></div>
+              <div className="min-w-0 flex-1"><FCnpjInput required error={lookups.cnpjError || fieldErrors.document} value={form.document} onChange={(event: any) => { onClearFieldError("document"); setForm(current => ({ ...current, document: event.target.value })); lookups.setCnpjError(""); }} /></div>
               <BtnSecondary className="h-[42px] shrink-0 px-4" onClick={() => void lookups.lookupCnpj()} disabled={lookups.cnpjLoading}>Consultar</BtnSecondary>
             </div>
           </div>
-          <FInput label="Nome fantasia" required value={form.trade_name} onChange={(event: any) => setForm(current => ({ ...current, trade_name: event.target.value }))} />
+          <FInput label="Nome fantasia" required error={fieldErrors.trade_name} value={form.trade_name} onChange={(event: any) => { onClearFieldError("trade_name"); setForm(current => ({ ...current, trade_name: event.target.value })); }} />
           <FInput label="Razão social" value={form.legal_name} onChange={(event: any) => setForm(current => ({ ...current, legal_name: event.target.value }))} />
-          <FBrazilianDateInput label="Data de fundação" value={form.foundation_date} onChange={(event: any) => setForm(current => ({ ...current, foundation_date: event.target.value }))} />
+          <FBrazilianDateInput label="Data de fundação" error={fieldErrors.foundation_date} value={form.foundation_date} onChange={(event: any) => { onClearFieldError("foundation_date"); setForm(current => ({ ...current, foundation_date: event.target.value })); }} />
           <FInput label="Inscrição estadual" value={form.state_registration} onChange={(event: any) => setForm(current => ({ ...current, state_registration: event.target.value }))} />
           <FInput label="Inscrição municipal" value={form.municipal_registration} onChange={(event: any) => setForm(current => ({ ...current, municipal_registration: event.target.value }))} />
           <FPhoneInput label="Telefone" value={form.phone} onChange={(event: any) => setForm(current => ({ ...current, phone: event.target.value }))} />
           <FPhoneInput label="WhatsApp" mobile value={form.whatsapp} onChange={(event: any) => setForm(current => ({ ...current, whatsapp: event.target.value }))} />
-          <div className="sm:col-span-2"><FEmailInput label="E-mail de contato" value={form.email} onChange={(event: any) => setForm(current => ({ ...current, email: event.target.value }))} /></div>
+          <div className="sm:col-span-2"><FEmailInput label="E-mail de contato" error={fieldErrors.email} value={form.email} onChange={(event: any) => { onClearFieldError("email"); setForm(current => ({ ...current, email: event.target.value })); }} /></div>
         </div>}
         <label className="mt-4 flex items-center gap-2 text-sm font-bold text-[#0d1b2e]"><Checkbox checked={form.is_active} onCheckedChange={checked => setForm(current => ({ ...current, is_active: checked === true }))} /> Cadastro ativo</label>
       </Section>

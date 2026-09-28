@@ -174,25 +174,34 @@ export function registrationAddressPayload(address: RegistrationAddressForm) {
   };
 }
 
-export function validateRegistrationForm(form: RegistrationFormState) {
-  if (!form.roles.length) return "Selecione ao menos um vínculo.";
-  if (!form.phone.trim() && !form.whatsapp.trim()) return "Telefone ou WhatsApp é obrigatório.";
-  if (form.phone && !isValidBrazilianPhone(form.phone)) return "Telefone inválido. Informe DDD e número válidos.";
-  if (form.whatsapp && !isValidBrazilianMobile(form.whatsapp)) return "WhatsApp inválido. Informe um celular com DDD válido.";
-  if (form.email && !isValidEmail(form.email)) return "E-mail inválido. Verifique o endereço informado.";
+export type RegistrationFieldErrors = Partial<Record<
+  "roles" | "name" | "trade_name" | "document" | "birth_date" | "foundation_date" | "phone" | "whatsapp" | "email",
+  string
+>>;
+
+export function validateRegistrationFormFields(form: RegistrationFormState): RegistrationFieldErrors {
+  const errors: RegistrationFieldErrors = {};
+
+  if (!form.roles.length) errors.roles = "Selecione ao menos um vínculo.";
+  if (!form.phone.trim() && !form.whatsapp.trim()) errors.whatsapp = "Informe um telefone ou WhatsApp.";
+  if (form.phone && !isValidBrazilianPhone(form.phone)) errors.phone = "Telefone inválido. Informe DDD e número válidos.";
+  if (form.whatsapp && !isValidBrazilianMobile(form.whatsapp)) errors.whatsapp = "WhatsApp inválido. Informe um celular com DDD válido.";
+  if (form.email && !isValidEmail(form.email)) errors.email = "E-mail inválido. Verifique o endereço informado.";
 
   if (form.person_type === "PF") {
-    if (!form.name.trim()) return "Nome completo é obrigatório.";
-    if (!isValidCpf(form.document)) return "CPF inválido. Verifique os números informados.";
-    if (!form.birth_date) return "Data de nascimento é obrigatória.";
-    if (!isPastOrTodayBrazilianDate(form.birth_date)) return "Data de nascimento inválida ou futura.";
+    if (!form.name.trim()) errors.name = "Nome completo é obrigatório.";
+    if (!isValidCpf(form.document)) errors.document = "CPF inválido. Verifique os números informados.";
+    if (!form.birth_date) errors.birth_date = "Data de nascimento é obrigatória.";
+    else if (!isPastOrTodayBrazilianDate(form.birth_date)) errors.birth_date = "Data de nascimento inválida ou futura.";
   } else {
-    if (!form.trade_name.trim()) return "Nome fantasia é obrigatório.";
-    if (!isValidCnpj(form.document)) return "CNPJ inválido. Verifique os números informados.";
-    if (form.foundation_date && !isPastOrTodayBrazilianDate(form.foundation_date)) return "Data de fundação inválida ou futura.";
+    if (!form.trade_name.trim()) errors.trade_name = "Nome fantasia é obrigatório.";
+    if (!isValidCnpj(form.document)) errors.document = "CNPJ inválido. Verifique os números informados.";
+    if (form.foundation_date && !isPastOrTodayBrazilianDate(form.foundation_date)) errors.foundation_date = "Data de fundação inválida ou futura.";
   }
 
-  if (form.roles.includes("employee") && form.person_type !== "PF") return "Funcionário deve ser Pessoa Física.";
-  if (form.roles.includes("employee") && !isValidCpf(form.document)) return "Informe um CPF válido para o funcionário.";
-  return null;
+  return errors;
+}
+
+export function validateRegistrationForm(form: RegistrationFormState) {
+  return Object.values(validateRegistrationFormFields(form))[0] || null;
 }
