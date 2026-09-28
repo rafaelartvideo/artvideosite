@@ -450,11 +450,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    const userId = signedInUserRef.current;
+
     cancelScheduledAccessLoad();
-    await supabase.auth.signOut();
-    signedInUserRef.current = null;
-    resetAccessState(true);
-    setSession(null);
+
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      if (userId) {
+        localStorage.removeItem(activeOrganizationStorageKey(userId));
+        localStorage.removeItem(legacyActiveOrganizationStorageKey(userId));
+      }
+
+      signedInUserRef.current = null;
+      resetAccessState(true);
+      setSession(null);
+
+      if (typeof window !== "undefined") {
+        window.location.replace("/admin");
+      }
+    }
   }
 
   const hasPermission = (permissionKey: string) =>
