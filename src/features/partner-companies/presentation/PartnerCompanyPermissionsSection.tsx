@@ -41,7 +41,7 @@ const ACCESS_OPTIONS = [
 ];
 
 const ACCESS_HELP: Record<PartnerShareConfigLevel, string> = {
-  none: "A ArtVideo não recebe acesso a este recurso.",
+  none: "A Union World não recebe acesso a este recurso.",
   summary: "Somente indicadores e resumos compatíveis; registros detalhados continuam bloqueados.",
   read: "Consulta dos registros detalhados, sempre sem alterações na empresa parceira.",
 };
@@ -200,8 +200,8 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     <AdminCard>
       <AdminCardHeader>
         <div>
-          <h3 className="text-sm font-black text-[#0d1b2e]">Dados compartilhados com a ArtVideo</h3>
-          <p className="mt-0.5 text-xs text-[#5a6a82]">Define somente o nível de visualização concedido à ArtVideo.</p>
+          <h3 className="text-sm font-black text-[#0d1b2e]">Dados compartilhados com a Union World</h3>
+          <p className="mt-0.5 text-xs text-[#5a6a82]">Define somente o nível de visualização concedido à Union World.</p>
         </div>
       </AdminCardHeader>
       <AdminCardContent>
@@ -218,7 +218,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
                   <p className="mt-2 text-xs leading-relaxed text-[#5a6a82]">{ACCESS_HELP[level]}</p>
                 </div>
                 <FSelect
-                  label="Acesso da ArtVideo"
+                  label="Acesso da Union World"
                   value={level}
                   options={ACCESS_OPTIONS}
                   disabled={!canManageShares || busy}
