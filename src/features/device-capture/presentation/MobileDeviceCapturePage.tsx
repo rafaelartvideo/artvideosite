@@ -159,7 +159,7 @@ export function MobileDeviceCapturePage() {
   };
 
   useEffect(() => {
-    document.title = "ArtVideo Captura";
+    document.title = "Union World Captura";
     return () => {
       scannerControlsRef.current?.stop();
     };
@@ -253,7 +253,7 @@ export function MobileDeviceCapturePage() {
 
           const nextPairing = parsePairingPayload(value);
           if (!nextPairing) {
-            setNotice({ text: "Esse QR não é uma conexão válida da ArtVideo.", type: "error" });
+            setNotice({ text: "Esse QR não é uma conexão válida da Union World.", type: "error" });
             return;
           }
           setPairing(nextPairing);
@@ -331,7 +331,7 @@ export function MobileDeviceCapturePage() {
         <header className="border-b border-white/10 bg-[#0d1b2e] px-4 pb-5 pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-lg">
           <div className="mx-auto flex max-w-lg items-center gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0057e7]"><Smartphone size={22} /></span>
-            <div><h1 className="text-base font-black">ArtVideo Captura</h1><p className="mt-0.5 text-xs text-white/65">Dispositivo auxiliar para Ordens de Serviço</p></div>
+            <div><h1 className="text-base font-black">Union World Captura</h1><p className="mt-0.5 text-xs text-white/65">Dispositivo auxiliar para Ordens de Serviço</p></div>
           </div>
         </header>
 
@@ -410,7 +410,7 @@ export function MobileDeviceCapturePage() {
         <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0057e7]"><Smartphone size={20} /></span>
-            <div className="min-w-0"><p className="text-sm font-black">ArtVideo • Captura da OS</p><p className="mt-0.5 text-xs text-white/65">Celular conectado ao computador</p></div>
+            <div className="min-w-0"><p className="text-sm font-black">Union World • Captura da OS</p><p className="mt-0.5 text-xs text-white/65">Celular conectado ao computador</p></div>
           </div>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1.5 text-[11px] font-black text-emerald-300"><Wifi size={12} /> CONECTADO</span>
         </div>
