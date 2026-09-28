@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:site": "vite build --mode site --outDir dist-site",
+    "build:crm": "vite build --mode crm --outDir dist-crm",
     "dev": "vite",
+    "dev:site": "vite --mode site",
+    "dev:crm": "vite --mode crm",
     "test:finance": "node --test src/features/finance/domain/*.test.mjs"
   },
   "dependencies": {
