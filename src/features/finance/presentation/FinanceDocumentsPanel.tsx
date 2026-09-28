@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Eye, FileText, Upload } from "lucide-react";
@@ -5,6 +6,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
 import { FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import type { FinancialAttachment, FinancialAttachmentType } from "../domain/finance.types";
 import {
   archiveFinancialAttachment,
@@ -43,7 +45,7 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
   const [file, setFile] = useState<File | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<FinancialAttachment | null>(null);
   const [archiveReason, setArchiveReason] = useState("");
-  const [message, setMessage] = useState("");
+  const [archiveReasonError, setArchiveReasonError] = useState("");
 
   const query = useQuery({
     queryKey: queryKeys.finance.attachments(organizationKey, entryId),
@@ -84,23 +86,23 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
   if (!canView) return null;
   const attachments = query.data || [];
   const error = query.error || uploadMutation.error || archiveMutation.error;
-  const errorText = message || (error instanceof Error ? error.message : "");
+  const errorText = error ? systemErrorMessage(error) : "";
 
   const view = async (attachment: FinancialAttachment) => {
     try {
-      setMessage("");
+      setArchiveReasonError("");
       const url = await createFinancialAttachmentSignedUrl(attachment.storage_path);
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Não foi possível abrir o documento.");
+      notifyAdmin(systemErrorMessage(caught, "Não foi possível abrir o documento."), "error");
     }
   };
 
   const archive = async () => {
     if (!archiveTarget) return;
-    if (!archiveReason.trim()) { setMessage("Informe o motivo do arquivamento."); return; }
+    if (!archiveReason.trim()) { setArchiveReasonError("Informe o motivo do arquivamento."); return; }
     try {
-      setMessage("");
+      setArchiveReasonError("");
       await archiveMutation.mutateAsync({ id: archiveTarget.id, reason: archiveReason.trim() });
     } catch {
       // Error is rendered from the mutation.
@@ -122,11 +124,11 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
       {query.isLoading ? <p className="text-sm text-[#5a6a82]">Carregando documentos...</p> : attachments.length === 0 ? <div className="flex items-center gap-2 rounded-xl border border-dashed border-[#0d1b2e]/15 p-4 text-sm text-[#5a6a82]"><FileText size={17} /> Nenhum documento anexado.</div> : <div className="space-y-2">
         {attachments.map(item => <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-[#0d1b2e]/8 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0"><p className="truncate text-sm font-bold text-[#0d1b2e]">{item.file_name}</p><p className="mt-1 text-xs text-[#5a6a82]">{typeLabel(item.attachment_type)} · {formatSize(item.size_bytes)} · {new Date(item.created_at).toLocaleString("pt-BR")}</p></div>
-          <div className="flex gap-2"><AdminButton size="sm" variant="secondary" onClick={() => void view(item)}><Eye size={14} /> Abrir</AdminButton>{canManage && <AdminButton size="sm" variant="danger" onClick={() => { setArchiveTarget(item); setArchiveReason(""); setMessage(""); }}><Archive size={14} /> Arquivar</AdminButton>}</div>
+          <div className="flex gap-2"><AdminButton size="sm" variant="secondary" onClick={() => void view(item)}><Eye size={14} /> Abrir</AdminButton>{canManage && <AdminButton size="sm" variant="danger" onClick={() => { setArchiveTarget(item); setArchiveReason(""); setArchiveReasonError(""); }}><Archive size={14} /> Arquivar</AdminButton>}</div>
         </div>)}
       </div>}
     </AdminCardContent>
 
-    {archiveTarget && <div className="fixed inset-0 z-[135] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"><div className="border-b px-5 py-4"><h2 className="text-lg font-black text-[#0d1b2e]">Arquivar documento</h2><p className="mt-1 text-xs text-[#5a6a82]">{archiveTarget.file_name}</p></div><div className="p-5"><FTextarea label="Motivo" required value={archiveReason} onChange={(event: any) => setArchiveReason(event.target.value)} rows={3} /></div><div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => setArchiveTarget(null)} disabled={archiveMutation.isPending}>Cancelar</AdminButton><AdminButton variant="danger" onClick={() => void archive()} loading={archiveMutation.isPending} loadingText="Arquivando...">Arquivar</AdminButton></div></div></div>}
+    {archiveTarget && <div className="fixed inset-0 z-[135] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"><div className="border-b px-5 py-4"><h2 className="text-lg font-black text-[#0d1b2e]">Arquivar documento</h2><p className="mt-1 text-xs text-[#5a6a82]">{archiveTarget.file_name}</p></div><div className="p-5"><FTextarea label="Motivo" required error={archiveReasonError} value={archiveReason} onChange={(event: any) => { setArchiveReasonError(""); setArchiveReason(event.target.value); }} rows={3} /></div><div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => setArchiveTarget(null)} disabled={archiveMutation.isPending}>Cancelar</AdminButton><AdminButton variant="danger" onClick={() => void archive()} loading={archiveMutation.isPending} loadingText="Arquivando...">Arquivar</AdminButton></div></div></div>}
   </AdminCard>;
 }

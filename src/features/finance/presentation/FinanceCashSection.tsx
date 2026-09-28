@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { systemErrorMessage } from "@/shared/domain/error-message";
+import { useEffect, useMemo, useState } from "react";
 import { Banknote, LockKeyhole, Minus, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useFinanceCash } from "../application/useFinanceCash";
 import type { FinancialAccount, FinancialCashSession } from "../domain/finance.types";
 
@@ -38,18 +40,23 @@ export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] 
   const [dialog, setDialog] = useState<{ action: CashAction; account: FinancialAccount; session: FinancialCashSession | null } | null>(null);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ amount?: string; note?: string }>({});
 
   if (eligibleAccounts.length === 0) return null;
 
   const pending = cash.openMutation.isPending || cash.adjustmentMutation.isPending || cash.closeMutation.isPending;
   const mutationError = cash.openMutation.error || cash.adjustmentMutation.error || cash.closeMutation.error;
 
+  useEffect(() => {
+    const error = cash.sessionsQuery.error || mutationError;
+    if (error) notifyAdmin(systemErrorMessage(error), "error");
+  }, [cash.sessionsQuery.error, mutationError]);
+
   const openDialog = (action: CashAction, account: FinancialAccount, session: FinancialCashSession | null) => {
     setDialog({ action, account, session });
     setAmount("");
     setNote("");
-    setMessage("");
+    setFieldErrors({});
   };
 
   const closeDialog = () => {
@@ -57,22 +64,22 @@ export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] 
     setDialog(null);
     setAmount("");
     setNote("");
-    setMessage("");
+    setFieldErrors({});
   };
 
   const submit = async () => {
     if (!dialog) return;
     const numericAmount = Number(amount || 0);
     if (!Number.isFinite(numericAmount) || numericAmount < 0 || ((dialog.action === "supply" || dialog.action === "withdraw") && numericAmount <= 0)) {
-      setMessage(dialog.action === "supply" || dialog.action === "withdraw" ? "Informe um valor maior que zero." : "Informe o valor contado no caixa.");
+      setFieldErrors(current => ({ ...current, amount: dialog.action === "supply" || dialog.action === "withdraw" ? "Informe um valor maior que zero." : "Informe o valor contado no caixa." }));
       return;
     }
     if ((dialog.action === "supply" || dialog.action === "withdraw") && !note.trim()) {
-      setMessage("Informe o motivo da movimentação.");
+      setFieldErrors(current => ({ ...current, note: "Informe o motivo da movimentação." }));
       return;
     }
     try {
-      setMessage("");
+      setFieldErrors({});
       if (dialog.action === "open") {
         await cash.openMutation.mutateAsync({ accountId: dialog.account.id, countedAmount: numericAmount, note: note.trim() || null });
       } else if (dialog.action === "close") {
@@ -90,9 +97,9 @@ export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] 
       setDialog(null);
       setAmount("");
       setNote("");
-      setMessage("");
+      setFieldErrors({});
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível concluir a operação do caixa.");
+      notifyAdmin(systemErrorMessage(error, "Não foi possível concluir a operação do caixa."), "error");
     }
   };
 
@@ -127,7 +134,6 @@ export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] 
           </div>
         </div>;
       })}
-      {cash.sessionsQuery.error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{cash.sessionsQuery.error instanceof Error ? cash.sessionsQuery.error.message : "Não foi possível carregar os caixas."}</div>}
     </AdminCardContent>
 
     {dialog && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
@@ -139,17 +145,18 @@ export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] 
         <div className="space-y-4 p-5">
           <FCurrencyInput
             label={dialog.action === "open" || dialog.action === "close" ? "Valor contado no caixa" : "Valor"}
+            error={fieldErrors.amount}
             value={amount}
-            onChange={(event: any) => setAmount(event.target.value)}
+            onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }}
           />
           <FTextarea
             label={dialog.action === "supply" || dialog.action === "withdraw" ? "Motivo *" : "Observação / justificativa"}
+            error={fieldErrors.note}
             value={note}
-            onChange={(event: any) => setNote(event.target.value)}
+            onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }}}
             rows={3}
             placeholder={dialog.action === "close" ? "Obrigatória apenas se houver diferença no fechamento" : undefined}
           />
-          {(message || mutationError) && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message || (mutationError instanceof Error ? mutationError.message : "Não foi possível concluir a operação.")}</div>}
         </div>
         <div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end">
           <AdminButton variant="secondary" onClick={closeDialog} disabled={pending}>Cancelar</AdminButton>
