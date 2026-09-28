@@ -27,12 +27,16 @@ function appDocumentMeta(target: AppTarget) {
         description: "Eletrônica ArtVideo — assistência técnica, serviços e soluções em eletrônica.",
         robots: "index, follow",
         appleTitle: "Eletrônica ArtVideo",
+        faviconBase: "",
+        manifestHref: "/site.webmanifest",
       }
     : {
         title: "Union World",
         description: "Sistema de gestão Union World.",
         robots: "noindex, nofollow",
         appleTitle: "Union World",
+        faviconBase: "/favicon",
+        manifestHref: "/favicon/site.webmanifest",
       };
 
   return {
@@ -42,7 +46,12 @@ function appDocumentMeta(target: AppTarget) {
         .replace(/<title>.*?<\/title>/, `<title>${meta.title}</title>`)
         .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${meta.description}" />`)
         .replace(/<meta name="robots" content="[^"]*" \/>/, `<meta name="robots" content="${meta.robots}" />`)
-        .replace(/<meta name="apple-mobile-web-app-title" content="[^"]*" \/>/, `<meta name="apple-mobile-web-app-title" content="${meta.appleTitle}" />`);
+        .replace(/<meta name="apple-mobile-web-app-title" content="[^"]*" \/>/, `<meta name="apple-mobile-web-app-title" content="${meta.appleTitle}" />`)
+        .replace(/href="\/favicon\.ico"/, `href="${meta.faviconBase}/favicon.ico"`)
+        .replace(/href="\/favicon-32x32\.png"/, `href="${meta.faviconBase}/favicon-32x32.png"`)
+        .replace(/href="\/favicon-16x16\.png"/, `href="${meta.faviconBase}/favicon-16x16.png"`)
+        .replace(/href="\/apple-touch-icon\.png"/, `href="${meta.faviconBase}/apple-touch-icon.png"`)
+        .replace(/href="\/site\.webmanifest"/, `href="${meta.manifestHref}"`);
     },
   };
 }
@@ -95,18 +104,7 @@ function appDomainMetadata(target: AppTarget) {
         "utf8",
       );
       await rm(path.join(outDir, "sitemap.xml"), { force: true });
-      await writeFile(
-        path.join(outDir, "site.webmanifest"),
-        JSON.stringify({
-          name: "Union World",
-          short_name: "Union World",
-          start_url: "/admin",
-          display: "standalone",
-          background_color: "#0d1b2e",
-          theme_color: "#0057e7",
-        }),
-        "utf8",
-      );
+      await rm(path.join(outDir, "site.webmanifest"), { force: true });
     },
   };
 }
