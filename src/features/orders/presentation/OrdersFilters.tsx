@@ -54,7 +54,7 @@ export function OrdersFilters({
   customerNameSearch,
   documentSearch,
   serialNumberSearch,
-  responsibleSearch,
+  responsibleId,
   statusId,
   situationId,
   serviceTypeId,
@@ -66,6 +66,7 @@ export function OrdersFilters({
   statuses,
   situations,
   serviceTypes,
+  responsibles,
   stateOptions,
   cityOptions,
   statesLoading,
@@ -75,7 +76,7 @@ export function OrdersFilters({
   onCustomerNameSearchChange,
   onDocumentSearchChange,
   onSerialNumberSearchChange,
-  onResponsibleSearchChange,
+  onResponsibleChange,
   onStatusChange,
   onSituationChange,
   onServiceTypeChange,
@@ -94,7 +95,7 @@ export function OrdersFilters({
   customerNameSearch: string;
   documentSearch: string;
   serialNumberSearch: string;
-  responsibleSearch: string;
+  responsibleId: string;
   statusId: string;
   situationId: string;
   serviceTypeId: string;
@@ -106,6 +107,7 @@ export function OrdersFilters({
   statuses: any[];
   situations: any[];
   serviceTypes: any[];
+  responsibles: any[];
   stateOptions: StateOption[];
   cityOptions: CityOption[];
   statesLoading: boolean;
@@ -115,7 +117,7 @@ export function OrdersFilters({
   onCustomerNameSearchChange: (value: string) => void;
   onDocumentSearchChange: (value: string) => void;
   onSerialNumberSearchChange: (value: string) => void;
-  onResponsibleSearchChange: (value: string) => void;
+  onResponsibleChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onSituationChange: (value: string) => void;
   onServiceTypeChange: (value: string) => void;
@@ -181,24 +183,20 @@ export function OrdersFilters({
   const cityFilterOptions = cityOptions;
   const ibgeStatesLoading = statesLoading;
   const cityFiltersLoading = citiesLoading;
-  const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenação padrão";
+  const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenar";
   const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
   const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
-    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleSearch || filterStatus || filterSituation || selectedServiceTypeId ||
+    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || selectedServiceTypeId ||
     selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo || orderSort
   );
 
   const sortMenu = () => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" aria-label={`Ordenação atual: ${orderLabel}`} title={`Ordenação: ${orderLabel}`} className={cn(
-          "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-white/70",
-          orderSort ? "border-white bg-white text-[#0057e7]" : "border-white/35 bg-white/10 text-white hover:bg-white/20",
-        )}>
-          <OrderSortIcon size={18} className={cn("h-[18px] w-[18px] shrink-0", orderSort ? "text-[#0057e7]" : "text-white")} />
-          <span className="hidden sm:inline">{orderLabel}</span>
-          <ChevronDown size={14} className={cn("hidden sm:block", orderSort ? "text-[#0057e7]" : "text-white/80")} />
+        <button type="button" aria-label={`Ordenação atual: ${orderLabel}`} title={`Ordenação: ${orderLabel}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-sm p-0 text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
+          <OrderSortIcon size={15} className="shrink-0 text-white" />
+          <span>{orderLabel}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[190px]">
@@ -230,7 +228,7 @@ export function OrdersFilters({
           <div className="mt-4 flex flex-wrap justify-end gap-2"><AdminButton variant="secondary" onClick={closeSerialScanner}>Cancelar</AdminButton><AdminButton variant="secondary" disabled={serialScanBusy} onClick={() => serialScannerInput.current?.click()}>Outra foto</AdminButton><AdminButton disabled={serialScanBusy || !serialScanValue.trim()} onClick={() => { onSerialNumberSearchChange(serialScanValue.trim()); closeSerialScanner(); }}>Usar número</AdminButton></div>
         </AdminDialog>
       </>;
-      case "responsible": return <MobileSearchField value={responsibleSearch} onChange={onResponsibleSearchChange} placeholder="Digite o nome do responsável" ariaLabel="Buscar por responsável pela OS" />;
+      case "responsible": return <AdminSelect value={responsibleId} onValueChange={onResponsibleChange} options={[{ value: "", label: "Todos os responsáveis" }, ...responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por responsável pela OS" />;
       case "status": return <AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />;
       case "situation": return <AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por situação" />;
       case "serviceType": return <AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo de atendimento" />;
@@ -269,7 +267,7 @@ export function OrdersFilters({
           <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} /></div>
           <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />{invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>
           <div className="space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>
-          <SearchField label="Responsável pela OS" value={responsibleSearch} onChange={onResponsibleSearchChange} placeholder="Digite o nome do responsável" />
+          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Responsável pela OS</label><AdminSelect value={responsibleId} onValueChange={onResponsibleChange} options={[{ value: "", label: "Todos os responsáveis" }, ...responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))]} className="text-xs" ariaLabel="Filtrar por responsável pela OS" /></div>
         </div>
       </div>
     </div>
