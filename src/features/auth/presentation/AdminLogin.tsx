@@ -52,7 +52,7 @@ function PasswordField({
       <div className="relative">
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-2.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md border border-[#1da8ff]/20 bg-[#1da8ff]/10 text-[#29b6ff] shadow-[0_6px_18px_rgba(0,145,255,0.10)] backdrop-blur-md"
+          className="pointer-events-none absolute left-2.5 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md border border-[#1da8ff]/35 bg-[#0d8fe8]/15 text-[#39baff] shadow-[0_6px_20px_rgba(0,145,255,0.18)] backdrop-blur-md"
         >
           <LockKeyhole size={19} strokeWidth={2} />
         </span>
@@ -260,7 +260,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
               <div className="relative">
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute left-2.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md border border-[#1da8ff]/20 bg-[#1da8ff]/10 text-[#29b6ff] shadow-[0_6px_18px_rgba(0,145,255,0.10)] backdrop-blur-md"
+                  className="pointer-events-none absolute left-2.5 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md border border-[#1da8ff]/35 bg-[#0d8fe8]/15 text-[#39baff] shadow-[0_6px_20px_rgba(0,145,255,0.18)] backdrop-blur-md"
                 >
                   <UserRound size={19} strokeWidth={2} />
                 </span>
