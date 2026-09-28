@@ -32,8 +32,8 @@ export type EntryChecklistDevicePayload = {
   observation?: string;
 };
 
-const DRAFT_STRUCTURE_CHANGED_EVENT = "artvideo:entry-checklist-structure-changed";
-const DRAFT_CONTENT_CHANGED_EVENT = "artvideo:entry-checklist-content-changed";
+const DRAFT_STRUCTURE_CHANGED_EVENT = "unionworld:entry-checklist-structure-changed";
+const DRAFT_CONTENT_CHANGED_EVENT = "unionworld:entry-checklist-content-changed";
 let currentDraft: EntryChecklistDraft | null = null;
 const pendingDeviceAnswers = new Map<string, EntryChecklistDevicePayload>();
 const pendingDevicePhotos = new Map<string, File[]>();
