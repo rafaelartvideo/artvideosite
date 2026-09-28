@@ -1,8 +1,10 @@
 import {
   type Dispatch,
   type SetStateAction,
+  useState,
 } from "react";
-import { customerUpdatePayload, validateCustomerForm, type CustomerForm } from "@/features/customers/domain/customer-form";
+import { customerUpdatePayload, validateCustomerFormFields, type CustomerFieldErrors, type CustomerForm } from "@/features/customers/domain/customer-form";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { normalizeSharedMapUrl, type Address } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
 import {
@@ -37,6 +39,16 @@ export function useOrderCustomerPersistence({
 }) {
   const { activeOrganizationId } = useAuth();
   const organizationId = organizationIdOverride || activeOrganizationId;
+  const [customerFieldErrors, setCustomerFieldErrors] = useState<CustomerFieldErrors>({});
+
+  const clearCustomerFieldError = (field: keyof CustomerForm) => {
+    setCustomerFieldErrors(current => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   const persistCustomer = async ({
     standalone,
@@ -45,9 +57,9 @@ export function useOrderCustomerPersistence({
   }) => {
     if (!selectedCustomer?.id || !organizationId) return false;
 
-    const validationError = validateCustomerForm(customerDraft);
-    if (validationError) {
-      showToast({ msg: validationError, type: "error" });
+    const validationErrors = validateCustomerFormFields(customerDraft);
+    setCustomerFieldErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) {
       setSaving(false);
       return false;
     }
@@ -62,7 +74,7 @@ export function useOrderCustomerPersistence({
     if (customerError) {
       console.error("[ADMIN] customer update error:", customerError);
       showToast({
-        msg: `Erro ao atualizar cliente: ${customerError.message}`,
+        msg: `Erro ao atualizar cliente: ${systemErrorMessage(customerError)}`,
         type: "error",
       });
       setSaving(false);
@@ -96,8 +108,8 @@ export function useOrderCustomerPersistence({
       );
       showToast({
         msg: standalone
-          ? `Cliente salvo, mas erro no endereço: ${addressResult.error.message}`
-          : `Cliente atualizado, mas erro no endereço: ${addressResult.error.message}`,
+          ? `Cliente salvo, mas erro no endereço: ${systemErrorMessage(addressResult.error)}`
+          : `Cliente atualizado, mas erro no endereço: ${systemErrorMessage(addressResult.error)}`,
         type: "error",
       });
       setSaving(false);
@@ -132,6 +144,9 @@ export function useOrderCustomerPersistence({
 
   return {
     organizationId,
+    customerFieldErrors,
+    clearCustomerFieldError,
+    setCustomerFieldErrors,
     saveCustomer,
     saveCustomerBeforeOrder,
   };
