@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-const PLATFORM_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
+const PLATFORM_OPERATOR_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 
 const adminClient = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -141,7 +141,7 @@ function validOptionalPhone(value: string | null) {
 }
 
 function internalAuthEmail() {
-  return `partner-${crypto.randomUUID()}@auth.artvideo.app`;
+  return `partner-${crypto.randomUUID()}@auth.unionworld.app`;
 }
 
 function authFailureMessage(error: any) {
@@ -172,7 +172,7 @@ async function requirePlatformManager(callerUserId: string) {
   const { data: membership, error } = await adminClient
     .from("organization_members")
     .select("role_id")
-    .eq("organization_id", PLATFORM_ORGANIZATION_ID)
+    .eq("organization_id", PLATFORM_OPERATOR_ORGANIZATION_ID)
     .eq("user_id", callerUserId)
     .eq("status", "active")
     .maybeSingle();
@@ -187,7 +187,7 @@ async function getPartnerOrganization(organizationId: string) {
     .eq("id", organizationId)
     .maybeSingle();
   if (error) throw error;
-  if (!data || data.id === PLATFORM_ORGANIZATION_ID || data.organization_type !== "partner") return null;
+  if (!data || data.id === PLATFORM_OPERATOR_ORGANIZATION_ID || data.organization_type !== "partner") return null;
   return data;
 }
 
