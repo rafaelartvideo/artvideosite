@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Eye, EyeOff, LoaderCircle, XCircle } from "lucide-react";
-import { ARTVIDEO_ORGANIZATION_ID } from "@/features/telephony/domain/uniq-call";
+import { ARTVIDEO_ORGANIZATION_ID } from "@/lib/organization.constants";
 import { listActiveRoles } from "@/features/roles/infrastructure/roles.repository";
 import { checkEmployeeUsernameAvailability, listObservedUniqSubscribers } from "../infrastructure/user-access.repository";
 import { invalidAllowedIps } from "../domain/ip-access";
