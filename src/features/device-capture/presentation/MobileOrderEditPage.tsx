@@ -153,7 +153,7 @@ export function MobileOrderEditPage() {
   }, [hydrate]);
 
   useEffect(() => {
-    document.title = "Editar OS pelo celular - ArtVideo";
+    document.title = "Editar OS pelo celular - Union World";
   }, []);
 
   useEffect(() => {
@@ -231,7 +231,7 @@ export function MobileOrderEditPage() {
 
   if (state === "idle" || state === "expired") {
     return <div className="min-h-dvh bg-[#f4f7fb] pb-[calc(2rem+env(safe-area-inset-bottom))]">
-      <header className="bg-[#0d1b2e] px-4 pb-5 pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-lg"><div className="mx-auto flex max-w-lg items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0057e7]"><Smartphone size={22}/></span><div><h1 className="text-base font-black">Editar OS pelo celular</h1><p className="mt-0.5 text-xs text-white/65">Conexão temporária ArtVideo</p></div></div></header>
+      <header className="bg-[#0d1b2e] px-4 pb-5 pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-lg"><div className="mx-auto flex max-w-lg items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0057e7]"><Smartphone size={22}/></span><div><h1 className="text-base font-black">Editar OS pelo celular</h1><p className="mt-0.5 text-xs text-white/65">Conexão temporária Union World</p></div></div></header>
       <main className="mx-auto max-w-lg space-y-4 p-4">
         {notice && <div role={notice.type === "error" ? "alert" : "status"} className={`rounded-xl border px-4 py-3 text-sm font-bold ${notice.type === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>{notice.text}</div>}
         <section className="rounded-3xl border border-[#d9e1ec] bg-white p-5 shadow-sm"><div className="text-center"><span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#eef5ff] text-[#0057e7]"><Hash size={24}/></span><h2 className="mt-4 text-xl font-black text-[#0d1b2e]">Conectar à OS</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#64748b]">Escaneie o QR exibido no computador com a câmera do celular ou digite o código temporário.</p></div><div className="mt-6 space-y-3"><input inputMode="numeric" autoComplete="one-time-code" value={pairingCode} onChange={event => setPairingCode(formatPairingCode(event.target.value))} placeholder="0000 0000" className="h-14 w-full rounded-2xl border border-[#cbd5e1] bg-white px-4 text-center font-mono text-2xl font-black tracking-[0.18em] text-[#0d1b2e] outline-none focus:border-[#0057e7]"/><button type="button" onClick={() => void connectByCode()} disabled={pairingCodeDigits(pairingCode).length !== 8 || pairBusy} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white disabled:opacity-50">{pairBusy ? <Loader2 size={17} className="animate-spin"/> : <Smartphone size={17}/>} Conectar</button></div><p className="mt-4 text-center text-[11px] leading-5 text-[#64748b]">O código não dá acesso ao painel administrativo. Ele abre apenas a OS vinculada e expira automaticamente.</p></section>
