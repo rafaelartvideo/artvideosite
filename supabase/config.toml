@@ -9,3 +9,7 @@ verify_jwt = false
 # manualmente o JWT nas ações do PC e o token temporário do QR nas ações móveis.
 [functions.device-capture]
 verify_jwt = false
+
+# O checklist móvel usa autenticação manual: JWT no desktop e token temporário no celular.
+[functions.order-mobile-checklist]
+verify_jwt = false
