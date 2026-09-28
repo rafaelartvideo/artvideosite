@@ -4,7 +4,6 @@ import { useNavigate } from "react-router";
 import { useAuth } from "@/lib/auth";
 import { PHONE_CALL_EVENT } from "@/features/orders/domain/order-contact-actions";
 import {
-  ARTVIDEO_ORGANIZATION_ID,
   callCustomer,
   callServiceOrder,
   formatCallDuration,
@@ -37,14 +36,14 @@ function functionErrorMessage(error: unknown, data: any) {
 }
 
 export function UniqCallOverlay() {
-  const { activeOrganizationId, employee } = useAuth();
+  const { activeOrganization, employee } = useAuth();
   const navigate = useNavigate();
   const [call, setCall] = useState<UniqCall | null>(null);
   const [pending, setPending] = useState<PendingOutgoingCall | null>(null);
   const [minimized, setMinimized] = useState(false);
   const [seconds, setSeconds] = useState(0);
 
-  const enabled = activeOrganizationId === ARTVIDEO_ORGANIZATION_ID;
+  const enabled = activeOrganization?.is_artvideo_tenant === true;
   const subscriberId = String((employee as any)?.uniq_subscriber_id || "").trim() || null;
   const canReceiveCallState = Boolean(subscriberId);
 
