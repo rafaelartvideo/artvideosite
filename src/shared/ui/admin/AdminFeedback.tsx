@@ -13,7 +13,8 @@ import {
   AlertDialogTitle,
 } from "@/shared/ui/primitives/alert-dialog";
 
-const ADMIN_FEEDBACK_EVENT = "artvideo:admin-feedback";
+const ADMIN_FEEDBACK_EVENT = "unionworld:admin-feedback";
+const LEGACY_ADMIN_FEEDBACK_EVENT = "artvideo:admin-feedback";
 const BUSY_ACTION_PATTERN = /\b(carregando|salvando|enviando|atualizando|processando|buscando|consultando|gerando|excluindo|removendo|concluindo|resolvendo|aprovando|rejeitando|convertendo|criando|cadastrando|entrando|anexando|entregando|devolvendo|registrando)\b/i;
 
 type FeedbackType = "success" | "error";
@@ -233,7 +234,11 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
       setToast({ message: detail.message, type: detail.type });
     };
     window.addEventListener(ADMIN_FEEDBACK_EVENT, listener);
-    return () => window.removeEventListener(ADMIN_FEEDBACK_EVENT, listener);
+    window.addEventListener(LEGACY_ADMIN_FEEDBACK_EVENT, listener);
+    return () => {
+      window.removeEventListener(ADMIN_FEEDBACK_EVENT, listener);
+      window.removeEventListener(LEGACY_ADMIN_FEEDBACK_EVENT, listener);
+    };
   }, []);
 
   useEffect(() => {
