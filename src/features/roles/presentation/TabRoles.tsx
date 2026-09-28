@@ -80,6 +80,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<RoleRecord | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
+  const [nameError, setNameError] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -123,16 +124,19 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     if (!editorOpen) {
       setEditing(null);
       setForm(emptyForm());
+      setNameError("");
       return () => { cancelled = true; };
     }
     if (routeResourceId === "new") {
       setEditing(null);
       setForm(emptyForm());
+      setNameError("");
       return () => { cancelled = true; };
     }
     const role = roles.find(item => item.id === routeResourceId);
     if (!role || !canViewDetails) return () => { cancelled = true; };
     setEditing(role);
+    setNameError("");
     setForm({ name: role.name, description: role.description || "", is_active: role.is_active !== false, selected: [] });
     void getRolePermissionIds(role.id).then(({ data, error }) => {
       if (cancelled) return;
@@ -219,9 +223,10 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     if (creating && !canCreate) return;
     if (!creating && !canEdit && !canManagePermissions) return;
     if (!form.name.trim()) {
-      setToast({ msg: "Informe o nome da função.", type: "error" });
+      setNameError("Informe o nome da função.");
       return;
     }
+    setNameError("");
 
     setSaving(true);
     try {
@@ -298,7 +303,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       <div className="space-y-5 p-4 sm:p-5">
         <Section title="Dados da função">
           <div className="grid gap-4 sm:grid-cols-2">
-            <FInput label="Nome" required disabled={Boolean(editing?.is_system) || (!creating && !canEdit)} value={form.name} onChange={(event: any) => setForm(current => ({ ...current, name: event.target.value }))} />
+            <FInput label="Nome" required disabled={Boolean(editing?.is_system) || (!creating && !canEdit)} error={nameError} value={form.name} onChange={(event: any) => { setNameError(""); setForm(current => ({ ...current, name: event.target.value })); }} />
             <div className="sm:col-span-2"><FTextarea label="Descrição" disabled={!creating && !canEdit} value={form.description} onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))} /></div>
             <FToggle label="Função ativa" disabled={!creating && !canEdit} checked={form.is_active} onChange={value => setForm(current => ({ ...current, is_active: value }))} />
           </div>
