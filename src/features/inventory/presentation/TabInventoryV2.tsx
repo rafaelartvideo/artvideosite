@@ -62,6 +62,9 @@ type MovementForm = {
   service_order_id: string;
 };
 
+type InventoryFieldErrors = Partial<Record<keyof InventoryForm, string>>;
+type MovementFieldErrors = Partial<Record<keyof MovementForm, string>>;
+
 type MobileFilter = "name" | "sku" | "address";
 
 const emptyInventoryForm = (): InventoryForm => ({
@@ -184,10 +187,12 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [form, setForm] = useState<InventoryForm>(emptyInventoryForm);
+  const [fieldErrors, setFieldErrors] = useState<InventoryFieldErrors>({});
   const [history, setHistory] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [movementForm, setMovementForm] = useState<MovementForm>(emptyMovementForm);
+  const [movementErrors, setMovementErrors] = useState<MovementFieldErrors>({});
   const [nameSearch, setNameSearch] = useState("");
   const [skuSearch, setSkuSearch] = useState("");
   const [addressSearch, setAddressSearch] = useState("");
@@ -236,6 +241,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
     if (!canCreate) return;
     setSelectedItem(null);
     setForm(emptyInventoryForm());
+    setFieldErrors({});
     setLinkedSuppliers([]);
     setHistoryOpen(false);
     setRecordOpen(true);
@@ -244,6 +250,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const openEdit = async (item: any) => {
     if (!(canViewDetails && canEdit)) return;
     setSelectedItem(item);
+    setFieldErrors({});
     setForm({
       id: item.id,
       name: item.name || "",
@@ -284,6 +291,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
     if (!canCreateMovements) return;
     setSelectedItem(item);
     setMovementForm({ ...emptyMovementForm(), input_unit: item.unit === "cx" ? "cx" : "un" });
+    setMovementErrors({});
     setHistoryOpen(false);
     setRecordOpen(false);
     await loadSuppliers(item.id);
@@ -294,6 +302,8 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
     setHistoryOpen(false);
     setSelectedItem(null);
     setLinkedSuppliers([]);
+    setFieldErrors({});
+    setMovementErrors({});
     onRouteChange?.(null, null);
   };
 
@@ -326,21 +336,26 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const saveItem = async () => {
     const canSave = selectedItem ? canEdit : canCreate;
     if (!canSave) return;
-    if (!form.name.trim()) { setToast({ msg: "Informe o nome do item do estoque.", type: "error" }); return; }
+
     const factor = Number(form.conversion_factor);
-    if (!Number.isInteger(factor) || factor < 1) { setToast({ msg: "Informe quantas unidades inteiras existem em cada caixa.", type: "error" }); return; }
     const initialQuantity = Number(form.quantity || 0);
-    if (!selectedItem && (!Number.isInteger(initialQuantity) || initialQuantity < 0)) { setToast({ msg: "Informe um saldo inicial inteiro e não negativo.", type: "error" }); return; }
     const minQuantity = Number(form.min_quantity || 0);
-    if (!Number.isInteger(minQuantity) || minQuantity < 0) { setToast({ msg: "Informe uma quantidade mínima inteira e não negativa.", type: "error" }); return; }
     const salePrice = form.sale_price.trim() === "" ? null : Number(form.sale_price);
-    if (salePrice !== null && (!Number.isFinite(salePrice) || salePrice < 0)) { setToast({ msg: "Informe um valor de venda válido e não negativo.", type: "error" }); return; }
     const initialUnitCost = form.initial_unit_cost.trim() === "" ? null : Number(form.initial_unit_cost);
-    if (!selectedItem && initialUnitCost !== null && (!Number.isFinite(initialUnitCost) || initialUnitCost < 0)) { setToast({ msg: "Informe um custo inicial válido e não negativo.", type: "error" }); return; }
+    const nextErrors: InventoryFieldErrors = {};
+
+    if (!form.name.trim()) nextErrors.name = "Informe o nome do item do estoque.";
+    if (!Number.isInteger(factor) || factor < 1) nextErrors.conversion_factor = "Informe quantas unidades inteiras existem em cada caixa.";
+    if (!selectedItem && (!Number.isInteger(initialQuantity) || initialQuantity < 0)) nextErrors.quantity = "Informe um saldo inicial inteiro e não negativo.";
+    if (!Number.isInteger(minQuantity) || minQuantity < 0) nextErrors.min_quantity = "Informe uma quantidade mínima inteira e não negativa.";
+    if (salePrice !== null && (!Number.isFinite(salePrice) || salePrice < 0)) nextErrors.sale_price = "Informe um valor de venda válido e não negativo.";
+    if (!selectedItem && initialUnitCost !== null && (!Number.isFinite(initialUnitCost) || initialUnitCost < 0)) nextErrors.initial_unit_cost = "Informe um custo inicial válido e não negativo.";
     if (!selectedItem && form.initial_supplier_entity_id && !linkedSuppliers.some(supplier => supplier.id === form.initial_supplier_entity_id)) {
-      setToast({ msg: "O fornecedor do saldo inicial precisa estar vinculado ao item.", type: "error" });
-      return;
+      nextErrors.initial_supplier_entity_id = "O fornecedor do saldo inicial precisa estar vinculado ao item.";
     }
+
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
     const commonPayload = {
       name: form.name.trim(),
@@ -394,18 +409,23 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
     if (!selectedItem || !canCreateMovements) return;
     const quantity = Number(movementForm.quantity || 0);
     const movementType = movementForm.type === "in" ? "IN" : movementForm.type === "out" ? "OUT" : "ADJUST";
+    const nextErrors: MovementFieldErrors = {};
+
     if (!Number.isInteger(quantity) || quantity < 0 || (movementType !== "ADJUST" && quantity <= 0)) {
-      setToast({ msg: movementType === "ADJUST" ? "Informe o novo saldo inteiro e não negativo." : "Informe uma quantidade inteira maior que zero.", type: "error" });
-      return;
+      nextErrors.quantity = movementType === "ADJUST"
+        ? "Informe o novo saldo inteiro e não negativo."
+        : "Informe uma quantidade inteira maior que zero.";
     }
     if (movementType === "IN") {
       const cost = movementForm.input_unit_cost.trim() === "" ? NaN : Number(movementForm.input_unit_cost);
-      if (!Number.isFinite(cost) || cost < 0) { setToast({ msg: "Informe o valor pago por unidade/caixa nesta entrada.", type: "error" }); return; }
+      if (!Number.isFinite(cost) || cost < 0) nextErrors.input_unit_cost = "Informe o valor pago por unidade/caixa nesta entrada.";
     }
     if (movementType === "ADJUST" && !movementForm.reason.trim()) {
-      setToast({ msg: "Informe a justificativa do ajuste de estoque.", type: "error" });
-      return;
+      nextErrors.reason = "Informe a justificativa do ajuste de estoque.";
     }
+
+    setMovementErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
     try {
       const currentItem = await getInventoryItem(selectedItem.id, activeOrganizationId, canViewCosts);
@@ -496,16 +516,16 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       <div className="space-y-5 p-4 sm:p-5">
         {selectedItem && canViewCosts && <Section title="Custos e última compra"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Último preço" value={formatCurrency(selectedItem.purchase_price)} /><Metric label="Custo médio" value={formatCurrency(selectedItem.average_cost)} /><Metric label="Valor em estoque" value={formatCurrency(selectedItem.stock_value)} /><Metric label="Último fornecedor" value={lastSupplierName(selectedItem)} /></div>{selectedItem.last_purchase_at && <p className="mt-3 text-xs text-[#5a6a82]">Última compra registrada em {formatDateTime(selectedItem.last_purchase_at)}.</p>}</Section>}
 
-        <Section title="Dados da peça"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required value={form.name} onChange={(event: any) => setForm({ ...form, name: event.target.value })} /><FInput label="SKU" value={form.sku} onChange={(event: any) => setForm({ ...form, sku: event.target.value })} /><div className="sm:col-span-2"><FTextarea label="Descrição" value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} rows={3} /></div><FCurrencyInput label="Valor de venda" value={form.sale_price} onChange={(event: any) => setForm({ ...form, sale_price: event.target.value })} /><div className="flex items-end"><FToggle label="Item ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section>
+        <Section title="Dados da peça"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm({ ...form, name: event.target.value }); }} /><FInput label="SKU" value={form.sku} onChange={(event: any) => setForm({ ...form, sku: event.target.value })} /><div className="sm:col-span-2"><FTextarea label="Descrição" value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} rows={3} /></div><FCurrencyInput label="Valor de venda" error={fieldErrors.sale_price} value={form.sale_price} onChange={(event: any) => { setFieldErrors(current => ({ ...current, sale_price: undefined })); setForm({ ...form, sale_price: event.target.value }); }} /><div className="flex items-end"><FToggle label="Item ativo" checked={form.is_active} onChange={value => setForm({ ...form, is_active: value })} /></div></div></Section>
 
         <Section title="Controle de estoque"><div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Unidade padrão</label><AdminSelect value={form.unit} onValueChange={unit => setForm(current => ({ ...current, unit: unit === "cx" ? "cx" : "un" }))} options={[{ value: "un", label: "Unidade (un)" }, { value: "cx", label: "Caixa (cx)" }]} ariaLabel="Unidade padrão do item" /></div>
-            <div><FIntegerInput label="Unidades por caixa" required value={form.conversion_factor} onChange={(event: any) => setForm({ ...form, conversion_factor: event.target.value })} /><p className="mt-1 text-[10px] leading-4 text-[#5a6a82]">Usado também quando uma compra ou saída for registrada em caixa.</p></div>
+            <div><FIntegerInput label="Unidades por caixa" required error={fieldErrors.conversion_factor} value={form.conversion_factor} onChange={(event: any) => { setFieldErrors(current => ({ ...current, conversion_factor: undefined })); setForm({ ...form, conversion_factor: event.target.value }); }} /><p className="mt-1 text-[10px] leading-4 text-[#5a6a82]">Usado também quando uma compra ou saída for registrada em caixa.</p></div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">{!selectedItem && <FIntegerInput label={`Saldo inicial (${form.unit})`} value={form.quantity} onChange={(event: any) => setForm({ ...form, quantity: event.target.value })} />}<FIntegerInput label={`Quantidade mínima (${form.unit})`} value={form.min_quantity} onChange={(event: any) => setForm({ ...form, min_quantity: event.target.value })} /></div>
+          <div className="grid gap-4 sm:grid-cols-2">{!selectedItem && <FIntegerInput label={`Saldo inicial (${form.unit})`} error={fieldErrors.quantity} value={form.quantity} onChange={(event: any) => { setFieldErrors(current => ({ ...current, quantity: undefined })); setForm({ ...form, quantity: event.target.value }); }} />}<FIntegerInput label={`Quantidade mínima (${form.unit})`} error={fieldErrors.min_quantity} value={form.min_quantity} onChange={(event: any) => { setFieldErrors(current => ({ ...current, min_quantity: undefined })); setForm({ ...form, min_quantity: event.target.value }); }} /></div>
           {!selectedItem && form.unit === "cx" && Number(form.conversion_factor) > 0 && <AdminCard className="bg-[#f8fafc] p-3 shadow-none"><p className="text-xs font-semibold text-[#5a6a82]">{formatNumber(Number(form.quantity || 0))} cx = {formatNumber(Number(form.quantity || 0) * Number(form.conversion_factor || 0))} un</p></AdminCard>}
-          {!selectedItem && Number(form.quantity || 0) > 0 && <div className="grid gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-2">{canViewCosts && <FCurrencyInput label={`Custo do saldo inicial (${form.unit})`} value={form.initial_unit_cost} onChange={(event: any) => setForm({ ...form, initial_unit_cost: event.target.value })} />}{canViewSuppliers && <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor do saldo inicial</label><AdminSelect value={form.initial_supplier_entity_id} onValueChange={value => setForm({ ...form, initial_supplier_entity_id: value })} options={[{ value: "", label: "Sem fornecedor informado" }, ...linkedSuppliers.filter(supplier => supplier.is_active !== false).map(supplier => ({ value: supplier.id, label: supplier.name }))]} ariaLabel="Fornecedor do saldo inicial" /></div>}<div className="sm:col-span-2"><FInput label="Documento / referência do saldo inicial" value={form.initial_reference} onChange={(event: any) => setForm({ ...form, initial_reference: event.target.value })} placeholder="NF, pedido, inventário inicial..." /></div></div>}
+          {!selectedItem && Number(form.quantity || 0) > 0 && <div className="grid gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-2">{canViewCosts && <FCurrencyInput label={`Custo do saldo inicial (${form.unit})`} error={fieldErrors.initial_unit_cost} value={form.initial_unit_cost} onChange={(event: any) => { setFieldErrors(current => ({ ...current, initial_unit_cost: undefined })); setForm({ ...form, initial_unit_cost: event.target.value }); }} />}{canViewSuppliers && <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor do saldo inicial</label><AdminSelect value={form.initial_supplier_entity_id} onValueChange={value => { setFieldErrors(current => ({ ...current, initial_supplier_entity_id: undefined })); setForm({ ...form, initial_supplier_entity_id: value }); }} options={[{ value: "", label: "Sem fornecedor informado" }, ...linkedSuppliers.filter(supplier => supplier.is_active !== false).map(supplier => ({ value: supplier.id, label: supplier.name }))]} ariaLabel="Fornecedor do saldo inicial" />{fieldErrors.initial_supplier_entity_id && <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.initial_supplier_entity_id}</p>}</div>}<div className="sm:col-span-2"><FInput label="Documento / referência do saldo inicial" value={form.initial_reference} onChange={(event: any) => setForm({ ...form, initial_reference: event.target.value })} placeholder="NF, pedido, inventário inicial..." /></div></div>}
         </div></Section>
 
         {canViewSuppliers && <InventorySuppliersEditor organizationId={activeOrganizationId} value={linkedSuppliers} onChange={setLinkedSuppliers} disabled={!canManageSuppliers} />}
@@ -519,15 +539,15 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       <div className="space-y-5 p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-2"><AdminCard className="bg-[#f8fafc] p-4 shadow-none"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade atual</p><p className="mt-1 text-lg font-black">{formatNumber(Number(selectedItem.quantity ?? 0))} {unitLabel(selectedItem.unit)}</p></AdminCard><AdminCard className="bg-[#f8fafc] p-4 shadow-none"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Endereço</p><p className="mt-1 text-sm font-bold">{storageAddress(selectedItem) || "Não informado"}</p></AdminCard></div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de movimentação</label><AdminSelect value={movementForm.type} onValueChange={type => setMovementForm({ ...emptyMovementForm(), type: type === "out" ? "out" : type === "adjust" ? "adjust" : "in", input_unit: selectedItem.unit === "cx" ? "cx" : "un" })} options={[{ value: "in", label: "Entrada / Compra" }, { value: "out", label: "Saída" }, { value: "adjust", label: "Ajuste de saldo" }]} ariaLabel="Tipo de movimentação" /></div>
+          <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de movimentação</label><AdminSelect value={movementForm.type} onValueChange={type => { setMovementErrors({}); setMovementForm({ ...emptyMovementForm(), type: type === "out" ? "out" : type === "adjust" ? "adjust" : "in", input_unit: selectedItem.unit === "cx" ? "cx" : "un" }); }} options={[{ value: "in", label: "Entrada / Compra" }, { value: "out", label: "Saída" }, { value: "adjust", label: "Ajuste de saldo" }]} ariaLabel="Tipo de movimentação" /></div>
           {movementForm.type !== "adjust" && <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Unidade da movimentação</label><AdminSelect value={movementForm.input_unit} onValueChange={value => setMovementForm({ ...movementForm, input_unit: value === "cx" ? "cx" : "un" })} options={[{ value: "un", label: "Unidade (un)" }, { value: "cx", label: `Caixa (cx) · ${formatNumber(conversionFactor(selectedItem))} un/cx` }]} ariaLabel="Unidade da movimentação" /></div>}
         </div>
-        <FIntegerInput label={movementForm.type === "adjust" ? `Novo saldo (${unitLabel(selectedItem.unit)})` : `Quantidade (${movementInputUnit})`} value={movementForm.quantity} onChange={(event: any) => setMovementForm({ ...movementForm, quantity: event.target.value })} />
+        <FIntegerInput label={movementForm.type === "adjust" ? `Novo saldo (${unitLabel(selectedItem.unit)})` : `Quantidade (${movementInputUnit})`} error={movementErrors.quantity} value={movementForm.quantity} onChange={(event: any) => { setMovementErrors(current => ({ ...current, quantity: undefined })); setMovementForm({ ...movementForm, quantity: event.target.value }); }} />
         {movementInputUnit === "cx" && movementQuantity >= 0 && movementForm.quantity !== "" && <AdminCard className="border-blue-100 bg-blue-50 p-3 shadow-none"><p className="text-sm font-black text-blue-800">{formatNumber(movementQuantity)} cx × {formatNumber(conversionFactor(selectedItem))} = {formatNumber(movementBaseQuantity)} un</p></AdminCard>}
 
-        {movementForm.type === "in" && <Section title="Compra"><div className="grid gap-4 sm:grid-cols-2"><div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor</label><AdminSelect value={movementForm.supplier_entity_id} onValueChange={value => setMovementForm({ ...movementForm, supplier_entity_id: value })} options={[{ value: "", label: "Nenhum" }, ...activeLinkedSuppliers.map(supplier => ({ value: supplier.id, label: supplier.name }))]} ariaLabel="Fornecedor da entrada" /></div><FCurrencyInput label={`Valor pago por ${movementForm.input_unit} *`} value={movementForm.input_unit_cost} onChange={(event: any) => setMovementForm({ ...movementForm, input_unit_cost: event.target.value })} /><div className="sm:col-span-2"><FInput label="Documento / referência" value={movementForm.purchase_reference} onChange={(event: any) => setMovementForm({ ...movementForm, purchase_reference: event.target.value })} placeholder="NF, pedido, cupom, referência..." /></div>{movementQuantity > 0 && movementForm.input_unit_cost !== "" && <AdminCard className="sm:col-span-2 bg-[#f8fafc] p-3 shadow-none"><p className="text-xs text-[#5a6a82]">Total desta entrada</p><p className="mt-1 text-base font-black text-[#0d1b2e]">{formatCurrency(movementQuantity * Number(movementForm.input_unit_cost || 0))}</p></AdminCard>}</div></Section>}
+        {movementForm.type === "in" && <Section title="Compra"><div className="grid gap-4 sm:grid-cols-2"><div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor</label><AdminSelect value={movementForm.supplier_entity_id} onValueChange={value => setMovementForm({ ...movementForm, supplier_entity_id: value })} options={[{ value: "", label: "Nenhum" }, ...activeLinkedSuppliers.map(supplier => ({ value: supplier.id, label: supplier.name }))]} ariaLabel="Fornecedor da entrada" /></div><FCurrencyInput label={`Valor pago por ${movementForm.input_unit} *`} error={movementErrors.input_unit_cost} value={movementForm.input_unit_cost} onChange={(event: any) => { setMovementErrors(current => ({ ...current, input_unit_cost: undefined })); setMovementForm({ ...movementForm, input_unit_cost: event.target.value }); }} /><div className="sm:col-span-2"><FInput label="Documento / referência" value={movementForm.purchase_reference} onChange={(event: any) => setMovementForm({ ...movementForm, purchase_reference: event.target.value })} placeholder="NF, pedido, cupom, referência..." /></div>{movementQuantity > 0 && movementForm.input_unit_cost !== "" && <AdminCard className="sm:col-span-2 bg-[#f8fafc] p-3 shadow-none"><p className="text-xs text-[#5a6a82]">Total desta entrada</p><p className="mt-1 text-base font-black text-[#0d1b2e]">{formatCurrency(movementQuantity * Number(movementForm.input_unit_cost || 0))}</p></AdminCard>}</div></Section>}
 
-        <FInput label={movementForm.type === "adjust" ? "Justificativa *" : "Motivo"} value={movementForm.reason} onChange={(event: any) => setMovementForm({ ...movementForm, reason: event.target.value })} placeholder={movementForm.type === "adjust" ? "Explique por que o saldo foi ajustado" : "Opcional"} />
+        <FInput label={movementForm.type === "adjust" ? "Justificativa *" : "Motivo"} error={movementErrors.reason} value={movementForm.reason} onChange={(event: any) => { setMovementErrors(current => ({ ...current, reason: undefined })); setMovementForm({ ...movementForm, reason: event.target.value }); }} placeholder={movementForm.type === "adjust" ? "Explique por que o saldo foi ajustado" : "Opcional"} />
         <FTextarea label="Observações" value={movementForm.notes} onChange={(event: any) => setMovementForm({ ...movementForm, notes: event.target.value })} rows={3} />
         <FInput label="OS relacionada (opcional)" value={movementForm.service_order_id} onChange={(event: any) => setMovementForm({ ...movementForm, service_order_id: event.target.value })} />
       </div>
