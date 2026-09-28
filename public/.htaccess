@@ -13,32 +13,38 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # Legacy CRM domain: preserve path and query string while moving to Union World.
+  RewriteCond %{HTTP_HOST} ^(?:www\.)?testeteste\.com\.br$ [NC]
+  RewriteRule ^ https://unionworld.com.br%{REQUEST_URI} [R=302,L,NE]
+
+  # Canonical CRM host: always use the root Union World domain, without www.
+  RewriteCond %{HTTP_HOST} ^www\.unionworld\.com\.br$ [NC]
+  RewriteRule ^ https://unionworld.com.br%{REQUEST_URI} [R=301,L,NE]
+
   # Force HTTPS even when the cPanel toggle is unavailable.
   # X-Forwarded-Proto avoids redirect loops if the request passes through a proxy.
   RewriteCond %{HTTPS} !=on
   RewriteCond %{HTTP:X-Forwarded-Proto} !https
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301,NE]
 
-  # Preserve links created before the public site and CRM were split.
-  # These redirects only run on the public ArtVideo domain; the same .htaccess
-  # can therefore be deployed safely to both hosts.
+  # Preserve CRM links that may still be opened from the public ArtVideo domain.
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^admin(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
+  RewriteRule ^admin(?:/.*)?$ https://unionworld.com.br%{REQUEST_URI} [R=302,L,NE]
 
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^captura(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
+  RewriteRule ^captura(?:/.*)?$ https://unionworld.com.br%{REQUEST_URI} [R=302,L,NE]
 
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^editar-os-mobile/?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
+  RewriteRule ^editar-os-mobile/?$ https://unionworld.com.br%{REQUEST_URI} [R=302,L,NE]
 
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^assinatura(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
+  RewriteRule ^assinatura(?:/.*)?$ https://unionworld.com.br%{REQUEST_URI} [R=302,L,NE]
 
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^verificar-documento(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
+  RewriteRule ^verificar-documento(?:/.*)?$ https://unionworld.com.br%{REQUEST_URI} [R=302,L,NE]
 
-  # Keep the CRM root canonical without requiring the React app to redirect.
-  RewriteCond %{HTTP_HOST} ^(?:www\.)?testeteste\.com\.br$ [NC]
+  # CRM root always opens the administrative login/application.
+  RewriteCond %{HTTP_HOST} ^unionworld\.com\.br$ [NC]
   RewriteRule ^$ /admin [R=302,L]
 
   # Build assets are content-hashed. If an old tab requests an asset that was
