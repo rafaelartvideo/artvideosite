@@ -5,7 +5,6 @@ import {
   changeAdminPassword,
 } from "@/features/auth/infrastructure/auth.repository";
 import { LoadingSpinner, Toast } from "@/shared/ui/admin/AdminFeedback";
-import logo from "@/imports/Logo2Semfundo.png";
 import loginHero from "./assets/login-hero/login-hero.png";
 
 type AdminLoginProps = {
@@ -172,11 +171,9 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
       <section className="relative z-10 flex min-h-[100dvh] items-center justify-center bg-[radial-gradient(circle_at_18%_12%,rgba(47,128,237,0.09),transparent_30%),linear-gradient(145deg,#23272f_0%,#1c2129_52%,#171c24_100%)] px-5 py-8 sm:px-8 lg:px-10 xl:px-16">
         <div className="w-full max-w-[410px]">
           <div className="mb-7 text-center sm:mb-8">
-            <img
-              src={logo}
-              alt="Eletrônica ArtVideo"
-              className="mx-auto h-auto w-full max-w-[210px] object-contain sm:max-w-[225px]"
-            />
+            <div className="mx-auto flex items-center justify-center" aria-label="Union World">
+              <span className="text-[22px] font-black tracking-[0.12em] text-white sm:text-[24px]">UNION WORLD</span>
+            </div>
             <h1 className="mt-4 text-[30px] font-extrabold tracking-tight text-white sm:text-[34px]">
               {changingPassword ? "Alterar senha" : "Bem-vindo"}
             </h1>
