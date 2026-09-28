@@ -2,7 +2,7 @@ import { ArrowLeft, Building2, ChevronDown, ExternalLink, Globe, LogOut, PanelLe
 import { useQuery } from "@tanstack/react-query";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
-import { isAdminModuleEnabled, mainItems, operationItems, siteItems, utilityItems } from "../navigation-config";
+import { isAdminModuleEnabled, mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "../navigation-config";
 import { parentAdminTab } from "../admin-routes";
 import { SidebarItem } from "./AdminNavigation";
 import { useAdminSidebarLayout } from "./AdminLayout";
@@ -51,7 +51,7 @@ export function AdminSidebar({
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "partnerCompanies" && !isPlatformOperatorOrganization) return false;
-    const permission = tab === "partnerCompanies" ? "organizations.view" : `${tab}.view`;
+    const permission = permissionForTab[tab];
     return hasPermission(permission) && isAdminModuleEnabled(tab, hasModule);
   };
 
