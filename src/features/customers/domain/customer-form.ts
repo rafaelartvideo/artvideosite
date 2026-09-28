@@ -70,26 +70,40 @@ export function customerUpdatePayload(form: CustomerForm) {
   return editable;
 }
 
-export function validateCustomerForm(form: CustomerForm) {
+export type CustomerFieldErrors = Partial<Record<keyof CustomerForm, string>>;
+
+export function validateCustomerFormFields(form: CustomerForm): CustomerFieldErrors {
+  const errors: CustomerFieldErrors = {};
   const phone = form.phone.trim();
   const whatsapp = form.whatsapp.trim();
   const email = form.email.trim();
 
-  if (!whatsapp && !phone) return "Telefone ou WhatsApp é obrigatório.";
-  if (phone && !isValidBrazilianPhone(phone)) return "Telefone inválido. Informe DDD e número válidos.";
-  if (whatsapp && !isValidBrazilianMobile(whatsapp)) return "WhatsApp inválido. Informe um celular com DDD no formato (99) 9 9999-9999.";
-  if (email && !isValidEmail(email)) return "E-mail inválido. Verifique o endereço informado.";
+  if (!whatsapp && !phone) errors.whatsapp = "Informe um telefone ou WhatsApp.";
+  if (phone && !isValidBrazilianPhone(phone)) errors.phone = "Telefone inválido. Informe DDD e número válidos.";
+  if (whatsapp && !isValidBrazilianMobile(whatsapp)) errors.whatsapp = "WhatsApp inválido. Informe um celular com DDD no formato (99) 9 9999-9999.";
+  if (email && !isValidEmail(email)) errors.email = "E-mail inválido. Verifique o endereço informado.";
 
-  if (form.customerType === "PF" && !form.full_name.trim()) return "Nome completo é obrigatório.";
-  if (form.customerType === "PF" && !isValidCpf(form.document)) return "CPF inválido. Verifique os números informados.";
-  if (form.customerType === "PF" && !form.birth_date) return "Data de nascimento é obrigatória.";
-  if (form.customerType === "PF" && !isPastOrTodayIsoDate(form.birth_date)) return "Data de nascimento inválida ou futura.";
+  if (form.customerType === "PF") {
+    if (!form.full_name.trim()) errors.full_name = "Nome completo é obrigatório.";
+    if (!isValidCpf(form.document)) errors.document = "CPF inválido. Verifique os números informados.";
+    if (!form.birth_date) errors.birth_date = "Data de nascimento é obrigatória.";
+    else if (!isPastOrTodayIsoDate(form.birth_date)) errors.birth_date = "Data de nascimento inválida ou futura.";
+  }
 
-  if (form.customerType === "PJ" && !form.trade_name.trim()) return "Nome fantasia é obrigatório.";
-  if (form.customerType === "PJ" && !isValidCnpj(form.cnpj)) return "CNPJ inválido. Verifique os números informados.";
-  if (form.customerType === "PJ" && form.foundation_date && !isPastOrTodayBrazilianDate(form.foundation_date)) return "Data de fundação inválida ou futura.";
+  if (form.customerType === "PJ") {
+    if (!form.trade_name.trim()) errors.trade_name = "Nome fantasia é obrigatório.";
+    if (!isValidCnpj(form.cnpj)) errors.cnpj = "CNPJ inválido. Verifique os números informados.";
+    if (form.foundation_date && !isPastOrTodayBrazilianDate(form.foundation_date)) {
+      errors.foundation_date = "Data de fundação inválida ou futura.";
+    }
+  }
 
-  return null;
+  return errors;
+}
+
+export function validateCustomerForm(form: CustomerForm) {
+  const errors = validateCustomerFormFields(form);
+  return Object.values(errors)[0] || null;
 }
 
 export function applyCnpjData(form: CustomerForm, address: Address, data: any) {
