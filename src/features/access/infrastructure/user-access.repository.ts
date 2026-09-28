@@ -6,9 +6,9 @@ import {
   dispatchCompatibleEvent,
 } from "@/lib/platform-identifiers";
 import {
-  ARTVIDEO_ORGANIZATION_ID,
-  PLATFORM_OPERATOR_ORGANIZATION_ID,
-} from "@/lib/organization.constants";
+  getArtVideoOrganizationId,
+  getPlatformOperatorOrganizationId,
+} from "@/lib/organization-identity";
 import {
   authEmailForUsername,
   isValidUsername,
@@ -223,17 +223,22 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
   const error = membershipError || permissionsError || overridesError || situationsError;
   if (error) throw error;
 
+  const [platformOperatorId, artvideoOrganizationId] = await Promise.all([
+    getPlatformOperatorOrganizationId(),
+    getArtVideoOrganizationId(),
+  ]);
+
   const situationIds = new Set((situations || []).map((item: any) => String(item.id)));
   const visiblePermissions = (permissions || []).filter((permission: any) => {
     const key = String(permission.key || "");
     if (
-      organizationId !== PLATFORM_OPERATOR_ORGANIZATION_ID
+      organizationId !== platformOperatorId
       && platformOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
     ) {
       return false;
     }
     if (
-      organizationId !== ARTVIDEO_ORGANIZATION_ID
+      organizationId !== artvideoOrganizationId
       && artvideoSiteOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
     ) {
       return false;
