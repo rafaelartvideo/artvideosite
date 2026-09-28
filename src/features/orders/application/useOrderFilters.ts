@@ -34,7 +34,7 @@ export function useOrderFilters({
   const [customerNameSearch, setCustomerNameSearch] = useState("");
   const [documentSearch, setDocumentSearch] = useState("");
   const [serialNumberSearch, setSerialNumberSearch] = useState("");
-  const [responsibleSearch, setResponsibleSearch] = useState("");
+  const [responsibleId, setResponsibleId] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSituation, setFilterSituation] = useState("");
   const [filterOrderType, setFilterOrderType] = useState<OrderType | "">("");
@@ -51,7 +51,7 @@ export function useOrderFilters({
   const debouncedCustomerNameSearch = useDebouncedValue(customerNameSearch);
   const debouncedDocumentSearch = useDebouncedValue(documentSearch);
   const debouncedSerialNumberSearch = useDebouncedValue(serialNumberSearch);
-  const debouncedResponsibleSearch = useDebouncedValue(responsibleSearch);
+  const debouncedResponsibleId = useDebouncedValue(responsibleId);
 
   const selectedStateKey = [...selectedStates].sort().join(",");
   const citiesQuery = useQuery({
@@ -89,7 +89,7 @@ export function useOrderFilters({
     customerNameSearch: debouncedCustomerNameSearch,
     documentSearch: debouncedDocumentSearch,
     serialNumberSearch: debouncedSerialNumberSearch,
-    responsibleSearch: debouncedResponsibleSearch,
+    responsibleId: debouncedResponsibleId,
     statusId: filterStatus,
     situationId: filterSituation,
     orderType: filterOrderType,
@@ -101,7 +101,7 @@ export function useOrderFilters({
     dateTo,
     sort: orderSort,
     matchOrderNumberOrExternal,
-  }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedCustomerNameSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, debouncedResponsibleSearch, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, selectedStates, stateNames, selectedCities, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
+  }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedCustomerNameSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, debouncedResponsibleId, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, selectedStates, stateNames, selectedCities, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
   const listKey = queryKeys.orders.list(queryFilters);
 
   const generalTotalQuery = useQuery({
@@ -123,7 +123,7 @@ export function useOrderFilters({
       customerNameSearch: debouncedCustomerNameSearch,
       documentSearch: debouncedDocumentSearch,
       serialNumberSearch: debouncedSerialNumberSearch,
-      responsibleSearch: debouncedResponsibleSearch,
+      responsibleId: debouncedResponsibleId,
       statusId: filterStatus,
       situationId: filterSituation,
       orderType: filterOrderType,
@@ -157,7 +157,7 @@ export function useOrderFilters({
     setCustomerNameSearch("");
     setDocumentSearch("");
     setSerialNumberSearch("");
-    setResponsibleSearch("");
+    setResponsibleId("");
     setFilterStatus("");
     setFilterSituation("");
     setFilterOrderType("");
@@ -172,7 +172,7 @@ export function useOrderFilters({
 
   useEffect(() => {
     setPage(1);
-  }, [osNumberSearch, externalOsSearch, customerNameSearch, documentSearch, serialNumberSearch, responsibleSearch, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
+  }, [osNumberSearch, externalOsSearch, customerNameSearch, documentSearch, serialNumberSearch, responsibleId, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -200,8 +200,8 @@ export function useOrderFilters({
     setDocumentSearch,
     serialNumberSearch,
     setSerialNumberSearch,
-    responsibleSearch,
-    setResponsibleSearch,
+    responsibleId,
+    setResponsibleId,
     filterStatus,
     setFilterStatus,
     filterSituation,
