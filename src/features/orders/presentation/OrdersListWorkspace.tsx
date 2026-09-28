@@ -38,10 +38,10 @@ export function OrdersListWorkspace(props: Props) {
     getSituations: getSituationsForType, formatDate: fmtDate, equipmentSummary, compactSharedView = false,
   } = props;
 
-  const { statuses, situations, serviceTypes, isOrganizationOverride } = workspace;
+  const { statuses, situations, serviceTypes, profiles, isOrganizationOverride } = workspace;
   const {
     osNumberSearch, setOsNumberSearch, externalOsSearch, customerNameSearch, setCustomerNameSearch, documentSearch, setDocumentSearch,
-    serialNumberSearch, setSerialNumberSearch, responsibleSearch, setResponsibleSearch, filterStatus, setFilterStatus, filterSituation, setFilterSituation, filterOrderType,
+    serialNumberSearch, setSerialNumberSearch, responsibleId, setResponsibleId, filterStatus, setFilterStatus, filterSituation, setFilterSituation, filterOrderType,
     selectedServiceTypeId, setSelectedServiceTypeId, orderSort, setOrderSort, selectedStates, setSelectedStates,
     selectedCities, setSelectedCities, cityFilterOptions, cityFiltersLoading, dateFrom, setDateFrom, dateTo, setDateTo,
     page, setPage, pageSize, setPageSize, invalidPeriod, filteredOrders, pagedOrders, totalItems, generalTotalItems, totalPages, safePage,
@@ -57,7 +57,7 @@ export function OrdersListWorkspace(props: Props) {
   const loading = workspace.loading || listLoading;
   const hasActiveFilters = sharedView
     ? Boolean(osNumberSearch || documentSearch)
-    : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleSearch || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo);
+    : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo);
 
   if (!visible) return null;
 
@@ -77,7 +77,7 @@ export function OrdersListWorkspace(props: Props) {
       customerNameSearch={customerNameSearch}
       documentSearch={documentSearch}
       serialNumberSearch={serialNumberSearch}
-      responsibleSearch={responsibleSearch}
+      responsibleId={responsibleId}
       statusId={filterStatus}
       situationId={filterSituation}
       serviceTypeId={selectedServiceTypeId}
@@ -89,6 +89,7 @@ export function OrdersListWorkspace(props: Props) {
       statuses={statuses}
       situations={situations}
       serviceTypes={serviceTypes}
+      responsibles={profiles}
       stateOptions={ibgeStates}
       cityOptions={cityFilterOptions}
       statesLoading={ibgeStatesLoading}
@@ -98,7 +99,7 @@ export function OrdersListWorkspace(props: Props) {
       onCustomerNameSearchChange={(value) => { setCustomerNameSearch(value); setPage(1); }}
       onDocumentSearchChange={(value) => { setDocumentSearch(value); setPage(1); }}
       onSerialNumberSearchChange={(value) => { setSerialNumberSearch(value); setPage(1); }}
-      onResponsibleSearchChange={(value) => { setResponsibleSearch(value); setPage(1); }}
+      onResponsibleChange={(value) => { setResponsibleId(value); setPage(1); }}
       onStatusChange={(value) => { setFilterStatus(value); setPage(1); }}
       onSituationChange={(value) => { setFilterSituation(value); setPage(1); }}
       onServiceTypeChange={(value) => { setSelectedServiceTypeId(value); setPage(1); }}
