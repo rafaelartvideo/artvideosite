@@ -4,8 +4,9 @@ import { ArrowLeftRight, Package } from "lucide-react";
 import { buildInstallments, inventoryPurchaseTotal } from "@/features/finance/domain/finance-integration.mjs";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
-import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, Toast, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FCurrencyInput, FInput, FIntegerInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminCard, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { recordInventoryPurchaseWithFinance } from "../infrastructure/inventory-finance.repository";
@@ -71,11 +72,6 @@ function unitLabel(unit?: string | null) {
   return unit === "cx" ? "cx" : "un";
 }
 
-function errorMessage(error: unknown) {
-  if (error && typeof error === "object" && "message" in error) return String((error as any).message || "Erro desconhecido");
-  return error instanceof Error ? error.message : String(error || "Erro desconhecido");
-}
-
 export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
   const { activeOrganizationId, hasPermission, hasModule } = useAuth();
   const organizationId = activeOrganizationId || "";
@@ -85,6 +81,7 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
   const canViewSuppliers = hasPermission("inventory.suppliers.view") || hasPermission("inventory.suppliers.manage");
   const financeEnabled = hasModule("finance");
   const [form, setForm] = useState<Form>(() => emptyForm());
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Form, string>>>({});
   const [initializedItemId, setInitializedItemId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -104,6 +101,10 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
   const suppliers = (dataQuery.data?.suppliers || []).filter((supplier: any) => supplier.is_active !== false);
 
   useEffect(() => {
+    if (dataQuery.error) notifyAdmin(`Erro ao carregar movimentação: ${systemErrorMessage(dataQuery.error)}`, "error");
+  }, [dataQuery.error]);
+
+  useEffect(() => {
     if (!item || initializedItemId === item.id) return;
     setInitializedItemId(item.id);
     setForm(current => ({ ...current, input_unit: item.unit === "cx" ? "cx" : "un" }));
@@ -119,40 +120,59 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
   const inputUnit = form.type === "adjust" ? (item?.unit === "cx" ? "cx" : "un") : form.input_unit;
   const baseQuantity = inputUnit === "cx" ? quantity * conversionFactor(item) : quantity;
   const changeType = (type: MovementType) => {
-    setForm(emptyForm(type === "adjust" ? (item?.unit === "cx" ? "cx" : "un") : (item?.unit === "cx" ? "cx" : "un")));
-    setForm(current => ({ ...current, type }));
+    setFieldErrors({});
+    setForm({ ...emptyForm(item?.unit === "cx" ? "cx" : "un"), type });
+  };
+
+  const clearFieldError = (field: keyof Form) => {
+    setFieldErrors(current => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
   };
 
   const save = async () => {
     if (!item || !canCreateMovements || !organizationId) return;
     const movementType = form.type === "in" ? "IN" : form.type === "out" ? "OUT" : "ADJUST";
+    const nextErrors: Partial<Record<keyof Form, string>> = {};
+
     if (!Number.isInteger(quantity) || quantity < 0 || (movementType !== "ADJUST" && quantity <= 0)) {
-      setToast({ msg: movementType === "ADJUST" ? "Informe o novo saldo inteiro e não negativo." : "Informe uma quantidade inteira maior que zero.", type: "error" });
-      return;
+      nextErrors.quantity = movementType === "ADJUST"
+        ? "Informe o novo saldo inteiro e não negativo."
+        : "Informe uma quantidade inteira maior que zero.";
     }
     if (movementType === "ADJUST" && !form.reason.trim()) {
-      setToast({ msg: "Informe a justificativa do ajuste de estoque.", type: "error" });
-      return;
+      nextErrors.reason = "Informe a justificativa do ajuste de estoque.";
     }
 
     if (movementType === "IN") {
       if (!Number.isFinite(cost) || cost < 0 || form.input_unit_cost.trim() === "") {
-        setToast({ msg: "Informe o valor pago por unidade/caixa nesta entrada.", type: "error" });
-        return;
+        nextErrors.input_unit_cost = "Informe o valor pago por unidade/caixa nesta entrada.";
       }
       if (financeEnabled && !form.supplier_entity_id) {
-        setToast({ msg: "Informe o fornecedor da compra para gerar o pré-lançamento no Financeiro.", type: "error" });
-        return;
+        nextErrors.supplier_entity_id = "Informe o fornecedor da compra para gerar o pré-lançamento no Financeiro.";
       }
-      if ([discount, freight, otherCosts].some(value => !Number.isFinite(value) || value < 0)) {
-        setToast({ msg: "Desconto, frete e outros custos devem ser valores não negativos.", type: "error" });
-        return;
+      if (!Number.isFinite(discount) || discount < 0) nextErrors.discount = "Informe um desconto válido e não negativo.";
+      if (!Number.isFinite(freight) || freight < 0) nextErrors.freight = "Informe um frete válido e não negativo.";
+      if (!Number.isFinite(otherCosts) || otherCosts < 0) nextErrors.other_costs = "Informe outros custos válidos e não negativos.";
+      if (financeEnabled && purchaseTotal <= 0 && !nextErrors.input_unit_cost) {
+        nextErrors.input_unit_cost = "O total financeiro da compra deve ser maior que zero.";
       }
-      if (financeEnabled && purchaseTotal <= 0) {
-        setToast({ msg: "O total financeiro da compra deve ser maior que zero.", type: "error" });
-        return;
+      if (financeEnabled) {
+        const installmentCount = Number(form.installment_count);
+        if (!Number.isInteger(installmentCount) || installmentCount < 1 || installmentCount > 60) {
+          nextErrors.installment_count = "Informe entre 1 e 60 parcelas.";
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(form.first_due_date) || Number.isNaN(new Date(`${form.first_due_date}T00:00:00`).getTime())) {
+          nextErrors.first_due_date = "Informe uma data de primeiro vencimento válida.";
+        }
       }
     }
+
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
     setSaving(true);
     try {
@@ -204,7 +224,7 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
       onClose();
     } catch (error) {
-      setToast({ msg: `Erro na movimentação: ${errorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro na movimentação: ${systemErrorMessage(error)}`, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -212,7 +232,7 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
 
   if (!canCreateMovements) return <AdminCard className="p-6"><EmptyState icon={ArrowLeftRight} title="Sem permissão" message="Você não possui permissão para registrar movimentações." /></AdminCard>;
   if (dataQuery.isLoading) return <AdminCard className="p-8"><LoadingState text="Carregando item do estoque..." /></AdminCard>;
-  if (dataQuery.error || !item) return <AdminCard className="p-6"><EmptyState icon={Package} title="Item não encontrado" message={dataQuery.error instanceof Error ? dataQuery.error.message : "Não foi possível carregar este item."} /></AdminCard>;
+  if (dataQuery.error || !item) return <AdminCard className="p-6"><EmptyState icon={Package} title="Item não encontrado" message="Não foi possível carregar este item." /></AdminCard>;
 
   return <AdminPage
     open
@@ -234,27 +254,27 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
         {form.type !== "adjust" && <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Unidade da movimentação</label><AdminSelect value={form.input_unit} onValueChange={value => setForm(current => ({ ...current, input_unit: value === "cx" ? "cx" : "un" }))} options={[{ value: "un", label: "Unidade (un)" }, { value: "cx", label: `Caixa (cx) · ${formatNumber(conversionFactor(item))} un/cx` }]} ariaLabel="Unidade da movimentação" /></div>}
       </div>
 
-      <FIntegerInput label={form.type === "adjust" ? `Novo saldo (${unitLabel(item.unit)})` : `Quantidade (${inputUnit})`} value={form.quantity} onChange={(event: any) => setForm(current => ({ ...current, quantity: event.target.value }))} />
+      <FIntegerInput label={form.type === "adjust" ? `Novo saldo (${unitLabel(item.unit)})` : `Quantidade (${inputUnit})`} error={fieldErrors.quantity} value={form.quantity} onChange={(event: any) => { clearFieldError("quantity"); setForm(current => ({ ...current, quantity: event.target.value })); }} />
       {inputUnit === "cx" && form.quantity !== "" && quantity >= 0 && <AdminCard className="border-blue-100 bg-blue-50 p-3 shadow-none"><p className="text-sm font-black text-blue-800">{formatNumber(quantity)} cx × {formatNumber(conversionFactor(item))} = {formatNumber(baseQuantity)} un</p></AdminCard>}
 
       {form.type === "in" && <Section title="Compra">
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor {financeEnabled ? "*" : ""}</label><AdminSelect value={form.supplier_entity_id} onValueChange={value => setForm(current => ({ ...current, supplier_entity_id: value }))} options={[{ value: "", label: financeEnabled ? "Selecione" : "Nenhum" }, ...suppliers.map((supplier: any) => ({ value: supplier.id, label: supplier.name }))]} ariaLabel="Fornecedor da entrada" /></div>
-            <FCurrencyInput label={`Valor pago por ${form.input_unit} *`} value={form.input_unit_cost} onChange={(event: any) => setForm(current => ({ ...current, input_unit_cost: event.target.value }))} />
+            <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor {financeEnabled ? "*" : ""}</label><AdminSelect value={form.supplier_entity_id} onValueChange={value => { clearFieldError("supplier_entity_id"); setForm(current => ({ ...current, supplier_entity_id: value })); }} options={[{ value: "", label: financeEnabled ? "Selecione" : "Nenhum" }, ...suppliers.map((supplier: any) => ({ value: supplier.id, label: supplier.name }))]} ariaLabel="Fornecedor da entrada" />{fieldErrors.supplier_entity_id && <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.supplier_entity_id}</p>}</div>
+            <FCurrencyInput label={`Valor pago por ${form.input_unit} *`} error={fieldErrors.input_unit_cost} value={form.input_unit_cost} onChange={(event: any) => { clearFieldError("input_unit_cost"); setForm(current => ({ ...current, input_unit_cost: event.target.value })); }} />
             <div className="sm:col-span-2"><FInput label="Documento / referência" value={form.purchase_reference} onChange={(event: any) => setForm(current => ({ ...current, purchase_reference: event.target.value }))} placeholder="NF, pedido, cupom, referência..." /></div>
           </div>
 
           {financeEnabled && <div className="space-y-4 border-t border-[#0d1b2e]/8 pt-4">
             <div><p className="text-xs font-black uppercase tracking-[0.12em] text-[#0d1b2e]">Pré-lançamento financeiro</p><p className="mt-1 text-xs text-[#5a6a82]">Os dados abaixo sobem preenchidos para Contas a Pagar e ainda precisarão ser aprovados no Financeiro.</p></div>
             <div className="grid gap-4 sm:grid-cols-3">
-              <FCurrencyInput label="Desconto" value={form.discount} onChange={(event: any) => setForm(current => ({ ...current, discount: event.target.value }))} />
-              <FCurrencyInput label="Frete" value={form.freight} onChange={(event: any) => setForm(current => ({ ...current, freight: event.target.value }))} />
-              <FCurrencyInput label="Outros custos" value={form.other_costs} onChange={(event: any) => setForm(current => ({ ...current, other_costs: event.target.value }))} />
+              <FCurrencyInput label="Desconto" error={fieldErrors.discount} value={form.discount} onChange={(event: any) => { clearFieldError("discount"); setForm(current => ({ ...current, discount: event.target.value })); }} />
+              <FCurrencyInput label="Frete" error={fieldErrors.freight} value={form.freight} onChange={(event: any) => { clearFieldError("freight"); setForm(current => ({ ...current, freight: event.target.value })); }} />
+              <FCurrencyInput label="Outros custos" error={fieldErrors.other_costs} value={form.other_costs} onChange={(event: any) => { clearFieldError("other_costs"); setForm(current => ({ ...current, other_costs: event.target.value })); }} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <FIntegerInput label="Parcelas" value={form.installment_count} onChange={(event: any) => setForm(current => ({ ...current, installment_count: event.target.value }))} />
-              <FInput label="Primeiro vencimento" type="date" value={form.first_due_date} onChange={(event: any) => setForm(current => ({ ...current, first_due_date: event.target.value }))} />
+              <FIntegerInput label="Parcelas" error={fieldErrors.installment_count} value={form.installment_count} onChange={(event: any) => { clearFieldError("installment_count"); setForm(current => ({ ...current, installment_count: event.target.value })); }} />
+              <FInput label="Primeiro vencimento" type="date" error={fieldErrors.first_due_date} value={form.first_due_date} onChange={(event: any) => { clearFieldError("first_due_date"); setForm(current => ({ ...current, first_due_date: event.target.value })); }} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <AdminCard className="bg-[#f8fafc] p-3 shadow-none"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Subtotal dos itens</p><p className="mt-1 text-base font-black text-[#0d1b2e]">{formatCurrency(purchaseSubtotal)}</p></AdminCard>
@@ -267,7 +287,7 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
         </div>
       </Section>}
 
-      <FInput label={form.type === "adjust" ? "Justificativa *" : "Motivo"} value={form.reason} onChange={(event: any) => setForm(current => ({ ...current, reason: event.target.value }))} placeholder={form.type === "adjust" ? "Explique por que o saldo foi ajustado" : "Opcional"} />
+      <FInput label={form.type === "adjust" ? "Justificativa *" : "Motivo"} error={fieldErrors.reason} value={form.reason} onChange={(event: any) => { clearFieldError("reason"); setForm(current => ({ ...current, reason: event.target.value })); }} placeholder={form.type === "adjust" ? "Explique por que o saldo foi ajustado" : "Opcional"} />
       <FTextarea label="Observações" value={form.notes} onChange={(event: any) => setForm(current => ({ ...current, notes: event.target.value }))} rows={3} />
       {form.type !== "in" && <FInput label="OS relacionada (opcional)" value={form.service_order_id} onChange={(event: any) => setForm(current => ({ ...current, service_order_id: event.target.value }))} />}
     </div>
