@@ -289,7 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const [profileResult, organizationsResult] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-      supabase.rpc("my_organizations"),
+      supabase.rpc("my_organizations_v2"),
     ]);
 
     if (requestId !== accessRequestRef.current) return;
@@ -507,6 +507,8 @@ function normalizeOrganizationAccess(value: any): OrganizationAccess | null {
     role_id: typeof value.role_id === "string" ? value.role_id : null,
     is_owner: value.is_owner === true,
     is_direct_member: value.is_direct_member !== false,
+    is_platform_operator: value.is_platform_operator === true,
+    is_artvideo_tenant: value.is_artvideo_tenant === true,
     enabled_modules: Array.isArray(value.enabled_modules)
       ? value.enabled_modules.filter((moduleKey: unknown): moduleKey is string => typeof moduleKey === "string")
       : [],
