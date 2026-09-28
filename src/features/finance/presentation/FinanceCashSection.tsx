@@ -153,7 +153,7 @@ export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] 
             label={dialog.action === "supply" || dialog.action === "withdraw" ? "Motivo *" : "Observação / justificativa"}
             error={fieldErrors.note}
             value={note}
-            onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }}}
+            onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }}
             rows={3}
             placeholder={dialog.action === "close" ? "Obrigatória apenas se houver diferença no fechamento" : undefined}
           />
