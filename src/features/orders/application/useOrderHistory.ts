@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -57,7 +58,7 @@ export function useOrderHistory({
       showToast({ msg: "Registro adicionado ao histórico.", type: "success" });
     },
     onError: (error: any) => {
-      showToast({ msg: `Não foi possível registrar no histórico: ${error?.message || "Erro desconhecido"}`, type: "error" });
+      showToast({ msg: `Não foi possível registrar no histórico: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" });
     },
   });
 
