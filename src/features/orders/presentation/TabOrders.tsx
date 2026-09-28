@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
@@ -152,7 +153,7 @@ export function TabOrders({
   useEffect(() => {
     if (!ordersError) return;
     setToast({
-      msg: `Erro ao carregar OS: ${ordersError instanceof Error ? ordersError.message : String(ordersError)}`,
+      msg: `Erro ao carregar OS: ${systemErrorMessage(ordersError)}`,
       type: "error",
     });
   }, [ordersError]);
@@ -380,7 +381,7 @@ export function TabOrders({
       })
       .catch(error => {
         if (!cancelled) {
-          setToast({ msg: `Erro ao carregar OS: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+          setToast({ msg: `Erro ao carregar OS: ${systemErrorMessage(error)}`, type: "error" });
         }
       });
 
@@ -517,7 +518,7 @@ export function TabOrders({
       } catch (error) {
         creatingDetailRouteRef.current = null;
         setToast({
-          msg: `A OS foi criada, mas não foi possível abrir os detalhes: ${error instanceof Error ? error.message : String(error)}`,
+          msg: `A OS foi criada, mas não foi possível abrir os detalhes: ${systemErrorMessage(error)}`,
           type: "error",
         });
       } finally {
@@ -545,7 +546,7 @@ export function TabOrders({
       }
     } catch (error) {
       setToast({
-        msg: `A OS foi atualizada, mas não foi possível abrir os detalhes atualizados: ${error instanceof Error ? error.message : String(error)}`,
+        msg: `A OS foi atualizada, mas não foi possível abrir os detalhes atualizados: ${systemErrorMessage(error)}`,
         type: "error",
       });
     }

@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, Clock, Activity, DollarSign, Edit2, FileText, HelpCircle, List, Plus, Search, Star, Trash2, Wrench, X } from "lucide-react";
@@ -43,7 +44,7 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar serviços: ${catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
+  useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar serviços: ${systemErrorMessage(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() }), queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard() })]);
   const openNew = () => { if (!canCreate) return; setEditItem(null); setDrawerOpen(true); };
   const openEdit = (service: any) => { if (!(canViewDetails && canUpdate)) return; setEditItem(service); setDrawerOpen(true); };
@@ -52,8 +53,8 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const openEditPage = (item: any) => { if (!(canViewDetails && canUpdate)) return; onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item); };
 
   useEffect(() => { if (!routeResourceId) { if (drawerOpen) setDrawerOpen(false); return; } if (routeResourceId === "new") { if (canCreate && (!drawerOpen || editItem)) openNew(); return; } if (!(canViewDetails && canUpdate) || routeSubpage !== "edit" || editItem?.id === routeResourceId) return; const item = services.find((entry: any) => entry.id === routeResourceId); if (item) openEdit(item); }, [routeResourceId, routeSubpage, services, drawerOpen, editItem?.id, canCreate, canViewDetails, canUpdate]);
-  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteService(id); setDelId(null); setToast({ msg: "Serviço excluído com sucesso.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
-  const toggleActive = async (service: any) => { if (!canToggleActive) return; try { await setServiceActive(service.id, !service.is_active); setToast({ msg: "Status atualizado com sucesso.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
+  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteService(id); setDelId(null); setToast({ msg: "Serviço excluído com sucesso.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const toggleActive = async (service: any) => { if (!canToggleActive) return; try { await setServiceActive(service.id, !service.is_active); setToast({ msg: "Status atualizado com sucesso.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   const filtered = services.filter(service => !search || service.title?.toLowerCase().includes(search.toLowerCase()));
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));

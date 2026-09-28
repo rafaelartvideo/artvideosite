@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useRef, useState } from "react";
 import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
 import { isValidCpf } from "@/shared/domain/formatters";
@@ -138,7 +139,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
         });
       } catch (error) {
         onToast(
-          `Cliente criado, mas erro no endereço: ${error instanceof Error ? error.message : String(error)}`,
+          `Cliente criado, mas erro no endereço: ${systemErrorMessage(error)}`,
           "error",
         );
         setSaving(false);

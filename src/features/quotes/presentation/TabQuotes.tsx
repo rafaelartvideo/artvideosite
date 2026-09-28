@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown, ClipboardList, Eraser, FileText, Search } from "lucide-react";
@@ -125,7 +126,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   useEffect(() => {
     if (quotesQuery.error || statusesQuery.error) {
       const error = quotesQuery.error || statusesQuery.error;
-      setToast({ msg: `Erro ao carregar orçamentos: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+      setToast({ msg: `Erro ao carregar orçamentos: ${systemErrorMessage(error)}`, type: "error" });
     }
   }, [quotesQuery.error, statusesQuery.error]);
 
@@ -151,7 +152,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
       }
       setDetail(quote);
     }).catch(error => {
-      if (!cancelled) setToast({ msg: `Erro ao carregar orçamento: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+      if (!cancelled) setToast({ msg: `Erro ao carregar orçamento: ${systemErrorMessage(error)}`, type: "error" });
     });
     return () => { cancelled = true; };
   }, [routeResourceId, detail?.id, canViewDetails, organizationId]);

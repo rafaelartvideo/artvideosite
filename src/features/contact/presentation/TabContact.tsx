@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "@/lib/auth";
@@ -86,7 +87,7 @@ export function TabContact() {
       await saveSettings.mutateAsync({ settings, updatedBy: user?.id ?? null });
       setToast({ msg: "Informações de contato salvas com sucesso.", type: "success" });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = systemErrorMessage(error);
       setToast({ msg: `Erro ao salvar contato: ${message}`, type: "error" });
     }
   };

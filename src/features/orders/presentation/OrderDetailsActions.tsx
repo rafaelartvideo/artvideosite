@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -63,7 +64,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
       onClose();
       return true;
     } catch (error) {
-      notifyAdmin(`Não foi possível cancelar a OS: ${error instanceof Error ? error.message : String(error)}`, "error");
+      notifyAdmin(`Não foi possível cancelar a OS: ${systemErrorMessage(error)}`, "error");
       return false;
     } finally {
       setLocalCancelling(false);
