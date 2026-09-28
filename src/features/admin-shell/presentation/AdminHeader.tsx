@@ -67,7 +67,7 @@ export function AdminHeader({
               <img
                 src={companyLogoUrl}
                 alt={activeOrganizationName || "Logo da empresa"}
-                className="max-h-10 max-w-[170px] object-contain"
+                className="h-11 w-full max-w-[190px] object-contain"
               />
             ) : (
               <span className="max-w-[180px] truncate text-sm font-black text-white">
