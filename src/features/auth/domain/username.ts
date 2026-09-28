@@ -1,5 +1,6 @@
 export const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,31}$/;
-export const INTERNAL_AUTH_DOMAIN = "auth.artvideo.app";
+export const INTERNAL_AUTH_DOMAIN = "auth.unionworld.app";
+export const LEGACY_INTERNAL_AUTH_DOMAIN = "auth.artvideo.app";
 
 export function normalizeUsername(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
