@@ -92,11 +92,14 @@ export function beginAdminLoading(text = "Carregando...") {
   };
 }
 
+function normalizeFeedbackMessage(message: unknown) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (text && text !== "[object Object]" && text !== "undefined" && text !== "null") return text;
+  return systemErrorMessage(message);
+}
+
 export function notifyAdmin(message: unknown, type: FeedbackType = "success") {
-  const normalized = typeof message === "string" && message.trim()
-    ? message.trim()
-    : systemErrorMessage(message);
-  dispatchAdminFeedback({ kind: "toast", message: normalized, type });
+  dispatchAdminFeedback({ kind: "toast", message: normalizeFeedbackMessage(message), type });
 }
 
 export function isHexColor(value: string) {
@@ -204,9 +207,7 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
 }
 
 export function Toast({ message, type = "success", onClose }: { message: unknown; type?: FeedbackType; onClose: () => void }) {
-  const displayMessage = typeof message === "string" && message.trim()
-    ? message.trim()
-    : systemErrorMessage(message);
+  const displayMessage = normalizeFeedbackMessage(message);
   useEffect(() => {
     const timeout = setTimeout(onClose, 3500);
     return () => clearTimeout(timeout);
