@@ -122,10 +122,17 @@ function MobileCardField({ label, children }: { label: string; children: React.R
 }
 
 export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange, onOpenCustomerHistory }: Props) {
-  const { activeOrganizationId, hasPermission } = useAuth();
-  const canView = hasPermission("customers.view");
-  const canCreate = hasPermission("customers.create");
-  const canEdit = hasPermission("customers.edit") || hasPermission("customers.update");
+  const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
+  const platformUsersOnly = activeOrganization?.is_platform_operator === true;
+  const canView = platformUsersOnly
+    ? hasPermission("customers.view") && hasPermission("employees.view")
+    : hasPermission("customers.view");
+  const canCreate = platformUsersOnly
+    ? hasPermission("customers.create") && hasPermission("employees.create")
+    : hasPermission("customers.create");
+  const canEdit = platformUsersOnly
+    ? (hasPermission("customers.edit") || hasPermission("customers.update")) && hasPermission("employees.edit")
+    : hasPermission("customers.edit") || hasPermission("customers.update");
   const canViewAccess = hasPermission("employees.view") || hasPermission("roles.view");
   const canCreateAccess = hasPermission("employees.create");
   const canEditAccess = hasPermission("employees.edit");
@@ -266,7 +273,9 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     if (creating) {
       if (editorBaseHydratedRef.current === "new") return;
       setSelected(null);
-      setForm(emptyRegistrationForm());
+      setForm(platformUsersOnly
+        ? { ...emptyRegistrationForm(), person_type: "PF", roles: ["employee"] }
+        : emptyRegistrationForm());
       setAddresses([emptyRegistrationAddress(true)]);
       setSupplierItems([]);
       setAccessForm(emptyEmployeeAccessForm());
@@ -290,7 +299,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     editorBaseHydratedRef.current = routeRegistration.id;
     editorSupplierHydratedRef.current = null;
     editorAccessHydratedRef.current = null;
-  }, [editorOpen, creating, routeRegistration]);
+  }, [editorOpen, creating, routeRegistration, platformUsersOnly]);
 
   useEffect(() => {
     if (!editorOpen || creating || !routeRegistration || !routeRoles.includes("supplier")) return;
@@ -316,7 +325,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     const documentDigits = normalizeDigits(documentSearch);
     const result = items.filter(item => {
       const roles = activeRegistrationRoles(item);
-      if (roleFilter !== "all" && !roles.includes(roleFilter)) return false;
+      if (platformUsersOnly && !roles.includes("employee")) return false;
+      if (!platformUsersOnly && roleFilter !== "all" && !roles.includes(roleFilter)) return false;
       if (statusFilter === "active" && item.is_active === false) return false;
       if (statusFilter === "inactive" && item.is_active !== false) return false;
 
@@ -347,12 +357,12 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       const bDate = new Date(b.created_at || 0).getTime();
       return sortOrder === "newest" ? bDate - aDate : aDate - bDate;
     });
-  }, [items, nameSearch, documentSearch, roleFilter, statusFilter, sortOrder]);
+  }, [items, nameSearch, documentSearch, roleFilter, statusFilter, sortOrder, platformUsersOnly]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const hasActiveFilters = Boolean(nameSearch || documentSearch || roleFilter !== "all" || statusFilter !== "all" || sortOrder);
+  const hasActiveFilters = Boolean(nameSearch || documentSearch || (!platformUsersOnly && roleFilter !== "all") || statusFilter !== "all" || sortOrder);
   const clearFilters = () => {
     setNameSearch("");
     setDocumentSearch("");
@@ -361,10 +371,15 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     setSortOrder("");
   };
   useEffect(() => { setPage(1); }, [nameSearch, documentSearch, roleFilter, statusFilter, sortOrder, pageSize]);
+  useEffect(() => {
+    if (platformUsersOnly && mobileFilter === "role") setMobileFilter("name");
+    if (platformUsersOnly && roleFilter !== "all") setRoleFilter("all");
+  }, [platformUsersOnly, mobileFilter, roleFilter]);
 
   const toggleRole = (role: RegistrationRole) => {
     const allowed = selected ? canEdit : canCreate;
     if (!allowed) return;
+    if (platformUsersOnly) return;
     const removingSupplier = role === "supplier" && form.roles.includes("supplier");
     if (removingSupplier) setSupplierItems([]);
     setForm(current => {
@@ -597,6 +612,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         onSave={() => void save()}
         onClose={closeEditor}
         onToggleRole={toggleRole}
+        employeeOnly={platformUsersOnly}
       />
     </>;
   }
@@ -633,7 +649,10 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   if (routeResourceId && recordLoading) return <LoadingState text="Carregando cadastro..." />;
 
-  const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Nome / Razão social";
+  const visibleMobileFilterOptions = platformUsersOnly
+    ? mobileFilterOptions.filter(option => option.value !== "role")
+    : mobileFilterOptions;
+  const mobileFilterLabel = visibleMobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Nome / Razão social";
   const sortLabel = sortOrder === "name_asc" ? "Nome A–Z" : sortOrder === "name_desc" ? "Nome Z–A" : sortOrder === "newest" ? "Mais recentes" : sortOrder === "oldest" ? "Mais antigos" : "Ordenação padrão";
   const SortIcon = sortOrder === "name_asc" || sortOrder === "oldest" ? ArrowUpNarrowWide : sortOrder === "name_desc" || sortOrder === "newest" ? ArrowDownWideNarrow : ArrowUpDown;
   const renderMobileFilter = () => {
@@ -664,7 +683,11 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Cadastros" subtitle="Gerencie clientes, funcionários e fornecedores em um único cadastro." actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> Novo cadastro</BtnPrimary> : undefined} />
+    <PageHeader
+      title={platformUsersOnly ? "Usuários" : "Cadastros"}
+      subtitle={platformUsersOnly ? "Gerencie funcionários e acessos da Union World." : "Gerencie clientes, funcionários e fornecedores em um único cadastro."}
+      actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> {platformUsersOnly ? "Novo usuário" : "Novo cadastro"}</BtnPrimary> : undefined}
+    />
     <AdminCard className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0057e7] px-4 py-3 text-white">
         <div className="flex items-center gap-2"><Search size={16} className="shrink-0" /><span className="text-xs font-black uppercase tracking-[0.14em]">Buscar cadastro</span></div>
@@ -676,7 +699,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         <div className="space-y-3 md:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button></DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[240px]">{mobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent>
+            <DropdownMenuContent align="start" className="min-w-[240px]">{visibleMobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent>
           </DropdownMenu>
           <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1">{renderMobileFilter()}</div>{sortMenu}</div>
         </div>
@@ -696,10 +719,10 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
               <input value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={`${INPUT} pl-9`} />
             </div>
           </div>
-          <div className="min-w-0">
+          {!platformUsersOnly && <div className="min-w-0">
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Vínculo</label>
             <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
-          </div>
+          </div>}
           <div className="min-w-0">
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label>
             <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Status" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
@@ -708,7 +731,13 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       </div>
     </AdminCard>
 
-    <AdminCard>{loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cadastro encontrado" message="Crie um cadastro ou ajuste os filtros." onAdd={canCreate ? openNew : undefined} addLabel="Novo cadastro" /> : <>
+    <AdminCard>{loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState
+      icon={Users}
+      title={platformUsersOnly ? "Nenhum usuário encontrado" : "Nenhum cadastro encontrado"}
+      message={platformUsersOnly ? "Crie um usuário para dar acesso à Union World." : "Crie um cadastro ou ajuste os filtros."}
+      onAdd={canCreate ? openNew : undefined}
+      addLabel={platformUsersOnly ? "Novo usuário" : "Novo cadastro"}
+    /> : <>
       <div className="divide-y divide-[#0d1b2e]/8 md:hidden">{paged.map(item => {
         const employeeAccessProfileId = item.legacy_employee?.profile_id || item.employee_details?.[0]?.profile_id || null;
         const employeeUserActive = item.legacy_employee?.is_active !== false;
