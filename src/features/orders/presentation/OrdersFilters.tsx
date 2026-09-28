@@ -27,6 +27,7 @@ type MobileFilterKey =
   | "customerName"
   | "document"
   | "serialNumber"
+  | "responsible"
   | "status"
   | "situation"
   | "serviceType"
@@ -39,6 +40,7 @@ const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
   { value: "customerName", label: "Nome do cliente" },
   { value: "document", label: "CPF ou CNPJ" },
   { value: "serialNumber", label: "Número de série" },
+  { value: "responsible", label: "Responsável pela OS" },
   { value: "status", label: "Status" },
   { value: "situation", label: "Situação" },
   { value: "serviceType", label: "Tipo de Atendimento" },
@@ -52,6 +54,7 @@ export function OrdersFilters({
   customerNameSearch,
   documentSearch,
   serialNumberSearch,
+  responsibleSearch,
   statusId,
   situationId,
   serviceTypeId,
@@ -72,6 +75,7 @@ export function OrdersFilters({
   onCustomerNameSearchChange,
   onDocumentSearchChange,
   onSerialNumberSearchChange,
+  onResponsibleSearchChange,
   onStatusChange,
   onSituationChange,
   onServiceTypeChange,
@@ -90,6 +94,7 @@ export function OrdersFilters({
   customerNameSearch: string;
   documentSearch: string;
   serialNumberSearch: string;
+  responsibleSearch: string;
   statusId: string;
   situationId: string;
   serviceTypeId: string;
@@ -110,6 +115,7 @@ export function OrdersFilters({
   onCustomerNameSearchChange: (value: string) => void;
   onDocumentSearchChange: (value: string) => void;
   onSerialNumberSearchChange: (value: string) => void;
+  onResponsibleSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onSituationChange: (value: string) => void;
   onServiceTypeChange: (value: string) => void;
@@ -179,20 +185,20 @@ export function OrdersFilters({
   const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
   const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
-    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || filterStatus || filterSituation || selectedServiceTypeId ||
+    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleSearch || filterStatus || filterSituation || selectedServiceTypeId ||
     selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo || orderSort
   );
 
-  const sortMenu = (iconOnly = false) => (
+  const sortMenu = () => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button type="button" aria-label={`Ordenação atual: ${orderLabel}`} title={`Ordenação: ${orderLabel}`} className={cn(
-          "inline-flex h-[42px] items-center justify-center rounded-lg border bg-white text-xs font-bold shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
-          iconOnly ? "w-[42px] shrink-0 px-0" : "w-full min-w-0 justify-between gap-1.5 px-3",
-          orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]",
+          "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-white/70",
+          orderSort ? "border-white bg-white text-[#0057e7]" : "border-white/35 bg-white/10 text-white hover:bg-white/20",
         )}>
-          <OrderSortIcon size={20} className="h-5 w-5 shrink-0 text-[#0057e7]" />
-          {!iconOnly && <><span>{orderLabel}</span><ChevronDown size={14} className="text-[#5a6a82]" /></>}
+          <OrderSortIcon size={18} className={cn("h-[18px] w-[18px] shrink-0", orderSort ? "text-[#0057e7]" : "text-white")} />
+          <span className="hidden sm:inline">{orderLabel}</span>
+          <ChevronDown size={14} className={cn("hidden sm:block", orderSort ? "text-[#0057e7]" : "text-white/80")} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[190px]">
@@ -224,6 +230,7 @@ export function OrdersFilters({
           <div className="mt-4 flex flex-wrap justify-end gap-2"><AdminButton variant="secondary" onClick={closeSerialScanner}>Cancelar</AdminButton><AdminButton variant="secondary" disabled={serialScanBusy} onClick={() => serialScannerInput.current?.click()}>Outra foto</AdminButton><AdminButton disabled={serialScanBusy || !serialScanValue.trim()} onClick={() => { onSerialNumberSearchChange(serialScanValue.trim()); closeSerialScanner(); }}>Usar número</AdminButton></div>
         </AdminDialog>
       </>;
+      case "responsible": return <MobileSearchField value={responsibleSearch} onChange={onResponsibleSearchChange} placeholder="Digite o nome do responsável" ariaLabel="Buscar por responsável pela OS" />;
       case "status": return <AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />;
       case "situation": return <AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por situação" />;
       case "serviceType": return <AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo de atendimento" />;
@@ -240,12 +247,13 @@ export function OrdersFilters({
         {selectedStates.length > 0 && <button type="button" onClick={onStatesClear} aria-label="Limpar Estados" title="Limpar Estados" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar Estados</button>}
         {selectedCities.length > 0 && <button type="button" onClick={onCitiesClear} aria-label="Limpar Cidades" title="Limpar Cidades" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar Cidades</button>}
         {hasActiveFilters && <button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar filtros</button>}
+        {sortMenu()}
       </div>
     </div>
     <div className="p-4">
       <div className="space-y-3 md:hidden">
         <div className="flex items-center gap-2"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[240px]">{mobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div>
-        <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1">{renderMobileFilter()}</div>{sortMenu(true)}</div>
+        <div className="min-w-0">{renderMobileFilter()}</div>
       </div>
 
       <div className="hidden space-y-3 md:block">
@@ -261,7 +269,7 @@ export function OrdersFilters({
           <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} /></div>
           <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs")} />{invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>
           <div className="space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>
-          <div className="min-w-0 space-y-1.5"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Ordenação</label>{sortMenu(false)}</div>
+          <SearchField label="Responsável pela OS" value={responsibleSearch} onChange={onResponsibleSearchChange} placeholder="Digite o nome do responsável" />
         </div>
       </div>
     </div>
