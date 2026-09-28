@@ -14,13 +14,13 @@ import {
 
 const MODULE_LABELS: Record<string, string> = {
   orders: "Ordens de Serviço",
-  customers: "Clientes",
+  customers: "Cadastros",
   registrations: "Cadastros",
   agenda: "Agenda",
   inventory: "Estoque",
   finance: "Financeiro",
   equipment: "Equipamentos",
-  employees: "Funcionários e Permissões",
+  employees: "Funções e Permissões",
   service_types: "Tipos de Atendimento",
   order_situations: "Situações da OS",
   order_statuses: "Status da OS",
@@ -28,8 +28,8 @@ const MODULE_LABELS: Record<string, string> = {
   quotes: "Orçamentos",
   services: "Serviços Gerais",
   site_services: "Serviços do Site",
-  site_products: "Produtos do Site",
-  site_brands: "Marcas do Site",
+  site_products: "Produtos",
+  site_brands: "Marcas",
   site_settings: "Site",
   company_settings: "Dados da Empresa",
   organizations: "Empresas",
@@ -37,76 +37,337 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const ENTITY_LABELS: Record<string, string> = {
-  service_orders: "Ordem de Serviço",
-  service_order_checklists: "Checklist da OS",
-  service_order_checklist_stages: "Etapa do checklist",
-  service_order_checklist_items: "Item do checklist",
-  service_order_checklist_item_media: "Foto do checklist",
-  service_order_part_requests: "Pedido de peças",
-  service_order_part_request_items: "Item do pedido de peças",
-  service_order_used_items: "Peça utilizada",
-  service_order_situation_media: "Anexo da situação",
-  service_order_situation_visits: "Histórico de situação",
-  service_order_technical_values: "Campo técnico da OS",
-  service_order_technicians: "Técnico da OS",
-  service_order_sellers: "Vendedor da OS",
-  customers: "Cliente",
-  customer_addresses: "Endereço do cliente",
-  customer_equipments: "Equipamento do cliente",
+  appointment_situations: "Situação da agenda",
+  appointment_technicians: "Técnico do agendamento",
+  appointments: "Agendamento",
+  attachment_types: "Tipo de anexo",
+  brands: "Marca",
+  checklist_profile_items: "Item do checklist",
+  checklist_profile_stages: "Etapa do checklist",
+  checklist_profiles: "Perfil de checklist",
+  contact_fields: "Campo de contato",
+  customer_addresses: "Endereço do cadastro",
+  customer_equipments: "Equipamento do cadastro",
+  customers: "Cadastro",
+  document_signature_events: "Evento de assinatura",
+  document_signature_requests: "Solicitação de assinatura",
+  document_signatures: "Assinatura",
+  employee_signatures: "Assinatura do funcionário",
+  employees: "Funcionário",
   entities: "Cadastro",
   entity_addresses: "Endereço do cadastro",
   entity_contacts: "Contato do cadastro",
+  entity_record_media: "Anexo do cadastro",
   entity_records: "Registro do cadastro",
-  inventory_items: "Item do estoque",
-  inventory_movements: "Movimentação de estoque",
+  entity_supplier_items: "Item do fornecedor",
+  equipment_brands: "Marca de equipamento",
+  equipment_checklist_items: "Item de checklist do equipamento",
+  equipment_models: "Modelo de equipamento",
+  equipment_type_technical_fields: "Campo técnico do equipamento",
+  equipment_types: "Tipo de equipamento",
+  filter_options: "Opção de filtro",
+  filters: "Filtro",
+  financial_accounts: "Conta financeira",
+  financial_allocations: "Rateio financeiro",
+  financial_approvals: "Aprovação financeira",
+  financial_attachments: "Anexo financeiro",
+  financial_cash_sessions: "Sessão de caixa",
+  financial_categories: "Categoria financeira",
+  financial_collection_logs: "Registro de cobrança",
+  financial_cost_centers: "Centro de custo",
   financial_entries: "Lançamento financeiro",
+  financial_events: "Evento financeiro",
+  financial_installments: "Parcela financeira",
+  financial_movements: "Movimentação financeira",
+  financial_payment_methods: "Forma de pagamento",
+  financial_recurring_rules: "Regra de recorrência",
+  financial_settings: "Configuração financeira",
   financial_settlements: "Baixa financeira",
   financial_transfers: "Transferência financeira",
-  appointments: "Agendamento",
-  employees: "Funcionário",
-  roles: "Função",
-  user_permission_overrides: "Permissão individual",
-  services: "Serviço do site",
+  general_services: "Serviço",
+  inventory_items: "Item do estoque",
+  inventory_movements: "Movimentação de estoque",
+  media: "Arquivo",
+  navigation_items: "Item de navegação",
+  order_statuses: "Status da OS",
+  organization_company_settings: "Dados da empresa",
+  organization_members: "Usuário da empresa",
+  organization_modules: "Módulo da empresa",
+  os_situations: "Situação da OS",
+  print_template_sections: "Seção do modelo de impressão",
+  print_templates: "Modelo de impressão",
+  product_categories: "Categoria de produto",
   products: "Produto",
-  brands: "Marca",
+  quote_request_items: "Item do orçamento",
+  quote_requests: "Orçamento",
+  quote_status_history: "Histórico do orçamento",
+  request_statuses: "Status do orçamento",
+  roles: "Função",
+  role_permissions: "Permissão da função",
+  service_categories: "Categoria de serviço",
+  service_exclusions: "Item não incluso",
+  service_faqs: "Pergunta frequente",
+  service_filter_options: "Filtro do serviço",
+  service_inclusions: "Item incluso",
+  service_order_checklist_events: "Evento do checklist da OS",
+  service_order_checklist_item_media: "Foto do checklist",
+  service_order_checklist_items: "Item do checklist",
+  service_order_checklist_stages: "Etapa do checklist",
+  service_order_checklists: "Checklist da OS",
+  service_order_history_notes: "Histórico da OS",
+  service_order_items: "Item da OS",
+  service_order_media: "Imagem da OS",
+  service_order_notes: "Observação da OS",
+  service_order_part_custody_events: "Movimentação de peça",
+  service_order_part_request_items: "Item do pedido de peças",
+  service_order_part_requests: "Pedido de peças",
+  service_order_part_test_events: "Teste de peça",
+  service_order_sellers: "Vendedor da OS",
+  service_order_situation_media: "Anexo da situação",
+  service_order_situation_visits: "Histórico de situação",
+  service_order_solution_attempts: "Solução da OS",
+  service_order_status_history: "Histórico de status",
+  service_order_technical_values: "Campo técnico da OS",
+  service_order_technicians: "Técnico da OS",
+  service_order_used_items: "Peça utilizada",
+  service_orders: "Ordem de Serviço",
+  service_price_factors: "Fator de preço",
+  service_sections: "Seção do serviço",
+  service_type_situations: "SLA do tipo de atendimento",
+  service_types: "Tipo de atendimento",
+  service_variants: "Variação do serviço",
+  services: "Serviço do site",
+  site_page_sections: "Seção da página",
+  site_pages: "Página do site",
+  site_settings: "Configuração do site",
+  technical_fields: "Campo técnico",
+  user_permission_overrides: "Permissão individual",
 };
 
 const FIELD_LABELS: Record<string, string> = {
-  full_name: "Nome",
-  name: "Nome",
-  title: "Título",
-  description: "Descrição",
-  status: "Status",
-  situation_id: "Situação",
-  status_id: "Status",
+  access: "Acesso",
+  accessories: "Acessórios",
+  account_number: "Número da conta",
+  account_type: "Tipo de conta",
+  action: "Ação",
+  actor_type: "Tipo de responsável",
+  actor_user_id: "Usuário",
+  address_source: "Origem do endereço",
+  agency: "Agência",
+  allocation_mode: "Forma de rateio",
+  allow_na: "Permitir N/A",
+  allow_na_snapshot: "Permitir N/A",
+  allow_online_signature: "Permitir assinatura online",
+  approved_at: "Aprovado em",
+  approved_quantity: "Quantidade aprovada",
+  approval_order: "Ordem de aprovação",
+  approval_status: "Status da aprovação",
+  approver_name_snapshot: "Aprovador",
   assigned_to: "Responsável",
-  technician_id: "Técnico",
-  seller_id: "Vendedor",
-  service_type_id: "Tipo de atendimento",
-  service_id: "Serviço",
-  customer_id: "Cliente",
-  estimated_price: "Valor estimado",
-  service_price: "Valor do serviço",
-  parts_total: "Total de peças",
-  subtotal: "Subtotal",
-  discount_percentage: "Desconto (%)",
-  discount_amount: "Desconto",
-  final_total: "Total final",
+  attachment_type: "Tipo de anexo",
+  attachment_type_id: "Tipo de anexo",
+  author_id: "Autor",
+  bank_name: "Banco",
+  birth_date: "Data de nascimento",
+  brand_id: "Marca",
+  cancelled_at: "Cancelado em",
+  cancelled_by: "Cancelado por",
+  cancellation_reason: "Motivo do cancelamento",
+  category_id: "Categoria",
+  changed_by: "Alterado por",
+  checklist_id: "Checklist",
+  checklist_profile_id: "Perfil de checklist",
+  city: "Cidade",
+  color: "Cor",
+  complement: "Complemento",
+  completed_at: "Concluído em",
+  completed_by: "Concluído por",
+  content: "Conteúdo",
+  counterpart_entity_id: "Favorecido / fornecedor",
+  counterpart_name_snapshot: "Favorecido / fornecedor",
+  created_by: "Criado por",
+  customer_address_id: "Endereço",
+  customer_equipment_id: "Equipamento",
+  customer_id: "Cadastro",
+  customer_notes: "Descrição do problema",
+  delivered_by: "Entregue por",
+  description: "Descrição",
+  description_snapshot: "Descrição",
   diagnosis: "Diagnóstico",
-  solution: "Solução",
+  discount_amount: "Desconto",
+  discount_percentage: "Desconto (%)",
+  document: "Documento",
+  due_date: "Vencimento",
+  email: "E-mail",
+  employee_entity_id: "Funcionário",
+  employee_id: "Funcionário",
+  equipment_brand_id: "Marca do equipamento",
+  equipment_condition: "Condição do equipamento",
+  equipment_model_id: "Modelo do equipamento",
+  equipment_type_id: "Tipo de equipamento",
+  estimated_price: "Valor estimado",
+  event_type: "Evento",
+  external_os_number: "OS Externa",
+  field_key: "Campo",
+  field_type: "Tipo do campo",
+  file_name: "Arquivo",
+  final_total: "Total final",
+  financial_account_id: "Conta financeira",
+  financial_entry_id: "Lançamento financeiro",
+  financial_installment_id: "Parcela",
+  forecast_days: "Previsão",
+  foundation_date: "Data de fundação",
+  from_status_id: "Status anterior",
+  full_name: "Nome",
+  general_service_id: "Serviço",
+  icon: "Ícone",
+  input_quantity: "Quantidade informada",
+  input_unit: "Unidade informada",
   internal_notes: "Observações internas",
-  customer_notes: "Observações do cliente",
-  response_code: "Resposta",
-  response_text: "Resposta",
-  response_number: "Resposta numérica",
-  observation: "Observação",
-  quantity: "Quantidade",
-  sale_price: "Valor de venda",
-  purchase_price: "Valor de compra",
+  inventory_item_id: "Item do estoque",
   is_active: "Ativo",
+  is_enabled: "Habilitado",
+  is_featured: "Destaque",
+  is_final: "Final",
+  is_primary: "Principal",
+  is_required: "Obrigatório",
+  label: "Nome",
+  legal_name: "Razão social",
+  loose_parts: "Peças avulsas",
+  media_id: "Arquivo",
+  min_quantity: "Estoque mínimo",
+  municipal_registration: "Inscrição municipal",
+  name: "Nome",
+  neighborhood: "Bairro",
+  note: "Observação",
+  notes: "Observações",
+  number: "Número",
+  observation: "Observação",
+  occurred_at: "Data da movimentação",
+  opening_balance_configured_by: "Saldo inicial configurado por",
+  order_type: "Tipo da OS",
+  original_amount: "Valor original",
+  parent_category_id: "Categoria superior",
+  payment_method_id: "Forma de pagamento",
+  percentage: "Percentual",
+  percentage_fee: "Taxa percentual",
+  phone: "Telefone",
+  photo_requirement: "Exigência de foto",
+  priority: "Prioridade",
+  product_id: "Produto",
+  profile_id: "Usuário",
+  purchase_price: "Valor de compra",
+  quantity: "Quantidade",
+  quote_request_id: "Orçamento",
+  record_type: "Tipo de registro",
+  reference: "Referência",
+  request_id: "Solicitação",
+  requested_by: "Solicitado por",
+  response_code: "Resposta",
+  response_number: "Resposta numérica",
+  response_text: "Resposta",
+  response_type: "Tipo de resposta",
+  review_notes: "Observação da análise",
+  reviewed_by: "Analisado por",
+  reversed_at: "Estornado em",
+  reversed_by: "Estornado por",
+  reversal_reason: "Motivo do estorno",
   role_id: "Função",
-  organization_id: "Empresa",
+  sale_price: "Valor de venda",
+  scheduled_at: "Agendado para",
+  section_id: "Seção",
+  section_type: "Tipo de seção",
+  seller_id: "Vendedores",
+  serial_number: "Número de série",
+  service_customer_address_id: "Endereço do atendimento",
+  service_id: "Serviço",
+  service_order_id: "Ordem de Serviço",
+  service_price: "Valor do serviço",
+  service_type_id: "Tipo de atendimento",
+  short_description: "Descrição curta",
+  situation_id: "Situação",
+  situation_name_snapshot: "Situação",
+  sku: "SKU",
+  solution: "Solução",
+  solved_at: "Solucionado em",
+  solved_by: "Solucionado por",
+  sort_order: "Ordem",
+  stage_id: "Etapa",
+  state: "Estado",
+  state_registration: "Inscrição estadual",
+  status: "Status",
+  status_id: "Status",
+  storage_path: "Arquivo",
+  street: "Rua",
+  subtotal: "Subtotal",
+  technical_field_id: "Campo técnico",
+  technician_id: "Técnicos",
+  title: "Título",
+  title_snapshot: "Título",
+  to_status_id: "Novo status",
+  trade_name: "Nome fantasia",
+  unit: "Unidade",
+  unit_cost: "Custo unitário",
+  unit_price: "Valor unitário",
+  unit_sale_price: "Valor unitário",
+  updated_by: "Alterado por",
+  uploaded_by: "Enviado por",
+  user_id: "Usuário",
+  value_number: "Valor",
+  value_text: "Valor",
+  version: "Versão",
+  visible_to_customer: "Visível para o cliente",
+  whatsapp: "WhatsApp",
+  zip_code: "CEP",
 };
+
+const TABLE_FIELD_LABELS: Record<string, Record<string, string>> = {
+  service_orders: {
+    customer_id: "Cadastro",
+    technician_id: "Técnicos",
+    seller_id: "Vendedores",
+    general_service_id: "Serviço",
+    service_type_id: "Tipo de atendimento",
+    situation_id: "Situação",
+    status_id: "Status",
+    customer_notes: "Descrição do problema",
+    internal_notes: "Observações internas",
+    external_os_number: "OS Externa",
+    service_state: "Estado",
+    service_city: "Cidade",
+    service_street: "Rua",
+    service_zip_code: "CEP",
+    service_neighborhood: "Bairro",
+    service_number: "Número",
+    service_complement: "Complemento",
+  },
+  appointments: {
+    customer_id: "Cadastro",
+    situation_id: "Situação",
+    service_order_id: "Ordem de Serviço",
+    description: "Descrição",
+  },
+  financial_entries: {
+    counterpart_entity_id: "Favorecido / fornecedor",
+    counterpart_name_snapshot: "Favorecido / fornecedor",
+    original_amount: "Valor",
+  },
+  inventory_items: {
+    min_quantity: "Estoque mínimo",
+    quantity: "Quantidade em estoque",
+  },
+};
+
+const HIDDEN_DETAIL_FIELDS = new Set([
+  "id",
+  "organization_id",
+  "source_artvideo_id",
+  "legacy_customer_id",
+  "legacy_employee_id",
+  "legacy_customer_address_id",
+  "created_at",
+  "updated_at",
+]);
 
 const MODULE_OPTIONS = [
   { value: "", label: "Todos os módulos" },
@@ -145,16 +406,54 @@ function operationTone(operation: AuditLogEntry["operation"]) {
   return "border-blue-200 bg-blue-50 text-blue-700";
 }
 
-function humanizeKey(value: string) {
-  return FIELD_LABELS[value] || value
+function humanizeKey(value: string, tableName?: string | null) {
+  const tableLabel = tableName ? TABLE_FIELD_LABELS[tableName]?.[value] : undefined;
+  return tableLabel || FIELD_LABELS[value] || value
+    .replace(/_snapshot$/, "")
     .replace(/_id$/, "")
     .replace(/_/g, " ")
     .replace(/^./, char => char.toUpperCase());
 }
 
-function displayValue(value: unknown) {
+function formatAuditValue(value: unknown, field?: string) {
   if (value === null || value === undefined || value === "") return "Não informado";
   if (typeof value === "boolean") return value ? "Sim" : "Não";
+  if (typeof value === "number") {
+    if (field && /(price|amount|total|balance|cost|fee)$/i.test(field)) {
+      return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+    }
+    if (field && /(percentage|percentual)$/i.test(field)) return `${value}%`;
+    return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 4 }).format(value);
+  }
+  if (typeof value === "string") {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+      return "Registro relacionado";
+    }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) return formatDateTime(value);
+    }
+    const normalized = value.toLowerCase();
+    const labels: Record<string, string> = {
+      active: "Ativo",
+      inactive: "Inativo",
+      pending: "Pendente",
+      approved: "Aprovado",
+      rejected: "Rejeitado",
+      cancelled: "Cancelado",
+      completed: "Concluído",
+      in_progress: "Em andamento",
+      receivable: "A receber",
+      payable: "A pagar",
+      yes: "Sim",
+      no: "Não",
+      confirmed: "Confirmado",
+      ok: "Conforme",
+      not_ok: "Não conforme",
+      na: "N/A",
+    };
+    return labels[normalized] || value;
+  }
   if (typeof value === "object") {
     try { return JSON.stringify(value); } catch { return String(value); }
   }
@@ -162,7 +461,15 @@ function displayValue(value: unknown) {
 }
 
 function changedFieldEntries(entry: AuditLogEntry) {
-  return Object.entries(entry.changed_fields || {});
+  return Object.entries(entry.resolved_changed_fields || entry.changed_fields || {}) as Array<[
+    string,
+    { before?: unknown; after?: unknown },
+  ]>;
+}
+
+function visibleSnapshotEntries(entry: AuditLogEntry) {
+  return Object.entries(entry.resolved_row_snapshot || entry.row_snapshot || {})
+    .filter(([field, value]) => !HIDDEN_DETAIL_FIELDS.has(field) && value !== null && value !== undefined && value !== "");
 }
 
 function summary(entry: AuditLogEntry) {
@@ -170,7 +477,7 @@ function summary(entry: AuditLogEntry) {
   if (entry.operation === "delete") return "Registro excluído";
   const changes = changedFieldEntries(entry);
   if (!changes.length) return "Registro alterado";
-  if (changes.length === 1) return humanizeKey(changes[0][0]);
+  if (changes.length === 1) return humanizeKey(changes[0][0], entry.table_name);
   return `${changes.length} campos alterados`;
 }
 
@@ -385,7 +692,7 @@ export function TabAuditLog() {
 function AuditDetailsDialog({ entry, onClose }: { entry: AuditLogEntry | null; onClose: () => void }) {
   if (!entry) return null;
   const changes = changedFieldEntries(entry);
-  const snapshot = Object.entries(entry.row_snapshot || {});
+  const snapshot = visibleSnapshotEntries(entry);
 
   return (
     <AdminDialog
@@ -409,14 +716,14 @@ function AuditDetailsDialog({ entry, onClose }: { entry: AuditLogEntry | null; o
             <div className="divide-y divide-[#0d1b2e]/8 overflow-hidden rounded-xl border border-[#0d1b2e]/8">
               {changes.map(([field, value]) => (
                 <div key={field} className="grid gap-2 bg-white p-3 sm:grid-cols-[150px_1fr_1fr]">
-                  <p className="text-xs font-black text-[#0d1b2e]">{humanizeKey(field)}</p>
+                  <p className="text-xs font-black text-[#0d1b2e]">{humanizeKey(field, entry.table_name)}</p>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-wider text-[#8a96a8]">Antes</p>
-                    <p className="mt-1 break-words text-xs font-semibold text-[#52647c]">{displayValue(value?.before)}</p>
+                    <p className="mt-1 break-words text-xs font-semibold text-[#52647c]">{formatAuditValue(value?.before, field)}</p>
                   </div>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-wider text-[#8a96a8]">Depois</p>
-                    <p className="mt-1 break-words text-xs font-semibold text-[#0d1b2e]">{displayValue(value?.after)}</p>
+                    <p className="mt-1 break-words text-xs font-semibold text-[#0d1b2e]">{formatAuditValue(value?.after, field)}</p>
                   </div>
                 </div>
               ))}
@@ -429,7 +736,7 @@ function AuditDetailsDialog({ entry, onClose }: { entry: AuditLogEntry | null; o
             <h3 className="mb-2 text-sm font-black text-[#0d1b2e]">{entry.operation === "delete" ? "Dados excluídos" : "Dados criados"}</h3>
             <div className="grid gap-x-4 gap-y-3 rounded-xl border border-[#0d1b2e]/8 bg-white p-4 sm:grid-cols-2">
               {snapshot.map(([field, value]) => (
-                <Detail key={field} label={humanizeKey(field)} value={displayValue(value)} />
+                <Detail key={field} label={humanizeKey(field, entry.table_name)} value={formatAuditValue(value, field)} />
               ))}
             </div>
           </div>
