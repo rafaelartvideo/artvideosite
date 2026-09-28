@@ -6,8 +6,9 @@ import {
   applyCnpjData,
   customerPayload,
   emptyCustomerForm,
+  type CustomerFieldErrors,
   type CustomerForm,
-  validateCustomerForm,
+  validateCustomerFormFields,
 } from "@/features/customers/domain/customer-form";
 import { AdminButton, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
@@ -21,19 +22,42 @@ import {
 } from "@/shared/ui/admin/AdminFormControls";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
 import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
-import { isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
+import { isValidCnpj, isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
 import {
   createQuickCustomer,
   createQuickCustomerAddress,
+  findQuickCustomerByTaxId,
   updateOrderCustomer,
 } from "../infrastructure/orders-customer.repository";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 import { QuickCustomerAddressesEditor, newQuickCustomerAddress } from "./QuickCustomerAddressesEditor";
 
 const hasAddressData = (address: Address) => Boolean(
   address.zip_code || address.street || address.number || address.complement ||
   address.neighborhood || address.city || address.state || address.reference || address.shared_map_url,
 );
+
+
+function quickCustomerDisplayName(customer: any) {
+  return String(customer?.trade_name || customer?.full_name || customer?.legal_name || "").trim();
+}
+
+function quickCustomerErrorMessage(error: unknown, fallback: string) {
+  const message = supabaseErrorMessage(error).trim();
+  return message && message !== "[object Object]" ? message : fallback;
+}
+
+function duplicateTaxIdField(error: unknown): "document" | "cnpj" | null {
+  if (!error || typeof error !== "object") return null;
+  const value = error as { code?: string };
+  const message = supabaseErrorMessage(error).toLocaleLowerCase("pt-BR");
+  if (value.code !== "23505" && !message.includes("duplicate") && !message.includes("duplicad")) return null;
+  if (message.includes("cnpj")) return "cnpj";
+  if (message.includes("document")) return "document";
+  return null;
+}
 
 export function QuickCustomerModal({ onClose, onSaved }: {
   onClose: () => void;
@@ -44,11 +68,9 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   const [addresses, setAddresses] = useState<Address[]>(() => [newQuickCustomerAddress(true)]);
   const [createdCustomer, setCreatedCustomer] = useState<any>(null);
   const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<CustomerFieldErrors>({});
   const [cpfLoading, setCpfLoading] = useState(false);
-  const [cpfMessage, setCpfMessage] = useState("");
   const [cnpjLoading, setCnpjLoading] = useState(false);
-  const [cnpjMessage, setCnpjMessage] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
 
@@ -65,12 +87,41 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   };
   const endDrag = () => { dragRef.current = null; };
 
+
+  const clearFieldError = (field: keyof CustomerForm) => {
+    setFieldErrors(current => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const setFieldError = (field: keyof CustomerForm, message: string) => {
+    setFieldErrors(current => ({ ...current, [field]: message }));
+  };
+
+  const duplicateMessage = (type: "PF" | "PJ", customer: any) => {
+    const label = type === "PF" ? "CPF" : "CNPJ";
+    const name = quickCustomerDisplayName(customer);
+    return name
+      ? `${label} já cadastrado para ${name}. Use o cadastro existente.`
+      : `${label} já cadastrado. Use o cadastro existente.`;
+  };
+
   const save = async () => {
-    if (!activeOrganizationId) { setErrorMessage("Selecione uma empresa ativa antes de cadastrar o cliente."); return; }
-    const validationError = validateCustomerForm(form);
-    if (validationError) { setErrorMessage(validationError); return; }
+    if (!activeOrganizationId) {
+      notifyAdmin("Selecione uma empresa ativa antes de cadastrar o cliente.", "error");
+      return;
+    }
+
+    const validationErrors = validateCustomerFormFields(form);
+    setFieldErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) return;
+
     setSaving(true);
-    setErrorMessage("");
+    let savePhase: "customer" | "address" = "customer";
+
     try {
       const payload = customerPayload(form);
       let customer = createdCustomer;
@@ -81,12 +132,22 @@ export function QuickCustomerModal({ onClose, onSaved }: {
         customer = { ...customer, ...payload };
         setCreatedCustomer(customer);
       } else {
+        const taxIdValue = form.customerType === "PF" ? form.document : form.cnpj;
+        const duplicate = await findQuickCustomerByTaxId(activeOrganizationId, form.customerType, taxIdValue);
+        if (duplicate.error) throw duplicate.error;
+        if (duplicate.data) {
+          const field = form.customerType === "PF" ? "document" : "cnpj";
+          setFieldError(field, duplicateMessage(form.customerType, duplicate.data));
+          return;
+        }
+
         const { data, error } = await createQuickCustomer(activeOrganizationId, payload);
         if (error || !data) throw error || new Error("Cliente não foi cadastrado.");
         customer = data;
         setCreatedCustomer(data);
       }
 
+      savePhase = "address";
       const meaningfulAddresses = addresses.filter(hasAddressData);
       const defaultAddressId = meaningfulAddresses.find(address => address.is_default)?.id || meaningfulAddresses[0]?.id;
       const savedAddresses: Address[] = [];
@@ -116,33 +177,61 @@ export function QuickCustomerModal({ onClose, onSaved }: {
       onClose();
     } catch (error) {
       console.error("[ADMIN] quick customer save error:", error);
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-    } finally { setSaving(false); }
+      const duplicateField = duplicateTaxIdField(error);
+      if (duplicateField) {
+        setFieldError(
+          duplicateField,
+          duplicateField === "document"
+            ? "CPF já cadastrado. Use o cadastro existente."
+            : "CNPJ já cadastrado. Use o cadastro existente.",
+        );
+      } else {
+        const fallback = savePhase === "address"
+          ? "Cliente cadastrado, mas não foi possível salvar um dos endereços."
+          : "Não foi possível cadastrar o cliente.";
+        notifyAdmin(quickCustomerErrorMessage(error, fallback), "error");
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const lookupCpfName = async () => {
     if (!activeOrganizationId) {
-      setCpfMessage("Selecione uma empresa ativa antes de consultar o CPF.");
+      notifyAdmin("Selecione uma empresa ativa antes de consultar o CPF.", "error");
       return;
     }
     if (form.customerType !== "PF" || !isValidCpf(form.document)) {
-      setCpfMessage("Informe um CPF válido antes de consultar.");
+      setFieldError("document", "CPF inválido. Verifique os números informados.");
       return;
     }
+
     const requestedCpf = form.document.replace(/\D/g, "");
     setCpfLoading(true);
-    setCpfMessage("");
-    setErrorMessage("");
+    clearFieldError("document");
+
     try {
+      const duplicate = await findQuickCustomerByTaxId(activeOrganizationId, "PF", requestedCpf);
+      if (duplicate.error) throw duplicate.error;
+      if (duplicate.data) {
+        setFieldError("document", duplicateMessage("PF", duplicate.data));
+        return;
+      }
+
       const result = await lookupCpf(requestedCpf, activeOrganizationId);
       setForm(current => {
         if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
         return { ...current, full_name: result.name, birth_date: result.birthDate || current.birth_date };
       });
+      clearFieldError("full_name");
+      clearFieldError("birth_date");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível consultar o CPF.";
-      const existingMatch = message.match(/^Cadastro já existente:\s*(.+?)\.\s*Use o cadastro existente\.?$/i);
-      setCpfMessage(existingMatch ? `Cliente já cadastrado: ${existingMatch[1]}` : message);
+      const message = quickCustomerErrorMessage(error, "Não foi possível consultar o CPF.");
+      if (/cadastro já existente|cpf já cadastrado|cpf inválido|cpf não encontrado/i.test(message)) {
+        setFieldError("document", message.replace(/^Cadastro já existente:\s*/i, "CPF já cadastrado: "));
+      } else {
+        notifyAdmin(message, "error");
+      }
     } finally {
       setCpfLoading(false);
     }
@@ -150,9 +239,28 @@ export function QuickCustomerModal({ onClose, onSaved }: {
 
   const lookupCnpj = async (value: string, baseForm = form) => {
     const digits = value.replace(/\D/g, "");
-    if (digits.length !== 14 || form.customerType !== "PJ") return;
-    setCnpjLoading(true); setCnpjMessage("");
+    if (baseForm.customerType !== "PJ" || digits.length !== 14) return;
+
+    if (!isValidCnpj(value)) {
+      setFieldError("cnpj", "CNPJ inválido. Verifique os números informados.");
+      return;
+    }
+    if (!activeOrganizationId) {
+      notifyAdmin("Selecione uma empresa ativa antes de consultar o CNPJ.", "error");
+      return;
+    }
+
+    setCnpjLoading(true);
+    clearFieldError("cnpj");
+
     try {
+      const duplicate = await findQuickCustomerByTaxId(activeOrganizationId, "PJ", digits);
+      if (duplicate.error) throw duplicate.error;
+      if (duplicate.data) {
+        setFieldError("cnpj", duplicateMessage("PJ", duplicate.data));
+        return;
+      }
+
       const defaultIndex = Math.max(0, addresses.findIndex(address => address.is_default));
       const baseAddress = addresses[defaultIndex] || newQuickCustomerAddress(true);
       const data = await fetchCnpjData(digits);
@@ -164,9 +272,25 @@ export function QuickCustomerModal({ onClose, onSaved }: {
         next[index] = { ...next[index], ...result.address, id: next[index].id, is_default: true };
         return next;
       });
+      setFieldErrors(current => {
+        const next = { ...current };
+        delete next.trade_name;
+        delete next.foundation_date;
+        delete next.email;
+        delete next.phone;
+        delete next.whatsapp;
+        return next;
+      });
     } catch (error) {
-      setCnpjMessage(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
-    } finally { setCnpjLoading(false); }
+      const message = quickCustomerErrorMessage(error, "Não foi possível consultar o CNPJ.");
+      if (/cnpj não encontrado|cnpj inválido|cnpj já cadastrado|cadastro já existente/i.test(message)) {
+        setFieldError("cnpj", message);
+      } else {
+        notifyAdmin(message, "error");
+      }
+    } finally {
+      setCnpjLoading(false);
+    }
   };
 
   return (
@@ -193,34 +317,32 @@ export function QuickCustomerModal({ onClose, onSaved }: {
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-5">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-              <CustomerTypeToggle value={form.customerType} onChange={customerType => { setErrorMessage(""); setCpfMessage(""); setForm({ ...form, customerType }); }} />
+              <CustomerTypeToggle value={form.customerType} onChange={customerType => { setFieldErrors({}); setForm({ ...form, customerType }); }} />
 
               {form.customerType === "PF" ? <>
                 <div className="min-w-0">
                   <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-                    <FCpfInput label="CPF" required value={form.document} onChange={(e: any) => { setErrorMessage(""); setCpfMessage(""); setForm({ ...form, document: e.target.value }); }} />
+                    <FCpfInput label="CPF" required error={fieldErrors.document} value={form.document} onChange={(e: any) => { clearFieldError("document"); setForm({ ...form, document: e.target.value }); }} />
                     <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfName()} disabled={saving || !isValidCpf(form.document)} className="h-[42px] shrink-0 border-[#0057e7]/30 px-4 text-[#0057e7] hover:bg-[#0057e7]/5" aria-label="Consultar CPF" title="Consultar CPF">Consultar</AdminButton>
                   </div>
-                  {cpfMessage && <p className="mt-1.5 text-[11px] font-semibold leading-4 text-red-600">{cpfMessage}</p>}
                 </div>
-                <FInput label="Nome completo" required value={form.full_name} onChange={(e: any) => setForm({ ...form, full_name: e.target.value })} />
-                <FInput label="Data de nascimento" type="date" required value={form.birth_date} max={todayDateOnly()} onChange={(e: any) => setForm({ ...form, birth_date: e.target.value })} />
+                <FInput label="Nome completo" required error={fieldErrors.full_name} value={form.full_name} onChange={(e: any) => { clearFieldError("full_name"); setForm({ ...form, full_name: e.target.value }); }} />
+                <FInput label="Data de nascimento" type="date" required error={fieldErrors.birth_date} value={form.birth_date} max={todayDateOnly()} onChange={(e: any) => { clearFieldError("birth_date"); setForm({ ...form, birth_date: e.target.value }); }} />
               </> : <>
-                <FCnpjInput label="CNPJ" required value={form.cnpj} onBlur={(e: any) => lookupCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = e.target.value; setCnpjMessage(""); setForm({ ...form, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCnpj(nextCnpj, { ...form, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : cnpjMessage || undefined} />
-                <FInput label="Nome fantasia" required value={form.trade_name} onChange={(e: any) => setForm({ ...form, trade_name: e.target.value })} />
+                <FCnpjInput label="CNPJ" required error={fieldErrors.cnpj} value={form.cnpj} onBlur={(e: any) => void lookupCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = e.target.value; clearFieldError("cnpj"); setForm({ ...form, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCnpj(nextCnpj, { ...form, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : undefined} />
+                <FInput label="Nome fantasia" required error={fieldErrors.trade_name} value={form.trade_name} onChange={(e: any) => { clearFieldError("trade_name"); setForm({ ...form, trade_name: e.target.value }); }} />
                 <FInput label="Razão social" value={form.legal_name} onChange={(e: any) => setForm({ ...form, legal_name: e.target.value })} />
                 <FInput label="Inscrição estadual" value={form.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setForm({ ...form, state_registration: e.target.value })} />
-                <FBrazilianDateInput label="Fundação" value={form.foundation_date} onChange={(e: any) => setForm({ ...form, foundation_date: e.target.value })} />
+                <FBrazilianDateInput label="Fundação" error={fieldErrors.foundation_date} value={form.foundation_date} onChange={(e: any) => { clearFieldError("foundation_date"); setForm({ ...form, foundation_date: e.target.value }); }} />
               </>}
 
-              <FEmailInput label="E-mail" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} />
-              <FPhoneInput label="Telefone" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />
-              <FPhoneInput label="WhatsApp" required mobile value={form.whatsapp} onChange={(e: any) => setForm({ ...form, whatsapp: e.target.value })} />
+              <FEmailInput label="E-mail" error={fieldErrors.email} value={form.email} onChange={(e: any) => { clearFieldError("email"); setForm({ ...form, email: e.target.value }); }} />
+              <FPhoneInput label="Telefone" error={fieldErrors.phone} value={form.phone} onChange={(e: any) => { clearFieldError("phone"); clearFieldError("whatsapp"); setForm({ ...form, phone: e.target.value }); }} />
+              <FPhoneInput label="WhatsApp" required mobile error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(e: any) => { clearFieldError("whatsapp"); setForm({ ...form, whatsapp: e.target.value }); }} />
             </div>
 
             <QuickCustomerAddressesEditor value={addresses} onChange={setAddresses} disabled={saving} />
 
-            {errorMessage && <p className="text-xs font-semibold leading-5 text-red-600">{errorMessage}</p>}
           </div>
 
           <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#0d1b2e]/10 bg-white px-3 py-3 sm:flex-row sm:justify-end sm:px-5">
