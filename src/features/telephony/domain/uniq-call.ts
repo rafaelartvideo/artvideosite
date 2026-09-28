@@ -1,5 +1,3 @@
-export { ARTVIDEO_ORGANIZATION_ID } from "@/lib/organization.constants";
-
 export type UniqCallDirection = "INGRESS" | "EGRESS" | string;
 export type UniqCallState = "ESTABLISHED" | "RELEASED" | string;
 
