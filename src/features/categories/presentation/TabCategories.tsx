@@ -33,6 +33,7 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [form, setForm] = useState({ name: "", is_active: true, sort_order: "0" });
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; sort_order?: string }>({});
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -43,8 +44,8 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
   const pagedCats = cats.slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.categories() })]);
-  const openNew = () => { if (!canCreate) return; setForm({ name: "", is_active: true, sort_order: "0" }); setEditItem(null); setDrawerOpen(true); };
-  const openEdit = (c: any) => { if (!(canViewDetails && canEdit)) return; setForm({ name: c.name || "", is_active: c.is_active ?? true, sort_order: String(c.sort_order ?? 0) }); setEditItem(c); setDrawerOpen(true); };
+  const openNew = () => { if (!canCreate) return; setFieldErrors({}); setForm({ name: "", is_active: true, sort_order: "0" }); setEditItem(null); setDrawerOpen(true); };
+  const openEdit = (c: any) => { if (!(canViewDetails && canEdit)) return; setFieldErrors({}); setForm({ name: c.name || "", is_active: c.is_active ?? true, sort_order: String(c.sort_order ?? 0) }); setEditItem(c); setDrawerOpen(true); };
   const closeEditor = () => { if (saving) return; setDrawerOpen(false); onRouteChange?.(null, null); };
   const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (item: any) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item));
@@ -58,9 +59,12 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
 
   const handleSave = async () => {
     if (!(editItem ? canEdit : canCreate)) return;
-    if (!form.name.trim()) { setToast({ msg: "Nome obrigatório.", type: "error" }); return; }
     const sortOrder = Number(form.sort_order);
-    if (!Number.isInteger(sortOrder) || sortOrder < 0) { setToast({ msg: "A ordem deve ser um número inteiro e não negativo.", type: "error" }); return; }
+    const nextErrors: typeof fieldErrors = {};
+    if (!form.name.trim()) nextErrors.name = "Nome obrigatório.";
+    if (!Number.isInteger(sortOrder) || sortOrder < 0) nextErrors.sort_order = "A ordem deve ser um número inteiro e não negativo.";
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     setSaving(true);
     try {
       const finalSlug = await generateUniqueSlug("service_categories", form.name, editItem?.id);
@@ -80,6 +84,6 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
       {canViewTable && <AdminCard>{loading ? <LoadingState /> : cats.length === 0 ? <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={canCreate ? openNewPage : undefined} addLabel="Nova categoria" /> : <><div className="overflow-x-auto"><table className="min-w-[560px]"><thead><tr>{showName && <th className="text-left">Nome</th>}{showSortOrder && <th className="text-left">Ordem</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedCats.map(c => <tr key={c.id}>{showName && <td className="font-bold text-[#0d1b2e]">{c.name}</td>}{showSortOrder && <td className="text-xs text-[#5a6a82]">{c.sort_order}</td>}{showStatus && <td><StatusBadge status={c.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar categoria" title="Editar" onClick={() => openEditPage(c)}><Edit2 size={15} /></AdminIconButton>}{canDelete && <AdminIconButton ariaLabel="Excluir categoria" title="Excluir" variant="danger" onClick={() => setDelId(c.id)}><Trash2 size={15} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={c.is_active} entityLabel="categoria" onClick={() => void toggleActive(c)} />}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={cats.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} /></>}</AdminCard>}
     </>}
     {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
-    <AdminPage open={drawerOpen} onClose={closeEditor} breadcrumb="Categorias" title={editItem ? "Editar categoria" : "Nova categoria"} maxW="max-w-lg"><div className="space-y-4 p-4 sm:p-5"><Section title="Informações"><FInput label="Nome" value={form.name} required onChange={(e: any) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Ar-condicionado" /></Section><Section title="Publicação"><div className="space-y-4"><FToggle label="Categoria ativa" description="Categorias inativas ficam ocultas nos filtros do site." checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} /><FIntegerInput label="Ordem" value={form.sort_order} onChange={(e: any) => setForm({ ...form, sort_order: e.target.value })} /></div></Section></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div></AdminPage>
+    <AdminPage open={drawerOpen} onClose={closeEditor} breadcrumb="Categorias" title={editItem ? "Editar categoria" : "Nova categoria"} maxW="max-w-lg"><div className="space-y-4 p-4 sm:p-5"><Section title="Informações"><FInput label="Nome" value={form.name} required error={fieldErrors.name} onChange={(e: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm({ ...form, name: e.target.value }); }} placeholder="Ex: Ar-condicionado" /></Section><Section title="Publicação"><div className="space-y-4"><FToggle label="Categoria ativa" description="Categorias inativas ficam ocultas nos filtros do site." checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} /><FIntegerInput label="Ordem" value={form.sort_order} error={fieldErrors.sort_order} onChange={(e: any) => { setFieldErrors(current => ({ ...current, sort_order: undefined })); setForm({ ...form, sort_order: e.target.value }); }} /></div></Section></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div></AdminPage>
   </div>;
 }

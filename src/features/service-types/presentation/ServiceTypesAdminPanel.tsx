@@ -51,6 +51,7 @@ function ServiceTypesAdminPanelContent({ routeResourceId, routeSubpage, onRouteC
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true, selectedSituations: [] as Array<{ situation_id: string; use_default_hours: boolean; sla_hours: string }> });
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string; forecast_days?: string; situations?: string; sla?: Record<string, string> }>({});
   const [saving, setSaving] = useState(false);
   const [delId, setDelId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -64,10 +65,11 @@ function ServiceTypesAdminPanelContent({ routeResourceId, routeSubpage, onRouteC
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.serviceTypes.all });
 
-  const openNew = () => { if (!canCreate) return; setEditItem(null); setForm({ title: "", description: "", forecast_days: "", is_active: true, selectedSituations: [] }); setFormOpen(true); };
+  const openNew = () => { if (!canCreate) return; setEditItem(null); setFieldErrors({}); setForm({ title: "", description: "", forecast_days: "", is_active: true, selectedSituations: [] }); setFormOpen(true); };
   const openEdit = (item: any) => {
     if (!(canViewDetails && canEdit)) return;
     setEditItem(item);
+    setFieldErrors({});
     const links = situationLinks.filter(link => link.service_type_id === item.id);
     setForm({ title: item.title || "", description: item.description || "", forecast_days: item.forecast_days == null ? "" : String(item.forecast_days), is_active: item.is_active !== false, selectedSituations: links.map(link => ({ situation_id: link.situation_id, use_default_hours: link.use_default_hours !== false, sla_hours: link.sla_hours == null ? "" : String(link.sla_hours) })) });
     setFormOpen(true);
@@ -86,16 +88,33 @@ function ServiceTypesAdminPanelContent({ routeResourceId, routeSubpage, onRouteC
 
   const save = async () => {
     if (!(editItem ? canEdit : canCreate)) return;
-    if (!form.title.trim()) { setToast({ msg: "Informe o título do tipo de atendimento.", type: "error" }); return; }
+
+    const nextErrors: typeof fieldErrors = {};
     const forecastDays = form.forecast_days === "" ? null : Number(form.forecast_days);
-    if (forecastDays !== null && (!Number.isInteger(forecastDays) || forecastDays < 0)) { setToast({ msg: "A previsão deve ser informada em dias inteiros e não negativos.", type: "error" }); return; }
-    const selectedSituations = [...form.selectedSituations].sort((left, right) => situations.findIndex(item => item.id === left.situation_id) - situations.findIndex(item => item.id === right.situation_id));
-    if (selectedSituations.length === 0) { setToast({ msg: "Selecione pelo menos uma situação para o tipo de atendimento.", type: "error" }); return; }
+    if (!form.title.trim()) nextErrors.title = "Informe o título do tipo de atendimento.";
+    if (forecastDays !== null && (!Number.isInteger(forecastDays) || forecastDays < 0)) {
+      nextErrors.forecast_days = "A previsão deve ser informada em dias inteiros e não negativos.";
+    }
+
+    const selectedSituations = [...form.selectedSituations].sort(
+      (left, right) => situations.findIndex(item => item.id === left.situation_id) - situations.findIndex(item => item.id === right.situation_id),
+    );
+    if (selectedSituations.length === 0) nextErrors.situations = "Selecione pelo menos uma situação para o tipo de atendimento.";
+
+    const slaErrors: Record<string, string> = {};
     for (const selected of selectedSituations) {
       const situation = situations.find(item => item.id === selected.situation_id);
-      if (selected.use_default_hours) { const hours = Number(situation?.hours); if (!Number.isFinite(hours) || hours <= 0) { setToast({ msg: "Uma das situações selecionadas não possui horas padrão.", type: "error" }); return; } }
-      else { const hours = Number(selected.sla_hours); if (!Number.isFinite(hours) || hours <= 0) { setToast({ msg: "Informe um novo prazo válido para todas as situações personalizadas.", type: "error" }); return; } }
+      if (selected.use_default_hours) {
+        const hours = Number(situation?.hours);
+        if (!Number.isFinite(hours) || hours <= 0) slaErrors[selected.situation_id] = "Esta situação não possui horas padrão. Defina um novo prazo.";
+      } else {
+        const hours = Number(selected.sla_hours);
+        if (!Number.isFinite(hours) || hours <= 0) slaErrors[selected.situation_id] = "Informe um prazo válido maior que zero.";
+      }
     }
+    if (Object.keys(slaErrors).length) nextErrors.sla = slaErrors;
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     setSaving(true);
     try {
       await saveServiceType({ serviceTypeId: editItem?.id, payload: { title: form.title.trim(), description: form.description.trim() || null, forecast_days: forecastDays, is_active: form.is_active }, sortOrder: items.length, selectedSituations });
@@ -116,8 +135,8 @@ function ServiceTypesAdminPanelContent({ routeResourceId, routeSubpage, onRouteC
     {routeResourceId && !formOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
     <AdminPage open={formOpen} onClose={closeForm} breadcrumb="Operação > Tipos de Atendimento" title={editItem ? "Editar tipo de atendimento" : "Novo tipo de atendimento"} subtitle="Preencha os dados do tipo" maxW="max-w-xl">
       <div className="space-y-5 p-5">
-        <AdminCard className="p-5 shadow-none"><div className="grid gap-4 md:grid-cols-2"><FInput label="Título" required disabled={saving} value={form.title} onChange={(e: any) => setForm({ ...form, title: e.target.value })} /><FIntegerInput label="Previsão em dias" disabled={saving} value={form.forecast_days} onChange={(e: any) => setForm({ ...form, forecast_days: e.target.value })} /><div className="md:col-span-2"><FTextarea label="Descrição" disabled={saving} value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} /></div></div></AdminCard>
-        <AdminCard className={canManageSla ? "p-5 shadow-none" : "p-5 opacity-60 shadow-none"}><div className="mb-4"><p className="text-sm font-bold text-[#0d1b2e]">Situações e SLA</p><p className="mt-1 break-words text-xs leading-relaxed text-[#5a6a82]">Selecione as situações permitidas e configure o prazo máximo de cada etapa.</p>{!canManageSla && <p className="mt-1 text-xs font-semibold text-amber-700">Sem permissão para alterar o SLA.</p>}</div><div className="columns-1 gap-3 sm:columns-2">{situations.map(situation => { const selected = form.selectedSituations.find(item => item.situation_id === situation.id); const defaultHours = Number(situation.hours); const hasDefaultHours = Number.isFinite(defaultHours) && defaultHours > 0; return <AdminCard key={situation.id} className="mb-3 w-full break-inside-avoid bg-[#f8fafc] p-3 shadow-none"><label className="flex cursor-default items-center gap-2 text-sm font-semibold text-[#0d1b2e]"><Checkbox disabled={!canManageSla || saving} checked={Boolean(selected)} onCheckedChange={checked => canManageSla && !saving && setForm(current => ({ ...current, selectedSituations: checked === true ? [...current.selectedSituations, { situation_id: situation.id, use_default_hours: hasDefaultHours, sla_hours: "" }] : current.selectedSituations.filter(item => item.situation_id !== situation.id) }))} /><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><span className="min-w-0 break-words">{situation.name}</span>{hasDefaultHours && <span className="text-xs font-normal text-[#5a6a82]">({formatDurationHours(defaultHours)})</span>}</label>{!hasDefaultHours && <p className="ml-6 mt-1 break-words text-xs text-amber-700">Esta situação não possui horas padrão</p>}{selected && <div className="ml-6 mt-3 space-y-2 text-xs text-[#0d1b2e]"><p className="font-bold">Horas:</p><RadioGroup disabled={!canManageSla || saving} value={selected.use_default_hours ? "default" : "custom"} onValueChange={value => canManageSla && !saving && setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: value === "default", ...(value === "default" ? { sla_hours: "" } : {}) } : item) }))} className="gap-2"><label className="flex cursor-default items-center gap-2"><RadioGroupItem value="default" disabled={!hasDefaultHours || !canManageSla || saving} /> Manter padrão ({hasDefaultHours ? formatDurationHours(defaultHours) : "—"})</label><label className="flex cursor-default items-center gap-2"><RadioGroupItem value="custom" disabled={!canManageSla || saving} /> Definir novo prazo</label></RadioGroup>{!selected.use_default_hours && <FHoursInput label="Prazo em horas" placeholder="00:00" disabled={!canManageSla || saving} value={selected.sla_hours} onChange={(e: any) => canManageSla && !saving && setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}</div>}</AdminCard>; })}</div></AdminCard>
+        <AdminCard className="p-5 shadow-none"><div className="grid gap-4 md:grid-cols-2"><FInput label="Título" required disabled={saving} error={fieldErrors.title} value={form.title} onChange={(e: any) => { setFieldErrors(current => ({ ...current, title: undefined })); setForm({ ...form, title: e.target.value }); }} /><FIntegerInput label="Previsão em dias" disabled={saving} error={fieldErrors.forecast_days} value={form.forecast_days} onChange={(e: any) => { setFieldErrors(current => ({ ...current, forecast_days: undefined })); setForm({ ...form, forecast_days: e.target.value }); }} /><div className="md:col-span-2"><FTextarea label="Descrição" disabled={saving} value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} rows={3} /></div></div></AdminCard>
+        <AdminCard className={canManageSla ? "p-5 shadow-none" : "p-5 opacity-60 shadow-none"}><div className="mb-4"><p className="text-sm font-bold text-[#0d1b2e]">Situações e SLA</p><p className="mt-1 break-words text-xs leading-relaxed text-[#5a6a82]">Selecione as situações permitidas e configure o prazo máximo de cada etapa.</p>{!canManageSla && <p className="mt-1 text-xs font-semibold text-amber-700">Sem permissão para alterar o SLA.</p>}{fieldErrors.situations && <p className="mt-2 text-[11px] font-semibold text-red-600">{fieldErrors.situations}</p>}</div><div className="columns-1 gap-3 sm:columns-2">{situations.map(situation => { const selected = form.selectedSituations.find(item => item.situation_id === situation.id); const defaultHours = Number(situation.hours); const hasDefaultHours = Number.isFinite(defaultHours) && defaultHours > 0; return <AdminCard key={situation.id} className="mb-3 w-full break-inside-avoid bg-[#f8fafc] p-3 shadow-none"><label className="flex cursor-default items-center gap-2 text-sm font-semibold text-[#0d1b2e]"><Checkbox disabled={!canManageSla || saving} checked={Boolean(selected)} onCheckedChange={checked => canManageSla && !saving && setForm(current => ({ ...current, selectedSituations: checked === true ? [...current.selectedSituations, { situation_id: situation.id, use_default_hours: hasDefaultHours, sla_hours: "" }] : current.selectedSituations.filter(item => item.situation_id !== situation.id) }))} /><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><span className="min-w-0 break-words">{situation.name}</span>{hasDefaultHours && <span className="text-xs font-normal text-[#5a6a82]">({formatDurationHours(defaultHours)})</span>}</label>{!hasDefaultHours && <p className="ml-6 mt-1 break-words text-xs text-amber-700">Esta situação não possui horas padrão</p>}{selected && <div className="ml-6 mt-3 space-y-2 text-xs text-[#0d1b2e]"><p className="font-bold">Horas:</p><RadioGroup disabled={!canManageSla || saving} value={selected.use_default_hours ? "default" : "custom"} onValueChange={value => canManageSla && !saving && setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: value === "default", ...(value === "default" ? { sla_hours: "" } : {}) } : item) }))} className="gap-2"><label className="flex cursor-default items-center gap-2"><RadioGroupItem value="default" disabled={!hasDefaultHours || !canManageSla || saving} /> Manter padrão ({hasDefaultHours ? formatDurationHours(defaultHours) : "—"})</label><label className="flex cursor-default items-center gap-2"><RadioGroupItem value="custom" disabled={!canManageSla || saving} /> Definir novo prazo</label></RadioGroup>{!selected.use_default_hours && <FHoursInput label="Prazo em horas" placeholder="00:00" disabled={!canManageSla || saving} error={fieldErrors.sla?.[situation.id]} value={selected.sla_hours} onChange={(e: any) => canManageSla && !saving && setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}</div>}</AdminCard>; })}</div></AdminCard>
         <FToggle label="Tipo ativo" checked={form.is_active} disabled={saving} onChange={is_active => setForm({ ...form, is_active })} />
       </div>
       <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={closeForm} disabled={saving}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div>
