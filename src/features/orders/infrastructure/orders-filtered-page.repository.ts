@@ -12,7 +12,7 @@ export type ExactOrderPageInput = {
   externalOsSearch?: string;
   documentSearch?: string;
   serialNumberSearch?: string;
-  responsibleSearch?: string;
+  responsibleId?: string;
   statusId?: string;
   situationId?: string;
   orderType?: string;
@@ -60,7 +60,7 @@ const solvedPriority = (order: any) => order.is_solved === true && !order.comple
 
 export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Promise<ExactOrderPage> {
   const {
-    organizationId, page, pageSize, osNumberSearch = "", externalOsSearch = "", documentSearch = "", serialNumberSearch = "", responsibleSearch = "",
+    organizationId, page, pageSize, osNumberSearch = "", externalOsSearch = "", documentSearch = "", serialNumberSearch = "", responsibleId = "",
     statusId = "", situationId = "", orderType = "", serviceTypeId = "", states = [], stateNames = [], cities = [],
     dateFrom = "", dateTo = "", sort = "", matchOrderNumberOrExternal = false,
   } = input;
@@ -76,7 +76,6 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
   const externalNeedle = normalizeIdentifier(externalOsSearch);
   const documentNeedle = normalizeDigits(documentSearch);
   const serialNeedle = normalizeIdentifier(serialNumberSearch);
-  const responsibleNeedle = normalizeText(responsibleSearch);
 
   const stateAliasGroups = states.map((state, index) => new Set(
     [state, stateNames[index]].map(normalizeStateText).filter(Boolean),
@@ -102,7 +101,7 @@ export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Pr
     const matchesExternal = matchOrderNumberOrExternal || !externalNeedle || externalNumber.includes(externalNeedle);
     const matchesSerial = !serialNeedle || normalizeIdentifier(order.serial_number).includes(serialNeedle);
     const assignedProfile = Array.isArray(order.assigned_profile) ? order.assigned_profile[0] : order.assigned_profile;
-    const matchesResponsible = !responsibleNeedle || normalizeText(assignedProfile?.full_name).includes(responsibleNeedle);
+    const matchesResponsible = !responsibleId || assignedProfile?.id === responsibleId;
     const customer = order.customer || {};
     const matchesDocument = !documentNeedle || [customer.document, customer.cnpj].some(value => normalizeDigits(value).includes(documentNeedle));
     const serviceLocation = order.service_state || order.service_city
