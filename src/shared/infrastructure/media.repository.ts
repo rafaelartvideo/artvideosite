@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { supabase } from "@/lib/supabase";
 import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 
@@ -91,11 +92,7 @@ export async function createStorageSignedUrl(
 }
 
 export function supabaseErrorMessage(error: unknown) {
-  if (error && typeof error === "object") {
-    const value = error as { message?: string; details?: string; hint?: string; code?: string };
-    return [value.message, value.details, value.hint, value.code ? `Código: ${value.code}` : ""].filter(Boolean).join(" | ");
-  }
-  return error instanceof Error ? error.message : String(error);
+  return systemErrorMessage(error, "Erro desconhecido.");
 }
 
 export async function getMediaById(mediaId: string) {

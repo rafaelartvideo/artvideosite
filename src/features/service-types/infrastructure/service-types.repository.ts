@@ -68,7 +68,23 @@ export async function saveServiceType({
   const organizationId = await getActiveOrganizationId();
   let serviceTypeId = existingId;
 
+  let existingLinks: Array<{
+    situation_id: string;
+    use_default_hours: boolean;
+    sla_hours: number | string | null;
+    sort_order: number;
+  }> = [];
+
   if (serviceTypeId) {
+    const { data: currentLinks, error: currentLinksError } = await supabase
+      .from("service_type_situations")
+      .select("situation_id,use_default_hours,sla_hours,sort_order")
+      .eq("organization_id", organizationId)
+      .eq("service_type_id", serviceTypeId);
+
+    if (currentLinksError) throw currentLinksError;
+    existingLinks = currentLinks ?? [];
+
     const { error } = await supabase
       .from("service_types")
       .update(payload)
@@ -76,14 +92,6 @@ export async function saveServiceType({
       .eq("organization_id", organizationId);
 
     if (error) throw error;
-
-    const { error: deleteError } = await supabase
-      .from("service_type_situations")
-      .delete()
-      .eq("organization_id", organizationId)
-      .eq("service_type_id", serviceTypeId);
-
-    if (deleteError) throw deleteError;
   } else {
     const { data, error } = await supabase
       .from("service_types")
@@ -97,22 +105,50 @@ export async function saveServiceType({
     serviceTypeId = data.id;
   }
 
-  if (selectedSituations.length) {
+  const desiredLinks = selectedSituations.map((selected, index) => ({
+    organization_id: organizationId,
+    service_type_id: serviceTypeId,
+    situation_id: selected.situation_id,
+    use_default_hours: selected.use_default_hours,
+    sla_hours: selected.use_default_hours ? null : Number(selected.sla_hours),
+    sort_order: index,
+  }));
+
+  const desiredSituationIds = new Set(desiredLinks.map(link => link.situation_id));
+  const removedSituationIds = existingLinks
+    .filter(link => !desiredSituationIds.has(link.situation_id))
+    .map(link => link.situation_id);
+
+  if (removedSituationIds.length) {
+    const { error: deleteError } = await supabase
+      .from("service_type_situations")
+      .delete()
+      .eq("organization_id", organizationId)
+      .eq("service_type_id", serviceTypeId)
+      .in("situation_id", removedSituationIds);
+
+    if (deleteError) throw deleteError;
+  }
+
+  const existingBySituation = new Map(existingLinks.map(link => [link.situation_id, link]));
+  const changedLinks = desiredLinks.filter(link => {
+    const current = existingBySituation.get(link.situation_id);
+    if (!current) return true;
+    const currentHours = current.sla_hours == null ? null : Number(current.sla_hours);
+    const nextHours = link.sla_hours == null ? null : Number(link.sla_hours);
+    return current.use_default_hours !== link.use_default_hours
+      || currentHours !== nextHours
+      || Number(current.sort_order) !== link.sort_order;
+  });
+
+  if (changedLinks.length) {
     const { error: linksError } = await supabase
       .from("service_type_situations")
-      .insert(
-        selectedSituations.map((selected, index) => ({
-          organization_id: organizationId,
-          service_type_id: serviceTypeId,
-          situation_id: selected.situation_id,
-          use_default_hours: selected.use_default_hours,
-          sla_hours: selected.use_default_hours ? null : Number(selected.sla_hours),
-          sort_order: index,
-        })),
-      );
+      .upsert(changedLinks, { onConflict: "service_type_id,situation_id" });
 
     if (linksError) throw linksError;
   }
+
   return serviceTypeId;
 }
 
