@@ -1,8 +1,8 @@
 import { supabase } from "@/lib/supabase";
-import { ARTVIDEO_ORGANIZATION_ID } from "@/lib/organization.constants";
+import { getArtVideoOrganizationId } from "@/lib/organization-identities";
 
 export async function loadProductCatalog() {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const [productsResult, categoriesResult] = await Promise.all([
     supabase
       .from("products")
@@ -30,7 +30,7 @@ export async function saveProduct(
   productId: string | undefined,
   createdBy: string | null,
 ) {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const query = productId
     ? supabase.from("products").update(payload).eq("organization_id", organizationId).eq("id", productId)
     : supabase.from("products").insert({ ...payload, organization_id: organizationId, created_by: createdBy });
@@ -41,7 +41,7 @@ export async function saveProduct(
 }
 
 export async function deleteProduct(productId: string): Promise<void> {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const { error } = await supabase.from("products").delete().eq("organization_id", organizationId).eq("id", productId);
   if (error) throw error;
 }
@@ -51,7 +51,7 @@ export async function updateProductFlags(
   flags: { is_active?: boolean; is_featured?: boolean },
   updatedBy: string | null,
 ): Promise<void> {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const { error } = await supabase
     .from("products")
     .update({ ...flags, updated_by: updatedBy })
