@@ -1,7 +1,12 @@
 import { supabase } from "@/lib/supabase";
+import {
+  PERMISSIONS_CHANGED_EVENT,
+  LEGACY_PERMISSIONS_CHANGED_EVENT,
+  dispatchCompatibleEvent,
+} from "@/lib/platform-identifiers";
 
 const employeeColumns = "id,organization_id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,uniq_subscriber_id,created_at,updated_at,role:roles(id,name)";
-const notifyPermissionChange = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("artvideo:permissions-changed")); };
+const notifyPermissionChange = () => { dispatchCompatibleEvent(PERMISSIONS_CHANGED_EVENT, LEGACY_PERMISSIONS_CHANGED_EVENT); };
 
 export const getEmployees = (organizationId: string) =>
   supabase.from("employees").select(employeeColumns).eq("organization_id", organizationId).order("full_name", { ascending: true });
