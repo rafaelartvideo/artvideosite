@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, ClipboardCheck, Edit2, Plus, Trash2 } from "lucide-react";
@@ -95,7 +96,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     setDraft({ id: editor.id, name: editor.name, description: editor.description || "", is_active: editor.is_active, stages: editor.stages.map(stage => ({ ...stage, situation_id: stage.situation_id || null, items: stage.items.map(item => ({ ...item })) })) });
   }, [editorOpen, routeResourceId, data]);
   useEffect(() => {
-    if (query.error) setToast({ msg: `Erro ao carregar checklists: ${query.error instanceof Error ? query.error.message : String(query.error)}`, type: "error" });
+    if (query.error) setToast({ msg: `Erro ao carregar checklists: ${systemErrorMessage(query.error)}`, type: "error" });
   }, [query.error]);
 
   const closeEditor = () => onRouteChange?.(null, null);
@@ -136,7 +137,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       await Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all }), queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all })]);
       setToast({ msg: value.id ? "Checklist atualizado." : "Checklist criado.", type: "success" });
       if (close) closeEditor();
-    } catch (error) { setToast({ msg: `Erro ao salvar checklist: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar checklist: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
   const toggleProfile = async (profileId: string) => {

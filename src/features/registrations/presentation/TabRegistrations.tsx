@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -237,22 +238,22 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   useEffect(() => {
     if (!registrationsQuery.error) return;
-    setToast({ msg: `Erro ao carregar cadastros: ${registrationsQuery.error instanceof Error ? registrationsQuery.error.message : String(registrationsQuery.error)}`, type: "error" });
+    setToast({ msg: `Erro ao carregar cadastros: ${systemErrorMessage(registrationsQuery.error)}`, type: "error" });
   }, [registrationsQuery.error]);
 
   useEffect(() => {
     if (!detailQuery.error) return;
-    setToast({ msg: `Cadastro não encontrado: ${detailQuery.error instanceof Error ? detailQuery.error.message : String(detailQuery.error)}`, type: "error" });
+    setToast({ msg: `Cadastro não encontrado: ${systemErrorMessage(detailQuery.error)}`, type: "error" });
   }, [detailQuery.error]);
 
   useEffect(() => {
     if (!supplierItemsQuery.error) return;
-    setToast({ msg: `Erro ao carregar itens do fornecedor: ${supplierItemsQuery.error instanceof Error ? supplierItemsQuery.error.message : String(supplierItemsQuery.error)}`, type: "error" });
+    setToast({ msg: `Erro ao carregar itens do fornecedor: ${systemErrorMessage(supplierItemsQuery.error)}`, type: "error" });
   }, [supplierItemsQuery.error]);
 
   useEffect(() => {
     if (!employeeAccessQuery.error) return;
-    setToast({ msg: `Erro ao carregar acesso do funcionário: ${employeeAccessQuery.error instanceof Error ? employeeAccessQuery.error.message : String(employeeAccessQuery.error)}`, type: "error" });
+    setToast({ msg: `Erro ao carregar acesso do funcionário: ${systemErrorMessage(employeeAccessQuery.error)}`, type: "error" });
   }, [employeeAccessQuery.error]);
 
   const editorOpen = routeResourceId === "new" || Boolean(routeResourceId && routeSubpage === "edit");
@@ -498,7 +499,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       editorOriginRef.current = null;
       onRouteChange?.(savedId, null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = systemErrorMessage(error);
       if (message.toLocaleLowerCase("pt-BR").includes("cadastro já existente")) {
         if (form.person_type === "PF") lookups.setCpfError(message);
         else lookups.setCnpjError(message);

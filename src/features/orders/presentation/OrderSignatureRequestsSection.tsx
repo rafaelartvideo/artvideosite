@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Ban,
@@ -110,7 +111,7 @@ export function OrderSignatureRequestsSection({
     try {
       setRequests(await listOrderSignatureRequests(order.organization_id, order.id));
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : String(error), type: "error" });
+      setMessage({ text: systemErrorMessage(error), type: "error" });
     } finally {
       setLoading(false);
     }
@@ -125,7 +126,7 @@ export function OrderSignatureRequestsSection({
     setBusyId(requestId);
     setMessage(null);
     try { await action(); }
-    catch (error) { setMessage({ text: error instanceof Error ? error.message : String(error), type: "error" }); }
+    catch (error) { setMessage({ text: systemErrorMessage(error), type: "error" }); }
     finally { setBusyId(null); }
   };
 
@@ -196,7 +197,7 @@ export function OrderSignatureRequestsSection({
     setAuditLoading(true);
     void getSignatureAudit(order.organization_id, request.id)
       .then(setAuditEvents)
-      .catch(error => setMessage({ text: error instanceof Error ? error.message : String(error), type: "error" }))
+      .catch(error => setMessage({ text: systemErrorMessage(error), type: "error" }))
       .finally(() => setAuditLoading(false));
   };
 

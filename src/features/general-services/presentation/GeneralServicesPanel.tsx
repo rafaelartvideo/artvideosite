@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Wrench } from "lucide-react";
@@ -41,7 +42,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   const itemsQuery = useQuery({ queryKey: queryKeys.generalServices.lists(), queryFn: listGeneralServices, enabled: canView && (canViewTable || canViewDetails || canCreate || canEdit) });
   const items = itemsQuery.data ?? []; const loading = itemsQuery.isPending;
   const [formOpen, setFormOpen] = useState(false); const [editItem, setEditItem] = useState<GeneralService | null>(null); const [name, setName] = useState(""); const [price, setPrice] = useState(""); const [maxDiscountPercentage, setMaxDiscountPercentage] = useState(""); const [maxDiscountAmount, setMaxDiscountAmount] = useState(""); const [priceAtCompletion, setPriceAtCompletion] = useState(false); const [active, setActive] = useState(true); const [saving, setSaving] = useState(false); const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(5);
-  useEffect(() => { if (itemsQuery.error) setToast({ msg: `Erro ao carregar serviços gerais: ${itemsQuery.error instanceof Error ? itemsQuery.error.message : String(itemsQuery.error)}`, type: "error" }); }, [itemsQuery.error]);
+  useEffect(() => { if (itemsQuery.error) setToast({ msg: `Erro ao carregar serviços gerais: ${systemErrorMessage(itemsQuery.error)}`, type: "error" }); }, [itemsQuery.error]);
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize)); const safePage = Math.min(page, totalPages); const pagedItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.generalServices.all });
@@ -94,12 +95,12 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
       setToast({ msg: editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" });
       await refresh();
     } catch (error) {
-      setToast({ msg: `Erro ao salvar serviço geral: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+      setToast({ msg: `Erro ao salvar serviço geral: ${systemErrorMessage(error)}`, type: "error" });
     } finally {
       setSaving(false);
     }
   };
-  const toggle = async (item: GeneralService) => { if (!canToggleActive) return; try { await setGeneralServiceActive(item.id, !item.is_active); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar serviço: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
+  const toggle = async (item: GeneralService) => { if (!canToggleActive) return; try { await setGeneralServiceActive(item.id, !item.is_active); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar serviço: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   if (!canView) return null;
   return <div className="min-w-0 space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}{!routeResourceId && <><InternalBackButton onBack={onBack} /><PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo serviço</AdminButton> : null} />

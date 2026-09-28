@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 const MODULE_RELOAD_KEY = "unionworld:module-reload-attempt";
@@ -10,7 +11,7 @@ function errorText(error: unknown) {
   try {
     return JSON.stringify(error);
   } catch {
-    return String(error);
+    return systemErrorMessage(error);
   }
 }
 
