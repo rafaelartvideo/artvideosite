@@ -3,6 +3,7 @@ import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
 import { applyCnpjData, type CustomerForm } from "@/features/customers/domain/customer-form";
 import { foundationDateFromIso, isValidCnpj, isValidCpf } from "@/shared/domain/formatters";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   emptyRegistrationAddress,
   type RegistrationAddressForm,
@@ -58,7 +59,7 @@ export function useRegistrationLookups({
         birth_date: result.birthDate ? foundationDateFromIso(result.birthDate) : current.birth_date,
       }));
     } catch (error) {
-      setCpfError(error instanceof Error ? error.message : "Não foi possível consultar o CPF.");
+      setCpfError(systemErrorMessage(error, "Não foi possível consultar o CPF."));
     } finally {
       setCpfLoading(false);
     }
@@ -122,7 +123,7 @@ export function useRegistrationLookups({
         return next;
       });
     } catch (error) {
-      setCnpjError(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
+      setCnpjError(systemErrorMessage(error, "Não foi possível consultar o CNPJ."));
     } finally {
       setCnpjLoading(false);
     }
