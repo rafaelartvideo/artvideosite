@@ -18,6 +18,8 @@ export type AuditLogEntry = {
   source: string | null;
   changed_fields: Record<string, { before?: unknown; after?: unknown }> | null;
   row_snapshot: Record<string, unknown> | null;
+  resolved_changed_fields?: Record<string, { before?: unknown; after?: unknown }> | null;
+  resolved_row_snapshot?: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
 };
@@ -100,8 +102,28 @@ export async function listAuditLogs(organizationId: string, filters: AuditLogFil
   const { data, error, count } = await query;
   if (error) throw error;
 
+  const items = (data || []) as AuditLogEntry[];
+  if (items.length === 0) return { items, total: count || 0 };
+
+  const { data: displayRows, error: displayError } = await supabase.rpc(
+    "resolve_organization_audit_log_display",
+    { p_audit_log_ids: items.map(item => item.id) },
+  );
+  if (displayError) throw displayError;
+
+  const displayById = new Map(
+    (displayRows || []).map((row: any) => [Number(row.audit_log_id), row]),
+  );
+
   return {
-    items: (data || []) as AuditLogEntry[],
+    items: items.map(item => {
+      const display = displayById.get(item.id);
+      return {
+        ...item,
+        resolved_changed_fields: display?.resolved_changed_fields || item.changed_fields || {},
+        resolved_row_snapshot: display?.resolved_row_snapshot || item.row_snapshot || {},
+      };
+    }),
     total: count || 0,
   };
 }
