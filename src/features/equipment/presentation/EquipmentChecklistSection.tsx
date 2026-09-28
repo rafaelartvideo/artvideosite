@@ -39,10 +39,12 @@ function blankExtra(stageCode: string, sortOrder: number): EquipmentChecklistIte
   };
 }
 
-export function EquipmentChecklistSection({ draft, catalog, onChange }: {
+export function EquipmentChecklistSection({ draft, catalog, onChange, errorFor, clearError }: {
   draft: EquipmentDraft;
   catalog: EquipmentCatalog;
   onChange: (patch: Partial<EquipmentDraft>) => void;
+  errorFor?: (field: "profile" | "title" | "stage", index?: number) => string | undefined;
+  clearError?: (field: "profile" | "title" | "stage", index?: number) => void;
 }) {
   const selectedStages = catalog.checklistStages.filter(stage => stage.profile_id === draft.checklist_profile_id);
   const stageOptions = selectedStages.map(stage => ({ value: stage.code, label: stage.name }));
@@ -64,9 +66,11 @@ export function EquipmentChecklistSection({ draft, catalog, onChange }: {
     <div className="space-y-4">
       <FSelect
         label="Perfil de checklist"
+        error={errorFor?.("profile")}
         value={draft.checklist_profile_id || ""}
         options={profileOptions}
         onChange={(event: any) => {
+          clearError?.("profile");
           const nextProfileId = event.target.value || null;
           const nextStageCodes = new Set(catalog.checklistStages.filter(stage => stage.profile_id === nextProfileId).map(stage => stage.code));
           onChange({
@@ -83,8 +87,8 @@ export function EquipmentChecklistSection({ draft, catalog, onChange }: {
         {!draft.checklistItems.length ? <p className="rounded-lg border border-dashed border-[#0d1b2e]/12 p-4 text-center text-xs text-[#6b7c93]">Nenhum item adicional. O equipamento usará somente os itens do perfil.</p> : <div className="space-y-3">{draft.checklistItems.map((item, index) => <AdminCard key={`${item.id || "new"}-${index}`} className="p-3 shadow-none">
           <div className="mb-3 flex items-center justify-between"><span className="text-xs font-bold text-[#0d1b2e]">Item adicional {index + 1}</span><button type="button" onClick={() => removeItem(index)} className="rounded-md p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={14} /></button></div>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <div className="md:col-span-2"><FInput label="Título" value={item.title} onChange={(event: any) => updateItem(index, { title: event.target.value })} /></div>
-            <FSelect label="Etapa" value={item.stage_code} options={stageOptions} onChange={(event: any) => updateItem(index, { stage_code: event.target.value })} />
+            <div className="md:col-span-2"><FInput label="Título" required error={errorFor?.("title", index)} value={item.title} onChange={(event: any) => { clearError?.("title", index); updateItem(index, { title: event.target.value }); }} /></div>
+            <FSelect label="Etapa" error={errorFor?.("stage", index)} value={item.stage_code} options={stageOptions} onChange={(event: any) => { clearError?.("stage", index); updateItem(index, { stage_code: event.target.value }); }} />
             <FSelect label="Resposta" value={item.response_type} options={RESPONSE_OPTIONS} onChange={(event: any) => updateItem(index, { response_type: event.target.value })} />
             <FSelect label="Foto" value={item.photo_requirement} options={PHOTO_OPTIONS} onChange={(event: any) => updateItem(index, { photo_requirement: event.target.value })} />
             <FSelect label="Observação" value={item.observation_requirement} options={OBS_OPTIONS} onChange={(event: any) => updateItem(index, { observation_requirement: event.target.value })} />
