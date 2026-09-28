@@ -1,9 +1,13 @@
 import { Menu, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
 import type { AdminPageState } from "../domain/admin.types";
 
 type AdminHeaderProps = {
   page: AdminPageState;
   sidebarOpen: boolean;
+  activeOrganizationId?: string | null;
   activeOrganizationName?: string | null;
   onToggleSidebar: () => void;
 };
@@ -28,10 +32,20 @@ function normalizeBreadcrumb(breadcrumb: string, title: string) {
 export function AdminHeader({
   page,
   sidebarOpen,
+  activeOrganizationId,
   activeOrganizationName,
   onToggleSidebar,
 }: AdminHeaderProps) {
   const parentBreadcrumb = page ? normalizeBreadcrumb(page.breadcrumb, page.title) : "";
+  const brandingQuery = useQuery({
+    queryKey: ["company-settings", activeOrganizationId || "none"],
+    enabled: Boolean(activeOrganizationId),
+    queryFn: () => getCompanySettings(activeOrganizationId),
+  });
+  const companyLogoMediaId = brandingQuery.data?.company_menu_logo_media_id
+    || brandingQuery.data?.company_logo_media_id
+    || null;
+  const { url: companyLogoUrl } = useMediaUrl(companyLogoMediaId);
 
   return (
     <>
@@ -48,11 +62,18 @@ export function AdminHeader({
             {sidebarOpen ? <X size={20} strokeWidth={2.4} /> : <Menu size={21} strokeWidth={2.4} />}
           </button>
 
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="flex max-w-[180px] flex-col items-center text-white">
-              <span className="text-xs font-black tracking-[0.08em]">UNION WORLD</span>
-              <span className="mt-0.5 max-w-full truncate text-[9px] font-semibold text-white/45">{activeOrganizationName || "Empresa"}</span>
-            </div>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-16">
+            {companyLogoUrl ? (
+              <img
+                src={companyLogoUrl}
+                alt={activeOrganizationName || "Logo da empresa"}
+                className="max-h-10 max-w-[170px] object-contain"
+              />
+            ) : (
+              <span className="max-w-[180px] truncate text-sm font-black text-white">
+                {activeOrganizationName || "Empresa"}
+              </span>
+            )}
           </div>
         </div>
       </header>
