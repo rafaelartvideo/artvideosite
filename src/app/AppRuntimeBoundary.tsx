@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
-const MODULE_RELOAD_KEY = "artvideo:module-reload-attempt";
+const MODULE_RELOAD_KEY = "unionworld:module-reload-attempt";
+const LEGACY_MODULE_RELOAD_KEY = "artvideo:module-reload-attempt";
 const MODULE_RELOAD_WINDOW_MS = 30_000;
 
 function errorText(error: unknown) {
@@ -39,7 +40,11 @@ function reloadOnce() {
 
   const now = Date.now();
   try {
-    const previousAttempt = Number(window.sessionStorage.getItem(MODULE_RELOAD_KEY) || 0);
+    const previousAttempt = Number(
+      window.sessionStorage.getItem(MODULE_RELOAD_KEY)
+      || window.sessionStorage.getItem(LEGACY_MODULE_RELOAD_KEY)
+      || 0,
+    );
     if (Number.isFinite(previousAttempt) && now - previousAttempt < MODULE_RELOAD_WINDOW_MS) return false;
     window.sessionStorage.setItem(MODULE_RELOAD_KEY, String(now));
   } catch {
@@ -76,6 +81,7 @@ export function installModuleLoadRecovery() {
   window.setTimeout(() => {
     try {
       window.sessionStorage.removeItem(MODULE_RELOAD_KEY);
+      window.sessionStorage.removeItem(LEGACY_MODULE_RELOAD_KEY);
     } catch {
       // Ignore storage restrictions.
     }
