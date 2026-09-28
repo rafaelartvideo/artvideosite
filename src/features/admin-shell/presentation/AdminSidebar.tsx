@@ -187,7 +187,9 @@ export function AdminSidebar({
           {mainItems.filter((item) => canAccessTab(item.id as AdminTab)).map((item) => (
             <SidebarItem
               key={item.id}
-              item={item}
+              item={isPlatformOperatorOrganization && item.id === "customers"
+                ? { ...item, label: "Usuários" }
+                : item}
               active={selectedTab === item.id}
               collapsed={collapsed}
               onClick={() => onNavigate(item.id as AdminTab)}
