@@ -144,7 +144,7 @@ export function LegacyTabCustomers({
 
     {canViewDetails && <CustomerDetailsPage
       detail={details.detail} detailQuotes={details.quotes} detailOrders={details.orders} detailEquipments={details.equipments} detailLoading={details.loading}
-      editForm={details.form} setEditForm={details.setForm} editAddress={details.address} setEditAddress={details.setAddress}
+      editForm={details.form} setEditForm={details.setForm} fieldErrors={details.fieldErrors} setFieldErrors={details.setFieldErrors} editAddress={details.address} setEditAddress={details.setAddress}
       editingCustomerData={details.editingData} setEditingCustomerData={details.setEditingData}
       onEdit={() => canEdit && onRouteChange?.(details.detail?.id, "edit")} onCancelEdit={() => onRouteChange?.(details.detail?.id, null)}
       editingCustomerAddress={details.editingAddress} setEditingCustomerAddress={details.setEditingAddress}
@@ -155,6 +155,6 @@ export function LegacyTabCustomers({
       onClose={() => { details.close(); closeRoute(); }}
     />}
 
-    <CreateCustomerPage open={creation.open && canCreate} form={creation.form} setForm={creation.setForm} address={creation.address} setAddress={creation.setAddress} saving={creation.saving} canCreate={canCreate} cpfLoading={creation.cpfLoading} cpfError={creation.cpfError} setCpfError={creation.setCpfError} cpfInputRef={creation.cpfInputRef} onLookupCpf={creation.lookupCpfName} cnpjLoading={creation.cnpjLoading} cnpjMessage={creation.cnpjMessage} setCnpjMessage={creation.setCnpjMessage} onLookupCnpj={creation.lookupCnpj} onCreate={() => { if (canCreate) void creation.create().then(created => { if (created) closeRoute(); }); }} onClose={() => { creation.closePage(); closeRoute(); }} />
+    <CreateCustomerPage open={creation.open && canCreate} form={creation.form} setForm={creation.setForm} address={creation.address} setAddress={creation.setAddress} fieldErrors={creation.fieldErrors} setFieldErrors={creation.setFieldErrors} saving={creation.saving} canCreate={canCreate} cpfLoading={creation.cpfLoading} cpfError={creation.cpfError} setCpfError={creation.setCpfError} cpfInputRef={creation.cpfInputRef} onLookupCpf={creation.lookupCpfName} cnpjLoading={creation.cnpjLoading} cnpjMessage={creation.cnpjMessage} setCnpjMessage={creation.setCnpjMessage} onLookupCnpj={creation.lookupCnpj} onCreate={() => { if (canCreate) void creation.create().then(created => { if (created) closeRoute(); }); }} onClose={() => { creation.closePage(); closeRoute(); }} />
   </div>;
 }

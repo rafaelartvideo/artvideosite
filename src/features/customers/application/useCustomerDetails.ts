@@ -5,7 +5,8 @@ import {
   customerFormFromCustomer,
   customerUpdatePayload,
   emptyCustomerForm,
-  validateCustomerForm,
+  validateCustomerFormFields,
+  type CustomerFieldErrors,
   type CustomerForm,
 } from "../domain/customer-form";
 import {
@@ -35,6 +36,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
   const [editingAddress, setEditingAddress] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
+  const [fieldErrors, setFieldErrors] = useState<CustomerFieldErrors>({});
   const [address, setAddress] = useState<Address>({ ...emptyAddress });
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
     setEditingAddress(false);
     setSavingAddress(false);
     setForm({ ...emptyCustomerForm });
+    setFieldErrors({});
     setAddress({ ...emptyAddress });
   }, [organizationId]);
 
@@ -64,6 +67,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
     if (!organizationId) return;
     setDetail(customer);
     setForm(customerFormFromCustomer(customer));
+    setFieldErrors({});
     setAddress({
       ...emptyAddress,
       ...((customer.addresses || []).find((item: Address) => item.is_default) || customer.addresses?.[0] || {}),
@@ -119,11 +123,9 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
       onToast("Você não possui permissão para editar clientes.", "error");
       return;
     }
-    const validationError = validateCustomerForm(form);
-    if (validationError) {
-      onToast(validationError, "error");
-      return;
-    }
+    const validationErrors = validateCustomerFormFields(form);
+    setFieldErrors(validationErrors);
+    if (Object.keys(validationErrors).length) return;
     setSavingCustomer(true);
     try {
       const payload = customerUpdatePayload(form);
@@ -193,6 +195,8 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
     savingAddress,
     form,
     setForm,
+    fieldErrors,
+    setFieldErrors,
     address,
     setAddress,
     open,

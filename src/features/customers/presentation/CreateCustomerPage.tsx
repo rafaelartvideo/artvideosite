@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { Link2, Search } from "lucide-react";
 import type { Address } from "@/lib/address";
-import type { CustomerForm } from "../domain/customer-form";
+import type { CustomerFieldErrors, CustomerForm } from "../domain/customer-form";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { AdminButton, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { CustomerTypeToggle, FBrazilianDateInput, FCnpjInput, FEmailInput, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -13,6 +13,8 @@ type Props = {
   setForm: Dispatch<SetStateAction<CustomerForm>>;
   address: Address;
   setAddress: Dispatch<SetStateAction<Address>>;
+  fieldErrors: CustomerFieldErrors;
+  setFieldErrors: Dispatch<SetStateAction<CustomerFieldErrors>>;
   saving: boolean;
   canCreate: boolean;
   cpfLoading: boolean;
@@ -32,7 +34,7 @@ export function CreateCustomerPage(props: Props) {
   const [sharedAddressOpen, setSharedAddressOpen] = useState(false);
   const {
     open: createOpen, form: createForm, setForm: setCreateForm,
-    address: createAddress, setAddress: setCreateAddress, saving, canCreate,
+    address: createAddress, setAddress: setCreateAddress, fieldErrors, setFieldErrors, saving, canCreate,
     cpfLoading, cpfError, setCpfError, cpfInputRef, onLookupCpf: lookupCreateCpf,
     cnpjLoading, cnpjMessage, setCnpjMessage,
     onLookupCnpj: lookupCreateCnpj, onCreate, onClose,
@@ -43,7 +45,7 @@ export function CreateCustomerPage(props: Props) {
           <div className="p-5 space-y-5">
             <Section title="Dados do cliente">
               <div className="grid sm:grid-cols-2 gap-4">
-                <CustomerTypeToggle value={createForm.customerType} onChange={customerType => { setCpfError(""); setCreateForm({ ...createForm, customerType }); }} />
+                <CustomerTypeToggle value={createForm.customerType} onChange={customerType => { setCpfError(""); setFieldErrors({}); setCreateForm({ ...createForm, customerType }); }} />
                 {createForm.customerType === "PF" ? <>
                   <div>
                     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">CPF<span className="text-red-400">*</span></label>
@@ -55,18 +57,18 @@ export function CreateCustomerPage(props: Props) {
                     </div>
                     {cpfError && <p id="create-cpf-error" className="mt-1 text-xs text-red-600">{cpfError}</p>}
                   </div>
-                  <FInput label="Nome completo" required value={createForm.full_name} onChange={(e: any) => setCreateForm({ ...createForm, full_name: e.target.value })} />
-                  <FInput label="Data de nascimento" type="date" required value={createForm.birth_date} max={todayDateOnly()} onChange={(e: any) => setCreateForm({ ...createForm, birth_date: e.target.value })} />
+                  <FInput label="Nome completo" required error={fieldErrors.full_name} value={createForm.full_name} onChange={(e: any) => { setFieldErrors(current => ({ ...current, full_name: undefined })); setCreateForm({ ...createForm, full_name: e.target.value }); }} />
+                  <FInput label="Data de nascimento" type="date" required error={fieldErrors.birth_date} value={createForm.birth_date} max={todayDateOnly()} onChange={(e: any) => { setFieldErrors(current => ({ ...current, birth_date: undefined })); setCreateForm({ ...createForm, birth_date: e.target.value }); }} />
                 </> : <>
-                  <FCnpjInput label="CNPJ" required value={createForm.cnpj} onBlur={(e: any) => lookupCreateCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = e.target.value; setCnpjMessage(""); setCreateForm({ ...createForm, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCreateCnpj(nextCnpj, { ...createForm, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : cnpjMessage || undefined} />
-                  <FInput label="Nome fantasia" required value={createForm.trade_name} onChange={(e: any) => setCreateForm({ ...createForm, trade_name: e.target.value })} />
+                  <FCnpjInput label="CNPJ" required error={fieldErrors.cnpj} value={createForm.cnpj} onBlur={(e: any) => lookupCreateCnpj(e.target.value)} onChange={(e: any) => { const nextCnpj = e.target.value; setCnpjMessage(""); setFieldErrors(current => ({ ...current, cnpj: undefined })); setCreateForm({ ...createForm, cnpj: nextCnpj }); if (nextCnpj.replace(/\D/g, "").length === 14) void lookupCreateCnpj(nextCnpj, { ...createForm, cnpj: nextCnpj }); }} hint={cnpjLoading ? "Consultando CNPJ..." : cnpjMessage || undefined} />
+                  <FInput label="Nome fantasia" required error={fieldErrors.trade_name} value={createForm.trade_name} onChange={(e: any) => { setFieldErrors(current => ({ ...current, trade_name: undefined })); setCreateForm({ ...createForm, trade_name: e.target.value }); }} />
                   <FInput label="Razão social" value={createForm.legal_name} onChange={(e: any) => setCreateForm({ ...createForm, legal_name: e.target.value })} />
                   <FInput label="Inscrição estadual" value={createForm.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setCreateForm({ ...createForm, state_registration: e.target.value })} />
-                  <FBrazilianDateInput label="Fundação" value={createForm.foundation_date} onChange={(e: any) => setCreateForm({ ...createForm, foundation_date: e.target.value })} />
+                  <FBrazilianDateInput label="Fundação" error={fieldErrors.foundation_date} value={createForm.foundation_date} onChange={(e: any) => setCreateForm({ ...createForm, foundation_date: e.target.value })} />
                 </>}
-                <FEmailInput label="E-mail" value={createForm.email} onChange={(e: any) => setCreateForm({ ...createForm, email: e.target.value })} />
-                <FPhoneInput label="Telefone" required value={createForm.phone} onChange={(e: any) => setCreateForm({ ...createForm, phone: e.target.value })} />
-                <FPhoneInput label="WhatsApp" mobile value={createForm.whatsapp} onChange={(e: any) => setCreateForm({ ...createForm, whatsapp: e.target.value })} />
+                <FEmailInput label="E-mail" error={fieldErrors.email} value={createForm.email} onChange={(e: any) => { setFieldErrors(current => ({ ...current, email: undefined })); setCreateForm({ ...createForm, email: e.target.value }); }} />
+                <FPhoneInput label="Telefone" required error={fieldErrors.phone} value={createForm.phone} onChange={(e: any) => { setFieldErrors(current => ({ ...current, phone: undefined, whatsapp: undefined })); setCreateForm({ ...createForm, phone: e.target.value }); }} />
+                <FPhoneInput label="WhatsApp" mobile error={fieldErrors.whatsapp} value={createForm.whatsapp} onChange={(e: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined })); setCreateForm({ ...createForm, whatsapp: e.target.value }); }} />
               </div>
             </Section>
             <Section

@@ -6,7 +6,8 @@ import {
   applyCnpjData,
   customerPayload,
   emptyCustomerForm,
-  validateCustomerForm,
+  validateCustomerFormFields,
+  type CustomerFieldErrors,
   type CustomerForm,
 } from "../domain/customer-form";
 import {
@@ -27,6 +28,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [address, setAddress] = useState<Address>({ ...emptyAddress });
+  const [fieldErrors, setFieldErrors] = useState<CustomerFieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjMessage, setCnpjMessage] = useState("");
@@ -36,10 +38,12 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
 
   const openPage = () => {
     setCpfError("");
+    setFieldErrors({});
     setOpen(true);
   };
   const closePage = () => {
     setCpfError("");
+    setFieldErrors({});
     setOpen(false);
   };
 
@@ -70,7 +74,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
       });
       onToast(result.birthDate ? "Nome e data de nascimento preenchidos pela consulta de CPF." : "Nome preenchido pela consulta de CPF.", "success");
     } catch (error) {
-      onToast(error instanceof Error ? error.message : "Não foi possível consultar o CPF.", "error");
+      onToast(systemErrorMessage(error, "Não foi possível consultar o CPF."), "error");
     } finally {
       setCpfLoading(false);
     }
@@ -87,7 +91,12 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
       setForm(result.form);
       setAddress(result.address);
     } catch (error) {
-      setCnpjMessage(error instanceof Error ? error.message : "Não foi possível consultar o CNPJ.");
+      const message = systemErrorMessage(error, "Não foi possível consultar o CNPJ.");
+      if (/cnpj.*(inválido|nao encontrado|não encontrado)/i.test(message)) {
+        setFieldErrors(current => ({ ...current, cnpj: message }));
+      } else {
+        onToast(message, "error");
+      }
     } finally {
       setCnpjLoading(false);
     }
@@ -107,18 +116,17 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
       cpfInputRef.current?.focus();
       return false;
     }
-    const validationError = validateCustomerForm(form);
-    if (validationError) {
-      onToast(validationError, "error");
-      return false;
-    }
+    const validationErrors = validateCustomerFormFields(form);
+    setFieldErrors(validationErrors);
+    if (validationErrors.document) setCpfError(validationErrors.document);
+    if (Object.keys(validationErrors).length) return false;
 
     setSaving(true);
     let customer;
     try {
       customer = await createCustomer(organizationId, customerPayload(form));
     } catch (error) {
-      onToast(`Erro ao cadastrar: ${error instanceof Error ? error.message : "Cliente não criado."}`, "error");
+      onToast(`Erro ao cadastrar: ${systemErrorMessage(error, "Cliente não criado.")}`, "error");
       setSaving(false);
       return false;
     }
@@ -152,6 +160,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
     setOpen(false);
     setForm({ ...emptyCustomerForm });
     setAddress({ ...emptyAddress });
+    setFieldErrors({});
     setCpfError("");
     setSaving(false);
     await onRefresh();
@@ -164,6 +173,8 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
     setForm,
     address,
     setAddress,
+    fieldErrors,
+    setFieldErrors,
     saving,
     cnpjLoading,
     cnpjMessage,
