@@ -13,7 +13,7 @@ import {
 import { renderFrozenSnapshotHtml, sanitizeFrozenSnapshot } from "./signature-snapshot.mjs";
 import { createAdminSignedDocumentAccess, finalizeEmployeeOnlyRequest } from "./signature-finalization.ts";
 
-const PLATFORM_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
+const PLATFORM_OPERATOR_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 const CONSENT_TEXT = "Li e concordo com o conteúdo deste documento e reconheço esta assinatura eletrônica.";
 const MAX_SNAPSHOT_BYTES = 1_000_000;
 const ACTIVE_STATUSES = new Set(["pending", "viewed"]);
@@ -150,17 +150,17 @@ async function hasEffectivePermission(adminClient: any, userId: string, organiza
   if (error) throw error;
   if (!organization || organization.status !== "active") return false;
   if (await membershipPermission(adminClient, userId, organizationId, permissionKey)) return true;
-  if (organizationId === PLATFORM_ORGANIZATION_ID) return false;
+  if (organizationId === PLATFORM_OPERATOR_ORGANIZATION_ID) return false;
 
   const canManagePartners = await membershipPermission(
     adminClient,
     userId,
-    PLATFORM_ORGANIZATION_ID,
+    PLATFORM_OPERATOR_ORGANIZATION_ID,
     "organizations.view",
   );
   if (!canManagePartners) return false;
 
-  return membershipPermission(adminClient, userId, PLATFORM_ORGANIZATION_ID, permissionKey);
+  return membershipPermission(adminClient, userId, PLATFORM_OPERATOR_ORGANIZATION_ID, permissionKey);
 }
 
 async function requirePermission(adminClient: any, userId: string, organizationId: string, key: string) {
