@@ -209,7 +209,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
   const changingPassword = mode === "change-password";
 
   return (
-    <main className="admin-crm min-h-[100dvh] overflow-hidden bg-[#041426] text-white lg:grid lg:grid-cols-[42%_58%] xl:grid-cols-[40%_60%]">
+    <main className="admin-crm min-h-[100dvh] overflow-x-hidden bg-[#041426] text-white lg:grid lg:grid-cols-[42%_58%] lg:overflow-hidden xl:grid-cols-[40%_60%]">
       {error && <Toast message={error} type="error" onClose={() => setError("")} />}
       {success && <Toast message={success} type="success" onClose={() => setSuccess("")} />}
 
@@ -229,7 +229,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
         }
       `}</style>
 
-      <section className="relative z-10 flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#05182b] px-5 py-8 sm:px-8 lg:px-10 xl:px-16">
+      <section className="relative z-10 flex min-h-[100dvh] items-center justify-center overflow-x-hidden bg-[#05182b] px-5 py-8 sm:px-8 lg:overflow-hidden lg:px-10 xl:px-16">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(0,174,255,0.13),transparent_30%),radial-gradient(circle_at_82%_88%,rgba(0,91,196,0.15),transparent_30%),linear-gradient(150deg,#061c31_0%,#041527_50%,#031220_100%)]" />
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-24 bg-gradient-to-r from-transparent to-[#03111f]/55 lg:block" />
 
