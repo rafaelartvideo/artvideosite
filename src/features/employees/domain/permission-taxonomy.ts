@@ -15,10 +15,10 @@ const MODULE_LABELS: Record<string, string> = {
   customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", inventory: "Estoque", products: "Produtos", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", checklists: "Checklists", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
-  situations: "Situações da OS", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos",
+  situations: "Situações da OS", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos", organizations: "Empresas",
 };
 
-const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Checklists", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Documentos", "Dados da Empresa", "Contato"];
+const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Checklists", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Auditoria", "Documentos", "Dados da Empresa", "Contato"];
 const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Checklists", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Assinaturas", "Tipos de Anexo", "Calendário", "Endereços", "Funcionários", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
@@ -38,7 +38,9 @@ const HIDDEN_LEGACY_PERMISSIONS = new Set([
 ]);
 
 export function permissionModuleName(permission: PermissionRecord) {
-  const prefix = String(permission.key || "").split(".")[0];
+  const key = String(permission.key || "");
+  if (key === "organizations.audit.view") return "Auditoria";
+  const prefix = key.split(".")[0];
   if (MODULE_LABELS[prefix]) return MODULE_LABELS[prefix];
   const stored = String(permission.module_name || "").split("—")[0].trim();
   return stored || "Outros";
@@ -172,6 +174,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
 };
 
 export function permissionDependencies(key: string) {
+  if (key === "organizations.audit.view") return [];
   const dependencies = new Set(EXPLICIT_DEPENDENCIES[key] || []);
   const module = key.split(".")[0];
   const isModuleView = key === `${module}.view`;
