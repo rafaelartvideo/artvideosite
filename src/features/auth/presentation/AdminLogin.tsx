@@ -50,12 +50,12 @@ function PasswordField({
     <div>
       <label htmlFor={id} className="sr-only">{label}</label>
       <div className="relative">
-        <LockKeyhole
-          size={20}
-          strokeWidth={1.9}
+        <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#b9c7da]"
-        />
+          className="pointer-events-none absolute left-2.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md border border-[#1da8ff]/20 bg-[#1da8ff]/10 text-[#29b6ff] shadow-[0_6px_18px_rgba(0,145,255,0.10)] backdrop-blur-md"
+        >
+          <LockKeyhole size={19} strokeWidth={2} />
+        </span>
         <input
           id={id}
           type={visible ? "text" : "password"}
@@ -64,7 +64,7 @@ function PasswordField({
           required
           autoComplete={autoComplete}
           placeholder={placeholder}
-          className="admin-login-input admin-login-password h-[54px] w-full appearance-none rounded-lg border border-[#7e9bbb]/55 bg-[#06182a]/60 pl-12 pr-12 text-[15px] text-white outline-none backdrop-blur-sm transition placeholder:text-[#93a7bd] hover:border-[#8fb3d8]/80 focus:border-[#1da8ff] focus:ring-2 focus:ring-[#1da8ff]/20"
+          className="admin-login-input admin-login-password h-[54px] w-full appearance-none rounded-lg border border-[#7e9bbb]/55 bg-[#06182a]/60 pl-14 pr-12 text-[15px] text-white outline-none backdrop-blur-sm transition placeholder:text-[#93a7bd] hover:border-[#8fb3d8]/80 focus:border-[#1da8ff] focus:ring-2 focus:ring-[#1da8ff]/20"
         />
         <button
           type="button"
@@ -258,12 +258,12 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
             <div>
               <label htmlFor="admin-login-username" className="sr-only">Usuário</label>
               <div className="relative">
-                <UserRound
-                  size={20}
-                  strokeWidth={1.9}
+                <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#b9c7da]"
-                />
+                  className="pointer-events-none absolute left-2.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md border border-[#1da8ff]/20 bg-[#1da8ff]/10 text-[#29b6ff] shadow-[0_6px_18px_rgba(0,145,255,0.10)] backdrop-blur-md"
+                >
+                  <UserRound size={19} strokeWidth={2} />
+                </span>
                 <input
                   id="admin-login-username"
                   type="text"
@@ -274,7 +274,7 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
                   autoCapitalize="none"
                   spellCheck={false}
                   placeholder="Usuário"
-                  className="admin-login-input h-[54px] w-full rounded-lg border border-[#7e9bbb]/55 bg-[#06182a]/60 pl-12 pr-4 text-[15px] text-white outline-none backdrop-blur-sm transition placeholder:text-[#93a7bd] hover:border-[#8fb3d8]/80 focus:border-[#1da8ff] focus:ring-2 focus:ring-[#1da8ff]/20"
+                  className="admin-login-input h-[54px] w-full rounded-lg border border-[#7e9bbb]/55 bg-[#06182a]/60 pl-14 pr-4 text-[15px] text-white outline-none backdrop-blur-sm transition placeholder:text-[#93a7bd] hover:border-[#8fb3d8]/80 focus:border-[#1da8ff] focus:ring-2 focus:ring-[#1da8ff]/20"
                 />
               </div>
             </div>
