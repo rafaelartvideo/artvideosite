@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Mail, MessageCircle, Phone, Plus, UserRound } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { cn, formatPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
+import { cn, formatPhone, isValidBrazilianMobile, isValidBrazilianPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -25,6 +25,8 @@ type ContactForm = {
   whatsapp: string;
   email: string;
 };
+
+type ContactFormErrors = Partial<Record<keyof ContactForm, string>>;
 
 const emptyContactForm = (): ContactForm => ({ name: "", job_title: "", phone: "", whatsapp: "", email: "" });
 
@@ -99,6 +101,7 @@ export function RegistrationContactsPage({
   const [editing, setEditing] = useState<RegistrationContact | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<ContactForm>(emptyContactForm());
+  const [fieldErrors, setFieldErrors] = useState<ContactFormErrors>({});
 
   useEffect(() => {
     if (!contactsQuery.error) return;
@@ -115,29 +118,27 @@ export function RegistrationContactsPage({
   const openNew = () => {
     setEditing(null);
     setForm(emptyContactForm());
+    setFieldErrors({});
     setFormOpen(true);
   };
 
   const openEdit = (contact: RegistrationContact) => {
     setEditing(contact);
     setForm(contactFormFromRecord(contact));
+    setFieldErrors({});
     setFormOpen(true);
   };
 
   const save = async () => {
     const payload = contactPayload(form);
-    if (!payload.name) {
-      notifyAdmin("Informe o nome do contato.", "error");
-      return;
-    }
-    if (!payload.phone && !payload.whatsapp && !payload.email) {
-      notifyAdmin("Informe pelo menos telefone, WhatsApp ou e-mail.", "error");
-      return;
-    }
-    if (payload.email && !isValidEmail(payload.email)) {
-      notifyAdmin("Informe um e-mail válido para o contato.", "error");
-      return;
-    }
+    const nextErrors: ContactFormErrors = {};
+    if (!payload.name) nextErrors.name = "Informe o nome do contato.";
+    if (!payload.phone && !payload.whatsapp && !payload.email) nextErrors.phone = "Informe pelo menos telefone, WhatsApp ou e-mail.";
+    if (payload.phone && !isValidBrazilianPhone(payload.phone)) nextErrors.phone = "Telefone inválido. Informe DDD e número válidos.";
+    if (payload.whatsapp && !isValidBrazilianMobile(payload.whatsapp)) nextErrors.whatsapp = "WhatsApp inválido. Informe um celular com DDD válido.";
+    if (payload.email && !isValidEmail(payload.email)) nextErrors.email = "Informe um e-mail válido para o contato.";
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
     setSaving(true);
     const result = editing
@@ -145,7 +146,7 @@ export function RegistrationContactsPage({
       : await createRegistrationContact(organizationId, registration.id, payload);
     setSaving(false);
     if (result.error || !result.data) {
-      notifyAdmin(`Erro ao salvar contato: ${result.error?.message || "Contato não retornado após salvar."}`, "error");
+      notifyAdmin(`Erro ao salvar contato: ${systemErrorMessage(result.error, "Contato não retornado após salvar.")}`, "error");
       return;
     }
     updateContactCache(result.data);
@@ -157,7 +158,7 @@ export function RegistrationContactsPage({
     const next = !contact.is_active;
     const result = await setRegistrationContactActive(organizationId, registration.id, contact.id, next);
     if (result.error || !result.data) {
-      notifyAdmin(`Erro ao alterar contato: ${result.error?.message || "Contato não retornado após alterar."}`, "error");
+      notifyAdmin(`Erro ao alterar contato: ${systemErrorMessage(result.error, "Contato não retornado após alterar.")}`, "error");
       return;
     }
     updateContactCache(result.data);
@@ -215,11 +216,11 @@ export function RegistrationContactsPage({
       footer={<div className="flex w-full gap-2 sm:justify-end"><BtnSecondary onClick={() => setFormOpen(false)} disabled={saving} className="min-w-0 flex-1 sm:flex-none">Cancelar</BtnSecondary><BtnPrimary onClick={() => void save()} loading={saving} loadingText="Salvando..." className="min-w-0 flex-1 sm:flex-none">Salvar contato</BtnPrimary></div>}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2"><FInput label="Nome" required value={form.name} onChange={(event: any) => setForm(current => ({ ...current, name: event.target.value }))} /></div>
+        <div className="sm:col-span-2"><FInput label="Nome" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm(current => ({ ...current, name: event.target.value })); }} /></div>
         <div className="sm:col-span-2"><FInput label="Cargo / identificação" value={form.job_title} onChange={(event: any) => setForm(current => ({ ...current, job_title: event.target.value }))} placeholder="Ex.: Financeiro, responsável técnico" /></div>
-        <FPhoneInput label="Telefone" value={form.phone} onChange={(event: any) => setForm(current => ({ ...current, phone: event.target.value }))} />
-        <FPhoneInput label="WhatsApp" mobile value={form.whatsapp} onChange={(event: any) => setForm(current => ({ ...current, whatsapp: event.target.value }))} />
-        <div className="sm:col-span-2"><FEmailInput label="E-mail" value={form.email} onChange={(event: any) => setForm(current => ({ ...current, email: event.target.value }))} /></div>
+        <FPhoneInput label="Telefone" error={fieldErrors.phone} value={form.phone} onChange={(event: any) => { setFieldErrors(current => ({ ...current, phone: undefined })); setForm(current => ({ ...current, phone: event.target.value })); }} />
+        <FPhoneInput label="WhatsApp" mobile error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(event: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined, phone: undefined })); setForm(current => ({ ...current, whatsapp: event.target.value })); }} />
+        <div className="sm:col-span-2"><FEmailInput label="E-mail" error={fieldErrors.email} value={form.email} onChange={(event: any) => { setFieldErrors(current => ({ ...current, email: undefined, phone: undefined })); setForm(current => ({ ...current, email: event.target.value })); }} /></div>
       </div>
     </AdminDialog>
   </>;
