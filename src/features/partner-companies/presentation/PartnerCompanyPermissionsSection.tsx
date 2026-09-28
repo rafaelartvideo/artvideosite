@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
@@ -112,7 +113,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       void queryClient.invalidateQueries({ queryKey: ["partner-companies", "modules", organizationId] });
       setToast({ msg: "Módulo atualizado.", type: "success" });
     },
-    onError: (error: any) => setToast({ msg: `Não foi possível atualizar o módulo: ${error?.message || "Erro desconhecido"}`, type: "error" }),
+    onError: (error: any) => setToast({ msg: `Não foi possível atualizar o módulo: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }),
   });
 
   const bulkModulesMutation = useMutation({
@@ -128,7 +129,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       void queryClient.invalidateQueries({ queryKey: ["partner-companies", "modules", organizationId] });
       setToast({ msg: enabled ? "Todos os módulos foram marcados." : "Todos os módulos foram desmarcados.", type: "success" });
     },
-    onError: (error: any) => setToast({ msg: `Não foi possível atualizar todos os módulos: ${error?.message || "Erro desconhecido"}`, type: "error" }),
+    onError: (error: any) => setToast({ msg: `Não foi possível atualizar todos os módulos: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }),
   });
 
   const shareMutation = useMutation({
@@ -141,7 +142,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       void queryClient.invalidateQueries({ queryKey: ["partner-companies", "shared-data", organizationId] });
       setToast({ msg: "Compartilhamento atualizado.", type: "success" });
     },
-    onError: (error: any) => setToast({ msg: `Não foi possível atualizar o compartilhamento: ${error?.message || "Erro desconhecido"}`, type: "error" }),
+    onError: (error: any) => setToast({ msg: `Não foi possível atualizar o compartilhamento: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }),
   });
 
   const busy = toggleMutation.isPending || bulkModulesMutation.isPending || shareMutation.isPending;
@@ -168,7 +169,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       </AdminCardHeader>
       <AdminCardContent>
         {modulesQuery.isPending ? <LoadingState /> : modulesQuery.isError ? (
-          <p className="text-sm font-semibold text-red-700">{(modulesQuery.error as any)?.message || "Não foi possível carregar os módulos."}</p>
+          <p className="text-sm font-semibold text-red-700">{systemErrorMessage(modulesQuery.error, "Não foi possível carregar os módulos.")}</p>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 sm:gap-0">
             {moduleColumns.map((column, columnIndex) => (
@@ -206,7 +207,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       </AdminCardHeader>
       <AdminCardContent>
         {sharesQuery.isPending ? <LoadingState /> : sharesQuery.isError ? (
-          <p className="text-sm font-semibold text-red-700">{(sharesQuery.error as any)?.message || "Não foi possível carregar os compartilhamentos."}</p>
+          <p className="text-sm font-semibold text-red-700">{systemErrorMessage(sharesQuery.error, "Não foi possível carregar os compartilhamentos.")}</p>
         ) : (
           <div className="divide-y divide-[#d9e1ec]">
             {SHARE_RESOURCES.map(resource => {
