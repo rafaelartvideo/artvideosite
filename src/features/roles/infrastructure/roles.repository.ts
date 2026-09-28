@@ -1,11 +1,16 @@
 import { supabase } from "@/lib/supabase";
 import {
+  PERMISSIONS_CHANGED_EVENT,
+  LEGACY_PERMISSIONS_CHANGED_EVENT,
+  dispatchCompatibleEvent,
+} from "@/lib/platform-identifiers";
+import {
   ARTVIDEO_ORGANIZATION_ID,
   PLATFORM_OPERATOR_ORGANIZATION_ID,
 } from "@/lib/organization.constants";
 
 const notifyPermissionChange = () => {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("artvideo:permissions-changed"));
+  dispatchCompatibleEvent(PERMISSIONS_CHANGED_EVENT, LEGACY_PERMISSIONS_CHANGED_EVENT);
 };
 
 export const listRoles = (organizationId: string) =>
