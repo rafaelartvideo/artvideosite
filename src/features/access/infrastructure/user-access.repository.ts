@@ -1,6 +1,11 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import {
+  PERMISSIONS_CHANGED_EVENT,
+  LEGACY_PERMISSIONS_CHANGED_EVENT,
+  dispatchCompatibleEvent,
+} from "@/lib/platform-identifiers";
+import {
   ARTVIDEO_ORGANIZATION_ID,
   PLATFORM_OPERATOR_ORGANIZATION_ID,
 } from "@/lib/organization.constants";
@@ -272,8 +277,8 @@ export async function setUserPermissionOverrides(
     p_user_id: userId,
     p_permission_ids: Array.from(new Set(permissionIds)),
   });
-  if (!result.error && typeof window !== "undefined") {
-    window.dispatchEvent(new Event("artvideo:permissions-changed"));
+  if (!result.error) {
+    dispatchCompatibleEvent(PERMISSIONS_CHANGED_EVENT, LEGACY_PERMISSIONS_CHANGED_EVENT);
   }
   return result;
 }
