@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSignature } from "lucide-react";
 import { formatDateTime } from "@/shared/domain/formatters";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   createEmployeeSignaturePreviewUrl,
   getActiveEmployeeSignature,
@@ -38,6 +40,10 @@ export function EmployeeSignatureSection({
   const signature = signatureQuery.data || null;
 
   useEffect(() => {
+    if (signatureQuery.error) notifyAdmin(systemErrorMessage(signatureQuery.error, "Não foi possível carregar a assinatura."), "error");
+  }, [signatureQuery.error]);
+
+  useEffect(() => {
     let cancelled = false;
     if (!signature?.storage_path) {
       setPreviewUrl(null);
@@ -67,7 +73,7 @@ export function EmployeeSignatureSection({
       padRef.current?.clear();
       setReplacing(false);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : String(saveError));
+      notifyAdmin(systemErrorMessage(saveError, "Não foi possível salvar a assinatura."), "error");
     } finally {
       setSaving(false);
     }
@@ -86,7 +92,7 @@ export function EmployeeSignatureSection({
     {!entityId ? <div className="flex items-start gap-3 rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4">
       <FileSignature size={19} className="mt-0.5 shrink-0 text-[#0057e7]" />
       <div><p className="text-sm font-bold text-[#0d1b2e]">Assinatura do funcionário</p><p className="mt-1 text-xs leading-5 text-[#5a6a82]">Salve o cadastro antes de cadastrar a assinatura.</p></div>
-    </div> : signatureQuery.isPending ? <div className="text-sm text-[#5a6a82]">Carregando assinatura...</div> : signatureQuery.error ? <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">Não foi possível carregar a assinatura: {signatureQuery.error instanceof Error ? signatureQuery.error.message : String(signatureQuery.error)}</div> : signature && !replacing ? <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+    </div> : signatureQuery.isPending ? <div className="text-sm text-[#5a6a82]">Carregando assinatura...</div> : signatureQuery.error ? <div className="text-sm text-[#5a6a82]">Não foi possível carregar a assinatura.</div> : signature && !replacing ? <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <div className="flex min-h-36 items-center justify-center overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white p-4">
           {previewUrl ? <img src={previewUrl} alt="Assinatura cadastrada do funcionário" className="max-h-28 max-w-full object-contain" /> : <span className="text-xs text-[#5a6a82]">Assinatura cadastrada.</span>}
