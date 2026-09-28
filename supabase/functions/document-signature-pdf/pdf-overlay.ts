@@ -154,6 +154,6 @@ export async function applySignaturesToFrozenPdf(input: ApplyFrozenPdfSignatures
 
   const signedDate = new Date(input.signed_at);
   if (!Number.isNaN(signedDate.getTime())) pdf.setModificationDate(signedDate);
-  pdf.setProducer("ArtVideo - Assinatura eletrônica");
+  pdf.setProducer("Union World - Assinatura eletrônica");
   return pdf.save({ useObjectStreams: false, addDefaultPage: false });
 }
