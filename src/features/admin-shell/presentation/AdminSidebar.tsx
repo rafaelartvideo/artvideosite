@@ -43,7 +43,7 @@ export function AdminSidebar({
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
   const brandingQuery = useQuery({
     queryKey: ["company-settings", activeOrganizationId || "none"],
-    enabled: Boolean(activeOrganizationId && !isPlatformOrganization),
+    enabled: Boolean(activeOrganizationId),
     queryFn: () => getCompanySettings(activeOrganizationId),
   });
   const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data?.company_menu_logo_media_id ?? null);
@@ -69,24 +69,11 @@ export function AdminSidebar({
         collapsed ? "flex-col justify-center gap-1 px-2" : "justify-center px-10",
       )}>
         <div className={cn("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-2.5")}>
-          {isPlatformOrganization ? (
-            collapsed ? (
-              <Globe size={20} className="text-[#00b4ff]" aria-label="Union World" />
-            ) : (
-              <span className="truncate text-sm font-black tracking-[0.08em] text-white">UNION WORLD</span>
-            )
-          ) : menuLogoUrl ? (
-            <img
-              src={menuLogoUrl}
-              alt={activeOrganization?.organization_name || "Logo da empresa"}
-              className={cn("shrink-0 object-contain transition-all", collapsed ? "h-9 w-9" : "max-h-11 max-w-[150px]")}
-            />
-          ) : <>
-            <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-[#0057e7]/25 text-[#00b4ff]", collapsed ? "h-9 w-9" : "h-8 w-8")}>
-              <Building2 size={collapsed ? 18 : 16} />
-            </div>
-            {!collapsed && <span className="max-w-[145px] truncate text-sm font-black text-white">{activeOrganization?.organization_name || "Empresa"}</span>}
-          </>}
+          {collapsed ? (
+            <Globe size={20} className="text-[#00b4ff]" aria-label="Union World" />
+          ) : (
+            <span className="truncate text-sm font-black tracking-[0.08em] text-white">UNION WORLD</span>
+          )}
         </div>
 
         {canCollapse && (
@@ -102,6 +89,43 @@ export function AdminSidebar({
           >
             {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
+        )}
+      </div>
+
+      <div className={cn(
+        "shrink-0 border-b border-white/8 transition-all",
+        collapsed ? "flex items-center justify-center px-2 py-3" : "px-4 py-3",
+      )}>
+        {collapsed ? (
+          menuLogoUrl ? (
+            <img
+              src={menuLogoUrl}
+              alt={activeOrganization?.organization_name || "Empresa ativa"}
+              className="h-9 w-9 object-contain"
+            />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-[#00b4ff]" title={activeOrganization?.organization_name || "Empresa ativa"}>
+              <Building2 size={17} />
+            </div>
+          )
+        ) : (
+          <div className="flex min-w-0 items-center gap-3">
+            {menuLogoUrl ? (
+              <img
+                src={menuLogoUrl}
+                alt={activeOrganization?.organization_name || "Logo da empresa"}
+                className="h-9 w-9 shrink-0 object-contain"
+              />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 text-[#00b4ff]">
+                <Building2 size={17} />
+              </div>
+            )}
+            <div className="min-w-0">
+              <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-white/35">Empresa ativa</span>
+              <span className="block max-w-[150px] truncate text-xs font-black text-white">{activeOrganization?.organization_name || "Empresa"}</span>
+            </div>
+          </div>
         )}
       </div>
 
