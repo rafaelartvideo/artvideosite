@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Building2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -105,7 +106,7 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       await saveSettings.mutateAsync({ organizationId: activeOrganizationId, settings: settingsToSave, updatedBy: user?.id ?? null });
       setToast({ msg: "Dados da empresa salvos com sucesso.", type: "success" });
     } catch (error) {
-      setToast({ msg: error instanceof Error ? error.message : "Não foi possível salvar os dados.", type: "error" });
+      setToast({ msg: systemErrorMessage(error, "Não foi possível salvar os dados."), type: "error" });
     }
   };
 

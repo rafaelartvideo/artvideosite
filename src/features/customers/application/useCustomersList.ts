@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
@@ -94,7 +95,7 @@ export function useCustomersList({ organizationId, onToast }: Options) {
 
   useEffect(() => {
     if (!query.error) return;
-    onToast(`Erro ao carregar clientes: ${query.error instanceof Error ? query.error.message : String(query.error)}`, "error");
+    onToast(`Erro ao carregar clientes: ${systemErrorMessage(query.error)}`, "error");
   }, [query.error, onToast]);
 
   useEffect(() => {

@@ -190,7 +190,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
       if (!creating && Object.keys(payload).length) payload.updated_by = userId;
       await saveServiceAggregate({ serviceId: editItem?.id, payload, userId, variants, inclusions: features, exclusions, priceFactors, sections, faqs, scope: creating ? undefined : { variants: canVariants, inclusions: canFeatures, exclusions: canExclusions, priceFactors: canFactors, sections: canSections, faqs: canFaq } });
       onToast({ msg: editItem ? "Serviço atualizado com sucesso!" : "Serviço criado com sucesso!", type: "success" }); onClose();
-    } catch (error) { onToast({ msg: `Erro ao salvar: ${error instanceof Error ? error.message : "Erro desconhecido"}`, type: "error" }); }
+    } catch (error) { onToast({ msg: `Erro ao salvar: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }); }
     finally { setSaving(false); }
   };
 

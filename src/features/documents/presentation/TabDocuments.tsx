@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useEffect, useState } from "react";
 import { Edit2, FileText, Plus, Tag, Trash2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -51,8 +52,8 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const [templatePageSize, setTemplatePageSize] = useState(5);
   const [attachmentPage, setAttachmentPage] = useState(1);
   const [attachmentPageSize, setAttachmentPageSize] = useState(5);
-  const errorMessage = error instanceof Error ? error.message : error ? String(error) : "";
-  const attachmentErrorMessage = attachmentError instanceof Error ? attachmentError.message : attachmentError ? String(attachmentError) : "";
+  const errorMessage = error ? systemErrorMessage(error) : "";
+  const attachmentErrorMessage = attachmentError ? systemErrorMessage(attachmentError) : "";
   const templateTotalPages = Math.max(1, Math.ceil(filteredTemplates.length / templatePageSize));
   const safeTemplatePage = Math.min(templatePage, templateTotalPages);
   const pagedTemplates = filteredTemplates.slice((safeTemplatePage - 1) * templatePageSize, safeTemplatePage * templatePageSize);
@@ -121,14 +122,14 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
       setTypeName("");
       setTypeMessage("");
     } catch (saveError) {
-      setTypeMessage(saveError instanceof Error ? saveError.message : "Não foi possível salvar.");
+      setTypeMessage(systemErrorMessage(saveError, "Não foi possível salvar."));
     }
   };
   const deleteType = async (type: AttachmentTypeRecord) => {
     if (!canDeleteAttachment) return;
     if (!window.confirm(`Excluir o tipo de anexo “${type.name}”? Tipos já utilizados não podem ser excluídos.`)) return;
     try { await removeAttachmentType(type.id); }
-    catch (deleteError) { setTypeMessage(deleteError instanceof Error ? deleteError.message : "Não foi possível excluir."); }
+    catch (deleteError) { setTypeMessage(systemErrorMessage(deleteError, "Não foi possível excluir.")); }
   };
 
   return <div className="min-w-0 space-y-5">

@@ -31,7 +31,7 @@ export function TabContact() {
 
   useEffect(() => {
     if (!settingsQuery.error) return;
-    const message = settingsQuery.error instanceof Error ? settingsQuery.error.message : "erro desconhecido";
+    const message = systemErrorMessage(settingsQuery.error);
     setToast({ msg: `Erro ao carregar contato: ${message}`, type: "error" });
   }, [settingsQuery.error]);
 

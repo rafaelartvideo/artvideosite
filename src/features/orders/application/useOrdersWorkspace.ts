@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   useCallback,
   useEffect,
@@ -82,7 +83,7 @@ export function useOrdersWorkspace({
   useEffect(() => {
     if (!workspaceQuery.error) return;
     console.error("[ADMIN] OS reference data load error:", workspaceQuery.error);
-    showToast({ msg: `Erro ao carregar dados da OS: ${workspaceQuery.error instanceof Error ? workspaceQuery.error.message : String(workspaceQuery.error)}`, type: "error" });
+    showToast({ msg: `Erro ao carregar dados da OS: ${systemErrorMessage(workspaceQuery.error)}`, type: "error" });
   }, [showToast, workspaceQuery.error]);
 
   const setCollection = useCallback((key: "equipmentTypes" | "equipmentBrands" | "equipmentModels", next: SetStateAction<any[]>) => {
