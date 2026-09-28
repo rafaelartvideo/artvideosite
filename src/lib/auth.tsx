@@ -5,9 +5,16 @@ import type { Profile } from "./database.types";
 import type { OrganizationAccess, OrganizationStatus, OrganizationType } from "./organization.types";
 import { validateCurrentSessionIp } from "@/features/auth/infrastructure/auth.repository";
 import { INACTIVITY_TIMEOUT_MS, isSessionInactive, remainingSessionTime } from "./session-security";
-
-const ACTIVE_ORGANIZATION_STORAGE_PREFIX = "artvideo:active-organization";
-const ORGANIZATION_CHANGED_EVENT = "artvideo:organization-changed";
+import {
+  ACTIVE_ORGANIZATION_STORAGE_PREFIX,
+  LEGACY_ACTIVE_ORGANIZATION_STORAGE_PREFIX,
+  ORGANIZATION_CHANGED_EVENT,
+  LEGACY_ORGANIZATION_CHANGED_EVENT,
+  PERMISSIONS_CHANGED_EVENT,
+  LEGACY_PERMISSIONS_CHANGED_EVENT,
+  addCompatibleEventListener,
+  dispatchCompatibleEvent,
+} from "./platform-identifiers";
 
 interface PermissionEntry {
   key: string;
@@ -140,13 +147,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accessLoadingKeyRef.current = null;
       void loadAccess(userId, activeOrganizationIdRef.current);
     };
-    window.addEventListener("artvideo:permissions-changed", handlePermissionChange);
+    const removePermissionListener = addCompatibleEventListener(
+      PERMISSIONS_CHANGED_EVENT,
+      LEGACY_PERMISSIONS_CHANGED_EVENT,
+      handlePermissionChange,
+    );
 
     return () => {
       cancelled = true;
       cancelScheduledAccessLoad();
       listener.subscription.unsubscribe();
-      window.removeEventListener("artvideo:permissions-changed", handlePermissionChange);
+      removePermissionListener();
     };
   }, []);
 
@@ -240,9 +251,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessError(null);
 
     if (notifyOrganizationChange && previousOrganizationId) {
-      window.dispatchEvent(new CustomEvent(ORGANIZATION_CHANGED_EVENT, {
-        detail: { previousOrganizationId, organizationId: null },
-      }));
+      dispatchCompatibleEvent(
+        ORGANIZATION_CHANGED_EVENT,
+        LEGACY_ORGANIZATION_CHANGED_EVENT,
+        { previousOrganizationId, organizationId: null },
+      );
     }
   }
 
@@ -407,12 +420,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
 
     if (previousOrganizationId && previousOrganizationId !== resolvedOrganization.organization_id) {
-      window.dispatchEvent(new CustomEvent(ORGANIZATION_CHANGED_EVENT, {
-        detail: {
+      dispatchCompatibleEvent(
+        ORGANIZATION_CHANGED_EVENT,
+        LEGACY_ORGANIZATION_CHANGED_EVENT,
+        {
           previousOrganizationId,
           organizationId: resolvedOrganization.organization_id,
         },
-      }));
+      );
     }
   }
 
@@ -512,7 +527,11 @@ function selectOrganization(
   organizations: OrganizationAccess[],
   preferredOrganizationId?: string | null,
 ) {
-  const persistedOrganizationId = localStorage.getItem(activeOrganizationStorageKey(userId));
+  const persistedOrganizationId = localStorage.getItem(activeOrganizationStorageKey(userId))
+    || localStorage.getItem(legacyActiveOrganizationStorageKey(userId));
+  if (persistedOrganizationId) {
+    localStorage.setItem(activeOrganizationStorageKey(userId), persistedOrganizationId);
+  }
   const requestedIds = [preferredOrganizationId, persistedOrganizationId].filter(Boolean);
 
   for (const organizationId of requestedIds) {
@@ -531,6 +550,10 @@ function persistActiveOrganization(userId: string, organizationId: string) {
 
 function activeOrganizationStorageKey(userId: string) {
   return `${ACTIVE_ORGANIZATION_STORAGE_PREFIX}:${userId}`;
+}
+
+function legacyActiveOrganizationStorageKey(userId: string) {
+  return `${LEGACY_ACTIVE_ORGANIZATION_STORAGE_PREFIX}:${userId}`;
 }
 
 export function useAuth() {
