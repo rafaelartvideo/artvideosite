@@ -1,5 +1,8 @@
 import { supabase } from "@/lib/supabase";
-import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
+import {
+  ARTVIDEO_ORGANIZATION_ID,
+  PLATFORM_OPERATOR_ORGANIZATION_ID,
+} from "@/lib/organization.constants";
 
 const notifyPermissionChange = () => {
   if (typeof window !== "undefined") window.dispatchEvent(new Event("artvideo:permissions-changed"));
@@ -22,10 +25,13 @@ export const listActiveRoles = (organizationId: string) =>
     .order("sort_order")
     .order("name");
 
-const artvideoOnlyPermissionPrefixes = [
+const platformOnlyPermissionPrefixes = [
   "organizations.",
   "integrations.",
   "audit.",
+];
+
+const artvideoSiteOnlyPermissionPrefixes = [
   "products.",
   "categories.",
   "brands.",
@@ -55,7 +61,16 @@ export async function listPermissions(organizationId: string) {
   const situationIds = new Set((situationsResult.data || []).map((item: any) => String(item.id)));
   const data = (permissionsResult.data || []).filter((permission: any) => {
     const key = String(permission.key || "");
-    if (organizationId !== PLATFORM_ORGANIZATION_ID && artvideoOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))) {
+    if (
+      organizationId !== PLATFORM_OPERATOR_ORGANIZATION_ID
+      && platformOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
+    ) {
+      return false;
+    }
+    if (
+      organizationId !== ARTVIDEO_ORGANIZATION_ID
+      && artvideoSiteOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
+    ) {
       return false;
     }
     const match = key.match(/^orders\.images\.situation\.([0-9a-f-]{36})\.upload$/i);
