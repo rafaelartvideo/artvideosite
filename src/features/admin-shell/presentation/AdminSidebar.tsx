@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, ExternalLink, Globe, LogOut, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
+import { ArrowLeft, Building2, ChevronDown, ExternalLink, Globe, LogOut, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
@@ -69,10 +69,29 @@ export function AdminSidebar({
         collapsed ? "flex-col justify-center gap-1 px-2" : "justify-center px-10",
       )}>
         <div className={cn("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-2.5")}>
-          {collapsed ? (
-            <Globe size={20} className="text-[#00b4ff]" aria-label="Union World" />
+          {menuLogoUrl ? (
+            <img
+              src={menuLogoUrl}
+              alt={activeOrganization?.organization_name || "Logo da empresa"}
+              className={cn(
+                "shrink-0 object-contain transition-all",
+                collapsed ? "h-9 w-9" : "max-h-11 max-w-[150px]",
+              )}
+            />
           ) : (
-            <span className="truncate text-sm font-black tracking-[0.08em] text-white">UNION WORLD</span>
+            <>
+              <div className={cn(
+                "flex shrink-0 items-center justify-center rounded-lg bg-white/5 text-[#00b4ff]",
+                collapsed ? "h-9 w-9" : "h-8 w-8",
+              )}>
+                <Building2 size={collapsed ? 18 : 16} />
+              </div>
+              {!collapsed && (
+                <span className="max-w-[145px] truncate text-sm font-black text-white">
+                  {activeOrganization?.organization_name || "Empresa"}
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -92,43 +111,43 @@ export function AdminSidebar({
         )}
       </div>
 
-      <div className={cn(
-        "shrink-0 border-b border-white/8 transition-all",
-        collapsed ? "flex items-center justify-center px-2 py-3" : "px-4 py-3",
-      )}>
-        {collapsed ? (
-          menuLogoUrl ? (
-            <img
-              src={menuLogoUrl}
-              alt={activeOrganization?.organization_name || "Empresa ativa"}
-              className="h-9 w-9 object-contain"
-            />
-          ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-[#00b4ff]" title={activeOrganization?.organization_name || "Empresa ativa"}>
-              <Building2 size={17} />
-            </div>
-          )
-        ) : (
-          <div className="flex min-w-0 items-center gap-3">
-            {menuLogoUrl ? (
-              <img
-                src={menuLogoUrl}
-                alt={activeOrganization?.organization_name || "Logo da empresa"}
-                className="h-9 w-9 shrink-0 object-contain"
-              />
-            ) : (
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 text-[#00b4ff]">
-                <Building2 size={17} />
+      {organizations.length > 1 && (
+        <div className={cn(
+          "shrink-0 border-b border-white/8 transition-all",
+          collapsed ? "flex items-center justify-center px-2 py-3" : "px-4 py-3",
+        )}>
+          {collapsed ? (
+            <div className="relative h-9 w-9">
+              <div
+                className="pointer-events-none flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65"
+                title="Trocar empresa"
+              >
+                <ChevronDown size={18} />
               </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <label htmlFor="active-organization" className="block text-[9px] font-bold uppercase tracking-[0.14em] text-white/35">Empresa ativa</label>
-              {organizations.length > 1 ? (
+              <select
+                value={activeOrganizationId || ""}
+                onChange={(event) => void onOrganizationChange(event.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                aria-label="Trocar empresa ativa"
+              >
+                {organizations.map(organization => (
+                  <option key={organization.organization_id} value={organization.organization_id}>
+                    {organization.organization_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="active-organization" className="block text-[9px] font-bold uppercase tracking-[0.14em] text-white/35">
+                Empresa ativa
+              </label>
+              <div className="relative mt-1">
                 <select
                   id="active-organization"
                   value={activeOrganizationId || ""}
                   onChange={(event) => void onOrganizationChange(event.target.value)}
-                  className="mt-1 w-full min-w-0 cursor-pointer appearance-none truncate rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs font-black text-white outline-none transition focus:border-[#00b4ff]/60 focus:ring-1 focus:ring-[#00b4ff]/40"
+                  className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-md border border-white/10 bg-white/5 py-2 pl-3 pr-8 text-xs font-black text-white outline-none transition hover:border-white/20 focus:border-[#00b4ff]/60 focus:ring-1 focus:ring-[#00b4ff]/40"
                   aria-label="Trocar empresa ativa"
                 >
                   {organizations.map(organization => (
@@ -137,13 +156,16 @@ export function AdminSidebar({
                     </option>
                   ))}
                 </select>
-              ) : (
-                <span className="mt-1 block max-w-[150px] truncate text-xs font-black text-white">{activeOrganization?.organization_name || "Empresa"}</span>
-              )}
+                <ChevronDown
+                  size={15}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/55"
+                />
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       <div className={cn(
         "shrink-0 border-b border-white/8 transition-all",
