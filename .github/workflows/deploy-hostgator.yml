@@ -49,6 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 55
     env:
+      FTP_CRM_SERVER: ${{ secrets.FTP_CRM_SERVER || secrets.FTP_SERVER }}
+      FTP_CRM_USERNAME: ${{ secrets.FTP_CRM_USERNAME || secrets.FTP_USERNAME }}
+      FTP_CRM_PASSWORD: ${{ secrets.FTP_CRM_PASSWORD || secrets.FTP_PASSWORD }}
       FTP_PROD_USERNAME: ${{ secrets.FTP_PROD_USERNAME }}
       FTP_PROD_PASSWORD: ${{ secrets.FTP_PROD_PASSWORD }}
 
@@ -137,16 +140,16 @@ jobs:
             echo "Nenhum cache anterior de assets do site disponível."
           fi
 
-      - name: Deploy CRM to testeteste.com.br via FTPS
+      - name: Deploy CRM to unionworld.com.br via FTPS
         if: steps.current.outputs.deploy == 'true'
         id: ftp_crm_deploy
         continue-on-error: true
         timeout-minutes: 15
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
+          server: ${{ env.FTP_CRM_SERVER }}
+          username: ${{ env.FTP_CRM_USERNAME }}
+          password: ${{ env.FTP_CRM_PASSWORD }}
           protocol: ftps
           port: 21
           local-dir: ./dist-crm/
@@ -160,9 +163,9 @@ jobs:
         timeout-minutes: 15
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
+          server: ${{ env.FTP_CRM_SERVER }}
+          username: ${{ env.FTP_CRM_USERNAME }}
+          password: ${{ env.FTP_CRM_PASSWORD }}
           protocol: ftps
           port: 21
           local-dir: ./dist-crm/
