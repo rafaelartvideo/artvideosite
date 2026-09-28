@@ -26,7 +26,8 @@ type AdminLayoutProps = {
   children: ReactNode;
 };
 
-const SIDEBAR_COLLAPSED_STORAGE_KEY = "artvideo.admin.sidebar.collapsed";
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "unionworld.admin.sidebar.collapsed";
+const LEGACY_SIDEBAR_COLLAPSED_STORAGE_KEY = "artvideo.admin.sidebar.collapsed";
 
 export function AdminLayout({
   sidebar,
@@ -37,7 +38,9 @@ export function AdminLayout({
 }: AdminLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
+    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY)
+      ?? window.localStorage.getItem(LEGACY_SIDEBAR_COLLAPSED_STORAGE_KEY);
+    return stored === "true";
   });
 
   useEffect(() => {
