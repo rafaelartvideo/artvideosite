@@ -73,6 +73,7 @@ export async function listPermissions(organizationId: string) {
     const key = String(permission.key || "");
     if (
       organizationId !== platformOperatorId
+      && key !== "organizations.audit.view"
       && platformOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
     ) {
       return false;
