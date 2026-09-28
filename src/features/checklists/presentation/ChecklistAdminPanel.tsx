@@ -68,6 +68,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const query = useQuery({ queryKey: queryKeys.checklists.profiles(), queryFn: loadChecklistAdminData, enabled: canView });
   const data = query.data;
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; stages?: string; stageNames?: Record<number, string>; itemTitles?: Record<string, string> }>({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [page, setPage] = useState(1);
@@ -88,7 +89,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   useEffect(() => {
-    if (!editorOpen) { setDraft(null); return; }
+    if (!editorOpen) { setDraft(null); setFieldErrors({}); return; }
     if (!data) return;
     if (routeResourceId === "new") { setDraft(current => current || newDraft()); return; }
     const editor = profileEditorFromAdminData(data, String(routeResourceId));
@@ -115,22 +116,35 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const removeItem = (stageIndex: number, itemIndex: number) => setDraft(current => current ? { ...current, stages: current.stages.map((stage, index) => index === stageIndex ? { ...stage, items: stage.items.filter((_, childIndex) => childIndex !== itemIndex) } : stage) } : current);
 
   const validate = (value: Draft) => {
-    if (!value.name.trim()) return "Informe o nome do checklist.";
-    if (!value.stages.length) return "Adicione ao menos uma etapa.";
-    const codes = new Set<string>();
-    for (const [index, stage] of value.stages.entries()) {
-      if (!stage.name.trim()) return `Informe o nome da etapa ${index + 1}.`;
+    const errors: typeof fieldErrors = {};
+    if (!value.name.trim()) errors.name = "Informe o nome do checklist.";
+    if (!value.stages.length) errors.stages = "Adicione ao menos uma etapa.";
+
+    const codes = new Map<string, number>();
+    const stageNames: Record<number, string> = {};
+    const itemTitles: Record<string, string> = {};
+    value.stages.forEach((stage, index) => {
+      if (!stage.name.trim()) stageNames[index] = `Informe o nome da etapa ${index + 1}.`;
       const code = stage.id ? stage.code : stageCode(stage.name, stage.code || `etapa_${index + 1}`);
-      if (codes.has(code)) return "As etapas precisam ter códigos diferentes.";
-      codes.add(code);
-      if (stage.items.some(item => !item.title.trim())) return `Preencha todos os itens da etapa ${stage.name}.`;
-    }
-    return "";
+      const previousIndex = codes.get(code);
+      if (previousIndex !== undefined) {
+        stageNames[index] = "Esta etapa gera o mesmo código de outra etapa. Use outro nome.";
+        stageNames[previousIndex] = stageNames[previousIndex] || "Esta etapa gera o mesmo código de outra etapa. Use outro nome.";
+      }
+      codes.set(code, index);
+      stage.items.forEach((item, itemIndex) => {
+        if (!item.title.trim()) itemTitles[`${index}:${itemIndex}`] = "Informe o título do item.";
+      });
+    });
+    if (Object.keys(stageNames).length) errors.stageNames = stageNames;
+    if (Object.keys(itemTitles).length) errors.itemTitles = itemTitles;
+    return errors;
   };
   const persist = async (value = draft, close = true) => {
     if (!value || !canManage) return;
-    const errorMessage = validate(value);
-    if (errorMessage) { setToast({ msg: errorMessage, type: "error" }); return; }
+    const nextErrors = validate(value);
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     setSaving(true);
     try {
       await saveChecklistProfile({ id: value.id, name: value.name, description: value.description, is_active: value.is_active, stages: value.stages.map((stage, index) => ({ ...stage, code: stage.id ? stage.code : stageCode(stage.name, stage.code || `etapa_${index + 1}`), sort_order: index * 10, items: stage.items.map((item, itemIndex) => ({ ...item, sort_order: itemIndex * 10 })) })) });
@@ -183,10 +197,10 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       <div className="space-y-5 p-5">
         <section className="overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white">
           <div className="flex flex-col gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><h3 className="text-sm font-black text-[#0d1b2e]">Checklist</h3><p className="mt-1 text-xs text-[#6b7c93]">Defina a identificação e disponibilidade deste checklist.</p></div>
+            <div><h3 className="text-sm font-black text-[#0d1b2e]">Checklist</h3><p className="mt-1 text-xs text-[#6b7c93]">Defina a identificação e disponibilidade deste checklist.</p>{fieldErrors.stages && <p className="mt-2 text-[11px] font-semibold text-red-600">{fieldErrors.stages}</p>}</div>
             <div className="flex justify-end"><FToggle label="Checklist ativo" checked={draft.is_active} onChange={checked => setDraft(current => current ? { ...current, is_active: checked } : current)} /></div>
           </div>
-          <div className="grid gap-4 p-5 lg:grid-cols-2"><FInput label="Nome do checklist" value={draft.name} onChange={event => setDraft(current => current ? { ...current, name: event.target.value } : current)} placeholder="Ex.: Televisor — Padrão" /><FInput label="Descrição" value={draft.description} onChange={event => setDraft(current => current ? { ...current, description: event.target.value } : current)} /></div>
+          <div className="grid gap-4 p-5 lg:grid-cols-2"><FInput label="Nome do checklist" value={draft.name} error={fieldErrors.name} onChange={event => { setFieldErrors(current => ({ ...current, name: undefined })); setDraft(current => current ? { ...current, name: event.target.value } : current); }} placeholder="Ex.: Televisor — Padrão" /><FInput label="Descrição" value={draft.description} onChange={event => setDraft(current => current ? { ...current, description: event.target.value } : current)} /></div>
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-[#0d1b2e]/10 bg-white">
@@ -199,7 +213,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
           </div>
 
           <div className="grid gap-5 p-5 xl:grid-cols-2">{draft.stages.map((stage, stageIndex) => <AdminCard key={`${stage.id || stage.code}-${stageIndex}`} className="h-full overflow-hidden shadow-none">
-            <div className="border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><FInput label={`Nome da etapa ${stageIndex + 1}`} value={stage.name} onChange={event => updateStage(stageIndex, { name: event.target.value })} placeholder="Ex.: Entrada" /></div><div className="flex shrink-0 items-center justify-center gap-1.5 sm:pt-5">
+            <div className="border-b border-[#0d1b2e]/8 bg-[#f8fafc] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><FInput label={`Nome da etapa ${stageIndex + 1}`} value={stage.name} error={fieldErrors.stageNames?.[stageIndex]} onChange={event => { setFieldErrors(current => ({ ...current, stageNames: { ...current.stageNames, [stageIndex]: undefined } })); updateStage(stageIndex, { name: event.target.value }); }} placeholder="Ex.: Entrada" /></div><div className="flex shrink-0 items-center justify-center gap-1.5 sm:pt-5">
               <AdminIconButton disabled={stageIndex === 0} onClick={() => moveStage(stageIndex, -1)} title="Mover etapa para cima" ariaLabel="Mover etapa para cima" className="h-10 w-10"><ArrowUp size={15} /></AdminIconButton>
               <AdminIconButton disabled={stageIndex === draft.stages.length - 1} onClick={() => moveStage(stageIndex, 1)} title="Mover etapa para baixo" ariaLabel="Mover etapa para baixo" className="h-10 w-10"><ArrowDown size={15} /></AdminIconButton>
               <AdminIconButton variant="danger" onClick={() => removeStage(stageIndex)} title="Excluir etapa" ariaLabel="Excluir etapa" className="h-10 w-10"><Trash2 size={15} /></AdminIconButton>
@@ -209,7 +223,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
               <div className="grid gap-2 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3 sm:grid-cols-2"><FToggle label="Bloquear saída da situação" checked={stage.block_situation_exit} onChange={checked => updateStage(stageIndex, { block_situation_exit: checked })} /><FToggle label="Bloquear Resolver OS" checked={stage.block_resolution} onChange={checked => updateStage(stageIndex, { block_resolution: checked })} /><div className="sm:col-span-2"><FToggle label="Bloquear Concluir OS" checked={stage.block_completion} onChange={checked => updateStage(stageIndex, { block_completion: checked })} /></div></div>
               <div className="space-y-3"><div className="flex items-center justify-between gap-3 border-t border-[#0d1b2e]/8 pt-3"><div className="flex min-w-0 flex-wrap items-baseline gap-2 text-[#0057e7]"><strong className="text-xs uppercase tracking-wide">Itens</strong><span className="text-[11px] font-bold">{stage.items.length} {stage.items.length === 1 ? "item" : "itens"}</span></div><AdminButton variant="secondary" className="h-10 border-[#0057e7]/30 px-3 text-[#0057e7] hover:bg-[#eef5ff] hover:text-[#0057e7]" onClick={() => addItem(stageIndex)}><Plus size={17} /> Item</AdminButton></div>
                 {stage.items.map((item, itemIndex) => <div key={`${item.id || "new"}-${itemIndex}`} className="rounded-xl border border-[#0d1b2e]/10 bg-white p-3"><div className="mb-3 flex items-center justify-between gap-2"><span className="text-xs font-bold text-[#0d1b2e]">Item {itemIndex + 1}</span><button type="button" onClick={() => removeItem(stageIndex, itemIndex)} className="rounded-md p-1.5 text-red-600 transition-colors hover:bg-red-50" title="Excluir item"><Trash2 size={14} /></button></div>
-                  <div className="grid gap-3 sm:grid-cols-2"><div className="sm:col-span-2"><FInput label="Título" value={item.title} onChange={event => updateItem(stageIndex, itemIndex, { title: event.target.value })} /></div><FSelect label="Resposta" value={item.response_type} onChange={(event: any) => updateItem(stageIndex, itemIndex, { response_type: event.target.value })} options={RESPONSE_OPTIONS} /><FSelect label="Foto" value={item.photo_requirement} onChange={(event: any) => updateItem(stageIndex, itemIndex, { photo_requirement: event.target.value })} options={PHOTO_OPTIONS} /><FSelect label="Observação" value={item.observation_requirement} onChange={(event: any) => updateItem(stageIndex, itemIndex, { observation_requirement: event.target.value })} options={OBSERVATION_OPTIONS} /><div className="flex flex-wrap items-end gap-4 pb-1"><FToggle label="Obrigatório" checked={item.is_required} onChange={checked => updateItem(stageIndex, itemIndex, { is_required: checked })} /><FToggle label="Permitir N/A" checked={item.allow_na} onChange={checked => updateItem(stageIndex, itemIndex, { allow_na: checked })} /></div><div className="sm:col-span-2"><FInput label="Instrução / descrição" value={item.description || ""} onChange={event => updateItem(stageIndex, itemIndex, { description: event.target.value || null })} /></div></div>
+                  <div className="grid gap-3 sm:grid-cols-2"><div className="sm:col-span-2"><FInput label="Título" value={item.title} error={fieldErrors.itemTitles?.[`${stageIndex}:${itemIndex}`]} onChange={event => { setFieldErrors(current => ({ ...current, itemTitles: { ...current.itemTitles, [`${stageIndex}:${itemIndex}`]: undefined } })); updateItem(stageIndex, itemIndex, { title: event.target.value }); }} /></div><FSelect label="Resposta" value={item.response_type} onChange={(event: any) => updateItem(stageIndex, itemIndex, { response_type: event.target.value })} options={RESPONSE_OPTIONS} /><FSelect label="Foto" value={item.photo_requirement} onChange={(event: any) => updateItem(stageIndex, itemIndex, { photo_requirement: event.target.value })} options={PHOTO_OPTIONS} /><FSelect label="Observação" value={item.observation_requirement} onChange={(event: any) => updateItem(stageIndex, itemIndex, { observation_requirement: event.target.value })} options={OBSERVATION_OPTIONS} /><div className="flex flex-wrap items-end gap-4 pb-1"><FToggle label="Obrigatório" checked={item.is_required} onChange={checked => updateItem(stageIndex, itemIndex, { is_required: checked })} /><FToggle label="Permitir N/A" checked={item.allow_na} onChange={checked => updateItem(stageIndex, itemIndex, { allow_na: checked })} /></div><div className="sm:col-span-2"><FInput label="Instrução / descrição" value={item.description || ""} onChange={event => updateItem(stageIndex, itemIndex, { description: event.target.value || null })} /></div></div>
                 </div>)}
               </div>
             </div>

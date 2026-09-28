@@ -48,6 +48,7 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
   const query = useCompanySettingsQuery(activeOrganizationId);
   const saveSettings = useSaveCompanySettingsMutation();
   const [form, setForm] = useState<CompanyForm>(EMPTY_COMPANY);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CompanyForm, string>>>({});
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const companyOpen = routeResourceId === "company" && canViewDetails;
   const busy = saveSettings.isPending;
@@ -77,31 +78,20 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       && key !== "company_logo_media_id"
       && key !== "company_menu_logo_media_id"
     ) return;
+    setFieldErrors((current) => ({ ...current, [key]: undefined }));
     setForm((current) => ({ ...current, [key]: value }));
   };
 
   const save = async () => {
     if (!canUpdate || busy || !activeOrganizationId) return;
-    if (!form.company_name.trim()) {
-      setToast({ msg: "Informe o nome da empresa.", type: "error" });
-      return;
-    }
-    if (form.company_cnpj && !isValidCnpj(form.company_cnpj)) {
-      setToast({ msg: "CNPJ inválido. Verifique os números informados.", type: "error" });
-      return;
-    }
-    if (form.company_phone && !isValidBrazilianPhone(form.company_phone)) {
-      setToast({ msg: "Telefone inválido. Informe DDD e número válidos.", type: "error" });
-      return;
-    }
-    if (form.company_email && !isValidEmail(form.company_email)) {
-      setToast({ msg: "E-mail inválido. Verifique o endereço informado.", type: "error" });
-      return;
-    }
-    if (form.company_zip_code && form.company_zip_code.replace(/\D/g, "").length !== 8) {
-      setToast({ msg: "CEP inválido. Informe os 8 dígitos.", type: "error" });
-      return;
-    }
+    const nextErrors: Partial<Record<keyof CompanyForm, string>> = {};
+    if (!form.company_name.trim()) nextErrors.company_name = "Informe o nome da empresa.";
+    if (form.company_cnpj && !isValidCnpj(form.company_cnpj)) nextErrors.company_cnpj = "CNPJ inválido. Verifique os números informados.";
+    if (form.company_phone && !isValidBrazilianPhone(form.company_phone)) nextErrors.company_phone = "Telefone inválido. Informe DDD e número válidos.";
+    if (form.company_email && !isValidEmail(form.company_email)) nextErrors.company_email = "E-mail inválido. Verifique o endereço informado.";
+    if (form.company_zip_code && form.company_zip_code.replace(/\D/g, "").length !== 8) nextErrors.company_zip_code = "CEP inválido. Informe os 8 dígitos.";
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     try {
       const settingsToSave = isPartnerOrganization && query.data
         ? {
@@ -142,16 +132,16 @@ export function TabSettings({ routeResourceId, onRouteChange }: {
       <div className="min-w-0 space-y-5 p-4 sm:p-5">
         {isPartnerOrganization && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-sm leading-6 text-[#35506f]">Estas informações são administradas pelo administrador da empresa.</div>}
         <Section title="Identificação"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="min-w-0 w-full"><FInput label="CNPJ" inputMode="numeric" maxLength={18} value={form.company_cnpj} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" /></div>
-          <div className="min-w-0 w-full"><FInput label="Nome da empresa / Nome fantasia" value={form.company_name} required disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_name", event.target.value)} /></div>
+          <div className="min-w-0 w-full"><FInput label="CNPJ" inputMode="numeric" maxLength={18} error={fieldErrors.company_cnpj} value={form.company_cnpj} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" /></div>
+          <div className="min-w-0 w-full"><FInput label="Nome da empresa / Nome fantasia" error={fieldErrors.company_name} value={form.company_name} required disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_name", event.target.value)} /></div>
           <div className="min-w-0 w-full"><FInput label="Razão social" value={form.company_legal_name} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_legal_name", event.target.value)} /></div>
           {isPartnerOrganization && <div className="min-w-0 w-full"><FInput label="Inscrição estadual" value={form.company_state_registration} disabled /></div>}
           {isPartnerOrganization && <div className="min-w-0 w-full"><FInput label="Inscrição municipal" value={form.company_municipal_registration} disabled /></div>}
-          <div className="min-w-0 w-full"><FPhoneInput label="Telefone" value={form.company_phone} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_phone", event.target.value)} /></div>
-          <div className="min-w-0 w-full md:col-span-2"><FInput label="E-mail" type="email" autoComplete="email" value={form.company_email} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_email", event.target.value.trimStart())} /></div>
+          <div className="min-w-0 w-full"><FPhoneInput label="Telefone" error={fieldErrors.company_phone} value={form.company_phone} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_phone", event.target.value)} /></div>
+          <div className="min-w-0 w-full md:col-span-2"><FInput label="E-mail" type="email" autoComplete="email" error={fieldErrors.company_email} value={form.company_email} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_email", event.target.value.trimStart())} /></div>
         </div></Section>
         <Section title="Endereço"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="min-w-0 w-full"><FInput label="CEP" inputMode="numeric" maxLength={9} placeholder="00000-000" value={form.company_zip_code} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_zip_code", formatZipCode(event.target.value))} /></div>
+          <div className="min-w-0 w-full"><FInput label="CEP" inputMode="numeric" maxLength={9} placeholder="00000-000" error={fieldErrors.company_zip_code} value={form.company_zip_code} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_zip_code", formatZipCode(event.target.value))} /></div>
           <div className="min-w-0 w-full"><FInput label="Rua / Logradouro" value={form.company_street} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_street", event.target.value)} /></div>
           <div className="min-w-0 w-full"><FInput label="Número" inputMode="numeric" value={form.company_number} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_number", event.target.value.replace(/[^0-9A-Za-z/-]/g, ""))} /></div>
           <div className="min-w-0 w-full"><FInput label="Complemento" value={form.company_complement} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_complement", event.target.value)} /></div>
