@@ -60,14 +60,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore previous production assets
-        id: previous_assets
+      - name: Restore previous CRM assets
+        id: previous_crm_assets
         uses: actions/cache/restore@v4
         with:
-          path: .previous-production-assets
-          key: restore-production-assets-${{ github.run_id }}
+          path: .previous-crm-assets
+          key: restore-crm-assets-${{ github.run_id }}
           restore-keys: |
-            production-assets-
+            crm-assets-
+
+      - name: Restore previous public site assets
+        id: previous_site_assets
+        uses: actions/cache/restore@v4
+        with:
+          path: .previous-site-assets
+          key: restore-site-assets-${{ github.run_id }}
+          restore-keys: |
+            site-assets-
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -80,8 +89,11 @@ jobs:
       - name: Finance domain tests
         run: npm run test:finance
 
-      - name: Build
-        run: npm run build
+      - name: Build public site
+        run: npm run build:site
+
+      - name: Build CRM
+        run: npm run build:crm
 
       - name: Confirm commit is still current
         id: current
@@ -105,20 +117,29 @@ jobs:
       - name: Keep current and previous release assets
         if: steps.current.outputs.deploy == 'true'
         run: |
-          rm -rf .current-production-assets
-          mkdir -p .current-production-assets
-          cp -a dist/assets/. .current-production-assets/
+          rm -rf .current-crm-assets .current-site-assets
+          mkdir -p .current-crm-assets .current-site-assets
 
-          if [ -d .previous-production-assets ]; then
-            echo "Mantendo os chunks da versão anterior como janela de compatibilidade."
-            cp -an .previous-production-assets/. dist/assets/
+          cp -a dist-crm/assets/. .current-crm-assets/
+          cp -a dist-site/assets/. .current-site-assets/
+
+          if [ -d .previous-crm-assets ]; then
+            echo "Mantendo os chunks da versão anterior do CRM como janela de compatibilidade."
+            cp -an .previous-crm-assets/. dist-crm/assets/
           else
-            echo "Nenhum cache de assets anterior disponível neste primeiro deploy protegido."
+            echo "Nenhum cache anterior de assets do CRM disponível."
           fi
 
-      - name: Deploy testeteste.com.br via FTPS
+          if [ -d .previous-site-assets ]; then
+            echo "Mantendo os chunks da versão anterior do site como janela de compatibilidade."
+            cp -an .previous-site-assets/. dist-site/assets/
+          else
+            echo "Nenhum cache anterior de assets do site disponível."
+          fi
+
+      - name: Deploy CRM to testeteste.com.br via FTPS
         if: steps.current.outputs.deploy == 'true'
-        id: ftp_deploy
+        id: ftp_crm_deploy
         continue-on-error: true
         timeout-minutes: 15
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
@@ -128,14 +149,14 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftps
           port: 21
-          local-dir: ./dist/
+          local-dir: ./dist-crm/
           server-dir: ./
           timeout: 120000
           log-level: verbose
 
-      - name: Retry testeteste.com.br deploy after transient failure
-        if: steps.current.outputs.deploy == 'true' && steps.ftp_deploy.outcome == 'failure'
-        id: ftp_retry
+      - name: Retry CRM deploy after transient failure
+        if: steps.current.outputs.deploy == 'true' && steps.ftp_crm_deploy.outcome == 'failure'
+        id: ftp_crm_retry
         timeout-minutes: 15
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
@@ -144,14 +165,14 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftps
           port: 21
-          local-dir: ./dist/
+          local-dir: ./dist-crm/
           server-dir: ./
           timeout: 120000
           log-level: verbose
 
-      - name: Deploy eletronicaartvideo.com.br via FTPS
+      - name: Deploy public site to eletronicaartvideo.com.br via FTPS
         if: steps.current.outputs.deploy == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != ''
-        id: ftp_prod_deploy
+        id: ftp_site_deploy
         continue-on-error: true
         timeout-minutes: 15
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
@@ -161,7 +182,7 @@ jobs:
           password: ${{ env.FTP_PROD_PASSWORD }}
           protocol: ftps
           port: 21
-          local-dir: ./dist/
+          local-dir: ./dist-site/
           server-dir: ./
           timeout: 120000
           log-level: verbose
@@ -181,9 +202,9 @@ jobs:
             .htaccess.phpupgrader.*
             mail_accounts_deletion.log
 
-      - name: Retry eletronicaartvideo.com.br deploy after transient failure
-        if: steps.current.outputs.deploy == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != '' && steps.ftp_prod_deploy.outcome == 'failure'
-        id: ftp_prod_retry
+      - name: Retry public site deploy after transient failure
+        if: steps.current.outputs.deploy == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != '' && steps.ftp_site_deploy.outcome == 'failure'
+        id: ftp_site_retry
         timeout-minutes: 15
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
@@ -192,7 +213,7 @@ jobs:
           password: ${{ env.FTP_PROD_PASSWORD }}
           protocol: ftps
           port: 21
-          local-dir: ./dist/
+          local-dir: ./dist-site/
           server-dir: ./
           timeout: 120000
           log-level: verbose
@@ -212,9 +233,16 @@ jobs:
             .htaccess.phpupgrader.*
             mail_accounts_deletion.log
 
-      - name: Save current production assets for next deploy
-        if: steps.current.outputs.deploy == 'true' && (steps.ftp_deploy.outcome == 'success' || steps.ftp_retry.outcome == 'success')
+      - name: Save current CRM assets for next deploy
+        if: steps.current.outputs.deploy == 'true' && (steps.ftp_crm_deploy.outcome == 'success' || steps.ftp_crm_retry.outcome == 'success')
         uses: actions/cache/save@v4
         with:
-          path: .current-production-assets
-          key: production-assets-${{ github.sha }}
+          path: .current-crm-assets
+          key: crm-assets-${{ github.sha }}
+
+      - name: Save current public site assets for next deploy
+        if: steps.current.outputs.deploy == 'true' && (steps.ftp_site_deploy.outcome == 'success' || steps.ftp_site_retry.outcome == 'success')
+        uses: actions/cache/save@v4
+        with:
+          path: .current-site-assets
+          key: site-assets-${{ github.sha }}
