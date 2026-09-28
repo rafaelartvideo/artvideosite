@@ -4,6 +4,12 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
 
+declare const __APP_TARGET__: "site" | "crm" | "combined";
+declare const __PUBLIC_SITE_URL__: string;
+
+const APP_TARGET = __APP_TARGET__;
+const PUBLIC_SITE_URL = __PUBLIC_SITE_URL__.replace(/\/+$/, "");
+
 const AdminLogin = lazy(() =>
   import("@/app/Admin").then(({ AdminLogin }) => ({ default: AdminLogin })),
 );
@@ -108,16 +114,50 @@ export default function App() {
   return (
     <AuthProvider>
       <ScrollToTop />
-      <Routes>
-        <Route path="/captura" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
-        <Route path="/captura/:sessionId" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
-        <Route path="/editar-os-mobile" element={<Suspense fallback={<StandaloneFallback text="Abrindo edição da OS..." />}><MobileOrderEditPage /></Suspense>} />
-        <Route path="/assinatura/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando assinatura..." />}><PublicDocumentSignaturePage /></Suspense>} />
-        <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
-        <Route path="/admin/*" element={<AdminEntry />} />
-        <Route path="/*" element={<PublicRoutes />} />
-      </Routes>
+      {APP_TARGET === "site" ? (
+        <PublicApplication />
+      ) : APP_TARGET === "crm" ? (
+        <CrmApplication />
+      ) : (
+        <CombinedApplication />
+      )}
     </AuthProvider>
+  );
+}
+
+function PublicApplication() {
+  return (
+    <Routes>
+      <Route path="/*" element={<PublicRoutes />} />
+    </Routes>
+  );
+}
+
+function CrmApplication() {
+  return (
+    <Routes>
+      <Route path="/captura" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
+      <Route path="/captura/:sessionId" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
+      <Route path="/editar-os-mobile" element={<Suspense fallback={<StandaloneFallback text="Abrindo edição da OS..." />}><MobileOrderEditPage /></Suspense>} />
+      <Route path="/assinatura/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando assinatura..." />}><PublicDocumentSignaturePage /></Suspense>} />
+      <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
+      <Route path="/admin/*" element={<AdminEntry />} />
+      <Route path="*" element={<Navigate to="/admin" replace />} />
+    </Routes>
+  );
+}
+
+function CombinedApplication() {
+  return (
+    <Routes>
+      <Route path="/captura" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
+      <Route path="/captura/:sessionId" element={<Suspense fallback={<CaptureFallback />}><MobileDeviceCapturePage /></Suspense>} />
+      <Route path="/editar-os-mobile" element={<Suspense fallback={<StandaloneFallback text="Abrindo edição da OS..." />}><MobileOrderEditPage /></Suspense>} />
+      <Route path="/assinatura/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando assinatura..." />}><PublicDocumentSignaturePage /></Suspense>} />
+      <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
+      <Route path="/admin/*" element={<AdminEntry />} />
+      <Route path="/*" element={<PublicRoutes />} />
+    </Routes>
   );
 }
 
@@ -145,6 +185,14 @@ function AdminEntry() {
 
   if (loading || shouldSwitchOrganization) return <AdminFallback />;
 
+  const handleBackToSite = () => {
+    if (APP_TARGET === "crm") {
+      window.location.assign(PUBLIC_SITE_URL);
+      return;
+    }
+    navigate("/");
+  };
+
   return (
     <Suspense fallback={<AdminFallback />}>
       {!session ? (
@@ -166,7 +214,7 @@ function AdminEntry() {
           onSignOut={signOut}
         />
       ) : (
-        <AdminDashboard onBackToSite={() => navigate("/")} />
+        <AdminDashboard onBackToSite={handleBackToSite} />
       )}
     </Suspense>
   );
