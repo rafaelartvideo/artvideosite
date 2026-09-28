@@ -1,3 +1,5 @@
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -55,7 +57,7 @@ export function FinanceSettlementDialog({
   const [methodId, setMethodId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [occurredAt, setOccurredAt] = useState(localDateTimeInput());
-  const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ installment?: string; principal?: string; method?: string; account?: string }>({});
 
   const selectedInstallment = openInstallments.find(item => item.id === installmentId) || null;
   const selectedMethod = activeMethods.find(item => item.id === methodId) || null;
@@ -90,7 +92,7 @@ export function FinanceSettlementDialog({
     setMethodId(firstMethod?.id || "");
     setAccountId(firstMethod?.default_financial_account_id || activeAccounts[0]?.id || "");
     setOccurredAt(localDateTimeInput());
-    setMessage("");
+    setFieldErrors({});
   }, [open]);
 
   useEffect(() => {
@@ -108,14 +110,17 @@ export function FinanceSettlementDialog({
 
   const save = async () => {
     const principalValidation = validatePrincipalAgainstRemaining(principalValue, remaining);
-    if (!selectedInstallment) { setMessage("Selecione uma parcela em aberto."); return; }
-    if (!principalValidation.ok) { setMessage("O valor principal deve ser maior que zero e não pode exceder o saldo da parcela."); return; }
-    if (!selectedMethod) { setMessage("Selecione a forma de pagamento."); return; }
-    if (!accountId) { setMessage("Selecione a conta financeira."); return; }
-    if (gross <= 0) { setMessage("O valor final da baixa deve ser maior que zero."); return; }
-    if (fee > gross) { setMessage("A taxa financeira não pode superar o valor da baixa."); return; }
+    const nextErrors: typeof fieldErrors = {};
+    if (!selectedInstallment) nextErrors.installment = "Selecione uma parcela em aberto.";
+    if (!principalValidation.ok) nextErrors.principal = "O valor principal deve ser maior que zero e não pode exceder o saldo da parcela.";
+    else if (gross <= 0) nextErrors.principal = "O valor final da baixa deve ser maior que zero.";
+    else if (fee > gross) nextErrors.principal = "A taxa financeira não pode superar o valor da baixa.";
+    if (!selectedMethod) nextErrors.method = "Selecione a forma de pagamento.";
+    if (!accountId) nextErrors.account = "Selecione a conta financeira.";
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     try {
-      setMessage("");
+      setFieldErrors({});
       await onSave({
         entry_id: detail.id,
         installment_id: selectedInstallment.id,
@@ -130,7 +135,7 @@ export function FinanceSettlementDialog({
       });
       onClose();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível registrar a baixa.");
+      notifyAdmin(systemErrorMessage(error, "Não foi possível registrar a baixa."), "error");
     }
   };
 
@@ -141,8 +146,8 @@ export function FinanceSettlementDialog({
       <div className="flex items-center justify-between border-b px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">{actionLabel} lançamento</h2><p className="mt-1 text-xs text-[#5a6a82]">Registre baixa total ou parcial sem alterar o valor original do título.</p></div><button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button></div>
       <div className="space-y-5 p-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <FSelect label="Parcela" required value={installmentId} onChange={(event: any) => selectInstallment(event.target.value)} options={openInstallments.map(item => ({ value: item.id, label: `${item.installment_number}/${item.total_installments} · saldo ${formatCurrency(Number(item.original_amount) - Number(item.settled_amount))}` }))} />
-          <FInput label="Valor principal" required type="number" min="0.01" step="0.01" value={principal} onChange={(event: any) => setPrincipal(event.target.value)} />
+          <FSelect label="Parcela" required error={fieldErrors.installment} value={installmentId} onChange={(event: any) => selectInstallment(event.target.value)} options={openInstallments.map(item => ({ value: item.id, label: `${item.installment_number}/${item.total_installments} · saldo ${formatCurrency(Number(item.original_amount) - Number(item.settled_amount))}` }))} />
+          <FInput label="Valor principal" required error={fieldErrors.principal} type="number" min="0.01" step="0.01" value={principal} onChange={(event: any) => { setFieldErrors(current => ({ ...current, principal: undefined })); setPrincipal(event.target.value); }} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <FInput label="Juros" type="number" min="0" step="0.01" value={interest} onChange={(event: any) => setInterest(event.target.value)} />
@@ -151,8 +156,8 @@ export function FinanceSettlementDialog({
           <FInput label="Desconto" type="number" min="0" step="0.01" value={discount} onChange={(event: any) => setDiscount(event.target.value)} />
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          <FSelect label="Forma de pagamento" required value={methodId} onChange={(event: any) => setMethodId(event.target.value)} options={activeMethods.map(item => ({ value: item.id, label: item.name }))} />
-          <FSelect label="Conta financeira" required value={accountId} onChange={(event: any) => setAccountId(event.target.value)} options={activeAccounts.map(item => ({ value: item.id, label: item.name }))} />
+          <FSelect label="Forma de pagamento" required error={fieldErrors.method} value={methodId} onChange={(event: any) => setMethodId(event.target.value)} options={activeMethods.map(item => ({ value: item.id, label: item.name }))} />
+          <FSelect label="Conta financeira" required error={fieldErrors.account} value={accountId} onChange={(event: any) => setAccountId(event.target.value)} options={activeAccounts.map(item => ({ value: item.id, label: item.name }))} />
           <FInput label="Data e hora" required type="datetime-local" value={occurredAt} onChange={(event: any) => setOccurredAt(event.target.value)} />
         </div>
 
@@ -163,7 +168,7 @@ export function FinanceSettlementDialog({
           <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Líquido</p><p className="mt-1 text-sm font-black text-emerald-700">{formatCurrency(net)}</p></div>
         </div>
         {selectedMethod && <div className={`rounded-lg border px-4 py-3 text-xs font-semibold ${scheduled ? "border-amber-200 bg-amber-50 text-amber-800" : "border-blue-200 bg-blue-50 text-blue-800"}`}>{scheduled ? `Liquidação futura: o título será baixado agora e o saldo da conta será movimentado quando a liquidação for confirmada. Previsão: ${expectedDate || "—"}.` : `Liquidação imediata. Previsão da forma de pagamento: ${expectedDate || "—"}.`}</div>}
-        {message && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>}
+        
       </div>
       <div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton><AdminButton onClick={save} loading={saving} loadingText="Registrando...">{actionLabel}</AdminButton></div>
     </div>

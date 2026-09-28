@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle, Plus } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
@@ -46,7 +48,7 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
   const [note, setNote] = useState("");
   const [contactedAt, setContactedAt] = useState(localDateTimeInput);
   const [followUpAt, setFollowUpAt] = useState("");
-  const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ note?: string; contactedAt?: string; followUpAt?: string }>({});
 
   const query = useQuery({
     queryKey: queryKeys.finance.collections(organizationKey, detail.id),
@@ -69,7 +71,7 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
       setNote("");
       setContactedAt(localDateTimeInput());
       setFollowUpAt("");
-      setMessage("");
+      setFieldErrors({});
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.finance.collections(organizationKey, detail.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.finance.entry(organizationKey, detail.id) }),
@@ -80,14 +82,19 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
   if (detail.entry_type !== "receivable" || !canView) return null;
   const logs = query.data || [];
   const error = query.error || mutation.error;
-  const errorText = message || (error instanceof Error ? error.message : "");
+  useEffect(() => {
+    if (error) notifyAdmin(systemErrorMessage(error), "error");
+  }, [error]);
 
   const submit = async () => {
-    if (!note.trim()) { setMessage("Informe a observação da cobrança."); return; }
-    if (!toIso(contactedAt)) { setMessage("Informe uma data/hora de contato válida."); return; }
-    if (followUpAt && !toIso(followUpAt)) { setMessage("Informe uma data/hora válida para o próximo retorno."); return; }
+    const nextErrors: typeof fieldErrors = {};
+    if (!note.trim()) nextErrors.note = "Informe a observação da cobrança.";
+    if (!toIso(contactedAt)) nextErrors.contactedAt = "Informe uma data/hora de contato válida.";
+    if (followUpAt && !toIso(followUpAt)) nextErrors.followUpAt = "Informe uma data/hora válida para o próximo retorno.";
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     try {
-      setMessage("");
+      setFieldErrors({});
       await mutation.mutateAsync();
     } catch {
       // Error is rendered by mutation state.
@@ -96,7 +103,7 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
 
   const openForm = () => {
     setOpen(true);
-    setMessage("");
+    setFieldErrors({});
     setContactedAt(localDateTimeInput());
   };
 
@@ -118,9 +125,9 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
 
     {open && <div className="fixed inset-0 z-[135] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl"><div className="border-b px-5 py-4"><h2 className="text-lg font-black text-[#0d1b2e]">Novo contato de cobrança</h2></div><div className="space-y-4 p-5">
       <div className="grid gap-4 sm:grid-cols-2"><FSelect label="Canal" value={channel} options={CHANNEL_OPTIONS} onChange={(event: any) => setChannel(event.target.value as FinancialCollectionChannel)} /><FSelect label="Parcela (opcional)" value={installmentId} options={[{ value: "", label: "Título geral" }, ...detail.installments.map(item => ({ value: item.id, label: `Parcela ${item.installment_number}/${item.total_installments}` }))]} onChange={(event: any) => setInstallmentId(event.target.value)} /></div>
-      <div className="grid gap-4 sm:grid-cols-2"><FInput type="datetime-local" label="Data/hora do contato" value={contactedAt} onChange={(event: any) => setContactedAt(event.target.value)} /><FInput type="datetime-local" label="Próximo retorno" value={followUpAt} onChange={(event: any) => setFollowUpAt(event.target.value)} /></div>
-      <FTextarea label="Observação" required value={note} onChange={(event: any) => setNote(event.target.value)} rows={4} />
-      {errorText && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
+      <div className="grid gap-4 sm:grid-cols-2"><FInput type="datetime-local" label="Data/hora do contato" error={fieldErrors.contactedAt} value={contactedAt} onChange={(event: any) => { setFieldErrors(current => ({ ...current, contactedAt: undefined })); setContactedAt(event.target.value); }} /><FInput type="datetime-local" label="Próximo retorno" error={fieldErrors.followUpAt} value={followUpAt} onChange={(event: any) => { setFieldErrors(current => ({ ...current, followUpAt: undefined })); setFollowUpAt(event.target.value); }} /></div>
+      <FTextarea label="Observação" required error={fieldErrors.note} value={note} onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }} rows={4} />
+      
     </div><div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!mutation.isPending) setOpen(false); }} disabled={mutation.isPending}>Cancelar</AdminButton><AdminButton onClick={() => void submit()} loading={mutation.isPending} loadingText="Salvando...">Registrar contato</AdminButton></div></div></div>}
   </AdminCard>;
 }

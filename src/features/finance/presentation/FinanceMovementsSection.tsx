@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, RotateCcw, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -38,7 +40,7 @@ export function FinanceMovementsSection() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [reverseTransferId, setReverseTransferId] = useState<string | null>(null);
   const [reverseReason, setReverseReason] = useState("");
-  const [message, setMessage] = useState("");
+  const [reverseReasonError, setReverseReasonError] = useState("");
 
   const balances = finance.balancesQuery.data || {};
   const accounts = (foundation.accountsQuery.data || []).map(item => ({ ...item, balance: Number(balances[item.id] || 0) }));
@@ -57,7 +59,9 @@ export function FinanceMovementsSection() {
     });
   }, [movements, search, accountFilter, accounts.length]);
   const error = finance.movementsQuery.error || finance.balancesQuery.error || finance.transfersQuery.error || finance.scheduledSettlementsQuery.error || finance.transferMutation.error || finance.reverseTransferMutation.error || finance.confirmScheduledSettlementMutation.error;
-  const errorText = message || (error instanceof Error ? error.message : "");
+  useEffect(() => {
+    if (error) notifyAdmin(systemErrorMessage(error), "error");
+  }, [error]);
 
   const saveTransfer = async (draft: FinancialTransferDraft) => {
     await finance.transferMutation.mutateAsync(draft);
@@ -65,14 +69,14 @@ export function FinanceMovementsSection() {
 
   const reverseTransfer = async () => {
     if (!reverseTransferId) return;
-    if (!reverseReason.trim()) { setMessage("Informe o motivo do estorno da transferência."); return; }
+    if (!reverseReason.trim()) { setReverseReasonError("Informe o motivo do estorno da transferência."); return; }
     try {
-      setMessage("");
+      setReverseReasonError("");
       await finance.reverseTransferMutation.mutateAsync({ id: reverseTransferId, reason: reverseReason.trim() });
       setReverseTransferId(null);
       setReverseReason("");
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Não foi possível estornar a transferência.");
+      notifyAdmin(systemErrorMessage(caught, "Não foi possível estornar a transferência."), "error");
     }
   };
 
@@ -85,7 +89,7 @@ export function FinanceMovementsSection() {
       {accounts.slice(0, 2).map(account => <AdminCard key={account.id} className="p-4"><p className="truncate text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">{account.name}</p><p className="mt-1 text-xl font-black text-[#0d1b2e]">{formatCurrency(account.balance || 0)}</p><p className="mt-1 text-xs text-[#5a6a82]">Saldo derivado do livro financeiro.</p></AdminCard>)}
     </div>
 
-    {errorText && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
+    
 
     <AdminCard>
       <AdminCardHeader>
@@ -114,10 +118,10 @@ export function FinanceMovementsSection() {
       </>}
     </AdminCard>
 
-    {canTransfer && transfers.length > 0 && <AdminCard><AdminCardHeader><h3 className="text-sm font-black text-[#0d1b2e]">Transferências</h3></AdminCardHeader><AdminCardContent className="space-y-2">{transfers.slice(0, 20).map(transfer => <div key={transfer.id} className="flex flex-col gap-3 rounded-xl border border-[#0d1b2e]/8 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-bold text-[#0d1b2e]">{accountById.get(transfer.from_account_id)?.name || "Conta"} → {accountById.get(transfer.to_account_id)?.name || "Conta"}</p><p className="mt-1 text-xs text-[#5a6a82]">{formatDateTime(transfer.occurred_at)} · {formatCurrency(transfer.amount)}{transfer.note ? ` · ${transfer.note}` : ""}</p>{transfer.reversal_reason && <p className="mt-1 text-xs font-semibold text-red-700">Estornada: {transfer.reversal_reason}</p>}</div>{transfer.transfer_status === "posted" && <AdminButton size="sm" variant="danger" onClick={() => { setReverseTransferId(transfer.id); setReverseReason(""); setMessage(""); }}><RotateCcw size={14} /> Estornar</AdminButton>}</div>)}</AdminCardContent></AdminCard>}
+    {canTransfer && transfers.length > 0 && <AdminCard><AdminCardHeader><h3 className="text-sm font-black text-[#0d1b2e]">Transferências</h3></AdminCardHeader><AdminCardContent className="space-y-2">{transfers.slice(0, 20).map(transfer => <div key={transfer.id} className="flex flex-col gap-3 rounded-xl border border-[#0d1b2e]/8 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-bold text-[#0d1b2e]">{accountById.get(transfer.from_account_id)?.name || "Conta"} → {accountById.get(transfer.to_account_id)?.name || "Conta"}</p><p className="mt-1 text-xs text-[#5a6a82]">{formatDateTime(transfer.occurred_at)} · {formatCurrency(transfer.amount)}{transfer.note ? ` · ${transfer.note}` : ""}</p>{transfer.reversal_reason && <p className="mt-1 text-xs font-semibold text-red-700">Estornada: {transfer.reversal_reason}</p>}</div>{transfer.transfer_status === "posted" && <AdminButton size="sm" variant="danger" onClick={() => { setReverseTransferId(transfer.id); setReverseReason(""); setReverseReasonError(""); }}><RotateCcw size={14} /> Estornar</AdminButton>}</div>)}</AdminCardContent></AdminCard>}
 
     <FinanceTransferDialog open={transferOpen} accounts={accounts} saving={finance.transferMutation.isPending} onClose={() => { if (!finance.transferMutation.isPending) setTransferOpen(false); }} onSave={saveTransfer} />
 
-    {reverseTransferId && <div className="fixed inset-0 z-[125] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"><div className="border-b px-5 py-4"><h2 className="text-lg font-black text-[#0d1b2e]">Estornar transferência</h2><p className="mt-1 text-xs text-[#5a6a82]">Serão criados movimentos inversos nas duas contas.</p></div><div className="p-5"><FTextarea label="Motivo do estorno" required value={reverseReason} onChange={(event: any) => setReverseReason(event.target.value)} /></div><div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!finance.reverseTransferMutation.isPending) { setReverseTransferId(null); setReverseReason(""); } }}>Cancelar</AdminButton><AdminButton variant="danger" onClick={reverseTransfer} loading={finance.reverseTransferMutation.isPending} loadingText="Estornando...">Confirmar estorno</AdminButton></div></div></div>}
+    {reverseTransferId && <div className="fixed inset-0 z-[125] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"><div className="border-b px-5 py-4"><h2 className="text-lg font-black text-[#0d1b2e]">Estornar transferência</h2><p className="mt-1 text-xs text-[#5a6a82]">Serão criados movimentos inversos nas duas contas.</p></div><div className="p-5"><FTextarea label="Motivo do estorno" required error={reverseReasonError} value={reverseReason} onChange={(event: any) => { setReverseReasonError(""); setReverseReason(event.target.value); }} /></div><div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!finance.reverseTransferMutation.isPending) { setReverseTransferId(null); setReverseReason(""); } }}>Cancelar</AdminButton><AdminButton variant="danger" onClick={reverseTransfer} loading={finance.reverseTransferMutation.isPending} loadingText="Estornando...">Confirmar estorno</AdminButton></div></div></div>}
   </div>;
 }
