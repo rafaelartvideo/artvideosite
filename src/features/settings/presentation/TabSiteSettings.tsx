@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useSaveSiteSettingsMutation, useSiteSettingsQuery } from "./useSiteSettingsQuery";
@@ -16,14 +17,14 @@ export function TabSiteSettings({ onBack }: { onBack: () => void }) {
   const saveSettings = useSaveSiteSettingsMutation();
 
   useEffect(() => { if (settingsQuery.data) setSettings(settingsQuery.data); }, [settingsQuery.data]);
-  useEffect(() => { if (settingsQuery.error) setToast({ msg: `Erro ao carregar configurações: ${settingsQuery.error instanceof Error ? settingsQuery.error.message : "erro desconhecido"}`, type: "error" }); }, [settingsQuery.error]);
+  useEffect(() => { if (settingsQuery.error) setToast({ msg: `Erro ao carregar configurações: ${systemErrorMessage(settingsQuery.error)}`, type: "error" }); }, [settingsQuery.error]);
   if (!canView) return null;
 
   const updateSetting = (key: string, value: any) => { if (canUpdate) setSettings(prev => ({ ...prev, [key]: value })); };
   const handleSave = async () => {
     if (!canUpdate) return;
     try { await saveSettings.mutateAsync({ settings, updatedBy: user?.id ?? null }); setToast({ msg: "Configurações salvas com sucesso!", type: "success" }); }
-    catch (error) { console.error("[ADMIN] site_settings save error:", error); setToast({ msg: `Erro ao salvar configurações: ${error instanceof Error ? error.message : "erro desconhecido"}`, type: "error" }); }
+    catch (error) { console.error("[ADMIN] site_settings save error:", error); setToast({ msg: `Erro ao salvar configurações: ${systemErrorMessage(error)}`, type: "error" }); }
   };
 
   const groups = [
