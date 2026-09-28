@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Edit2, Plus } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
@@ -77,7 +78,7 @@ export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RoutePro
       void queryClient.invalidateQueries({ queryKey: ["partner-companies"] });
       setToast({ msg: data?.status === "active" ? "Empresa ativada." : "Empresa inativada.", type: "success" });
     },
-    onError: (error: any) => setToast({ msg: `Não foi possível alterar o status: ${error?.message || "Erro desconhecido"}`, type: "error" }),
+    onError: (error: any) => setToast({ msg: `Não foi possível alterar o status: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }),
   });
 
   if (!isPlatformOrganization) return null;
