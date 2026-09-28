@@ -1,6 +1,7 @@
 import { Menu, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { AutoFitLogo } from "@/shared/ui/media/AutoFitLogo";
 import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
 import type { AdminPageState } from "../domain/admin.types";
 
@@ -64,7 +65,7 @@ export function AdminHeader({
 
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-16">
             {companyLogoUrl ? (
-              <img
+              <AutoFitLogo
                 src={companyLogoUrl}
                 alt={activeOrganizationName || "Logo da empresa"}
                 className="h-11 w-full max-w-[190px] object-contain"
