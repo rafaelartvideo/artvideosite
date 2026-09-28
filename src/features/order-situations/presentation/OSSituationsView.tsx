@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, List, Plus, Trash2 } from "lucide-react";
@@ -43,7 +44,7 @@ export function OSSituationsView({ onBack, routeResourceId, routeSubpage, onRout
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
-  useEffect(() => { if (situationsQuery.error) setToast({ msg: `Erro ao carregar situações: ${situationsQuery.error instanceof Error ? situationsQuery.error.message : String(situationsQuery.error)}`, type: "error" }); }, [situationsQuery.error]);
+  useEffect(() => { if (situationsQuery.error) setToast({ msg: `Erro ao carregar situações: ${systemErrorMessage(situationsQuery.error)}`, type: "error" }); }, [situationsQuery.error]);
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -76,10 +77,10 @@ export function OSSituationsView({ onBack, routeResourceId, routeSubpage, onRout
       const payload = { name: form.name.trim(), slug, color: form.color.trim().toUpperCase() || null, hours: form.hours === "" ? null : Number(form.hours), is_active: form.is_active, sort_order: Number(form.sort_order) };
       if (editItem) await updateOrderSituation(editItem.id, payload); else await createOrderSituation(payload);
       setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Situação atualizada." : "Situação criada.", type: "success" }); await refresh();
-    } catch (error) { setToast({ msg: `Erro ao salvar situação: ${error instanceof Error ? error.message : (error && typeof error === "object" && "message" in error ? String((error as { message?: unknown }).message ?? "Erro desconhecido") : String(error))}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar situação: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const remove = async (id: string) => { if (!canDelete) return; try { await deleteOrderSituation(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível remover a situação: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
+  const remove = async (id: string) => { if (!canDelete) return; try { await deleteOrderSituation(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível remover a situação: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   if (!canView) return null;
   return <div className="min-w-0 space-y-5">

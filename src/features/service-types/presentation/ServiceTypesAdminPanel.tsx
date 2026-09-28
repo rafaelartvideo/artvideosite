@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, List, Plus, Trash2 } from "lucide-react";
@@ -56,7 +57,7 @@ function ServiceTypesAdminPanelContent({ routeResourceId, routeSubpage, onRouteC
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
-  useEffect(() => { if (configurationQuery.error) setToast({ msg: `Erro ao carregar tipos: ${configurationQuery.error instanceof Error ? configurationQuery.error.message : String(configurationQuery.error)}`, type: "error" }); }, [configurationQuery.error]);
+  useEffect(() => { if (configurationQuery.error) setToast({ msg: `Erro ao carregar tipos: ${systemErrorMessage(configurationQuery.error)}`, type: "error" }); }, [configurationQuery.error]);
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedItems = useMemo(() => items.slice((safePage - 1) * pageSize, safePage * pageSize), [items, safePage, pageSize]);
@@ -99,11 +100,11 @@ function ServiceTypesAdminPanelContent({ routeResourceId, routeSubpage, onRouteC
     try {
       await saveServiceType({ serviceTypeId: editItem?.id, payload: { title: form.title.trim(), description: form.description.trim() || null, forecast_days: forecastDays, is_active: form.is_active }, sortOrder: items.length, selectedSituations });
       setFormOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" }); await refresh();
-    } catch (error) { setToast({ msg: `Erro ao salvar tipo: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar tipo: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const toggle = async (item: any) => { if (!canToggleActive) return; try { await setServiceTypeActive(item.id, !item.is_active); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar tipo: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
-  const remove = async (id: string) => { if (!canDelete) return; try { await deleteServiceType(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível excluir: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
+  const toggle = async (item: any) => { if (!canToggleActive) return; try { await setServiceTypeActive(item.id, !item.is_active); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar tipo: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const remove = async (id: string) => { if (!canDelete) return; try { await deleteServiceType(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível excluir: ${systemErrorMessage(error)}`, type: "error" }); } };
   const slaSummary = (item: any) => { const links = situationLinks.filter(link => link.service_type_id === item.id); const totalHours = links.reduce((total, link) => { const situation = situations.find(current => current.id === link.situation_id); const hours = Number(link.use_default_hours ? situation?.hours : link.sla_hours); return Number.isFinite(hours) && hours > 0 ? total + hours : total; }, 0); return { count: links.length, totalHours }; };
 
   if (!canView) return null;

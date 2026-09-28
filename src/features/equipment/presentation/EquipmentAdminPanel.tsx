@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Trash2, Wrench } from "lucide-react";
@@ -76,7 +77,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const [fieldPage, setFieldPage] = useState(1);
   const [fieldPageSize, setFieldPageSize] = useState(5);
 
-  useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar equipamentos: ${catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
+  useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar equipamentos: ${systemErrorMessage(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
   useEffect(() => { if (activeArea === "fields" && !canViewFields) setActiveArea("registered"); }, [activeArea, canViewFields]);
   const typeTotalPages = Math.max(1, Math.ceil(types.length / typePageSize));
   const safeTypePage = Math.min(typePage, typeTotalPages);
@@ -150,14 +151,14 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       setToast({ msg: editingField ? "Campo atualizado." : "Campo cadastrado.", type: "success" });
       await refresh();
       closeEditor();
-    } catch (error) { setToast({ msg: `Erro ao salvar campo: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar campo: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
 
   const toggleField = async (field: TechnicalField) => {
     if (!canManageFields) return;
     try { await saveTechnicalField({ ...field, label: field.label, field_key: field.field_key, sort_order: field.sort_order, is_active: !field.is_active }); await refresh(); }
-    catch (error) { setToast({ msg: `Erro ao atualizar campo: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    catch (error) { setToast({ msg: `Erro ao atualizar campo: ${systemErrorMessage(error)}`, type: "error" }); }
   };
 
   const toggleEquipmentActive = async (type: EquipmentTypeRow) => {
@@ -167,7 +168,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       setToast({ msg: type.is_active ? "Equipamento inativado com sucesso." : "Equipamento ativado com sucesso.", type: "success" });
       await refresh();
     } catch (error) {
-      setToast({ msg: `Erro ao ${type.is_active ? "inativar" : "ativar"} equipamento: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+      setToast({ msg: `Erro ao ${type.is_active ? "inativar" : "ativar"} equipamento: ${systemErrorMessage(error)}`, type: "error" });
     }
   };
 
@@ -214,7 +215,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       setActiveArea("registered");
       setFormOpen(false);
       onRouteChange?.(null, null);
-    } catch (error) { setToast({ msg: `Erro ao salvar estrutura: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar estrutura: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
 

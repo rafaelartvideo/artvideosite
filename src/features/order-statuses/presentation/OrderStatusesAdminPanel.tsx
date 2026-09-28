@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, Edit2, Plus, Trash2 } from "lucide-react";
@@ -46,7 +47,7 @@ function OrderStatusesAdminPanelContent({ routeResourceId, routeSubpage, onRoute
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
-  useEffect(() => { if (statusesQuery.error) setToast({ msg: `Erro ao carregar status: ${statusesQuery.error instanceof Error ? statusesQuery.error.message : String(statusesQuery.error)}`, type: "error" }); }, [statusesQuery.error]);
+  useEffect(() => { if (statusesQuery.error) setToast({ msg: `Erro ao carregar status: ${systemErrorMessage(statusesQuery.error)}`, type: "error" }); }, [statusesQuery.error]);
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -76,10 +77,10 @@ function OrderStatusesAdminPanelContent({ routeResourceId, routeSubpage, onRoute
     try {
       await saveOrderStatus({ name: form.name.trim(), color: form.color.trim().toUpperCase(), sort_order: sortOrder }, editItem?.id);
       setFormOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Status atualizado." : "Status criado.", type: "success" }); await refresh();
-    } catch (error) { setToast({ msg: `Erro ao salvar status: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar status: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const remove = async (id: string) => { if (!canDelete) return; try { await deleteOrderStatus(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível excluir: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
+  const remove = async (id: string) => { if (!canDelete) return; try { await deleteOrderStatus(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível excluir: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

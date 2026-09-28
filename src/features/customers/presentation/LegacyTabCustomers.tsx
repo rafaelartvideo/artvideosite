@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -73,7 +74,7 @@ export function LegacyTabCustomers({
         if (!cancelled && routeSubpage === "edit" && canEdit) details.setEditingData(true);
       });
     }).catch(error => {
-      if (!cancelled) setToast({ msg: `Erro ao carregar cliente: ${error instanceof Error ? error.message : String(error)}`, type: "error" });
+      if (!cancelled) setToast({ msg: `Erro ao carregar cliente: ${systemErrorMessage(error)}`, type: "error" });
     });
 
     return () => { cancelled = true; };
