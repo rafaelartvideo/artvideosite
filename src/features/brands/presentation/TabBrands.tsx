@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Tag, Trash2 } from "lucide-react";
@@ -34,7 +35,7 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
-  useEffect(() => { if (brandsQuery.error) setToast({ msg: `Erro ao carregar marcas: ${brandsQuery.error instanceof Error ? brandsQuery.error.message : String(brandsQuery.error)}`, type: "error" }); }, [brandsQuery.error]);
+  useEffect(() => { if (brandsQuery.error) setToast({ msg: `Erro ao carregar marcas: ${systemErrorMessage(brandsQuery.error)}`, type: "error" }); }, [brandsQuery.error]);
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.brands() })]);
   const openNew = () => { if (!canCreate) return; setForm({ name: "", description: "", logo_media_id: "", website_url: "", is_active: true, sort_order: "0" }); setEditItem(null); setDrawerOpen(true); };
   const openEdit = (b: any) => { if (!(canViewDetails && canEdit)) return; setForm({ name: b.name || "", description: b.description || "", logo_media_id: b.logo_media_id || "", website_url: b.website_url || "", is_active: b.is_active ?? true, sort_order: String(b.sort_order ?? 0) }); setEditItem(b); setDrawerOpen(true); };
@@ -69,11 +70,11 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
       const finalSlug = await generateUniqueSlug("brands", form.name, editItem?.id);
       await saveBrand({ ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug, logo_media_id: form.logo_media_id || null, website_url: website || null, description: form.description.trim() || null }, editItem?.id);
       setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Marca atualizada!" : "Marca criada!", type: "success" }); await refresh();
-    } catch (error) { setToast({ msg: `Erro ao salvar marca: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar marca: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteBrand(id); setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir marca: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
-  const toggleActive = async (brand: any) => { if (!canToggleActive) return; try { await setBrandActive(brand.id, !brand.is_active); setToast({ msg: "Status atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar marca: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
+  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteBrand(id); setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir marca: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const toggleActive = async (brand: any) => { if (!canToggleActive) return; try { await setBrandActive(brand.id, !brand.is_active); setToast({ msg: "Status atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar marca: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   const totalPages = Math.max(1, Math.ceil(brands.length / pageSize));
   const safePage = Math.min(page, totalPages);

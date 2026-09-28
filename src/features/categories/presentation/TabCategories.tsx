@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, FolderTree, Plus, Trash2 } from "lucide-react";
@@ -36,7 +37,7 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
-  useEffect(() => { if (categoriesQuery.error) setToast({ msg: `Erro ao carregar categorias: ${categoriesQuery.error instanceof Error ? categoriesQuery.error.message : String(categoriesQuery.error)}`, type: "error" }); }, [categoriesQuery.error]);
+  useEffect(() => { if (categoriesQuery.error) setToast({ msg: `Erro ao carregar categorias: ${systemErrorMessage(categoriesQuery.error)}`, type: "error" }); }, [categoriesQuery.error]);
   const totalPages = Math.max(1, Math.ceil(cats.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedCats = cats.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -65,11 +66,11 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
       const finalSlug = await generateUniqueSlug("service_categories", form.name, editItem?.id);
       await saveCategory({ ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug }, editItem?.id);
       setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" }); await refresh();
-    } catch (error) { setToast({ msg: `Erro ao salvar categoria: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar categoria: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteCategory(id); setDelId(null); setToast({ msg: "Categoria excluída.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir categoria: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
-  const toggleActive = async (category: any) => { if (!canToggleActive) return; try { await setCategoryActive(category.id, !category.is_active); setToast({ msg: "Status atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar categoria: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
+  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteCategory(id); setDelId(null); setToast({ msg: "Categoria excluída.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir categoria: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const toggleActive = async (category: any) => { if (!canToggleActive) return; try { await setCategoryActive(category.id, !category.is_active); setToast({ msg: "Status atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar categoria: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
 import {
@@ -89,7 +90,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
     } else {
       setEquipments([]);
       onToast(
-        `Erro ao carregar equipamentos do cliente: ${equipmentResult.reason instanceof Error ? equipmentResult.reason.message : String(equipmentResult.reason)}`,
+        `Erro ao carregar equipamentos do cliente: ${systemErrorMessage(equipmentResult.reason)}`,
         "error",
       );
     }
@@ -101,7 +102,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
       setQuotes([]);
       setOrders([]);
       onToast(
-        `Erro ao carregar histórico do cliente: ${historyResult.reason instanceof Error ? historyResult.reason.message : String(historyResult.reason)}`,
+        `Erro ao carregar histórico do cliente: ${systemErrorMessage(historyResult.reason)}`,
         "error",
       );
     }
@@ -132,7 +133,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
       onToast("Dados do cliente atualizados.", "success");
       await onRefresh();
     } catch (error) {
-      onToast(`Erro ao salvar: ${error instanceof Error ? error.message : String(error)}`, "error");
+      onToast(`Erro ao salvar: ${systemErrorMessage(error)}`, "error");
     } finally {
       setSavingCustomer(false);
     }
@@ -169,7 +170,7 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
       await onRefresh();
     } catch (error) {
       onToast(
-        `Erro ao salvar endereço: ${error instanceof Error ? error.message : String(error)}`,
+        `Erro ao salvar endereço: ${systemErrorMessage(error)}`,
         "error",
       );
     } finally {

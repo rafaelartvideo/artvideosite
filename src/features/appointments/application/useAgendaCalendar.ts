@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
@@ -58,7 +59,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
 
   useEffect(() => {
     if (!query.error) return;
-    const message = query.error instanceof Error ? query.error.message : String(query.error);
+    const message = systemErrorMessage(query.error);
     onToast(`Erro ao carregar agenda: ${message}`, "error");
   }, [query.error]);
 
@@ -100,7 +101,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
         onToast("Agendamento atualizado.", "success");
         await queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
       } catch (error) {
-        onToast(`Não foi possível mover o agendamento: ${error instanceof Error ? error.message : String(error)}`, "error");
+        onToast(`Não foi possível mover o agendamento: ${systemErrorMessage(error)}`, "error");
       }
       return;
     }
@@ -117,7 +118,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
         queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
       ]);
     } catch (error) {
-      onToast(`Não foi possível mover a OS: ${error instanceof Error ? error.message : String(error)}`, "error");
+      onToast(`Não foi possível mover a OS: ${systemErrorMessage(error)}`, "error");
     }
   };
 

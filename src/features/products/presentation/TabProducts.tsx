@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Package, Plus, Search, Star, Trash2 } from "lucide-react";
@@ -43,7 +44,7 @@ export function TabProducts({ onBack, routeResourceId, routeSubpage, onRouteChan
   const [form, setForm] = useState({ name: "", sku: "", short_description: "", description: "", price: "", compare_at_price: "", cover_media_id: "", is_active: true, is_featured: false, category_id: "", brand_id: "", external_platform: "", external_product_id: "", external_url: "" });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar produtos: ${catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
+  useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar produtos: ${systemErrorMessage(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.products() }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.featuredProducts() })]);
   const catOptions = [{ value: "", label: "Sem categoria" }, ...categories.map(c => ({ value: c.id, label: c.name }))];
   const resetForm = () => ({ name: "", sku: "", short_description: "", description: "", price: "", compare_at_price: "", cover_media_id: "", is_active: true, is_featured: false, category_id: "", brand_id: "", external_platform: "", external_product_id: "", external_url: "" });
@@ -69,12 +70,12 @@ export function TabProducts({ onBack, routeResourceId, routeSubpage, onRouteChan
       const payload = { name: form.name.trim(), slug: finalSlug, sku: form.sku.trim() || null, short_description: form.short_description.trim() || null, description: form.description.trim() || null, price, compare_at_price: compareAtPrice, cover_media_id: form.cover_media_id || null, is_active: form.is_active, is_featured: form.is_featured, category_id: form.category_id || null, brand_id: form.brand_id || null, external_platform: form.external_platform.trim() || null, external_product_id: form.external_product_id.trim() || null, external_url: form.external_url.trim() || null, updated_by: user?.id || null };
       await saveProduct(payload, editItem?.id, user?.id ?? null);
       setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Produto atualizado!" : "Produto criado!", type: "success" }); await refresh();
-    } catch (error) { setToast({ msg: `Erro ao salvar produto: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); }
+    } catch (error) { setToast({ msg: `Erro ao salvar produto: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteProduct(id); setDelId(null); setToast({ msg: "Produto excluído.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir produto: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
-  const toggleActive = async (product: any) => { if (!canToggleActive) return; try { await updateProductFlags(product.id, { is_active: !product.is_active }, user?.id ?? null); setToast({ msg: "Status atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar produto: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
-  const toggleFeatured = async (product: any) => { if (!canToggleFeatured) return; try { await updateProductFlags(product.id, { is_featured: !product.is_featured }, user?.id ?? null); setToast({ msg: "Destaque atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar destaque: ${error instanceof Error ? error.message : String(error)}`, type: "error" }); } };
+  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteProduct(id); setDelId(null); setToast({ msg: "Produto excluído.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir produto: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const toggleActive = async (product: any) => { if (!canToggleActive) return; try { await updateProductFlags(product.id, { is_active: !product.is_active }, user?.id ?? null); setToast({ msg: "Status atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar produto: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const toggleFeatured = async (product: any) => { if (!canToggleFeatured) return; try { await updateProductFlags(product.id, { is_featured: !product.is_featured }, user?.id ?? null); setToast({ msg: "Destaque atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar destaque: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   const filtered = products.filter(p => !search || p.name?.toLowerCase().includes(search.toLowerCase()));
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize)); const safePage = Math.min(page, totalPages); const pagedProducts = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
