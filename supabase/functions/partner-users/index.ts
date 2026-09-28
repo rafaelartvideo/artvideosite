@@ -3,7 +3,6 @@ import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-const PLATFORM_OPERATOR_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 
 const adminClient = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -140,6 +139,12 @@ function validOptionalPhone(value: string | null) {
   return digits.length === 10 || digits.length === 11;
 }
 
+async function platformOperatorOrganizationId() {
+  const { data, error } = await adminClient.rpc("platform_operator_organization_id");
+  if (error || !data) throw error || new Error("Operadora Union World não configurada.");
+  return String(data);
+}
+
 function internalAuthEmail() {
   return `partner-${crypto.randomUUID()}@auth.unionworld.app`;
 }
@@ -169,10 +174,11 @@ async function hasRolePermission(roleId: string | null, permissionKey: string) {
 }
 
 async function requirePlatformManager(callerUserId: string) {
+  const platformOrganizationId = await platformOperatorOrganizationId();
   const { data: membership, error } = await adminClient
     .from("organization_members")
     .select("role_id")
-    .eq("organization_id", PLATFORM_OPERATOR_ORGANIZATION_ID)
+    .eq("organization_id", platformOrganizationId)
     .eq("user_id", callerUserId)
     .eq("status", "active")
     .maybeSingle();
@@ -181,13 +187,14 @@ async function requirePlatformManager(callerUserId: string) {
 }
 
 async function getPartnerOrganization(organizationId: string) {
+  const platformOrganizationId = await platformOperatorOrganizationId();
   const { data, error } = await adminClient
     .from("organizations")
     .select("id,name,status,organization_type")
     .eq("id", organizationId)
     .maybeSingle();
   if (error) throw error;
-  if (!data || data.id === PLATFORM_OPERATOR_ORGANIZATION_ID || data.organization_type !== "partner") return null;
+  if (!data || data.id === platformOrganizationId || data.organization_type !== "partner") return null;
   return data;
 }
 
