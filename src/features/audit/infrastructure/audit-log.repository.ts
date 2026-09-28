@@ -87,7 +87,7 @@ export async function listAuditLogs(organizationId: string, filters: AuditLogFil
   if (filters.moduleKey) query = query.eq("module_key", filters.moduleKey);
   if (filters.operation) query = query.eq("operation", filters.operation);
 
-  const contextId = filters.contextId?.trim();
+  const contextId = filters.contextId?.trim().replace(/[^a-zA-Z0-9_-]/g, "");
   if (contextId) {
     query = query.or(`context_id.eq.${contextId},entity_id.eq.${contextId}`);
   }
