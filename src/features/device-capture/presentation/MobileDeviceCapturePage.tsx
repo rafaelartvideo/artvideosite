@@ -39,7 +39,7 @@ function parsePairingPayload(value: string): Pairing | null {
   const raw = value.trim();
   if (!raw) return null;
 
-  if (raw.startsWith("ARTVIDEO_CAPTURE|")) {
+  if (raw.startsWith("UNIONWORLD_CAPTURE|") || raw.startsWith("ARTVIDEO_CAPTURE|")) {
     const [, sessionId, token] = raw.split("|");
     return sessionId && token ? { sessionId, token } : null;
   }
