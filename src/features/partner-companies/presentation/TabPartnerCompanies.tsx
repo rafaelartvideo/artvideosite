@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Edit2, Plus } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { PLATFORM_OPERATOR_ORGANIZATION_ID } from "@/lib/organization.constants";
 import { AdminCard, AdminIconButton, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -27,12 +26,12 @@ function PartnerPageFallback() {
 }
 
 export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RouteProps) {
-  const { hasPermission, activeOrganizationId } = useAuth();
+  const { hasPermission, activeOrganization } = useAuth();
   const queryClient = useQueryClient();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
-  const isPlatformOrganization = activeOrganizationId === PLATFORM_OPERATOR_ORGANIZATION_ID;
+  const isPlatformOrganization = activeOrganization?.is_platform_operator === true;
   const canCreate = hasPermission("organizations.create");
   const canEdit = hasPermission("organizations.edit");
   const canSuspend = hasPermission("organizations.suspend");
