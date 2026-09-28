@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
+import { ARTVIDEO_ORGANIZATION_ID } from "@/lib/organization.constants";
 
 export type SiteSettings = Record<string, unknown>;
 
@@ -12,7 +12,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   const { data, error } = await supabase
     .from("site_settings")
     .select("setting_key, setting_value")
-    .eq("organization_id", PLATFORM_ORGANIZATION_ID);
+    .eq("organization_id", ARTVIDEO_ORGANIZATION_ID);
 
   if (error) throw error;
 
@@ -35,7 +35,7 @@ export async function saveSiteSettings(
         {
           setting_key: settingKey,
           setting_value: settingValue,
-          organization_id: PLATFORM_ORGANIZATION_ID,
+          organization_id: ARTVIDEO_ORGANIZATION_ID,
           updated_by: updatedBy,
         },
         { onConflict: "setting_key" },
