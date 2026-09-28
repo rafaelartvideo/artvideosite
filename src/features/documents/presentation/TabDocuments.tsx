@@ -3,10 +3,10 @@ import React, { useEffect, useState } from "react";
 import { Edit2, FileText, Plus, Tag, Trash2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { PRINT_TEMPLATE_TYPE_LABELS } from "../domain/print-template";
 import { useDocuments } from "../application/useDocuments";
@@ -47,7 +47,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<AttachmentTypeRecord | null>(null);
   const [typeName, setTypeName] = useState("");
-  const [typeMessage, setTypeMessage] = useState("");
+  const [typeNameError, setTypeNameError] = useState("");
   const [templatePage, setTemplatePage] = useState(1);
   const [templatePageSize, setTemplatePageSize] = useState(5);
   const [attachmentPage, setAttachmentPage] = useState(1);
@@ -101,7 +101,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     if (type ? !canEditAttachment : !canCreateAttachment) return;
     setEditingType(type || null);
     setTypeName(type?.name || "");
-    setTypeMessage("");
+    setTypeNameError("");
     setTypeModalOpen(true);
   };
   const closeTypeModal = () => {
@@ -109,27 +109,27 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     setTypeModalOpen(false);
     setEditingType(null);
     setTypeName("");
-    setTypeMessage("");
+    setTypeNameError("");
   };
   const submitType = async () => {
     if (editingType ? !canEditAttachment : !canCreateAttachment) return;
     const name = typeName.trim();
-    if (!name) { setTypeMessage("Informe o nome do tipo de anexo."); return; }
+    if (!name) { setTypeNameError("Informe o nome do tipo de anexo."); return; }
     try {
       await saveAttachmentType(name, editingType?.id);
       setTypeModalOpen(false);
       setEditingType(null);
       setTypeName("");
-      setTypeMessage("");
+      setTypeNameError("");
     } catch (saveError) {
-      setTypeMessage(systemErrorMessage(saveError, "Não foi possível salvar."));
+      notifyAdmin(systemErrorMessage(saveError, "Não foi possível salvar."), "error");
     }
   };
   const deleteType = async (type: AttachmentTypeRecord) => {
     if (!canDeleteAttachment) return;
     if (!window.confirm(`Excluir o tipo de anexo “${type.name}”? Tipos já utilizados não podem ser excluídos.`)) return;
     try { await removeAttachmentType(type.id); }
-    catch (deleteError) { setTypeMessage(systemErrorMessage(deleteError, "Não foi possível excluir.")); }
+    catch (deleteError) { notifyAdmin(systemErrorMessage(deleteError, "Não foi possível excluir."), "error"); }
   };
 
   return <div className="min-w-0 space-y-5">
@@ -180,7 +180,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     {typeModalOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-4"><h2 className="text-lg font-black">{editingType ? "Editar tipo" : "Novo tipo"}</h2><button type="button" disabled={savingAttachmentType} onClick={closeTypeModal} className="cursor-default disabled:opacity-40"><X size={18} /></button></div>
-        <div className="p-5"><input autoFocus disabled={savingAttachmentType} className={INPUT} value={typeName} onChange={event => setTypeName(event.target.value)} placeholder="Nome do tipo" />{typeMessage && <p className="mt-3 text-xs text-red-700">{typeMessage}</p>}</div>
+        <div className="p-5"><FInput label="Nome do tipo" required autoFocus disabled={savingAttachmentType} error={typeNameError} value={typeName} onChange={(event: any) => { setTypeNameError(""); setTypeName(event.target.value); }} placeholder="Nome do tipo" /></div>
         <div className="flex justify-end gap-2 border-t bg-[#f8fafc] px-5 py-4"><BtnSecondary onClick={closeTypeModal} disabled={savingAttachmentType}>Cancelar</BtnSecondary><BtnPrimary onClick={submitType} loading={savingAttachmentType} loadingText="Salvando...">Salvar</BtnPrimary></div>
       </div>
     </div>}
