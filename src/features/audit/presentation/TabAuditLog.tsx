@@ -323,7 +323,7 @@ const FIELD_LABELS: Record<string, string> = {
 
 const TABLE_FIELD_LABELS: Record<string, Record<string, string>> = {
   service_orders: {
-    customer_id: "Cadastro",
+    customer_id: "Cliente",
     technician_id: "Técnicos",
     seller_id: "Vendedores",
     general_service_id: "Serviço",
@@ -342,7 +342,7 @@ const TABLE_FIELD_LABELS: Record<string, Record<string, string>> = {
     service_complement: "Complemento",
   },
   appointments: {
-    customer_id: "Cadastro",
+    customer_id: "Cliente",
     situation_id: "Situação",
     service_order_id: "Ordem de Serviço",
     description: "Descrição",
