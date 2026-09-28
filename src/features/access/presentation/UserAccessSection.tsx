@@ -9,7 +9,8 @@ import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminForm
 import { Section } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
 
-export const PENDING_USERNAME_AUTH_EMAIL = "_username_required_@auth.artvideo.app";
+export const PENDING_USERNAME_AUTH_EMAIL = "_username_required_@auth.unionworld.app";
+const LEGACY_PENDING_USERNAME_AUTH_EMAIL = "_username_required_@auth.artvideo.app";
 
 export type EmployeeAccessFormState = {
   enabled: boolean;
@@ -56,7 +57,7 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
   const [availability, setAvailability] = useState<Availability>("idle");
   const initialUsername = useRef("");
   const isArtVideo = organizationId === ARTVIDEO_ORGANIZATION_ID;
-  const username = normalizeUsername(value.username || (value.email === PENDING_USERNAME_AUTH_EMAIL ? "" : usernameFromAuthEmail(value.email)));
+  const username = normalizeUsername(value.username || ((value.email === PENDING_USERNAME_AUTH_EMAIL || value.email === LEGACY_PENDING_USERNAME_AUTH_EMAIL) ? "" : usernameFromAuthEmail(value.email)));
   const valid = isValidUsername(username);
 
   useEffect(() => {
