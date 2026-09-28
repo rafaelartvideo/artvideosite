@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
-
-const ACTIVE_ORGANIZATION_STORAGE_PREFIX = "artvideo:active-organization";
+import {
+  ACTIVE_ORGANIZATION_STORAGE_PREFIX,
+  LEGACY_ACTIVE_ORGANIZATION_STORAGE_PREFIX,
+} from "./platform-identifiers";
 
 export async function getActiveOrganizationId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
@@ -15,9 +17,12 @@ export async function getActiveOrganizationId(): Promise<string> {
     throw new Error("Empresa ativa indisponível fora do navegador.");
   }
 
-  const organizationId = window.localStorage.getItem(
-    `${ACTIVE_ORGANIZATION_STORAGE_PREFIX}:${userId}`,
-  );
+  const currentKey = `${ACTIVE_ORGANIZATION_STORAGE_PREFIX}:${userId}`;
+  const legacyKey = `${LEGACY_ACTIVE_ORGANIZATION_STORAGE_PREFIX}:${userId}`;
+  const organizationId = window.localStorage.getItem(currentKey)
+    || window.localStorage.getItem(legacyKey);
+
+  if (organizationId) window.localStorage.setItem(currentKey, organizationId);
 
   if (!organizationId) {
     throw new Error("Nenhuma empresa ativa foi selecionada.");
