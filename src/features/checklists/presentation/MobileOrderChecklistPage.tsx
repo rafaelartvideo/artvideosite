@@ -163,9 +163,6 @@ function MobileChecklistItemCard({
             <p className="mt-1 text-xs leading-5 text-[#64748b]">{item.description_snapshot}</p>
           )}
         </div>
-        <span className="shrink-0 rounded-full bg-[#eef3f9] px-2.5 py-1 text-[9px] font-black uppercase text-[#63748c]">
-          {item.response_type_snapshot}
-        </span>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -275,10 +272,11 @@ function MobileChecklistItemCard({
             type="button"
             onClick={() => void save()}
             disabled={saving}
-            className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0057e7] px-4 text-xs font-black text-white disabled:opacity-60"
+            aria-label={saving ? "Salvando..." : "Salvar"}
+            title={saving ? "Salvando..." : "Salvar"}
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0057e7] text-white disabled:opacity-60"
           >
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-            {saving ? "Salvando" : "Salvar"}
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
           </button>
         )}
       </div>
