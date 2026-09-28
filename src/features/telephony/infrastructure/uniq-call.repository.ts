@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { ARTVIDEO_ORGANIZATION_ID, type UniqCall } from "../domain/uniq-call";
+import type { UniqCall } from "../domain/uniq-call";
 
 const ACTIVE_CALL_SELECT = [
   "id",
@@ -22,16 +22,40 @@ const ACTIVE_CALL_SELECT = [
   "service_order:service_orders(id,os_number)",
 ].join(",");
 
+let artvideoOrganizationIdPromise: Promise<string> | null = null;
+
+async function artvideoOrganizationId() {
+  if (!artvideoOrganizationIdPromise) {
+    artvideoOrganizationIdPromise = (async () => {
+      const { data, error } = await supabase.rpc("artvideo_organization_id");
+      if (error) throw error;
+      if (!data) throw new Error("Tenant ArtVideo não configurado.");
+      return String(data);
+    })().catch(error => {
+      artvideoOrganizationIdPromise = null;
+      throw error;
+    });
+  }
+  return artvideoOrganizationIdPromise;
+}
+
 export async function getActiveUniqCall(subscriberId?: string | null) {
   const linkedSubscriberId = subscriberId?.trim() || null;
   if (!linkedSubscriberId) {
     return { data: null as UniqCall | null, error: null };
   }
 
+  let organizationId: string;
+  try {
+    organizationId = await artvideoOrganizationId();
+  } catch (error) {
+    return { data: null as UniqCall | null, error };
+  }
+
   const { data, error } = await supabase
     .from("uniq_calls")
     .select(ACTIVE_CALL_SELECT)
-    .eq("organization_id", ARTVIDEO_ORGANIZATION_ID)
+    .eq("organization_id", organizationId)
     .eq("state", "ESTABLISHED")
     .is("ended_at", null)
     .eq("answered_subscriber_id", linkedSubscriberId)
@@ -52,21 +76,34 @@ export async function startUniqCall(phone: string, serviceOrderId?: string | nul
 }
 
 export function subscribeToUniqCalls(onChange: () => void) {
-  const channel = supabase
-    .channel("artvideo-uniq-calls")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "uniq_calls",
-        filter: `organization_id=eq.${ARTVIDEO_ORGANIZATION_ID}`,
-      },
-      onChange,
-    )
-    .subscribe();
+  let disposed = false;
+  let channel: ReturnType<typeof supabase.channel> | null = null;
+
+  void (async () => {
+    try {
+      const organizationId = await artvideoOrganizationId();
+      if (disposed) return;
+
+      channel = supabase
+        .channel("artvideo-uniq-calls")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "uniq_calls",
+            filter: `organization_id=eq.${organizationId}`,
+          },
+          onChange,
+        )
+        .subscribe();
+    } catch (error) {
+      console.error("Erro ao preparar Realtime da Uniq:", error);
+    }
+  })();
 
   return () => {
-    void supabase.removeChannel(channel);
+    disposed = true;
+    if (channel) void supabase.removeChannel(channel);
   };
 }
