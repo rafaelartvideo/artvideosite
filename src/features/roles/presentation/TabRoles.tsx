@@ -31,7 +31,7 @@ import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls"
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 
 export type RolesRouteProps = {
   onBack: () => void;
@@ -85,6 +85,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [nameError, setNameError] = useState("");
 
   const editorOpen = routeResourceId === "new" || Boolean(routeResourceId);
 
@@ -104,7 +105,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     setLoading(false);
     const error = rolesResult.error || permissionsResult.error || membersResult.error;
     if (error) {
-      setToast({ msg: `Erro ao carregar funções: ${supabaseErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro ao carregar funções: ${systemErrorMessage(error)}`, type: "error" });
       return;
     }
     const counts: Record<string, number> = {};
@@ -125,6 +126,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       setEditing(null);
       setForm(emptyForm());
       setNameError("");
+      setNameError("");
       return () => { cancelled = true; };
     }
     if (routeResourceId === "new") {
@@ -141,7 +143,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     void getRolePermissionIds(role.id).then(({ data, error }) => {
       if (cancelled) return;
       if (error) {
-        setToast({ msg: `Erro ao carregar permissões: ${supabaseErrorMessage(error)}`, type: "error" });
+        setToast({ msg: `Erro ao carregar permissões: ${systemErrorMessage(error)}`, type: "error" });
         return;
       }
       setForm(current => ({ ...current, selected: (data || []).map((item: any) => String(item.permission_id)) }));
@@ -273,7 +275,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       await load();
       closeEditor();
     } catch (error) {
-      setToast({ msg: `Erro ao salvar função: ${supabaseErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro ao salvar função: ${systemErrorMessage(error)}`, type: "error" });
     } finally {
       setSaving(false);
     }
