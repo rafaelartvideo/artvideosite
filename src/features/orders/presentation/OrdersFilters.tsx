@@ -194,9 +194,13 @@ export function OrdersFilters({
   const sortMenu = () => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" aria-label={`Ordenação atual: ${orderLabel}`} title={`Ordenação: ${orderLabel}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-sm p-0 text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
-          <OrderSortIcon size={15} className="shrink-0 text-white" />
-          <span>{orderLabel}</span>
+        <button
+          type="button"
+          aria-label={`Ordenação atual: ${orderLabel}`}
+          title={`Ordenação: ${orderLabel}`}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+        >
+          <OrderSortIcon size={16} className="shrink-0 text-white" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[190px]">
