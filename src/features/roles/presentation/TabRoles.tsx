@@ -85,7 +85,6 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [nameError, setNameError] = useState("");
 
   const editorOpen = routeResourceId === "new" || Boolean(routeResourceId);
 
@@ -125,7 +124,6 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     if (!editorOpen) {
       setEditing(null);
       setForm(emptyForm());
-      setNameError("");
       setNameError("");
       return () => { cancelled = true; };
     }
