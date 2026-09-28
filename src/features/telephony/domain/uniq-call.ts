@@ -1,4 +1,4 @@
-export const ARTVIDEO_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
+export { ARTVIDEO_ORGANIZATION_ID } from "@/lib/organization.constants";
 
 export type UniqCallDirection = "INGRESS" | "EGRESS" | string;
 export type UniqCallState = "ESTABLISHED" | "RELEASED" | string;
