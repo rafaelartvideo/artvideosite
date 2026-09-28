@@ -3,7 +3,9 @@ import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-const PLATFORM_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
+const LEGACY_ROOT_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
+const PLATFORM_OPERATOR_ORGANIZATION_ID = LEGACY_ROOT_ORGANIZATION_ID;
+const ARTVIDEO_ORGANIZATION_ID = LEGACY_ROOT_ORGANIZATION_ID;
 
 const adminClient = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -35,7 +37,7 @@ function validUsername(value: string) {
 }
 
 function internalAuthEmail(employeeId: string) {
-  return `employee-${employeeId}@auth.artvideo.app`;
+  return `employee-${employeeId}@auth.unionworld.app`;
 }
 
 function authFailureMessage(error: any, action: "create" | "update") {
@@ -106,24 +108,24 @@ async function hasEffectivePermission(userId: string, organizationId: string, pe
   if (!organization || organization.status !== "active") return false;
 
   if (await membershipPermission(userId, organizationId, permissionKey)) return true;
-  if (organizationId === PLATFORM_ORGANIZATION_ID) return false;
+  if (organizationId === PLATFORM_OPERATOR_ORGANIZATION_ID) return false;
 
   const { data: platform, error: platformError } = await adminClient
     .from("organizations")
     .select("id,status,settings")
-    .eq("id", PLATFORM_ORGANIZATION_ID)
+    .eq("id", PLATFORM_OPERATOR_ORGANIZATION_ID)
     .maybeSingle();
   if (platformError) throw platformError;
   if (!platform || platform.status !== "active" || platform.settings?.is_platform_operator !== true) return false;
 
   const canManagePartners = await membershipPermission(
     userId,
-    PLATFORM_ORGANIZATION_ID,
+    PLATFORM_OPERATOR_ORGANIZATION_ID,
     "organizations.view",
   );
   if (!canManagePartners) return false;
 
-  return membershipPermission(userId, PLATFORM_ORGANIZATION_ID, permissionKey);
+  return membershipPermission(userId, PLATFORM_OPERATOR_ORGANIZATION_ID, permissionKey);
 }
 
 async function employeeModuleEnabled(organizationId: string) {
@@ -227,7 +229,7 @@ async function syncEmployeeAccessLinks(
     role_id: roleId,
     updated_at: new Date().toISOString(),
   };
-  if (organizationId === PLATFORM_ORGANIZATION_ID && uniqSubscriberId !== undefined) {
+  if (organizationId === ARTVIDEO_ORGANIZATION_ID && uniqSubscriberId !== undefined) {
     employeePayload.uniq_subscriber_id = uniqSubscriberId || null;
   }
   const { error: employeeError } = await adminClient
@@ -244,7 +246,7 @@ async function syncEmployeeAccessLinks(
     role_id: roleId,
     updated_at: new Date().toISOString(),
   };
-  if (organizationId === PLATFORM_ORGANIZATION_ID && uniqSubscriberId !== undefined) {
+  if (organizationId === ARTVIDEO_ORGANIZATION_ID && uniqSubscriberId !== undefined) {
     detailPayload.uniq_subscriber_id = uniqSubscriberId || null;
   }
   const { error: detailError } = await adminClient
@@ -261,7 +263,7 @@ async function restoreEmployeeAccessLinks(organizationId: string, employee: any)
     is_active: employee.is_active !== false,
     updated_at: new Date().toISOString(),
   };
-  if (organizationId === PLATFORM_ORGANIZATION_ID) {
+  if (organizationId === ARTVIDEO_ORGANIZATION_ID) {
     restoredEmployee.uniq_subscriber_id = employee.uniq_subscriber_id ?? null;
   }
   const { error: employeeError } = await adminClient
@@ -278,7 +280,7 @@ async function restoreEmployeeAccessLinks(organizationId: string, employee: any)
     role_id: employee.role_id ?? null,
     updated_at: new Date().toISOString(),
   };
-  if (organizationId === PLATFORM_ORGANIZATION_ID) {
+  if (organizationId === ARTVIDEO_ORGANIZATION_ID) {
     restoredDetail.uniq_subscriber_id = employee.uniq_subscriber_id ?? null;
   }
   const { error: detailError } = await adminClient
@@ -506,7 +508,7 @@ Deno.serve(async (req) => {
         profile_id: userId,
         role_id: roleId,
         is_active: enabled,
-        uniq_subscriber_id: organizationId === PLATFORM_ORGANIZATION_ID && body.uniq_subscriber_id !== undefined
+        uniq_subscriber_id: organizationId === ARTVIDEO_ORGANIZATION_ID && body.uniq_subscriber_id !== undefined
           ? String(body.uniq_subscriber_id || "").trim() || null
           : employee.uniq_subscriber_id,
       };
