@@ -170,7 +170,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     const selectedStatus = statuses.find(status => status.id === statusId);
     const { error: updateError } = await updateQuoteStatus(organizationId, id, statusId);
     if (updateError) {
-      setToast({ msg: `Erro ao atualizar status: ${updateError.message}`, type: "error" });
+      setToast({ msg: `Erro ao atualizar status: ${systemErrorMessage(updateError)}`, type: "error" });
       return;
     }
     if (detail?.id === id) setDetail({ ...detail, status_id: statusId, statusName: selectedStatus?.name || "Sem status", request_status: selectedStatus || detail.request_status });
@@ -272,7 +272,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
         const status = initialOrderStatus(availableStatuses || []);
         if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status inicial válido para a OS.", type: "error" }); return; }
         const { error } = await createServiceOrderFromQuote(organizationId, { service_id: detail.service_id, quote_request_id: detail.id, customer_id: detail.customer_id, status_id: status.id, customer_notes: detail.customer_message || null });
-        if (error) { setToast({ msg: `Erro ao criar OS: ${error.message}`, type: "error" }); return; }
+        if (error) { setToast({ msg: `Erro ao criar OS: ${systemErrorMessage(error)}`, type: "error" }); return; }
         closeDetails();
         setToast({ msg: "OS criada com sucesso e vinculada ao orçamento.", type: "success" });
         await syncQuotes();
