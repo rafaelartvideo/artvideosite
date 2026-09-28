@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
 import {
   Camera,
@@ -174,7 +175,7 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
       onSuccess(`${result.count} ${result.count === 1 ? "arquivo anexado" : "arquivos anexados"} à OS.`);
       onClose();
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Não foi possível anexar.");
+      setError(systemErrorMessage(uploadError, "Não foi possível anexar."));
     }
   };
 
@@ -236,7 +237,7 @@ function SituationQuickUploads({ situation, controller, onSuccess, onError }: { 
       const result = await controller.uploadQuick(situation, files);
       onSuccess(`${result.count} ${result.count === 1 ? "imagem adicionada" : "imagens adicionadas"} em ${result.situation}.`);
     } catch (uploadError) {
-      onError(uploadError instanceof Error ? uploadError.message : "Não foi possível adicionar a imagem.");
+      onError(systemErrorMessage(uploadError, "Não foi possível adicionar a imagem."));
     } finally {
       if (fileRef.current) fileRef.current.value = "";
       if (cameraRef.current) cameraRef.current.value = "";
@@ -313,7 +314,7 @@ export function OrderDocumentsPage({
       await controller.remove(document);
       setMessage({ text: "Anexo removido.", type: "success" });
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : "Não foi possível remover.", type: "error" });
+      setMessage({ text: systemErrorMessage(error, "Não foi possível remover."), type: "error" });
     }
   };
 

@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ShieldCheck } from "lucide-react";
@@ -62,7 +63,7 @@ export function UserPermissionOverridesPage({
 
   useEffect(() => {
     if (!accessQuery.error) return;
-    setToast({ msg: `Erro ao carregar acessos: ${accessQuery.error instanceof Error ? accessQuery.error.message : String(accessQuery.error)}`, type: "error" });
+    setToast({ msg: `Erro ao carregar acessos: ${systemErrorMessage(accessQuery.error)}`, type: "error" });
   }, [accessQuery.error]);
 
   const permissions = (access?.permissions || []) as PermissionRecord[];
@@ -120,7 +121,7 @@ export function UserPermissionOverridesPage({
     const { error } = await setUserPermissionOverrides(organizationId, userId, selected);
     setSaving(false);
     if (error) {
-      setToast({ msg: `Erro ao salvar permissões individuais: ${error.message}`, type: "error" });
+      setToast({ msg: `Erro ao salvar permissões individuais: ${systemErrorMessage(error)}`, type: "error" });
       return;
     }
     setToast({ msg: "Permissões individuais atualizadas.", type: "success" });

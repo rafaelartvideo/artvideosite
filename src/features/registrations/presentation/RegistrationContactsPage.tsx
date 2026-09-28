@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Mail, MessageCircle, Phone, Plus, UserRound } from "lucide-react";
@@ -101,7 +102,7 @@ export function RegistrationContactsPage({
 
   useEffect(() => {
     if (!contactsQuery.error) return;
-    notifyAdmin(`Erro ao carregar contatos: ${contactsQuery.error instanceof Error ? contactsQuery.error.message : String(contactsQuery.error)}`, "error");
+    notifyAdmin(`Erro ao carregar contatos: ${systemErrorMessage(contactsQuery.error)}`, "error");
   }, [contactsQuery.error]);
 
   const updateContactCache = (contact: RegistrationContact) => {

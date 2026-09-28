@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -374,7 +375,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
         {dashboardQuery.isPending ? <LoadingState text="Carregando indicadores..." /> : dashboardQuery.error ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
-            <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{dashboardQuery.error instanceof Error ? dashboardQuery.error.message : String(dashboardQuery.error)}</p></div>
+            <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage(dashboardQuery.error)}</p></div>
             <AdminButton size="sm" onClick={() => dashboardQuery.refetch()}>Tentar novamente</AdminButton>
           </AdminCard>
         ) : moduleContent()}

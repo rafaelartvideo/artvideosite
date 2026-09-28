@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink, File as FileIcon, Image as ImageIcon, Paperclip, Plus, X } from "lucide-react";
@@ -76,7 +77,7 @@ export function RegistrationRecordsPage({
 
   useEffect(() => {
     if (!recordsQuery.error) return;
-    notifyAdmin(`Erro ao carregar registros: ${recordsQuery.error instanceof Error ? recordsQuery.error.message : String(recordsQuery.error)}`, "error");
+    notifyAdmin(`Erro ao carregar registros: ${systemErrorMessage(recordsQuery.error)}`, "error");
   }, [recordsQuery.error]);
 
   const authorOptions = useMemo(() => {

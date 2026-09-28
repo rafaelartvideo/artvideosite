@@ -1,3 +1,4 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, Check, ChevronDown, Edit2, Eraser, List, MapPin, Package, Plus, Search, Truck } from "lucide-react";
@@ -195,7 +196,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const [pageSize, setPageSize] = useState(5);
 
   useEffect(() => {
-    if (itemsQuery.error) setToast({ msg: `Erro ao carregar estoque: ${itemsQuery.error instanceof Error ? itemsQuery.error.message : String(itemsQuery.error)}`, type: "error" });
+    if (itemsQuery.error) setToast({ msg: `Erro ao carregar estoque: ${systemErrorMessage(itemsQuery.error)}`, type: "error" });
   }, [itemsQuery.error]);
 
   const filteredItems = useMemo(() => items.filter((item: any) => {
@@ -226,7 +227,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       return suppliers;
     } catch (error) {
       setLinkedSuppliers([]);
-      setToast({ msg: `Erro ao carregar fornecedores do item: ${supabaseErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro ao carregar fornecedores do item: ${systemErrorMessage(error)}`, type: "error" });
       return [];
     }
   };
@@ -274,7 +275,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       setHistory(await listInventoryMovements(item.id, activeOrganizationId, canViewCosts));
       setHistoryOpen(true);
     } catch (error) {
-      setToast({ msg: `Erro ao carregar histórico: ${supabaseErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro ao carregar histórico: ${systemErrorMessage(error)}`, type: "error" });
       setHistory([]);
     }
   };
@@ -373,7 +374,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       closePage();
       await refreshInventory();
     } catch (error) {
-      setToast({ msg: `Erro ao salvar item: ${supabaseErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro ao salvar item: ${systemErrorMessage(error)}`, type: "error" });
     }
   };
 
@@ -385,7 +386,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       setToast({ msg: next ? "Item ativado." : "Item inativado.", type: "success" });
       await refreshInventory();
     } catch (error) {
-      setToast({ msg: `Erro ao alterar status: ${supabaseErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro ao alterar status: ${systemErrorMessage(error)}`, type: "error" });
     }
   };
 
@@ -429,7 +430,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       closePage();
       await refreshInventory();
     } catch (error) {
-      setToast({ msg: `Erro na movimentação: ${supabaseErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro na movimentação: ${systemErrorMessage(error)}`, type: "error" });
     }
   };
 
@@ -565,7 +566,3 @@ function HistoryValue({ label, value }: { label: string; value: string }) {
   return <div><strong className="text-[#34445b]">{label}:</strong> {value}</div>;
 }
 
-function supabaseErrorMessage(error: unknown) {
-  if (error && typeof error === "object" && "message" in error) return String((error as { message?: unknown }).message || "Erro desconhecido");
-  return error instanceof Error ? error.message : String(error || "Erro desconhecido");
-}
