@@ -23,19 +23,23 @@
   # These redirects only run on the public ArtVideo domain; the same .htaccess
   # can therefore be deployed safely to both hosts.
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^admin(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=301,L,NE]
+  RewriteRule ^admin(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
 
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^captura(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=301,L,NE]
+  RewriteRule ^captura(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
 
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^editar-os-mobile/?$ https://testeteste.com.br%{REQUEST_URI} [R=301,L,NE]
+  RewriteRule ^editar-os-mobile/?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
 
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^assinatura(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=301,L,NE]
+  RewriteRule ^assinatura(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
 
   RewriteCond %{HTTP_HOST} ^(?:www\.)?eletronicaartvideo\.com\.br$ [NC]
-  RewriteRule ^verificar-documento(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=301,L,NE]
+  RewriteRule ^verificar-documento(?:/.*)?$ https://testeteste.com.br%{REQUEST_URI} [R=302,L,NE]
+
+  # Keep the CRM root canonical without requiring the React app to redirect.
+  RewriteCond %{HTTP_HOST} ^(?:www\.)?testeteste\.com\.br$ [NC]
+  RewriteRule ^$ /admin [R=302,L]
 
   # Build assets are content-hashed. If an old tab requests an asset that was
   # removed by a newer deploy, let Apache return a real 404 instead of serving
