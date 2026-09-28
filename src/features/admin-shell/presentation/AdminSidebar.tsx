@@ -8,6 +8,7 @@ import { SidebarItem } from "./AdminNavigation";
 import { useAdminSidebarLayout } from "./AdminLayout";
 import type { OrganizationAccess } from "@/lib/organization.types";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { AutoFitLogo } from "@/shared/ui/media/AutoFitLogo";
 import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
 
 type AdminSidebarProps = {
@@ -76,7 +77,7 @@ export function AdminSidebar({
                 collapsed ? "h-9 w-9" : "h-12 w-[170px]",
               )}
             >
-              <img
+              <AutoFitLogo
                 src={menuLogoUrl}
                 alt={activeOrganization?.organization_name || "Logo da empresa"}
                 className="h-full w-full object-contain transition-all"
