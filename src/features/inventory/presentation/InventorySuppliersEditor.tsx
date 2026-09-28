@@ -3,6 +3,8 @@ import { Link2, Unlink } from "lucide-react";
 import { AdminListSection, AdminListSectionRow } from "@/shared/ui/admin/AdminListSection";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { formatCnpj, formatCpf } from "@/shared/domain/formatters";
+import { systemErrorMessage } from "@/shared/domain/error-message";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   listAvailableInventorySuppliers,
   type InventorySupplier,
@@ -44,7 +46,10 @@ export function InventorySuppliersEditor({
         const suppliers = await listAvailableInventorySuppliers(organizationId);
         if (!cancelled) setAvailable(suppliers);
       } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : String(loadError));
+        if (!cancelled) {
+          setError("Não foi possível carregar os fornecedores.");
+          notifyAdmin(systemErrorMessage(loadError, "Não foi possível carregar os fornecedores."), "error");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
