@@ -1,5 +1,6 @@
 import {
   Activity,
+  History,
   Building2,
   CalendarDays,
   ClipboardCheck,
@@ -31,6 +32,7 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "inventory", label: "Estoque", icon: Package },
   { id: "finance", label: "Financeiro", icon: Landmark },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
+  { id: "audit", label: "Auditoria", icon: History },
 ];
 
 export const siteItems: PermissionAwareHubItem[] = [
@@ -77,6 +79,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   orderStatuses: "order_statuses.view",
   roles: "roles.view",
   partnerCompanies: "organizations.view",
+  audit: "organizations.audit.view",
   settings: "settings.view",
   siteSettings: "site_settings.view",
   contact: "contact.view",
@@ -101,6 +104,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   roles: "employees",
   documents: "documents",
   partnerCompanies: null,
+  audit: null,
   settings: "company_settings",
   contact: "site_settings",
   products: "site_products",
