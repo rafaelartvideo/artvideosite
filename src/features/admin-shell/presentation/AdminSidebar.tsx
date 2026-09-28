@@ -7,10 +7,6 @@ import { parentAdminTab } from "../admin-routes";
 import { SidebarItem } from "./AdminNavigation";
 import { useAdminSidebarLayout } from "./AdminLayout";
 import type { OrganizationAccess } from "@/lib/organization.types";
-import {
-  ARTVIDEO_ORGANIZATION_ID,
-  PLATFORM_OPERATOR_ORGANIZATION_ID,
-} from "@/lib/organization.constants";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
 
@@ -42,9 +38,9 @@ export function AdminSidebar({
   onBackToSite,
 }: AdminSidebarProps) {
   const { collapsed, canCollapse, toggleCollapsed } = useAdminSidebarLayout();
-  const isPlatformOperatorOrganization = activeOrganizationId === PLATFORM_OPERATOR_ORGANIZATION_ID;
-  const isArtVideoOrganization = activeOrganizationId === ARTVIDEO_ORGANIZATION_ID;
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
+  const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
+  const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
   const brandingQuery = useQuery({
     queryKey: ["company-settings", activeOrganizationId || "none"],
     enabled: Boolean(activeOrganizationId),
