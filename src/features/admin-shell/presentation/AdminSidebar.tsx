@@ -70,14 +70,18 @@ export function AdminSidebar({
       )}>
         <div className={cn("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-2.5")}>
           {menuLogoUrl ? (
-            <img
-              src={menuLogoUrl}
-              alt={activeOrganization?.organization_name || "Logo da empresa"}
+            <div
               className={cn(
-                "shrink-0 object-contain transition-all",
-                collapsed ? "h-9 w-9" : "max-h-11 max-w-[150px]",
+                "flex shrink-0 items-center justify-center",
+                collapsed ? "h-9 w-9" : "h-12 w-[170px]",
               )}
-            />
+            >
+              <img
+                src={menuLogoUrl}
+                alt={activeOrganization?.organization_name || "Logo da empresa"}
+                className="h-full w-full object-contain transition-all"
+              />
+            </div>
           ) : (
             <>
               <div className={cn(
