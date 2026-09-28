@@ -61,6 +61,7 @@ export function RegistrationEditor({
   onSave,
   onClose,
   onToggleRole,
+  employeeOnly = false,
 }: {
   creating: boolean;
   form: RegistrationFormState;
@@ -82,6 +83,7 @@ export function RegistrationEditor({
   onSave: () => void;
   onClose: () => void;
   onToggleRole: (role: RegistrationRole) => void;
+  employeeOnly?: boolean;
 }) {
   const canShowAccess = showAccess ?? (accessExisting || canModifyAccess);
   const location = useLocation();
@@ -93,29 +95,44 @@ export function RegistrationEditor({
   return <AdminPage
     open
     onClose={onClose}
-    breadcrumb="Cadastros"
-    title={creating ? "Novo cadastro" : registrationDisplayName(form) || "Editar cadastro"}
-    subtitle={creating ? "Cadastre uma pessoa ou empresa e defina seus vínculos." : "Atualize dados pessoais, endereços, fornecedor e acesso quando permitido."}
+    breadcrumb={employeeOnly ? "Usuários" : "Cadastros"}
+    title={creating ? (employeeOnly ? "Novo usuário" : "Novo cadastro") : registrationDisplayName(form) || (employeeOnly ? "Editar usuário" : "Editar cadastro")}
+    subtitle={creating
+      ? (employeeOnly ? "Cadastre um funcionário e configure seu acesso à Union World." : "Cadastre uma pessoa ou empresa e defina seus vínculos.")
+      : (employeeOnly ? "Atualize os dados do funcionário e seu acesso ao sistema." : "Atualize dados pessoais, endereços, fornecedor e acesso quando permitido.")}
     maxW="max-w-6xl"
   >
     <div className="space-y-5 p-4 sm:p-5">
-      <Section title="Tipo e vínculos">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" disabled={!canModify} onClick={() => setForm(current => ({ ...current, person_type: "PF" }))} className={`rounded-xl border p-4 text-left disabled:opacity-50 ${form.person_type === "PF" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
-            <div className="font-black text-[#0d1b2e]">Pessoa Física</div><div className="mt-1 text-xs text-[#5a6a82]">CPF, nascimento e contatos.</div>
-          </button>
-          <button type="button" disabled={form.roles.includes("employee") || !canModify} onClick={() => setForm(current => ({ ...current, person_type: "PJ" }))} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${form.person_type === "PJ" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
-            <div className="font-black text-[#0d1b2e]">Pessoa Jurídica</div><div className="mt-1 text-xs text-[#5a6a82]">CNPJ e dados empresariais.</div>
-          </button>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">{(["customer", "employee", "supplier"] as RegistrationRole[]).map(role => {
-          const Icon = roleIcons[role];
-          const checked = form.roles.includes(role);
-          return <button key={role} type="button" disabled={!canModify} onClick={() => onToggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
-            <Checkbox checked={checked} tabIndex={-1} /><Icon size={17} className="text-[#0057e7]" /><span className="text-sm font-bold text-[#0d1b2e]">{roleLabels[role]}</span>
-          </button>;
-        })}</div>
-      </Section>
+      {employeeOnly ? (
+        <Section title="Vínculo">
+          <div className="flex items-center gap-3 rounded-xl border border-[#0057e7] bg-[#0057e7]/5 p-4">
+            <Checkbox checked disabled tabIndex={-1} />
+            <Users size={18} className="text-[#0057e7]" />
+            <div>
+              <div className="text-sm font-black text-[#0d1b2e]">Funcionário</div>
+              <div className="mt-0.5 text-xs text-[#5a6a82]">Usuário interno da Union World.</div>
+            </div>
+          </div>
+        </Section>
+      ) : (
+        <Section title="Tipo e vínculos">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button type="button" disabled={!canModify} onClick={() => setForm(current => ({ ...current, person_type: "PF" }))} className={`rounded-xl border p-4 text-left disabled:opacity-50 ${form.person_type === "PF" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
+              <div className="font-black text-[#0d1b2e]">Pessoa Física</div><div className="mt-1 text-xs text-[#5a6a82]">CPF, nascimento e contatos.</div>
+            </button>
+            <button type="button" disabled={form.roles.includes("employee") || !canModify} onClick={() => setForm(current => ({ ...current, person_type: "PJ" }))} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${form.person_type === "PJ" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
+              <div className="font-black text-[#0d1b2e]">Pessoa Jurídica</div><div className="mt-1 text-xs text-[#5a6a82]">CNPJ e dados empresariais.</div>
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">{(["customer", "employee", "supplier"] as RegistrationRole[]).map(role => {
+            const Icon = roleIcons[role];
+            const checked = form.roles.includes(role);
+            return <button key={role} type="button" disabled={!canModify} onClick={() => onToggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
+              <Checkbox checked={checked} tabIndex={-1} /><Icon size={17} className="text-[#0057e7]" /><span className="text-sm font-bold text-[#0d1b2e]">{roleLabels[role]}</span>
+            </button>;
+          })}</div>
+        </Section>
+      )}
 
       <Section title="Dados Pessoais">
         {form.person_type === "PF" ? <div className="grid gap-4 sm:grid-cols-2">
