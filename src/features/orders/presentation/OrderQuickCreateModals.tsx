@@ -279,7 +279,7 @@ export function QuickEquipmentModal({
   const [modelName, setModelName] = useState("");
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<{ title?: string; forecast_days?: string }>({});
+  const [errorMessage, setErrorMessage] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
 
@@ -660,7 +660,7 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
   const { hasPermission } = useAuth();
   const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true });
   const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string; forecast_days?: string }>({});
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
