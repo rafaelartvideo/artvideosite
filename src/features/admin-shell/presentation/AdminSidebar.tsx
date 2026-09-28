@@ -33,7 +33,7 @@ export function AdminSidebar({
   hasPermission,
   hasModule,
   onNavigate,
-  onOrganizationChange: _onOrganizationChange,
+  onOrganizationChange,
   onSignOut,
   onBackToSite,
 }: AdminSidebarProps) {
@@ -121,9 +121,25 @@ export function AdminSidebar({
                 <Building2 size={17} />
               </div>
             )}
-            <div className="min-w-0">
-              <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-white/35">Empresa ativa</span>
-              <span className="block max-w-[150px] truncate text-xs font-black text-white">{activeOrganization?.organization_name || "Empresa"}</span>
+            <div className="min-w-0 flex-1">
+              <label htmlFor="active-organization" className="block text-[9px] font-bold uppercase tracking-[0.14em] text-white/35">Empresa ativa</label>
+              {organizations.length > 1 ? (
+                <select
+                  id="active-organization"
+                  value={activeOrganizationId || ""}
+                  onChange={(event) => void onOrganizationChange(event.target.value)}
+                  className="mt-1 w-full min-w-0 cursor-pointer appearance-none truncate rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs font-black text-white outline-none transition focus:border-[#00b4ff]/60 focus:ring-1 focus:ring-[#00b4ff]/40"
+                  aria-label="Trocar empresa ativa"
+                >
+                  {organizations.map(organization => (
+                    <option key={organization.organization_id} value={organization.organization_id} className="bg-[#0d1b2e] text-white">
+                      {organization.organization_name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="mt-1 block max-w-[150px] truncate text-xs font-black text-white">{activeOrganization?.organization_name || "Empresa"}</span>
+              )}
             </div>
           </div>
         )}
