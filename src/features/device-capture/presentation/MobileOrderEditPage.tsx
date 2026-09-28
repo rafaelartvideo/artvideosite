@@ -11,7 +11,8 @@ import {
   type MobileOrderEditorData,
 } from "@/features/orders/infrastructure/order-mobile-edit.gateway";
 
-const STORAGE_KEY = "artvideo:mobile-order-edit";
+const STORAGE_KEY = "unionworld:mobile-order-edit";
+const LEGACY_STORAGE_KEY = "artvideo:mobile-order-edit";
 type Pairing = { id: string; token: string };
 type Notice = { type: "success" | "error"; text: string } | null;
 
@@ -26,8 +27,13 @@ function formatPairingCode(value: string) {
 
 function readStoredPairing(): Pairing | null {
   try {
-    const parsed = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null");
-    return parsed?.id && parsed?.token ? { id: String(parsed.id), token: String(parsed.token) } : null;
+    const stored = sessionStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(LEGACY_STORAGE_KEY);
+    const parsed = JSON.parse(stored || "null");
+    if (parsed?.id && parsed?.token) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      return { id: String(parsed.id), token: String(parsed.token) };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -89,6 +95,7 @@ export function MobileOrderEditPage() {
 
   const disconnect = () => {
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(LEGACY_STORAGE_KEY);
     setPairing(null);
     setData(null);
     setForm({});
