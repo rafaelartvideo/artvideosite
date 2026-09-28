@@ -3,7 +3,6 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const webhookToken = Deno.env.get("UNIQ_WEBHOOK_TOKEN") ?? "";
-const ARTVIDEO_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 const MAX_BODY_BYTES = 1_000_000;
 
 const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -167,10 +166,17 @@ Deno.serve(async (request) => {
     "data.call.direction",
   ]);
 
+  const { data: artvideoOrganizationId, error: artvideoOrganizationError } = await adminClient
+    .rpc("artvideo_organization_id");
+  if (artvideoOrganizationError || !artvideoOrganizationId) {
+    console.error("ArtVideo tenant resolution failed", artvideoOrganizationError);
+    return json({ error: "Webhook tenant is not configured" }, 503);
+  }
+
   const { data, error } = await adminClient
     .from("uniq_webhook_events")
     .insert({
-      organization_id: ARTVIDEO_ORGANIZATION_ID,
+      organization_id: artvideoOrganizationId,
       event_key: eventKey,
       call_id: callId,
       direction,
