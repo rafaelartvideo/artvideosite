@@ -23,6 +23,7 @@ const TabCustomers = lazy(() => import("@/features/customers/presentation/TabCus
 const TabDashboard = lazy(() => import("@/features/dashboard/presentation/TabDashboard").then(({ TabDashboard }) => ({ default: TabDashboard })));
 const EquipmentAdminPanel = lazy(() => import("@/features/equipment/presentation/EquipmentAdminPanel").then(({ EquipmentAdminPanel }) => ({ default: EquipmentAdminPanel })));
 const TabPartnerCompanies = lazy(() => import("@/features/partner-companies/presentation/TabPartnerCompanies").then(({ TabPartnerCompanies }) => ({ default: TabPartnerCompanies })));
+const TabAuditLog = lazy(() => import("@/features/audit/presentation/TabAuditLog").then(({ TabAuditLog }) => ({ default: TabAuditLog })));
 const GeneralServicesPanel = lazy(() => import("@/features/general-services/presentation/GeneralServicesPanel").then(({ GeneralServicesPanel }) => ({ default: GeneralServicesPanel })));
 const TabInventory = lazy(() => import("@/features/inventory/presentation/TabInventory").then(({ TabInventory }) => ({ default: TabInventory })));
 const TabFinance = lazy(() => import("@/features/finance/presentation/TabFinance").then(({ TabFinance }) => ({ default: TabFinance })));
@@ -43,7 +44,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "dashboard", "orders", "customers", "agenda", "inventory", "finance", "quotes", "partnerCompanies", "site", "operation", "roles", "settings", "contact",
+  "dashboard", "orders", "customers", "agenda", "inventory", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "roles", "settings", "contact",
 ];
 
 function AdminRouteLoading() { return <LoadingState text="Carregando módulo..." />; }
@@ -75,7 +76,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const fallbackTab = ACCESS_FALLBACK_TABS.find(canAccessTab) ?? null;
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
   const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
-  const mobileLabelModule = operationModule || siteModule || activeTab === "partnerCompanies" || activeTab === "finance";
+  const mobileLabelModule = operationModule || siteModule || activeTab === "partnerCompanies" || activeTab === "finance" || activeTab === "audit";
 
   const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] }) => {
     navigate(adminPath(tab, resourceId, subpage), { replace: options?.replace, state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined });
@@ -124,6 +125,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
           {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes key={activeTab}>
             <Route index element={<TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
             <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("dashboard")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
+            <Route path="audit/*" element={<TabAuditLog />} />
             <Route path="site" element={siteHub} />
             <Route path="site/services/*" element={<TabServices onBack={() => backToParent("services")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("services")} />} />
             <Route path="site/categories/*" element={<TabCategories onBack={() => backToParent("categories")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("categories")} />} />
