@@ -7,7 +7,10 @@ import { parentAdminTab } from "../admin-routes";
 import { SidebarItem } from "./AdminNavigation";
 import { useAdminSidebarLayout } from "./AdminLayout";
 import type { OrganizationAccess } from "@/lib/organization.types";
-import { PLATFORM_ORGANIZATION_ID } from "@/lib/organization.constants";
+import {
+  ARTVIDEO_ORGANIZATION_ID,
+  PLATFORM_OPERATOR_ORGANIZATION_ID,
+} from "@/lib/organization.constants";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
 
@@ -39,7 +42,8 @@ export function AdminSidebar({
   onBackToSite,
 }: AdminSidebarProps) {
   const { collapsed, canCollapse, toggleCollapsed } = useAdminSidebarLayout();
-  const isPlatformOrganization = activeOrganizationId === PLATFORM_ORGANIZATION_ID;
+  const isPlatformOperatorOrganization = activeOrganizationId === PLATFORM_OPERATOR_ORGANIZATION_ID;
+  const isArtVideoOrganization = activeOrganizationId === ARTVIDEO_ORGANIZATION_ID;
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
   const brandingQuery = useQuery({
     queryKey: ["company-settings", activeOrganizationId || "none"],
@@ -49,7 +53,7 @@ export function AdminSidebar({
   const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data?.company_menu_logo_media_id ?? null);
 
   const canAccessTab = (tab: AdminTab) => {
-    if (tab === "partnerCompanies" && !isPlatformOrganization) return false;
+    if (tab === "partnerCompanies" && !isPlatformOperatorOrganization) return false;
     const permission = tab === "partnerCompanies" ? "organizations.view" : `${tab}.view`;
     return hasPermission(permission) && isAdminModuleEnabled(tab, hasModule);
   };
@@ -208,7 +212,7 @@ export function AdminSidebar({
             ))}
           </div>
 
-          {isPlatformOrganization && (
+          {isArtVideoOrganization && (
             <section className={cn("border-t border-white/8", collapsed ? "mt-3 pt-3" : "mt-4 pt-4")} aria-label="Sites externos">
               {!collapsed && <h2 className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-white/40">SITES EXTERNOS</h2>}
               {[
@@ -236,7 +240,7 @@ export function AdminSidebar({
         </nav>
       </div>
 
-      {isPlatformOrganization && (
+      {isArtVideoOrganization && (
         <div className={cn("shrink-0 border-t border-white/5", collapsed ? "px-3 py-3" : "px-3 pb-3 pt-2")}>
           <button
             type="button"
