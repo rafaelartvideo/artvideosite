@@ -69,7 +69,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
       { key: "order.status", label: "Status" },
       { key: "order.situation", label: "Situação" },
       { key: "order.internal_notes", label: "Observações internas" },
-      { key: "order.customer_notes", label: "Observações do cliente" },
+      { key: "order.customer_notes", label: "Descrição do problema" },
       { key: "order.created_at", label: "Data de abertura", kind: "datetime" },
       { key: "order.updated_at", label: "Última atualização", kind: "datetime" },
     ],
