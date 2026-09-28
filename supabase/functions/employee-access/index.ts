@@ -3,16 +3,24 @@ import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-const LEGACY_ROOT_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
-const PLATFORM_OPERATOR_ORGANIZATION_ID = LEGACY_ROOT_ORGANIZATION_ID;
-const ARTVIDEO_ORGANIZATION_ID = LEGACY_ROOT_ORGANIZATION_ID;
-
 const adminClient = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 const authClient = createClient(supabaseUrl, anonKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
+
+async function platformOperatorOrganizationId() {
+  const { data, error } = await adminClient.rpc("platform_operator_organization_id");
+  if (error || !data) throw error || new Error("Operadora Union World não configurada.");
+  return String(data);
+}
+
+async function artvideoOrganizationId() {
+  const { data, error } = await adminClient.rpc("artvideo_organization_id");
+  if (error || !data) throw error || new Error("Tenant ArtVideo não configurado.");
+  return String(data);
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -99,6 +107,7 @@ async function membershipPermission(userId: string, organizationId: string, perm
 }
 
 async function hasEffectivePermission(userId: string, organizationId: string, permissionKey: string) {
+  const platformOrganizationId = await platformOperatorOrganizationId();
   const { data: organization, error } = await adminClient
     .from("organizations")
     .select("id,status")
@@ -108,24 +117,24 @@ async function hasEffectivePermission(userId: string, organizationId: string, pe
   if (!organization || organization.status !== "active") return false;
 
   if (await membershipPermission(userId, organizationId, permissionKey)) return true;
-  if (organizationId === PLATFORM_OPERATOR_ORGANIZATION_ID) return false;
+  if (organizationId === platformOrganizationId) return false;
 
   const { data: platform, error: platformError } = await adminClient
     .from("organizations")
     .select("id,status,settings")
-    .eq("id", PLATFORM_OPERATOR_ORGANIZATION_ID)
+    .eq("id", platformOrganizationId)
     .maybeSingle();
   if (platformError) throw platformError;
   if (!platform || platform.status !== "active" || platform.settings?.is_platform_operator !== true) return false;
 
   const canManagePartners = await membershipPermission(
     userId,
-    PLATFORM_OPERATOR_ORGANIZATION_ID,
+    platformOrganizationId,
     "organizations.view",
   );
   if (!canManagePartners) return false;
 
-  return membershipPermission(userId, PLATFORM_OPERATOR_ORGANIZATION_ID, permissionKey);
+  return membershipPermission(userId, platformOrganizationId, permissionKey);
 }
 
 async function employeeModuleEnabled(organizationId: string) {
@@ -224,12 +233,13 @@ async function syncEmployeeAccessLinks(
   roleId: string | null,
   uniqSubscriberId: string | null | undefined,
 ) {
+  const artvideoTenantId = await artvideoOrganizationId();
   const employeePayload: Record<string, unknown> = {
     profile_id: userId,
     role_id: roleId,
     updated_at: new Date().toISOString(),
   };
-  if (organizationId === ARTVIDEO_ORGANIZATION_ID && uniqSubscriberId !== undefined) {
+  if (organizationId === artvideoTenantId && uniqSubscriberId !== undefined) {
     employeePayload.uniq_subscriber_id = uniqSubscriberId || null;
   }
   const { error: employeeError } = await adminClient
@@ -246,7 +256,7 @@ async function syncEmployeeAccessLinks(
     role_id: roleId,
     updated_at: new Date().toISOString(),
   };
-  if (organizationId === ARTVIDEO_ORGANIZATION_ID && uniqSubscriberId !== undefined) {
+  if (organizationId === artvideoTenantId && uniqSubscriberId !== undefined) {
     detailPayload.uniq_subscriber_id = uniqSubscriberId || null;
   }
   const { error: detailError } = await adminClient
@@ -257,13 +267,14 @@ async function syncEmployeeAccessLinks(
 }
 
 async function restoreEmployeeAccessLinks(organizationId: string, employee: any) {
+  const artvideoTenantId = await artvideoOrganizationId();
   const restoredEmployee: Record<string, unknown> = {
     profile_id: employee.profile_id ?? null,
     role_id: employee.role_id ?? null,
     is_active: employee.is_active !== false,
     updated_at: new Date().toISOString(),
   };
-  if (organizationId === ARTVIDEO_ORGANIZATION_ID) {
+  if (organizationId === artvideoTenantId) {
     restoredEmployee.uniq_subscriber_id = employee.uniq_subscriber_id ?? null;
   }
   const { error: employeeError } = await adminClient
@@ -280,7 +291,7 @@ async function restoreEmployeeAccessLinks(organizationId: string, employee: any)
     role_id: employee.role_id ?? null,
     updated_at: new Date().toISOString(),
   };
-  if (organizationId === ARTVIDEO_ORGANIZATION_ID) {
+  if (organizationId === artvideoTenantId) {
     restoredDetail.uniq_subscriber_id = employee.uniq_subscriber_id ?? null;
   }
   const { error: detailError } = await adminClient
@@ -503,12 +514,13 @@ Deno.serve(async (req) => {
       });
       if (activeStateError) throw activeStateError;
 
+      const artvideoTenantId = await artvideoOrganizationId();
       const refreshedEmployee = {
         ...employee,
         profile_id: userId,
         role_id: roleId,
         is_active: enabled,
-        uniq_subscriber_id: organizationId === ARTVIDEO_ORGANIZATION_ID && body.uniq_subscriber_id !== undefined
+        uniq_subscriber_id: organizationId === artvideoTenantId && body.uniq_subscriber_id !== undefined
           ? String(body.uniq_subscriber_id || "").trim() || null
           : employee.uniq_subscriber_id,
       };
