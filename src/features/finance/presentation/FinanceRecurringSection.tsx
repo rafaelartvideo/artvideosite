@@ -1,3 +1,5 @@
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useMemo, useState } from "react";
 import { CalendarClock, Pencil, Plus, RefreshCw, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -70,7 +72,7 @@ export function FinanceRecurringSection() {
   const canManage = hasPermission("finance.recurring.manage");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ description?: string; amount?: string; allocations?: string }>({});
   const [success, setSuccess] = useState("");
 
   const rules = recurring.rulesQuery.data || [];
@@ -84,7 +86,7 @@ export function FinanceRecurringSection() {
 
   const openNew = () => {
     setForm(emptyForm());
-    setMessage("");
+    setFieldErrors({});
     setSuccess("");
     setOpen(true);
   };
@@ -110,7 +112,7 @@ export function FinanceRecurringSection() {
         ? rule.allocations.map(item => ({ ...item }))
         : emptyAllocations(),
     });
-    setMessage("");
+    setFieldErrors({});
     setSuccess("");
     setOpen(true);
   };
@@ -119,16 +121,19 @@ export function FinanceRecurringSection() {
     if (pending) return;
     setOpen(false);
     setForm(emptyForm());
-    setMessage("");
+    setFieldErrors({});
   };
 
   const save = async () => {
     const numericAmount = Number(form.original_amount || 0);
-    if (!form.description.trim()) { setMessage("Informe a descrição da recorrência."); return; }
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) { setMessage("Informe um valor maior que zero."); return; }
-    if (!allocationValidation.ok) { setMessage("O rateio deve fechar exatamente o valor da recorrência."); return; }
+    const nextErrors: typeof fieldErrors = {};
+    if (!form.description.trim()) nextErrors.description = "Informe a descrição da recorrência.";
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) nextErrors.amount = "Informe um valor maior que zero.";
+    if (!allocationValidation.ok) nextErrors.allocations = "O rateio deve fechar exatamente o valor da recorrência.";
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     try {
-      setMessage("");
+      setFieldErrors({});
       const id = await recurring.saveMutation.mutateAsync({
         id: form.id,
         payload: {
@@ -153,20 +158,20 @@ export function FinanceRecurringSection() {
       setSuccess(`Recorrência salva. ${generated.generated} ocorrência(s) gerada(s) para a janela de 90 dias.`);
       setOpen(false);
       setForm(emptyForm());
-      setMessage("");
+      setFieldErrors({});
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível salvar a recorrência.");
+      notifyAdmin(systemErrorMessage(error, "Não foi possível salvar a recorrência."), "error");
     }
   };
 
   const generate = async (rule: FinancialRecurringRule) => {
     try {
       setSuccess("");
-      setMessage("");
+      setFieldErrors({});
       const result = await recurring.generateMutation.mutateAsync({ id: rule.id });
       setSuccess(`${result.generated} nova(s) ocorrência(s) gerada(s). Próxima: ${formatDate(result.next_occurrence_date)}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível gerar as ocorrências.");
+      notifyAdmin(systemErrorMessage(error, "Não foi possível gerar as ocorrências."), "error");
     }
   };
 
@@ -180,7 +185,7 @@ export function FinanceRecurringSection() {
     </div>
 
     {success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{success}</div>}
-    {message && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>}
+    
 
     <AdminCard>
       <AdminCardToolbar><p className="text-xs font-semibold text-[#5a6a82]">{rules.length} {rules.length === 1 ? "regra cadastrada" : "regras cadastradas"}</p></AdminCardToolbar>
@@ -213,8 +218,8 @@ export function FinanceRecurringSection() {
         <div className="space-y-5 p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <FSelect label="Tipo" value={form.entry_type} options={[{ value: "payable", label: "Conta a pagar" }, { value: "receivable", label: "Conta a receber" }]} onChange={(event: any) => setForm(current => ({ ...current, entry_type: event.target.value as FinancialEntryType, allocations: emptyAllocations() }))} />
-            <FCurrencyInput label="Valor" value={form.original_amount} onChange={(event: any) => setForm(current => ({ ...current, original_amount: event.target.value }))} />
-            <div className="sm:col-span-2"><FInput label="Descrição" required value={form.description} onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))} /></div>
+            <FCurrencyInput label="Valor" error={fieldErrors.amount} value={form.original_amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setForm(current => ({ ...current, original_amount: event.target.value })); }} />
+            <div className="sm:col-span-2"><FInput label="Descrição" required error={fieldErrors.description} value={form.description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setForm(current => ({ ...current, description: event.target.value })); }} /></div>
             <FInput label="Contraparte (opcional)" value={form.counterpart_name} onChange={(event: any) => setForm(current => ({ ...current, counterpart_name: event.target.value }))} />
             <FInput label="CPF/CNPJ da contraparte" value={form.counterpart_document} onChange={(event: any) => setForm(current => ({ ...current, counterpart_document: event.target.value }))} />
           </div>
@@ -231,9 +236,9 @@ export function FinanceRecurringSection() {
             <FIntegerInput label="Dias até 1º vencimento" value={form.first_due_offset_days} onChange={(event: any) => setForm(current => ({ ...current, first_due_offset_days: event.target.value }))} />
           </div>
 
-          <FinanceAllocationEditor entryType={form.entry_type} total={amount} categories={categories} costCenters={costCenters} value={form.allocations} onChange={allocations => setForm(current => ({ ...current, allocations }))} />
+          <FinanceAllocationEditor entryType={form.entry_type} total={amount} categories={categories} costCenters={costCenters} value={form.allocations} onChange={allocations => { setFieldErrors(current => ({ ...current, allocations: undefined })); setForm(current => ({ ...current, allocations })); }} />{fieldErrors.allocations && <p className="mt-1 text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.allocations}</p>}
           <FTextarea label="Observações" value={form.notes} onChange={(event: any) => setForm(current => ({ ...current, notes: event.target.value }))} rows={3} />
-          {message && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>}
+          
         </div>
         <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t bg-white px-5 py-4 sm:flex-row sm:justify-end">
           <AdminButton variant="secondary" onClick={close} disabled={pending}>Cancelar</AdminButton>

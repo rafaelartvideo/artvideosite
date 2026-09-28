@@ -1,3 +1,5 @@
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -28,13 +30,13 @@ export function FinanceOpeningBalanceDialog({
 }) {
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const [message, setMessage] = useState("");
+  const [amountError, setAmountError] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setAmount("");
     setNote("");
-    setMessage("");
+    setAmountError("");
   }, [open, account?.id]);
 
   if (!open || !account) return null;
@@ -42,19 +44,19 @@ export function FinanceOpeningBalanceDialog({
   const submit = async () => {
     const parsed = parseMoneyInput(amount);
     if (!Number.isFinite(parsed)) {
-      setMessage("Informe um saldo inicial válido.");
+      setAmountError("Informe um saldo inicial válido.");
       return;
     }
     try {
-      setMessage("");
+      setAmountError("");
       await onSave(parsed, note.trim() || null);
       onClose();
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Não foi possível configurar o saldo inicial.");
+      notifyAdmin(systemErrorMessage(caught, "Não foi possível configurar o saldo inicial."), "error");
     }
   };
 
-  const errorText = message || (error instanceof Error ? error.message : "");
+  const errorText = error ? systemErrorMessage(error) : "";
   return <div className="fixed inset-0 z-[125] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
     <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
       <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
@@ -62,7 +64,7 @@ export function FinanceOpeningBalanceDialog({
         <button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button>
       </div>
       <div className="space-y-4 p-5">
-        <FInput label="Saldo inicial" required value={amount} onChange={(event: any) => setAmount(event.target.value)} placeholder="0,00" inputMode="decimal" />
+        <FInput label="Saldo inicial" required error={amountError} value={amount} onChange={(event: any) => { setAmountError(""); setAmount(event.target.value); }} placeholder="0,00" inputMode="decimal" />
         <FTextarea label="Observação" value={note} onChange={(event: any) => setNote(event.target.value)} placeholder="Ex.: saldo existente antes da implantação do Financeiro" />
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">Use valor positivo para saldo disponível e negativo para saldo devedor. Depois de confirmado, ajustes devem ser feitos por movimentações financeiras, não alterando o saldo inicial.</p>
         {errorText && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}

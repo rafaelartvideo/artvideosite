@@ -1,9 +1,10 @@
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useState } from "react";
 import { Banknote, Landmark, Pencil, Plus, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, BtnPrimary } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
@@ -54,20 +55,20 @@ export function FinanceAccountsSection() {
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [openingAccount, setOpeningAccount] = useState<FinancialAccount | null>(null);
-  const [message, setMessage] = useState("");
+  const [nameError, setNameError] = useState("");
 
   const balances = money.balancesQuery.data || {};
   const accounts = (finance.accountsQuery.data || []).map(account => ({ ...account, balance: Number(balances[account.id] || 0) }));
   const totalBalance = accounts.reduce((sum, account) => sum + Number(account.balance || 0), 0);
   const queryError = finance.accountsQuery.error || money.balancesQuery.error;
   const mutationError = finance.saveAccount.error || finance.toggleAccount.error || money.openingBalanceMutation.error;
-  const errorMessage = message || (mutationError instanceof Error ? mutationError.message : queryError instanceof Error ? queryError.message : "");
+  const errorMessage = mutationError ? systemErrorMessage(mutationError) : queryError ? systemErrorMessage(queryError) : "";
 
   if (!canView) return <AdminCard className="p-6"><p className="text-sm text-[#5a6a82]">Você não possui permissão para visualizar caixas e contas.</p></AdminCard>;
 
   const openNew = () => {
     setForm(emptyForm());
-    setMessage("");
+    setNameError("");
     setFormOpen(true);
   };
 
@@ -84,7 +85,7 @@ export function FinanceAccountsSection() {
       allows_cash_session: account.allows_cash_session,
       is_active: account.is_active,
     });
-    setMessage("");
+    setNameError("");
     setFormOpen(true);
   };
 
@@ -92,12 +93,12 @@ export function FinanceAccountsSection() {
     if (finance.saveAccount.isPending) return;
     setFormOpen(false);
     setForm(emptyForm());
-    setMessage("");
+    setNameError("");
   };
 
   const submit = async () => {
-    if (!form.name.trim()) { setMessage("Informe o nome da conta financeira."); return; }
-    setMessage("");
+    if (!form.name.trim()) { setNameError("Informe o nome da conta financeira."); return; }
+    setNameError("");
     try {
       await finance.saveAccount.mutateAsync({
         ...form,
@@ -109,7 +110,7 @@ export function FinanceAccountsSection() {
       });
       closeForm();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível salvar a conta financeira.");
+      notifyAdmin(systemErrorMessage(error, "Não foi possível salvar a conta financeira."), "error");
     }
   };
 
@@ -143,7 +144,7 @@ export function FinanceAccountsSection() {
             <td className={`text-right text-sm font-black ${Number(account.balance || 0) < 0 ? "text-red-700" : "text-[#0057e7]"}`}>{formatCurrency(account.balance || 0)}</td>
             <td>{account.opening_balance_configured_at ? <span className="text-xs font-semibold text-emerald-700">Configurado</span> : <span className="text-xs font-semibold text-amber-700">Não configurado</span>}</td>
             <td><StatusBadge status={account.is_active ? "Ativo" : "Inativo"} /></td>
-            {canManage && <td><div className="flex justify-end gap-1">{!account.opening_balance_configured_at && <AdminIconButton ariaLabel="Configurar saldo inicial" title="Configurar saldo inicial" onClick={() => { setOpeningAccount(account); setMessage(""); }}><Banknote size={15} /></AdminIconButton>}<AdminIconButton ariaLabel="Editar conta" title="Editar conta" onClick={() => openEdit(account)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={account.is_active} entityLabel="conta" onClick={() => void finance.toggleAccount.mutateAsync({ id: account.id, isActive: !account.is_active })} /></div></td>}
+            {canManage && <td><div className="flex justify-end gap-1">{!account.opening_balance_configured_at && <AdminIconButton ariaLabel="Configurar saldo inicial" title="Configurar saldo inicial" onClick={() => { setOpeningAccount(account); setNameError(""); }}><Banknote size={15} /></AdminIconButton>}<AdminIconButton ariaLabel="Editar conta" title="Editar conta" onClick={() => openEdit(account)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={account.is_active} entityLabel="conta" onClick={() => void finance.toggleAccount.mutateAsync({ id: account.id, isActive: !account.is_active })} /></div></td>}
           </tr>)}</tbody>
         </table>
       </div>}
@@ -156,7 +157,7 @@ export function FinanceAccountsSection() {
         <div className="flex items-center justify-between border-b px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">{form.id ? "Editar conta" : "Nova conta"}</h2><p className="mt-1 text-xs text-[#5a6a82]">O saldo não é editável aqui; ele é formado pelo livro financeiro.</p></div><button type="button" onClick={closeForm} disabled={finance.saveAccount.isPending} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button></div>
         <div className="space-y-4 p-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <FInput label="Nome" required value={form.name} onChange={(event: any) => setForm(current => ({ ...current, name: event.target.value }))} placeholder="Ex.: Banco principal" />
+            <FInput label="Nome" required error={nameError} value={form.name} onChange={(event: any) => { setNameError(""); setForm(current => ({ ...current, name: event.target.value })); }} placeholder="Ex.: Banco principal" />
             <FSelect label="Tipo" required value={form.account_type} onChange={(event: any) => {
               const accountType = event.target.value as FinancialAccountType;
               setForm(current => ({ ...current, account_type: accountType, bank_name: accountType === "bank" ? current.bank_name : "", agency: accountType === "bank" ? current.agency : "", account_number: accountType === "bank" ? current.account_number : "", pix_key: accountType === "pix" ? current.pix_key : "", allows_cash_session: accountType === "cash" ? current.allows_cash_session : false }));
