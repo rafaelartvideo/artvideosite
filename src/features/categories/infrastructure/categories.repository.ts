@@ -1,8 +1,8 @@
 import { supabase } from "@/lib/supabase";
-import { ARTVIDEO_ORGANIZATION_ID } from "@/lib/organization.constants";
+import { getArtVideoOrganizationId } from "@/lib/organization-identities";
 
 export async function listCategories() {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const { data, error } = await supabase
     .from("service_categories")
     .select("*")
@@ -17,7 +17,7 @@ export async function saveCategory(
   payload: Record<string, unknown>,
   categoryId?: string,
 ) {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const query = categoryId
     ? supabase.from("service_categories").update(payload).eq("organization_id", organizationId).eq("id", categoryId)
     : supabase.from("service_categories").insert({ ...payload, organization_id: organizationId });
@@ -28,7 +28,7 @@ export async function saveCategory(
 }
 
 export async function deleteCategory(categoryId: string): Promise<void> {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const { error } = await supabase
     .from("service_categories")
     .delete()
@@ -42,7 +42,7 @@ export async function setCategoryActive(
   categoryId: string,
   isActive: boolean,
 ): Promise<void> {
-  const organizationId = ARTVIDEO_ORGANIZATION_ID;
+  const organizationId = await getArtVideoOrganizationId();
   const { error } = await supabase
     .from("service_categories")
     .update({ is_active: isActive })
