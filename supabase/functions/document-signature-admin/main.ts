@@ -13,7 +13,6 @@ import {
 import { renderFrozenSnapshotHtml, sanitizeFrozenSnapshot } from "./signature-snapshot.mjs";
 import { createAdminSignedDocumentAccess, finalizeEmployeeOnlyRequest } from "./signature-finalization.ts";
 
-const PLATFORM_OPERATOR_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 const CONSENT_TEXT = "Li e concordo com o conteúdo deste documento e reconheço esta assinatura eletrônica.";
 const MAX_SNAPSHOT_BYTES = 1_000_000;
 const ACTIVE_STATUSES = new Set(["pending", "viewed"]);
@@ -128,6 +127,12 @@ async function userHasOverride(adminClient: any, organizationId: string, userId:
   return Boolean(data);
 }
 
+async function platformOperatorOrganizationId(adminClient: any) {
+  const { data, error } = await adminClient.rpc("platform_operator_organization_id");
+  if (error || !data) throw error || new Error("Operadora Union World não configurada.");
+  return String(data);
+}
+
 async function membershipPermission(adminClient: any, userId: string, organizationId: string, permissionKey: string) {
   const { data: membership, error } = await adminClient
     .from("organization_members")
@@ -142,6 +147,7 @@ async function membershipPermission(adminClient: any, userId: string, organizati
 }
 
 async function hasEffectivePermission(adminClient: any, userId: string, organizationId: string, permissionKey: string) {
+  const platformOrganizationId = await platformOperatorOrganizationId(adminClient);
   const { data: organization, error } = await adminClient
     .from("organizations")
     .select("id,status")
@@ -150,17 +156,17 @@ async function hasEffectivePermission(adminClient: any, userId: string, organiza
   if (error) throw error;
   if (!organization || organization.status !== "active") return false;
   if (await membershipPermission(adminClient, userId, organizationId, permissionKey)) return true;
-  if (organizationId === PLATFORM_OPERATOR_ORGANIZATION_ID) return false;
+  if (organizationId === platformOrganizationId) return false;
 
   const canManagePartners = await membershipPermission(
     adminClient,
     userId,
-    PLATFORM_OPERATOR_ORGANIZATION_ID,
+    platformOrganizationId,
     "organizations.view",
   );
   if (!canManagePartners) return false;
 
-  return membershipPermission(adminClient, userId, PLATFORM_OPERATOR_ORGANIZATION_ID, permissionKey);
+  return membershipPermission(adminClient, userId, platformOrganizationId, permissionKey);
 }
 
 async function requirePermission(adminClient: any, userId: string, organizationId: string, key: string) {
