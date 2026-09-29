@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import { queryKeys } from "./query-keys";
 import {
   ORGANIZATION_CHANGED_EVENT,
@@ -94,6 +95,52 @@ function serviceOrderKeys(payload: RealtimePayload) {
 const checklistConfigKeys: QueryKey[] = [queryKeys.checklists.all, queryKeys.equipment.all];
 const checklistOrderKeys: QueryKey[] = [queryKeys.checklists.ordersAll, queryKeys.orders.all];
 
+const organizationScopedRealtimeTables = new Set([
+  "appointments",
+  "brands",
+  "checklist_profile_items",
+  "checklist_profile_stages",
+  "checklist_profiles",
+  "customer_addresses",
+  "customers",
+  "employees",
+  "entities",
+  "entity_addresses",
+  "entity_contacts",
+  "entity_records",
+  "entity_supplier_items",
+  "equipment_brands",
+  "equipment_checklist_items",
+  "equipment_models",
+  "equipment_type_technical_fields",
+  "equipment_types",
+  "general_services",
+  "inventory_items",
+  "inventory_movements",
+  "order_statuses",
+  "organization_members",
+  "os_situations",
+  "products",
+  "quote_requests",
+  "quote_status_history",
+  "service_categories",
+  "service_order_checklist_item_media",
+  "service_order_checklist_items",
+  "service_order_checklist_stages",
+  "service_order_checklists",
+  "service_order_part_request_items",
+  "service_order_part_requests",
+  "service_order_status_history",
+  "service_order_used_items",
+  "service_orders",
+  "service_type_situations",
+  "service_types",
+  "services",
+  "site_settings",
+  "technical_fields",
+  "user_permission_overrides",
+]);
+
 const tableQueryKeys: TableQueryConfig[] = [
   { table: "site_settings", keys: [queryKeys.publicSite.settings()] },
   { table: "services", keys: [queryKeys.publicSite.all, queryKeys.catalog.services(), queryKeys.orders.all, queryKeys.orders.workspace()] },
@@ -146,10 +193,16 @@ const tableQueryKeys: TableQueryConfig[] = [
 
 export function QueryRealtimeSync() {
   const queryClient = useQueryClient();
+  const { activeOrganizationId, activeOrganization } = useAuth();
+  const isPlatformOperator = activeOrganization?.is_platform_operator === true;
 
   useEffect(() => {
+    if (!activeOrganizationId) return;
+
     const pending = new Map<string, ReturnType<typeof window.setTimeout>>();
-    let channel = supabase.channel("query-cache-sync");
+    let channel = supabase.channel(
+      `query-cache-sync:${activeOrganizationId}:${isPlatformOperator ? "platform" : "tenant"}`,
+    );
 
     const scheduleInvalidation = (queryKey: QueryKey) => {
       const id = JSON.stringify(queryKey);
@@ -165,9 +218,23 @@ export function QueryRealtimeSync() {
     };
 
     for (const { table, keys } of tableQueryKeys) {
+      const scopedToOrganization = !isPlatformOperator && organizationScopedRealtimeTables.has(table);
+      const changeConfig = scopedToOrganization
+        ? {
+            event: "*" as const,
+            schema: "public",
+            table,
+            filter: `organization_id=eq.${activeOrganizationId}`,
+          }
+        : {
+            event: "*" as const,
+            schema: "public",
+            table,
+          };
+
       channel = channel.on(
         "postgres_changes",
-        { event: "*", schema: "public", table },
+        changeConfig,
         (payload) => {
           const resolvedKeys = typeof keys === "function" ? keys(payload as RealtimePayload) : keys;
           for (const queryKey of resolvedKeys) scheduleInvalidation(queryKey);
@@ -191,7 +258,7 @@ export function QueryRealtimeSync() {
       for (const timeout of pending.values()) window.clearTimeout(timeout);
       void supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, activeOrganizationId, isPlatformOperator]);
 
   return null;
 }
