@@ -141,6 +141,46 @@ const organizationScopedRealtimeTables = new Set([
   "user_permission_overrides",
 ]);
 
+const realtimePublishedTables = new Set([
+  "appointments",
+  "brands",
+  "checklist_profile_items",
+  "checklist_profile_stages",
+  "checklist_profiles",
+  "customer_addresses",
+  "customers",
+  "employees",
+  "equipment_brands",
+  "equipment_checklist_items",
+  "equipment_models",
+  "equipment_type_technical_fields",
+  "equipment_types",
+  "general_services",
+  "inventory_items",
+  "inventory_movements",
+  "order_statuses",
+  "os_situations",
+  "products",
+  "profiles",
+  "quote_requests",
+  "quote_status_history",
+  "service_categories",
+  "service_order_checklist_item_media",
+  "service_order_checklist_items",
+  "service_order_checklist_stages",
+  "service_order_checklists",
+  "service_order_part_request_items",
+  "service_order_part_requests",
+  "service_order_status_history",
+  "service_order_used_items",
+  "service_orders",
+  "service_type_situations",
+  "service_types",
+  "services",
+  "site_settings",
+  "technical_fields",
+]);
+
 const tableQueryKeys: TableQueryConfig[] = [
   { table: "site_settings", keys: [queryKeys.publicSite.settings()] },
   { table: "services", keys: [queryKeys.publicSite.all, queryKeys.catalog.services(), queryKeys.orders.all, queryKeys.orders.workspace()] },
@@ -218,28 +258,35 @@ export function QueryRealtimeSync() {
     };
 
     for (const { table, keys } of tableQueryKeys) {
-      const scopedToOrganization = !isPlatformOperator && organizationScopedRealtimeTables.has(table);
-      const changeConfig = scopedToOrganization
-        ? {
-            event: "*" as const,
-            schema: "public",
-            table,
-            filter: `organization_id=eq.${activeOrganizationId}`,
-          }
-        : {
-            event: "*" as const,
-            schema: "public",
-            table,
-          };
+      if (!realtimePublishedTables.has(table)) continue;
 
-      channel = channel.on(
-        "postgres_changes",
-        changeConfig,
-        (payload) => {
-          const resolvedKeys = typeof keys === "function" ? keys(payload as RealtimePayload) : keys;
-          for (const queryKey of resolvedKeys) scheduleInvalidation(queryKey);
-        },
-      );
+      const handleChange = (payload: RealtimePayload) => {
+        const resolvedKeys = typeof keys === "function" ? keys(payload) : keys;
+        for (const queryKey of resolvedKeys) scheduleInvalidation(queryKey);
+      };
+
+      if (isPlatformOperator) {
+        channel = channel.on(
+          "postgres_changes",
+          { event: "*", schema: "public", table },
+          payload => handleChange(payload as RealtimePayload),
+        );
+        continue;
+      }
+
+      const organizationFilter = organizationScopedRealtimeTables.has(table)
+        ? `organization_id=eq.${activeOrganizationId}`
+        : null;
+
+      for (const event of ["INSERT", "UPDATE"] as const) {
+        channel = channel.on(
+          "postgres_changes",
+          organizationFilter
+            ? { event, schema: "public", table, filter: organizationFilter }
+            : { event, schema: "public", table },
+          payload => handleChange(payload as RealtimePayload),
+        );
+      }
     }
 
     const handleOrganizationChange = () => {
