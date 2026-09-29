@@ -105,8 +105,9 @@ export function useOrderFilters({
   const listKey = queryKeys.orders.list(queryFilters);
 
   const generalTotalQuery = useQuery({
-    queryKey: [...queryKeys.orders.all, "total", organizationId || "none"],
+    queryKey: queryKeys.orders.total(organizationId || "none"),
     enabled: Boolean(organizationId),
+    staleTime: 30 * 60_000,
     queryFn: () => countServiceOrders(organizationId!),
   });
 
