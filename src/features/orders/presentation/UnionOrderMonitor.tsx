@@ -119,6 +119,9 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
       .on("postgres_changes", { event: "*", schema: "public", table: "service_orders" }, invalidate)
       .on("postgres_changes", { event: "*", schema: "public", table: "service_order_status_history" }, invalidate)
       .on("postgres_changes", { event: "*", schema: "public", table: "service_order_used_items" }, invalidate)
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_order_technical_values" }, invalidate)
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_order_technicians" }, invalidate)
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_order_sellers" }, invalidate)
       .subscribe();
 
     return () => {
