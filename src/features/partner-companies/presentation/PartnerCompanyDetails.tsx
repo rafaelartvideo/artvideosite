@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { Edit2, MapPin, MessageCircle, Phone } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
 import { cn, normalizeDigits } from "@/shared/domain/formatters";
@@ -6,12 +7,14 @@ import { AdminCard, AdminCardContent, AdminCardHeader, InternalBackButton, PageH
 import { PartnerCompanyUsersSection } from "./PartnerCompanyUsersSection";
 import { PartnerCompanyPermissionsSection } from "./PartnerCompanyPermissionsSection";
 import { PartnerCompanySharedDataSection } from "./PartnerCompanySharedDataSection";
+import { PartnerCompanyOrderMonitoringSection } from "./PartnerCompanyOrderMonitoringSection";
 
-type CompanySection = "general" | "access" | "data";
+type CompanySection = "general" | "access" | "monitoring" | "data";
 
 const COMPANY_SECTIONS: Array<{ key: CompanySection; label: string }> = [
   { key: "general", label: "Geral" },
   { key: "access", label: "Acessos" },
+  { key: "monitoring", label: "Monitoramento" },
   { key: "data", label: "Dados" },
 ];
 
@@ -26,7 +29,10 @@ function brazilPhoneDigits(value?: string | null) {
 }
 
 export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { company: any; canEdit: boolean; onBack: () => void; onEdit: () => void }) {
+  const { hasPermission } = useAuth();
   const [activeSection, setActiveSection] = useState<CompanySection>("general");
+  const canViewMonitoring = hasPermission("orders.monitor.view") || hasPermission("orders.monitor.manage");
+  const visibleSections = COMPANY_SECTIONS.filter(section => section.key !== "monitoring" || canViewMonitoring);
   const settings = company.settings || {};
   const phone = brazilPhoneDigits(settings.phone || settings.whatsapp);
   const whatsapp = brazilPhoneDigits(settings.whatsapp || settings.phone);
@@ -53,7 +59,7 @@ export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { co
 
     <div className="overflow-x-auto border-b border-[#0d1b2e]/10">
       <nav className="flex min-w-max items-center gap-6" aria-label="Seções da empresa parceira">
-        {COMPANY_SECTIONS.map(section => <button
+        {visibleSections.map(section => <button
           key={section.key}
           type="button"
           onClick={() => setActiveSection(section.key)}
@@ -96,6 +102,7 @@ export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { co
     </>}
 
     {activeSection === "access" && <PartnerCompanyPermissionsSection organizationId={company.id} />}
+    {activeSection === "monitoring" && canViewMonitoring && <PartnerCompanyOrderMonitoringSection organizationId={company.id} />}
     {activeSection === "data" && <PartnerCompanySharedDataSection organizationId={company.id} />}
   </div>;
 }
