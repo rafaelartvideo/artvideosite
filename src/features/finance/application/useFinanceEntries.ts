@@ -7,7 +7,7 @@ import {
   getFinancialEntryDetail,
   listFinancialCounterparties,
   listFinancialEntriesPage,
-  listPendingFinancialApprovals,
+  listPendingFinancialApprovalsPage,
   saveFinancialEntry,
 } from "../infrastructure/finance-entries.repository";
 import {
@@ -129,14 +129,18 @@ export function useFinanceEntries(
   };
 }
 
-export function useFinancePendingApprovals() {
+export function useFinancePendingApprovals(page = 1, pageSize = 10) {
   const { activeOrganizationId } = useAuth();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
   return useQuery({
-    queryKey: queryKeys.finance.pendingApprovals(organizationKey),
+    queryKey: [
+      ...queryKeys.finance.pendingApprovals(organizationKey),
+      { page, pageSize },
+    ] as const,
     enabled: Boolean(activeOrganizationId),
-    queryFn: () => listPendingFinancialApprovals(organizationId),
+    queryFn: () => listPendingFinancialApprovalsPage(organizationId, page, pageSize),
+    placeholderData: previous => previous,
   });
 }
 
