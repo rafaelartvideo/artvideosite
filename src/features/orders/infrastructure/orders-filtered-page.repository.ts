@@ -29,12 +29,28 @@ export type ExactOrderPageInput = {
 export type ExactOrderPage = { items: any[]; total: number };
 
 export async function countServiceOrders(organizationId: string) {
-  const { count, error } = await supabase
-    .from("service_orders")
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", organizationId);
+  const { data, error } = await supabase.rpc("search_service_order_page_ids_v1", {
+    p_organization_id: organizationId,
+    p_page: 1,
+    p_page_size: 1,
+    p_os_number_search: "",
+    p_external_os_search: "",
+    p_customer_name_search: "",
+    p_document_search: "",
+    p_serial_number_search: "",
+    p_responsible_id: null,
+    p_status_id: null,
+    p_situation_id: null,
+    p_order_type: "",
+    p_service_type_id: null,
+    p_date_from: null,
+    p_date_to: null,
+    p_sort: "",
+    p_match_order_number_or_external: false,
+  });
   if (error) throw error;
-  return count ?? 0;
+  const first = (data ?? [])[0] as { total_count?: number | string } | undefined;
+  return Number(first?.total_count ?? 0);
 }
 
 const normalizeIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
