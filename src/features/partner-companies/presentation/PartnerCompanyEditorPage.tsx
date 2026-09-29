@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { lookupCompanyByCnpj } from "@/features/settings/infrastructure/company-registry.gateway";
 import { type Address } from "@/lib/address";
 import {
@@ -11,15 +13,16 @@ import {
 } from "@/shared/domain/formatters";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminCard, AdminCardContent, AdminCardHeader, AdminPage, AdminSegmentedControl, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton, AdminPage, AdminSegmentedControl, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
-import { FCnpjInput, FCpfInput, FEmailInput, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { FCnpjInput, FCpfInput, FEmailInput, FInput, FIntegerInput, FPhoneInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import {
   createPartnerCompany,
   updatePartnerCompany,
   type PartnerCompanyInput,
   type PartnerCompanySettings,
+  type PartnerMonitoredServiceTypeDraft,
 } from "../infrastructure/partner-companies.repository";
 import { toPartnerCompanyError } from "../infrastructure/partner-companies.errors";
 
@@ -46,7 +49,14 @@ type CompanyDraft = {
   menuLogoMediaId: string;
 };
 
-type FormErrors = Partial<Record<keyof CompanyDraft | "address", string>>;
+type FormErrors = Partial<Record<keyof CompanyDraft | "address" | "monitoring", string>>;
+
+type MonitoringDraft = {
+  key: string;
+  title: string;
+  description: string;
+  forecastDays: string;
+};
 
 const emptyDraft: CompanyDraft = {
   personType: "PJ",
@@ -151,8 +161,11 @@ export function PartnerCompanyEditorPage({
   onClose: () => void;
   onSaved: (company: any) => void;
 }) {
+  const { hasPermission } = useAuth();
   const editing = Boolean(company?.id);
+  const canManageMonitoring = hasPermission("orders.monitor.manage");
   const [form, setForm] = useState<CompanyDraft>(() => toDraft(company));
+  const [monitoringTypes, setMonitoringTypes] = useState<MonitoringDraft[]>([]);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
   const [consultingCnpj, setConsultingCnpj] = useState(false);
@@ -165,6 +178,7 @@ export function PartnerCompanyEditorPage({
     setForm(draft);
     setErrors({});
     setToast(null);
+    setMonitoringTypes([]);
     lastCnpjLookupRef.current = normalizeDigits(draft.document);
   }, [open, company]);
 
@@ -264,6 +278,19 @@ export function PartnerCompanyEditorPage({
 
   const save = async () => {
     const validationErrors = validateCompany(form);
+    if (!editing && canManageMonitoring) {
+      for (const type of monitoringTypes) {
+        const forecastDays = type.forecastDays === "" ? null : Number(type.forecastDays);
+        if (!type.title.trim()) {
+          validationErrors.monitoring = "Informe o nome de todos os tipos de atendimento monitorados.";
+          break;
+        }
+        if (forecastDays !== null && (!Number.isInteger(forecastDays) || forecastDays < 0)) {
+          validationErrors.monitoring = "A previsão dos tipos monitorados deve ser informada em dias inteiros e não negativos.";
+          break;
+        }
+      }
+    }
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length) return;
     if (!canSave) return;
@@ -296,9 +323,14 @@ export function PartnerCompanyEditorPage({
 
     setSaving(true);
     try {
+      const monitoredTypes: PartnerMonitoredServiceTypeDraft[] = monitoringTypes.map(type => ({
+        title: type.title.trim(),
+        description: type.description.trim() || null,
+        forecast_days: type.forecastDays === "" ? null : Number(type.forecastDays),
+      }));
       const result = editing
         ? await updatePartnerCompany(company.id, payload)
-        : await createPartnerCompany(payload);
+        : await createPartnerCompany(payload, canManageMonitoring ? monitoredTypes : []);
       if (result.error) throw result.error;
       onSaved(result.data);
     } catch (error) {
@@ -380,6 +412,80 @@ export function PartnerCompanyEditorPage({
         <AdminCardContent>
           <AddressFields value={addressValue} onChange={setAddress} inputClassName={INPUT} twoColumns />
           {errors.address && <p className="mt-2 text-[10px] font-semibold text-red-600">{errors.address}</p>}
+        </AdminCardContent>
+      </AdminCard>
+
+      {!editing && canManageMonitoring && <AdminCard>
+        <AdminCardHeader>
+          <div className="min-w-0">
+            <h3 className="text-sm font-black text-[#0d1b2e]">Tipos de atendimento monitorados</h3>
+            <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">Cadastre agora os tipos cujas OS devem aparecer para a Union. Outros tipos podem ser adicionados depois.</p>
+          </div>
+          <AdminButton
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setErrors(current => ({ ...current, monitoring: undefined }));
+              setMonitoringTypes(current => [...current, { key: crypto.randomUUID(), title: "", description: "", forecastDays: "" }]);
+            }}
+            disabled={saving}
+          >
+            <Plus size={14} /> Adicionar tipo
+          </AdminButton>
+        </AdminCardHeader>
+        <AdminCardContent className="space-y-3">
+          {monitoringTypes.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#0d1b2e]/15 bg-[#f8fafc] p-4 text-sm leading-6 text-[#5a6a82]">
+              Nenhum tipo monitorado foi adicionado. Nesse caso, nenhuma OS desta empresa ficará visível no monitor da Union até um tipo ser configurado depois.
+            </div>
+          ) : monitoringTypes.map((type, index) => (
+            <div key={type.key} className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-wide text-[#5a6a82]">Tipo {index + 1}</p>
+                <AdminIconButton
+                  variant="danger"
+                  ariaLabel="Remover tipo monitorado"
+                  title="Remover"
+                  onClick={() => setMonitoringTypes(current => current.filter(item => item.key !== type.key))}
+                  disabled={saving}
+                >
+                  <Trash2 size={14} />
+                </AdminIconButton>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FInput
+                  label="Nome do tipo"
+                  required
+                  value={type.title}
+                  onChange={(event: any) => {
+                    setErrors(current => ({ ...current, monitoring: undefined }));
+                    setMonitoringTypes(current => current.map(item => item.key === type.key ? { ...item, title: event.target.value } : item));
+                  }}
+                  disabled={saving}
+                />
+                <FIntegerInput
+                  label="Previsão em dias"
+                  value={type.forecastDays}
+                  onChange={(event: any) => {
+                    setErrors(current => ({ ...current, monitoring: undefined }));
+                    setMonitoringTypes(current => current.map(item => item.key === type.key ? { ...item, forecastDays: event.target.value } : item));
+                  }}
+                  disabled={saving}
+                />
+                <div className="md:col-span-2">
+                  <FTextarea
+                    label="Descrição"
+                    value={type.description}
+                    onChange={(event: any) => setMonitoringTypes(current => current.map(item => item.key === type.key ? { ...item, description: event.target.value } : item))}
+                    disabled={saving}
+                    rows={2}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+          {errors.monitoring && <p className="text-[10px] font-semibold text-red-600">{errors.monitoring}</p>}
+          <p className="text-xs leading-5 text-[#5a6a82]">Após o cadastro, nome, descrição, previsão e status destes tipos ficam protegidos. A empresa poderá alterar somente as situações e o SLA.</p>
         </AdminCardContent>
       </AdminCard>
 
