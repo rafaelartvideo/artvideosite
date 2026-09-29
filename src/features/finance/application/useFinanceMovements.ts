@@ -13,12 +13,21 @@ import {
   transferFinancialFunds,
 } from "../infrastructure/finance-movements.repository";
 
-export function useFinanceMovements() {
+export type UseFinanceMovementsOptions = {
+  loadMovements?: boolean;
+  loadScheduledSettlements?: boolean;
+  loadTransfers?: boolean;
+};
+
+export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
   const { activeOrganizationId } = useAuth();
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
   const enabled = Boolean(activeOrganizationId);
+  const loadMovements = options.loadMovements !== false;
+  const loadScheduledSettlements = options.loadScheduledSettlements !== false;
+  const loadTransfers = options.loadTransfers !== false;
 
   const balancesQuery = useQuery({
     queryKey: queryKeys.finance.balances(organizationKey),
@@ -28,19 +37,19 @@ export function useFinanceMovements() {
 
   const movementsQuery = useQuery({
     queryKey: queryKeys.finance.movements(organizationKey),
-    enabled,
+    enabled: enabled && loadMovements,
     queryFn: () => listFinancialMovements(organizationId),
   });
 
   const scheduledSettlementsQuery = useQuery({
     queryKey: queryKeys.finance.scheduledSettlements(organizationKey),
-    enabled,
+    enabled: enabled && loadScheduledSettlements,
     queryFn: () => listScheduledFinancialSettlements(organizationId),
   });
 
   const transfersQuery = useQuery({
     queryKey: queryKeys.finance.transfers(organizationKey),
-    enabled,
+    enabled: enabled && loadTransfers,
     queryFn: () => listFinancialTransfers(organizationId),
   });
 
