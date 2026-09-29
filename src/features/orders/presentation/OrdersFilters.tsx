@@ -243,7 +243,7 @@ export function OrdersFilters({
   };
 
   return <AdminCard className="overflow-hidden p-0">
-    <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0057e7] px-4 py-3 text-white">
+    <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 border-b border-white/15 bg-gradient-to-r from-[#2f80ed] via-[#438fe8] to-[#68a9f2] px-4 py-2.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
       <div className="flex items-center gap-2"><Search size={16} className="shrink-0" /><span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span></div>
       <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-x-3 gap-y-1">
         {selectedStates.length > 0 && <button type="button" onClick={onStatesClear} aria-label="Limpar Estados" title="Limpar Estados" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar Estados</button>}
