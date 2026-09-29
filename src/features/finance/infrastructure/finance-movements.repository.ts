@@ -28,17 +28,48 @@ export async function getFinancialAccountBalances(organizationId: string): Promi
   return Object.fromEntries((data || []).map((row: any) => [String(row.account_id), Number(row.balance || 0)]));
 }
 
-export async function listFinancialMovements(organizationId: string): Promise<FinancialMovement[]> {
+export type FinancialMovementListPage = {
+  items: FinancialMovement[];
+  total: number;
+};
+
+export async function listFinancialMovementsPage(
+  organizationId: string,
+  page: number,
+  pageSize: number,
+  search = "",
+  accountId = "",
+): Promise<FinancialMovementListPage> {
   const org = requiredOrganizationId(organizationId);
+  const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
+    "search_financial_movement_page_ids_v1",
+    {
+      p_organization_id: org,
+      p_page: Math.max(1, page),
+      p_page_size: Math.max(1, pageSize),
+      p_search: search,
+      p_account_id: accountId || null,
+    },
+  );
+  if (pageIndexError) throw pageIndexError;
+
+  const rows = (pageIndex || []) as Array<{ id: string; total_count: number | string }>;
+  const ids = rows.map(row => row.id);
+  const total = rows.length ? Number(rows[0].total_count || 0) : 0;
+  if (!ids.length) return { items: [], total };
+
   const { data, error } = await supabase
     .from("financial_movements")
     .select(MOVEMENT_COLUMNS)
     .eq("organization_id", org)
-    .order("occurred_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(500);
+    .in("id", ids);
   if (error) throw error;
-  return (data || []) as FinancialMovement[];
+
+  const byId = new Map(((data || []) as FinancialMovement[]).map(item => [item.id, item]));
+  return {
+    items: ids.map(id => byId.get(id)).filter(Boolean) as FinancialMovement[],
+    total,
+  };
 }
 
 export async function listScheduledFinancialSettlements(organizationId: string) {
@@ -62,7 +93,7 @@ export async function listFinancialTransfers(organizationId: string): Promise<Fi
     .eq("organization_id", org)
     .order("occurred_at", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(300);
+    .limit(20);
   if (error) throw error;
   return (data || []) as FinancialTransfer[];
 }
