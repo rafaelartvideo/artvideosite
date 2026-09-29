@@ -6,7 +6,7 @@ import {
   configureFinancialOpeningBalance,
   confirmFinancialSettlement,
   getFinancialAccountBalances,
-  listFinancialMovements,
+  listFinancialMovementsPage,
   listScheduledFinancialSettlements,
   listFinancialTransfers,
   reverseFinancialTransfer,
@@ -17,6 +17,10 @@ export type UseFinanceMovementsOptions = {
   loadMovements?: boolean;
   loadScheduledSettlements?: boolean;
   loadTransfers?: boolean;
+  movementPage?: number;
+  movementPageSize?: number;
+  movementSearch?: string;
+  movementAccountId?: string;
 };
 
 export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
@@ -28,6 +32,10 @@ export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
   const loadMovements = options.loadMovements !== false;
   const loadScheduledSettlements = options.loadScheduledSettlements !== false;
   const loadTransfers = options.loadTransfers !== false;
+  const movementPage = Math.max(1, options.movementPage || 1);
+  const movementPageSize = Math.max(1, options.movementPageSize || 20);
+  const movementSearch = options.movementSearch || "";
+  const movementAccountId = options.movementAccountId || "";
 
   const balancesQuery = useQuery({
     queryKey: queryKeys.finance.balances(organizationKey),
@@ -36,9 +44,24 @@ export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
   });
 
   const movementsQuery = useQuery({
-    queryKey: queryKeys.finance.movements(organizationKey),
+    queryKey: [
+      ...queryKeys.finance.movements(organizationKey),
+      {
+        page: movementPage,
+        pageSize: movementPageSize,
+        search: movementSearch,
+        accountId: movementAccountId,
+      },
+    ] as const,
     enabled: enabled && loadMovements,
-    queryFn: () => listFinancialMovements(organizationId),
+    queryFn: () => listFinancialMovementsPage(
+      organizationId,
+      movementPage,
+      movementPageSize,
+      movementSearch,
+      movementAccountId,
+    ),
+    placeholderData: previous => previous,
   });
 
   const scheduledSettlementsQuery = useQuery({
