@@ -92,6 +92,15 @@ function serviceOrderKeys(payload: RealtimePayload) {
   return keys;
 }
 
+function serviceOrderPartRequestKeys(payload: RealtimePayload) {
+  const serviceOrderId = textValue(payloadRow(payload), "service_order_id");
+  return [
+    serviceOrderId
+      ? queryKeys.orders.partRequests(serviceOrderId)
+      : queryKeys.orders.partRequestsAll,
+  ];
+}
+
 const checklistConfigKeys: QueryKey[] = [queryKeys.checklists.all, queryKeys.equipment.all];
 const checklistOrderKeys: QueryKey[] = [queryKeys.checklists.ordersAll, queryKeys.orders.all];
 
@@ -206,8 +215,8 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "inventory_movements", keys: [queryKeys.inventory.all] },
   { table: "service_orders", keys: serviceOrderKeys },
   { table: "service_order_status_history", keys: [queryKeys.orders.all, queryKeys.customers.all] },
-  { table: "service_order_part_requests", keys: [queryKeys.orders.all, queryKeys.inventory.all] },
-  { table: "service_order_part_request_items", keys: [queryKeys.orders.all, queryKeys.inventory.all] },
+  { table: "service_order_part_requests", keys: serviceOrderPartRequestKeys },
+  { table: "service_order_part_request_items", keys: [queryKeys.orders.partRequestsAll] },
   { table: "service_order_used_items", keys: [queryKeys.orders.all, queryKeys.inventory.all] },
   { table: "appointments", keys: [queryKeys.appointments.all, queryKeys.orders.all] },
   { table: "quote_requests", keys: [queryKeys.quotes.all, queryKeys.customers.all, queryKeys.admin.dashboard()] },
