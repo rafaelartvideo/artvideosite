@@ -142,29 +142,14 @@ const organizationScopedRealtimeTables = new Set([
 ]);
 
 const realtimePublishedTables = new Set([
+  // Operacional: alterações simultâneas mudam telas de trabalho em andamento.
   "appointments",
-  "brands",
-  "checklist_profile_items",
-  "checklist_profile_stages",
-  "checklist_profiles",
   "customer_addresses",
   "customers",
-  "employees",
-  "equipment_brands",
-  "equipment_checklist_items",
-  "equipment_models",
-  "equipment_type_technical_fields",
-  "equipment_types",
-  "general_services",
   "inventory_items",
   "inventory_movements",
-  "order_statuses",
-  "os_situations",
-  "products",
-  "profiles",
   "quote_requests",
   "quote_status_history",
-  "service_categories",
   "service_order_checklist_item_media",
   "service_order_checklist_items",
   "service_order_checklist_stages",
@@ -174,11 +159,11 @@ const realtimePublishedTables = new Set([
   "service_order_status_history",
   "service_order_used_items",
   "service_orders",
-  "service_type_situations",
-  "service_types",
-  "services",
-  "site_settings",
-  "technical_fields",
+
+  // Publicadas para consumidores específicos fora deste sincronizador global:
+  // UnionOrderMonitor usa seller/technician/technical-values e uniq_calls é
+  // consumida pelo módulo de telefonia. Elas permanecem na publication do banco,
+  // mas não criamos assinaturas extras aqui.
 ]);
 
 const tableQueryKeys: TableQueryConfig[] = [
