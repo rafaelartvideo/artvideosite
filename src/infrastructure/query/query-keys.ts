@@ -106,8 +106,13 @@ export const queryKeys = {
   appointments: {
     all: ["appointments"] as const,
     lists: () => ["appointments", "list"] as const,
-    list: (scope: { userId: string | null; canViewOtherAgendas: boolean }) =>
-      ["appointments", "list", scope] as const,
+    list: (scope: {
+      organizationId: string;
+      userId: string | null;
+      canViewOtherAgendas: boolean;
+      windowStart: string;
+      windowEnd: string;
+    }) => ["appointments", "list", scope] as const,
   },
   quotes: {
     all: ["quotes"] as const,
