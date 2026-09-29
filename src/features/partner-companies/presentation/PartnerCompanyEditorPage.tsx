@@ -400,7 +400,7 @@ export function PartnerCompanyEditorPage({
             </>}
           </div>
         </AdminCardContent>
-      </AdminCard>}
+      </AdminCard>
 
       <AdminCard>
         <AdminCardHeader>
@@ -487,7 +487,7 @@ export function PartnerCompanyEditorPage({
           {errors.monitoring && <p className="text-[10px] font-semibold text-red-600">{errors.monitoring}</p>}
           <p className="text-xs leading-5 text-[#5a6a82]">Após o cadastro, nome, descrição, previsão e status destes tipos ficam protegidos. A empresa poderá alterar somente as situações e o SLA.</p>
         </AdminCardContent>
-      </AdminCard>
+      </AdminCard>}
 
       <AdminCard>
         <AdminCardHeader>
