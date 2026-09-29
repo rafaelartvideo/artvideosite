@@ -1,5 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownWideNarrow,
@@ -20,7 +20,7 @@ import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { cn, formatCnpj, formatCpf, formatPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
+import { cn, formatCnpj, formatCpf, formatPhone, isValidEmail } from "@/shared/domain/formatters";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,11 +51,12 @@ import {
 import {
   getRegistration,
   getRegistrationSupplierItems,
-  listRegistrations,
+  listRegistrationsPage,
   saveRegistration,
   syncRegistrationAddresses,
   syncRegistrationSupplierItems,
   type Registration,
+  type RegistrationListPage,
   type RegistrationRole,
   type SupplierInventoryItem,
 } from "../infrastructure/registrations.repository";
@@ -123,6 +124,15 @@ function MobileCardField({ label, children }: { label: string; children: React.R
   </div>;
 }
 
+function useDebouncedValue<T>(value: T, delay = 350) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timeout);
+  }, [value, delay]);
+  return debounced;
+}
+
 export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange, onOpenCustomerHistory }: Props) {
   const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const platformUsersOnly = activeOrganization?.is_platform_operator === true;
@@ -146,19 +156,53 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const canViewRecords = hasPermission("registrations.records.view") || canCreateRecords;
   const queryClient = useQueryClient();
   const organizationKey = activeOrganizationId || "";
-  const listKey = queryKeys.registrations.list(organizationKey);
+
+  const [nameSearch, setNameSearch] = useState("");
+  const [documentSearch, setDocumentSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [mobileFilter, setMobileFilter] = useState<MobileRegistrationFilter>("name");
+  const [sortOrder, setSortOrder] = useState<RegistrationSort>("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const debouncedNameSearch = useDebouncedValue(nameSearch);
+  const debouncedDocumentSearch = useDebouncedValue(documentSearch);
+
+  const listBaseKey = queryKeys.registrations.list(organizationKey);
+  const listKey = [
+    ...listBaseKey,
+    {
+      page,
+      pageSize,
+      nameSearch: debouncedNameSearch,
+      documentSearch: debouncedDocumentSearch,
+      roleFilter,
+      statusFilter,
+      sortOrder,
+      employeeOnly: platformUsersOnly,
+    },
+  ] as const;
 
   const registrationsQuery = useQuery({
     queryKey: listKey,
-    queryFn: async () => {
-      const result = await listRegistrations(activeOrganizationId!);
-      if (result.error) throw result.error;
-      return (result.data || []) as unknown as Registration[];
-    },
+    queryFn: () => listRegistrationsPage({
+      organizationId: activeOrganizationId!,
+      page,
+      pageSize,
+      nameSearch: debouncedNameSearch,
+      documentSearch: debouncedDocumentSearch,
+      role: platformUsersOnly ? "all" : roleFilter,
+      status: statusFilter,
+      sort: sortOrder,
+      employeeOnly: platformUsersOnly,
+    }),
     enabled: Boolean(activeOrganizationId && canView && !routeResourceId),
+    placeholderData: previous => previous,
   });
-  const items = registrationsQuery.data ?? [];
-  const loading = registrationsQuery.isPending && !registrationsQuery.data;
+  const items = registrationsQuery.data?.items ?? [];
+  const totalItems = registrationsQuery.data?.total ?? 0;
+  const loading = Boolean(activeOrganizationId && canView && !routeResourceId)
+    && (registrationsQuery.isPending || registrationsQuery.isPlaceholderData);
 
   const routeRegistrationId = routeResourceId && routeResourceId !== "new" && routeSubpage !== "customer"
     ? routeResourceId
@@ -209,14 +253,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [accessForm, setAccessForm] = useState<EmployeeAccessFormState>(emptyEmployeeAccessForm());
   const [accessExisting, setAccessExisting] = useState(false);
   const [accessDirty, setAccessDirty] = useState(false);
-  const [nameSearch, setNameSearch] = useState("");
-  const [documentSearch, setDocumentSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
-  const [mobileFilter, setMobileFilter] = useState<MobileRegistrationFilter>("name");
-  const [sortOrder, setSortOrder] = useState<RegistrationSort>("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [togglingEmployeeId, setTogglingEmployeeId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const editorBaseHydratedRef = useRef<string | null>(null);
@@ -317,58 +353,33 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     editorAccessHydratedRef.current = routeRegistration.id;
   }, [editorOpen, creating, routeRegistration, routeRoles, routeEmployeeId, canViewAccess, employeeAccessQuery.isSuccess, employeeAccessQuery.data]);
 
-  const filtered = useMemo(() => {
-    const nameQuery = nameSearch.trim().toLocaleLowerCase("pt-BR");
-    const documentQuery = documentSearch.trim().toLocaleLowerCase("pt-BR");
-    const documentDigits = normalizeDigits(documentSearch);
-    const result = items.filter(item => {
-      const roles = activeRegistrationRoles(item);
-      if (platformUsersOnly && !roles.includes("employee")) return false;
-      if (!platformUsersOnly && roleFilter !== "all" && !roles.includes(roleFilter)) return false;
-      if (statusFilter === "active" && item.is_active === false) return false;
-      if (statusFilter === "inactive" && item.is_active !== false) return false;
-
-      if (nameQuery) {
-        const names = [item.name, item.legal_name, item.trade_name]
-          .filter(Boolean)
-          .join(" ")
-          .toLocaleLowerCase("pt-BR");
-        if (!names.includes(nameQuery)) return false;
-      }
-
-      if (documentQuery) {
-        const rawDocument = String(item.document || "");
-        const formattedDocument = item.person_type === "PJ" ? formatCnpj(rawDocument) : formatCpf(rawDocument);
-        const textMatch = formattedDocument.toLocaleLowerCase("pt-BR").includes(documentQuery) || rawDocument.toLocaleLowerCase("pt-BR").includes(documentQuery);
-        const digitsMatch = Boolean(documentDigits && normalizeDigits(rawDocument).includes(documentDigits));
-        if (!textMatch && !digitsMatch) return false;
-      }
-
-      return true;
-    });
-
-    if (!sortOrder) return result;
-    return [...result].sort((a, b) => {
-      if (sortOrder === "name_asc") return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
-      if (sortOrder === "name_desc") return String(b.name || "").localeCompare(String(a.name || ""), "pt-BR", { sensitivity: "base" });
-      const aDate = new Date(a.created_at || 0).getTime();
-      const bDate = new Date(b.created_at || 0).getTime();
-      return sortOrder === "newest" ? bDate - aDate : aDate - bDate;
-    });
-  }, [items, nameSearch, documentSearch, roleFilter, statusFilter, sortOrder, platformUsersOnly]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(page, totalPages);
-  const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const hasActiveFilters = Boolean(nameSearch || documentSearch || (!platformUsersOnly && roleFilter !== "all") || statusFilter !== "all" || sortOrder);
+  const paged = items;
+  const hasActiveFilters = Boolean(
+    nameSearch
+    || documentSearch
+    || (!platformUsersOnly && roleFilter !== "all")
+    || statusFilter !== "all"
+    || sortOrder
+  );
   const clearFilters = () => {
     setNameSearch("");
     setDocumentSearch("");
     setRoleFilter("all");
     setStatusFilter("all");
     setSortOrder("");
+    setPage(1);
   };
-  useEffect(() => { setPage(1); }, [nameSearch, documentSearch, roleFilter, statusFilter, sortOrder, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [nameSearch, documentSearch, roleFilter, statusFilter, sortOrder, pageSize, platformUsersOnly]);
+
+  useEffect(() => {
+    if (!loading && page > totalPages) setPage(totalPages);
+  }, [loading, page, totalPages]);
+
   useEffect(() => {
     if (platformUsersOnly && mobileFilter === "role") setMobileFilter("name");
     if (platformUsersOnly && roleFilter !== "all") setRoleFilter("all");
@@ -537,7 +548,12 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           ? { ...registration.legacy_employee, is_active: next }
           : { id: item.legacy_employee_id!, profile_id: profileId, is_active: next },
       } : registration;
-      queryClient.setQueryData<Registration[]>(queryKeys.registrations.list(activeOrganizationId), current => (current || []).map(patchRegistration));
+      queryClient.setQueriesData<RegistrationListPage>(
+        { queryKey: queryKeys.registrations.list(activeOrganizationId) },
+        current => current
+          ? { ...current, items: current.items.map(patchRegistration) }
+          : current,
+      );
       queryClient.setQueryData<Registration>(queryKeys.registrations.detail(activeOrganizationId, item.id), current => current ? patchRegistration(current) : current);
       await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, item.legacy_employee_id) });
       setToast({ msg: next ? "Usuário ativado." : "Usuário inativado. O acesso ao sistema foi bloqueado.", type: "success" });
@@ -739,7 +755,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       </div>
     </AdminCard>
 
-    <AdminCard>{loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState
+    <AdminCard>{loading ? <LoadingState /> : items.length === 0 ? <EmptyState
       icon={Users}
       title={platformUsersOnly ? "Nenhum usuário encontrado" : "Nenhum cadastro encontrado"}
       message={platformUsersOnly ? "Crie um usuário para dar acesso à Union World." : "Crie um cadastro ou ajuste os filtros."}
@@ -776,7 +792,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         const canToggleEmployee = canToggleAccess && activeRegistrationRoles(item).includes("employee") && Boolean(item.legacy_employee_id && employeeAccessProfileId);
         return <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-[#5a6a82]">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-[#5a6a82]">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canEdit && <AdminIconButton ariaLabel="Editar cadastro" title="Editar cadastro" onClick={() => openEditItem(item)}><Edit2 size={15} /></AdminIconButton>}{canToggleEmployee && <AdminActiveStateButton active={employeeUserActive} entityLabel="usuário" disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)} />}</div></td></tr>;
       })}</tbody></table></div>
-      <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} />
+      <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={setPageSize} />
     </>}</AdminCard>
   </div>;
 }
