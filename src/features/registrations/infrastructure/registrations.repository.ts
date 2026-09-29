@@ -91,13 +91,72 @@ function normalizeError(error: unknown) {
   return error instanceof Error ? error : new Error(supabaseErrorMessage(error));
 }
 
-export async function listRegistrations(organizationId: string) {
+export type RegistrationListPageInput = {
+  organizationId: string;
+  page: number;
+  pageSize: number;
+  nameSearch?: string;
+  documentSearch?: string;
+  role?: "all" | RegistrationRole;
+  status?: "all" | "active" | "inactive";
+  sort?: "" | "name_asc" | "name_desc" | "newest" | "oldest";
+  employeeOnly?: boolean;
+};
+
+export type RegistrationListPage = {
+  items: Registration[];
+  total: number;
+};
+
+export async function listRegistrationsPage({
+  organizationId,
+  page,
+  pageSize,
+  nameSearch = "",
+  documentSearch = "",
+  role = "all",
+  status = "all",
+  sort = "",
+  employeeOnly = false,
+}: RegistrationListPageInput): Promise<RegistrationListPage> {
+  const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
+    "search_registration_page_ids_v1",
+    {
+      p_organization_id: organizationId,
+      p_page: Math.max(1, page),
+      p_page_size: Math.max(1, pageSize),
+      p_name_search: nameSearch,
+      p_document_search: documentSearch,
+      p_role: role,
+      p_status: status,
+      p_sort: sort,
+      p_employee_only: employeeOnly,
+    },
+  );
+  if (pageIndexError) throw normalizeError(pageIndexError);
+
+  const rows = (pageIndex ?? []) as Array<{ id: string; total_count: number | string }>;
+  const ids = rows.map(row => row.id);
+  const total = rows.length ? Number(rows[0].total_count ?? 0) : 0;
+  if (!ids.length) return { items: [], total };
+
   const result = await supabase
     .from("entities")
     .select(REGISTRATION_LIST_SELECT)
     .eq("organization_id", organizationId)
-    .order("name", { ascending: true });
-  return { ...result, data: result.data?.map(row => normalizeRegistration(row)) ?? result.data };
+    .in("id", ids);
+  if (result.error) throw normalizeError(result.error);
+
+  const byId = new Map(
+    (result.data ?? [])
+      .map(row => normalizeRegistration(row))
+      .map(row => [row.id, row] as const),
+  );
+
+  return {
+    items: ids.map(id => byId.get(id)).filter(Boolean) as unknown as Registration[],
+    total,
+  };
 }
 
 export async function getRegistration(organizationId: string, id: string) {
