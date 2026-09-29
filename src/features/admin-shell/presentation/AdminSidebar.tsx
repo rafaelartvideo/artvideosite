@@ -217,7 +217,9 @@ export function AdminSidebar({
               key={item.id}
               item={isPlatformOperatorOrganization && item.id === "customers"
                 ? { ...item, label: "Usuários" }
-                : item}
+                : isPlatformOperatorOrganization && item.id === "orders"
+                  ? { ...item, label: "Monitoramento de OS" }
+                  : item}
               active={selectedTab === item.id}
               collapsed={collapsed}
               onClick={() => onNavigate(item.id as AdminTab)}
