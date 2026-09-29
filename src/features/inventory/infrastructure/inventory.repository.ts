@@ -301,6 +301,59 @@ export async function listAvailableInventorySuppliers(organizationIdOverride?: s
   }));
 }
 
+export type InventorySupplierPage = {
+  items: InventorySupplier[];
+  total: number;
+};
+
+export async function listAvailableInventorySuppliersPage(
+  organizationIdOverride: string | null | undefined,
+  page: number,
+  pageSize: number,
+  search = "",
+  selectedIds: string[] = [],
+): Promise<InventorySupplierPage> {
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
+  const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
+    "search_inventory_supplier_page_ids_v1",
+    {
+      p_organization_id: organizationId,
+      p_page: Math.max(1, page),
+      p_page_size: Math.max(1, pageSize),
+      p_search: search,
+      p_selected_ids: selectedIds,
+    },
+  );
+  if (pageIndexError) throw pageIndexError;
+
+  const rows = (pageIndex || []) as Array<{ id: string; total_count: number | string }>;
+  const ids = rows.map(row => row.id);
+  const total = rows.length ? Number(rows[0].total_count || 0) : 0;
+  if (!ids.length) return { items: [], total };
+
+  const { data, error } = await supabase
+    .from("entities")
+    .select("id,name,legal_name,trade_name,document,person_type,is_active")
+    .eq("organization_id", organizationId)
+    .in("id", ids);
+  if (error) throw error;
+
+  const byId = new Map((data || []).map((item: any) => [String(item.id), {
+    id: String(item.id),
+    name: String(item.name || item.trade_name || item.legal_name || "Fornecedor"),
+    legal_name: item.legal_name || null,
+    trade_name: item.trade_name || null,
+    document: item.document || null,
+    person_type: item.person_type === "PJ" ? "PJ" : "PF",
+    is_active: item.is_active !== false,
+  } as InventorySupplier]));
+
+  return {
+    items: ids.map(id => byId.get(id)).filter(Boolean) as InventorySupplier[],
+    total,
+  };
+}
+
 export async function listInventoryItemSuppliers(itemId: string, organizationIdOverride?: string | null): Promise<InventorySupplier[]> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data: links, error: linksError } = await supabase
