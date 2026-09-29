@@ -135,7 +135,7 @@ export const queryKeys = {
   },
   orders: {
     all: ["orders"] as const,
-    workspace: () => ["orders", "workspace"] as const,
+    workspace: () => ["orders-workspace"] as const,
     lists: () => ["orders", "list"] as const,
     list: (filters: Record<string, unknown>) => ["orders", "list", filters] as const,
     details: () => ["orders", "detail"] as const,
