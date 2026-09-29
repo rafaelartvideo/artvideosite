@@ -153,6 +153,82 @@ export async function listInventoryItems(organizationIdOverride?: string | null,
   }));
 }
 
+export type InventoryItemListPageInput = {
+  organizationId?: string | null;
+  includeCosts?: boolean;
+  page: number;
+  pageSize: number;
+  nameSearch?: string;
+  skuSearch?: string;
+  addressSearch?: string;
+};
+
+export type InventoryItemListPage = {
+  items: any[];
+  total: number;
+};
+
+export async function listInventoryItemsPage({
+  organizationId: organizationIdOverride,
+  includeCosts = false,
+  page,
+  pageSize,
+  nameSearch = "",
+  skuSearch = "",
+  addressSearch = "",
+}: InventoryItemListPageInput): Promise<InventoryItemListPage> {
+  const organizationId = await resolveOrganizationId(organizationIdOverride);
+  const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
+    "search_inventory_item_page_ids_v1",
+    {
+      p_organization_id: organizationId,
+      p_page: Math.max(1, page),
+      p_page_size: Math.max(1, pageSize),
+      p_name_search: nameSearch,
+      p_sku_search: skuSearch,
+      p_address_search: addressSearch,
+    },
+  );
+  if (pageIndexError) throw pageIndexError;
+
+  const rows = (pageIndex || []) as Array<{ id: string; total_count: number | string }>;
+  const ids = rows.map(row => row.id);
+  const total = rows.length ? Number(rows[0].total_count || 0) : 0;
+  if (!ids.length) return { items: [], total };
+
+  const columns = includeCosts ? `${SAFE_ITEM_COLUMNS},${COST_ITEM_COLUMNS}` : SAFE_ITEM_COLUMNS;
+  const { data, error } = await supabase
+    .from("inventory_items")
+    .select(columns)
+    .eq("organization_id", organizationId)
+    .in("id", ids);
+  if (error) throw error;
+
+  const baseRows = data ?? [];
+  let displayRows: any[];
+
+  if (includeCosts) {
+    const supplierMap = await loadSupplierEntityMap(
+      organizationId,
+      baseRows.map((item: any) => item.last_supplier_entity_id),
+    );
+    displayRows = baseRows.map((item: any) => toDisplayItem({
+      ...item,
+      last_supplier: item.last_supplier_entity_id
+        ? supplierMap.get(String(item.last_supplier_entity_id)) || null
+        : null,
+    }));
+  } else {
+    displayRows = baseRows.map(toDisplayItem);
+  }
+
+  const byId = new Map(displayRows.map((item: any) => [String(item.id), item]));
+  return {
+    items: ids.map(id => byId.get(id)).filter(Boolean),
+    total,
+  };
+}
+
 export async function createInventoryItem(payload: Record<string, unknown>, organizationIdOverride?: string | null): Promise<string> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data, error } = await supabase.rpc("create_inventory_item", {
@@ -314,9 +390,7 @@ export async function listInventoryMovements(itemId: string, organizationIdOverr
 
 export async function getInventoryItem(itemId: string, organizationIdOverride?: string | null, includeCosts = false) {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
-  const columns = includeCosts
-    ? "id,name,unit,conversion_factor,quantity,min_quantity,is_active,purchase_price,average_cost,last_supplier_entity_id,last_purchase_at,sale_price"
-    : "id,name,unit,conversion_factor,quantity,min_quantity,is_active,sale_price";
+  const columns = includeCosts ? `${SAFE_ITEM_COLUMNS},${COST_ITEM_COLUMNS}` : SAFE_ITEM_COLUMNS;
   const { data, error } = await supabase.from("inventory_items").select(columns).eq("id", itemId).eq("organization_id", organizationId).maybeSingle();
   if (error) throw error;
   if (!data || !includeCosts || !data.last_supplier_entity_id) return toDisplayItem(data);
