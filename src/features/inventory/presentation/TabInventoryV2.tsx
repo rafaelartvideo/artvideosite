@@ -8,7 +8,7 @@ import {
   getInventoryItem,
   listInventoryItemSuppliers,
   listInventoryItemsPage,
-  listInventoryMovements,
+  listInventoryMovementsPage,
   recordInventoryMovement,
   saveInventoryItem,
   setInventoryItemActive,
@@ -190,6 +190,10 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const [form, setForm] = useState<InventoryForm>(emptyInventoryForm);
   const [fieldErrors, setFieldErrors] = useState<InventoryFieldErrors>({});
   const [history, setHistory] = useState<any[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [movementForm, setMovementForm] = useState<MovementForm>(emptyMovementForm);
@@ -304,17 +308,12 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
     await loadSuppliers(item.id);
   };
 
-  const openHistory = async (item: any) => {
+  const openHistory = (item: any) => {
     if (!canViewMovements) return;
     setSelectedItem(item);
     setRecordOpen(false);
-    try {
-      setHistory(await listInventoryMovements(item.id, activeOrganizationId, canViewCosts));
-      setHistoryOpen(true);
-    } catch (error) {
-      setToast({ msg: `Erro ao carregar histórico: ${systemErrorMessage(error)}`, type: "error" });
-      setHistory([]);
-    }
+    setHistoryPage(1);
+    setHistoryOpen(true);
   };
 
   const openMovement = async (item: any) => {
@@ -330,6 +329,9 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const closePage = () => {
     setRecordOpen(false);
     setHistoryOpen(false);
+    setHistory([]);
+    setHistoryTotal(0);
+    setHistoryPage(1);
     setSelectedItem(null);
     setLinkedSuppliers([]);
     setFieldErrors({});
@@ -339,8 +341,51 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
 
   const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (item: any) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : void openEdit(item));
-  const openHistoryPage = (item: any) => canViewMovements && (onRouteChange ? onRouteChange(item.id, "history") : void openHistory(item));
+  const openHistoryPage = (item: any) => canViewMovements && (onRouteChange ? onRouteChange(item.id, "history") : openHistory(item));
   const openMovementPage = (item: any) => canCreateMovements && (onRouteChange ? onRouteChange(item.id, "move") : void openMovement(item));
+
+  useEffect(() => {
+    if (!historyOpen || !selectedItem?.id || !canViewMovements) return;
+
+    let cancelled = false;
+    setHistoryLoading(true);
+
+    void listInventoryMovementsPage(
+      selectedItem.id,
+      activeOrganizationId,
+      canViewCosts,
+      historyPage,
+      historyPageSize,
+    )
+      .then(result => {
+        if (cancelled) return;
+        setHistory(result.items);
+        setHistoryTotal(result.total);
+        const totalPages = Math.max(1, Math.ceil(result.total / historyPageSize));
+        if (historyPage > totalPages) setHistoryPage(totalPages);
+      })
+      .catch(error => {
+        if (cancelled) return;
+        setToast({ msg: `Erro ao carregar histórico: ${systemErrorMessage(error)}`, type: "error" });
+        setHistory([]);
+        setHistoryTotal(0);
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    historyOpen,
+    selectedItem?.id,
+    activeOrganizationId,
+    canViewCosts,
+    canViewMovements,
+    historyPage,
+    historyPageSize,
+  ]);
 
   useEffect(() => {
     if (!routeResourceId) {
@@ -364,7 +409,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
         .then(loadedItem => {
           if (!loadedItem) return;
           if (routeSubpage === "edit" && canViewDetails && canEdit) void openEdit(loadedItem);
-          if (routeSubpage === "history" && canViewMovements) void openHistory(loadedItem);
+          if (routeSubpage === "history" && canViewMovements) openHistory(loadedItem);
           if (routeSubpage === "move" && canCreateMovements) void openMovement(loadedItem);
         })
         .catch(error => setToast({ msg: `Erro ao carregar item: ${systemErrorMessage(error)}`, type: "error" }));
@@ -372,7 +417,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
     }
 
     if (routeSubpage === "edit" && canViewDetails && canEdit && (!recordOpen || selectedItem?.id !== item.id)) void openEdit(item);
-    if (routeSubpage === "history" && canViewMovements && (!historyOpen || selectedItem?.id !== item.id)) void openHistory(item);
+    if (routeSubpage === "history" && canViewMovements && (!historyOpen || selectedItem?.id !== item.id)) openHistory(item);
     if (routeSubpage === "move" && canCreateMovements && (recordOpen || historyOpen || selectedItem?.id !== item.id)) void openMovement(item);
   }, [routeResourceId, routeSubpage, items, recordOpen, historyOpen, selectedItem?.id, canCreate, canViewDetails, canEdit, canViewMovements, canCreateMovements]);
 
@@ -597,7 +642,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closePage}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void saveMovement()}>Registrar</BtnPrimary></div>
     </AdminPage>}
 
-    {historyOpen && selectedItem && canViewMovements && <AdminPage open onClose={closePage} breadcrumb="Estoque" title={`Histórico — ${selectedItem.name}`} subtitle="Movimentações auditáveis do item" maxW="max-w-3xl"><div className="p-4 sm:p-5">{history.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhuma movimentação registrada.</p> : <div className="space-y-3">{history.map((entry: any) => {
+    {historyOpen && selectedItem && canViewMovements && <AdminPage open onClose={closePage} breadcrumb="Estoque" title={`Histórico — ${selectedItem.name}`} subtitle="Movimentações auditáveis do item" maxW="max-w-3xl"><div className="p-4 sm:p-5">{historyLoading && history.length === 0 ? <LoadingState text="Carregando histórico..." /> : history.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhuma movimentação registrada.</p> : <div className="space-y-3">{history.map((entry: any) => {
       const presentation = movementPresentation(entry.movement_type);
       const displayUnit = entry.display_unit || unitLabel(selectedItem.unit);
       const before = entry.previous_quantity == null ? null : displayBaseQuantity(entry.previous_quantity, selectedItem);
@@ -609,7 +654,18 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
         <div className="mt-3 grid gap-2 text-[11px] text-[#5a6a82] sm:grid-cols-2 lg:grid-cols-3"><HistoryValue label="Data" value={formatDateTime(entry.created_at)} /><HistoryValue label="Usuário" value={entry.created_by_profile?.full_name || "—"} /><HistoryValue label="OS" value={entry.service_order?.os_number || "—"} />{before !== null && <HistoryValue label="Saldo anterior" value={`${formatNumber(before)} ${unitLabel(selectedItem.unit)}`} />}{after !== null && <HistoryValue label="Saldo posterior" value={`${formatNumber(after)} ${unitLabel(selectedItem.unit)}`} />}{displayUnit === "cx" && Number(entry.conversion_factor_snapshot || 0) > 0 && <HistoryValue label="Conversão" value={`${formatNumber(Number(entry.conversion_factor_snapshot))} un/cx`} />}{entry.supplier_entity_id && <HistoryValue label="Fornecedor" value={movementSupplierName(entry)} />}{entry.purchase_reference && <HistoryValue label="Referência" value={entry.purchase_reference} />}{canViewCosts && entry.input_unit_cost != null && <HistoryValue label={`Valor por ${displayUnit}`} value={formatCurrency(entry.input_unit_cost)} />}{canViewCosts && entry.total_cost != null && <HistoryValue label="Total da compra" value={formatCurrency(entry.total_cost)} />}{canViewCosts && averageBefore !== null && <HistoryValue label="Custo médio anterior" value={formatCurrency(averageBefore)} />}{canViewCosts && averageAfter !== null && <HistoryValue label="Custo médio posterior" value={formatCurrency(averageAfter)} />}</div>
         {(entry.reason || entry.notes) && <div className="mt-3 border-t border-[#0d1b2e]/8 pt-3 text-sm text-[#0d1b2e]">{entry.reason && <p><strong>Motivo:</strong> {entry.reason}</p>}{entry.notes && <p className="mt-1"><strong>Observações:</strong> {entry.notes}</p>}</div>}
       </AdminCard>;
-    })}</div>}</div></AdminPage>}
+    })}<PaginationBar
+      page={historyPage}
+      pageSize={historyPageSize}
+      totalItems={historyTotal}
+      onPageChange={setHistoryPage}
+      onPageSizeChange={value => {
+        setHistoryPageSize(value);
+        setHistoryPage(1);
+      }}
+      defaultPageSize={10}
+      pageSizeOptions={[10, 20, 50, 100]}
+    /></div>}</div></AdminPage>}
   </div>;
 }
 
