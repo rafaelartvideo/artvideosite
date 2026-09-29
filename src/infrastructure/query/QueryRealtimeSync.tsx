@@ -67,7 +67,7 @@ function registrationEmployeeKeys(payload: RealtimePayload) {
   const organizationId = textValue(row, "organization_id");
   const employeeId = textValue(row, "id") || textValue(row, "employee_id");
   const entityId = textValue(row, "entity_id");
-  const keys: QueryKey[] = [queryKeys.employees.all, queryKeys.orders.all];
+  const keys: QueryKey[] = [queryKeys.employees.all, queryKeys.orders.all, queryKeys.orders.workspace()];
   if (organizationId && employeeId) keys.push(queryKeys.registrations.access(organizationId, employeeId));
   else keys.push(queryKeys.registrations.accessAll);
   if (organizationId && entityId) keys.push(queryKeys.registrations.detail(organizationId, entityId));
@@ -80,10 +80,10 @@ const checklistOrderKeys: QueryKey[] = [queryKeys.checklists.ordersAll, queryKey
 
 const tableQueryKeys: TableQueryConfig[] = [
   { table: "site_settings", keys: [queryKeys.publicSite.settings()] },
-  { table: "services", keys: [queryKeys.publicSite.all, queryKeys.catalog.services()] },
+  { table: "services", keys: [queryKeys.publicSite.all, queryKeys.catalog.services(), queryKeys.orders.all, queryKeys.orders.workspace()] },
   { table: "service_categories", keys: [queryKeys.publicSite.all, queryKeys.catalog.categories()] },
-  { table: "products", keys: [queryKeys.publicSite.all, queryKeys.catalog.products()] },
-  { table: "brands", keys: [queryKeys.publicSite.all, queryKeys.catalog.brands()] },
+  { table: "products", keys: [queryKeys.publicSite.all, queryKeys.catalog.products(), queryKeys.orders.workspace()] },
+  { table: "brands", keys: [queryKeys.publicSite.all, queryKeys.catalog.brands(), queryKeys.orders.workspace()] },
   { table: "customers", keys: [queryKeys.customers.all, queryKeys.orders.all] },
   { table: "customer_addresses", keys: [queryKeys.customers.all, queryKeys.orders.all] },
   { table: "entities", keys: registrationEntityKeys },
@@ -104,8 +104,16 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "service_order_checklist_stages", keys: checklistOrderKeys },
   { table: "service_order_checklist_items", keys: checklistOrderKeys },
   { table: "service_order_checklist_item_media", keys: [...checklistOrderKeys, queryKeys.orders.all] },
-  { table: "equipment_types", keys: [queryKeys.equipment.all, queryKeys.orders.all, queryKeys.checklists.all] },
-  { table: "os_situations", keys: [queryKeys.orderSituations.all, queryKeys.orders.all, queryKeys.checklists.all] },
+  { table: "equipment_types", keys: [queryKeys.equipment.all, queryKeys.orders.all, queryKeys.orders.workspace(), queryKeys.checklists.all] },
+  { table: "equipment_brands", keys: [queryKeys.equipment.all, queryKeys.orders.all, queryKeys.orders.workspace()] },
+  { table: "equipment_models", keys: [queryKeys.equipment.all, queryKeys.orders.all, queryKeys.orders.workspace()] },
+  { table: "technical_fields", keys: [queryKeys.equipment.all, queryKeys.orders.workspace()] },
+  { table: "equipment_type_technical_fields", keys: [queryKeys.equipment.all, queryKeys.orders.workspace()] },
+  { table: "order_statuses", keys: [queryKeys.orderStatuses.all, queryKeys.orders.all, queryKeys.orders.workspace()] },
+  { table: "general_services", keys: [queryKeys.generalServices.all, queryKeys.orders.all, queryKeys.orders.workspace()] },
+  { table: "service_types", keys: [queryKeys.serviceTypes.all, queryKeys.orders.all, queryKeys.orders.workspace()] },
+  { table: "service_type_situations", keys: [queryKeys.serviceTypes.all, queryKeys.orders.workspace()] },
+  { table: "os_situations", keys: [queryKeys.orderSituations.all, queryKeys.orders.all, queryKeys.orders.workspace(), queryKeys.checklists.all] },
   { table: "inventory_items", keys: [queryKeys.inventory.all, queryKeys.orders.all, queryKeys.registrations.supplierItemsAll] },
   { table: "inventory_movements", keys: [queryKeys.inventory.all] },
   { table: "service_orders", keys: [queryKeys.orders.all, queryKeys.customers.all, queryKeys.appointments.all, queryKeys.admin.dashboard()] },
@@ -117,7 +125,7 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "quote_requests", keys: [queryKeys.quotes.all, queryKeys.customers.all, queryKeys.admin.dashboard()] },
   { table: "quote_status_history", keys: [queryKeys.quotes.all, queryKeys.customers.all] },
   { table: "employees", keys: registrationEmployeeKeys },
-  { table: "profiles", keys: [queryKeys.employees.all, queryKeys.orders.all, queryKeys.registrations.details(), queryKeys.registrations.permissionsAll, queryKeys.registrations.accessAll] },
+  { table: "profiles", keys: [queryKeys.employees.all, queryKeys.orders.all, queryKeys.orders.workspace(), queryKeys.registrations.details(), queryKeys.registrations.permissionsAll, queryKeys.registrations.accessAll] },
 ];
 
 export function QueryRealtimeSync() {
