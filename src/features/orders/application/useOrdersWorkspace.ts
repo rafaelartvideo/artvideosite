@@ -38,15 +38,17 @@ const EMPTY_WORKSPACE: OrdersWorkspace = {
 };
 
 async function fetchOrdersWorkspace(organizationId: string): Promise<OrdersWorkspace> {
-  const [statusesResult, situationsResult, profilesResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult] = await loadOrdersReferenceData(organizationId);
-  const results = [statusesResult, situationsResult, profilesResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult];
+  const [statusesResult, situationsResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult] = await loadOrdersReferenceData(organizationId);
+  const results = [statusesResult, situationsResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult];
   const failed = results.find(result => result.error);
   if (failed?.error) throw failed.error;
   return {
     orders: [],
     statuses: statusesResult.data ?? [],
     situations: situationsResult.data ?? [],
-    profiles: profilesResult.data ?? [],
+    profiles: (employeesResult.data ?? [])
+      .filter((employee: any) => Boolean(employee.profile_id))
+      .map((employee: any) => ({ id: employee.profile_id, full_name: employee.full_name })),
     services: servicesResult.data ?? [],
     brands: brandsResult.data ?? [],
     products: productsResult.data ?? [],
@@ -55,7 +57,7 @@ async function fetchOrdersWorkspace(organizationId: string): Promise<OrdersWorks
     equipmentModels: equipmentModelsResult.data ?? [],
     technicalFields: technicalFieldsResult.data ?? [],
     technicalFieldLinks: technicalFieldLinksResult.data ?? [],
-    employees: employeesResult.data ?? [],
+    employees: (employeesResult.data ?? []).filter((employee: any) => employee.is_active),
     generalServices: generalServicesResult.data ?? [],
     serviceTypes: serviceTypesResult.data ?? [],
     serviceTypeSituations: serviceTypeSituationsResult.data ?? [],
