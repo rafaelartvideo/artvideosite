@@ -6,13 +6,22 @@ import { formatCnpj, formatCpf } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
-  listAvailableInventorySuppliers,
+  listAvailableInventorySuppliersPage,
   type InventorySupplier,
 } from "../infrastructure/inventory.repository";
 
 function supplierDocument(supplier: InventorySupplier) {
   if (!supplier.document) return "—";
   return supplier.person_type === "PJ" ? formatCnpj(supplier.document) : formatCpf(supplier.document);
+}
+
+function useDebouncedValue<T>(value: T, delay = 350) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timeout);
+  }, [value, delay]);
+  return debounced;
 }
 
 export function InventorySuppliersEditor({
@@ -27,9 +36,14 @@ export function InventorySuppliersEditor({
   disabled?: boolean;
 }) {
   const [available, setAvailable] = useState<InventorySupplier[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const debouncedSearch = useDebouncedValue(search);
+  const selectedIds = useMemo(() => new Set(value.map(supplier => supplier.id)), [value]);
+  const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
+  const selectedKey = selectedIdList.join(",");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,17 +52,31 @@ export function InventorySuppliersEditor({
     const load = async () => {
       if (!organizationId) {
         setAvailable([]);
+        setTotalItems(0);
         return;
       }
       setLoading(true);
       setError(null);
       try {
-        const suppliers = await listAvailableInventorySuppliers(organizationId);
-        if (!cancelled) setAvailable(suppliers);
+        const result = await listAvailableInventorySuppliersPage(
+          organizationId,
+          page,
+          pageSize,
+          debouncedSearch,
+          selectedIdList,
+        );
+        if (!cancelled) {
+          setAvailable(result.items);
+          setTotalItems(result.total);
+          const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
+          if (page > totalPages) setPage(totalPages);
+        }
       } catch (loadError) {
         if (!cancelled) {
           setError("Não foi possível carregar os fornecedores.");
           notifyAdmin(systemErrorMessage(loadError, "Não foi possível carregar os fornecedores."), "error");
+          setAvailable([]);
+          setTotalItems(0);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -56,32 +84,14 @@ export function InventorySuppliersEditor({
     };
     void load();
     return () => { cancelled = true; };
-  }, [organizationId]);
+  }, [organizationId, page, pageSize, debouncedSearch, selectedKey]);
 
-  const rows = useMemo(() => {
-    const byId = new Map<string, InventorySupplier>();
-    value.forEach(supplier => byId.set(supplier.id, supplier));
-    available.forEach(supplier => byId.set(supplier.id, supplier));
-    const query = search.trim().toLocaleLowerCase("pt-BR");
-    return Array.from(byId.values())
-      .filter(supplier => {
-        if (!query) return true;
-        return [supplier.name, supplier.trade_name, supplier.legal_name, supplier.document]
-          .filter(Boolean)
-          .join(" ")
-          .toLocaleLowerCase("pt-BR")
-          .includes(query);
-      })
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  }, [available, value, search]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const rows = available;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagedRows = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const selectedIds = useMemo(() => new Set(value.map(supplier => supplier.id)), [value]);
 
   useEffect(() => { setPage(1); }, [search, pageSize]);
-  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const toggle = (supplier: InventorySupplier) => {
     if (disabled) return;
@@ -96,7 +106,7 @@ export function InventorySuppliersEditor({
   return <AdminListSection
     title="Fornecedores"
     description="Vincule os fornecedores disponíveis a este item do estoque."
-    count={rows.length}
+    count={totalItems}
     countSingular="fornecedor"
     countPlural="fornecedores"
     searchValue={search}
@@ -105,17 +115,17 @@ export function InventorySuppliersEditor({
     loading={loading}
     loadingText="Carregando fornecedores..."
     error={error ? `Erro ao carregar fornecedores: ${error}` : undefined}
-    empty={!loading && !error && rows.length === 0}
+    empty={!loading && !error && totalItems === 0}
     emptyText="Nenhum fornecedor disponível."
-    footer={!loading && !error && rows.length > 0 ? <PaginationBar
+    footer={!loading && !error && totalItems > 0 ? <PaginationBar
       page={safePage}
       pageSize={pageSize}
-      totalItems={rows.length}
+      totalItems={totalItems}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
     /> : undefined}
   >
-    {pagedRows.map(supplier => {
+    {rows.map(supplier => {
       const selected = selectedIds.has(supplier.id);
       const inactive = supplier.is_active === false;
       return <AdminListSectionRow key={supplier.id} className="flex flex-col gap-3 sm:flex-row sm:items-center">
