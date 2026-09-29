@@ -54,6 +54,22 @@ export type PartnerCompanyPage = {
   total: number;
 };
 
+export type PartnerMonitoredServiceTypeDraft = {
+  title: string;
+  description?: string | null;
+  forecast_days?: number | null;
+};
+
+export type PartnerServiceTypeMonitoring = {
+  id: string;
+  title: string;
+  description: string | null;
+  forecast_days: number | null;
+  is_active: boolean;
+  sort_order: number;
+  is_monitored: boolean;
+};
+
 // `manage` permanece somente para leitura de registros legados já existentes.
 // Novas configurações de compartilhamento da Union World são estritamente de consulta.
 export type PartnerShareAccessLevel = "none" | "summary" | "read" | "manage";
@@ -88,7 +104,20 @@ export async function getPartnerCompany(id: string) {
     : result;
 }
 
-export async function createPartnerCompany(payload: PartnerCompanyInput) {
+export async function createPartnerCompany(
+  payload: PartnerCompanyInput,
+  monitoredTypes: PartnerMonitoredServiceTypeDraft[] = [],
+) {
+  if (monitoredTypes.length > 0) {
+    const result = await supabase.rpc("create_partner_company_with_monitoring", {
+      p_company: payload,
+      p_monitored_types: monitoredTypes,
+    });
+    return result.error
+      ? { ...result, error: toPartnerCompanyError(result.error, "Não foi possível cadastrar a empresa parceira.") }
+      : result;
+  }
+
   const result = await supabase
     .from("organizations")
     .insert({ ...payload, organization_type: "partner", parent_organization_id: null })
@@ -236,4 +265,41 @@ export function setPartnerDataShare(
     p_resource_key: resourceKey,
     p_access_level: accessLevel,
   });
+}
+
+
+export async function listPartnerServiceTypeMonitoring(
+  organizationId: string,
+): Promise<PartnerServiceTypeMonitoring[]> {
+  const { data, error } = await supabase.rpc("list_partner_service_type_monitoring", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw toPartnerCompanyError(error, "Não foi possível carregar os tipos monitorados.");
+  return (data ?? []) as PartnerServiceTypeMonitoring[];
+}
+
+export async function addPartnerMonitoredServiceType(
+  organizationId: string,
+  serviceTypeId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("add_partner_monitored_service_type", {
+    p_organization_id: organizationId,
+    p_service_type_id: serviceTypeId,
+  });
+  if (error) throw toPartnerCompanyError(error, "Não foi possível adicionar o tipo ao monitoramento.");
+}
+
+export async function createPartnerMonitoredServiceType(
+  organizationId: string,
+  input: PartnerMonitoredServiceTypeDraft,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("create_partner_monitored_service_type", {
+    p_organization_id: organizationId,
+    p_title: input.title,
+    p_description: input.description ?? null,
+    p_forecast_days: input.forecast_days ?? null,
+  });
+  if (error) throw toPartnerCompanyError(error, "Não foi possível criar o tipo monitorado.");
+  if (!data) throw new PartnerCompanyError("O banco não retornou o tipo de atendimento criado.", "invalid_function_response");
+  return String(data);
 }
