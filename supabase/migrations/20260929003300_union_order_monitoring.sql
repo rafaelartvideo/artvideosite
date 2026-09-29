@@ -901,6 +901,71 @@ revoke all on function public.get_union_monitored_order(uuid) from public;
 revoke all on function public.get_union_monitored_order(uuid) from anon;
 grant execute on function public.get_union_monitored_order(uuid) to authenticated;
 
+
+create or replace function private.can_access_service_order_child(
+  p_service_order_id uuid,
+  p_permission_key text,
+  p_access_level text default 'read'
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path to ''
+as $
+  select exists (
+    select 1
+    from public.service_orders service_order
+    where service_order.id = p_service_order_id
+      and service_order.organization_id is not null
+      and private.is_organization_module_enabled(service_order.organization_id, 'orders')
+      and private.can_view_service_order(service_order.id)
+      and (
+        (
+          p_access_level = 'read'
+          and private.can_monitor_service_order(service_order.id)
+        )
+        or (
+          private.can_access_shared_organization_resource(
+            service_order.organization_id,
+            'orders',
+            p_access_level
+          )
+          and private.has_effective_organization_permission(
+            service_order.organization_id,
+            p_permission_key
+          )
+        )
+      )
+  );
+$;
+
+revoke all on function private.can_access_service_order_child(uuid, text, text) from public;
+grant execute on function private.can_access_service_order_child(uuid, text, text) to authenticated;
+
+do $
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='service_order_technical_values'
+  ) then
+    alter publication supabase_realtime add table public.service_order_technical_values;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='service_order_technicians'
+  ) then
+    alter publication supabase_realtime add table public.service_order_technicians;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='service_order_sellers'
+  ) then
+    alter publication supabase_realtime add table public.service_order_sellers;
+  end if;
+end
+$;
+
 comment on table public.service_type_monitoring is
   'Tipos de atendimento de empresas parceiras cujas OS podem ser monitoradas pela Union World.';
 comment on function public.list_union_monitored_orders(text, uuid, uuid, uuid, uuid, integer, integer) is
