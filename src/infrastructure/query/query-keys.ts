@@ -147,6 +147,7 @@ export const queryKeys = {
     list: (filters: Record<string, unknown>) => ["orders", "list", filters] as const,
     details: () => ["orders", "detail"] as const,
     detail: (orderId: string) => ["orders", "detail", orderId] as const,
+    partRequestsAll: ["orders", "part-requests"] as const,
     partRequests: (orderId: string) => ["orders", "part-requests", orderId] as const,
     media: (orderId: string) => ["orders", "media", orderId] as const,
   },
