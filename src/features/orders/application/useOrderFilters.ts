@@ -103,10 +103,26 @@ export function useOrderFilters({
     matchOrderNumberOrExternal,
   }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedCustomerNameSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, debouncedResponsibleId, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, selectedStates, stateNames, selectedCities, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
   const listKey = queryKeys.orders.list(queryFilters);
+  const hasActiveServerFilters = Boolean(
+    debouncedOsNumberSearch
+    || debouncedExternalOsSearch
+    || debouncedCustomerNameSearch
+    || debouncedDocumentSearch
+    || debouncedSerialNumberSearch
+    || debouncedResponsibleId
+    || filterStatus
+    || filterSituation
+    || filterOrderType
+    || selectedServiceTypeId
+    || selectedStates.length
+    || selectedCities.length
+    || dateFrom
+    || dateTo
+  );
 
   const generalTotalQuery = useQuery({
     queryKey: queryKeys.orders.total(organizationId || "none"),
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && hasActiveServerFilters,
     staleTime: 30 * 60_000,
     queryFn: () => countServiceOrders(organizationId!),
   });
@@ -187,7 +203,7 @@ export function useOrderFilters({
     orders,
     setOrders,
     totalItems,
-    generalTotalItems: generalTotalQuery.data ?? totalItems,
+    generalTotalItems: hasActiveServerFilters ? (generalTotalQuery.data ?? totalItems) : totalItems,
     loading: Boolean(organizationId) && (ordersQuery.isPending || ordersQuery.isPlaceholderData),
     isFetching: ordersQuery.isFetching,
     error: ordersQuery.error,
