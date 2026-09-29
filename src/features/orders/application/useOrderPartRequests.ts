@@ -105,12 +105,22 @@ export function useOrderPartRequests({
     showToast({ msg: formatError(inventoryQuery.error), type: "error" });
   }, [inventoryQuery.error, formatError, showToast]);
 
-  const loadPartRequests = useCallback(async (serviceOrderId: string) => {
+  const loadPartRequests = useCallback(async (serviceOrderId: string, forceRefresh = false) => {
     setActiveOrderId(serviceOrderId);
+    const queryKey = queryKeys.orders.partRequests(serviceOrderId);
+
     try {
+      if (forceRefresh) {
+        await queryClient.invalidateQueries({
+          queryKey,
+          exact: true,
+          refetchType: "none",
+        });
+      }
+
       return await queryClient.fetchQuery({
-        queryKey: queryKeys.orders.partRequests(serviceOrderId),
-        staleTime: 0,
+        queryKey,
+        staleTime: forceRefresh ? 0 : 60_000,
         queryFn: async () => {
           const result = await listServiceOrderPartRequests(serviceOrderId);
           if (result.error) throw result.error;
@@ -213,7 +223,7 @@ export function useOrderPartRequests({
       setPartRequestOpen(false);
       resetPartRequestForm();
       showToast({ msg: "Solicitação de peças enviada para análise.", type: "success" });
-      await loadPartRequests(serviceOrderId);
+      await loadPartRequests(serviceOrderId, true);
     } catch (error) {
       console.error("[PART REQUEST] submit error", error);
       showToast({ msg: formatError(error), type: "error" });
@@ -266,7 +276,7 @@ export function useOrderPartRequests({
     setApprovalQuantities({});
     setPartReviewNotes("");
     showToast({ msg: message, type: "success" });
-    await loadPartRequests(serviceOrderId);
+    await loadPartRequests(serviceOrderId, true);
     await reloadOrders();
   };
 
@@ -469,7 +479,7 @@ export function useOrderPartRequests({
       setSelectedDeliveryRequest(null);
       setCustodyQuantities({});
       showToast({ msg: message, type: "success" });
-      await loadPartRequests(serviceOrderId);
+      await loadPartRequests(serviceOrderId, true);
       await reloadOrders();
     } catch (error) {
       console.error("[PART CUSTODY] action error", error);
@@ -541,7 +551,7 @@ export function useOrderPartRequests({
           : "Resultado do teste registrado.",
         type: "success",
       });
-      await loadPartRequests(serviceOrderId);
+      await loadPartRequests(serviceOrderId, true);
       await reloadOrders();
     } catch (error) {
       console.error("[PART REQUEST] test results error", error);
