@@ -76,6 +76,7 @@ export function useOrdersWorkspace({
   const workspaceQuery = useQuery({
     queryKey: workspaceKey,
     enabled: Boolean(organizationId),
+    staleTime: 30 * 60_000,
     queryFn: () => fetchOrdersWorkspace(organizationId!),
   });
   const workspace = workspaceQuery.data ?? EMPTY_WORKSPACE;
