@@ -61,7 +61,7 @@ async function fetchOrderPageIndex(input: ExactOrderPageInput): Promise<OrderPag
     matchOrderNumberOrExternal = false,
   } = input;
 
-  const { data, error } = await supabase.rpc("search_service_order_page_ids_v2", {
+  const { data, error } = await supabase.rpc("search_service_order_page_ids_v3", {
     p_organization_id: organizationId,
     p_page: Math.max(1, page),
     p_page_size: Math.max(1, pageSize),
