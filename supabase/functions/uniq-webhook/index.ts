@@ -197,7 +197,14 @@ Deno.serve(async (request) => {
     const normalized = await normalizeCallEvent(payload, data.id);
     await adminClient
       .from("uniq_webhook_events")
-      .update({ processed_at: new Date().toISOString(), processing_error: null })
+      .update({
+        processed_at: new Date().toISOString(),
+        processing_error: null,
+        // O payload JSON é a fonte bruta necessária para reprocessamento.
+        // Corpo textual e headers são duplicados e ficam apenas quando há erro.
+        raw_body: "",
+        headers: {},
+      })
       .eq("id", data.id);
     return json({ ok: true, event_id: data.id, ...normalized });
   } catch (normalizationError) {
