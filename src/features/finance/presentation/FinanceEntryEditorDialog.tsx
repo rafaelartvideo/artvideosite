@@ -28,6 +28,9 @@ export function FinanceEntryEditorDialog({
   entryType,
   initial,
   counterparties,
+  counterpartySearch,
+  counterpartyLoading,
+  onCounterpartySearchChange,
   categories,
   costCenters,
   saving,
@@ -38,6 +41,9 @@ export function FinanceEntryEditorDialog({
   entryType: FinancialEntryType;
   initial?: FinancialEntryDetail | null;
   counterparties: FinancialCounterparty[];
+  counterpartySearch: string;
+  counterpartyLoading: boolean;
+  onCounterpartySearchChange: (value: string) => void;
   categories: FinancialCategory[];
   costCenters: FinancialCostCenter[];
   saving: boolean;
@@ -49,6 +55,7 @@ export function FinanceEntryEditorDialog({
   const [competenceDate, setCompetenceDate] = useState(today());
   const [amount, setAmount] = useState("");
   const [counterpartId, setCounterpartId] = useState("");
+  const [selectedCounterpartSnapshot, setSelectedCounterpartSnapshot] = useState<FinancialCounterparty | null>(null);
   const [counterpartName, setCounterpartName] = useState("");
   const [counterpartDocument, setCounterpartDocument] = useState("");
   const [notes, setNotes] = useState("");
@@ -61,7 +68,10 @@ export function FinanceEntryEditorDialog({
   const numericAmount = Number(amount || 0);
   const title = entryType === "receivable" ? "Conta a receber" : "Conta a pagar";
   const counterpartLabel = entryType === "receivable" ? "Cliente / pagador" : "Fornecedor / favorecido";
-  const selectedCounterpart = useMemo(() => counterparties.find(item => item.id === counterpartId) || null, [counterparties, counterpartId]);
+  const selectedCounterpart = useMemo(
+    () => counterparties.find(item => item.id === counterpartId) || selectedCounterpartSnapshot,
+    [counterparties, counterpartId, selectedCounterpartSnapshot],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +81,12 @@ export function FinanceEntryEditorDialog({
       setCompetenceDate(initial.competence_date);
       setAmount(String(initial.original_amount));
       setCounterpartId(initial.counterpart_entity_id || "");
+      setSelectedCounterpartSnapshot(initial.counterpart_entity_id ? {
+        id: initial.counterpart_entity_id,
+        name: initial.counterpart_name_snapshot || "Cadastro",
+        document: initial.counterpart_document_snapshot || null,
+        roles: [],
+      } : null);
       setCounterpartName(initial.counterpart_name_snapshot || "");
       setCounterpartDocument(initial.counterpart_document_snapshot || "");
       setNotes(initial.notes || "");
@@ -91,6 +107,7 @@ export function FinanceEntryEditorDialog({
       setCompetenceDate(date);
       setAmount("");
       setCounterpartId("");
+      setSelectedCounterpartSnapshot(null);
       setCounterpartName("");
       setCounterpartDocument("");
       setNotes("");
@@ -104,9 +121,22 @@ export function FinanceEntryEditorDialog({
 
   useEffect(() => {
     if (!counterpartId || !selectedCounterpart) return;
+    setSelectedCounterpartSnapshot(selectedCounterpart);
     setCounterpartName(selectedCounterpart.name);
     setCounterpartDocument(selectedCounterpart.document || "");
   }, [counterpartId, selectedCounterpart]);
+
+  const selectCounterpart = (id: string) => {
+    setCounterpartId(id);
+    if (!id) {
+      setSelectedCounterpartSnapshot(null);
+      setCounterpartName("");
+      setCounterpartDocument("");
+      return;
+    }
+    const match = counterparties.find(item => item.id === id);
+    if (match) setSelectedCounterpartSnapshot(match);
+  };
 
   const generateInstallments = () => {
     if (numericAmount <= 0) { setFieldErrors(current => ({ ...current, amount: "Informe o valor antes de gerar as parcelas." })); return; }
@@ -150,7 +180,20 @@ export function FinanceEntryEditorDialog({
   };
 
   if (!open) return null;
-  const counterpartOptions = [{ value: "", label: "Sem vínculo / informar manualmente" }, ...counterparties.map(item => ({ value: item.id, label: item.document ? `${item.name} · ${item.document}` : item.name }))];
+  const visibleCounterparties = [...counterparties];
+  if (
+    selectedCounterpartSnapshot
+    && !visibleCounterparties.some(item => item.id === selectedCounterpartSnapshot.id)
+  ) {
+    visibleCounterparties.unshift(selectedCounterpartSnapshot);
+  }
+  const counterpartOptions = [
+    { value: "", label: "Sem vínculo / informar manualmente" },
+    ...visibleCounterparties.map(item => ({
+      value: item.id,
+      label: item.document ? `${item.name} · ${item.document}` : item.name,
+    })),
+  ];
 
   return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#07111f]/65 p-2 sm:p-4" role="dialog" aria-modal="true">
     <div className="max-h-[96vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
@@ -159,7 +202,7 @@ export function FinanceEntryEditorDialog({
       <div className="space-y-6 p-4 sm:p-5">
         <section className="space-y-3"><h3 className="text-sm font-black text-[#0d1b2e]">Informações</h3><div className="grid gap-4 sm:grid-cols-2"><FInput label="Descrição" required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Venda avulsa" : "Ex.: Compra de material"} /><FInput label="Valor" required error={fieldErrors.amount} type="number" min="0.01" step="0.01" value={amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }} placeholder="0,00" /><FInput label="Data de emissão" required error={fieldErrors.issueDate} type="date" value={issueDate} onChange={(event: any) => { setFieldErrors(current => ({ ...current, issueDate: undefined })); setIssueDate(event.target.value); }} /><FInput label="Competência" required error={fieldErrors.competenceDate} type="date" value={competenceDate} onChange={(event: any) => { setFieldErrors(current => ({ ...current, competenceDate: undefined })); setCompetenceDate(event.target.value); }} /></div><FTextarea label="Observações" value={notes} onChange={(event: any) => setNotes(event.target.value)} /></section>
 
-        <section className="space-y-3"><h3 className="text-sm font-black text-[#0d1b2e]">{counterpartLabel}</h3><FSelect label="Cadastro vinculado" value={counterpartId} options={counterpartOptions} onChange={(event: any) => setCounterpartId(event.target.value)} /><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome no lançamento" value={counterpartName} disabled={Boolean(counterpartId)} onChange={(event: any) => setCounterpartName(event.target.value)} /><FInput label="CPF/CNPJ" value={counterpartDocument} disabled={Boolean(counterpartId)} onChange={(event: any) => setCounterpartDocument(event.target.value)} /></div></section>
+        <section className="space-y-3"><h3 className="text-sm font-black text-[#0d1b2e]">{counterpartLabel}</h3><div className="grid gap-3 sm:grid-cols-2"><FInput label="Buscar cadastro" value={counterpartySearch} onChange={(event: any) => onCounterpartySearchChange(event.target.value)} placeholder="Nome, razão social, CPF ou CNPJ" /><FSelect label={counterpartyLoading ? "Cadastro vinculado · buscando..." : "Cadastro vinculado"} value={counterpartId} options={counterpartOptions} onChange={(event: any) => selectCounterpart(event.target.value)} /></div><p className="text-[10px] text-[#8a98aa]">Exibindo até 25 resultados. Digite para localizar outros cadastros sem carregar a base inteira.</p><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome no lançamento" value={counterpartName} disabled={Boolean(counterpartId)} onChange={(event: any) => setCounterpartName(event.target.value)} /><FInput label="CPF/CNPJ" value={counterpartDocument} disabled={Boolean(counterpartId)} onChange={(event: any) => setCounterpartDocument(event.target.value)} /></div></section>
 
         <section className="space-y-3"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h3 className="text-sm font-black text-[#0d1b2e]">Parcelas</h3><p className="text-xs text-[#5a6a82]">Gere automaticamente e ajuste vencimentos/valores quando necessário.</p></div>{fieldErrors.installments && <p className="text-[10px] font-semibold text-red-600">{fieldErrors.installments}</p>}<div className="grid grid-cols-2 gap-2 sm:flex"><FInput label="Quantidade" type="number" min="1" max="60" value={installmentCount} onChange={(event: any) => setInstallmentCount(Math.min(60, Math.max(1, Number(event.target.value || 1))))} /><FInput label="1º vencimento" type="date" value={firstDueDate} onChange={(event: any) => setFirstDueDate(event.target.value)} /><AdminButton variant="secondary" className="col-span-2 self-end" onClick={generateInstallments}><CalendarRange size={15} /> Gerar parcelas</AdminButton></div></div>
           {installments.length > 0 && <div className="grid gap-2">{installments.map((item, index) => <div key={index} className="grid grid-cols-[64px_1fr_1fr] items-end gap-2 rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3"><div><p className="mb-1.5 text-[10px] font-bold uppercase text-[#5a6a82]">Parcela</p><p className="py-2.5 text-sm font-black">{item.installment_number}/{installments.length}</p></div><FInput label="Vencimento" type="date" value={item.due_date} onChange={(event: any) => setInstallments(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, due_date: event.target.value } : row))} /><FInput label="Valor" type="number" min="0.01" step="0.01" value={item.amount} onChange={(event: any) => setInstallments(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, amount: Number(event.target.value || 0) } : row))} /></div>)}</div>}
