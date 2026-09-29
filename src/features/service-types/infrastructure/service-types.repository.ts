@@ -17,38 +17,20 @@ type SaveServiceTypeInput = {
 
 export async function loadServiceTypesConfiguration() {
   const organizationId = await getActiveOrganizationId();
-  const [typesResult, situationsResult, linksResult, monitoringResult] = await Promise.all([
-    supabase
-      .from("service_types")
-      .select("id,title,description,forecast_days,is_active,sort_order,created_at,updated_at,organization_id")
-      .eq("organization_id", organizationId)
-      .order("sort_order")
-      .order("title"),
-    supabase
-      .from("os_situations")
-      .select("id,name,color,hours,sort_order,is_active,organization_id")
-      .eq("organization_id", organizationId)
-      .eq("is_active", true)
-      .order("sort_order")
-      .order("name"),
-    supabase
-      .from("service_type_situations")
-      .select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order,organization_id")
-      .eq("organization_id", organizationId),
-    supabase
-      .from("service_type_monitoring")
-      .select("service_type_id")
-      .eq("organization_id", organizationId),
-  ]);
-
-  const error = typesResult.error || situationsResult.error || linksResult.error || monitoringResult.error;
+  const { data, error } = await supabase.rpc(
+    "load_service_types_configuration_v1",
+    { p_organization_id: organizationId },
+  );
   if (error) throw error;
 
+  const configuration = (data || {}) as Record<string, unknown>;
   return {
-    serviceTypes: typesResult.data ?? [],
-    situations: situationsResult.data ?? [],
-    links: linksResult.data ?? [],
-    monitoredServiceTypeIds: (monitoringResult.data ?? []).map(item => item.service_type_id),
+    serviceTypes: Array.isArray(configuration.serviceTypes) ? configuration.serviceTypes : [],
+    situations: Array.isArray(configuration.situations) ? configuration.situations : [],
+    links: Array.isArray(configuration.links) ? configuration.links : [],
+    monitoredServiceTypeIds: Array.isArray(configuration.monitoredServiceTypeIds)
+      ? configuration.monitoredServiceTypeIds.map(String)
+      : [],
   };
 }
 
