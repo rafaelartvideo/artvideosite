@@ -72,17 +72,44 @@ export async function listFinancialMovementsPage(
   };
 }
 
-export async function listScheduledFinancialSettlements(organizationId: string) {
+export type ScheduledFinancialSettlementPage = {
+  items: any[];
+  total: number;
+};
+
+export async function listScheduledFinancialSettlementsPage(
+  organizationId: string,
+  page: number,
+  pageSize: number,
+): Promise<ScheduledFinancialSettlementPage> {
   const org = requiredOrganizationId(organizationId);
+  const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
+    "search_scheduled_financial_settlement_page_ids_v1",
+    {
+      p_organization_id: org,
+      p_page: Math.max(1, page),
+      p_page_size: Math.max(1, pageSize),
+    },
+  );
+  if (pageIndexError) throw pageIndexError;
+
+  const rows = (pageIndex || []) as Array<{ id: string; total_count: number | string }>;
+  const ids = rows.map(row => row.id);
+  const total = rows.length ? Number(rows[0].total_count || 0) : 0;
+  if (!ids.length) return { items: [], total };
+
   const { data, error } = await supabase
     .from("financial_settlements")
     .select("id,organization_id,financial_entry_id,financial_installment_id,entry_type,payment_method_id,payment_method_name_snapshot,financial_account_id,financial_account_name_snapshot,principal_amount,interest_amount,penalty_amount,other_additions,discount_amount,gross_amount,percentage_fee_snapshot,fixed_fee_snapshot,fee_amount,net_amount,occurred_at,expected_settlement_at,settlement_status,posted_at,reversed_at,reversed_by,reversal_reason,created_by,created_at")
     .eq("organization_id", org)
-    .eq("settlement_status", "scheduled")
-    .order("expected_settlement_at", { ascending: true })
-    .limit(300);
+    .in("id", ids);
   if (error) throw error;
-  return (data || []) as any[];
+
+  const byId = new Map((data || []).map((item: any) => [item.id, item]));
+  return {
+    items: ids.map(id => byId.get(id)).filter(Boolean),
+    total,
+  };
 }
 
 export async function listFinancialTransfers(organizationId: string): Promise<FinancialTransfer[]> {
