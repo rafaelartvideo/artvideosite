@@ -1,18 +1,47 @@
 import { supabase } from "@/lib/supabase";
 
-export const loadOrdersReferenceData = (organizationId: string) => Promise.all([
-  supabase.from("order_statuses").select("id,name,color,sort_order").eq("organization_id", organizationId).order("sort_order"),
-  supabase.from("os_situations").select("id,name,color,hours,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order"),
-  supabase.from("services").select("id,title").eq("organization_id", organizationId).eq("is_active", true).order("title"),
-  supabase.from("brands").select("id,name").eq("organization_id", organizationId).eq("is_active", true).order("name"),
-  supabase.from("products").select("id,name").eq("organization_id", organizationId).eq("is_active", true).order("name"),
-  supabase.from("equipment_types").select("id,name").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
-  supabase.from("equipment_brands").select("id,name,equipment_type_id").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
-  supabase.from("equipment_models").select("id,name,equipment_brand_id").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
-  supabase.from("technical_fields").select("id,field_key,label,field_type,is_active,sort_order").eq("organization_id", organizationId).order("sort_order").order("label"),
-  supabase.from("equipment_type_technical_fields").select("equipment_type_id,technical_field_id,required,sort_order,technical_field:technical_fields(id,field_key,label,field_type,is_active,sort_order)").eq("organization_id", organizationId).order("sort_order"),
-  supabase.from("employees").select("id,profile_id,full_name,is_active").eq("organization_id", organizationId).order("full_name"),
-  supabase.from("general_services").select("id,name,price,price_at_completion,max_discount_percentage,max_discount_amount,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("name"),
-  supabase.from("service_types").select("id,title,description,forecast_days,is_active,sort_order").eq("organization_id", organizationId).eq("is_active", true).order("sort_order").order("title"),
-  supabase.from("service_type_situations").select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order,situation:os_situations(id,name,color,hours,is_active)").eq("organization_id", organizationId).order("sort_order"),
-]);
+export type OrdersReferenceData = {
+  statuses: any[];
+  situations: any[];
+  services: any[];
+  brands: any[];
+  products: any[];
+  equipmentTypes: any[];
+  equipmentBrands: any[];
+  equipmentModels: any[];
+  technicalFields: any[];
+  technicalFieldLinks: any[];
+  employees: any[];
+  generalServices: any[];
+  serviceTypes: any[];
+  serviceTypeSituations: any[];
+};
+
+export async function loadOrdersReferenceData(
+  organizationId: string,
+): Promise<OrdersReferenceData> {
+  const { data, error } = await supabase.rpc("load_orders_reference_data_v1", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+
+  const reference = (data || {}) as Record<string, unknown>;
+  return {
+    statuses: Array.isArray(reference.statuses) ? reference.statuses : [],
+    situations: Array.isArray(reference.situations) ? reference.situations : [],
+    services: Array.isArray(reference.services) ? reference.services : [],
+    brands: Array.isArray(reference.brands) ? reference.brands : [],
+    products: Array.isArray(reference.products) ? reference.products : [],
+    equipmentTypes: Array.isArray(reference.equipmentTypes) ? reference.equipmentTypes : [],
+    equipmentBrands: Array.isArray(reference.equipmentBrands) ? reference.equipmentBrands : [],
+    equipmentModels: Array.isArray(reference.equipmentModels) ? reference.equipmentModels : [],
+    technicalFields: Array.isArray(reference.technicalFields) ? reference.technicalFields : [],
+    technicalFieldLinks: Array.isArray(reference.technicalFieldLinks) ? reference.technicalFieldLinks : [],
+    employees: Array.isArray(reference.employees) ? reference.employees : [],
+    generalServices: Array.isArray(reference.generalServices) ? reference.generalServices : [],
+    serviceTypes: Array.isArray(reference.serviceTypes) ? reference.serviceTypes : [],
+    serviceTypeSituations: Array.isArray(reference.serviceTypeSituations)
+      ? reference.serviceTypeSituations
+      : [],
+  };
+}
