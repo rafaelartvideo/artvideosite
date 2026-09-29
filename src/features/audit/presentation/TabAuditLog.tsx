@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, History, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -7,6 +7,7 @@ import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import {
+  getAuditLogDetail,
   listAuditActors,
   listAuditLogs,
   type AuditLogEntry,
@@ -394,6 +395,15 @@ function formatDateTime(value: string) {
       }).format(date);
 }
 
+function useDebouncedValue<T>(value: T, delay = 350) {
+  const [debounced, setDebounced] = useState(value);
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timeout);
+  }, [value, delay]);
+  return debounced;
+}
+
 function operationLabel(operation: AuditLogEntry["operation"]) {
   if (operation === "insert") return "Criação";
   if (operation === "delete") return "Exclusão";
@@ -475,10 +485,15 @@ function visibleSnapshotEntries(entry: AuditLogEntry) {
 function summary(entry: AuditLogEntry) {
   if (entry.operation === "insert") return "Registro criado";
   if (entry.operation === "delete") return "Registro excluído";
-  const changes = changedFieldEntries(entry);
-  if (!changes.length) return "Registro alterado";
-  if (changes.length === 1) return humanizeKey(changes[0][0], entry.table_name);
-  return `${changes.length} campos alterados`;
+
+  const fallbackChanges = changedFieldEntries(entry);
+  const count = entry.changed_field_count ?? fallbackChanges.length;
+  if (!count) return "Registro alterado";
+
+  const firstField = entry.first_changed_field || fallbackChanges[0]?.[0] || null;
+  if (count === 1 && firstField) return humanizeKey(firstField, entry.table_name);
+  if (count === 1) return "1 campo alterado";
+  return `${count} campos alterados`;
 }
 
 function entityLabel(entry: AuditLogEntry) {
@@ -495,7 +510,8 @@ export function TabAuditLog() {
   const [contextId, setContextId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [selected, setSelected] = useState<AuditLogEntry | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const debouncedContextId = useDebouncedValue(contextId);
 
   const filters = useMemo(() => ({
     page,
@@ -503,21 +519,29 @@ export function TabAuditLog() {
     actorUserId,
     moduleKey,
     operation,
-    contextId,
+    contextId: debouncedContextId,
     dateFrom,
     dateTo,
-  }), [page, pageSize, actorUserId, moduleKey, operation, contextId, dateFrom, dateTo]);
+  }), [page, pageSize, actorUserId, moduleKey, operation, debouncedContextId, dateFrom, dateTo]);
 
   const logsQuery = useQuery({
     queryKey: ["audit-logs", activeOrganizationId, filters],
     enabled: Boolean(activeOrganizationId),
     queryFn: () => listAuditLogs(activeOrganizationId!, filters),
+    placeholderData: previous => previous,
   });
 
   const actorsQuery = useQuery({
     queryKey: ["audit-actors", activeOrganizationId],
     enabled: Boolean(activeOrganizationId),
     queryFn: () => listAuditActors(activeOrganizationId!),
+    staleTime: 5 * 60_000,
+  });
+
+  const detailQuery = useQuery({
+    queryKey: ["audit-log-detail", activeOrganizationId, selectedId],
+    enabled: Boolean(activeOrganizationId && selectedId),
+    queryFn: () => getAuditLogDetail(activeOrganizationId!, selectedId!),
   });
 
   const actorOptions = [
@@ -660,7 +684,7 @@ export function TabAuditLog() {
                             size="sm"
                             ariaLabel="Ver detalhes da alteração"
                             title="Ver detalhes"
-                            onClick={() => setSelected(entry)}
+                            onClick={() => setSelectedId(entry.id)}
                           >
                             <Eye size={15} />
                           </AdminButton>
@@ -684,24 +708,47 @@ export function TabAuditLog() {
         )}
       </AdminCard>
 
-      <AuditDetailsDialog entry={selected} onClose={() => setSelected(null)} />
+      <AuditDetailsDialog
+        entry={detailQuery.data || null}
+        loading={Boolean(selectedId && detailQuery.isPending)}
+        error={detailQuery.error}
+        onClose={() => setSelectedId(null)}
+      />
     </div>
   );
 }
 
-function AuditDetailsDialog({ entry, onClose }: { entry: AuditLogEntry | null; onClose: () => void }) {
-  if (!entry) return null;
-  const changes = changedFieldEntries(entry);
-  const snapshot = visibleSnapshotEntries(entry);
+function AuditDetailsDialog({
+  entry,
+  loading,
+  error,
+  onClose,
+}: {
+  entry: AuditLogEntry | null;
+  loading: boolean;
+  error: unknown;
+  onClose: () => void;
+}) {
+  if (!entry && !loading && !error) return null;
+
+  const changes = entry ? changedFieldEntries(entry) : [];
+  const snapshot = entry ? visibleSnapshotEntries(entry) : [];
 
   return (
     <AdminDialog
       open
       onClose={onClose}
       title="Detalhes da alteração"
-      description={`${operationLabel(entry.operation)} • ${formatDateTime(entry.created_at)}`}
+      description={entry ? `${operationLabel(entry.operation)} • ${formatDateTime(entry.created_at)}` : "Carregando evento de auditoria"}
       className="max-w-2xl"
     >
+      {loading ? (
+        <LoadingState text="Carregando detalhes..." />
+      ) : error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+          Não foi possível carregar os detalhes da alteração.
+        </div>
+      ) : entry ? (
       <div className="space-y-4">
         <div className="grid gap-3 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-4 sm:grid-cols-2">
           <Detail label="Usuário" value={entry.actor_name_snapshot || (entry.source === "system" ? "Sistema" : "Usuário")} />
@@ -747,6 +794,7 @@ function AuditDetailsDialog({ entry, onClose }: { entry: AuditLogEntry | null; o
           <p className="mt-1 font-mono text-xs font-bold text-[#34445b]">#{entry.id}</p>
         </div>
       </div>
+      ) : null}
     </AdminDialog>
   );
 }
