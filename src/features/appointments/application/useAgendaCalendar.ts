@@ -1,5 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import type { AppointmentSituation } from "@/lib/database.types";
@@ -25,6 +25,24 @@ type Options = {
   onToast: (message: string, type: "success" | "error") => void;
 };
 
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function agendaDataWindow(cursor: Date) {
+  const start = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1);
+  const end = new Date(cursor.getFullYear(), cursor.getMonth() + 2, 1);
+  return {
+    dateFrom: localDateKey(start),
+    dateToExclusive: localDateKey(end),
+    timestampFrom: start.toISOString(),
+    timestampToExclusive: end.toISOString(),
+  };
+}
+
 export function useAgendaCalendar({ organizationId, userId, canView, canViewOthers, onToast }: Options) {
   const queryClient = useQueryClient();
   const [orders, setOrders] = useState<any[]>([]);
@@ -36,10 +54,22 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const [situationFilter, setSituationFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
   const [search, setSearch] = useState("");
+  const dataWindow = useMemo(() => agendaDataWindow(cursor), [cursor.getFullYear(), cursor.getMonth()]);
 
   const query = useQuery({
-    queryKey: queryKeys.appointments.list({ organizationId, userId, canViewOtherAgendas: canViewOthers }),
-    queryFn: () => loadAgendaData({ organizationId, userId, canViewOtherAgendas: canViewOthers }),
+    queryKey: queryKeys.appointments.list({
+      organizationId,
+      userId,
+      canViewOtherAgendas: canViewOthers,
+      windowStart: dataWindow.dateFrom,
+      windowEnd: dataWindow.dateToExclusive,
+    }),
+    queryFn: () => loadAgendaData({
+      organizationId,
+      userId,
+      canViewOtherAgendas: canViewOthers,
+      ...dataWindow,
+    }),
     enabled: canView,
   });
   const loading = canView && query.isPending;
