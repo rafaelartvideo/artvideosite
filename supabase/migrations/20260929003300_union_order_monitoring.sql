@@ -221,7 +221,20 @@ on public.service_orders
 as permissive
 for select
 to authenticated
-using (private.can_view_service_order(id));
+using (
+  organization_id is not null
+  and private.is_organization_module_enabled(organization_id, 'orders')
+  and (
+    private.can_monitor_service_order(id)
+    or (
+      private.is_organization_member(organization_id)
+      and (
+        assigned_to = (select auth.uid())
+        or private.can_view_service_order(id)
+      )
+    )
+  )
+);
 
 drop policy if exists service_orders_tenant_insert on public.service_orders;
 create policy service_orders_tenant_insert
