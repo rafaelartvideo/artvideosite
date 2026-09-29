@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "re
 import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
+import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
 
 declare const __APP_TARGET__: "site" | "crm" | "combined";
 declare const __PUBLIC_SITE_URL__: string;
@@ -111,10 +112,18 @@ function ScrollToTop() {
   return null;
 }
 
+function AuthenticatedAdminRealtimeSync() {
+  const { session } = useAuth();
+  const { pathname } = useLocation();
+  if (!session || !pathname.startsWith("/admin")) return null;
+  return <QueryRealtimeSync />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <ScrollToTop />
+      <AuthenticatedAdminRealtimeSync />
       {APP_TARGET === "site" ? (
         <PublicApplication />
       ) : APP_TARGET === "crm" ? (
