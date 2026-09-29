@@ -163,9 +163,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const routeRegistrationId = routeResourceId && routeResourceId !== "new" && routeSubpage !== "customer"
     ? routeResourceId
     : null;
-  const registrationFromList = routeRegistrationId
-    ? items.find(item => item.id === routeRegistrationId)
-    : undefined;
   const detailKey = queryKeys.registrations.detail(organizationKey, routeRegistrationId || "");
   const detailQuery = useQuery({
     queryKey: detailKey,
@@ -176,10 +173,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       return result.data as unknown as Registration;
     },
     enabled: Boolean(activeOrganizationId && routeRegistrationId && canView),
-    initialData: registrationFromList,
-    initialDataUpdatedAt: registrationFromList ? registrationsQuery.dataUpdatedAt : undefined,
   });
-  const routeRegistration = detailQuery.data ?? registrationFromList ?? null;
+  const routeRegistration = detailQuery.data ?? null;
   const recordLoading = Boolean(routeRegistrationId && detailQuery.isPending && !routeRegistration);
   const detailExtrasEnabled = Boolean(routeRegistration && (!routeSubpage || routeSubpage === "edit"));
   const routeRoles = routeRegistration ? activeRegistrationRoles(routeRegistration) : [];
@@ -554,13 +549,11 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   };
 
   const openItem = (item: Registration) => {
-    if (activeOrganizationId) queryClient.setQueryData(queryKeys.registrations.detail(activeOrganizationId, item.id), item);
     onRouteChange?.(item.id, null);
   };
   const openEditItem = (item: Registration) => {
     setRegistrationFieldErrors({});
     if (!canEdit) return;
-    if (activeOrganizationId) queryClient.setQueryData(queryKeys.registrations.detail(activeOrganizationId, item.id), item);
     editorOriginRef.current = "list";
     onRouteChange?.(item.id, "edit");
   };
