@@ -54,7 +54,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const [situationFilter, setSituationFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
   const [search, setSearch] = useState("");
-  const dataWindow = useMemo(() => agendaDataWindow(cursor), [cursor.getFullYear(), cursor.getMonth()]);
+  const dataWindow = useMemo(() => agendaDataWindow(cursor), [cursor]);
 
   const query = useQuery({
     queryKey: queryKeys.appointments.list({
