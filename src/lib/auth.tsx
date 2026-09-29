@@ -434,8 +434,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function setActiveOrganization(organizationId: string) {
     const userId = signedInUserRef.current;
     if (!userId || organizationId === activeOrganizationIdRef.current) return;
-    if (!organizations.some(organization => organization.organization_id === organizationId)) {
-      throw new Error("Você não possui acesso a esta empresa.");
+    if (!organizations.some(organization =>
+      organization.organization_id === organizationId && organization.is_direct_member
+    )) {
+      throw new Error("Você não possui vínculo direto com esta empresa.");
     }
     accessLoadingKeyRef.current = null;
     await loadAccess(userId, organizationId);
@@ -549,16 +551,17 @@ function selectOrganization(
   if (persistedOrganizationId) {
     localStorage.setItem(activeOrganizationStorageKey(userId), persistedOrganizationId);
   }
+  const directOrganizations = organizations.filter(organization => organization.is_direct_member);
   const requestedIds = [preferredOrganizationId, persistedOrganizationId].filter(Boolean);
 
   for (const organizationId of requestedIds) {
-    const selected = organizations.find(organization => organization.organization_id === organizationId);
+    const selected = directOrganizations.find(organization => organization.organization_id === organizationId);
     if (selected) return selected;
   }
 
-  return organizations.find(organization =>
+  return directOrganizations.find(organization =>
     organization.organization_type === "parent" && organization.organization_status === "active",
-  ) ?? organizations.find(organization => organization.organization_status === "active") ?? organizations[0] ?? null;
+  ) ?? directOrganizations.find(organization => organization.organization_status === "active") ?? directOrganizations[0] ?? null;
 }
 
 function persistActiveOrganization(userId: string, organizationId: string) {
