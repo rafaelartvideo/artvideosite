@@ -5,7 +5,7 @@ import type { FinancialApprovalAction, FinancialEntryDraft, FinancialEntryType, 
 import {
   decideFinancialEntry,
   getFinancialEntryDetail,
-  listFinancialCounterparties,
+  searchFinancialCounterparties,
   listFinancialEntriesPage,
   listPendingFinancialApprovalsPage,
   saveFinancialEntry,
@@ -33,6 +33,8 @@ export function useFinanceEntries(
     approvalStatus: "all",
   },
   loadCounterparties = false,
+  counterpartySearch = "",
+  counterpartySelectedId = "",
 ) {
   const { activeOrganizationId } = useAuth();
   const queryClient = useQueryClient();
@@ -62,10 +64,23 @@ export function useFinanceEntries(
   });
 
   const counterpartiesQuery = useQuery({
-    queryKey: queryKeys.finance.counterparties(organizationKey, entryType),
+    queryKey: [
+      ...queryKeys.finance.counterparties(organizationKey, entryType),
+      {
+        search: counterpartySearch,
+        selectedId: counterpartySelectedId,
+      },
+    ] as const,
     enabled: Boolean(activeOrganizationId && loadCounterparties),
-    staleTime: 15 * 60_000,
-    queryFn: () => listFinancialCounterparties(organizationId, entryType),
+    staleTime: 5 * 60_000,
+    queryFn: () => searchFinancialCounterparties(
+      organizationId,
+      entryType,
+      counterpartySearch,
+      counterpartySelectedId,
+      25,
+    ),
+    placeholderData: previous => previous,
   });
 
   const detailQuery = useQuery({
