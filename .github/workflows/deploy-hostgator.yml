@@ -52,9 +52,6 @@ jobs:
       FTP_CRM_SERVER: ${{ secrets.FTP_CRM_SERVER || secrets.FTP_SERVER }}
       FTP_CRM_USERNAME: ${{ secrets.FTP_CRM_USERNAME || secrets.FTP_USERNAME }}
       FTP_CRM_PASSWORD: ${{ secrets.FTP_CRM_PASSWORD || secrets.FTP_PASSWORD }}
-      FTP_LEGACY_SERVER: ${{ secrets.FTP_SERVER }}
-      FTP_LEGACY_USERNAME: ${{ secrets.FTP_USERNAME }}
-      FTP_LEGACY_PASSWORD: ${{ secrets.FTP_PASSWORD }}
       FTP_PROD_USERNAME: ${{ secrets.FTP_PROD_USERNAME }}
       FTP_PROD_PASSWORD: ${{ secrets.FTP_PROD_PASSWORD }}
 
@@ -175,35 +172,6 @@ jobs:
           protocol: ftps
           port: 21
           local-dir: ./dist-crm/
-          server-dir: ./
-          timeout: 120000
-          log-level: verbose
-
-      - name: Prepare legacy CRM redirect
-        if: steps.current.outputs.deploy == 'true' && (steps.ftp_crm_deploy.outcome == 'success' || steps.ftp_crm_retry.outcome == 'success')
-        run: |
-          rm -rf .legacy-crm-redirect
-          mkdir -p .legacy-crm-redirect
-          cat > .legacy-crm-redirect/.htaccess <<'EOF'
-          <IfModule mod_rewrite.c>
-            RewriteEngine On
-            RewriteRule ^ https://unionworld.com.br%{REQUEST_URI} [R=302,L,NE]
-          </IfModule>
-          EOF
-
-      - name: Redirect legacy testeteste.com.br to Union World
-        if: steps.current.outputs.deploy == 'true' && (steps.ftp_crm_deploy.outcome == 'success' || steps.ftp_crm_retry.outcome == 'success') && env.FTP_LEGACY_USERNAME != '' && env.FTP_LEGACY_PASSWORD != ''
-        id: ftp_legacy_redirect
-        continue-on-error: true
-        timeout-minutes: 10
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
-        with:
-          server: ${{ env.FTP_LEGACY_SERVER }}
-          username: ${{ env.FTP_LEGACY_USERNAME }}
-          password: ${{ env.FTP_LEGACY_PASSWORD }}
-          protocol: ftps
-          port: 21
-          local-dir: ./.legacy-crm-redirect/
           server-dir: ./
           timeout: 120000
           log-level: verbose
