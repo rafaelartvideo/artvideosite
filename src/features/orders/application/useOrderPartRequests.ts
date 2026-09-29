@@ -74,7 +74,7 @@ export function useOrderPartRequests({
   const partRequestsQuery = useQuery({
     queryKey: queryKeys.orders.partRequests(activeOrderId),
     enabled: Boolean(activeOrderId),
-    staleTime: 15_000,
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await listServiceOrderPartRequests(activeOrderId);
       if (error) throw error;
@@ -120,7 +120,7 @@ export function useOrderPartRequests({
 
       return await queryClient.fetchQuery({
         queryKey,
-        staleTime: forceRefresh ? 0 : 60_000,
+        staleTime: forceRefresh ? 0 : 5 * 60_000,
         queryFn: async () => {
           const result = await listServiceOrderPartRequests(serviceOrderId);
           if (result.error) throw result.error;
