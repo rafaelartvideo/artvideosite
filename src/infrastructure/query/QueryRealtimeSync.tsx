@@ -136,7 +136,7 @@ export function QueryRealtimeSync() {
         window.setTimeout(() => {
           pending.delete(id);
           void queryClient.invalidateQueries({ queryKey });
-        }, 150),
+        }, 500),
       );
     };
 
