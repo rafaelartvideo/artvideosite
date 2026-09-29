@@ -61,6 +61,14 @@ export type Registration = {
   }> | null;
 };
 
+const REGISTRATION_LIST_SELECT = `
+  id,organization_id,person_type,name,legal_name,trade_name,document,phone,whatsapp,is_active,
+  legacy_employee_id,created_at,updated_at,
+  roles:entity_roles(role,is_active),
+  employee_details:entity_employee_details(profile_id),
+  legacy_employee:employees!entities_legacy_employee_id_fkey(id,profile_id,is_active)
+`;
+
 const REGISTRATION_SELECT = `
   id,organization_id,person_type,name,legal_name,trade_name,document,state_registration,municipal_registration,
   birth_date,foundation_date,phone,whatsapp,email,is_active,legacy_customer_id,legacy_employee_id,
@@ -86,7 +94,7 @@ function normalizeError(error: unknown) {
 export async function listRegistrations(organizationId: string) {
   const result = await supabase
     .from("entities")
-    .select(REGISTRATION_SELECT)
+    .select(REGISTRATION_LIST_SELECT)
     .eq("organization_id", organizationId)
     .order("name", { ascending: true });
   return { ...result, data: result.data?.map(row => normalizeRegistration(row)) ?? result.data };
