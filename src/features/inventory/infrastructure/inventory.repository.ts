@@ -331,7 +331,18 @@ export async function syncInventoryItemSuppliers(itemId: string, supplierEntityI
   if (error) throw error;
 }
 
-export async function listInventoryMovements(itemId: string, organizationIdOverride?: string | null, includeCosts = false) {
+export type InventoryMovementHistoryPage = {
+  items: any[];
+  total: number;
+};
+
+export async function listInventoryMovementsPage(
+  itemId: string,
+  organizationIdOverride?: string | null,
+  includeCosts = false,
+  page = 1,
+  pageSize = 10,
+): Promise<InventoryMovementHistoryPage> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const movementColumns = [
     "id", "inventory_item_id", "service_order_id", "movement_type", "quantity", "reason", "created_by", "created_at",
@@ -341,11 +352,51 @@ export async function listInventoryMovements(itemId: string, organizationIdOverr
     "created_by_profile:profiles(full_name)", "service_order:service_orders(os_number)",
   ].filter(Boolean).join(",");
 
+  const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
+    "search_inventory_item_history_page_v1",
+    {
+      p_organization_id: organizationId,
+      p_inventory_item_id: itemId,
+      p_page: Math.max(1, page),
+      p_page_size: Math.max(1, pageSize),
+    },
+  );
+  if (pageIndexError) throw pageIndexError;
+
+  const indexRows = (pageIndex || []) as Array<{
+    source_type: "movement" | "resolution_use";
+    id: string;
+    total_count: number | string;
+  }>;
+  const total = indexRows.length ? Number(indexRows[0].total_count || 0) : 0;
+  if (!indexRows.length) return { items: [], total };
+
+  const movementIds = indexRows.filter(row => row.source_type === "movement").map(row => row.id);
+  const usedItemIds = indexRows.filter(row => row.source_type === "resolution_use").map(row => row.id);
+
   const [movementsResult, usedItemsResult, itemResult] = await Promise.all([
-    supabase.from("inventory_movements").select(movementColumns).eq("inventory_item_id", itemId).eq("organization_id", organizationId).order("created_at", { ascending: false }),
-    supabase.from("service_order_used_items").select("id,inventory_item_id,service_order_id,quantity,created_by,created_at,created_by_profile:profiles(full_name),service_order:service_orders(os_number)").eq("inventory_item_id", itemId).eq("organization_id", organizationId).order("created_at", { ascending: false }),
-    supabase.from("inventory_items").select("id,unit,conversion_factor").eq("id", itemId).eq("organization_id", organizationId).maybeSingle(),
+    movementIds.length
+      ? supabase
+          .from("inventory_movements")
+          .select(movementColumns)
+          .eq("organization_id", organizationId)
+          .in("id", movementIds)
+      : Promise.resolve({ data: [], error: null }),
+    usedItemIds.length
+      ? supabase
+          .from("service_order_used_items")
+          .select("id,inventory_item_id,service_order_id,quantity,created_by,created_at,created_by_profile:profiles(full_name),service_order:service_orders(os_number)")
+          .eq("organization_id", organizationId)
+          .in("id", usedItemIds)
+      : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from("inventory_items")
+      .select("id,unit,conversion_factor")
+      .eq("id", itemId)
+      .eq("organization_id", organizationId)
+      .maybeSingle(),
   ]);
+
   if (movementsResult.error) throw movementsResult.error;
   if (usedItemsResult.error) throw usedItemsResult.error;
   if (itemResult.error) throw itemResult.error;
@@ -355,37 +406,50 @@ export async function listInventoryMovements(itemId: string, organizationIdOverr
     (movementsResult.data ?? []).map((movement: any) => movement.supplier_entity_id),
   );
   const factor = factorOf(itemResult.data);
-  const physicalMovements = (movementsResult.data ?? []).map((movement: any) => {
-    const baseQuantity = Number(movement.quantity || 0);
-    const inputUnit = movement.input_unit === "cx" ? "cx" : "un";
-    return {
-      ...movement,
-      supplier: movement.supplier_entity_id ? supplierMap.get(String(movement.supplier_entity_id)) || null : null,
-      movement_type: String(movement.movement_type || "").toLowerCase(),
-      quantity: movement.input_quantity != null ? Number(movement.input_quantity) : inputUnit === "cx" ? baseQuantity / factor : baseQuantity,
-      display_unit: inputUnit,
-      base_quantity: baseQuantity,
-    };
-  });
 
-  const resolutionUsage = (usedItemsResult.data ?? []).map((item: any) => ({
-    id: `resolution-use-${item.id}`,
-    inventory_item_id: item.inventory_item_id,
-    service_order_id: item.service_order_id,
-    movement_type: "use",
-    quantity: Number(item.quantity || 0),
-    display_unit: "un",
-    base_quantity: Number(item.quantity || 0),
-    reason: "Uso da peça na resolução da OS (sem nova movimentação de saldo)",
-    created_by: item.created_by,
-    created_at: item.created_at,
-    created_by_profile: item.created_by_profile,
-    service_order: item.service_order,
-    movement_origin: "service_order",
-    is_resolution_usage: true,
-  }));
+  const physicalMovements = new Map(
+    (movementsResult.data ?? []).map((movement: any) => {
+      const baseQuantity = Number(movement.quantity || 0);
+      const inputUnit = movement.input_unit === "cx" ? "cx" : "un";
+      const normalized = {
+        ...movement,
+        supplier: movement.supplier_entity_id ? supplierMap.get(String(movement.supplier_entity_id)) || null : null,
+        movement_type: String(movement.movement_type || "").toLowerCase(),
+        quantity: movement.input_quantity != null ? Number(movement.input_quantity) : inputUnit === "cx" ? baseQuantity / factor : baseQuantity,
+        display_unit: inputUnit,
+        base_quantity: baseQuantity,
+      };
+      return [String(movement.id), normalized] as const;
+    }),
+  );
 
-  return [...physicalMovements, ...resolutionUsage].sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  const resolutionUsage = new Map(
+    (usedItemsResult.data ?? []).map((item: any) => [String(item.id), {
+      id: `resolution-use-${item.id}`,
+      inventory_item_id: item.inventory_item_id,
+      service_order_id: item.service_order_id,
+      movement_type: "use",
+      quantity: Number(item.quantity || 0),
+      display_unit: "un",
+      base_quantity: Number(item.quantity || 0),
+      reason: "Uso da peça na resolução da OS (sem nova movimentação de saldo)",
+      created_by: item.created_by,
+      created_at: item.created_at,
+      created_by_profile: item.created_by_profile,
+      service_order: item.service_order,
+      movement_origin: "service_order",
+      is_resolution_usage: true,
+    }] as const),
+  );
+
+  return {
+    items: indexRows
+      .map(row => row.source_type === "movement"
+        ? physicalMovements.get(row.id)
+        : resolutionUsage.get(row.id))
+      .filter(Boolean),
+    total,
+  };
 }
 
 export async function getInventoryItem(itemId: string, organizationIdOverride?: string | null, includeCosts = false) {
