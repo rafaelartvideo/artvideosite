@@ -38,29 +38,26 @@ const EMPTY_WORKSPACE: OrdersWorkspace = {
 };
 
 async function fetchOrdersWorkspace(organizationId: string): Promise<OrdersWorkspace> {
-  const [statusesResult, situationsResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult] = await loadOrdersReferenceData(organizationId);
-  const results = [statusesResult, situationsResult, servicesResult, brandsResult, productsResult, equipmentTypesResult, equipmentBrandsResult, equipmentModelsResult, technicalFieldsResult, technicalFieldLinksResult, employeesResult, generalServicesResult, serviceTypesResult, serviceTypeSituationsResult];
-  const failed = results.find(result => result.error);
-  if (failed?.error) throw failed.error;
+  const reference = await loadOrdersReferenceData(organizationId);
   return {
     orders: [],
-    statuses: statusesResult.data ?? [],
-    situations: situationsResult.data ?? [],
-    profiles: (employeesResult.data ?? [])
+    statuses: reference.statuses,
+    situations: reference.situations,
+    profiles: reference.employees
       .filter((employee: any) => Boolean(employee.profile_id))
       .map((employee: any) => ({ id: employee.profile_id, full_name: employee.full_name })),
-    services: servicesResult.data ?? [],
-    brands: brandsResult.data ?? [],
-    products: productsResult.data ?? [],
-    equipmentTypes: equipmentTypesResult.data ?? [],
-    equipmentBrands: equipmentBrandsResult.data ?? [],
-    equipmentModels: equipmentModelsResult.data ?? [],
-    technicalFields: technicalFieldsResult.data ?? [],
-    technicalFieldLinks: technicalFieldLinksResult.data ?? [],
-    employees: (employeesResult.data ?? []).filter((employee: any) => employee.is_active),
-    generalServices: generalServicesResult.data ?? [],
-    serviceTypes: serviceTypesResult.data ?? [],
-    serviceTypeSituations: serviceTypeSituationsResult.data ?? [],
+    services: reference.services,
+    brands: reference.brands,
+    products: reference.products,
+    equipmentTypes: reference.equipmentTypes,
+    equipmentBrands: reference.equipmentBrands,
+    equipmentModels: reference.equipmentModels,
+    technicalFields: reference.technicalFields,
+    technicalFieldLinks: reference.technicalFieldLinks,
+    employees: reference.employees.filter((employee: any) => employee.is_active),
+    generalServices: reference.generalServices,
+    serviceTypes: reference.serviceTypes,
+    serviceTypeSituations: reference.serviceTypeSituations,
   };
 }
 
