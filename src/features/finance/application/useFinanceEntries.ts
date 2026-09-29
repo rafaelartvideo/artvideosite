@@ -32,6 +32,7 @@ export function useFinanceEntries(
     search: "",
     approvalStatus: "all",
   },
+  loadCounterparties = false,
 ) {
   const { activeOrganizationId } = useAuth();
   const queryClient = useQueryClient();
@@ -62,7 +63,8 @@ export function useFinanceEntries(
 
   const counterpartiesQuery = useQuery({
     queryKey: queryKeys.finance.counterparties(organizationKey, entryType),
-    enabled: Boolean(activeOrganizationId),
+    enabled: Boolean(activeOrganizationId && loadCounterparties),
+    staleTime: 15 * 60_000,
     queryFn: () => listFinancialCounterparties(organizationId, entryType),
   });
 
