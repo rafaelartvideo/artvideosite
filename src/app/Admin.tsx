@@ -13,6 +13,7 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 
 const TabDocuments = lazy(() => import("@/features/documents/presentation/TabDocuments").then(({ TabDocuments }) => ({ default: TabDocuments })));
 const TabOrders = lazy(() => import("@/features/orders/presentation/TabOrders").then(({ TabOrders }) => ({ default: TabOrders })));
+const UnionOrderMonitor = lazy(() => import("@/features/orders/presentation/UnionOrderMonitor").then(({ UnionOrderMonitor }) => ({ default: UnionOrderMonitor })));
 const OSSituationsView = lazy(() => import("@/features/order-situations/presentation/OSSituationsView").then(({ OSSituationsView }) => ({ default: OSSituationsView })));
 const TabAgenda = lazy(() => import("@/features/appointments/presentation/TabAgenda").then(({ TabAgenda }) => ({ default: TabAgenda })));
 const TabBrands = lazy(() => import("@/features/brands/presentation/TabBrands").then(({ TabBrands }) => ({ default: TabBrands })));
@@ -65,9 +66,12 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const [page, setPage] = useState<AdminPageState>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
-  const activeOrganizationName = organizations.find(organization => organization.organization_id === activeOrganizationId)?.organization_name || null;
+  const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
+  const activeOrganizationName = activeOrganization?.organization_name || null;
+  const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
 
   const canAccessTab = (tab: AdminTab) => {
+    if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "operation") return operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     return hasPermission(permissionForTab[tab]) && isAdminModuleEnabled(tab, hasModule);
@@ -76,7 +80,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const fallbackTab = ACCESS_FALLBACK_TABS.find(canAccessTab) ?? null;
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
   const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
-  const mobileLabelModule = operationModule || siteModule || activeTab === "partnerCompanies" || activeTab === "finance" || activeTab === "audit";
+  const mobileLabelModule = operationModule || siteModule || activeTab === "partnerCompanies" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
 
   const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] }) => {
     navigate(adminPath(tab, resourceId, subpage), { replace: options?.replace, state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined });
@@ -143,7 +147,9 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
             <Route path="operation/employees/*" element={<Navigate to="/admin/operation/roles" replace />} />
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
             <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
-            <Route path="orders/*" element={<TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={navigateOrderRoute} onOrderRouteClose={closeOrderRoute} />} />
+            <Route path="orders/*" element={isPlatformOperatorOrganization
+              ? <UnionOrderMonitor initialOrderId={route.resourceId} onOrderRouteChange={orderId => orderId ? navigateOrderRoute(orderId) : closeOrderRoute()} />
+              : <TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={navigateOrderRoute} onOrderRouteClose={closeOrderRoute} />} />
             <Route path="agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
             <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
