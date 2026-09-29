@@ -6,7 +6,7 @@ import {
   decideFinancialEntry,
   getFinancialEntryDetail,
   listFinancialCounterparties,
-  listFinancialEntries,
+  listFinancialEntriesPage,
   listPendingFinancialApprovals,
   saveFinancialEntry,
 } from "../infrastructure/finance-entries.repository";
@@ -16,16 +16,48 @@ import {
   reverseFinancialSettlement,
 } from "../infrastructure/finance-movements.repository";
 
-export function useFinanceEntries(entryType: FinancialEntryType, selectedEntryId?: string | null) {
+export type FinanceEntryListFilters = {
+  page: number;
+  pageSize: number;
+  search: string;
+  approvalStatus: string;
+};
+
+export function useFinanceEntries(
+  entryType: FinancialEntryType,
+  selectedEntryId?: string | null,
+  filters: FinanceEntryListFilters = {
+    page: 1,
+    pageSize: 10,
+    search: "",
+    approvalStatus: "all",
+  },
+) {
   const { activeOrganizationId } = useAuth();
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
 
   const entriesQuery = useQuery({
-    queryKey: queryKeys.finance.entries(organizationKey, entryType),
-    enabled: Boolean(activeOrganizationId),
-    queryFn: () => listFinancialEntries(organizationId, entryType),
+    queryKey: [
+      ...queryKeys.finance.entries(organizationKey, entryType),
+      {
+        page: filters.page,
+        pageSize: filters.pageSize,
+        search: filters.search,
+        approvalStatus: filters.approvalStatus,
+      },
+    ] as const,
+    enabled: Boolean(activeOrganizationId && !selectedEntryId),
+    queryFn: () => listFinancialEntriesPage({
+      organizationId,
+      entryType,
+      page: filters.page,
+      pageSize: filters.pageSize,
+      search: filters.search,
+      approvalStatus: filters.approvalStatus,
+    }),
+    placeholderData: previous => previous,
   });
 
   const counterpartiesQuery = useQuery({
