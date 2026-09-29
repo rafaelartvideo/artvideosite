@@ -40,6 +40,7 @@ export function AdminSidebar({
 }: AdminSidebarProps) {
   const { collapsed, canCollapse, toggleCollapsed } = useAdminSidebarLayout();
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
+  const switchableOrganizations = organizations.filter(organization => organization.is_direct_member);
   const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
   const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
   const brandingQuery = useQuery({
@@ -117,7 +118,7 @@ export function AdminSidebar({
         )}
       </div>
 
-      {organizations.length > 1 && (
+      {switchableOrganizations.length > 1 && (
         <div className={cn(
           "shrink-0 border-b border-white/8 transition-all",
           collapsed ? "flex items-center justify-center px-2 py-3" : "px-4 py-3",
@@ -136,7 +137,7 @@ export function AdminSidebar({
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 aria-label="Trocar empresa ativa"
               >
-                {organizations.map(organization => (
+                {switchableOrganizations.map(organization => (
                   <option key={organization.organization_id} value={organization.organization_id}>
                     {organization.organization_name}
                   </option>
@@ -156,7 +157,7 @@ export function AdminSidebar({
                   className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-md border border-white/10 bg-white/5 py-2 pl-3 pr-8 text-xs font-black text-white outline-none transition hover:border-white/20 focus:border-[#00b4ff]/60 focus:ring-1 focus:ring-[#00b4ff]/40"
                   aria-label="Trocar empresa ativa"
                 >
-                  {organizations.map(organization => (
+                  {switchableOrganizations.map(organization => (
                     <option key={organization.organization_id} value={organization.organization_id} className="bg-[#0d1b2e] text-white">
                       {organization.organization_name}
                     </option>
