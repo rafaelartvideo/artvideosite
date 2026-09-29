@@ -1,14 +1,15 @@
 import { QueryClient } from "@tanstack/react-query";
 
 const ONE_MINUTE = 60_000;
-const FIFTEEN_MINUTES = 15 * ONE_MINUTE;
+const FIVE_MINUTES = 5 * ONE_MINUTE;
+const THIRTY_MINUTES = 30 * ONE_MINUTE;
 
 export function createAppQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: ONE_MINUTE,
-        gcTime: FIFTEEN_MINUTES,
+        staleTime: FIVE_MINUTES,
+        gcTime: THIRTY_MINUTES,
         retry: 1,
         refetchOnReconnect: true,
         refetchOnWindowFocus: false,
