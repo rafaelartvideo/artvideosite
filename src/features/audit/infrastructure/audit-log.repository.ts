@@ -21,6 +21,8 @@ export type AuditLogEntry = {
   resolved_changed_fields?: Record<string, { before?: unknown; after?: unknown }> | null;
   resolved_row_snapshot?: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
+  changed_field_count?: number;
+  first_changed_field?: string | null;
   created_at: string;
 };
 
@@ -40,26 +42,6 @@ export type AuditLogFilters = {
   dateTo?: string;
 };
 
-const AUDIT_SELECT = [
-  "id",
-  "organization_id",
-  "actor_user_id",
-  "actor_name_snapshot",
-  "action",
-  "operation",
-  "entity_type",
-  "entity_id",
-  "table_name",
-  "module_key",
-  "context_type",
-  "context_id",
-  "source",
-  "changed_fields",
-  "row_snapshot",
-  "metadata",
-  "created_at",
-].join(",");
-
 function startOfLocalDayIso(value: string) {
   if (!value) return null;
   const date = new Date(`${value}T00:00:00`);
@@ -74,81 +56,66 @@ function endOfLocalDayIso(value: string) {
 
 export async function listAuditLogs(organizationId: string, filters: AuditLogFilters) {
   const page = Math.max(1, filters.page);
-  const pageSize = Math.max(1, filters.pageSize);
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-
-  let query = supabase
-    .from("organization_audit_logs")
-    .select(AUDIT_SELECT, { count: "exact" })
-    .eq("organization_id", organizationId)
-    .order("created_at", { ascending: false })
-    .range(from, to);
-
-  if (filters.actorUserId) query = query.eq("actor_user_id", filters.actorUserId);
-  if (filters.moduleKey) query = query.eq("module_key", filters.moduleKey);
-  if (filters.operation) query = query.eq("operation", filters.operation);
-
-  const contextId = filters.contextId?.trim().replace(/[^a-zA-Z0-9_-]/g, "");
-  if (contextId) {
-    query = query.or(`context_id.eq.${contextId},entity_id.eq.${contextId}`);
-  }
-
+  const pageSize = Math.max(1, Math.min(filters.pageSize, 100));
   const dateFrom = startOfLocalDayIso(filters.dateFrom || "");
   const dateTo = endOfLocalDayIso(filters.dateTo || "");
-  if (dateFrom) query = query.gte("created_at", dateFrom);
-  if (dateTo) query = query.lte("created_at", dateTo);
+  const contextId = filters.contextId?.trim() || "";
 
-  const { data, error, count } = await query;
+  const { data, error } = await supabase.rpc(
+    "search_organization_audit_log_page_v1",
+    {
+      p_organization_id: organizationId,
+      p_page: page,
+      p_page_size: pageSize,
+      p_actor_user_id: filters.actorUserId || null,
+      p_module_key: filters.moduleKey || "",
+      p_operation: filters.operation || "",
+      p_context_id: contextId,
+      p_date_from: dateFrom,
+      p_date_to: dateTo,
+    },
+  );
   if (error) throw error;
 
-  const items = (data || []) as AuditLogEntry[];
-  if (items.length === 0) return { items, total: count || 0 };
-
-  const { data: displayRows, error: displayError } = await supabase.rpc(
-    "resolve_organization_audit_log_display",
-    { p_audit_log_ids: items.map(item => item.id) },
-  );
-  if (displayError) throw displayError;
-
-  const displayById = new Map(
-    (displayRows || []).map((row: any) => [Number(row.audit_log_id), row]),
-  );
-
+  const rows = (data || []) as Array<AuditLogEntry & { total_count: number | string }>;
   return {
-    items: items.map(item => {
-      const display = displayById.get(item.id);
-      return {
-        ...item,
-        resolved_changed_fields: display?.resolved_changed_fields || item.changed_fields || {},
-        resolved_row_snapshot: display?.resolved_row_snapshot || item.row_snapshot || {},
-      };
-    }),
-    total: count || 0,
+    items: rows.map(({ total_count: _totalCount, ...item }) => ({
+      ...item,
+      changed_fields: null,
+      row_snapshot: null,
+      resolved_changed_fields: null,
+      resolved_row_snapshot: null,
+      metadata: null,
+    })),
+    total: rows.length ? Number(rows[0].total_count || 0) : 0,
   };
 }
 
-export async function listAuditActors(organizationId: string): Promise<AuditActor[]> {
-  const { data, error } = await supabase
-    .from("organization_audit_logs")
-    .select("actor_user_id,actor_name_snapshot,created_at")
-    .eq("organization_id", organizationId)
-    .not("actor_user_id", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1000);
+export async function getAuditLogDetail(
+  organizationId: string,
+  auditLogId: number,
+): Promise<AuditLogEntry | null> {
+  const { data, error } = await supabase.rpc(
+    "get_organization_audit_log_detail_v1",
+    {
+      p_organization_id: organizationId,
+      p_audit_log_id: auditLogId,
+    },
+  );
+  if (error) throw error;
+  const row = (data || [])[0] as AuditLogEntry | undefined;
+  return row || null;
+}
 
+export async function listAuditActors(organizationId: string): Promise<AuditActor[]> {
+  const { data, error } = await supabase.rpc(
+    "list_organization_audit_actors_v1",
+    { p_organization_id: organizationId },
+  );
   if (error) throw error;
 
-  const seen = new Set<string>();
-  const actors: AuditActor[] = [];
-  for (const row of data || []) {
-    const id = row.actor_user_id ? String(row.actor_user_id) : "";
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    actors.push({
-      id,
-      name: String(row.actor_name_snapshot || "Usuário"),
-    });
-  }
-  return actors.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  return ((data || []) as Array<{ id: string; name: string }>).map(row => ({
+    id: String(row.id),
+    name: String(row.name || "Usuário"),
+  }));
 }
