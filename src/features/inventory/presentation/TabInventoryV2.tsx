@@ -1,5 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, Check, ChevronDown, Edit2, Eraser, List, MapPin, Package, Plus, Search, Truck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -7,7 +7,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   getInventoryItem,
   listInventoryItemSuppliers,
-  listInventoryItems,
+  listInventoryItemsPage,
   listInventoryMovements,
   recordInventoryMovement,
   saveInventoryItem,
@@ -101,7 +101,6 @@ const emptyMovementForm = (): MovementForm => ({
 const unitLabel = (unit?: string | null) => unit === "cx" ? "cx" : "un";
 const conversionFactor = (item: any) => Math.max(1, Number(item?.conversion_factor ?? 1) || 1);
 const equivalentUnits = (quantity: number, item: any) => quantity * conversionFactor(item);
-const normalize = (value: unknown) => String(value ?? "").trim().toLocaleLowerCase("pt-BR");
 const storageAddress = (item: any) => [
   item?.storage_shelf ? `Estante ${item.storage_shelf}` : "",
   item?.storage_level ? `Prateleira ${item.storage_level}` : "",
@@ -152,6 +151,15 @@ function movementOrigin(value: unknown) {
   return "Legado";
 }
 
+function useDebouncedValue<T>(value: T, delay = 350) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timeout);
+  }, [value, delay]);
+  return debounced;
+}
+
 export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: TabInventoryProps) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("inventory.view");
@@ -176,13 +184,6 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const showActions = hasPermission("inventory.table.actions");
   const queryClient = useQueryClient();
 
-  const itemsQuery = useQuery({
-    queryKey: [...queryKeys.inventory.lists(), activeOrganizationId, canViewCosts ? "costs" : "safe"],
-    queryFn: () => listInventoryItems(activeOrganizationId, canViewCosts),
-    enabled: Boolean(activeOrganizationId && canView && (canViewTable || canViewDetails || canCreate || canEdit || canViewMovements || canCreateMovements)),
-  });
-  const items = itemsQuery.data ?? [];
-
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -199,24 +200,53 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const [mobileFilter, setMobileFilter] = useState<MobileFilter>("name");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const debouncedNameSearch = useDebouncedValue(nameSearch);
+  const debouncedSkuSearch = useDebouncedValue(skuSearch);
+  const debouncedAddressSearch = useDebouncedValue(addressSearch);
+
+  const itemsQuery = useQuery({
+    queryKey: [
+      ...queryKeys.inventory.lists(),
+      activeOrganizationId,
+      canViewCosts ? "costs" : "safe",
+      {
+        page,
+        pageSize,
+        nameSearch: debouncedNameSearch,
+        skuSearch: debouncedSkuSearch,
+        addressSearch: debouncedAddressSearch,
+      },
+    ] as const,
+    queryFn: () => listInventoryItemsPage({
+      organizationId: activeOrganizationId,
+      includeCosts: canViewCosts,
+      page,
+      pageSize,
+      nameSearch: debouncedNameSearch,
+      skuSearch: debouncedSkuSearch,
+      addressSearch: debouncedAddressSearch,
+    }),
+    enabled: Boolean(activeOrganizationId && canView && (canViewTable || canViewDetails || canCreate || canEdit || canViewMovements || canCreateMovements)),
+    placeholderData: previous => previous,
+  });
+  const items = itemsQuery.data?.items ?? [];
+  const totalItems = itemsQuery.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedItems = items;
+  const hasFilters = Boolean(nameSearch || skuSearch || addressSearch);
 
   useEffect(() => {
     if (itemsQuery.error) setToast({ msg: `Erro ao carregar estoque: ${systemErrorMessage(itemsQuery.error)}`, type: "error" });
   }, [itemsQuery.error]);
 
-  const filteredItems = useMemo(() => items.filter((item: any) => {
-    const matchName = !nameSearch || normalize(item.name).includes(normalize(nameSearch));
-    const matchSku = !skuSearch || normalize(item.sku).includes(normalize(skuSearch));
-    const address = normalize(`${item.storage_shelf || ""} ${item.storage_level || ""} ${item.storage_compartment || ""} ${storageAddress(item)}`);
-    return matchName && matchSku && (!addressSearch || address.includes(normalize(addressSearch)));
-  }), [items, nameSearch, skuSearch, addressSearch]);
+  useEffect(() => {
+    setPage(1);
+  }, [nameSearch, skuSearch, addressSearch, pageSize]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const pagedItems = filteredItems.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const hasFilters = Boolean(nameSearch || skuSearch || addressSearch);
-  useEffect(() => { setPage(1); }, [nameSearch, skuSearch, addressSearch, pageSize]);
-  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  useEffect(() => {
+    if (!itemsQuery.isFetching && page > totalPages) setPage(totalPages);
+  }, [itemsQuery.isFetching, page, totalPages]);
 
   const refreshInventory = () => queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
   const clearFilters = () => { setNameSearch(""); setSkuSearch(""); setAddressSearch(""); setPage(1); };
@@ -326,8 +356,21 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       if (canCreate && !recordOpen) openNew();
       return;
     }
-    const item = items.find((entry: any) => entry.id === routeResourceId);
-    if (!item) return;
+    const item = items.find((entry: any) => entry.id === routeResourceId)
+      || (selectedItem?.id === routeResourceId ? selectedItem : null);
+
+    if (!item) {
+      void getInventoryItem(routeResourceId, activeOrganizationId, canViewCosts)
+        .then(loadedItem => {
+          if (!loadedItem) return;
+          if (routeSubpage === "edit" && canViewDetails && canEdit) void openEdit(loadedItem);
+          if (routeSubpage === "history" && canViewMovements) void openHistory(loadedItem);
+          if (routeSubpage === "move" && canCreateMovements) void openMovement(loadedItem);
+        })
+        .catch(error => setToast({ msg: `Erro ao carregar item: ${systemErrorMessage(error)}`, type: "error" }));
+      return;
+    }
+
     if (routeSubpage === "edit" && canViewDetails && canEdit && (!recordOpen || selectedItem?.id !== item.id)) void openEdit(item);
     if (routeSubpage === "history" && canViewMovements && (!historyOpen || selectedItem?.id !== item.id)) void openHistory(item);
     if (routeSubpage === "move" && canCreateMovements && (recordOpen || historyOpen || selectedItem?.id !== item.id)) void openMovement(item);
@@ -487,7 +530,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
         </div>
       </AdminSearchPanel>}
 
-      {canViewTable && <AdminCard>{itemsQuery.isPending ? <LoadingState /> : filteredItems.length === 0 ? <EmptyState icon={Package} title={items.length === 0 ? "Nenhum item em estoque" : "Nenhum item encontrado"} message={items.length === 0 ? "Cadastre um item para começar a controlar o inventário." : "Ajuste os filtros para encontrar a peça."} /> : <>
+      {canViewTable && <AdminCard>{itemsQuery.isPending ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Package} title={totalItems === 0 && !hasFilters ? "Nenhum item em estoque" : "Nenhum item encontrado"} message={totalItems === 0 && !hasFilters ? "Cadastre um item para começar a controlar o inventário." : "Ajuste os filtros para encontrar a peça."} /> : <>
         <div className="divide-y divide-[#0d1b2e]/8 md:hidden">{pagedItems.map((item: any) => {
           const quantity = Number(item.quantity ?? 0);
           const minQuantity = Number(item.min_quantity ?? 0);
@@ -506,7 +549,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
           const minQuantity = Number(item.min_quantity ?? 0);
           return <tr key={item.id}>{showName && <td><div className="font-semibold text-[#0d1b2e]">{item.name}</div>{item.description && <div className="max-w-sm text-[11px] text-[#5a6a82]">{item.description}</div>}</td>}{showSku && <td className="font-mono text-xs text-[#5a6a82]">{item.sku || "—"}</td>}<td className="max-w-[220px] text-xs text-[#5a6a82]">{storageAddress(item) || "—"}</td>{showUnit && <td className="text-xs text-[#5a6a82]">{unitLabel(item.unit)}{conversionFactor(item) > 1 && <div className="text-[10px]">{formatNumber(conversionFactor(item))} un/cx</div>}</td>}{showQuantity && <td className={cn("font-bold", quantity === 0 ? "text-red-700" : quantity <= minQuantity ? "text-amber-700" : "text-[#0d1b2e]")}>{formatNumber(quantity)}{item.unit === "cx" && <div className="text-[10px] font-normal text-[#5a6a82]">{formatNumber(equivalentUnits(quantity, item))} un</div>}</td>}{showMinQuantity && <td className="text-xs text-[#5a6a82]">{formatNumber(minQuantity)}</td>}{showPurchasePrice && <td className="text-xs text-[#5a6a82]">{formatCurrency(item.purchase_price)}</td>}{canViewCosts && <td className="text-xs text-[#5a6a82]">{formatCurrency(item.average_cost)}</td>}{canViewCosts && <td className="text-xs font-semibold text-[#0d1b2e]">{formatCurrency(item.stock_value)}</td>}{showSalePrice && <td className="text-xs text-[#5a6a82]">{formatCurrency(item.sale_price)}</td>}{showStatus && <td><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", item.is_active !== false ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active !== false ? "Ativo" : "Inativo"}</span></td>}{showActions && <td><div className="flex justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar" onClick={() => openEditPage(item)}><Edit2 size={14} /></AdminIconButton>}{canViewMovements && <AdminIconButton ariaLabel="Histórico" onClick={() => openHistoryPage(item)}><List size={14} /></AdminIconButton>}{canCreateMovements && <AdminIconButton ariaLabel="Movimentar" onClick={() => openMovementPage(item)}><ArrowLeftRight size={14} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={item.is_active !== false} entityLabel="item" onClick={() => void toggleActive(item)} iconSize={14} />}</div></td>}</tr>;
         })}</tbody></table></div>
-        <PaginationBar page={safePage} pageSize={pageSize} totalItems={filteredItems.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
+        <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
       </>}</AdminCard>}
     </>}
 
