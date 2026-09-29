@@ -1,0 +1,1 @@
+create index if not exists service_orders_org_scheduled_at_idx on public.service_orders (organization_id, scheduled_at) where scheduled_at is not null;
