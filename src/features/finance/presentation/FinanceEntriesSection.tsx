@@ -67,7 +67,9 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [pageSize, setPageSize] = useState(10);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
+  const [counterpartySearch, setCounterpartySearch] = useState("");
   const debouncedSearch = useDebouncedValue(search);
+  const debouncedCounterpartySearch = useDebouncedValue(counterpartySearch);
   const finance = useFinanceEntries(
     entryType,
     selectedEntryId,
@@ -78,6 +80,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       approvalStatus: approvalFilter,
     },
     editorOpen,
+    debouncedCounterpartySearch,
+    editing?.counterpart_entity_id || "",
   );
 
   useEffect(() => {
@@ -99,10 +103,18 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const accounts = foundation.accountsQuery.data || [];
   const paymentMethods = foundation.paymentMethodsQuery.data || [];
 
+  const closeEditor = () => {
+    if (finance.saveMutation.isPending) return;
+    setEditorOpen(false);
+    setEditing(null);
+    setCounterpartySearch("");
+  };
+
   const save = async (draft: any) => {
     const id = await finance.saveMutation.mutateAsync(draft);
     setEditorOpen(false);
     setEditing(null);
+    setCounterpartySearch("");
     onSelectEntry(id);
   };
 
@@ -126,20 +138,41 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         reverseSettlementPending={finance.reverseSettlementMutation.isPending}
         settlementError={finance.settlementMutation.error || finance.confirmSettlementMutation.error || finance.reverseSettlementMutation.error}
         onBack={() => onSelectEntry(null)}
-        onEdit={() => { setEditing(finance.detailQuery.data || null); setEditorOpen(true); }}
+        onEdit={() => {
+          setCounterpartySearch("");
+          setEditing(finance.detailQuery.data || null);
+          setEditorOpen(true);
+        }}
         onApprove={async () => { await finance.decisionMutation.mutateAsync({ id: finance.detailQuery.data!.id, action: "approve" }); }}
         onReject={async note => { await finance.decisionMutation.mutateAsync({ id: finance.detailQuery.data!.id, action: "reject", note }); }}
         onRegisterSettlement={async (draft: FinancialSettlementDraft) => { await finance.settlementMutation.mutateAsync(draft); }}
         onConfirmSettlement={async settlementId => { await finance.confirmSettlementMutation.mutateAsync({ settlementId }); }}
         onReverseSettlement={async (settlementId, reason) => { await finance.reverseSettlementMutation.mutateAsync({ settlementId, reason }); }}
       />
-      <FinanceEntryEditorDialog open={editorOpen} entryType={entryType} initial={editing} counterparties={counterparties} categories={categories} costCenters={costCenters} saving={finance.saveMutation.isPending} onClose={() => { if (!finance.saveMutation.isPending) { setEditorOpen(false); setEditing(null); } }} onSave={save} />
+      <FinanceEntryEditorDialog
+        open={editorOpen}
+        entryType={entryType}
+        initial={editing}
+        counterparties={counterparties}
+        counterpartySearch={counterpartySearch}
+        counterpartyLoading={finance.counterpartiesQuery.isFetching}
+        onCounterpartySearchChange={setCounterpartySearch}
+        categories={categories}
+        costCenters={costCenters}
+        saving={finance.saveMutation.isPending}
+        onClose={closeEditor}
+        onSave={save}
+      />
     </>;
   }
 
   const Icon = isReceivable ? BanknoteArrowUp : BanknoteArrowDown;
   return <div className="space-y-4">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-lg font-black text-[#0d1b2e]">{title}</h2><p className="mt-1 text-xs text-[#5a6a82]">Lançamentos, parcelas, rateio, aprovações, baixas e histórico financeiro.</p></div>{canCreate && <AdminButton onClick={() => { setEditing(null); setEditorOpen(true); }}><Plus size={16} /> Novo lançamento</AdminButton>}</div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-lg font-black text-[#0d1b2e]">{title}</h2><p className="mt-1 text-xs text-[#5a6a82]">Lançamentos, parcelas, rateio, aprovações, baixas e histórico financeiro.</p></div>{canCreate && <AdminButton onClick={() => {
+      setCounterpartySearch("");
+      setEditing(null);
+      setEditorOpen(true);
+    }}><Plus size={16} /> Novo lançamento</AdminButton>}</div>
 
     <AdminCard>
       <AdminCardToolbar><div className="grid w-full gap-3 sm:grid-cols-[1fr_220px_auto] sm:items-end"><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><FInput aria-label="Pesquisar lançamentos" className="pl-9" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição, contraparte, OS, item ou documento" /></div><FSelect label="Aprovação" value={approvalFilter} options={[{ value: "all", label: "Todos" }, { value: "pending", label: "Pendente" }, { value: "approved", label: "Aprovado" }, { value: "rejected", label: "Rejeitado" }, { value: "cancelled", label: "Cancelado" }]} onChange={(event: any) => setApprovalFilter(event.target.value)} /><p className="pb-2 text-xs font-semibold text-[#5a6a82]">{totalItems} {totalItems === 1 ? "lançamento" : "lançamentos"}</p></div></AdminCardToolbar>
@@ -158,6 +191,19 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       </>}
     </AdminCard>
 
-    <FinanceEntryEditorDialog open={editorOpen} entryType={entryType} initial={editing} counterparties={counterparties} categories={categories} costCenters={costCenters} saving={finance.saveMutation.isPending} onClose={() => { if (!finance.saveMutation.isPending) { setEditorOpen(false); setEditing(null); } }} onSave={save} />
+    <FinanceEntryEditorDialog
+      open={editorOpen}
+      entryType={entryType}
+      initial={editing}
+      counterparties={counterparties}
+      counterpartySearch={counterpartySearch}
+      counterpartyLoading={finance.counterpartiesQuery.isFetching}
+      onCounterpartySearchChange={setCounterpartySearch}
+      categories={categories}
+      costCenters={costCenters}
+      saving={finance.saveMutation.isPending}
+      onClose={closeEditor}
+      onSave={save}
+    />
   </div>;
 }
