@@ -28,29 +28,21 @@ function toCatalogError(error: unknown, fallback: string): Error {
 
 export async function loadEquipmentCatalog(): Promise<EquipmentCatalog> {
   const organizationId = await getActiveOrganizationId();
-  const [typesResult, brandsResult, modelsResult, fieldsResult, linksResult, checklistProfilesResult, checklistStagesResult, checklistItemsResult] = await Promise.all([
-    supabase.from("equipment_types").select("*").eq("organization_id", organizationId).order("sort_order").order("name"),
-    supabase.from("equipment_brands").select("*").eq("organization_id", organizationId).order("sort_order").order("name"),
-    supabase.from("equipment_models").select("*").eq("organization_id", organizationId).order("sort_order").order("name"),
-    supabase.from("technical_fields").select("*").eq("organization_id", organizationId).order("sort_order").order("label"),
-    supabase.from("equipment_type_technical_fields").select("*").eq("organization_id", organizationId).order("sort_order"),
-    supabase.from("checklist_profiles").select("id,name,version,is_active").eq("organization_id", organizationId).order("name"),
-    supabase.from("checklist_profile_stages").select("id,profile_id,code,name,stage_type,sort_order,is_active").eq("organization_id", organizationId).eq("is_active", true).order("sort_order"),
-    supabase.from("equipment_checklist_items").select("*").eq("organization_id", organizationId).order("sort_order"),
-  ]);
-
-  const error = typesResult.error || brandsResult.error || modelsResult.error || fieldsResult.error || linksResult.error || checklistProfilesResult.error || checklistStagesResult.error || checklistItemsResult.error;
+  const { data, error } = await supabase.rpc("load_equipment_catalog_v1", {
+    p_organization_id: organizationId,
+  });
   if (error) throw error;
 
+  const catalog = (data || {}) as Record<string, unknown>;
   return {
-    types: typesResult.data ?? [],
-    brands: brandsResult.data ?? [],
-    models: modelsResult.data ?? [],
-    technicalFields: fieldsResult.data ?? [],
-    technicalFieldLinks: linksResult.data ?? [],
-    checklistProfiles: checklistProfilesResult.data ?? [],
-    checklistStages: checklistStagesResult.data ?? [],
-    equipmentChecklistItems: checklistItemsResult.data ?? [],
+    types: Array.isArray(catalog.types) ? catalog.types : [],
+    brands: Array.isArray(catalog.brands) ? catalog.brands : [],
+    models: Array.isArray(catalog.models) ? catalog.models : [],
+    technicalFields: Array.isArray(catalog.technicalFields) ? catalog.technicalFields : [],
+    technicalFieldLinks: Array.isArray(catalog.technicalFieldLinks) ? catalog.technicalFieldLinks : [],
+    checklistProfiles: Array.isArray(catalog.checklistProfiles) ? catalog.checklistProfiles : [],
+    checklistStages: Array.isArray(catalog.checklistStages) ? catalog.checklistStages : [],
+    equipmentChecklistItems: Array.isArray(catalog.equipmentChecklistItems) ? catalog.equipmentChecklistItems : [],
   } as EquipmentCatalog;
 }
 
