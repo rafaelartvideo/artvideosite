@@ -150,16 +150,40 @@ export async function listFinancialEntriesPage({
   };
 }
 
-export async function listPendingFinancialApprovals(organizationId: string): Promise<FinancialEntry[]> {
+export async function listPendingFinancialApprovalsPage(
+  organizationId: string,
+  page: number,
+  pageSize: number,
+): Promise<FinancialEntryListPage> {
   const org = requiredOrganizationId(organizationId);
+  const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
+    "search_pending_financial_approval_page_ids_v1",
+    {
+      p_organization_id: org,
+      p_page: Math.max(1, page),
+      p_page_size: Math.max(1, pageSize),
+    },
+  );
+  if (pageIndexError) throw pageIndexError;
+
+  const rows = (pageIndex || []) as Array<{ id: string; total_count: number | string }>;
+  const ids = rows.map(row => row.id);
+  const total = rows.length ? Number(rows[0].total_count || 0) : 0;
+  if (!ids.length) return { items: [], total };
+
   const { data: entries, error } = await supabase
     .from("financial_entries")
     .select(ENTRY_COLUMNS)
     .eq("organization_id", org)
-    .eq("approval_status", "pending")
-    .order("created_at", { ascending: true });
+    .in("id", ids);
   if (error) throw error;
-  return enrichEntries(org, (entries || []) as FinancialEntry[]);
+
+  const enriched = await enrichEntries(org, (entries || []) as FinancialEntry[]);
+  const byId = new Map(enriched.map(entry => [entry.id, entry]));
+  return {
+    items: ids.map(id => byId.get(id)).filter(Boolean) as FinancialEntry[],
+    total,
+  };
 }
 
 export async function getFinancialEntryDetail(organizationId: string, id: string): Promise<FinancialEntryDetail> {
