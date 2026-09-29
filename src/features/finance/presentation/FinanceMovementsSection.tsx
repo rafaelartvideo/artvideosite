@@ -1,12 +1,13 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, RotateCcw, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminCardToolbar } from "@/shared/ui/admin/AdminLayout";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceMovements } from "../application/useFinanceMovements";
 import type { FinancialMovementType, FinancialTransferDraft } from "../domain/finance.types";
@@ -29,35 +30,49 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString("pt-BR");
 }
 
+function useDebouncedValue<T>(value: T, delay = 350) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timeout);
+  }, [value, delay]);
+  return debounced;
+}
+
 export function FinanceMovementsSection() {
   const { hasPermission } = useAuth();
   const foundation = useFinanceFoundation();
-  const finance = useFinanceMovements();
   const canTransfer = hasPermission("finance.transfers.create");
   const canConfirmSettlements = hasPermission("finance.settlements.create");
   const [search, setSearch] = useState("");
   const [accountFilter, setAccountFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [transferOpen, setTransferOpen] = useState(false);
   const [reverseTransferId, setReverseTransferId] = useState<string | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [reverseReasonError, setReverseReasonError] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
+  const finance = useFinanceMovements({
+    movementPage: page,
+    movementPageSize: pageSize,
+    movementSearch: debouncedSearch,
+    movementAccountId: accountFilter === "all" ? "" : accountFilter,
+  });
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, accountFilter, pageSize]);
 
   const balances = finance.balancesQuery.data || {};
   const accounts = (foundation.accountsQuery.data || []).map(item => ({ ...item, balance: Number(balances[item.id] || 0) }));
   const accountById = new Map(accounts.map(item => [item.id, item]));
-  const movements = finance.movementsQuery.data || [];
+  const movements = finance.movementsQuery.data?.items || [];
+  const totalMovements = finance.movementsQuery.data?.total || 0;
   const transfers = finance.transfersQuery.data || [];
   const scheduledSettlements = finance.scheduledSettlementsQuery.data || [];
   const totalBalance = accounts.reduce((sum, item) => sum + Number(item.balance || 0), 0);
-  const filtered = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    return movements.filter(item => {
-      if (accountFilter !== "all" && item.financial_account_id !== accountFilter) return false;
-      if (!term) return true;
-      return [item.description_snapshot, MOVEMENT_LABELS[item.movement_type], accountById.get(item.financial_account_id)?.name]
-        .some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(term));
-    });
-  }, [movements, search, accountFilter, accounts.length]);
+
   const error = finance.movementsQuery.error || finance.balancesQuery.error || finance.transfersQuery.error || finance.scheduledSettlementsQuery.error || finance.transferMutation.error || finance.reverseTransferMutation.error || finance.confirmScheduledSettlementMutation.error;
   useEffect(() => {
     if (error) notifyAdmin(systemErrorMessage(error), "error");
@@ -111,10 +126,19 @@ export function FinanceMovementsSection() {
     </AdminCard>
 
     <AdminCard>
-      <AdminCardToolbar><div className="grid w-full gap-3 sm:grid-cols-[1fr_260px_auto] sm:items-end"><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><FInput aria-label="Pesquisar movimentações" className="pl-9" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição, tipo ou conta" /></div><FSelect label="Conta" value={accountFilter} onChange={(event: any) => setAccountFilter(event.target.value)} options={[{ value: "all", label: "Todas as contas" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} /><p className="pb-2 text-xs font-semibold text-[#5a6a82]">{filtered.length} movimentos</p></div></AdminCardToolbar>
-      {loading ? <div className="p-10"><LoadingState text="Carregando movimentações..." /></div> : filtered.length === 0 ? <div className="p-10"><EmptyState icon={ArrowRightLeft} title="Nenhuma movimentação encontrada" /></div> : <>
-        <div className="grid gap-2 p-3 md:hidden">{filtered.map(item => <div key={item.id} className="rounded-xl border border-[#0d1b2e]/8 p-3"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 gap-2">{item.direction === "credit" ? <ArrowDownLeft size={17} className="mt-0.5 shrink-0 text-emerald-600" /> : <ArrowUpRight size={17} className="mt-0.5 shrink-0 text-red-600" />}<div className="min-w-0"><p className="truncate text-sm font-bold text-[#0d1b2e]">{item.description_snapshot}</p><p className="text-xs text-[#5a6a82]">{accountById.get(item.financial_account_id)?.name || "Conta"} · {MOVEMENT_LABELS[item.movement_type]}</p><p className="text-[11px] text-[#8a98aa]">{formatDateTime(item.occurred_at)}</p></div></div><p className={`shrink-0 text-sm font-black ${item.direction === "credit" ? "text-emerald-700" : "text-red-700"}`}>{item.direction === "credit" ? "+" : "-"}{formatCurrency(item.amount)}</p></div></div>)}</div>
-        <div className="hidden overflow-x-auto md:block"><table className="min-w-[900px]"><thead><tr><th className="text-left">Data</th><th className="text-left">Conta</th><th className="text-left">Tipo</th><th className="text-left">Descrição</th><th className="text-right">Valor</th></tr></thead><tbody>{filtered.map(item => <tr key={item.id}><td className="text-xs">{formatDateTime(item.occurred_at)}</td><td className="text-xs font-semibold">{accountById.get(item.financial_account_id)?.name || "—"}</td><td className="text-xs text-[#5a6a82]">{MOVEMENT_LABELS[item.movement_type]}</td><td className="text-xs text-[#5a6a82]">{item.description_snapshot}</td><td className={`text-right font-black ${item.direction === "credit" ? "text-emerald-700" : "text-red-700"}`}>{item.direction === "credit" ? "+" : "-"}{formatCurrency(item.amount)}</td></tr>)}</tbody></table></div>
+      <AdminCardToolbar><div className="grid w-full gap-3 sm:grid-cols-[1fr_260px_auto] sm:items-end"><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><FInput aria-label="Pesquisar movimentações" className="pl-9" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição, tipo ou conta" /></div><FSelect label="Conta" value={accountFilter} onChange={(event: any) => setAccountFilter(event.target.value)} options={[{ value: "all", label: "Todas as contas" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} /><p className="pb-2 text-xs font-semibold text-[#5a6a82]">{totalMovements} {totalMovements === 1 ? "movimento" : "movimentos"}</p></div></AdminCardToolbar>
+      {loading ? <div className="p-10"><LoadingState text="Carregando movimentações..." /></div> : movements.length === 0 ? <div className="p-10"><EmptyState icon={ArrowRightLeft} title="Nenhuma movimentação encontrada" /></div> : <>
+        <div className="grid gap-2 p-3 md:hidden">{movements.map(item => <div key={item.id} className="rounded-xl border border-[#0d1b2e]/8 p-3"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 gap-2">{item.direction === "credit" ? <ArrowDownLeft size={17} className="mt-0.5 shrink-0 text-emerald-600" /> : <ArrowUpRight size={17} className="mt-0.5 shrink-0 text-red-600" />}<div className="min-w-0"><p className="truncate text-sm font-bold text-[#0d1b2e]">{item.description_snapshot}</p><p className="text-xs text-[#5a6a82]">{accountById.get(item.financial_account_id)?.name || "Conta"} · {MOVEMENT_LABELS[item.movement_type]}</p><p className="text-[11px] text-[#8a98aa]">{formatDateTime(item.occurred_at)}</p></div></div><p className={`shrink-0 text-sm font-black ${item.direction === "credit" ? "text-emerald-700" : "text-red-700"}`}>{item.direction === "credit" ? "+" : "-"}{formatCurrency(item.amount)}</p></div></div>)}</div>
+        <div className="hidden overflow-x-auto md:block"><table className="min-w-[900px]"><thead><tr><th className="text-left">Data</th><th className="text-left">Conta</th><th className="text-left">Tipo</th><th className="text-left">Descrição</th><th className="text-right">Valor</th></tr></thead><tbody>{movements.map(item => <tr key={item.id}><td className="text-xs">{formatDateTime(item.occurred_at)}</td><td className="text-xs font-semibold">{accountById.get(item.financial_account_id)?.name || "—"}</td><td className="text-xs text-[#5a6a82]">{MOVEMENT_LABELS[item.movement_type]}</td><td className="text-xs text-[#5a6a82]">{item.description_snapshot}</td><td className={`text-right font-black ${item.direction === "credit" ? "text-emerald-700" : "text-red-700"}`}>{item.direction === "credit" ? "+" : "-"}{formatCurrency(item.amount)}</td></tr>)}</tbody></table></div>
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalMovements}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          defaultPageSize={20}
+          pageSizeOptions={[20, 50, 100]}
+        />
       </>}
     </AdminCard>
 
