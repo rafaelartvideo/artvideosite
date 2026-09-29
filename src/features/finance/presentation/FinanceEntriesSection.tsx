@@ -68,12 +68,17 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
   const debouncedSearch = useDebouncedValue(search);
-  const finance = useFinanceEntries(entryType, selectedEntryId, {
-    page,
-    pageSize,
-    search: debouncedSearch,
-    approvalStatus: approvalFilter,
-  });
+  const finance = useFinanceEntries(
+    entryType,
+    selectedEntryId,
+    {
+      page,
+      pageSize,
+      search: debouncedSearch,
+      approvalStatus: approvalFilter,
+    },
+    editorOpen,
+  );
 
   useEffect(() => {
     setPage(1);
