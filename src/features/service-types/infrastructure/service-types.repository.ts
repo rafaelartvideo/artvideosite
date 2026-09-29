@@ -17,7 +17,7 @@ type SaveServiceTypeInput = {
 
 export async function loadServiceTypesConfiguration() {
   const organizationId = await getActiveOrganizationId();
-  const [typesResult, situationsResult, linksResult] = await Promise.all([
+  const [typesResult, situationsResult, linksResult, monitoringResult] = await Promise.all([
     supabase
       .from("service_types")
       .select("id,title,description,forecast_days,is_active,sort_order,created_at,updated_at,organization_id")
@@ -35,15 +35,20 @@ export async function loadServiceTypesConfiguration() {
       .from("service_type_situations")
       .select("service_type_id,situation_id,use_default_hours,sla_hours,sort_order,organization_id")
       .eq("organization_id", organizationId),
+    supabase
+      .from("service_type_monitoring")
+      .select("service_type_id")
+      .eq("organization_id", organizationId),
   ]);
 
-  const error = typesResult.error || situationsResult.error || linksResult.error;
+  const error = typesResult.error || situationsResult.error || linksResult.error || monitoringResult.error;
   if (error) throw error;
 
   return {
     serviceTypes: typesResult.data ?? [],
     situations: situationsResult.data ?? [],
     links: linksResult.data ?? [],
+    monitoredServiceTypeIds: (monitoringResult.data ?? []).map(item => item.service_type_id),
   };
 }
 
