@@ -171,7 +171,9 @@ function AdminEntry() {
   const requestedOrganizationId = new URLSearchParams(location.search).get("org");
   const canOpenRequestedOrganization = Boolean(
     requestedOrganizationId
-    && organizations.some(organization => organization.organization_id === requestedOrganizationId),
+    && organizations.some(organization =>
+      organization.organization_id === requestedOrganizationId && organization.is_direct_member
+    ),
   );
   const shouldSwitchOrganization = Boolean(
     session
