@@ -219,25 +219,29 @@ export async function getFinancialEntryDetail(organizationId: string, id: string
   };
 }
 
-export async function listFinancialCounterparties(organizationId: string, entryType: FinancialEntryType): Promise<FinancialCounterparty[]> {
+export async function searchFinancialCounterparties(
+  organizationId: string,
+  entryType: FinancialEntryType,
+  search = "",
+  selectedId = "",
+  limit = 25,
+): Promise<FinancialCounterparty[]> {
   const org = requiredOrganizationId(organizationId);
-  const { data, error } = await supabase.rpc("list_financial_counterparties", {
+  const { data, error } = await supabase.rpc("search_financial_counterparties_v1", {
     p_organization_id: org,
     p_entry_type: entryType,
+    p_search: search,
+    p_selected_id: selectedId || null,
+    p_limit: Math.max(1, Math.min(limit, 50)),
   });
   if (error) throw error;
 
-  const preferredRole = entryType === "payable" ? "supplier" : "customer";
   return (data || []).map((item: any) => ({
     id: String(item.id),
     name: String(item.name || "Cadastro"),
     document: item.document || null,
     roles: Array.isArray(item.roles) ? item.roles.map(String) : [],
-  })).sort((left, right) => {
-    const leftPreferred = left.roles.includes(preferredRole) ? 0 : 1;
-    const rightPreferred = right.roles.includes(preferredRole) ? 0 : 1;
-    return leftPreferred - rightPreferred || left.name.localeCompare(right.name, "pt-BR");
-  });
+  }));
 }
 
 export async function saveFinancialEntry(organizationId: string, draft: FinancialEntryDraft): Promise<string> {
