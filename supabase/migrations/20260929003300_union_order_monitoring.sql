@@ -854,8 +854,8 @@ begin
         jsonb_build_object(
           'id', used_item.id,
           'quantity', used_item.quantity,
-          'unit_price', used_item.unit_price,
-          'total_price', used_item.total_price,
+          'unit_sale_price', used_item.unit_sale_price,
+          'total_sale_price', used_item.total_sale_price,
           'created_at', used_item.created_at,
           'item', case when inventory_item.id is null then null else jsonb_build_object(
             'id', inventory_item.id,
