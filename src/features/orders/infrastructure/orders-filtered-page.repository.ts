@@ -1,17 +1,17 @@
 import { supabase } from "@/lib/supabase";
 
 const ORDER_LIST_SELECT = "*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,price_at_completion,max_discount_percentage,max_discount_amount), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)";
-const FILTER_SELECT = "id,os_number,external_os_number,serial_number,status_id,situation_id,order_type,service_type_id,service_state,service_city,created_at,is_solved,completed_at,order_status:order_statuses(id,name),assigned_profile:profiles!assigned_to(id,full_name),customer:customers(id,full_name,trade_name,legal_name,document,cnpj,addresses:customer_addresses(state,city,is_default))";
 
 export type FilterCity = { name: string; state: string };
+
 export type ExactOrderPageInput = {
   organizationId: string;
   page: number;
   pageSize: number;
   osNumberSearch?: string;
   externalOsSearch?: string;
-  documentSearch?: string;
   customerNameSearch?: string;
+  documentSearch?: string;
   serialNumberSearch?: string;
   responsibleId?: string;
   statusId?: string;
@@ -26,184 +26,99 @@ export type ExactOrderPageInput = {
   sort?: "" | "asc" | "desc";
   matchOrderNumberOrExternal?: boolean;
 };
-export type ExactOrderPage = { items: any[]; total: number };
 
-export async function countServiceOrders(organizationId: string) {
-  const { data, error } = await supabase.rpc("search_service_order_page_ids_v1", {
-    p_organization_id: organizationId,
-    p_page: 1,
-    p_page_size: 1,
-    p_os_number_search: "",
-    p_external_os_search: "",
-    p_customer_name_search: "",
-    p_document_search: "",
-    p_serial_number_search: "",
-    p_responsible_id: null,
-    p_status_id: null,
-    p_situation_id: null,
-    p_order_type: "",
-    p_service_type_id: null,
-    p_date_from: null,
-    p_date_to: null,
-    p_sort: "",
-    p_match_order_number_or_external: false,
-  });
-  if (error) throw error;
-  const first = (data ?? [])[0] as { total_count?: number | string } | undefined;
-  return Number(first?.total_count ?? 0);
-}
-
-const normalizeIdentifier = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-const normalizeDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
-const normalizeText = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
-const normalizeStateText = (value: unknown) => normalizeText(value).replace(/[^a-z]/g, " ").replace(/\s+/g, " ").trim();
-
-function matchesStateAlias(value: unknown, aliases: Set<string>) {
-  if (aliases.size === 0) return true;
-  const normalized = normalizeStateText(value);
-  if (!normalized) return false;
-  return [...aliases].some(alias => normalized === alias || normalized.startsWith(`${alias} `) || normalized.endsWith(` ${alias}`));
-}
-
-const orderStatusPriority = (order: any) => {
-  const statusName = normalizeText(order.order_status?.name);
-  if (statusName === "aberta") return 0;
-  if (statusName === "fechada") return 1;
-  if (statusName === "cancelada") return 2;
-  return 3;
+export type ExactOrderPage = {
+  items: any[];
+  total: number;
 };
 
-const solvedPriority = (order: any) => order.is_solved === true && !order.completed_at ? 0 : 1;
+type OrderPageIndexRow = {
+  id: string;
+  total_count: number | string;
+};
 
-export async function listExactServiceOrdersPage(input: ExactOrderPageInput): Promise<ExactOrderPage> {
+async function fetchOrderPageIndex(input: ExactOrderPageInput): Promise<OrderPageIndexRow[]> {
   const {
-    organizationId, page, pageSize, osNumberSearch = "", externalOsSearch = "", customerNameSearch = "", documentSearch = "", serialNumberSearch = "", responsibleId = "",
-    statusId = "", situationId = "", orderType = "", serviceTypeId = "", states = [], stateNames = [], cities = [],
-    dateFrom = "", dateTo = "", sort = "", matchOrderNumberOrExternal = false,
+    organizationId,
+    page,
+    pageSize,
+    osNumberSearch = "",
+    externalOsSearch = "",
+    customerNameSearch = "",
+    documentSearch = "",
+    serialNumberSearch = "",
+    responsibleId = "",
+    statusId = "",
+    situationId = "",
+    orderType = "",
+    serviceTypeId = "",
+    states = [],
+    stateNames = [],
+    cities = [],
+    dateFrom = "",
+    dateTo = "",
+    sort = "",
+    matchOrderNumberOrExternal = false,
   } = input;
 
-  if (states.length === 0 && cities.length === 0) {
-    const { data: pageIndex, error: pageIndexError } = await supabase.rpc("search_service_order_page_ids_v1", {
-      p_organization_id: organizationId,
-      p_page: Math.max(1, page),
-      p_page_size: Math.max(1, pageSize),
-      p_os_number_search: osNumberSearch,
-      p_external_os_search: externalOsSearch,
-      p_customer_name_search: customerNameSearch,
-      p_document_search: documentSearch,
-      p_serial_number_search: serialNumberSearch,
-      p_responsible_id: responsibleId || null,
-      p_status_id: statusId || null,
-      p_situation_id: situationId || null,
-      p_order_type: orderType,
-      p_service_type_id: serviceTypeId || null,
-      p_date_from: dateFrom || null,
-      p_date_to: dateTo || null,
-      p_sort: sort,
-      p_match_order_number_or_external: matchOrderNumberOrExternal,
-    });
-    if (pageIndexError) throw pageIndexError;
+  const { data, error } = await supabase.rpc("search_service_order_page_ids_v2", {
+    p_organization_id: organizationId,
+    p_page: Math.max(1, page),
+    p_page_size: Math.max(1, pageSize),
+    p_os_number_search: osNumberSearch,
+    p_external_os_search: externalOsSearch,
+    p_customer_name_search: customerNameSearch,
+    p_document_search: documentSearch,
+    p_serial_number_search: serialNumberSearch,
+    p_responsible_id: responsibleId || null,
+    p_status_id: statusId || null,
+    p_situation_id: situationId || null,
+    p_order_type: orderType,
+    p_service_type_id: serviceTypeId || null,
+    p_states: states,
+    p_state_names: stateNames,
+    p_cities: cities,
+    p_date_from: dateFrom || null,
+    p_date_to: dateTo || null,
+    p_sort: sort,
+    p_match_order_number_or_external: matchOrderNumberOrExternal,
+  });
 
-    const rows = (pageIndex ?? []) as Array<{ id: string; total_count: number | string }>;
-    const ids = rows.map(row => row.id);
-    const total = rows.length ? Number(rows[0].total_count ?? 0) : 0;
-    if (ids.length === 0) return { items: [], total };
+  if (error) throw error;
+  return (data ?? []) as OrderPageIndexRow[];
+}
 
-    const { data, error } = await supabase
-      .from("service_orders")
-      .select(ORDER_LIST_SELECT)
-      .eq("organization_id", organizationId)
-      .in("id", ids);
-    if (error) throw error;
+export async function countServiceOrders(organizationId: string) {
+  const rows = await fetchOrderPageIndex({
+    organizationId,
+    page: 1,
+    pageSize: 1,
+  });
+  return Number(rows[0]?.total_count ?? 0);
+}
 
-    const byId = new Map((data ?? []).map((order: any) => [order.id, order]));
-    return { items: ids.map(id => byId.get(id)).filter(Boolean), total };
+export async function listExactServiceOrdersPage(
+  input: ExactOrderPageInput,
+): Promise<ExactOrderPage> {
+  const rows = await fetchOrderPageIndex(input);
+  const ids = rows.map(row => row.id);
+  const total = Number(rows[0]?.total_count ?? 0);
+
+  if (ids.length === 0) {
+    return { items: [], total };
   }
-
-  const { data: index, error: indexError } = await supabase
-    .from("service_orders")
-    .select(FILTER_SELECT)
-    .eq("organization_id", organizationId);
-  if (indexError) throw indexError;
-
-  const rawOsNeedle = normalizeIdentifier(osNumberSearch);
-  const osNeedles = [...new Set([rawOsNeedle, rawOsNeedle.replace(/^os(?=\d)/, "")].filter(Boolean))];
-  const externalNeedle = normalizeIdentifier(externalOsSearch);
-  const customerNameNeedle = normalizeText(customerNameSearch);
-  const documentNeedle = normalizeDigits(documentSearch);
-  const serialNeedle = normalizeIdentifier(serialNumberSearch);
-
-  const stateAliasGroups = states.map((state, index) => new Set(
-    [state, stateNames[index]].map(normalizeStateText).filter(Boolean),
-  ));
-  const selectedStateAliases = new Set(stateAliasGroups.flatMap(group => [...group]));
-  const cityFilters = cities.map(city => {
-    const cityState = normalizeStateText(city.state);
-    const matchingStateGroup = stateAliasGroups.find(group => group.has(cityState));
-    return {
-      name: normalizeText(city.name),
-      stateAliases: matchingStateGroup || new Set([cityState].filter(Boolean)),
-    };
-  });
-
-  const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
-  const toDate = dateTo ? new Date(`${dateTo}T00:00:00`) : null;
-  if (toDate) toDate.setDate(toDate.getDate() + 1);
-
-  const filtered = (index ?? []).filter((order: any) => {
-    const internalNumber = normalizeIdentifier(order.os_number);
-    const externalNumber = normalizeIdentifier(order.external_os_number);
-    const matchesNumber = osNeedles.length === 0 || osNeedles.some(needle => internalNumber.includes(needle) || (matchOrderNumberOrExternal && externalNumber.includes(needle)));
-    const matchesExternal = matchOrderNumberOrExternal || !externalNeedle || externalNumber.includes(externalNeedle);
-    const matchesSerial = !serialNeedle || normalizeIdentifier(order.serial_number).includes(serialNeedle);
-    const assignedProfile = Array.isArray(order.assigned_profile) ? order.assigned_profile[0] : order.assigned_profile;
-    const matchesResponsible = !responsibleId || assignedProfile?.id === responsibleId;
-    const customer = order.customer || {};
-    const matchesCustomerName = !customerNameNeedle || [customer.full_name, customer.trade_name, customer.legal_name].some(value => normalizeText(value).includes(customerNameNeedle));
-    const matchesDocument = !documentNeedle || [customer.document, customer.cnpj].some(value => normalizeDigits(value).includes(documentNeedle));
-    const serviceLocation = order.service_state || order.service_city
-      ? [{ state: order.service_state, city: order.service_city }]
-      : [];
-    const customerLocations = (customer.addresses || []) as Array<{ state?: string | null; city?: string | null }>;
-    const locations = serviceLocation.length > 0 ? serviceLocation : customerLocations;
-    const matchesState = selectedStateAliases.size === 0 || locations.some(location => matchesStateAlias(location.state, selectedStateAliases));
-    const matchesCity = cityFilters.length === 0 || cityFilters.some(city =>
-      locations.some(location =>
-        city.name === normalizeText(location.city) &&
-        matchesStateAlias(location.state, city.stateAliases),
-      ),
-    );
-    const createdAt = order.created_at ? new Date(order.created_at) : null;
-    const matchesPeriod = !fromDate && !toDate ? true : !!createdAt && (!fromDate || createdAt >= fromDate) && (!toDate || createdAt < toDate);
-    return matchesNumber && matchesExternal && matchesSerial && matchesResponsible && matchesCustomerName && matchesDocument && (!statusId || order.status_id === statusId) && (!situationId || order.situation_id === situationId) && (!orderType || order.order_type === orderType) && (!serviceTypeId || order.service_type_id === serviceTypeId) && matchesState && matchesCity && matchesPeriod;
-  });
-
-  const sorted = sort ? [...filtered].sort((left: any, right: any) => {
-    const leftNumber = Number(String(left.os_number ?? "").match(/\d+/)?.[0] ?? Number.POSITIVE_INFINITY);
-    const rightNumber = Number(String(right.os_number ?? "").match(/\d+/)?.[0] ?? Number.POSITIVE_INFINITY);
-    const numberComparison = leftNumber - rightNumber;
-    if (numberComparison !== 0) return sort === "asc" ? numberComparison : -numberComparison;
-    const dateComparison = String(left.created_at ?? "").localeCompare(String(right.created_at ?? ""));
-    return sort === "asc" ? dateComparison : -dateComparison;
-  }) : [...filtered].sort((left: any, right: any) => {
-    const statusComparison = orderStatusPriority(left) - orderStatusPriority(right);
-    if (statusComparison !== 0) return statusComparison;
-    const solvedComparison = solvedPriority(left) - solvedPriority(right);
-    if (solvedComparison !== 0) return solvedComparison;
-    return String(right.created_at ?? "").localeCompare(String(left.created_at ?? ""));
-  });
-
-  const safeSize = Math.max(1, pageSize);
-  const start = (Math.max(1, page) - 1) * safeSize;
-  const ids = sorted.slice(start, start + safeSize).map((order: any) => order.id);
-  if (ids.length === 0) return { items: [], total: sorted.length };
 
   const { data, error } = await supabase
     .from("service_orders")
     .select(ORDER_LIST_SELECT)
-    .eq("organization_id", organizationId)
+    .eq("organization_id", input.organizationId)
     .in("id", ids);
+
   if (error) throw error;
+
   const byId = new Map((data ?? []).map((order: any) => [order.id, order]));
-  return { items: ids.map(id => byId.get(id)).filter(Boolean), total: sorted.length };
+  return {
+    items: ids.map(id => byId.get(id)).filter(Boolean),
+    total,
+  };
 }
