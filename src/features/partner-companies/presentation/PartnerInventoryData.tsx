@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Eraser, History, MapPin, Package } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { listInventoryItems, listInventoryMovements } from "@/features/inventory/infrastructure/inventory.repository";
+import { listInventoryItems, listInventoryMovementsPage } from "@/features/inventory/infrastructure/inventory.repository";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -61,6 +61,9 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
   const [detailItem, setDetailItem] = useState<any>(null);
   const [historyItem, setHistoryItem] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
   const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
@@ -93,19 +96,48 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
     setPage(1);
   };
 
-  const openHistory = async (item: any) => {
+  const openHistory = (item: any) => {
     if (!canViewMovements) return;
     setHistoryItem(item);
     setHistory([]);
-    setHistoryLoading(true);
-    try {
-      setHistory(await listInventoryMovements(item.id, organizationId));
-    } catch (error) {
-      setToast({ msg: `Erro ao carregar histórico: ${supabaseErrorMessage(error)}`, type: "error" });
-    } finally {
-      setHistoryLoading(false);
-    }
+    setHistoryTotal(0);
+    setHistoryPage(1);
   };
+
+  useEffect(() => {
+    if (!historyItem?.id || !canViewMovements) return;
+
+    let cancelled = false;
+    setHistoryLoading(true);
+
+    void listInventoryMovementsPage(
+      historyItem.id,
+      organizationId,
+      false,
+      historyPage,
+      historyPageSize,
+    )
+      .then(result => {
+        if (cancelled) return;
+        setHistory(result.items);
+        setHistoryTotal(result.total);
+        const totalPages = Math.max(1, Math.ceil(result.total / historyPageSize));
+        if (historyPage > totalPages) setHistoryPage(totalPages);
+      })
+      .catch(error => {
+        if (cancelled) return;
+        setHistory([]);
+        setHistoryTotal(0);
+        setToast({ msg: `Erro ao carregar histórico: ${supabaseErrorMessage(error)}`, type: "error" });
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [historyItem?.id, organizationId, canViewMovements, historyPage, historyPageSize]);
 
   if (!canViewTable) return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Seu perfil não possui permissão para visualizar a tabela de estoque.</div>;
 
@@ -142,7 +174,7 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
               </div>
               {showActions && <div className="flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 pt-3">
                 {canViewDetails && <AdminButton variant="secondary" size="sm" onClick={() => setDetailItem(item)}>Detalhes</AdminButton>}
-                {canViewMovements && <AdminIconButton ariaLabel="Histórico de movimentações" onClick={() => void openHistory(item)}><History size={15} /></AdminIconButton>}
+                {canViewMovements && <AdminIconButton ariaLabel="Histórico de movimentações" onClick={() => openHistory(item)}><History size={15} /></AdminIconButton>}
               </div>}
             </article>;
           })}
@@ -168,8 +200,8 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
       {detailItem && <div className="grid gap-4 sm:grid-cols-2"><Info label="Nome" value={detailItem.name || "—"} /><Info label="SKU" value={detailItem.sku || "—"} /><Info label="Status" value={detailItem.is_active !== false ? "Ativo" : "Inativo"} /><Info label="Unidade" value={`${unitLabel(detailItem.unit)}${detailItem.unit === "cx" ? ` · ${conversionFactor(detailItem)} un/cx` : ""}`} /><Info label="Quantidade" value={`${formatNumber(detailItem.quantity)} ${unitLabel(detailItem.unit)}`} /><Info label="Quantidade mínima" value={`${formatNumber(detailItem.min_quantity)} ${unitLabel(detailItem.unit)}`} />{showPurchasePrice && <Info label="Preço de compra" value={formatCurrency(detailItem.purchase_price)} />}{showSalePrice && <Info label="Preço de venda" value={formatCurrency(detailItem.sale_price)} />}<div className="sm:col-span-2"><Info label="Endereço no estoque" value={storageAddress(detailItem) || "—"} /></div>{detailItem.description && <div className="sm:col-span-2"><Info label="Descrição" value={detailItem.description} /></div>}</div>}
     </AdminDialog>
 
-    <AdminDialog open={Boolean(historyItem)} onClose={() => setHistoryItem(null)} title={historyItem ? `Movimentações · ${historyItem.name}` : "Movimentações"} description="Histórico do item nesta empresa." className="max-w-2xl">
-      {historyLoading ? <LoadingState /> : history.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhuma movimentação registrada.</p> : <div className="divide-y divide-[#0d1b2e]/8">{history.map((movement: any) => <div key={movement.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-black text-[#0d1b2e]">{movementLabel(movement.movement_type)} · {formatNumber(movement.quantity)} {movement.display_unit || unitLabel(historyItem?.unit)}</p><p className="mt-1 text-xs text-[#5a6a82]">{movement.reason || "Sem motivo informado"}</p>{movement.service_order?.os_number && <p className="mt-1 text-[11px] font-semibold text-[#0057e7]">OS #{movement.service_order.os_number}</p>}</div><div className="shrink-0 text-xs text-[#5a6a82] sm:text-right"><p>{formatDateTime(movement.created_at)}</p><p className="mt-1">{movement.created_by_profile?.full_name || "Sistema"}</p></div></div>)}</div>}
+    <AdminDialog open={Boolean(historyItem)} onClose={() => { setHistoryItem(null); setHistory([]); setHistoryTotal(0); setHistoryPage(1); }} title={historyItem ? `Movimentações · ${historyItem.name}` : "Movimentações"} description="Histórico do item nesta empresa." className="max-w-2xl">
+      {historyLoading && history.length === 0 ? <LoadingState /> : history.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhuma movimentação registrada.</p> : <div><div className="divide-y divide-[#0d1b2e]/8">{history.map((movement: any) => <div key={movement.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-black text-[#0d1b2e]">{movementLabel(movement.movement_type)} · {formatNumber(movement.quantity)} {movement.display_unit || unitLabel(historyItem?.unit)}</p><p className="mt-1 text-xs text-[#5a6a82]">{movement.reason || "Sem motivo informado"}</p>{movement.service_order?.os_number && <p className="mt-1 text-[11px] font-semibold text-[#0057e7]">OS #{movement.service_order.os_number}</p>}</div><div className="shrink-0 text-xs text-[#5a6a82] sm:text-right"><p>{formatDateTime(movement.created_at)}</p><p className="mt-1">{movement.created_by_profile?.full_name || "Sistema"}</p></div></div>)}</div><PaginationBar page={historyPage} pageSize={historyPageSize} totalItems={historyTotal} onPageChange={setHistoryPage} onPageSizeChange={next => { setHistoryPageSize(next); setHistoryPage(1); }} defaultPageSize={10} pageSizeOptions={[10, 20, 50, 100]} /></div>}
     </AdminDialog>
   </div>;
 }
