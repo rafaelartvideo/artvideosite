@@ -51,6 +51,7 @@ export function AdminSidebar({
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "partnerCompanies" && !isPlatformOperatorOrganization) return false;
+    if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
     const permission = permissionForTab[tab];
     return hasPermission(permission) && isAdminModuleEnabled(tab, hasModule);
   };
