@@ -100,25 +100,56 @@ export async function countServiceOrders(organizationId: string) {
 export async function listExactServiceOrdersPage(
   input: ExactOrderPageInput,
 ): Promise<ExactOrderPage> {
-  const rows = await fetchOrderPageIndex(input);
-  const ids = rows.map(row => row.id);
-  const total = Number(rows[0]?.total_count ?? 0);
+  const {
+    organizationId,
+    page,
+    pageSize,
+    osNumberSearch = "",
+    externalOsSearch = "",
+    customerNameSearch = "",
+    documentSearch = "",
+    serialNumberSearch = "",
+    responsibleId = "",
+    statusId = "",
+    situationId = "",
+    orderType = "",
+    serviceTypeId = "",
+    states = [],
+    stateNames = [],
+    cities = [],
+    dateFrom = "",
+    dateTo = "",
+    sort = "",
+    matchOrderNumberOrExternal = false,
+  } = input;
 
-  if (ids.length === 0) {
-    return { items: [], total };
-  }
-
-  const { data, error } = await supabase
-    .from("service_orders")
-    .select(ORDER_LIST_SELECT)
-    .eq("organization_id", input.organizationId)
-    .in("id", ids);
+  const { data, error } = await supabase.rpc("search_service_order_page_v1", {
+    p_organization_id: organizationId,
+    p_page: Math.max(1, page),
+    p_page_size: Math.max(1, pageSize),
+    p_os_number_search: osNumberSearch,
+    p_external_os_search: externalOsSearch,
+    p_customer_name_search: customerNameSearch,
+    p_document_search: documentSearch,
+    p_serial_number_search: serialNumberSearch,
+    p_responsible_id: responsibleId || null,
+    p_status_id: statusId || null,
+    p_situation_id: situationId || null,
+    p_order_type: orderType,
+    p_service_type_id: serviceTypeId || null,
+    p_states: states,
+    p_state_names: stateNames,
+    p_cities: cities,
+    p_date_from: dateFrom || null,
+    p_date_to: dateTo || null,
+    p_sort: sort,
+    p_match_order_number_or_external: matchOrderNumberOrExternal,
+  });
 
   if (error) throw error;
-
-  const byId = new Map((data ?? []).map((order: any) => [order.id, order]));
+  const row = (data || [])[0] as { items?: unknown; total_count?: number | string } | undefined;
   return {
-    items: ids.map(id => byId.get(id)).filter(Boolean),
-    total,
+    items: Array.isArray(row?.items) ? row.items : [],
+    total: Number(row?.total_count ?? 0),
   };
 }
