@@ -7,7 +7,7 @@ import {
   confirmFinancialSettlement,
   getFinancialAccountBalances,
   listFinancialMovementsPage,
-  listScheduledFinancialSettlements,
+  listScheduledFinancialSettlementsPage,
   listFinancialTransfers,
   reverseFinancialTransfer,
   transferFinancialFunds,
@@ -21,6 +21,8 @@ export type UseFinanceMovementsOptions = {
   movementPageSize?: number;
   movementSearch?: string;
   movementAccountId?: string;
+  settlementPage?: number;
+  settlementPageSize?: number;
 };
 
 export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
@@ -36,6 +38,8 @@ export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
   const movementPageSize = Math.max(1, options.movementPageSize || 20);
   const movementSearch = options.movementSearch || "";
   const movementAccountId = options.movementAccountId || "";
+  const settlementPage = Math.max(1, options.settlementPage || 1);
+  const settlementPageSize = Math.max(1, options.settlementPageSize || 10);
 
   const balancesQuery = useQuery({
     queryKey: queryKeys.finance.balances(organizationKey),
@@ -65,9 +69,17 @@ export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
   });
 
   const scheduledSettlementsQuery = useQuery({
-    queryKey: queryKeys.finance.scheduledSettlements(organizationKey),
+    queryKey: [
+      ...queryKeys.finance.scheduledSettlements(organizationKey),
+      { page: settlementPage, pageSize: settlementPageSize },
+    ] as const,
     enabled: enabled && loadScheduledSettlements,
-    queryFn: () => listScheduledFinancialSettlements(organizationId),
+    queryFn: () => listScheduledFinancialSettlementsPage(
+      organizationId,
+      settlementPage,
+      settlementPageSize,
+    ),
+    placeholderData: previous => previous,
   });
 
   const transfersQuery = useQuery({
