@@ -400,7 +400,7 @@ export function PartnerCompanyEditorPage({
             </>}
           </div>
         </AdminCardContent>
-      </AdminCard>
+      </AdminCard>}
 
       <AdminCard>
         <AdminCardHeader>
