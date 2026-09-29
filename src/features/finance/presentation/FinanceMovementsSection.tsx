@@ -48,6 +48,8 @@ export function FinanceMovementsSection() {
   const [accountFilter, setAccountFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [settlementPage, setSettlementPage] = useState(1);
+  const [settlementPageSize, setSettlementPageSize] = useState(10);
   const [transferOpen, setTransferOpen] = useState(false);
   const [reverseTransferId, setReverseTransferId] = useState<string | null>(null);
   const [reverseReason, setReverseReason] = useState("");
@@ -58,6 +60,8 @@ export function FinanceMovementsSection() {
     movementPageSize: pageSize,
     movementSearch: debouncedSearch,
     movementAccountId: accountFilter === "all" ? "" : accountFilter,
+    settlementPage,
+    settlementPageSize,
   });
 
   useEffect(() => {
@@ -70,7 +74,8 @@ export function FinanceMovementsSection() {
   const movements = finance.movementsQuery.data?.items || [];
   const totalMovements = finance.movementsQuery.data?.total || 0;
   const transfers = finance.transfersQuery.data || [];
-  const scheduledSettlements = finance.scheduledSettlementsQuery.data || [];
+  const scheduledSettlements = finance.scheduledSettlementsQuery.data?.items || [];
+  const totalScheduledSettlements = finance.scheduledSettlementsQuery.data?.total || 0;
   const totalBalance = accounts.reduce((sum, item) => sum + Number(item.balance || 0), 0);
 
   const error = finance.movementsQuery.error || finance.balancesQuery.error || finance.transfersQuery.error || finance.scheduledSettlementsQuery.error || finance.transferMutation.error || finance.reverseTransferMutation.error || finance.confirmScheduledSettlementMutation.error;
@@ -123,6 +128,18 @@ export function FinanceMovementsSection() {
           </div>;
         })}
       </AdminCardContent>
+      <PaginationBar
+        page={settlementPage}
+        pageSize={settlementPageSize}
+        totalItems={totalScheduledSettlements}
+        onPageChange={setSettlementPage}
+        onPageSizeChange={value => {
+          setSettlementPageSize(value);
+          setSettlementPage(1);
+        }}
+        defaultPageSize={10}
+        pageSizeOptions={[10, 20, 50]}
+      />
     </AdminCard>
 
     <AdminCard>
