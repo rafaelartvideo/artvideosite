@@ -60,7 +60,7 @@ export function PartnerOrdersFilters({
   );
 
   return <AdminCard className="overflow-hidden p-0">
-    <div className="flex items-center gap-2 bg-[#0057e7] px-4 py-3 text-white">
+    <div className="flex min-h-12 items-center gap-2 border-b border-white/15 bg-gradient-to-r from-[#2f80ed] via-[#438fe8] to-[#68a9f2] px-4 py-2.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
       <Search size={16} className="shrink-0" />
       <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
     </div>
