@@ -705,7 +705,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     </DropdownMenu>
   );
 
-  return <div className="space-y-5">
+  return <div className="space-y-5 md:space-y-3 [&>header]:md:pb-3">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader
       title={platformUsersOnly ? "Usuários" : "Cadastros"}
@@ -713,13 +713,13 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> {platformUsersOnly ? "Novo usuário" : "Novo cadastro"}</BtnPrimary> : undefined}
     />
     <AdminCard className="overflow-hidden p-0">
-      <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 bg-[linear-gradient(105deg,#0057e7_0%,#0a66f0_52%,#2f80ed_100%)] px-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_20px_rgba(0,87,231,0.18)]">
+      <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 md:h-11 bg-[linear-gradient(105deg,#0057e7_0%,#0a66f0_52%,#2f80ed_100%)] px-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_20px_rgba(0,87,231,0.18)]">
         <div className="flex min-w-0 items-center gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"><Search size={14} className="shrink-0 text-white/90" /></span><span className="text-xs font-black uppercase tracking-[0.14em]">Buscar cadastro</span></div>
         <div className="ml-auto flex max-w-full items-center justify-end">
           {hasActiveFilters && <button type="button" onClick={clearFilters} aria-label="Limpar filtros" title="Limpar filtros" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar filtros</button>}
         </div>
       </div>
-      <div className="p-4">
+      <div className="p-4 md:p-3">
         <div className="space-y-3 md:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button></DropdownMenuTrigger>
@@ -728,34 +728,34 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1">{renderMobileFilter()}</div>{sortMenu}</div>
         </div>
 
-        <div className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-4">
+        <div className="hidden gap-2 md:grid md:grid-cols-2 xl:grid-cols-4">
           <div className="min-w-0">
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Nome</label>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Nome</label>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
-              <input value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={`${INPUT} pl-9`} />
+              <input value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={`${INPUT} h-9 py-1.5 pl-9 text-xs`} />
             </div>
           </div>
           <div className="min-w-0">
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF/CNPJ</label>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF/CNPJ</label>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
-              <input value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={`${INPUT} pl-9`} />
+              <input value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={`${INPUT} h-9 py-1.5 pl-9 text-xs`} />
             </div>
           </div>
           {!platformUsersOnly && <div className="min-w-0">
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Vínculo</label>
-            <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Vínculo</label>
+            <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" className="min-h-9 py-1.5 text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
           </div>}
           <div className="min-w-0">
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label>
-            <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Status" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label>
+            <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Status" className="min-h-9 py-1.5 text-xs" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
           </div>
         </div>
       </div>
     </AdminCard>
 
-    <AdminCard>{loading ? <LoadingState /> : items.length === 0 ? <EmptyState
+    <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState
       icon={Users}
       title={platformUsersOnly ? "Nenhum usuário encontrado" : "Nenhum cadastro encontrado"}
       message={platformUsersOnly ? "Crie um usuário para dar acesso à Union World." : "Crie um cadastro ou ajuste os filtros."}
