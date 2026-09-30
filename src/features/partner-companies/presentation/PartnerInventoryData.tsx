@@ -141,20 +141,20 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
 
   if (!canViewTable) return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Seu perfil não possui permissão para visualizar a tabela de estoque.</div>;
 
-  return <div className="min-w-0 space-y-5">
+  return <div className="min-w-0 space-y-5 md:space-y-3 [&>header]:md:pb-3">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Estoque" subtitle={`${items.length} item${items.length !== 1 ? "s" : ""} cadastrado${items.length !== 1 ? "s" : ""}`} />
 
     <AdminSearchPanel title="Buscar estoque">
-      <div className="grid gap-3 md:grid-cols-3">
-        <FInput label="Nome" value={nameSearch} onChange={(e: any) => setNameSearch(e.target.value)} placeholder="Digite o nome da peça" />
-        <FInput label="SKU" value={skuSearch} onChange={(e: any) => setSkuSearch(e.target.value)} placeholder="Digite o SKU" />
-        <FInput label="Endereço" value={addressSearch} onChange={(e: any) => setAddressSearch(e.target.value)} placeholder="Estante, prateleira ou compartimento" />
+      <div className="grid gap-3 md:grid-cols-3 md:gap-2">
+        <FInput label="Nome" className="md:h-9 md:py-1.5" value={nameSearch} onChange={(e: any) => setNameSearch(e.target.value)} placeholder="Digite o nome da peça" />
+        <FInput label="SKU" className="md:h-9 md:py-1.5" value={skuSearch} onChange={(e: any) => setSkuSearch(e.target.value)} placeholder="Digite o SKU" />
+        <FInput label="Endereço" className="md:h-9 md:py-1.5" value={addressSearch} onChange={(e: any) => setAddressSearch(e.target.value)} placeholder="Estante, prateleira ou compartimento" />
       </div>
-      {hasFilters && <div className="mt-3 flex justify-end"><AdminButton variant="danger" size="sm" onClick={clearFilters} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} /> Limpar filtros</AdminButton></div>}
+      {hasFilters && <div className="mt-3 flex justify-end md:mt-2"><AdminButton variant="danger" size="sm" onClick={clearFilters} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} /> Limpar filtros</AdminButton></div>}
     </AdminSearchPanel>
 
-    <AdminCard>
+    <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {itemsQuery.isPending ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Package} title={items.length ? "Nenhum item encontrado" : "Nenhum item em estoque"} message={items.length ? "Ajuste os filtros para encontrar o item." : "Não há itens cadastrados nesta empresa."} /> : <>
         <div className="divide-y divide-[#0d1b2e]/8 md:hidden">
           {paged.map((item: any) => {
