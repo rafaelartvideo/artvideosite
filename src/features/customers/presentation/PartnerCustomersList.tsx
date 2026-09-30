@@ -77,7 +77,7 @@ export function PartnerCustomersList({
         aria-label={`Ordenação atual: ${sortLabel}`}
         title={sortLabel}
         className={cn(
-          "inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
+          "inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40 md:h-9 md:w-9",
           orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82]",
         )}
       >
@@ -102,7 +102,7 @@ export function PartnerCustomersList({
     />
 
     <AdminSearchPanel title="Buscar clientes">
-      <div className="grid grid-cols-[minmax(0,1fr)_42px] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_42px]">
+      <div className="grid grid-cols-[minmax(0,1fr)_42px] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_36px] md:gap-2">
         <SearchField
           label="Nome"
           value={nameSearch}
@@ -129,14 +129,14 @@ export function PartnerCustomersList({
           inputMode="numeric"
         />
       </div>
-      {hasFilters && <div className="mt-3 flex justify-end">
+      {hasFilters && <div className="mt-3 flex justify-end md:mt-2">
         <AdminButton variant="danger" size="sm" onClick={onClearFilters} className="bg-white text-red-600 hover:bg-red-50">
           <Eraser size={14} /> Limpar filtros
         </AdminButton>
       </div>}
     </AdminSearchPanel>
 
-    <AdminCard>
+    <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? <LoadingState /> : filtered.length === 0 ? (
         <EmptyState icon={Users} title="Nenhum cliente encontrado" message="Ajuste os filtros para localizar o cliente desejado." />
       ) : <>
@@ -217,7 +217,7 @@ function SearchField({
   inputMode?: "numeric";
 }) {
   return <div className="min-w-0">
-    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label>
+    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82] md:mb-1">{label}</label>
     <div className="relative">
       <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
       <input
@@ -225,7 +225,7 @@ function SearchField({
         value={value}
         onChange={event => onChange(event.target.value)}
         placeholder={placeholder}
-        className={cn(INPUT, "h-[42px] w-full pl-9 text-xs")}
+        className={cn(INPUT, "h-[42px] w-full pl-9 text-xs md:h-9 md:py-1.5")}
       />
     </div>
   </div>;
