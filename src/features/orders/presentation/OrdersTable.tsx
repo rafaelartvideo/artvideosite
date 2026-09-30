@@ -30,7 +30,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const rowNumber = (index: number) => filteredRowNumber({ page: safePage, pageSize, index });
 
   return (
-    <AdminCard>
+    <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? (
         <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 px-4 py-12 text-center" role="status" aria-live="polite" aria-busy="true">
           <LoadingSpinner size="lg" />
@@ -106,7 +106,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
             </table>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#0d1b2e]/8 px-4 py-3 text-[11px] font-semibold text-[#5a6a82]" aria-label="Legenda dos indicadores da ordem de serviço">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#0d1b2e]/8 px-4 py-3 text-[11px] md:py-2 font-semibold text-[#5a6a82]" aria-label="Legenda dos indicadores da ordem de serviço">
             <span className="font-bold text-[#0d1b2e]">Legenda:</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#16a34a]" aria-hidden="true" />Aberta</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-[#0057e7]" aria-hidden="true" />Fechada</span>
