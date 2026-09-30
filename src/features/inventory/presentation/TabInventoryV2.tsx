@@ -553,7 +553,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const setMobileValue = (value: string) => mobileFilter === "name" ? setNameSearch(value) : mobileFilter === "sku" ? setSkuSearch(value) : setAddressSearch(value);
   const activeLinkedSuppliers = linkedSuppliers.filter(supplier => supplier.is_active !== false);
 
-  return <div className="min-w-0 space-y-5">
+  return <div className="min-w-0 space-y-5 md:space-y-3 [&>header]:md:pb-3">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     {!routeResourceId && <>
@@ -567,15 +567,15 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
           </div>
           <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={mobileValue} onChange={event => setMobileValue(event.target.value)} placeholder={mobileFilter === "name" ? "Digite o nome da peça" : mobileFilter === "sku" ? "Digite o SKU" : "Estante, prateleira ou compartimento"} className={cn(INPUT, "h-[42px] w-full pl-9 text-sm")} /></div>
         </div>
-        <div className="hidden grid-cols-1 gap-3 md:grid md:grid-cols-3">
+        <div className="hidden grid-cols-1 gap-2 md:grid md:grid-cols-3">
           <SearchField label="Nome" value={nameSearch} onChange={setNameSearch} placeholder="Digite o nome da peça" />
           <SearchField label="SKU" value={skuSearch} onChange={setSkuSearch} placeholder="Digite o SKU" />
           <SearchField label="Endereço" value={addressSearch} onChange={setAddressSearch} placeholder="Estante, prateleira ou compartimento" />
-          {hasFilters && <div className="flex justify-end md:col-span-3"><AdminButton variant="danger" size="sm" onClick={clearFilters} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} /> Limpar filtros</AdminButton></div>}
+          {hasFilters && <div className="flex justify-end md:col-span-3 md:mt-0"><AdminButton variant="danger" size="sm" onClick={clearFilters} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} /> Limpar filtros</AdminButton></div>}
         </div>
       </AdminSearchPanel>}
 
-      {canViewTable && <AdminCard>{itemsQuery.isPending ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Package} title={totalItems === 0 && !hasFilters ? "Nenhum item em estoque" : "Nenhum item encontrado"} message={totalItems === 0 && !hasFilters ? "Cadastre um item para começar a controlar o inventário." : "Ajuste os filtros para encontrar a peça."} /> : <>
+      {canViewTable && <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">{itemsQuery.isPending ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Package} title={totalItems === 0 && !hasFilters ? "Nenhum item em estoque" : "Nenhum item encontrado"} message={totalItems === 0 && !hasFilters ? "Cadastre um item para começar a controlar o inventário." : "Ajuste os filtros para encontrar a peça."} /> : <>
         <div className="divide-y divide-[#0d1b2e]/8 md:hidden">{pagedItems.map((item: any) => {
           const quantity = Number(item.quantity ?? 0);
           const minQuantity = Number(item.min_quantity ?? 0);
@@ -670,7 +670,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
 }
 
 function SearchField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
-  return <div className="min-w-0"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs")} /></div></div>;
+  return <div className="min-w-0"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs md:h-9 md:py-1.5")} /></div></div>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
