@@ -43,7 +43,7 @@ export function AdminFilterMultiSelect({
   }, [options, normalizedSearch]);
 
   return <div className="min-w-0">
-    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label>
+    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82] md:mb-1">{label}</label>
     <Popover>
       <PopoverTrigger asChild>
         <button
@@ -51,7 +51,7 @@ export function AdminFilterMultiSelect({
           disabled={disabled}
           className={cn(
             INPUT,
-            "flex h-[42px] w-full min-w-0 cursor-default items-center justify-between gap-2 text-left text-xs font-normal",
+            "flex h-[42px] w-full min-w-0 cursor-default items-center justify-between gap-2 text-left text-xs font-normal md:h-9 md:py-1.5",
             disabled && "cursor-not-allowed opacity-60",
           )}
         >
