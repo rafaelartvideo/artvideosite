@@ -40,7 +40,7 @@ export function PartnerOrdersFilters({
           aria-label={`Ordenação atual: ${sortLabel}`}
           title={sortLabel}
           className={cn(
-            "inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
+            "inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40 md:h-9 md:w-9",
             orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82]",
           )}
         >
@@ -60,12 +60,12 @@ export function PartnerOrdersFilters({
   );
 
   return <AdminCard className="overflow-hidden p-0">
-    <div className="flex h-12 items-center gap-2.5 border-b border-white/10 bg-[linear-gradient(105deg,#0057e7_0%,#0a66f0_52%,#2f80ed_100%)] px-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_20px_rgba(0,87,231,0.18)]">
+    <div className="flex h-12 items-center gap-2.5 border-b border-white/10 md:h-11 bg-[linear-gradient(105deg,#0057e7_0%,#0a66f0_52%,#2f80ed_100%)] px-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_20px_rgba(0,87,231,0.18)]">
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"><Search size={14} className="shrink-0 text-white/90" /></span>
       <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
     </div>
-    <div className="p-4">
-      <div className="grid grid-cols-[minmax(0,1fr)_42px] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_42px]">
+    <div className="p-4 md:p-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_42px] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_36px] md:gap-2">
         <SearchField
           label="Número da OS / OS externa"
           value={numberSearch}
@@ -115,7 +115,7 @@ function SearchField({
   inputMode?: "numeric";
 }) {
   return <div className="min-w-0">
-    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label>
+    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82] md:mb-1">{label}</label>
     <div className="relative">
       <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
       <input
@@ -123,7 +123,7 @@ function SearchField({
         value={value}
         onChange={event => onChange(event.target.value)}
         placeholder={placeholder}
-        className={cn(INPUT, "h-[42px] w-full pl-9 text-xs")}
+        className={cn(INPUT, "h-[42px] w-full pl-9 text-xs md:h-9 md:py-1.5")}
       />
     </div>
   </div>;
