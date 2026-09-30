@@ -210,7 +210,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
 
   const sortMenu = <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <button type="button" aria-label={`Ordenação atual: ${sortLabel}`} title={sortLabel} className={cn("inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40", orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82]")}><SortIcon size={17} /></button>
+      <button type="button" aria-label={`Ordenação atual: ${sortLabel}`} title={sortLabel} className={cn("inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40 md:h-9 md:w-9", orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82]")}><SortIcon size={17} /></button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="min-w-[220px]">
       {([["", "Ordenação padrão", ArrowUpDown], ["asc", "Protocolo crescente", ArrowUpNarrowWide], ["desc", "Protocolo decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => setOrderSort(value)} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] font-bold text-[#0057e7]")}><Icon size={15} /><span>{label}</span>{orderSort === value && <Check size={15} className="ml-auto" />}</DropdownMenuItem>)}
@@ -219,7 +219,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
 
   const InfoRow = ({ label, value }: { label: string; value?: string | null }) => value ? <div className="min-w-0"><p className="mb-0.5 break-words text-[10px] font-bold uppercase text-[#5a6a82]">{label}</p><p className="break-words whitespace-pre-line text-sm font-medium text-[#0d1b2e]">{value}</p></div> : null;
 
-  return <div className="min-w-0 space-y-5">
+  return <div className="min-w-0 space-y-5 md:space-y-3 [&>header]:md:pb-3">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     {!routeResourceId && <>
@@ -236,14 +236,14 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
           {renderMobileFilter()}
           {hasMobileFilters && <div className="flex justify-end"><button type="button" onClick={clearMobileFilters} aria-label="Limpar filtros" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"><Eraser size={15} /></button></div>}
         </div>
-        <div className="hidden min-w-0 gap-3 md:grid md:grid-cols-[minmax(0,1fr)_220px_42px]">
+        <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-[minmax(0,1fr)_220px_36px]">
           <SearchField value={search} onChange={setSearch} placeholder="Cliente, CPF/CNPJ, WhatsApp ou protocolo" />
-          <AdminSelect value={filterStatus} onValueChange={setFilterStatus} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />
+          <AdminSelect value={filterStatus} onValueChange={setFilterStatus} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs md:h-9 md:py-1.5" ariaLabel="Filtrar por status" />
           {sortMenu}
         </div>
       </AdminSearchPanel>}
 
-      {canViewTable && <AdminCard>
+      {canViewTable && <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
         {quotesQuery.isPending ? <LoadingState /> : quotes.length === 0 ? <EmptyState icon={FileText} title="Nenhum orçamento encontrado" message="Ajuste os filtros ou aguarde novas solicitações." /> : <>
           <div className="divide-y divide-[#0d1b2e]/8 md:hidden">{quotes.map(quote => {
             const customer = quote.customer as any;
@@ -283,7 +283,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
 }
 
 function SearchField({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
-  return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs")} /></div>;
+  return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs md:h-9 md:py-1.5")} /></div>;
 }
 
 function MobileSearchField({ value, onChange, placeholder, inputMode }: { value: string; onChange: (value: string) => void; placeholder: string; inputMode?: "numeric" }) {
