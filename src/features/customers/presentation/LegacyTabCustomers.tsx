@@ -87,7 +87,7 @@ export function LegacyTabCustomers({
     else void details.open(customer);
   };
 
-  return <div className="space-y-5">
+  return <div className="space-y-5 md:space-y-3 [&>header]:md:pb-3">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     {!routeResourceId && canViewTable && (sharedReadOnly ? <PartnerCustomersList
