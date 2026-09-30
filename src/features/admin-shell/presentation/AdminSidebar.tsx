@@ -64,6 +64,17 @@ export function AdminSidebar({
   const canAccessOperation = operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
+  const externalLinks = [
+    ...(isArtVideoOrganization
+      ? [
+          { label: "SAC DIGITAL", href: "https://monitor.sac.digital/login" },
+          { label: "UNIQ", href: "https://web.uniq.app/login" },
+        ]
+      : []),
+    ...((isArtVideoOrganization || isPlatformOperatorOrganization)
+      ? [{ label: "FILA", href: "https://testeteste.com.br/painel" }]
+      : []),
+  ];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -257,13 +268,10 @@ export function AdminSidebar({
             ))}
           </div>
 
-          {isArtVideoOrganization && (
+          {externalLinks.length > 0 && (
             <section className={cn("border-t border-white/8", collapsed ? "mt-3 pt-3" : "mt-4 pt-4")} aria-label="Sites externos">
               {!collapsed && <h2 className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-white/40">SITES EXTERNOS</h2>}
-              {[
-                { label: "SAC DIGITAL", href: "https://monitor.sac.digital/login" },
-                { label: "UNIQ", href: "https://web.uniq.app/login" },
-              ].map(link => (
+              {externalLinks.map(link => (
                 <a
                   key={link.href}
                   href={link.href}
