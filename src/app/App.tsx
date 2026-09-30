@@ -3,7 +3,8 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "re
 import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
-import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";\nimport { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
+import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
+import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 
 declare const __APP_TARGET__: "site" | "crm" | "combined";
 declare const __PUBLIC_SITE_URL__: string;
