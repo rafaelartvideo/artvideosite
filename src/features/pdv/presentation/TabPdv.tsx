@@ -56,10 +56,10 @@ export function TabPdv() {
   const organizationId = activeOrganizationId || "";
   const canConfigure = hasPermission("pdv.settings.manage");
   const canSell = hasPermission("pdv.sales.create");
-  const canOpenCash = hasPermission("finance.cash.open");
-  const canCloseCash = hasPermission("finance.cash.close");
-  const canSupplyCash = hasPermission("finance.cash.supply");
-  const canWithdrawCash = hasPermission("finance.cash.withdraw");
+  const canOpenCash = hasPermission("pdv.cash.open");
+  const canCloseCash = hasPermission("pdv.cash.close");
+  const canSupplyCash = hasPermission("pdv.cash.supply");
+  const canWithdrawCash = hasPermission("pdv.cash.withdraw");
 
   const bootstrapQuery = useQuery({
     queryKey: queryKeys.pdv.bootstrap(organizationId || "none"),
