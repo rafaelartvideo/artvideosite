@@ -1,13 +1,11 @@
 export function AdminPanelLoader() {
   return (
     <div
-      className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[linear-gradient(145deg,#061426_0%,#08264a_52%,#0a3d73_100%)] px-6 text-white"
+      className="admin-crm admin-primary-loader relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-6 text-white"
       role="status"
       aria-live="polite"
       aria-label="Carregando painel"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(30,107,190,0.16),transparent_34%)]" />
-
       <div className="relative z-10 flex flex-col items-center text-center">
         <img
           src="/assets/crm/logos/logosolo-semfundo.png"
