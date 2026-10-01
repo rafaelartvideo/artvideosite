@@ -28,6 +28,7 @@ export type InventoryMovementInput = {
 const SAFE_ITEM_COLUMNS = [
   "id",
   "organization_id",
+  "product_id",
   "name",
   "sku",
   "description",
