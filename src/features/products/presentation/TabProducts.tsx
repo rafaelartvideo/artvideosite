@@ -2,7 +2,6 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  BadgeDollarSign,
   CircleHelp,
   Edit2,
   FileText,
