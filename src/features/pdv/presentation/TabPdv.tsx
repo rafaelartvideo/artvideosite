@@ -144,7 +144,7 @@ export function TabPdv({
     canSell
     && bootstrap?.configured
     && Number(bootstrap.readiness.active_products || 0) > 0
-    && Number(bootstrap.readiness.active_payment_methods || 0) > 0
+    && Number(bootstrap.readiness.ready_payment_methods || 0) > 0
     && (!settings?.require_open_cash || openSession),
   );
 
@@ -205,7 +205,7 @@ export function TabPdv({
   }
 
   const cashOptions = (bootstrap?.cash_accounts || []).map(account => ({ value: account.id, label: account.name }));
-  const readiness = bootstrap?.readiness || { active_products: 0, active_payment_methods: 0 };
+  const readiness = bootstrap?.readiness || { active_products: 0, active_payment_methods: 0, ready_payment_methods: 0 };
 
   if (routeResourceId === "sale" && bootstrap && canStartSale) {
     return <PdvSaleWorkspace bootstrap={bootstrap} onBack={() => onRouteChange?.(null, null)} />;
@@ -304,7 +304,7 @@ export function TabPdv({
           </AdminCardHeader>
           <AdminCardContent className="space-y-3">
             <CompactReadyRow ready={readiness.active_products > 0} label="Produtos ativos" value={String(readiness.active_products)} />
-            <CompactReadyRow ready={readiness.active_payment_methods > 0} label="Formas de pagamento" value={String(readiness.active_payment_methods)} />
+            <CompactReadyRow ready={readiness.ready_payment_methods > 0} label="Formas de pagamento prontas" value={String(readiness.ready_payment_methods)} />
             <CompactReadyRow ready={!settings?.require_open_cash || Boolean(openSession)} label="Caixa exigido" value={settings?.require_open_cash ? (openSession ? "Aberto" : "Fechado") : "Não obrigatório"} />
             <div className="border-t border-[#0d1b2e]/8 pt-3">
               <p className="text-xs leading-5 text-[#5a6a82]">{canStartSale ? "A estrutura está pronta para iniciar uma venda." : "Conclua os itens pendentes antes de iniciar uma venda."}</p>
