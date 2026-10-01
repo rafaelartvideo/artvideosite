@@ -12,6 +12,45 @@ const LABELS: Record<FinanceSection, string> = {
   registries: "Cadastros financeiros",
 };
 
+export function FinanceSubsectionTabs<T extends string>({
+  value,
+  items,
+  onSelect,
+  ariaLabel = "Subseções do financeiro",
+}: {
+  value: T;
+  items: Array<{ id: T; label: string }>;
+  onSelect: (value: T) => void;
+  ariaLabel?: string;
+}) {
+  return <nav className="overflow-x-auto border border-[#0d1b2e]/8 bg-white px-1.5 shadow-sm" aria-label={ariaLabel}>
+    <div className="flex min-w-max items-stretch gap-1">
+      {items.map(item => {
+        const selected = value === item.id;
+        return <button
+          key={item.id}
+          type="button"
+          onClick={() => onSelect(item.id)}
+          aria-current={selected ? "page" : undefined}
+          className={cn(
+            "group relative min-h-11 whitespace-nowrap px-4 py-3 text-xs font-bold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-inset",
+            selected ? "text-primary" : "text-[#5a6a82] hover:text-primary",
+          )}
+        >
+          {item.label}
+          <span
+            aria-hidden="true"
+            className={cn(
+              "absolute inset-x-3 bottom-0 h-0.5 origin-center bg-primary transition-transform duration-300 ease-out",
+              selected ? "scale-x-100" : "scale-x-0 group-hover:scale-x-50",
+            )}
+          />
+        </button>;
+      })}
+    </div>
+  </nav>;
+}
+
 export function FinanceSectionTabs({
   section,
   allowedSections,
@@ -21,17 +60,10 @@ export function FinanceSectionTabs({
   allowedSections: FinanceSection[];
   onSelect: (section: FinanceSection) => void;
 }) {
-  return <div className="overflow-x-auto border-b border-[#0d1b2e]/10">
-    <div className="flex min-w-max gap-1">
-      {allowedSections.map(item => <button
-        key={item}
-        type="button"
-        onClick={() => onSelect(item)}
-        className={cn(
-          "border-b-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap",
-          section === item ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]",
-        )}
-      >{LABELS[item]}</button>)}
-    </div>
-  </div>;
+  return <FinanceSubsectionTabs
+    value={section}
+    items={allowedSections.map(item => ({ id: item, label: LABELS[item] }))}
+    onSelect={onSelect}
+    ariaLabel="Áreas do financeiro"
+  />;
 }
