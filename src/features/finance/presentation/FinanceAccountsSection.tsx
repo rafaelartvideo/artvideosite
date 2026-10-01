@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, BtnPrimary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceMovements } from "../application/useFinanceMovements";
@@ -116,19 +116,16 @@ export function FinanceAccountsSection() {
 
   const loading = finance.accountsQuery.isLoading || money.balancesQuery.isLoading;
   return <div className="space-y-4">
-    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0">
-        <h2 className="text-lg font-black text-[#0d1b2e]">Caixas e contas</h2>
-        <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">Cadastre onde o dinheiro da empresa é movimentado. O saldo é calculado exclusivamente pelas movimentações financeiras.</p>
+    <Section
+      title="Caixas e contas"
+      description="Cadastre onde o dinheiro da empresa é movimentado. O saldo é calculado exclusivamente pelas movimentações financeiras."
+      actions={canManage ? <BtnPrimary onClick={openNew}><Plus size={16} /> Nova conta</BtnPrimary> : undefined}
+      flush
+    >
+      <div className="border-b border-[#0d1b2e]/8 p-4 sm:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Saldo total</p><p className="mt-1 text-2xl font-black text-[#0057e7]">{formatCurrency(totalBalance)}</p></div><p className="max-w-xl text-xs leading-relaxed text-[#5a6a82]">Soma dos saldos derivados do livro financeiro. Transferências entre contas não alteram este total.</p></div>
       </div>
-      {canManage && <BtnPrimary onClick={openNew}><Plus size={16} /> Nova conta</BtnPrimary>}
-    </div>
 
-    <AdminCard className="p-4 sm:p-5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Saldo total</p><p className="mt-1 text-2xl font-black text-[#0057e7]">{formatCurrency(totalBalance)}</p></div><p className="max-w-xl text-xs leading-relaxed text-[#5a6a82]">Soma dos saldos derivados do livro financeiro. Transferências entre contas não alteram este total.</p></div>
-    </AdminCard>
-
-    <AdminCard>
       <AdminCardToolbar className="sm:justify-between">
         <p className="text-xs font-semibold text-[#5a6a82]">{accounts.length} {accounts.length === 1 ? "conta cadastrada" : "contas cadastradas"}</p>
         <p className="text-xs text-[#8b98aa]">Sem exclusão: contas podem ser ativadas ou inativadas.</p>
@@ -148,7 +145,7 @@ export function FinanceAccountsSection() {
           </tr>)}</tbody>
         </table>
       </div>}
-    </AdminCard>
+    </Section>
 
     {Boolean(finance.settingsQuery.data?.cash_session_enabled) && <FinanceCashSection accounts={accounts} />}
 
