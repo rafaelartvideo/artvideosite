@@ -25,7 +25,7 @@ function periodLabel(appointment: AppointmentWithRelations) {
 
 export function AppointmentDetailsDialog({ appointment, onClose, onOpenOrder }: Props) {
   return <Dialog open={Boolean(appointment)} onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent showClose={false} className="max-h-[calc(100vh-2rem)] max-w-2xl gap-0 overflow-y-auto rounded-xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl">
+    <DialogContent showClose={false} className="admin-crm max-h-[calc(100vh-2rem)] max-w-2xl gap-0 overflow-y-auto rounded-xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl">
       <DialogTitle className="sr-only">Detalhes do agendamento</DialogTitle>
       {appointment && <>
         <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4">
