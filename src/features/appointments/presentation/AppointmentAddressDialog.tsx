@@ -37,7 +37,7 @@ export function AppointmentAddressDialog({ form, customer, setForm, onClose, onZ
   };
 
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent showClose={false} className="max-w-lg gap-0 rounded-xl bg-white p-5 shadow-2xl">
+    <DialogContent showClose={false} className="admin-crm max-w-lg gap-0 rounded-xl bg-white p-5 shadow-2xl">
       <DialogTitle className="sr-only">Endereço do atendimento</DialogTitle>
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-black text-[#0d1b2e]">Endereço do atendimento</h3>
