@@ -14,7 +14,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceReports } from "../application/useFinanceReports";
 import type { FinancialEntryOriginType, FinancialReportFilters } from "../domain/finance.types";
@@ -120,12 +120,9 @@ export function FinanceReportsSection() {
   const errorText = activeError instanceof Error ? activeError.message : "";
 
   return <div className="space-y-4">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h2 className="text-lg font-black text-[#0d1b2e]">Relatórios financeiros</h2>
-        <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">DRE por competência e Fluxo de Caixa previsto x realizado, sempre isolados pela empresa ativa.</p>
-      </div>
-      <AdminButton variant="secondary" onClick={resetFilters}><RefreshCcw size={15} /> Limpar filtros</AdminButton>
+    <div>
+      <h2 className="text-lg font-black text-[#0d1b2e]">Relatórios financeiros</h2>
+      <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">DRE por competência e Fluxo de Caixa previsto x realizado, sempre isolados pela empresa ativa.</p>
     </div>
 
     <FinanceSubsectionTabs
@@ -138,7 +135,11 @@ export function FinanceReportsSection() {
       ariaLabel="Relatórios financeiros"
     />
 
-    <AdminCard className="p-4">
+    <Section
+      title="Filtros do relatório"
+      actions={<AdminButton variant="secondary" onClick={resetFilters}><RefreshCcw size={15} /> Limpar filtros</AdminButton>}
+      contentClassName="p-4 sm:p-4"
+    >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <FInput label="De" type="date" value={filters.from} onChange={(event: any) => setFilter("from", event.target.value)} />
         <FInput label="Até" type="date" value={filters.to} onChange={(event: any) => setFilter("to", event.target.value)} />
@@ -174,7 +175,7 @@ export function FinanceReportsSection() {
         />}
       </div>
       {tab === "cash-flow" && (filters.account_id || filters.payment_method_id) && <p className="mt-3 text-[11px] text-[#5a6a82]">Títulos ainda em aberto não possuem conta ou forma de pagamento definida; ao filtrar por esses campos, o previsto considera os repasses já programados.</p>}
-    </AdminCard>
+    </Section>
 
     {errorText && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
 
