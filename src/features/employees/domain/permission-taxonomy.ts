@@ -19,7 +19,7 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "PDV", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Checklists", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Auditoria", "Documentos", "Dados da Empresa", "Termos", "Contato"];
-const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Checklists", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Assinaturas", "Tipos de Anexo", "Calendário", "Endereços", "Funcionários", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
+const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Vendas", "Caixa", "Configurações", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Checklists", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Assinaturas", "Tipos de Anexo", "Calendário", "Endereços", "Funcionários", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
@@ -73,6 +73,11 @@ export function permissionSectionName(permission: PermissionRecord) {
   if (module === "documents") {
     if (key.startsWith("documents.signatures.")) return "Assinaturas";
     return key.startsWith("documents.attachment_types.") ? "Tipos de Anexo" : "Impressão / Modelos";
+  }
+  if (module === "pdv") {
+    if (key.startsWith("pdv.sales.")) return "Vendas";
+    if (key.startsWith("pdv.cash.")) return "Caixa";
+    if (key.startsWith("pdv.settings.")) return "Configurações";
   }
   if (module === "inventory") {
     if (key.includes("movement")) return "Movimentações";
