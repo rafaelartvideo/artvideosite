@@ -5,7 +5,7 @@ import { Edit2, Package, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { deleteProduct, loadProductCatalog, saveProduct, updateProductFlags } from "../infrastructure/products.repository";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { cn, formatCurrency } from "@/shared/domain/formatters";
 import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -53,12 +53,10 @@ function emptyForm(): ProductForm {
 }
 
 export function TabProducts({
-  onBack,
   routeResourceId,
   routeSubpage,
   onRouteChange,
 }: {
-  onBack: () => void;
   routeResourceId?: string | null;
   routeSubpage?: string | null;
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
@@ -288,10 +286,7 @@ export function TabProducts({
       <PageHeader
         title="Produtos"
         subtitle={`${products.length} produto${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`}
-        actions={<div className="flex items-center gap-2">
-          <InternalBackButton onBack={onBack} />
-          {canCreate && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo produto</AdminButton>}
-        </div>}
+        actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo produto</AdminButton> : undefined}
       />
 
       {canViewTable && <AdminCard>
