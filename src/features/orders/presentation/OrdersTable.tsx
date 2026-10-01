@@ -260,10 +260,12 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                   {hasPermission("orders.table.actions") && <div onClick={event => event.stopPropagation()}>{quickActions(o)}</div>}
                 </div>
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                  {canViewSituation && <div className="inline-flex min-w-0 items-center gap-1">
-                    {(o.situation as any)?.name ? <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} /> : <span className="text-xs text-[#5a6a82]">Sem situação</span>}
-                    {situationHistoryButton(o)}
-                  </div>}
+                  {canViewSituation && ((o.situation as any)?.name
+                    ? <div className="inline-flex min-w-0 items-center gap-1">
+                        <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} />
+                        {situationHistoryButton(o)}
+                      </div>
+                    : <span className="text-xs text-[#5a6a82]">—</span>)}
                   {o.cannot_be_solved && !isCancelled(o) && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}
                 </div>
                 <div className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2 text-xs">
@@ -303,10 +305,12 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                 {hasPermission("orders.table.equipment") && <td className="text-xs text-[#5a6a82]">{equipmentSummary(o)}</td>}
                 <td className="text-xs text-[#5a6a82]">{o.created_at ? fmtDate(o.created_at, true) : "—"}</td>
                 {hasPermission("orders.table.scheduled_at") && <td className="text-xs text-[#5a6a82]">{o.scheduled_at ? fmtDate(o.scheduled_at, true) : "—"}</td>}
-                {canViewSituation && <td><div className="flex min-w-0 items-center gap-1">
-                  {(o.situation as any)?.name ? <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} /> : <span className="text-xs text-[#5a6a82]">Sem situação</span>}
-                  {situationHistoryButton(o)}
-                </div></td>}
+                {canViewSituation && <td>{(o.situation as any)?.name
+                  ? <div className="flex min-w-0 items-center gap-1">
+                      <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} />
+                      {situationHistoryButton(o)}
+                    </div>
+                  : <span className="text-xs text-[#5a6a82]">—</span>}</td>}
                 {hasPermission("orders.table.actions") && <td><div onClick={event => event.stopPropagation()} className="flex items-center justify-end gap-2">
                   {canComplete(o) && <AdminButton variant="primary" size="sm" onClick={event => { event.stopPropagation(); onComplete(o); }}>Concluir</AdminButton>}
                   {quickActions(o)}
