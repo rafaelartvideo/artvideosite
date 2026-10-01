@@ -7,7 +7,6 @@ import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
   listOrganizationTerms,
   saveOrganizationTerm,
-  type OrganizationTerm,
   type OrganizationTermType,
 } from "../infrastructure/terms.repository";
 
@@ -111,7 +110,6 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("terms.view") || hasPermission("terms.manage");
   const canManage = hasPermission("terms.manage");
-  const [terms, setTerms] = useState<OrganizationTerm[]>([]);
   const [drafts, setDrafts] = useState<Record<OrganizationTermType, Draft>>(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [savingType, setSavingType] = useState<OrganizationTermType | null>(null);
@@ -125,7 +123,6 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
     setLoading(true);
     try {
       const rows = await listOrganizationTerms(activeOrganizationId);
-      setTerms(rows);
       setDrafts({
         usage: rows.find(term => term.term_type === "usage")
           ? {
