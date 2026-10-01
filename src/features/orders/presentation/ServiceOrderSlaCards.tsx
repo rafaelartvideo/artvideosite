@@ -115,11 +115,11 @@ export function ServiceOrderSlaCards({
       </> : <p className="mt-4 break-words rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600">Prazo de SLA não configurado.</p>}
     </AdminCard>
 
-    <AdminCard className="border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 sm:p-5">
+    <AdminCard className="border-primary/30 bg-gradient-to-br from-primary-soft to-primary-soft-strong p-4 sm:p-5">
       <div className="flex min-w-0 items-start gap-3">
-        <div className="shrink-0 rounded-lg bg-blue-100 p-2 text-[#0057e7]"><Clock size={18} /></div>
+        <div className="shrink-0 rounded-lg bg-primary-soft-strong p-2 text-primary"><Clock size={18} /></div>
         <div className="min-w-0">
-          <p className="break-words text-[10px] font-black uppercase tracking-wider text-[#0057e7]">Tempo total da ordem de serviço</p>
+          <p className="break-words text-[10px] font-black uppercase tracking-wider text-primary">Tempo total da ordem de serviço</p>
           <p className="mt-1 break-words text-2xl font-black text-[#0d1b2e]">{formatElapsedHours(orderElapsed)}</p>
           <p className="break-words text-[11px] leading-relaxed text-[#5a6a82]">{order.completed_at ? "Tempo encerrado na conclusão" : "Correndo desde a abertura da OS"}</p>
         </div>
