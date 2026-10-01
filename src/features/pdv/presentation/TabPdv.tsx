@@ -8,6 +8,7 @@ import {
   Minus,
   Package,
   Plus,
+  ReceiptText,
   Settings2,
   ShoppingCart,
   Store,
@@ -35,6 +36,8 @@ import {
   loadPdvBootstrap,
   savePdvSettings,
 } from "../infrastructure/pdv.repository";
+import { PdvSaleWorkspace } from "./PdvSaleWorkspace";
+import { PdvSalesHistory } from "./PdvSalesHistory";
 
 type CashAction = "open" | "supply" | "withdraw" | "close";
 
@@ -211,13 +214,23 @@ export function TabPdv({
     return <PdvSaleWorkspace bootstrap={bootstrap} onBack={() => onRouteChange?.(null, null)} />;
   }
 
+  if (routeResourceId === "sales") {
+    return <PdvSalesHistory
+      onBack={() => onRouteChange?.(null, null)}
+      onNewSale={() => onRouteChange?.("sale", null)}
+    />;
+  }
+
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <PageHeader
       title="PDV"
       subtitle="Venda rápida com produtos, caixa físico e integração automática com o Financeiro."
-      actions={canSell ? <AdminButton disabled={!canStartSale} onClick={() => onRouteChange?.("sale", null)} title={!canStartSale ? "Abra e configure o caixa antes de iniciar a venda." : "Nova venda"}><ShoppingCart size={15} /> Nova venda</AdminButton> : undefined}
+      actions={<div className="flex flex-wrap justify-end gap-2">
+        <AdminButton variant="secondary" onClick={() => onRouteChange?.("sales", null)}><ReceiptText size={15} /> Vendas</AdminButton>
+        {canSell && <AdminButton disabled={!canStartSale} onClick={() => onRouteChange?.("sale", null)} title={!canStartSale ? "Abra e configure o caixa antes de iniciar a venda." : "Nova venda"}><ShoppingCart size={15} /> Nova venda</AdminButton>}
+      </div>}
     />
 
     {!bootstrap?.configured ? <AdminCard className="overflow-hidden">
