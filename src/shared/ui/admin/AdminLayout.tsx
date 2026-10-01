@@ -45,7 +45,7 @@ export function AdminButton({
   const [actionLoading, setActionLoading] = React.useState(false);
   const resolvedLoading = loading || actionLoading;
   const variants: Record<AdminButtonVariant, string> = {
-    primary: "border border-transparent bg-[#0057e7] text-white hover:bg-[#0046c0]",
+    primary: "border border-[#0a3b78] bg-[linear-gradient(105deg,#082f63_0%,#0b4f9c_100%)] text-white hover:bg-[linear-gradient(105deg,#072956_0%,#094586_100%)]",
     secondary: "border border-[#0d1b2e]/15 bg-white text-[#0d1b2e] hover:bg-[#f5f7fa]",
     danger: "border border-red-200 bg-red-600 text-white hover:bg-red-700",
     ghost: "border border-transparent bg-transparent text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-[#0057e7]",
@@ -218,7 +218,7 @@ export function AdminSegmentedControl<T extends string>({
         onClick={() => onChange(option.value)}
         className={cn(
           "cursor-default px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-inset",
-          value === option.value ? "bg-[#0057e7] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]",
+          value === option.value ? "bg-[linear-gradient(105deg,#082f63_0%,#0b4f9c_100%)] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]",
           disabled && "cursor-default opacity-70",
         )}
       >
