@@ -218,6 +218,7 @@ export function TabPdv({
     return <PdvSalesHistory
       onBack={() => onRouteChange?.(null, null)}
       onNewSale={() => onRouteChange?.("sale", null)}
+      canStartSale={canStartSale}
     />;
   }
 
