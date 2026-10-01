@@ -632,7 +632,7 @@ export function PdvSaleWorkspace({
 
     <AdminDialog
       open={Boolean(saleResult)}
-      onClose={() => undefined}
+      onClose={newSale}
       title="Venda concluída"
       description={saleResult ? `Venda #${saleResult.sale_number} registrada com sucesso.` : undefined}
       className="max-w-lg"
