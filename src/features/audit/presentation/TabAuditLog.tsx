@@ -183,6 +183,7 @@ const FIELD_LABELS: Record<string, string> = {
   cancelled_at: "Cancelado em",
   cancelled_by: "Cancelado por",
   cancellation_reason: "Motivo do cancelamento",
+  cash_session_id: "Sessão de caixa",
   change_amount: "Troco",
   calculate_entry_difal: "Calcular diferencial de ICMS na entrada",
   category_id: "Categoria",
