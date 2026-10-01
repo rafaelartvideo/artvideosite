@@ -261,7 +261,7 @@ export function AdminDialog({
   </Dialog>;
 }
 
-export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false }: {
+export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false, closing = false }: {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -271,6 +271,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   children: React.ReactNode;
   maxW?: string;
   fullPage?: boolean;
+  closing?: boolean;
 }) {
   const setPage = React.useContext(AdminPageContext)?.setPage;
   const onCloseRef = React.useRef(onClose);
@@ -318,7 +319,12 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   const legacyCompactWidths = new Set(["max-w-xl", "max-w-2xl", "max-w-3xl"]);
   const resolvedMaxW = legacyCompactWidths.has(maxW) ? "max-w-6xl" : maxW;
   return <div
-    className="admin-page-mobile-safe absolute inset-0 z-[35] bg-[#f8fafc] animate-in fade-in slide-in-from-right-2 duration-200"
+    className={cn(
+      "admin-page-mobile-safe absolute inset-0 z-[35] bg-[#f8fafc] motion-reduce:animate-none",
+      closing
+        ? "pointer-events-none animate-out fade-out slide-out-to-right-2 duration-200 ease-in"
+        : "animate-in fade-in slide-in-from-right-2 duration-200 ease-out",
+    )}
     role="main"
     aria-label={title}
     style={{ "--admin-browser-bottom-inset": `${browserBottomInset}px` } as React.CSSProperties}
