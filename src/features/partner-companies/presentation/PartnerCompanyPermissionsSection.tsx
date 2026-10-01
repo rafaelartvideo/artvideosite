@@ -19,6 +19,7 @@ const SAFE_PARTNER_MODULES = new Set([
   "customers",
   "orders",
   "inventory",
+  "products",
   "equipment",
   "services",
   "service_types",
