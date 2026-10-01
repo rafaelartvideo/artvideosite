@@ -85,13 +85,13 @@ export const getServiceCategories = () =>
   supabase.from("service_categories").select("*").eq("is_active", true).order("sort_order", { ascending: true });
 
 export const getProducts = () =>
-  supabase.from("products").select("*").eq("is_active", true).order("created_at", { ascending: false });
+  supabase.from("products").select("*").eq("is_active", true).eq("show_in_catalog", true).order("created_at", { ascending: false });
 
 export const getFeaturedProducts = () =>
-  supabase.from("products").select("*").eq("is_active", true).eq("is_featured", true).order("created_at", { ascending: false });
+  supabase.from("products").select("*").eq("is_active", true).eq("show_in_catalog", true).eq("is_featured", true).order("created_at", { ascending: false });
 
 const getProductBySlug = (slug: string) =>
-  supabase.from("products").select("*").eq("slug", slug).eq("is_active", true).maybeSingle();
+  supabase.from("products").select("*").eq("slug", slug).eq("is_active", true).eq("show_in_catalog", true).maybeSingle();
 
 export async function getProductDetailBySlug(slug: string) {
   const { data: product, error } = await getProductBySlug(slug);
