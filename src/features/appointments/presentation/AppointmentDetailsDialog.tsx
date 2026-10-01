@@ -29,7 +29,7 @@ export function AppointmentDetailsDialog({ appointment, onClose, onOpenOrder }: 
       <DialogTitle className="sr-only">Detalhes do agendamento</DialogTitle>
       {appointment && <>
         <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4">
-          <div><h2 className="font-black text-[#0d1b2e]">Detalhes do agendamento</h2><span className="mt-1 inline-block rounded-full px-2 py-1 text-[10px] font-bold text-white" style={{ backgroundColor: appointment.situation?.color || "#0057e7" }}>{appointment.situation?.name || "Agendamento"}</span></div>
+          <div><h2 className="font-black text-[#0d1b2e]">Detalhes do agendamento</h2><span className="mt-1 inline-block rounded-full px-2 py-1 text-[10px] font-bold text-white" style={{ backgroundColor: appointment.situation?.color || "var(--primary)" }}>{appointment.situation?.name || "Agendamento"}</span></div>
           <AdminIconButton ariaLabel="Fechar detalhes" onClick={onClose} variant="ghost"><X size={18} /></AdminIconButton>
         </div>
         <div className="space-y-4 p-5">
@@ -48,14 +48,14 @@ export function AppointmentDetailsDialog({ appointment, onClose, onOpenOrder }: 
             <p className="text-sm text-[#0d1b2e]">É retorno: {appointment.is_return ? "Sim" : "Não"}</p>
           </Section>
           <Section title="Técnicos">
-            {appointment.appointment_technicians?.length ? <div className="flex flex-wrap gap-2">{appointment.appointment_technicians.map(technician => <span key={technician.employee_id} className="rounded-full bg-[#e8eef8] px-2.5 py-1 text-xs font-bold text-[#0057e7]">{technician.employee?.full_name || "Técnico"}</span>)}</div> : <p className="text-sm text-[#5a6a82]">Nenhum técnico selecionado</p>}
+            {appointment.appointment_technicians?.length ? <div className="flex flex-wrap gap-2">{appointment.appointment_technicians.map(technician => <span key={technician.employee_id} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-primary">{technician.employee?.full_name || "Técnico"}</span>)}</div> : <p className="text-sm text-[#5a6a82]">Nenhum técnico selecionado</p>}
           </Section>
           <Section title="Endereço">
             {appointment.street || appointment.city || appointment.zip_code ? <p className="whitespace-pre-wrap text-sm text-[#0d1b2e]">{[appointment.zip_code, [appointment.street, appointment.number].filter(Boolean).join(", "), appointment.complement, appointment.neighborhood, [appointment.city, appointment.state].filter(Boolean).join(" - ")].filter(Boolean).join("\n")}</p> : <p className="text-sm text-[#5a6a82]">Endereço não informado</p>}
           </Section>
           {appointment.service_order_id && <Section title="OS relacionada">
-            <p className="text-sm font-bold text-[#0057e7]">{appointment.service_order?.os_number ? `OS ${appointment.service_order.os_number}` : "OS relacionada"}</p>
-            <AdminButton variant="secondary" size="sm" onClick={() => { onClose(); onOpenOrder(appointment.service_order_id as string); }} className="mt-2 border-[#0057e7]/30 text-[#0057e7]">Abrir OS</AdminButton>
+            <p className="text-sm font-bold text-primary">{appointment.service_order?.os_number ? `OS ${appointment.service_order.os_number}` : "OS relacionada"}</p>
+            <AdminButton variant="secondary" size="sm" onClick={() => { onClose(); onOpenOrder(appointment.service_order_id as string); }} className="mt-2 border-primary/30 text-primary">Abrir OS</AdminButton>
           </Section>}
         </div>
         <div className="flex justify-end border-t border-[#0d1b2e]/10 px-5 py-4"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>
