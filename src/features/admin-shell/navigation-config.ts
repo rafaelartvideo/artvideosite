@@ -128,7 +128,6 @@ export const operationModuleKeys = [
   "orders",
   "agenda",
   "inventory",
-  "products",
   "equipment",
   "checklists",
   "services",
