@@ -24,6 +24,7 @@ import {
   AdminDialog,
   AdminIconButton,
   PageHeader,
+  Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -378,7 +379,7 @@ export function PdvSaleWorkspace({
           <p className="mt-2 text-[10px] leading-4 text-[#5a6a82]">Leitores USB/Bluetooth que digitam o código e enviam Enter funcionam diretamente neste campo.</p>
         </AdminSearchPanel>
 
-        <AdminCard className="overflow-hidden">
+        <Section title="Produtos encontrados" flush>
           {productsQuery.isPending ? <LoadingState text="Buscando produtos..." /> : products.length === 0 ? (
             <EmptyState
               icon={Search}
@@ -410,19 +411,16 @@ export function PdvSaleWorkspace({
               </button>;
             })}
           </div>}
-        </AdminCard>
+        </Section>
       </div>
 
-      <AdminCard className="h-fit overflow-hidden xl:sticky xl:top-0">
-        <div className="border-b border-[#0d1b2e]/8 px-4 py-4 sm:px-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="flex items-center gap-2 text-base font-black text-[#0d1b2e]"><ShoppingCart size={17} /> Carrinho</h2>
-              <p className="mt-1 text-xs text-[#5a6a82]">{cart.length} produto{cart.length === 1 ? "" : "s"} diferente{cart.length === 1 ? "" : "s"}</p>
-            </div>
-            {cart.length > 0 && <AdminIconButton ariaLabel="Limpar carrinho" title="Limpar carrinho" variant="danger" onClick={() => setCart([])}><Trash2 size={15} /></AdminIconButton>}
-          </div>
-        </div>
+      <Section
+        title="Carrinho"
+        description={`${cart.length} produto${cart.length === 1 ? "" : "s"} diferente${cart.length === 1 ? "" : "s"}`}
+        actions={cart.length > 0 ? <AdminIconButton ariaLabel="Limpar carrinho" title="Limpar carrinho" variant="danger" onClick={() => setCart([])}><Trash2 size={15} /></AdminIconButton> : undefined}
+        flush
+        className="h-fit xl:sticky xl:top-0"
+      >
 
         {cart.length === 0 ? <div className="p-8 text-center">
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft text-primary"><Package size={20} /></div>
@@ -463,7 +461,7 @@ export function PdvSaleWorkspace({
           </AdminButton>
           {usablePaymentMethods.length === 0 && <p className="mt-2 text-center text-[10px] font-semibold text-amber-700">Nenhuma forma de pagamento está pronta para uso.</p>}
         </div>
-      </AdminCard>
+      </Section>
     </div>
 
     <AdminDialog
