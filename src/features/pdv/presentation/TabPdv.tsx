@@ -407,12 +407,12 @@ export function TabPdv({
     </>}
 
     {cashDialog && cashAccount && <div className="fixed inset-0 z-[160] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
-      <div className="admin-crm w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="border-b border-[#0d1b2e]/8 px-5 py-4">
+      <div className="admin-crm flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="shrink-0 border-b border-[#0d1b2e]/8 px-5 py-4">
           <h2 className="text-lg font-black text-[#0d1b2e]">{cashActionTitle(cashDialog)}</h2>
           <p className="mt-1 text-xs text-[#5a6a82]">{cashAccount.name}</p>
         </div>
-        <div className="space-y-4 p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           {cashDialog === "close" && canViewCashReports && closeReportQuery.isPending && <LoadingState text="Calculando fechamento..." />}
 
           {cashDialog === "close" && closeReportQuery.data && <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
@@ -462,7 +462,7 @@ export function TabPdv({
             placeholder={cashDialog === "close" ? "Obrigatória apenas se houver diferença no fechamento" : undefined}
           />
         </div>
-        <div className="flex flex-col-reverse gap-2 border-t border-[#0d1b2e]/8 px-5 py-4 sm:flex-row sm:justify-end">
+        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 sm:flex-row sm:justify-end">
           <AdminButton variant="secondary" onClick={closeCashDialog}>Cancelar</AdminButton>
           <AdminButton onClick={() => void submitCashAction()}>Confirmar</AdminButton>
         </div>
