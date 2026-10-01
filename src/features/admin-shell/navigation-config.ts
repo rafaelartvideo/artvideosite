@@ -30,13 +30,13 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "customers", label: "Cadastros", icon: Users },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "inventory", label: "Estoque", icon: Package },
+  { id: "products", label: "Produtos", icon: Package },
   { id: "finance", label: "Financeiro", icon: Landmark },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
   { id: "audit", label: "Auditoria", icon: History },
 ];
 
 export const siteItems: PermissionAwareHubItem[] = [
-  { id: "products", label: "Produtos", icon: Package, description: "Cadastre e gerencie os produtos exibidos na loja online.", permissionKey: "products.view" },
   { id: "categories", label: "Categorias", icon: FolderTree, description: "Organize as categorias utilizadas pelos produtos do site.", permissionKey: "categories.view" },
   { id: "brands", label: "Marcas", icon: Tag, description: "Gerencie as marcas utilizadas no catálogo da loja.", permissionKey: "brands.view" },
   { id: "services", label: "Serviços do Site", icon: Wrench, description: "Cadastre e gerencie os serviços apresentados no site público.", permissionKey: "services.view" },
@@ -107,7 +107,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   audit: null,
   settings: "company_settings",
   contact: "site_settings",
-  products: "site_products",
+  products: "products",
   categories: "site_categories",
   brands: "site_brands",
   services: "site_services",
@@ -117,7 +117,6 @@ export const moduleForTab: Record<AdminTab, string | null> = {
 };
 
 export const siteModuleKeys = [
-  "site_products",
   "site_categories",
   "site_brands",
   "site_services",
@@ -129,6 +128,7 @@ export const operationModuleKeys = [
   "orders",
   "agenda",
   "inventory",
+  "products",
   "equipment",
   "checklists",
   "services",
