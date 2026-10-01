@@ -712,7 +712,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       subtitle={platformUsersOnly ? "Gerencie funcionários e acessos da Union World." : "Gerencie clientes, funcionários e fornecedores em um único cadastro."}
       actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> {platformUsersOnly ? "Novo usuário" : "Novo cadastro"}</BtnPrimary> : undefined}
     />
-    <AdminCard className="overflow-hidden p-0">
+    <AdminCard square className="overflow-hidden p-0">
       <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 md:h-11 admin-primary-bar px-4 text-white">
         <div className="flex min-w-0 items-center gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10]"><Search size={14} className="shrink-0 text-white/90" /></span><span className="text-xs font-black uppercase tracking-[0.14em]">Buscar cadastro</span></div>
         <div className="ml-auto flex max-w-full items-center justify-end">
