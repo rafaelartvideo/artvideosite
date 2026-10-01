@@ -1,55 +1,258 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, Package, Plus, Search, Star, Trash2 } from "lucide-react";
+import {
+  BadgeDollarSign,
+  CircleHelp,
+  Edit2,
+  FileText,
+  Image as ImageIcon,
+  Package,
+  Plus,
+  Search,
+  ShoppingBag,
+  Star,
+  Trash2,
+  Warehouse,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { deleteProduct, loadProductCatalog, saveProduct, updateProductFlags } from "../infrastructure/products.repository";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import {
+  deleteProduct,
+  initializeProductInventoryBalance,
+  loadProductCatalog,
+  saveProduct,
+  saveProductInventorySettings,
+  updateProductFlags,
+} from "../infrastructure/products.repository";
+import {
+  AdminButton,
+  AdminCard,
+  AdminCardToolbar,
+  AdminIconButton,
+  AdminPage,
+  BtnPrimary,
+  BtnSecondary,
+  PageHeader,
+  Section,
+} from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { cn, formatCurrency } from "@/shared/domain/formatters";
+import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { FInput, FSelect, FTextarea, FToggle, INPUT, FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
+import {
+  AdminSelect,
+  FCurrencyInput,
+  FDecimalInput,
+  FInput,
+  FIntegerInput,
+  FSelect,
+  FTextarea,
+  FToggle,
+  INPUT,
+} from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import { ImageUpload, ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/primitives/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/primitives/tooltip";
+
+type ProductEditorTab = "general" | "commercial" | "fiscal" | "photos" | "catalog";
 
 type ProductForm = {
   name: string;
   sku: string;
+  barcode: string;
+  description: string;
   price: string;
   is_active: boolean;
+
+  commercial_unit: "un" | "cx";
+  conversion_factor: string;
+  min_quantity: string;
+  initial_quantity: string;
+  initial_unit_cost: string;
+  storage_shelf: string;
+  storage_level: string;
+  storage_compartment: string;
+
+  ncm: string;
+  cest: string;
+  merchandise_origin: string;
+  cfop_entry: string;
+  cfop_exit: string;
+  csosn: string;
+  cst_icms: string;
+  cst_pis: string;
+  cst_cofins: string;
+  cst_ipi: string;
+  internal_icms_rate: string;
+  calculate_entry_difal: boolean;
+  ipi_rate: string;
+  pis_rate: string;
+  cofins_rate: string;
+  tax_unit: string;
+  tax_barcode: string;
+  fiscal_benefit_code: string;
+  fiscal_notes: string;
+
+  cover_media_id: string;
+
   show_in_catalog: boolean;
   short_description: string;
-  description: string;
   compare_at_price: string;
-  cover_media_id: string;
   is_featured: boolean;
   category_id: string;
   brand_id: string;
-  external_platform: string;
-  external_product_id: string;
-  external_url: string;
 };
+
+type ProductFieldErrors = Partial<Record<
+  "name"
+  | "price"
+  | "compare_at_price"
+  | "barcode"
+  | "conversion_factor"
+  | "min_quantity"
+  | "initial_quantity"
+  | "initial_unit_cost"
+  | "ncm"
+  | "cest"
+  | "cfop_entry"
+  | "cfop_exit"
+  | "csosn"
+  | "cst_icms"
+  | "cst_pis"
+  | "cst_cofins"
+  | "cst_ipi"
+  | "internal_icms_rate"
+  | "ipi_rate"
+  | "pis_rate"
+  | "cofins_rate",
+  string
+>>;
+
+const originOptions = [
+  { value: "0", label: "0 — Nacional (exceto 3, 4, 5 e 8)" },
+  { value: "1", label: "1 — Estrangeira — importação direta" },
+  { value: "2", label: "2 — Estrangeira — adquirida no mercado interno" },
+  { value: "3", label: "3 — Nacional — conteúdo de importação > 40%" },
+  { value: "4", label: "4 — Nacional — produção conforme processos produtivos básicos" },
+  { value: "5", label: "5 — Nacional — conteúdo de importação ≤ 40%" },
+  { value: "6", label: "6 — Estrangeira — importação direta sem similar nacional" },
+  { value: "7", label: "7 — Estrangeira — mercado interno sem similar nacional" },
+  { value: "8", label: "8 — Nacional — conteúdo de importação > 70%" },
+];
 
 function emptyForm(): ProductForm {
   return {
     name: "",
     sku: "",
+    barcode: "",
+    description: "",
     price: "",
     is_active: true,
+
+    commercial_unit: "un",
+    conversion_factor: "1",
+    min_quantity: "0",
+    initial_quantity: "0",
+    initial_unit_cost: "",
+    storage_shelf: "",
+    storage_level: "",
+    storage_compartment: "",
+
+    ncm: "",
+    cest: "",
+    merchandise_origin: "0",
+    cfop_entry: "",
+    cfop_exit: "",
+    csosn: "",
+    cst_icms: "",
+    cst_pis: "",
+    cst_cofins: "",
+    cst_ipi: "",
+    internal_icms_rate: "",
+    calculate_entry_difal: false,
+    ipi_rate: "",
+    pis_rate: "",
+    cofins_rate: "",
+    tax_unit: "",
+    tax_barcode: "",
+    fiscal_benefit_code: "",
+    fiscal_notes: "",
+
+    cover_media_id: "",
+
     show_in_catalog: false,
     short_description: "",
-    description: "",
     compare_at_price: "",
-    cover_media_id: "",
     is_featured: false,
     category_id: "",
     brand_id: "",
-    external_platform: "",
-    external_product_id: "",
-    external_url: "",
   };
+}
+
+function digitsOnly(value: string, maxLength: number) {
+  return value.replace(/\D/g, "").slice(0, maxLength);
+}
+
+function nullableNumber(value: string) {
+  if (value.trim() === "") return null;
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function displayStockValue(value: unknown, unit: string, factor: number) {
+  const base = Number(value ?? 0);
+  return unit === "cx" ? base / Math.max(1, factor) : base;
+}
+
+function displayUnitCost(value: unknown, unit: string, factor: number) {
+  if (value == null) return null;
+  const base = Number(value);
+  return unit === "cx" ? base * Math.max(1, factor) : base;
+}
+
+function FiscalField({
+  label,
+  help,
+  children,
+}: {
+  label: string;
+  help: string;
+  children: React.ReactNode;
+}) {
+  return <div className="min-w-0">
+    <div className="mb-1.5 flex items-center gap-1.5">
+      <label className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" className="inline-flex h-4 w-4 items-center justify-center text-[#8a96a8]" aria-label={`Ajuda sobre ${label}`}>
+            <CircleHelp size={12} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent sideOffset={6} className="max-w-xs leading-relaxed">{help}</TooltipContent>
+      </Tooltip>
+    </div>
+    {children}
+  </div>;
+}
+
+function EditorTabTrigger({
+  value,
+  icon: Icon,
+  children,
+}: {
+  value: ProductEditorTab;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  children: React.ReactNode;
+}) {
+  return <TabsTrigger
+    value={value}
+    className="h-10 shrink-0 rounded-lg border border-[#dbe3ee] bg-white px-3 text-xs font-bold text-[#44546a] shadow-none data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-white"
+  >
+    <Icon size={14} />
+    {children}
+  </TabsTrigger>;
 }
 
 export function TabProducts({
@@ -63,6 +266,7 @@ export function TabProducts({
 }) {
   const { user, activeOrganization, activeOrganizationId, hasPermission } = useAuth();
   const isArtvideoTenant = activeOrganization?.is_artvideo_tenant === true;
+
   const canViewTable = hasPermission("products.table.view");
   const canViewDetails = hasPermission("products.details.view");
   const canCreate = hasPermission("products.create");
@@ -70,12 +274,15 @@ export function TabProducts({
   const canDelete = hasPermission("products.delete");
   const canToggleActive = hasPermission("products.toggle_active");
   const canToggleFeatured = isArtvideoTenant && hasPermission("products.toggle_featured");
+  const canViewCosts = hasPermission("inventory.costs.view");
+
   const showProduct = hasPermission("products.table.product");
   const showCategory = isArtvideoTenant && hasPermission("products.table.category");
   const showPrice = hasPermission("products.table.price");
   const showFeatured = isArtvideoTenant && hasPermission("products.table.featured");
   const showStatus = hasPermission("products.table.status");
   const showActions = hasPermission("products.table.actions");
+
   const canLoadCategories = isArtvideoTenant && hasPermission("categories.view");
   const canLoadBrands = isArtvideoTenant && hasPermission("brands.view");
   const queryClient = useQueryClient();
@@ -93,15 +300,17 @@ export function TabProducts({
   const categories = catalogQuery.data?.categories ?? [];
   const brands = catalogQuery.data?.brands ?? [];
   const loading = catalogQuery.isPending;
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
+  const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
   const [delId, setDelId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [form, setForm] = useState<ProductForm>(() => emptyForm());
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; price?: string; compare_at_price?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -113,42 +322,85 @@ export function TabProducts({
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.products() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.featuredProducts() }),
   ]);
 
-  const catOptions = [{ value: "", label: "Sem categoria" }, ...categories.map((item: any) => ({ value: item.id, label: item.name }))];
-  const brandOptions = [{ value: "", label: "Sem marca" }, ...brands.map((item: any) => ({ value: item.id, label: item.name }))];
+  const catOptions = [
+    { value: "", label: "Sem categoria" },
+    ...categories.map((item: any) => ({ value: item.id, label: item.name })),
+  ];
+  const brandOptions = [
+    { value: "", label: "Sem marca" },
+    ...brands.map((item: any) => ({ value: item.id, label: item.name })),
+  ];
 
   const openNew = () => {
     if (!canCreate) return;
     setFieldErrors({});
     setForm(emptyForm());
     setEditItem(null);
+    setEditorTab("general");
     setDrawerOpen(true);
   };
 
   const openEdit = (product: any) => {
     if (!(canViewDetails && canEdit)) return;
+
+    const inventory = product.inventory;
+    const unit = inventory?.unit === "cx" ? "cx" : (product.commercial_unit === "cx" ? "cx" : "un");
+    const factor = Math.max(1, Number(inventory?.conversion_factor ?? 1) || 1);
+
     setFieldErrors({});
     setForm({
       name: product.name || "",
       sku: product.sku || "",
+      barcode: product.barcode || "",
+      description: product.description || "",
       price: product.price == null ? "" : String(product.price),
       is_active: product.is_active ?? true,
+
+      commercial_unit: unit,
+      conversion_factor: String(factor),
+      min_quantity: String(displayStockValue(inventory?.min_quantity, unit, factor)),
+      initial_quantity: "0",
+      initial_unit_cost: "",
+      storage_shelf: inventory?.storage_shelf || "",
+      storage_level: inventory?.storage_level || "",
+      storage_compartment: inventory?.storage_compartment || "",
+
+      ncm: product.ncm || "",
+      cest: product.cest || "",
+      merchandise_origin: String(product.merchandise_origin ?? 0),
+      cfop_entry: product.cfop_entry || "",
+      cfop_exit: product.cfop_exit || "",
+      csosn: product.csosn || "",
+      cst_icms: product.cst_icms || "",
+      cst_pis: product.cst_pis || "",
+      cst_cofins: product.cst_cofins || "",
+      cst_ipi: product.cst_ipi || "",
+      internal_icms_rate: product.internal_icms_rate == null ? "" : String(product.internal_icms_rate),
+      calculate_entry_difal: product.calculate_entry_difal === true,
+      ipi_rate: product.ipi_rate == null ? "" : String(product.ipi_rate),
+      pis_rate: product.pis_rate == null ? "" : String(product.pis_rate),
+      cofins_rate: product.cofins_rate == null ? "" : String(product.cofins_rate),
+      tax_unit: product.tax_unit || "",
+      tax_barcode: product.tax_barcode || "",
+      fiscal_benefit_code: product.fiscal_benefit_code || "",
+      fiscal_notes: product.fiscal_notes || "",
+
+      cover_media_id: product.cover_media_id || "",
+
       show_in_catalog: isArtvideoTenant && product.show_in_catalog === true,
       short_description: product.short_description || "",
-      description: product.description || "",
       compare_at_price: product.compare_at_price == null ? "" : String(product.compare_at_price),
-      cover_media_id: product.cover_media_id || "",
       is_featured: product.is_featured ?? false,
       category_id: product.category_id || "",
       brand_id: product.brand_id || "",
-      external_platform: product.external_platform || "",
-      external_product_id: product.external_product_id || "",
-      external_url: product.external_url || "",
     });
     setEditItem(product);
+    setEditorTab("general");
     setDrawerOpen(true);
   };
 
@@ -175,50 +427,147 @@ export function TabProducts({
     if (item) openEdit(item);
   }, [routeResourceId, routeSubpage, products, drawerOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
 
+  const validate = () => {
+    const errors: ProductFieldErrors = {};
+    const price = nullableNumber(form.price);
+    const compareAtPrice = nullableNumber(form.compare_at_price);
+    const factor = Number(form.conversion_factor);
+    const minQuantity = Number(form.min_quantity || 0);
+    const initialQuantity = Number(form.initial_quantity || 0);
+    const initialUnitCost = nullableNumber(form.initial_unit_cost);
+
+    if (!form.name.trim()) errors.name = "Nome do produto é obrigatório.";
+    if (price !== null && price < 0) errors.price = "Informe um preço válido e não negativo.";
+    if (form.barcode && !/^[0-9A-Za-z._-]{4,32}$/.test(form.barcode.trim())) {
+      errors.barcode = "Informe um código de barras válido.";
+    }
+
+    if (!Number.isInteger(factor) || factor < 1) {
+      errors.conversion_factor = "Informe um fator inteiro maior ou igual a 1.";
+    }
+    if (!Number.isFinite(minQuantity) || minQuantity < 0) {
+      errors.min_quantity = "O estoque mínimo não pode ser negativo.";
+    }
+    if (!editItem && (!Number.isFinite(initialQuantity) || initialQuantity < 0)) {
+      errors.initial_quantity = "O saldo inicial não pode ser negativo.";
+    }
+    if (!editItem && initialUnitCost !== null && initialUnitCost < 0) {
+      errors.initial_unit_cost = "O custo inicial não pode ser negativo.";
+    }
+
+    if (form.ncm && !/^\d{1,8}$/.test(form.ncm)) errors.ncm = "NCM deve ter até 8 dígitos.";
+    if (form.cest && !/^\d{7}$/.test(form.cest)) errors.cest = "CEST deve ter 7 dígitos.";
+    if (form.cfop_entry && !/^\d{4}$/.test(form.cfop_entry)) errors.cfop_entry = "CFOP deve ter 4 dígitos.";
+    if (form.cfop_exit && !/^\d{4}$/.test(form.cfop_exit)) errors.cfop_exit = "CFOP deve ter 4 dígitos.";
+    if (form.csosn && !/^\d{3}$/.test(form.csosn)) errors.csosn = "CSOSN deve ter 3 dígitos.";
+    if (form.cst_icms && !/^\d{3}$/.test(form.cst_icms)) errors.cst_icms = "CST ICMS deve ter 3 dígitos.";
+    if (form.cst_pis && !/^\d{2}$/.test(form.cst_pis)) errors.cst_pis = "CST PIS deve ter 2 dígitos.";
+    if (form.cst_cofins && !/^\d{2}$/.test(form.cst_cofins)) errors.cst_cofins = "CST COFINS deve ter 2 dígitos.";
+    if (form.cst_ipi && !/^\d{2}$/.test(form.cst_ipi)) errors.cst_ipi = "CST IPI deve ter 2 dígitos.";
+
+    const rateFields: Array<[keyof Pick<ProductFieldErrors, "internal_icms_rate" | "ipi_rate" | "pis_rate" | "cofins_rate">, string]> = [
+      ["internal_icms_rate", form.internal_icms_rate],
+      ["ipi_rate", form.ipi_rate],
+      ["pis_rate", form.pis_rate],
+      ["cofins_rate", form.cofins_rate],
+    ];
+    rateFields.forEach(([key, value]) => {
+      const parsed = nullableNumber(value);
+      if (parsed !== null && (parsed < 0 || parsed > 100)) errors[key] = "A alíquota deve estar entre 0 e 100%.";
+    });
+
+    if (isArtvideoTenant && form.show_in_catalog) {
+      if (compareAtPrice !== null && compareAtPrice < 0) errors.compare_at_price = "Informe um preço de comparação válido.";
+      if (price !== null && compareAtPrice !== null && compareAtPrice < price) {
+        errors.compare_at_price = "O preço de comparação deve ser igual ou maior que o preço de venda.";
+      }
+    }
+
+    setFieldErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      if (errors.name || errors.barcode) setEditorTab("general");
+      else if (errors.price || errors.conversion_factor || errors.min_quantity || errors.initial_quantity || errors.initial_unit_cost) setEditorTab("commercial");
+      else if (errors.compare_at_price) setEditorTab("catalog");
+      else setEditorTab("fiscal");
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSave = async () => {
     if (!activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
+    if (!validate()) return;
 
-    const price = form.price === "" ? null : Number(form.price);
-    const compareAtPrice = form.compare_at_price === "" ? null : Number(form.compare_at_price);
-    const nextErrors: typeof fieldErrors = {};
-
-    if (!form.name.trim()) nextErrors.name = "Nome do produto é obrigatório.";
-    if (price !== null && (!Number.isFinite(price) || price < 0)) nextErrors.price = "Informe um preço válido e não negativo.";
-    if (isArtvideoTenant && form.show_in_catalog && compareAtPrice !== null && (!Number.isFinite(compareAtPrice) || compareAtPrice < 0)) {
-      nextErrors.compare_at_price = "Informe um preço de comparação válido e não negativo.";
-    }
-    if (isArtvideoTenant && form.show_in_catalog && price !== null && compareAtPrice !== null && compareAtPrice < price) {
-      nextErrors.compare_at_price = "O preço de comparação deve ser igual ou maior que o preço atual.";
-    }
-
-    setFieldErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
+    const price = nullableNumber(form.price);
+    const compareAtPrice = nullableNumber(form.compare_at_price);
+    const showInCatalog = isArtvideoTenant && form.show_in_catalog;
 
     setSaving(true);
     try {
       const finalSlug = await generateUniqueSlug("products", form.name, editItem?.id);
-      const showInCatalog = isArtvideoTenant && form.show_in_catalog;
       const payload = {
         name: form.name.trim(),
         slug: finalSlug,
         sku: form.sku.trim() || null,
+        barcode: form.barcode.trim() || null,
+        description: form.description.trim() || null,
         price,
         is_active: form.is_active,
-        show_in_catalog: showInCatalog,
-        short_description: form.short_description.trim() || null,
-        description: form.description.trim() || null,
-        compare_at_price: compareAtPrice,
+        commercial_unit: form.commercial_unit,
+
+        ncm: form.ncm.trim() || null,
+        cest: form.cest.trim() || null,
+        merchandise_origin: Number(form.merchandise_origin || 0),
+        cfop_entry: form.cfop_entry.trim() || null,
+        cfop_exit: form.cfop_exit.trim() || null,
+        csosn: form.csosn.trim() || null,
+        cst_icms: form.cst_icms.trim() || null,
+        cst_pis: form.cst_pis.trim() || null,
+        cst_cofins: form.cst_cofins.trim() || null,
+        cst_ipi: form.cst_ipi.trim() || null,
+        internal_icms_rate: nullableNumber(form.internal_icms_rate),
+        calculate_entry_difal: form.calculate_entry_difal,
+        ipi_rate: nullableNumber(form.ipi_rate),
+        pis_rate: nullableNumber(form.pis_rate),
+        cofins_rate: nullableNumber(form.cofins_rate),
+        tax_unit: form.tax_unit.trim() || null,
+        tax_barcode: form.tax_barcode.trim() || null,
+        fiscal_benefit_code: form.fiscal_benefit_code.trim() || null,
+        fiscal_notes: form.fiscal_notes.trim() || null,
+
         cover_media_id: form.cover_media_id || null,
+
+        show_in_catalog: showInCatalog,
+        short_description: isArtvideoTenant ? (form.short_description.trim() || null) : null,
+        compare_at_price: isArtvideoTenant ? compareAtPrice : null,
         is_featured: isArtvideoTenant ? form.is_featured : false,
         category_id: isArtvideoTenant ? (form.category_id || null) : null,
         brand_id: isArtvideoTenant ? (form.brand_id || null) : null,
-        external_platform: form.external_platform.trim() || null,
-        external_product_id: form.external_product_id.trim() || null,
-        external_url: form.external_url.trim() || null,
         updated_by: user?.id || null,
       };
 
-      await saveProduct(activeOrganizationId, payload, editItem?.id, user?.id ?? null);
+      const savedProduct = await saveProduct(activeOrganizationId, payload, editItem?.id, user?.id ?? null);
+
+      await saveProductInventorySettings(activeOrganizationId, savedProduct.id, {
+        unit: form.commercial_unit,
+        conversion_factor: Math.max(1, Number(form.conversion_factor || 1)),
+        min_quantity: Math.max(0, Number(form.min_quantity || 0)),
+        storage_shelf: form.storage_shelf.trim() || null,
+        storage_level: form.storage_level.trim() || null,
+        storage_compartment: form.storage_compartment.trim() || null,
+      });
+
+      if (!editItem && Number(form.initial_quantity || 0) > 0) {
+        await initializeProductInventoryBalance(
+          activeOrganizationId,
+          savedProduct.id,
+          Number(form.initial_quantity || 0),
+          nullableNumber(form.initial_unit_cost),
+        );
+      }
+
       setDrawerOpen(false);
       onRouteChange?.(null, null);
       setToast({ msg: editItem ? "Produto atualizado!" : "Produto criado!", type: "success" });
@@ -235,7 +584,7 @@ export function TabProducts({
     try {
       await deleteProduct(activeOrganizationId, id);
       setDelId(null);
-      setToast({ msg: "Produto excluído.", type: "success" });
+      setToast({ msg: "Produto excluído. O histórico de estoque permanece preservado.", type: "success" });
       await refresh();
     } catch (error) {
       setToast({ msg: `Erro ao excluir produto: ${systemErrorMessage(error)}`, type: "error" });
@@ -268,7 +617,8 @@ export function TabProducts({
     const term = search.trim().toLocaleLowerCase("pt-BR");
     if (!term) return true;
     return String(product.name || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(product.sku || "").toLocaleLowerCase("pt-BR").includes(term);
+      || String(product.sku || "").toLocaleLowerCase("pt-BR").includes(term)
+      || String(product.barcode || "").toLocaleLowerCase("pt-BR").includes(term);
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -278,9 +628,15 @@ export function TabProducts({
   useEffect(() => { setPage(1); }, [search, activeOrganizationId]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
+  const inventory = editItem?.inventory ?? null;
+  const currentFactor = Math.max(1, Number(inventory?.conversion_factor ?? form.conversion_factor ?? 1) || 1);
+  const currentQuantity = displayStockValue(inventory?.quantity, form.commercial_unit, currentFactor);
+  const purchasePrice = displayUnitCost(inventory?.purchase_price, form.commercial_unit, currentFactor);
+  const averageCost = displayUnitCost(inventory?.average_cost, form.commercial_unit, currentFactor);
+
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {delId && <ConfirmDialog message="Excluir este produto permanentemente?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
+    {delId && <ConfirmDialog message="Excluir este produto? O item e o histórico de estoque serão preservados, mas deixarão de estar vinculados ao produto." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
     {!routeResourceId && <>
       <PageHeader
@@ -291,12 +647,12 @@ export function TabProducts({
 
       {canViewTable && <AdminCard>
         <AdminCardToolbar>
-          <div className="relative max-w-xs flex-1">
+          <div className="relative max-w-sm flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
             <input
               value={search}
               onChange={event => { setSearch(event.target.value); setPage(1); }}
-              placeholder="Buscar por nome ou SKU..."
+              placeholder="Buscar por nome, SKU ou código..."
               className={cn(INPUT, "py-2 pl-9 text-xs")}
             />
           </div>
@@ -306,54 +662,72 @@ export function TabProducts({
           <EmptyState
             icon={Package}
             title={search ? "Nenhum resultado" : "Nenhum produto cadastrado"}
-            message="Cadastre produtos para vendas, PDV e demais operações comerciais."
+            message="Cadastre produtos completos para vendas, estoque, PDV e dados fiscais."
             onAdd={canCreate ? openNewPage : undefined}
             addLabel="Novo produto"
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[700px]">
+            <table className="min-w-[850px]">
               <thead>
                 <tr>
                   {showProduct && <th className="text-left">Produto</th>}
                   {showCategory && <th className="text-left">Categoria</th>}
                   {showPrice && <th className="text-left">Preço</th>}
+                  <th className="text-left">Estoque</th>
                   {showFeatured && <th className="text-left">Destaque</th>}
                   {showStatus && <th className="text-left">Status</th>}
                   {showActions && <th className="text-right">Ações</th>}
                 </tr>
               </thead>
               <tbody>
-                {pagedProducts.map((product: any) => <tr key={product.id}>
-                  {showProduct && <td>
-                    <div className="flex items-center gap-3">
-                      <ProductAdminThumb mediaId={isArtvideoTenant && product.show_in_catalog ? product.cover_media_id : null} name={product.name} />
-                      <div className="min-w-0">
-                        <p className="truncate font-bold text-[#0d1b2e]">{product.name}</p>
-                        <p className="mt-0.5 text-[10px] font-semibold text-[#7a8aa0]">{product.sku || "Sem SKU"}</p>
+                {pagedProducts.map((product: any) => {
+                  const item = product.inventory;
+                  const unit = item?.unit === "cx" ? "cx" : "un";
+                  const factor = Math.max(1, Number(item?.conversion_factor ?? 1) || 1);
+                  const stock = displayStockValue(item?.quantity, unit, factor);
+                  const minStock = displayStockValue(item?.min_quantity, unit, factor);
+                  const lowStock = stock <= minStock;
+
+                  return <tr key={product.id}>
+                    {showProduct && <td>
+                      <div className="flex items-center gap-3">
+                        <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} />
+                        <div className="min-w-0">
+                          <p className="truncate font-bold text-[#0d1b2e]">{product.name}</p>
+                          <p className="mt-0.5 text-[10px] font-semibold text-[#7a8aa0]">
+                            {product.sku || "Sem SKU"}{product.barcode ? ` · ${product.barcode}` : ""}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </td>}
-                  {showCategory && <td className="text-xs text-[#5a6a82]">{product.product_categories?.name || "—"}</td>}
-                  {showPrice && <td className="font-bold text-[#0d1b2e]">{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
-                  {showFeatured && <td>
-                    {product.show_in_catalog ? (
-                      canToggleFeatured
-                        ? <AdminIconButton ariaLabel={product.is_featured ? "Remover produto dos destaques" : "Destacar produto"} title={product.is_featured ? "Remover destaque" : "Destacar produto"} variant="ghost" onClick={() => toggleFeatured(product)}>
-                            {product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <Star size={15} className="text-[#5a6a82]" />}
-                          </AdminIconButton>
-                        : product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <span>—</span>
-                    ) : <span className="text-xs text-[#8a96a8]">Fora do catálogo</span>}
-                  </td>}
-                  {showStatus && <td><StatusBadge status={product.is_active ? "Ativo" : "Inativo"} /></td>}
-                  {showActions && <td>
-                    <div className="flex items-center justify-end gap-1">
-                      {canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar produto" title="Editar" onClick={() => openEditPage(product)}><Edit2 size={15} /></AdminIconButton>}
-                      {canDelete && <AdminIconButton ariaLabel="Excluir produto" title="Excluir" variant="danger" onClick={() => setDelId(product.id)}><Trash2 size={15} /></AdminIconButton>}
-                      {canToggleActive && <AdminActiveStateButton active={product.is_active} entityLabel="produto" onClick={() => void toggleActive(product)} />}
-                    </div>
-                  </td>}
-                </tr>)}
+                    </td>}
+                    {showCategory && <td className="text-xs text-[#5a6a82]">{product.product_categories?.name || "—"}</td>}
+                    {showPrice && <td className="font-bold text-[#0d1b2e]">{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
+                    <td>
+                      <div className={cn("text-xs font-bold", lowStock ? "text-amber-700" : "text-[#0d1b2e]")}>
+                        {formatNumber(stock)} {unit}
+                      </div>
+                      <div className="text-[10px] text-[#7a8aa0]">mín. {formatNumber(minStock)} {unit}</div>
+                    </td>
+                    {showFeatured && <td>
+                      {product.show_in_catalog ? (
+                        canToggleFeatured
+                          ? <AdminIconButton ariaLabel={product.is_featured ? "Remover produto dos destaques" : "Destacar produto"} title={product.is_featured ? "Remover destaque" : "Destacar produto"} variant="ghost" onClick={() => toggleFeatured(product)}>
+                              {product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <Star size={15} className="text-[#5a6a82]" />}
+                            </AdminIconButton>
+                          : product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <span>—</span>
+                      ) : <span className="text-xs text-[#8a96a8]">Fora do catálogo</span>}
+                    </td>}
+                    {showStatus && <td><StatusBadge status={product.is_active ? "Ativo" : "Inativo"} /></td>}
+                    {showActions && <td>
+                      <div className="flex items-center justify-end gap-1">
+                        {canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar produto" title="Editar" onClick={() => openEditPage(product)}><Edit2 size={15} /></AdminIconButton>}
+                        {canDelete && <AdminIconButton ariaLabel="Excluir produto" title="Excluir" variant="danger" onClick={() => setDelId(product.id)}><Trash2 size={15} /></AdminIconButton>}
+                        {canToggleActive && <AdminActiveStateButton active={product.is_active} entityLabel="produto" onClick={() => void toggleActive(product)} />}
+                      </div>
+                    </td>}
+                  </tr>;
+                })}
               </tbody>
             </table>
           </div>
@@ -376,138 +750,536 @@ export function TabProducts({
       onClose={closeEditor}
       breadcrumb="Produtos"
       title={editItem ? "Editar produto" : "Novo produto"}
-      subtitle="Cadastro comercial utilizado por vendas e PDV."
-      maxW="max-w-5xl"
+      subtitle="Identificação, preços, estoque, dados fiscais e publicação organizados em abas."
+      maxW="max-w-6xl"
       fullPage
     >
-      <div className="space-y-5 p-4 sm:p-5">
-        <Section title="Dados do produto">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <FInput
-                label="Nome do produto"
-                value={form.name}
-                required
-                disabled={saving}
-                error={fieldErrors.name}
-                onChange={(event: any) => {
-                  setFieldErrors(current => ({ ...current, name: undefined }));
-                  setForm(current => ({ ...current, name: event.target.value }));
-                }}
-                placeholder="Nome do produto"
-              />
-            </div>
-            <FInput
-              label="SKU / código"
-              value={form.sku}
-              disabled={saving}
-              onChange={(event: any) => setForm(current => ({ ...current, sku: event.target.value }))}
-              placeholder="Código interno ou de barras"
-            />
-            <FCurrencyInput
-              label="Preço de venda (R$)"
-              value={form.price}
-              disabled={saving}
-              error={fieldErrors.price}
-              onChange={(event: any) => {
-                setFieldErrors(current => ({ ...current, price: undefined, compare_at_price: undefined }));
-                setForm(current => ({ ...current, price: event.target.value }));
-              }}
-              placeholder="0,00"
-            />
-            <div className="sm:col-span-2">
-              <FToggle
-                label="Produto ativo"
-                description="Disponibiliza o produto para uso nos módulos comerciais."
-                checked={form.is_active}
-                disabled={saving}
-                onChange={value => setForm(current => ({ ...current, is_active: value }))}
-              />
-            </div>
-          </div>
-        </Section>
+      <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0">
+        <div className="border-b border-[#0d1b2e]/8 bg-white px-4 pt-4 sm:px-5">
+          <TabsList className="h-auto max-w-full gap-1 overflow-x-auto bg-transparent p-0 pb-3">
+            <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
+            <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
+            <EditorTabTrigger value="fiscal" icon={FileText}>Fiscais</EditorTabTrigger>
+            <EditorTabTrigger value="photos" icon={ImageIcon}>Fotos</EditorTabTrigger>
+            {isArtvideoTenant && <EditorTabTrigger value="catalog" icon={ShoppingBag}>Catálogo</EditorTabTrigger>}
+          </TabsList>
+        </div>
 
-        {isArtvideoTenant && <Section title="Catálogo da loja">
-          <div className="space-y-5">
-            <FToggle
-              label="Exibir no catálogo da loja"
-              description="Ao ativar, este produto também poderá aparecer no site público da Artvideo."
-              checked={form.show_in_catalog}
-              disabled={saving}
-              onChange={value => setForm(current => ({ ...current, show_in_catalog: value }))}
-            />
-
-            {form.show_in_catalog && <div className="space-y-5 border-t border-[#0d1b2e]/8 pt-5">
+        <div className="p-4 sm:p-5">
+          <TabsContent value="general" className="mt-0">
+            <Section title="Identificação do produto">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FSelect
-                  label="Categoria do catálogo"
-                  value={form.category_id}
-                  disabled={saving || !canLoadCategories}
-                  onChange={(event: any) => setForm(current => ({ ...current, category_id: event.target.value }))}
-                  options={catOptions}
-                />
-                <FSelect
-                  label="Marca"
-                  value={form.brand_id}
-                  disabled={saving || !canLoadBrands}
-                  onChange={(event: any) => setForm(current => ({ ...current, brand_id: event.target.value }))}
-                  options={brandOptions}
-                />
                 <div className="sm:col-span-2">
                   <FInput
-                    label="Descrição curta"
-                    value={form.short_description}
+                    label="Nome do produto"
+                    value={form.name}
+                    required
                     disabled={saving}
-                    onChange={(event: any) => setForm(current => ({ ...current, short_description: event.target.value }))}
-                    placeholder="Resumo exibido no catálogo"
+                    error={fieldErrors.name}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, name: undefined }));
+                      setForm(current => ({ ...current, name: event.target.value }));
+                    }}
+                    placeholder="Nome do produto"
                   />
                 </div>
+                <FInput
+                  label="SKU / código interno"
+                  value={form.sku}
+                  disabled={saving}
+                  onChange={(event: any) => setForm(current => ({ ...current, sku: event.target.value }))}
+                  placeholder="Código interno"
+                />
+                <FInput
+                  label="Código de barras / GTIN"
+                  value={form.barcode}
+                  disabled={saving}
+                  error={fieldErrors.barcode}
+                  onChange={(event: any) => {
+                    setFieldErrors(current => ({ ...current, barcode: undefined }));
+                    setForm(current => ({ ...current, barcode: event.target.value }));
+                  }}
+                  placeholder="EAN, GTIN ou código utilizado no PDV"
+                />
                 <div className="sm:col-span-2">
                   <FTextarea
-                    label="Descrição completa"
+                    label="Descrição"
                     value={form.description}
                     disabled={saving}
                     onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))}
                     rows={4}
-                    placeholder="Informações detalhadas do produto para o site"
+                    placeholder="Descrição geral do produto"
                   />
                 </div>
-                <FCurrencyInput
-                  label="Preço de comparação (R$)"
-                  value={form.compare_at_price}
-                  disabled={saving}
-                  error={fieldErrors.compare_at_price}
-                  onChange={(event: any) => {
-                    setFieldErrors(current => ({ ...current, compare_at_price: undefined }));
-                    setForm(current => ({ ...current, compare_at_price: event.target.value }));
-                  }}
-                  hint="Opcional. Deve ser igual ou maior que o preço de venda."
-                />
-                <div className="flex items-end pb-1">
+                <div className="sm:col-span-2">
                   <FToggle
-                    label="Destaque"
-                    description="Exibe na Home e nos destaques da loja."
-                    checked={form.is_featured}
+                    label="Produto ativo"
+                    description="Disponibiliza o produto para vendas, PDV e demais módulos comerciais."
+                    checked={form.is_active}
                     disabled={saving}
-                    onChange={value => setForm(current => ({ ...current, is_featured: value }))}
+                    onChange={value => setForm(current => ({ ...current, is_active: value }))}
                   />
                 </div>
               </div>
+            </Section>
+          </TabsContent>
 
+          <TabsContent value="commercial" className="mt-0 space-y-5">
+            <Section title="Comercial">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <FCurrencyInput
+                  label="Preço de venda"
+                  value={form.price}
+                  disabled={saving}
+                  error={fieldErrors.price}
+                  onChange={(event: any) => {
+                    setFieldErrors(current => ({ ...current, price: undefined, compare_at_price: undefined }));
+                    setForm(current => ({ ...current, price: event.target.value }));
+                  }}
+                  placeholder="0,00"
+                />
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Unidade comercial</label>
+                  <AdminSelect
+                    value={form.commercial_unit}
+                    onValueChange={value => setForm(current => ({ ...current, commercial_unit: value === "cx" ? "cx" : "un" }))}
+                    options={[
+                      { value: "un", label: "Unidade (un)" },
+                      { value: "cx", label: "Caixa (cx)" },
+                    ]}
+                    disabled={saving}
+                    ariaLabel="Unidade comercial"
+                  />
+                </div>
+                <FIntegerInput
+                  label="Unidades por caixa"
+                  value={form.conversion_factor}
+                  disabled={saving || form.commercial_unit !== "cx"}
+                  error={fieldErrors.conversion_factor}
+                  onChange={(event: any) => {
+                    setFieldErrors(current => ({ ...current, conversion_factor: undefined }));
+                    setForm(current => ({ ...current, conversion_factor: event.target.value || "1" }));
+                  }}
+                  hint={form.commercial_unit === "cx" ? "Quantidade de unidades existentes em cada caixa." : "Para unidade simples, o fator permanece 1."}
+                />
+              </div>
+            </Section>
+
+            <Section title="Estoque">
+              <div className="space-y-4">
+                {editItem && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Saldo atual</p>
+                    <p className="mt-1 text-base font-black text-[#0d1b2e]">{formatNumber(currentQuantity)} {form.commercial_unit}</p>
+                  </AdminCard>
+                  {canViewCosts && <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Último custo</p>
+                    <p className="mt-1 text-base font-black text-[#0d1b2e]">{purchasePrice == null ? "—" : formatCurrency(purchasePrice)}</p>
+                  </AdminCard>}
+                  {canViewCosts && <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Custo médio</p>
+                    <p className="mt-1 text-base font-black text-[#0d1b2e]">{averageCost == null ? "—" : formatCurrency(averageCost)}</p>
+                  </AdminCard>}
+                  <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Vínculo</p>
+                    <p className="mt-1 text-sm font-black text-[#0d1b2e]">Produto + estoque</p>
+                  </AdminCard>
+                </div>}
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {!editItem && <FIntegerInput
+                    label={`Saldo inicial (${form.commercial_unit})`}
+                    value={form.initial_quantity}
+                    disabled={saving}
+                    error={fieldErrors.initial_quantity}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, initial_quantity: undefined }));
+                      setForm(current => ({ ...current, initial_quantity: event.target.value }));
+                    }}
+                  />}
+                  {!editItem && canViewCosts && <FCurrencyInput
+                    label={`Custo do saldo inicial (${form.commercial_unit})`}
+                    value={form.initial_unit_cost}
+                    disabled={saving}
+                    error={fieldErrors.initial_unit_cost}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, initial_unit_cost: undefined }));
+                      setForm(current => ({ ...current, initial_unit_cost: event.target.value }));
+                    }}
+                    hint="Opcional. Registra o custo inicial com histórico."
+                  />}
+                  <FIntegerInput
+                    label={`Estoque mínimo (${form.commercial_unit})`}
+                    value={form.min_quantity}
+                    disabled={saving}
+                    error={fieldErrors.min_quantity}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, min_quantity: undefined }));
+                      setForm(current => ({ ...current, min_quantity: event.target.value }));
+                    }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-3">
+                  <FInput label="Estante" value={form.storage_shelf} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_shelf: event.target.value }))} placeholder="Ex.: A" />
+                  <FInput label="Prateleira" value={form.storage_level} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_level: event.target.value }))} placeholder="Ex.: 2" />
+                  <FInput label="Compartimento" value={form.storage_compartment} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_compartment: event.target.value }))} placeholder="Ex.: C3" />
+                </div>
+
+                {editItem && <p className="text-xs leading-5 text-[#5a6a82]">
+                  O saldo atual não é alterado pelo cadastro do produto. Entradas, saídas e ajustes continuam sendo registrados como movimentações de estoque para preservar o histórico.
+                </p>}
+              </div>
+            </Section>
+          </TabsContent>
+
+          <TabsContent value="fiscal" className="mt-0">
+            <Section title="Dados fiscais do produto">
+              <p className="mb-5 text-xs leading-5 text-[#7a8aa0]">
+                Campos usados em NF-e / NFC-e e escrituração de ICMS, PIS/COFINS e IPI. Preencha conforme o regime da empresa e orientação contábil.
+              </p>
+
+              <div className="grid grid-cols-1 gap-x-4 gap-y-5 lg:grid-cols-2">
+                <FiscalField label="NCM" help="Classificação fiscal da mercadoria. Informe até 8 dígitos.">
+                  <FInput
+                    value={form.ncm}
+                    disabled={saving}
+                    error={fieldErrors.ncm}
+                    inputMode="numeric"
+                    maxLength={8}
+                    placeholder="ex.: 85171231"
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, ncm: undefined }));
+                      setForm(current => ({ ...current, ncm: digitsOnly(event.target.value, 8) }));
+                    }}
+                    hint="Até 8 dígitos."
+                  />
+                </FiscalField>
+
+                <FiscalField label="CEST" help="Código Especificador da Substituição Tributária. Use quando aplicável ao produto.">
+                  <FInput
+                    value={form.cest}
+                    disabled={saving}
+                    error={fieldErrors.cest}
+                    inputMode="numeric"
+                    maxLength={7}
+                    placeholder="7 dígitos quando aplicável"
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, cest: undefined }));
+                      setForm(current => ({ ...current, cest: digitsOnly(event.target.value, 7) }));
+                    }}
+                    hint="Opcional — 7 dígitos quando aplicável."
+                  />
+                </FiscalField>
+
+                <div className="lg:col-span-2">
+                  <FiscalField label="Origem da mercadoria" help="Código de origem utilizado no ICMS e na NF-e/NFC-e.">
+                    <AdminSelect
+                      value={form.merchandise_origin}
+                      onValueChange={value => setForm(current => ({ ...current, merchandise_origin: value }))}
+                      options={originOptions}
+                      disabled={saving}
+                      ariaLabel="Origem da mercadoria"
+                    />
+                  </FiscalField>
+                </div>
+
+                <FiscalField label="CFOP padrão (entrada)" help="CFOP sugerido para operações típicas de compra ou devolução de venda. A operação fiscal poderá sobrescrever esse padrão.">
+                  <FInput
+                    value={form.cfop_entry}
+                    disabled={saving}
+                    error={fieldErrors.cfop_entry}
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="1102"
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, cfop_entry: undefined }));
+                      setForm(current => ({ ...current, cfop_entry: digitsOnly(event.target.value, 4) }));
+                    }}
+                    hint="Compra / devolução de venda."
+                  />
+                </FiscalField>
+
+                <FiscalField label="CFOP padrão (saída)" help="CFOP sugerido para operações típicas de venda ou remessa. A operação fiscal poderá sobrescrever esse padrão.">
+                  <FInput
+                    value={form.cfop_exit}
+                    disabled={saving}
+                    error={fieldErrors.cfop_exit}
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="5102"
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, cfop_exit: undefined }));
+                      setForm(current => ({ ...current, cfop_exit: digitsOnly(event.target.value, 4) }));
+                    }}
+                    hint="Venda / remessa típica."
+                  />
+                </FiscalField>
+
+                <FiscalField label="CSOSN" help="Código de Situação da Operação no Simples Nacional, usado principalmente nas saídas.">
+                  <FInput
+                    value={form.csosn}
+                    disabled={saving}
+                    error={fieldErrors.csosn}
+                    inputMode="numeric"
+                    maxLength={3}
+                    placeholder="102"
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, csosn: undefined }));
+                      setForm(current => ({ ...current, csosn: digitsOnly(event.target.value, 3) }));
+                    }}
+                    hint="Simples Nacional."
+                  />
+                </FiscalField>
+
+                <FiscalField label="CST ICMS" help="Código de Situação Tributária do ICMS para empresas fora do Simples Nacional.">
+                  <FInput
+                    value={form.cst_icms}
+                    disabled={saving}
+                    error={fieldErrors.cst_icms}
+                    inputMode="numeric"
+                    maxLength={3}
+                    placeholder="000"
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, cst_icms: undefined }));
+                      setForm(current => ({ ...current, cst_icms: digitsOnly(event.target.value, 3) }));
+                    }}
+                    hint="Lucro presumido / real."
+                  />
+                </FiscalField>
+
+                <FiscalField label="CST PIS" help="Código de Situação Tributária do PIS aplicável ao produto.">
+                  <FInput
+                    value={form.cst_pis}
+                    disabled={saving}
+                    error={fieldErrors.cst_pis}
+                    inputMode="numeric"
+                    maxLength={2}
+                    placeholder="01"
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, cst_pis: undefined }));
+                      setForm(current => ({ ...current, cst_pis: digitsOnly(event.target.value, 2) }));
+                    }}
+                  />
+                </FiscalField>
+
+                <FiscalField label="CST COFINS" help="Código de Situação Tributária da COFINS aplicável ao produto.">
+                  <FInput
+                    value={form.cst_cofins}
+                    disabled={saving}
+                    error={fieldErrors.cst_cofins}
+                    inputMode="numeric"
+                    maxLength={2}
+                    placeholder="01"
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, cst_cofins: undefined }));
+                      setForm(current => ({ ...current, cst_cofins: digitsOnly(event.target.value, 2) }));
+                    }}
+                  />
+                </FiscalField>
+
+                <FiscalField label="CST IPI" help="Código de Situação Tributária do IPI, quando houver incidência.">
+                  <FInput
+                    value={form.cst_ipi}
+                    disabled={saving}
+                    error={fieldErrors.cst_ipi}
+                    inputMode="numeric"
+                    maxLength={2}
+                    placeholder="99"
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, cst_ipi: undefined }));
+                      setForm(current => ({ ...current, cst_ipi: digitsOnly(event.target.value, 2) }));
+                    }}
+                  />
+                </FiscalField>
+
+                <FiscalField label="Alíquota ICMS interna (%)" help="Alíquota interna do estado para o produto. Pode ser usada no cálculo do diferencial de alíquota em entradas interestaduais.">
+                  <FDecimalInput
+                    value={form.internal_icms_rate}
+                    disabled={saving}
+                    error={fieldErrors.internal_icms_rate}
+                    decimalPlaces={4}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, internal_icms_rate: undefined }));
+                      setForm(current => ({ ...current, internal_icms_rate: event.target.value }));
+                    }}
+                    hint="Valor entre 0 e 100."
+                  />
+                </FiscalField>
+
+                <div className="lg:col-span-2 rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4">
+                  <FToggle
+                    label="Calcular diferencial de ICMS na entrada (compra interestadual)"
+                    description="Marque quando este produto, comprado de outro estado para revenda, gerar diferencial de alíquota. O cálculo efetivo dependerá das configurações fiscais da empresa."
+                    checked={form.calculate_entry_difal}
+                    disabled={saving}
+                    onChange={value => setForm(current => ({ ...current, calculate_entry_difal: value }))}
+                  />
+                </div>
+
+                <FiscalField label="Alíquota IPI (%)" help="Alíquota padrão de IPI para o produto, quando aplicável.">
+                  <FDecimalInput
+                    value={form.ipi_rate}
+                    disabled={saving}
+                    error={fieldErrors.ipi_rate}
+                    decimalPlaces={4}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, ipi_rate: undefined }));
+                      setForm(current => ({ ...current, ipi_rate: event.target.value }));
+                    }}
+                  />
+                </FiscalField>
+
+                <FiscalField label="Unidade tributável" help="Unidade usada para tributação na NF-e. Se vazia, será usada a unidade comercial do cadastro.">
+                  <FInput
+                    value={form.tax_unit}
+                    disabled={saving}
+                    maxLength={6}
+                    placeholder={form.commercial_unit.toUpperCase()}
+                    onChange={(event: any) => setForm(current => ({ ...current, tax_unit: event.target.value.toUpperCase() }))}
+                    hint="Se vazio, usa a unidade comercial."
+                  />
+                </FiscalField>
+
+                <FiscalField label="Alíquota PIS (%)" help="Alíquota padrão de PIS, quando o regime e a operação exigirem.">
+                  <FDecimalInput
+                    value={form.pis_rate}
+                    disabled={saving}
+                    error={fieldErrors.pis_rate}
+                    decimalPlaces={4}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, pis_rate: undefined }));
+                      setForm(current => ({ ...current, pis_rate: event.target.value }));
+                    }}
+                  />
+                </FiscalField>
+
+                <FiscalField label="Alíquota COFINS (%)" help="Alíquota padrão de COFINS, quando o regime e a operação exigirem.">
+                  <FDecimalInput
+                    value={form.cofins_rate}
+                    disabled={saving}
+                    error={fieldErrors.cofins_rate}
+                    decimalPlaces={4}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, cofins_rate: undefined }));
+                      setForm(current => ({ ...current, cofins_rate: event.target.value }));
+                    }}
+                  />
+                </FiscalField>
+
+                <FiscalField label="GTIN tributável" help="Código GTIN/EAN da unidade tributável. Se vazio, pode ser usado o código de barras comercial.">
+                  <FInput
+                    value={form.tax_barcode}
+                    disabled={saving}
+                    placeholder="Opcional"
+                    onChange={(event: any) => setForm(current => ({ ...current, tax_barcode: event.target.value }))}
+                  />
+                </FiscalField>
+
+                <FiscalField label="Código de benefício fiscal" help="cBenef informado na NF-e quando exigido pela legislação estadual para a operação/produto.">
+                  <FInput
+                    value={form.fiscal_benefit_code}
+                    disabled={saving}
+                    placeholder="Opcional"
+                    onChange={(event: any) => setForm(current => ({ ...current, fiscal_benefit_code: event.target.value }))}
+                  />
+                </FiscalField>
+
+                <div className="lg:col-span-2">
+                  <FTextarea
+                    label="Observações fiscais"
+                    value={form.fiscal_notes}
+                    disabled={saving}
+                    rows={4}
+                    onChange={(event: any) => setForm(current => ({ ...current, fiscal_notes: event.target.value }))}
+                    placeholder="Informações fiscais específicas do produto"
+                  />
+                </div>
+              </div>
+            </Section>
+          </TabsContent>
+
+          <TabsContent value="photos" className="mt-0">
+            <Section title="Fotos do produto">
+              <p className="mb-4 text-xs leading-5 text-[#7a8aa0]">
+                A foto principal identifica o produto no CRM e pode ser reutilizada no catálogo da Artvideo quando a publicação estiver habilitada.
+              </p>
               <ImageUpload
                 bucket="product-images"
                 organizationId={activeOrganizationId || undefined}
                 currentMediaId={form.cover_media_id}
                 onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))}
                 canUpload={!saving && (editItem ? canEdit : canCreate)}
-                label="Imagem do catálogo"
+                label="Foto principal"
               />
-            </div>}
-          </div>
-        </Section>}
-      </div>
+            </Section>
+          </TabsContent>
 
-      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
+          {isArtvideoTenant && <TabsContent value="catalog" className="mt-0">
+            <Section title="Catálogo da loja">
+              <div className="space-y-5">
+                <FToggle
+                  label="Exibir no catálogo da loja"
+                  description="Única configuração exclusiva da Artvideo. Quando desligada, o produto continua disponível normalmente para vendas, PDV e estoque."
+                  checked={form.show_in_catalog}
+                  disabled={saving}
+                  onChange={value => setForm(current => ({ ...current, show_in_catalog: value }))}
+                />
+
+                {form.show_in_catalog && <div className="space-y-5 border-t border-[#0d1b2e]/8 pt-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FSelect
+                      label="Categoria do catálogo"
+                      value={form.category_id}
+                      disabled={saving || !canLoadCategories}
+                      onChange={(event: any) => setForm(current => ({ ...current, category_id: event.target.value }))}
+                      options={catOptions}
+                    />
+                    <FSelect
+                      label="Marca"
+                      value={form.brand_id}
+                      disabled={saving || !canLoadBrands}
+                      onChange={(event: any) => setForm(current => ({ ...current, brand_id: event.target.value }))}
+                      options={brandOptions}
+                    />
+                    <div className="sm:col-span-2">
+                      <FInput
+                        label="Descrição curta"
+                        value={form.short_description}
+                        disabled={saving}
+                        onChange={(event: any) => setForm(current => ({ ...current, short_description: event.target.value }))}
+                        placeholder="Resumo exibido no catálogo"
+                      />
+                    </div>
+                    <FCurrencyInput
+                      label="Preço de comparação"
+                      value={form.compare_at_price}
+                      disabled={saving}
+                      error={fieldErrors.compare_at_price}
+                      onChange={(event: any) => {
+                        setFieldErrors(current => ({ ...current, compare_at_price: undefined }));
+                        setForm(current => ({ ...current, compare_at_price: event.target.value }));
+                      }}
+                      hint="Opcional. Deve ser igual ou maior que o preço de venda."
+                    />
+                    <div className="flex items-end pb-1">
+                      <FToggle
+                        label="Destaque"
+                        description="Exibe na Home e nos destaques da loja."
+                        checked={form.is_featured}
+                        disabled={saving}
+                        onChange={value => setForm(current => ({ ...current, is_featured: value }))}
+                      />
+                    </div>
+                  </div>
+                </div>}
+              </div>
+            </Section>
+          </TabsContent>}
+        </div>
+      </Tabs>
+
+      <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
         <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
         {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </div>
