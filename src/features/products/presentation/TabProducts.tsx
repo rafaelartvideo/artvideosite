@@ -83,7 +83,7 @@ export function TabProducts({
   const queryClient = useQueryClient();
 
   const catalogQuery = useQuery({
-    queryKey: ["products", activeOrganizationId],
+    queryKey: [...queryKeys.catalog.products(), activeOrganizationId],
     queryFn: () => loadProductCatalog(activeOrganizationId!, {
       loadCategories: canLoadCategories,
       loadBrands: canLoadBrands,
@@ -113,7 +113,7 @@ export function TabProducts({
   }, [catalogQuery.error]);
 
   const refresh = () => Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["products", activeOrganizationId] }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.products() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.featuredProducts() }),
