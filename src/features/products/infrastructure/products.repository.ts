@@ -65,6 +65,27 @@ export async function loadProductCatalog(
   };
 }
 
+export async function saveCompleteProduct(
+  organizationId: string,
+  productId: string | undefined,
+  product: Record<string, unknown>,
+  inventory: ProductInventorySettingsInput,
+  initialQuantity: number,
+  initialUnitCost: number | null,
+) {
+  const { data, error } = await supabase.rpc("save_product_with_inventory_v1", {
+    p_organization_id: organizationId,
+    p_product_id: productId ?? null,
+    p_product: product,
+    p_inventory: inventory,
+    p_initial_quantity: initialQuantity,
+    p_initial_unit_cost: initialUnitCost,
+  });
+  if (error) throw error;
+  if (!data) throw new Error("O produto foi salvo sem retornar seu identificador.");
+  return String(data);
+}
+
 export async function saveProduct(
   organizationId: string,
   payload: Record<string, unknown>,
