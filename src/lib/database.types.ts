@@ -224,11 +224,14 @@ export interface ProductCategory {
 
 export interface Product {
   id: string;
+  organization_id: string;
   category_id: string | null;
   brand_id: string | null;
   name: string;
   slug: string;
   sku: string | null;
+  barcode: string | null;
+  commercial_unit: "un" | "cx";
   short_description: string | null;
   description: string | null;
   price: number | null;
@@ -237,6 +240,25 @@ export interface Product {
   is_active: boolean;
   show_in_catalog: boolean;
   is_featured: boolean;
+  ncm: string | null;
+  cest: string | null;
+  merchandise_origin: number;
+  cfop_entry: string | null;
+  cfop_exit: string | null;
+  csosn: string | null;
+  cst_icms: string | null;
+  cst_pis: string | null;
+  cst_cofins: string | null;
+  cst_ipi: string | null;
+  internal_icms_rate: number | null;
+  calculate_entry_difal: boolean;
+  ipi_rate: number | null;
+  pis_rate: number | null;
+  cofins_rate: number | null;
+  tax_unit: string | null;
+  tax_barcode: string | null;
+  fiscal_benefit_code: string | null;
+  fiscal_notes: string | null;
   external_platform: string | null;
   external_product_id: string | null;
   external_url: string | null;
