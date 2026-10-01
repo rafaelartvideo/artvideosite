@@ -24,7 +24,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
   const canDrag = (order: any) => canChangeSituation && !order.completed_at && !isCancelled(order);
   const columns = [
     { id: "", name: "Sem situação", color: "#94a3b8" },
-    ...situations.map(situation => ({ id: situation.id, name: situation.name, color: situation.color || "#0057e7" })),
+    ...situations.map(situation => ({ id: situation.id, name: situation.name, color: situation.color || "var(--primary)" })),
   ];
 
   return <>
@@ -48,7 +48,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
           }}
           className={cn(
             "w-full min-w-0 overflow-hidden rounded-xl border bg-[#f8fafc] transition-all md:w-[320px] md:flex-shrink-0",
-            isDragTarget ? "border-[#0057e7] bg-[#eef5ff] shadow-[0_0_0_2px_rgba(0,87,231,0.08)]" : "border-[#0d1b2e]/8",
+            isDragTarget ? "border-primary bg-primary-soft ring-2 ring-primary/10" : "border-[#0d1b2e]/8",
           )}
         >
           <div className="flex items-center justify-between gap-2 border-b border-[#0d1b2e]/8 bg-white px-3 py-2.5 md:px-4 md:py-3">
@@ -60,7 +60,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
           </div>
 
           <div className="min-h-0 space-y-2 p-2.5 md:min-h-[180px] md:space-y-3 md:p-3">
-            {columnOrders.length === 0 ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-[#0057e7]")}>{draggingId && canChangeSituation ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
+            {columnOrders.length === 0 ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-primary")}>{draggingId && canChangeSituation ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
               const draggable = canDrag(order);
               const orderStatus = order.order_status as any;
               return <div
@@ -71,7 +71,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
                 onClick={() => canOpenDetails && onOpen(order)}
                 className={cn(
                   "rounded-lg border border-[#0d1b2e]/10 bg-white p-3 shadow-sm transition-all",
-                  canOpenDetails && "hover:border-[#0057e7]/30",
+                  canOpenDetails && "hover:border-primary/30",
                   draggable && "md:cursor-grab md:active:cursor-grabbing",
                   draggingId === order.id && "scale-[0.98] opacity-45",
                 )}
@@ -79,7 +79,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
                 <div className="flex min-w-0 items-center gap-2">
                   {draggable && <GripVertical size={14} className="hidden shrink-0 text-[#5a6a82]/60 md:block" />}
                   <OrderStatusDot status={orderStatus?.name || ""} color={orderStatus?.color} />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs font-black text-[#0057e7]">{order.os_number || "—"}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs font-black text-primary">{order.os_number || "—"}</span>
                   {orderStatus?.name && <span className="shrink-0 rounded-full bg-[#f5f7fa] px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#5a6a82]">{orderStatus.name}</span>}
                 </div>
 
@@ -96,7 +96,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
                 {order.cannot_be_solved && !isCancelled(order) && <span className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span>}
 
                 {(canEdit && !order.is_solved && !isCancelled(order) || canCancel(order)) && <div className="mt-3 flex items-center justify-end gap-2 border-t border-[#0d1b2e]/8 pt-3" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
-                  {canEdit && !order.is_solved && !isCancelled(order) && <button type="button" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => onEdit(order)} className="flex min-h-9 cursor-default items-center gap-1 rounded-lg border border-[#0057e7]/30 px-3 py-1.5 text-xs font-bold text-[#0057e7]"><Edit2 size={13} /> Editar</button>}
+                  {canEdit && !order.is_solved && !isCancelled(order) && <button type="button" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => onEdit(order)} className="flex min-h-9 cursor-default items-center gap-1 rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-bold text-primary"><Edit2 size={13} /> Editar</button>}
                   {canCancel(order) && <button type="button" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => setCancelTarget(order)} className="flex min-h-9 cursor-default items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50"><Ban size={13} /> Cancelar</button>}
                 </div>}
               </div>;
