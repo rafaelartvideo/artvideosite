@@ -105,7 +105,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
       }}
       aria-label={`Ver alterações da situação da OS ${order.os_number || ""}`}
       title="Histórico da situação"
-      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#7a8798] transition-colors hover:bg-[#eef5ff] hover:text-[#0057e7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/30"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-primary transition-colors hover:text-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
     >
       <Clock3 size={14} />
     </button>
@@ -123,7 +123,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
           onClick={event => event.stopPropagation()}
           aria-label={`Ações rápidas da OS ${order.os_number || ""}`}
           title="Ações rápidas"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] transition-colors hover:bg-[#f5f7fa] hover:text-[#0057e7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/30"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center bg-transparent text-primary transition-colors hover:text-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         >
           <MoreVertical size={17} />
         </button>
