@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { FileCheck2, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -171,7 +171,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
 
     setSavingType(type);
     try {
-      const saved = await saveOrganizationTerm({
+      await saveOrganizationTerm({
         organizationId: activeOrganizationId,
         termType: type,
         title: draft.title,
@@ -198,7 +198,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
     <PageHeader
       title="Termos"
       subtitle="Configure os documentos de aceite obrigatório da empresa."
-      action={<BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
+      actions={<BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
     />
     <div className="grid gap-4 xl:grid-cols-2">
       <TermEditor
