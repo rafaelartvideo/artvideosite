@@ -30,7 +30,7 @@ export function FInput({ label, required, hint, error, disabled = false, ...prop
   const { className, type, onChange, value, ...restProps } = props;
   const commonClassName = cn(INPUT, disabled && "disabled:cursor-default disabled:bg-slate-100/60 disabled:text-slate-500 disabled:opacity-70 disabled:hover:bg-slate-100/60 disabled:focus:ring-0", error && "border-red-500 focus:border-red-500 focus:ring-red-500/40", className);
   const colorText = String(value ?? "");
-  const pickerColor = /^#[0-9A-Fa-f]{6}$/.test(colorText.trim()) ? colorText.trim() : "#0057E7";
+  const pickerColor = /^#[0-9A-Fa-f]{6}$/.test(colorText.trim()) ? colorText.trim() : "#1032DC";
 
   return <div className="min-w-0">
     {label && <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}{required && <span className="text-red-400">*</span>}</label>}
