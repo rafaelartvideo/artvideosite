@@ -26,6 +26,19 @@ export type PdvCashSession = {
   opened_by: string | null;
 };
 
+export type PdvPaymentMethod = {
+  id: string;
+  name: string;
+  method_type: "cash" | "pix" | "debit_card" | "credit_card" | "boleto" | "transfer" | "other" | string;
+  percentage_fee: number;
+  fixed_fee: number;
+  settlement_days: number;
+  creates_future_settlement: boolean;
+  financial_account_id: string | null;
+  financial_account_name: string | null;
+  available_for_pdv: boolean;
+};
+
 export type PdvBootstrap = {
   configured: boolean;
   cash_session_enabled: boolean;
@@ -33,9 +46,11 @@ export type PdvBootstrap = {
   cash_accounts: PdvCashAccount[];
   cash_account: Pick<PdvCashAccount, "id" | "name" | "balance"> | null;
   open_session: PdvCashSession | null;
+  payment_methods: PdvPaymentMethod[];
   readiness: {
     active_products: number;
     active_payment_methods: number;
+    ready_payment_methods: number;
   };
 };
 
@@ -51,6 +66,39 @@ export type PdvProduct = {
   min_quantity: number;
   unit: "un" | "cx" | string;
   conversion_factor: number;
+};
+
+export type PdvCustomer = {
+  id: string;
+  name: string;
+  document: string | null;
+  whatsapp: string | null;
+  phone: string | null;
+};
+
+export type PdvSaleResult = {
+  id: string;
+  sale_number: number;
+  subtotal: number;
+  discount_amount: number;
+  surcharge_amount: number;
+  total_amount: number;
+  change_amount: number;
+  customer_name: string | null;
+  customer_document: string | null;
+  sold_at: string;
+  financial_entry_id?: string | null;
+  idempotent_replay?: boolean;
+};
+
+export type FinalizePdvSaleInput = {
+  idempotencyKey: string;
+  customerId?: string | null;
+  discountAmount?: number;
+  surchargeAmount?: number;
+  note?: string | null;
+  items: Array<{ productId: string; quantity: number }>;
+  payments: Array<{ paymentMethodId: string; amount: number; tenderedAmount?: number | null }>;
 };
 
 function requiredOrganizationId(value: string) {
@@ -113,4 +161,48 @@ export async function searchPdvProducts(
   });
   if (error) throw error;
   return (data || []) as PdvProduct[];
+}
+
+
+export async function searchPdvCustomers(
+  organizationId: string,
+  search = "",
+  limit = 20,
+): Promise<PdvCustomer[]> {
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase.rpc("search_pdv_customers_v1", {
+    p_organization_id: org,
+    p_search: search,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  return (data || []) as PdvCustomer[];
+}
+
+export async function finalizePdvSale(
+  organizationId: string,
+  input: FinalizePdvSaleInput,
+): Promise<PdvSaleResult> {
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase.rpc("finalize_pdv_sale_v1", {
+    p_organization_id: org,
+    p_idempotency_key: input.idempotencyKey,
+    p_payload: {
+      customer_id: input.customerId || null,
+      discount_amount: Number(input.discountAmount || 0),
+      surcharge_amount: Number(input.surchargeAmount || 0),
+      note: String(input.note || "").trim() || null,
+      items: input.items.map(item => ({
+        product_id: item.productId,
+        quantity: Number(item.quantity),
+      })),
+      payments: input.payments.map(payment => ({
+        payment_method_id: payment.paymentMethodId,
+        amount: Number(payment.amount),
+        tendered_amount: payment.tenderedAmount == null ? null : Number(payment.tenderedAmount),
+      })),
+    },
+  });
+  if (error) throw error;
+  return data as PdvSaleResult;
 }
