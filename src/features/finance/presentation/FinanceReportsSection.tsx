@@ -18,6 +18,7 @@ import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/sha
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceReports } from "../application/useFinanceReports";
 import type { FinancialEntryOriginType, FinancialReportFilters } from "../domain/finance.types";
+import { FinanceSubsectionTabs } from "./FinanceSectionTabs";
 
 type ReportTab = "dre" | "cash-flow";
 
@@ -127,10 +128,15 @@ export function FinanceReportsSection() {
       <AdminButton variant="secondary" onClick={resetFilters}><RefreshCcw size={15} /> Limpar filtros</AdminButton>
     </div>
 
-    <div className="flex gap-1 overflow-x-auto border-b border-[#0d1b2e]/10">
-      {canDre && <button type="button" onClick={() => setTab("dre")} className={`border-b-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap ${tab === "dre" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]"}`}>DRE</button>}
-      {canCashFlow && <button type="button" onClick={() => setTab("cash-flow")} className={`border-b-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap ${tab === "cash-flow" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]"}`}>Fluxo de Caixa</button>}
-    </div>
+    <FinanceSubsectionTabs
+      value={tab}
+      items={[
+        ...(canDre ? [{ id: "dre" as const, label: "DRE" }] : []),
+        ...(canCashFlow ? [{ id: "cash-flow" as const, label: "Fluxo de Caixa" }] : []),
+      ]}
+      onSelect={setTab}
+      ariaLabel="Relatórios financeiros"
+    />
 
     <AdminCard className="p-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
