@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, History, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, AdminCard, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -618,8 +618,8 @@ export function TabAuditLog() {
         subtitle="Histórico de alterações realizadas nos dados do CRM."
       />
 
-      <AdminCard>
-        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-6">
+      <Section title="Filtros da auditoria" contentClassName="p-4 sm:p-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Usuário</label>
             <AdminSelect
@@ -674,9 +674,9 @@ export function TabAuditLog() {
             </AdminButton>
           </div>
         )}
-      </AdminCard>
+      </Section>
 
-      <AdminCard>
+      <Section title="Histórico de alterações" flush>
         {logsQuery.isPending ? (
           <LoadingState text="Carregando auditoria..." />
         ) : logsQuery.error ? (
@@ -754,7 +754,7 @@ export function TabAuditLog() {
             />
           </>
         )}
-      </AdminCard>
+      </Section>
 
       <AuditDetailsDialog
         entry={detailQuery.data || null}
