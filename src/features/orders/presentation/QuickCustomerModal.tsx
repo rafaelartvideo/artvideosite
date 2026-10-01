@@ -323,7 +323,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
                 <div className="min-w-0">
                   <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
                     <FCpfInput label="CPF" required error={fieldErrors.document} value={form.document} onChange={(e: any) => { clearFieldError("document"); setForm({ ...form, document: e.target.value }); }} />
-                    <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfName()} disabled={saving || !isValidCpf(form.document)} className="h-[42px] shrink-0 border-[#0057e7]/30 px-4 text-[#0057e7] hover:bg-[#0057e7]/5" aria-label="Consultar CPF" title="Consultar CPF">Consultar</AdminButton>
+                    <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfName()} disabled={saving || !isValidCpf(form.document)} className="h-[42px] shrink-0 border-primary/30 px-4 text-primary hover:bg-primary/5" aria-label="Consultar CPF" title="Consultar CPF">Consultar</AdminButton>
                   </div>
                 </div>
                 <FInput label="Nome completo" required error={fieldErrors.full_name} value={form.full_name} onChange={(e: any) => { clearFieldError("full_name"); setForm({ ...form, full_name: e.target.value }); }} />
@@ -347,7 +347,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
 
           <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#0d1b2e]/10 bg-white px-3 py-3 sm:flex-row sm:justify-end sm:px-5">
             <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-            {hasPermission("customers.create") && <BtnPrimary className="w-full sm:w-auto" onClick={save} loading={saving} loadingText="Salvando...">Criar cliente</BtnPrimary>}
+            {hasPermission("customers.create") && <BtnPrimary className="w-full sm:w-auto" onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}
           </div>
         </div>
       </DialogContent>
