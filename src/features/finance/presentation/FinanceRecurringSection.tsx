@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FIntegerInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { validateAllocationTotal } from "../domain/finance-entry.mjs";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
@@ -176,18 +176,14 @@ export function FinanceRecurringSection() {
   };
 
   return <div className="space-y-4">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h2 className="text-lg font-black text-[#0d1b2e]">Recorrências</h2>
-        <p className="mt-1 text-xs text-[#5a6a82]">Títulos periódicos com ocorrências independentes e janela automática de 90 dias.</p>
-      </div>
-      {canManage && <AdminButton onClick={openNew}><Plus size={16} /> Nova recorrência</AdminButton>}
-    </div>
-
     {success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{success}</div>}
-    
 
-    <AdminCard>
+    <Section
+      title="Recorrências"
+      description="Títulos periódicos com ocorrências independentes e janela automática de 90 dias."
+      actions={canManage ? <AdminButton onClick={openNew}><Plus size={16} /> Nova recorrência</AdminButton> : undefined}
+      flush
+    >
       <AdminCardToolbar><p className="text-xs font-semibold text-[#5a6a82]">{rules.length} {rules.length === 1 ? "regra cadastrada" : "regras cadastradas"}</p></AdminCardToolbar>
       {recurring.rulesQuery.isLoading ? <div className="p-10"><LoadingState text="Carregando recorrências..." /></div> : recurring.rulesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{recurring.rulesQuery.error instanceof Error ? recurring.rulesQuery.error.message : "Não foi possível carregar as recorrências."}</div> : rules.length === 0 ? <div className="p-10"><EmptyState icon={CalendarClock} title="Nenhuma recorrência cadastrada" /></div> : <div className="overflow-x-auto">
         <table className="min-w-[980px]">
@@ -207,7 +203,7 @@ export function FinanceRecurringSection() {
           </tr>)}</tbody>
         </table>
       </div>}
-    </AdminCard>
+    </Section>
 
     {open && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
       <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
