@@ -47,9 +47,11 @@ function statusBadge(status: "completed" | "cancelled") {
 export function PdvSalesHistory({
   onBack,
   onNewSale,
+  canStartSale,
 }: {
   onBack: () => void;
   onNewSale: () => void;
+  canStartSale: boolean;
 }) {
   const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
@@ -143,7 +145,7 @@ export function PdvSalesHistory({
       subtitle="Consulte vendas concluídas e canceladas, abra o comprovante e faça estornos quando necessário."
       actions={<div className="flex flex-wrap justify-end gap-2">
         <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={15} /> Voltar ao PDV</AdminButton>
-        <AdminButton onClick={onNewSale}><ShoppingCart size={15} /> Nova venda</AdminButton>
+        <AdminButton disabled={!canStartSale} onClick={onNewSale} title={!canStartSale ? "Abra e configure o caixa antes de iniciar a venda." : "Nova venda"}><ShoppingCart size={15} /> Nova venda</AdminButton>
       </div>}
     />
 
