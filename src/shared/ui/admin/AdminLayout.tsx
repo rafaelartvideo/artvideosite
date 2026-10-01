@@ -261,7 +261,7 @@ export function AdminDialog({
   </Dialog>;
 }
 
-export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false, closing = false }: {
+export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false, closing = false, smoothMotion = false }: {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -272,6 +272,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   maxW?: string;
   fullPage?: boolean;
   closing?: boolean;
+  smoothMotion?: boolean;
 }) {
   const setPage = React.useContext(AdminPageContext)?.setPage;
   const onCloseRef = React.useRef(onClose);
@@ -322,8 +323,10 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
     className={cn(
       "admin-page-mobile-safe absolute inset-0 z-[35] bg-[#f8fafc] motion-reduce:animate-none",
       closing
-        ? "pointer-events-none animate-out fade-out slide-out-to-right-2 duration-200 ease-in"
-        : "animate-in fade-in slide-in-from-right-2 duration-200 ease-out",
+        ? "pointer-events-none animate-out fade-out slide-out-to-right-4 duration-200 ease-in"
+        : smoothMotion
+          ? "animate-in fade-in slide-in-from-right-4 duration-300 ease-out"
+          : "animate-in fade-in slide-in-from-right-2 duration-200",
     )}
     role="main"
     aria-label={title}
