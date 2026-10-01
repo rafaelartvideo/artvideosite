@@ -21,9 +21,8 @@ import { AdminSelect, FCurrencyInput, FTextarea, FToggle } from "@/shared/ui/adm
 import {
   AdminButton,
   AdminCard,
-  AdminCardContent,
-  AdminCardHeader,
   PageHeader,
+  Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
@@ -260,14 +259,11 @@ export function TabPdv({
       </div>}
     />
 
-    {!bootstrap?.configured ? <AdminCard className="overflow-hidden">
-      <AdminCardHeader>
-        <div>
-          <h2 className="text-base font-black text-[#0d1b2e]">Configuração inicial do PDV</h2>
-          <p className="mt-1 text-xs leading-5 text-[#5a6a82]">O PDV usa o mesmo caixa do Financeiro para não existir saldo duplicado em dois módulos.</p>
-        </div>
-      </AdminCardHeader>
-      <AdminCardContent className="space-y-5">
+    {!bootstrap?.configured ? <Section
+      title="Configuração inicial do PDV"
+      description="O PDV usa o mesmo caixa do Financeiro para não existir saldo duplicado em dois módulos."
+      contentClassName="space-y-5"
+    >
         <div className="grid gap-3 md:grid-cols-3">
           <ReadinessCard
             icon={Package}
@@ -299,20 +295,14 @@ export function TabPdv({
             ? <AdminButton className="mt-4" onClick={() => quickSetupMutation.mutate()} loading={quickSetupMutation.isPending} loadingText="Configurando..."><Settings2 size={15} /> Configurar PDV</AdminButton>
             : <p className="mt-3 text-xs font-semibold text-amber-700">Um gestor com permissão de configuração precisa preparar o PDV antes da primeira venda.</p>}
         </div>
-      </AdminCardContent>
-    </AdminCard> : <>
+    </Section> : <>
       <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-        <AdminCard>
-          <AdminCardHeader>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-black text-[#0d1b2e]">Caixa do PDV</h2>
-                <StatusBadge status={openSession ? "Aberto" : "Fechado"} />
-              </div>
-              <p className="mt-1 text-xs text-[#5a6a82]">{cashAccount?.name || "Caixa não selecionado"}</p>
-            </div>
-          </AdminCardHeader>
-          <AdminCardContent className="space-y-4">
+        <Section
+          title="Caixa do PDV"
+          description={cashAccount?.name || "Caixa não selecionado"}
+          actions={<StatusBadge status={openSession ? "Aberto" : "Fechado"} />}
+          contentClassName="space-y-4"
+        >
             <div className="grid gap-3 sm:grid-cols-3">
               <Metric label="Saldo da conta" value={formatCurrency(Number(cashAccount?.balance || 0))} />
               <Metric label="Situação" value={openSession ? "Caixa aberto" : "Caixa fechado"} />
@@ -332,35 +322,27 @@ export function TabPdv({
             </div>
 
             {!canOpenCash && !canCloseCash && <p className="text-xs text-[#5a6a82]">Seu perfil pode acessar o PDV, mas não possui permissão para operar abertura e fechamento de caixa.</p>}
-          </AdminCardContent>
-        </AdminCard>
+        </Section>
 
-        <AdminCard>
-          <AdminCardHeader>
-            <div>
-              <h2 className="text-base font-black text-[#0d1b2e]">Prontidão para venda</h2>
-              <p className="mt-1 text-xs text-[#5a6a82]">Itens mínimos para operar o balcão.</p>
-            </div>
-          </AdminCardHeader>
-          <AdminCardContent className="space-y-3">
+        <Section
+          title="Prontidão para venda"
+          description="Itens mínimos para operar o balcão."
+          contentClassName="space-y-3"
+        >
             <CompactReadyRow ready={readiness.active_products > 0} label="Produtos ativos" value={String(readiness.active_products)} />
             <CompactReadyRow ready={readiness.ready_payment_methods > 0} label="Formas de pagamento prontas" value={String(readiness.ready_payment_methods)} />
             <CompactReadyRow ready={!settings?.require_open_cash || Boolean(openSession)} label="Caixa exigido" value={settings?.require_open_cash ? (openSession ? "Aberto" : "Fechado") : "Não obrigatório"} />
             <div className="border-t border-[#0d1b2e]/8 pt-3">
               <p className="text-xs leading-5 text-[#5a6a82]">{canStartSale ? "A estrutura está pronta para iniciar uma venda." : "Conclua os itens pendentes antes de iniciar uma venda."}</p>
             </div>
-          </AdminCardContent>
-        </AdminCard>
+        </Section>
       </div>
 
-      <AdminCard>
-        <AdminCardHeader>
-          <div>
-            <h2 className="text-base font-black text-[#0d1b2e]">Configurações de venda rápida</h2>
-            <p className="mt-1 text-xs leading-5 text-[#5a6a82]">Padrões usados no balcão. O caixa continua integrado ao Financeiro.</p>
-          </div>
-        </AdminCardHeader>
-        <AdminCardContent className="space-y-5">
+      <Section
+        title="Configurações de venda rápida"
+        description="Padrões usados no balcão. O caixa continua integrado ao Financeiro."
+        contentClassName="space-y-5"
+      >
           <div className="grid gap-5 lg:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Caixa padrão</label>
@@ -402,8 +384,7 @@ export function TabPdv({
           {canConfigure && <div className="flex justify-end border-t border-[#0d1b2e]/8 pt-4">
             <AdminButton onClick={() => settingsMutation.mutate()} loading={settingsMutation.isPending} loadingText="Salvando..."><Settings2 size={14} /> Salvar configurações</AdminButton>
           </div>}
-        </AdminCardContent>
-      </AdminCard>
+      </Section>
     </>}
 
     {cashDialog && cashAccount && <div className="fixed inset-0 z-[160] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
