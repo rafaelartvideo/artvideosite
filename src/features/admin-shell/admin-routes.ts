@@ -55,7 +55,7 @@ export function adminPath(tab: AdminTab, resourceId?: string | null, subpage?: s
 
 export function resolveAdminRoute(pathname: string): AdminRouteParts {
   if (pathname === LEGACY_SETTINGS_PATH || matchPath({ path: `${LEGACY_SETTINGS_PATH}/*`, end: false }, pathname)) {
-    const remainder = pathname.slice(LEGACY_SETTINGS_PATH.length).replace(/^\\/+/, "");
+    const remainder = pathname.slice(LEGACY_SETTINGS_PATH.length).replace(/^\/+/, "");
     const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
     return { tab: "settings", resourceId: segments[0] || null, subpage: segments[1] || null };
   }
