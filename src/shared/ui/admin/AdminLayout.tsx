@@ -173,7 +173,7 @@ export function AdminIconButton({
 export function AdminCard({ className = "", children, square = false }: { className?: string; children: React.ReactNode; square?: boolean }) {
   return <div className={cn(
     "min-w-0 max-w-full overflow-hidden break-words border border-[#0d1b2e]/8 bg-white shadow-sm",
-    square ? "rounded-none" : "rounded-xl has-[table]:rounded-none",
+    square ? "rounded-none" : "rounded-xl has-[table]:rounded-none has-[.admin-card-header]:rounded-none",
     "[&_table]:w-full [&_table]:text-sm",
     "[&_thead]:border-b [&_thead]:border-[#0d1b2e]/8 [&_thead]:bg-[#f8fafc] [&_thead]:text-[10px] [&_thead]:font-bold [&_thead]:uppercase [&_thead]:text-[#5a6a82]",
     "[&_th]:px-4 [&_th]:py-3",
@@ -185,7 +185,7 @@ export function AdminCard({ className = "", children, square = false }: { classN
 }
 
 export function AdminCardHeader({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("flex min-h-14 min-w-0 items-center justify-between gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] px-4 py-3.5 sm:px-5", className)}>{children}</div>;
+  return <div className={cn("admin-card-header flex min-h-14 min-w-0 items-center justify-between gap-3 border-b border-[#0d1b2e]/8 bg-[#f8fafc] px-4 py-3.5 sm:px-5", className)}>{children}</div>;
 }
 
 export function AdminCardToolbar({ className = "", children }: { className?: string; children: React.ReactNode }) {
