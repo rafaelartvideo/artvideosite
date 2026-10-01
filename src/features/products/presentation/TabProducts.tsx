@@ -18,10 +18,8 @@ import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   deleteProduct,
-  initializeProductInventoryBalance,
   loadProductCatalog,
-  saveProduct,
-  saveProductInventorySettings,
+  saveCompleteProduct,
   updateProductFlags,
 } from "../infrastructure/products.repository";
 import {
@@ -547,25 +545,21 @@ export function TabProducts({
         updated_by: user?.id || null,
       };
 
-      const savedProduct = await saveProduct(activeOrganizationId, payload, editItem?.id, user?.id ?? null);
-
-      await saveProductInventorySettings(activeOrganizationId, savedProduct.id, {
-        unit: form.commercial_unit,
-        conversion_factor: Math.max(1, Number(form.conversion_factor || 1)),
-        min_quantity: Math.max(0, Number(form.min_quantity || 0)),
-        storage_shelf: form.storage_shelf.trim() || null,
-        storage_level: form.storage_level.trim() || null,
-        storage_compartment: form.storage_compartment.trim() || null,
-      });
-
-      if (!editItem && Number(form.initial_quantity || 0) > 0) {
-        await initializeProductInventoryBalance(
-          activeOrganizationId,
-          savedProduct.id,
-          Number(form.initial_quantity || 0),
-          nullableNumber(form.initial_unit_cost),
-        );
-      }
+      await saveCompleteProduct(
+        activeOrganizationId,
+        editItem?.id,
+        payload,
+        {
+          unit: form.commercial_unit,
+          conversion_factor: Math.max(1, Number(form.conversion_factor || 1)),
+          min_quantity: Math.max(0, Number(form.min_quantity || 0)),
+          storage_shelf: form.storage_shelf.trim() || null,
+          storage_level: form.storage_level.trim() || null,
+          storage_compartment: form.storage_compartment.trim() || null,
+        },
+        editItem ? 0 : Number(form.initial_quantity || 0),
+        editItem ? null : nullableNumber(form.initial_unit_cost),
+      );
 
       setDrawerOpen(false);
       onRouteChange?.(null, null);
