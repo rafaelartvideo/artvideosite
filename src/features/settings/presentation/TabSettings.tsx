@@ -41,7 +41,7 @@ export function TabSettings({ onBack }: {
   onBack: () => void;
 }) {
   const { user, hasPermission, activeOrganizationId, activeOrganization } = useAuth();
-  const canView = hasPermission("settings.view");
+  const canView = hasPermission("settings.view") && hasPermission("settings.details.view");
   const canUpdate = hasPermission("settings.update");
   const query = useCompanySettingsQuery(activeOrganizationId);
   const saveSettings = useSaveCompanySettingsMutation();
