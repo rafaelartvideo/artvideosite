@@ -7,6 +7,10 @@ create index if not exists pdv_sales_cash_session_idx
   on public.pdv_sales (organization_id,cash_session_id,sold_at desc)
   where cash_session_id is not null;
 
+create index if not exists pdv_sales_cash_session_fk_idx
+  on public.pdv_sales (cash_session_id)
+  where cash_session_id is not null;
+
 create or replace function private.pdv_sale_set_cash_session()
 returns trigger
 language plpgsql
