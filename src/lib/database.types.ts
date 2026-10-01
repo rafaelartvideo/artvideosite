@@ -235,6 +235,7 @@ export interface Product {
   compare_at_price: number | null;
   cover_media_id: string | null;
   is_active: boolean;
+  show_in_catalog: boolean;
   is_featured: boolean;
   external_platform: string | null;
   external_product_id: string | null;
