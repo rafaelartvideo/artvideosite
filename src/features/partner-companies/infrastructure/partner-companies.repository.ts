@@ -85,7 +85,7 @@ export async function listPartnerCompanies({ page, pageSize }: PartnerCompanyPag
   const { data, error, count } = await supabase
     .from("organizations")
     .select(COMPANY_SELECT, { count: "exact" })
-    .eq("organization_type", "partner")
+    .or("organization_type.eq.partner,settings->>is_artvideo_tenant.eq.true")
     .order("name")
     .range(from, to);
   if (error) throw toPartnerCompanyError(error, "Não foi possível carregar as empresas parceiras.");
@@ -97,7 +97,7 @@ export async function getPartnerCompany(id: string) {
     .from("organizations")
     .select(COMPANY_SELECT)
     .eq("id", id)
-    .eq("organization_type", "partner")
+    .or("organization_type.eq.partner,settings->>is_artvideo_tenant.eq.true")
     .single();
   return result.error
     ? { ...result, error: toPartnerCompanyError(result.error, "Não foi possível carregar a empresa parceira.") }
@@ -131,7 +131,7 @@ export async function createPartnerCompany(
 export async function updatePartnerCompany(id: string, payload: PartnerCompanyInput) {
   const result = await supabase
     .from("organizations")
-    .update({ ...payload, parent_organization_id: null, organization_type: "partner" })
+    .update({ ...payload, parent_organization_id: null })
     .eq("id", id)
     .select(COMPANY_SELECT)
     .single();
