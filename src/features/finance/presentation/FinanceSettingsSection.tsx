@@ -2,7 +2,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { FCurrencyInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, Section } from "@/shared/ui/admin/AdminLayout";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { validateSecondApprovalThreshold } from "../domain/finance-foundation.mjs";
 
@@ -47,8 +47,11 @@ export function FinanceSettingsSection() {
   const costCenterOptions = [{ value: "", label: "Nenhum centro de custo padrão" }, ...costCenters.filter(item => item.is_active).map(item => ({ value: item.id, label: item.name }))];
 
   return <div className="space-y-4">
-    <div><h2 className="text-lg font-black text-[#0d1b2e]">Configurações financeiras</h2><p className="mt-1 text-xs text-[#5a6a82]">Defina os padrões usados pelos fluxos financeiros das próximas etapas.</p></div>
-    <AdminCard className="p-5 sm:p-6">
+    <Section
+      title="Configurações financeiras"
+      description="Defina os padrões usados pelos fluxos financeiros das próximas etapas."
+      contentClassName="p-5 sm:p-6"
+    >
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-4"><FCurrencyInput label="Limite para exigir 2 aprovações" error={thresholdError} hint="Vazio mantém o limite ainda não configurado." value={threshold} onChange={(event: any) => { setThresholdError(""); setThreshold(event.target.value); }} /><FToggle label="Usar abertura e fechamento de caixa" description="Quando ativo, contas Caixa que permitem sessão usarão o controle de abertura, sangria, suprimento e fechamento em uma etapa posterior." checked={cashSessionEnabled} onChange={setCashSessionEnabled} /></div>
         <div className="space-y-4"><FSelect label="Categoria padrão de Contas a Receber" value={receivableCategoryId} options={revenueOptions} onChange={(event: any) => setReceivableCategoryId(event.target.value)} /><FSelect label="Categoria padrão de Contas a Pagar" value={payableCategoryId} options={expenseOptions} onChange={(event: any) => setPayableCategoryId(event.target.value)} /><FSelect label="Centro de custo padrão" value={costCenterId} options={costCenterOptions} onChange={(event: any) => setCostCenterId(event.target.value)} /></div>
@@ -56,6 +59,6 @@ export function FinanceSettingsSection() {
       {error && <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{systemErrorMessage(error, "Não foi possível carregar as configurações.")}</div>}
       {success && <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
       <div className="mt-5 flex justify-end"><AdminButton onClick={save} loading={finance.saveSettings.isPending} loadingText="Salvando...">Salvar configurações</AdminButton></div>
-    </AdminCard>
+    </Section>
   </div>;
 }
