@@ -202,13 +202,13 @@ function CatalogCombobox({
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => selectOption(option)}
               className={cn(
-                "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[#eef5ff] focus-visible:bg-[#eef5ff] focus-visible:outline-none",
-                selected && "bg-[#eef5ff]",
+                "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-primary-soft focus-visible:bg-primary-soft focus-visible:outline-none",
+                selected && "bg-primary-soft",
               )}
             >
-              <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected ? "border-[#0057e7] bg-[#0057e7] text-white" : "border-[#0d1b2e]/15 text-transparent")}><Check size={11} /></span>
+              <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected ? "border-primary bg-primary text-white" : "border-[#0d1b2e]/15 text-transparent")}><Check size={11} /></span>
               <span className="min-w-0 flex-1">
-                <span className={cn("block truncate text-xs font-bold", selected ? "text-[#0057e7]" : "text-[#0d1b2e]")}>{option.name}</span>
+                <span className={cn("block truncate text-xs font-bold", selected ? "text-primary" : "text-[#0d1b2e]")}>{option.name}</span>
                 {option.meta && <span className="mt-0.5 block truncate text-[10px] text-[#5a6a82]">{option.meta}</span>}
               </span>
             </button>;
@@ -216,7 +216,7 @@ function CatalogCombobox({
         </div>
         {allowCreate && cleanCatalogValue(value) && !exactOption && (
           <div className="border-t border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2 text-[10px] text-[#5a6a82]">
-            <span className="font-bold text-[#0057e7]">{createLabel}:</span> {cleanCatalogValue(value)}
+            <span className="font-bold text-primary">{createLabel}:</span> {cleanCatalogValue(value)}
           </div>
         )}
       </PopoverContent>
@@ -232,7 +232,7 @@ function CatalogCombobox({
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => selectOption(duplicateOption)}
-          className="mt-1.5 inline-flex min-h-6 items-center rounded-md border border-[#0057e7]/20 bg-white px-2 py-1 text-[9px] font-bold leading-none text-[#0057e7] transition-colors hover:bg-[#eef5ff]"
+          className="mt-1.5 inline-flex min-h-6 items-center rounded-md border border-primary/20 bg-white px-2 py-1 text-[9px] font-bold leading-none text-primary transition-colors hover:bg-primary-soft"
         >
           Usar cadastro
         </button>
@@ -503,10 +503,10 @@ export function QuickEquipmentModal({
                         onClick={() => selectMode(item.id)}
                         className={cn(
                           "min-w-0 rounded-lg border px-3 py-2.5 text-left transition sm:px-4 sm:py-3",
-                          selected ? "border-[#0057e7]/20 bg-white shadow-sm" : "border-transparent hover:bg-white/70",
+                          selected ? "border-primary/20 bg-white shadow-sm" : "border-transparent hover:bg-white/70",
                         )}
                       >
-                        <span className={cn("block text-xs font-black sm:text-sm", selected ? "text-[#0057e7]" : "text-[#0d1b2e]")}>{item.title}</span>
+                        <span className={cn("block text-xs font-black sm:text-sm", selected ? "text-primary" : "text-[#0d1b2e]")}>{item.title}</span>
                         <span className="mt-0.5 block text-[9px] leading-3.5 text-[#5a6a82] sm:mt-1 sm:text-[10px] sm:leading-4">{item.description}</span>
                       </button>
                     );
@@ -522,7 +522,7 @@ export function QuickEquipmentModal({
 
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
                   <div className="relative min-w-0">
-                    <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-[#0057e7] text-[10px] font-black text-white">1</span>
+                    <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-black text-white">1</span>
                     <CatalogCombobox
                       label="Equipamento"
                       required
@@ -548,7 +548,7 @@ export function QuickEquipmentModal({
                   </div>
 
                   <div className="relative min-w-0">
-                    <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-[#0057e7] text-[10px] font-black text-white">2</span>
+                    <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-black text-white">2</span>
                     <CatalogCombobox
                       label="Marca"
                       required
@@ -574,7 +574,7 @@ export function QuickEquipmentModal({
                   </div>
 
                   <div className="relative min-w-0">
-                    <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-[#0057e7] text-[10px] font-black text-white">3</span>
+                    <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-black text-white">3</span>
                     <CatalogCombobox
                       label="Modelo"
                       required
@@ -608,7 +608,7 @@ export function QuickEquipmentModal({
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {activeTechnicalFields.map(field => (
-                      <label key={field.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2.5 text-sm font-medium text-[#0d1b2e] transition hover:border-[#0057e7]/25 hover:bg-[#eef5ff]/50">
+                      <label key={field.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2.5 text-sm font-medium text-[#0d1b2e] transition hover:border-primary/25 hover:bg-primary-soft/50">
                         <Checkbox disabled={saving} checked={selectedFieldIds.includes(field.id)} onCheckedChange={checked => setSelectedFieldIds(current => checked === true ? [...current, field.id] : current.filter(id => id !== field.id))} />
                         <span className="min-w-0 break-words">{field.label}</span>
                       </label>
@@ -618,7 +618,7 @@ export function QuickEquipmentModal({
               )}
 
               {mode === "full" && selectedTypeId && (
-                <div className="rounded-lg border border-[#0057e7]/15 bg-[#eef5ff]/60 px-3 py-2.5 text-[10px] leading-4 text-[#426080]">
+                <div className="rounded-lg border border-primary/15 bg-primary-soft/60 px-3 py-2.5 text-[10px] leading-4 text-[#426080]">
                   Os campos técnicos do equipamento existente serão mantidos sem alterações. Para editá-los, use <strong>Operação &gt; Equipamentos</strong>.
                 </div>
               )}
@@ -646,7 +646,7 @@ export function QuickEquipmentModal({
             <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
             {hasPermission("equipment.create") && (
               <BtnPrimary className="w-full sm:w-auto" onClick={save} disabled={!canSave} loading={saving} loadingText="Salvando...">
-                {newItems.length === 0 && selectedModelId ? "Usar existente" : "Cadastrar e usar"}
+                {newItems.length === 0 && selectedModelId ? "Usar" : "Criar"}
               </BtnPrimary>
             )}
           </div>
@@ -706,7 +706,7 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
           <FIntegerInput label="Previsão em dias" disabled={saving} error={fieldErrors.forecast_days} value={form.forecast_days} onChange={(event: any) => { setFieldErrors(current => ({ ...current, forecast_days: undefined })); setForm({ ...form, forecast_days: event.target.value }); }} />
           <FToggle label="Tipo ativo" disabled={saving} checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>{hasPermission("service_types.create") && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div>
+        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>{hasPermission("service_types.create") && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}</div>
       </div>
       </DialogContent>
     </Dialog>
