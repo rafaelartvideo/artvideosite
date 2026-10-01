@@ -101,41 +101,6 @@ export async function saveProduct(
   return data;
 }
 
-export async function saveProductInventorySettings(
-  organizationId: string,
-  productId: string,
-  input: ProductInventorySettingsInput,
-) {
-  const { data, error } = await supabase.rpc("save_product_inventory_settings", {
-    p_organization_id: organizationId,
-    p_product_id: productId,
-    p_unit: input.unit,
-    p_conversion_factor: input.conversion_factor,
-    p_min_quantity: input.min_quantity,
-    p_storage_shelf: input.storage_shelf ?? null,
-    p_storage_level: input.storage_level ?? null,
-    p_storage_compartment: input.storage_compartment ?? null,
-  });
-  if (error) throw error;
-  return data as string;
-}
-
-export async function initializeProductInventoryBalance(
-  organizationId: string,
-  productId: string,
-  quantity: number,
-  unitCost: number | null,
-) {
-  const { data, error } = await supabase.rpc("initialize_product_inventory_balance", {
-    p_organization_id: organizationId,
-    p_product_id: productId,
-    p_input_quantity: quantity,
-    p_input_unit_cost: unitCost,
-  });
-  if (error) throw error;
-  return data as string;
-}
-
 export async function deleteProduct(organizationId: string, productId: string): Promise<void> {
   const { error } = await supabase
     .from("products")
