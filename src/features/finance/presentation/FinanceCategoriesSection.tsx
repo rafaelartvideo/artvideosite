@@ -4,7 +4,7 @@ import { useState } from "react";
 import { FolderTree, Pencil, Plus, X } from "lucide-react";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCardToolbar, AdminIconButton, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import type { FinancialCategory, FinancialCategoryNature } from "../domain/finance.types";
