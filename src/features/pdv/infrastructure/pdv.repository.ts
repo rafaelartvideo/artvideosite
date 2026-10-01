@@ -91,6 +91,63 @@ export type PdvSaleResult = {
   idempotent_replay?: boolean;
 };
 
+export type PdvSaleListItem = {
+  id: string;
+  sale_number: number;
+  status: "completed" | "cancelled";
+  customer_name: string | null;
+  customer_document: string | null;
+  total_amount: number;
+  change_amount: number;
+  sold_at: string;
+  sold_by_name: string | null;
+  cancelled_at: string | null;
+  cancelled_by_name: string | null;
+  cancellation_reason: string | null;
+  payment_methods: string[];
+};
+
+export type PdvSalePage = {
+  items: PdvSaleListItem[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+};
+
+export type PdvSaleDetail = PdvSaleResult & {
+  status: "completed" | "cancelled";
+  customer_id: string | null;
+  notes: string | null;
+  sold_by_name: string | null;
+  cancelled_at: string | null;
+  cancelled_by_name: string | null;
+  cancellation_reason: string | null;
+  items: Array<{
+    id: string;
+    product_id: string;
+    product_name: string;
+    sku: string | null;
+    barcode: string | null;
+    quantity: number;
+    unit: string;
+    unit_price: number;
+    line_subtotal: number;
+  }>;
+  payments: Array<{
+    id: string;
+    payment_method_id: string;
+    payment_method_name: string;
+    method_type: string;
+    financial_account_name: string;
+    amount: number;
+    tendered_amount: number | null;
+    change_amount: number;
+    fee_amount: number;
+    settlement_status: "scheduled" | "posted" | "reversed" | string;
+  }>;
+};
+
 export type FinalizePdvSaleInput = {
   idempotencyKey: string;
   customerId?: string | null;
@@ -205,4 +262,51 @@ export async function finalizePdvSale(
   });
   if (error) throw error;
   return data as PdvSaleResult;
+}
+
+
+export async function loadPdvSalesPage(
+  organizationId: string,
+  options: { page?: number; pageSize?: number; search?: string; status?: "" | "completed" | "cancelled" } = {},
+): Promise<PdvSalePage> {
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase.rpc("get_pdv_sales_page_v1", {
+    p_organization_id: org,
+    p_page: options.page || 1,
+    p_page_size: options.pageSize || 20,
+    p_search: options.search || "",
+    p_status: options.status || null,
+  });
+  if (error) throw error;
+  return data as PdvSalePage;
+}
+
+export async function loadPdvSaleDetail(
+  organizationId: string,
+  saleId: string,
+): Promise<PdvSaleDetail> {
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase.rpc("get_pdv_sale_detail_v1", {
+    p_organization_id: org,
+    p_sale_id: saleId,
+  });
+  if (error) throw error;
+  return data as PdvSaleDetail;
+}
+
+export async function cancelPdvSale(
+  organizationId: string,
+  saleId: string,
+  reason: string,
+): Promise<{ id: string; sale_number: number; status: "cancelled"; cancelled_at: string; reason: string }> {
+  const org = requiredOrganizationId(organizationId);
+  const normalizedReason = String(reason || "").trim();
+  if (!normalizedReason) throw new Error("Informe o motivo do cancelamento.");
+  const { data, error } = await supabase.rpc("cancel_pdv_sale_v1", {
+    p_organization_id: org,
+    p_sale_id: saleId,
+    p_reason: normalizedReason,
+  });
+  if (error) throw error;
+  return data as { id: string; sale_number: number; status: "cancelled"; cancelled_at: string; reason: string };
 }
