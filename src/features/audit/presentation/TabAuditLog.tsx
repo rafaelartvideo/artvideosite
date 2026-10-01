@@ -29,7 +29,8 @@ const MODULE_LABELS: Record<string, string> = {
   quotes: "Orçamentos",
   services: "Serviços Gerais",
   site_services: "Serviços do Site",
-  site_products: "Produtos",
+  products: "Produtos",
+  site_products: "Produtos (legado)",
   site_brands: "Marcas",
   site_settings: "Site",
   company_settings: "Dados da Empresa",
@@ -352,6 +353,9 @@ const TABLE_FIELD_LABELS: Record<string, Record<string, string>> = {
     counterpart_entity_id: "Favorecido / fornecedor",
     counterpart_name_snapshot: "Favorecido / fornecedor",
     original_amount: "Valor",
+  },
+  products: {
+    show_in_catalog: "Exibir no catálogo da loja",
   },
   inventory_items: {
     min_quantity: "Estoque mínimo",
