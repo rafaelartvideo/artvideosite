@@ -101,41 +101,6 @@ body {
 	font-weight: 800;
 }
 
-@media (min-width: 768px) {
-	.admin-crm table thead th:not([data-admin-sort-disabled="true"]) {
-		cursor: pointer;
-		user-select: none;
-	}
-
-	.admin-crm table thead th:not([data-admin-sort-disabled="true"])::after {
-		content: "↕";
-		display: inline-block;
-		margin-left: 0.35rem;
-		font-size: 0.7rem;
-		font-weight: 700;
-		line-height: 1;
-		color: #9aa6b8;
-		opacity: 0.72;
-		vertical-align: baseline;
-	}
-
-	.admin-crm table thead th[aria-sort="ascending"]:not([data-admin-sort-disabled="true"])::after {
-		content: "↑";
-		color: var(--primary);
-		opacity: 1;
-	}
-
-	.admin-crm table thead th[aria-sort="descending"]:not([data-admin-sort-disabled="true"])::after {
-		content: "↓";
-		color: var(--primary);
-		opacity: 1;
-	}
-
-	.admin-crm table thead th[data-admin-sort-disabled="true"]::after {
-		display: none;
-	}
-}
-
 @media (max-width: 767px) {
 	/*
 	 * Mobile browser bars can cover the final controls of the CRM because the
