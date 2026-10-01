@@ -15,8 +15,9 @@ function dateTime(value: string) {
 }
 
 export function printPdvReceipt(sale: PdvSaleDetail, organizationName: string) {
-  const popup = window.open("", "_blank", "noopener,noreferrer,width=520,height=760");
+  const popup = window.open("", "_blank", "width=520,height=760");
   if (!popup) throw new Error("O navegador bloqueou a janela de impressão.");
+  try { popup.opener = null; } catch { /* janela de impressão isolada quando suportado */ }
 
   const itemRows = sale.items.map(item => `
     <div class="item">
