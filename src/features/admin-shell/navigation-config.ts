@@ -14,6 +14,7 @@ import {
   Phone,
   Settings,
   ShieldCheck,
+  ScrollText,
   ShoppingCart,
   Tag,
   Users,
@@ -54,11 +55,11 @@ export const operationItems: PermissionAwareHubItem[] = [
   { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "situations.view" },
   { id: "roles", label: "Funções e Permissões", icon: ShieldCheck, description: "Configure funções e os acessos herdados pelos usuários da empresa.", permissionKey: "roles.view" },
   { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos de impressão e tipos de anexos das ordens de serviço.", permissionKey: "documents.view" },
+  { id: "settings", label: "Dados da empresa", icon: Building2, description: "Gerencie os dados institucionais, endereço e identidade visual da empresa.", permissionKey: "settings.view" },
+  { id: "terms", label: "Termos", icon: ScrollText, description: "Configure os Termos de Uso e o Termo de Responsabilidade dos usuários.", permissionKey: "terms.view" },
 ];
 
-export const utilityItems: AdminNavigationItem[] = [
-  { id: "settings", label: "Configurações", icon: Settings },
-];
+export const utilityItems: AdminNavigationItem[] = [];
 
 export const permissionForTab: Record<AdminTab, string> = {
   dashboard: "dashboard.view",
@@ -84,6 +85,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   partnerCompanies: "organizations.view",
   audit: "organizations.audit.view",
   settings: "settings.view",
+  terms: "terms.view",
   siteSettings: "site_settings.view",
   contact: "contact.view",
   site: "site.view",
@@ -109,6 +111,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   partnerCompanies: null,
   audit: null,
   settings: "company_settings",
+  terms: "company_settings",
   contact: "site_settings",
   products: "products",
   pdv: "pdv",
@@ -140,6 +143,7 @@ export const operationModuleKeys = [
   "documents",
   "quotes",
   "employees",
+  "company_settings",
 ] as const;
 
 export function isAdminModuleEnabled(
