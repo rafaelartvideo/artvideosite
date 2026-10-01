@@ -10,6 +10,7 @@ import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
 
 const TabDocuments = lazy(() => import("@/features/documents/presentation/TabDocuments").then(({ TabDocuments }) => ({ default: TabDocuments })));
 const TabOrders = lazy(() => import("@/features/orders/presentation/TabOrders").then(({ TabOrders }) => ({ default: TabOrders })));
@@ -37,6 +38,7 @@ const TabServices = lazy(() => import("@/features/services/presentation/TabServi
 const ServiceTypesAdminPanel = lazy(() => import("@/features/service-types/presentation/ServiceTypesAdminPanel").then(({ ServiceTypesAdminPanel }) => ({ default: ServiceTypesAdminPanel })));
 const TabSettings = lazy(() => import("@/features/settings/presentation/TabSettings").then(({ TabSettings }) => ({ default: TabSettings })));
 const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabSiteSettings").then(({ TabSiteSettings }) => ({ default: TabSiteSettings })));
+const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
 
@@ -46,7 +48,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "dashboard", "orders", "customers", "agenda", "inventory", "products", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "roles", "settings", "contact",
+  "dashboard", "orders", "customers", "agenda", "inventory", "products", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "roles", "settings", "terms", "contact",
 ];
 
 function AdminRouteLoading() { return <LoadingState text="Carregando módulo..." />; }
@@ -147,6 +149,8 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
             <Route path="operation/roles/*" element={<TabRoles onBack={() => backToParent("roles")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("roles")} />} />
             <Route path="operation/employees/*" element={<Navigate to="/admin/operation/roles" replace />} />
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
+            <Route path="operation/company/*" element={<TabSettings routeResourceId={route.resourceId} onRouteChange={resourceId => navigateAdmin("settings", resourceId, null)} />} />
+            <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization
               ? <UnionOrderMonitor initialOrderId={route.resourceId} onOrderRouteChange={orderId => orderId ? navigateOrderRoute(orderId) : closeOrderRoute()} />
@@ -157,12 +161,13 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
             <Route path="products/*" element={<TabProducts routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("products")} />} />
             <Route path="pdv/*" element={<TabPdv routeResourceId={route.resourceId} onRouteChange={routeChange("pdv")} />} />
             <Route path="finance/*" element={<TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
-            <Route path="settings/*" element={<TabSettings routeResourceId={route.resourceId} onRouteChange={resourceId => navigateAdmin("settings", resourceId, null)} />} />
+            <Route path="settings/*" element={<Navigate to={adminPath("settings", route.resourceId, route.subpage)} replace />} />
             <Route path="contact/*" element={<TabContact />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>}
         </Suspense>
       </div>
+      <TermsAcceptanceGate />
     </AdminLayout>
   </AdminPageContext.Provider>;
 }
