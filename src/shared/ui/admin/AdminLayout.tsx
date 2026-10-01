@@ -191,13 +191,14 @@ function adminTableComparableValue(rawText: string) {
   return { kind: "text" as const, value: text.toLocaleLowerCase("pt-BR") };
 }
 
-function handleAdminTableSort(event: React.MouseEvent<HTMLDivElement>) {
+export function handleAdminTableSort(event: { target: EventTarget | null }) {
   const target = event.target as HTMLElement | null;
+  if (target?.closest("button, a, input, select, textarea, [role='button']")) return;
   const header = target?.closest("th") as HTMLTableCellElement | null;
   if (!header || header.dataset.adminSortDisabled === "true") return;
 
   const headerRow = header.parentElement;
-  if (!headerRow || header === headerRow.lastElementChild) return;
+  if (!headerRow) return;
 
   const label = header.textContent?.replace(/\s+/g, " ").trim().toLocaleLowerCase("pt-BR") || "";
   if (!label || /^(ações?|opções?)$/.test(label)) return;
@@ -232,8 +233,32 @@ function handleAdminTableSort(event: React.MouseEvent<HTMLDivElement>) {
   rows.forEach(row => body.appendChild(row));
 }
 
+export function AdminTableSortingBridge() {
+  useEffect(() => {
+    const annotateHeaders = () => {
+      document.querySelectorAll<HTMLTableCellElement>(".admin-crm table thead th").forEach(header => {
+        const label = header.textContent?.replace(/\\s+/g, " ").trim().toLocaleLowerCase("pt-BR") || "";
+        if (!label || /^(ações?|opções?)$/.test(label)) header.dataset.adminSortDisabled = "true";
+        else delete header.dataset.adminSortDisabled;
+      });
+    };
+
+    annotateHeaders();
+    const observer = new MutationObserver(annotateHeaders);
+    observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener("click", handleAdminTableSort);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("click", handleAdminTableSort);
+    };
+  }, []);
+
+  return null;
+}
+
 export function AdminCard({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div onClick={handleAdminTableSort} className={cn(
+  return <div className={cn(
     "min-w-0 max-w-full overflow-hidden break-words rounded-xl border border-[#0d1b2e]/8 bg-white shadow-sm",
     "[&_table]:w-full [&_table]:text-sm",
     "[&_thead]:border-b [&_thead]:border-[#0d1b2e]/8 [&_thead]:bg-[#f8fafc] [&_thead]:text-[10px] [&_thead]:font-bold [&_thead]:uppercase [&_thead]:text-[#5a6a82]",
