@@ -12,7 +12,7 @@ export function AdminPanelLoader() {
           alt=""
           aria-hidden="true"
           draggable={false}
-          className="h-20 w-20 object-contain sm:h-24 sm:w-24"
+          className="h-40 w-40 object-contain sm:h-48 sm:w-48"
         />
 
         <div className="mt-7 flex items-center gap-3 text-white/72">
