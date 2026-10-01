@@ -383,7 +383,7 @@ export function ConfirmDialog({ message, onConfirm, onCancel }: { message: strin
   };
 
   return <AlertDialog open onOpenChange={(open) => { if (!open && !confirming) onCancel(); }}>
-    <AlertDialogContent className="max-w-sm rounded-2xl border-[#0d1b2e]/10 bg-white">
+    <AlertDialogContent className="admin-crm max-w-sm rounded-2xl border-[#0d1b2e]/10 bg-white">
       <AlertDialogHeader className="flex-row items-start gap-3 text-left">
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100">
           <AlertTriangle size={18} className="text-red-600" />
