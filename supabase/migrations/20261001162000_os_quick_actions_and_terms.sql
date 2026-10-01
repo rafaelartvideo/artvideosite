@@ -41,7 +41,7 @@ as $$
     on next_situation.id = private.audit_try_uuid(audit_log.changed_fields -> 'situation_id' ->> 'after')
   where audit_log.organization_id = p_organization_id
     and audit_log.table_name = 'service_orders'
-    and audit_log.entity_id = p_service_order_id
+    and audit_log.entity_id = p_service_order_id::text
     and audit_log.operation = 'update'
     and audit_log.changed_fields ? 'situation_id'
     and private.is_organization_member(p_organization_id)
