@@ -29,7 +29,7 @@ const clampInteger = (value: string, min: number, max: number) => {
 
 export function CenteredModal({ children, onClose, className, title = "Pedido de peças" }: { children: React.ReactNode; onClose: () => void; className?: string; title?: string }) {
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent showClose={false} className={cn("flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl sm:w-full", className || "max-w-2xl")}>
+    <DialogContent showClose={false} className={cn("admin-crm flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl sm:w-full", className || "max-w-2xl")}>
       <DialogTitle className="sr-only">{title}</DialogTitle>
       {children}
     </DialogContent>
