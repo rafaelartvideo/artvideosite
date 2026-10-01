@@ -30,7 +30,7 @@ export function OrdersHeader({
               onClick={() => onDisplayModeChange("list")}
               aria-label="Visualizar em lista"
               title="Lista"
-              className={`flex h-10 min-w-10 items-center justify-center rounded-md px-3 transition-colors ${displayMode === "list" ? "bg-[#0057e7] text-white" : "text-[#5a6a82] hover:bg-[#f5f7fa]"}`}
+              className={`flex h-10 min-w-10 items-center justify-center rounded-md px-3 transition-colors ${displayMode === "list" ? "bg-primary text-white" : "text-[#5a6a82] hover:bg-[#f5f7fa]"}`}
             >
               <List size={17} />
               <span className="ml-2 hidden sm:inline text-xs font-bold">Lista</span>
@@ -40,7 +40,7 @@ export function OrdersHeader({
               onClick={() => onDisplayModeChange("kanban")}
               aria-label="Visualizar em Kanban"
               title="Kanban"
-              className={`flex h-10 min-w-10 items-center justify-center rounded-md px-3 transition-colors ${displayMode === "kanban" ? "bg-[#0057e7] text-white" : "text-[#5a6a82] hover:bg-[#f5f7fa]"}`}
+              className={`flex h-10 min-w-10 items-center justify-center rounded-md px-3 transition-colors ${displayMode === "kanban" ? "bg-primary text-white" : "text-[#5a6a82] hover:bg-[#f5f7fa]"}`}
             >
               <LayoutDashboard size={17} />
               <span className="ml-2 hidden sm:inline text-xs font-bold">Kanban</span>
