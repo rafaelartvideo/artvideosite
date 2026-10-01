@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CreditCard, Pencil, Plus, X } from "lucide-react";
 import { FCurrencyInput, FDecimalInput, FIntegerInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCardToolbar, AdminIconButton, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { paymentMethodNetAmount } from "../domain/finance-foundation.mjs";
