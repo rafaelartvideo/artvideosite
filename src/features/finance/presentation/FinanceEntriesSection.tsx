@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCardToolbar, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinanceEntries } from "../application/useFinanceEntries";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
