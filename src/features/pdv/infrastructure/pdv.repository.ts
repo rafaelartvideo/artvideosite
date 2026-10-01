@@ -148,6 +148,90 @@ export type PdvSaleDetail = PdvSaleResult & {
   }>;
 };
 
+export type PdvCashSessionListItem = {
+  id: string;
+  status: "open" | "closed";
+  account_id: string;
+  account_name: string;
+  opened_at: string;
+  opened_by_name: string | null;
+  closed_at: string | null;
+  closed_by_name: string | null;
+  opening_expected_amount: number;
+  opening_counted_amount: number;
+  opening_difference: number;
+  expected_amount: number;
+  closing_counted_amount: number | null;
+  closing_difference: number | null;
+  sales_count: number;
+  sales_total: number;
+  cancelled_sales_count: number;
+};
+
+export type PdvCashSessionsPage = {
+  items: PdvCashSessionListItem[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+};
+
+export type PdvCashSessionReport = {
+  session: {
+    id: string;
+    status: "open" | "closed";
+    account_id: string;
+    account_name: string;
+    opened_at: string;
+    opened_by_name: string | null;
+    opening_expected_amount: number;
+    opening_counted_amount: number;
+    opening_difference: number;
+    opening_note: string | null;
+    expected_amount: number;
+    closing_expected_amount: number | null;
+    closing_counted_amount: number | null;
+    closing_difference: number | null;
+    closing_reason: string | null;
+    closed_at: string | null;
+    closed_by_name: string | null;
+  };
+  sales: {
+    completed_count: number;
+    completed_total: number;
+    cash_total: number;
+    cancelled_count: number;
+    cancelled_total: number;
+  };
+  cash_movements: {
+    receipts: number;
+    supplies: number;
+    withdrawals: number;
+    reversals: number;
+    fees: number;
+    other_credits: number;
+    other_debits: number;
+    net: number;
+  };
+  payment_breakdown: Array<{
+    payment_method_id: string;
+    payment_method_name: string;
+    method_type: string;
+    sales_count: number;
+    amount: number;
+    fee_amount: number;
+  }>;
+  movements: Array<{
+    id: string;
+    direction: "credit" | "debit";
+    movement_type: string;
+    amount: number;
+    occurred_at: string;
+    description: string;
+    created_by_name: string | null;
+  }>;
+};
+
 export type FinalizePdvSaleInput = {
   idempotencyKey: string;
   customerId?: string | null;
@@ -309,4 +393,35 @@ export async function cancelPdvSale(
   });
   if (error) throw error;
   return data as { id: string; sale_number: number; status: "cancelled"; cancelled_at: string; reason: string };
+}
+
+
+export async function loadPdvCashSessionsPage(
+  organizationId: string,
+  options: { page?: number; pageSize?: number } = {},
+): Promise<PdvCashSessionsPage> {
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase.rpc("get_pdv_cash_sessions_page_v1", {
+    p_organization_id: org,
+    p_page: options.page || 1,
+    p_page_size: options.pageSize || 20,
+  });
+  if (error) throw error;
+  return data as PdvCashSessionsPage;
+}
+
+export async function loadPdvCashSessionReport(
+  organizationId: string,
+  sessionId: string,
+): Promise<PdvCashSessionReport> {
+  const org = requiredOrganizationId(organizationId);
+  const normalizedSessionId = String(sessionId || "").trim();
+  if (!normalizedSessionId) throw new Error("Sessão de caixa não informada.");
+
+  const { data, error } = await supabase.rpc("get_pdv_cash_session_report_v1", {
+    p_organization_id: org,
+    p_session_id: normalizedSessionId,
+  });
+  if (error) throw error;
+  return data as PdvCashSessionReport;
 }
