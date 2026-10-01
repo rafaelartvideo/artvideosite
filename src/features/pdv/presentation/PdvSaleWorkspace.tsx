@@ -20,7 +20,6 @@ import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   AdminButton,
-  AdminCard,
   AdminDialog,
   AdminIconButton,
   PageHeader,
