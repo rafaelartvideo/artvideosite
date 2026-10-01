@@ -147,7 +147,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "inventory.movements.view": ["inventory.view"], "inventory.movements.create": ["inventory.update", "inventory.view"], "inventory.toggle_active": ["inventory.update", "inventory.view"],
   "inventory.suppliers.view": ["inventory.view"], "inventory.suppliers.manage": ["inventory.suppliers.view", "inventory.update", "inventory.view"], "inventory.costs.view": ["inventory.view"],
   "products.toggle_active": ["products.update", "products.view"], "products.toggle_featured": ["products.update", "products.view"],
-  "pdv.sales.create": ["pdv.view"], "pdv.settings.manage": ["pdv.view"],
+  "pdv.sales.create": ["pdv.view"], "pdv.sales.cancel": ["pdv.view"], "pdv.settings.manage": ["pdv.view"],
   "pdv.cash.open": ["pdv.view"], "pdv.cash.close": ["pdv.view"], "pdv.cash.supply": ["pdv.view"], "pdv.cash.withdraw": ["pdv.view"],
   "categories.toggle_active": ["categories.update", "categories.view"], "brands.toggle_active": ["brands.update", "brands.view"],
   "general_services.toggle_active": ["general_services.edit", "general_services.view"], "service_types.toggle_active": ["service_types.edit", "service_types.view"],
