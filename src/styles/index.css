@@ -10,7 +10,89 @@ body {
 	font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	font-optical-sizing: auto;
 	font-synthesis: none;
+
+	/* Union World brand palette. Keep brand changes centralized here. */
+	--primary: #1032dc;
+	--primary-hover: #0d29b8;
+	--primary-active: #0a218f;
+	--primary-soft: #eef1ff;
+	--primary-soft-strong: #e1e6ff;
+	--primary-light: #5d73ef;
+	--primary-foreground: #ffffff;
+	--secondary: #eef1ff;
+	--ring: #1032dc;
+	--accent: #5d73ef;
+	--sidebar-primary: #1032dc;
+	--sidebar-ring: #1032dc;
 }
+
+.admin-primary-bar {
+	background-image: linear-gradient(105deg, var(--primary) 0%, var(--primary-hover) 100%);
+}
+
+.admin-primary-gradient {
+	background-image: linear-gradient(105deg, var(--primary) 0%, var(--primary-hover) 100%);
+}
+
+.admin-primary-gradient:hover {
+	background-image: linear-gradient(105deg, var(--primary-hover) 0%, var(--primary-active) 100%);
+}
+
+.admin-primary-gradient:active {
+	background-image: linear-gradient(105deg, var(--primary-active) 0%, var(--primary-active) 100%);
+}
+
+.admin-primary-loader {
+	background-image: linear-gradient(145deg, var(--primary-active) 0%, var(--primary) 100%);
+}
+
+/*
+ * Legacy blue compatibility layer.
+ * Older CRM screens still carrying Artvideo-era hardcoded blue utilities inherit
+ * the Union World palette immediately. New and edited components should use
+ * semantic Tailwind utilities (primary / primary-soft / primary-light).
+ */
+.admin-crm [class~="text-[#0057e7]"] { color: var(--primary) !important; }
+.admin-crm [class~="bg-[#0057e7]"] { background-color: var(--primary) !important; }
+.admin-crm [class~="border-[#0057e7]"] { border-color: var(--primary) !important; }
+.admin-crm [class~="ring-[#0057e7]"] { --tw-ring-color: var(--primary) !important; }
+.admin-crm [class~="hover:text-[#0057e7]"]:hover { color: var(--primary) !important; }
+.admin-crm [class~="hover:bg-[#0057e7]"]:hover { background-color: var(--primary) !important; }
+.admin-crm [class~="focus:border-[#0057e7]"]:focus { border-color: var(--primary) !important; }
+.admin-crm [class~="focus:ring-[#0057e7]/50"]:focus,
+.admin-crm [class~="focus-visible:ring-[#0057e7]/40"]:focus-visible { --tw-ring-color: color-mix(in srgb, var(--primary) 40%, transparent) !important; }
+
+.admin-crm [class~="hover:bg-[#0046c0]"]:hover,
+.admin-crm [class~="hover:bg-[#1268f3]"]:hover { background-color: var(--primary-hover) !important; }
+.admin-crm [class~="active:bg-[#0046c0]"]:active { background-color: var(--primary-active) !important; }
+
+.admin-crm [class~="text-[#00b4ff]"] { color: var(--primary-light) !important; }
+.admin-crm [class~="bg-[#00b4ff]"] { background-color: var(--primary-light) !important; }
+.admin-crm [class~="ring-[#00b4ff]"] { --tw-ring-color: var(--primary-light) !important; }
+.admin-crm [class~="focus-visible:ring-[#00b4ff]"]:focus-visible { --tw-ring-color: var(--primary-light) !important; }
+
+.admin-crm [class~="bg-[#eef5ff]"],
+.admin-crm [class~="bg-[#edf3ff]"],
+.admin-crm [class~="bg-[#f0f6ff]"],
+.admin-crm [class~="bg-[#f4f8ff]"] { background-color: var(--primary-soft) !important; }
+.admin-crm [class~="bg-[#e8eef8]"] { background-color: var(--primary-soft-strong) !important; }
+
+.admin-crm [class~="bg-blue-50"],
+.admin-crm [class~="bg-cyan-50"] { background-color: var(--primary-soft) !important; }
+.admin-crm [class~="bg-blue-100"] { background-color: var(--primary-soft-strong) !important; }
+.admin-crm [class~="text-blue-600"],
+.admin-crm [class~="text-blue-700"],
+.admin-crm [class~="text-blue-800"] { color: var(--primary) !important; }
+.admin-crm [class~="text-cyan-700"] { color: var(--primary-light) !important; }
+.admin-crm [class~="border-blue-100"] { border-color: color-mix(in srgb, var(--primary) 15%, transparent) !important; }
+.admin-crm [class~="border-blue-200"] { border-color: color-mix(in srgb, var(--primary) 20%, transparent) !important; }
+.admin-crm [class~="border-blue-300"] { border-color: color-mix(in srgb, var(--primary) 30%, transparent) !important; }
+
+.admin-crm [class*="linear-gradient(105deg,#0057e7_0%,#0a66f0_52%,#2f80ed_100%)"],
+.admin-crm [class*="linear-gradient(105deg,#082f63_0%,#0b4f9c_100%)"] {
+	background-image: linear-gradient(105deg, var(--primary) 0%, var(--primary-hover) 100%) !important;
+}
+
 
 .admin-crm .font-black {
 	font-weight: 800;
