@@ -237,7 +237,7 @@ export function AdminTableSortingBridge() {
   useEffect(() => {
     const annotateHeaders = () => {
       document.querySelectorAll<HTMLTableCellElement>(".admin-crm table thead th").forEach(header => {
-        const label = header.textContent?.replace(/\\s+/g, " ").trim().toLocaleLowerCase("pt-BR") || "";
+        const label = header.textContent?.replace(/\s+/g, " ").trim().toLocaleLowerCase("pt-BR") || "";
         if (!label || /^(ações?|opções?)$/.test(label)) header.dataset.adminSortDisabled = "true";
         else delete header.dataset.adminSortDisabled;
       });
