@@ -66,6 +66,11 @@ export const queryKeys = {
     active: () => ["inventory", "active"] as const,
     movements: (itemId: string) => ["inventory", "movements", itemId] as const,
   },
+  pdv: {
+    all: ["pdv"] as const,
+    bootstrap: (organizationId: string) => ["pdv", organizationId, "bootstrap"] as const,
+    products: (organizationId: string, search: string) => ["pdv", organizationId, "products", search] as const,
+  },
   finance: {
     all: ["finance"] as const,
     foundation: (organizationId: string) => ["finance", "foundation", organizationId] as const,
