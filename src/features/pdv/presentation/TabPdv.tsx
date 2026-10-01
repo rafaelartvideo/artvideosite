@@ -144,6 +144,7 @@ export function TabPdv({
     canSell
     && bootstrap?.configured
     && Number(bootstrap.readiness.active_products || 0) > 0
+    && Number(bootstrap.readiness.active_payment_methods || 0) > 0
     && (!settings?.require_open_cash || openSession),
   );
 
