@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
+const PUBLIC_PRODUCT_COLUMNS = "id,organization_id,category_id,brand_id,name,slug,short_description,description,price,compare_at_price,cover_media_id,is_active,is_featured,created_at,updated_at,show_in_catalog";
+
 export const getServices = () =>
   supabase.from("services").select("*").eq("is_active", true).order("sort_order", { ascending: true });
 
@@ -47,7 +49,7 @@ export async function getServiceDetailBySlug(slug: string) {
     getServiceFilters(service.id),
     service.category_id ? supabase.from("service_categories").select("*").eq("id", service.category_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     service.brand_id ? supabase.from("brands").select("*").eq("id", service.brand_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    service.product_id ? supabase.from("products").select("*").eq("id", service.product_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    service.product_id ? supabase.from("products").select(PUBLIC_PRODUCT_COLUMNS).eq("id", service.product_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     service.cover_media_id ? getMediaById(service.cover_media_id) : Promise.resolve({ data: null, error: null }),
   ]);
 
@@ -85,13 +87,13 @@ export const getServiceCategories = () =>
   supabase.from("service_categories").select("*").eq("is_active", true).order("sort_order", { ascending: true });
 
 export const getProducts = () =>
-  supabase.from("products").select("*").eq("is_active", true).eq("show_in_catalog", true).order("created_at", { ascending: false });
+  supabase.from("products").select(PUBLIC_PRODUCT_COLUMNS).eq("is_active", true).eq("show_in_catalog", true).order("created_at", { ascending: false });
 
 export const getFeaturedProducts = () =>
-  supabase.from("products").select("*").eq("is_active", true).eq("show_in_catalog", true).eq("is_featured", true).order("created_at", { ascending: false });
+  supabase.from("products").select(PUBLIC_PRODUCT_COLUMNS).eq("is_active", true).eq("show_in_catalog", true).eq("is_featured", true).order("created_at", { ascending: false });
 
 const getProductBySlug = (slug: string) =>
-  supabase.from("products").select("*").eq("slug", slug).eq("is_active", true).eq("show_in_catalog", true).maybeSingle();
+  supabase.from("products").select(PUBLIC_PRODUCT_COLUMNS).eq("slug", slug).eq("is_active", true).eq("show_in_catalog", true).maybeSingle();
 
 export async function getProductDetailBySlug(slug: string) {
   const { data: product, error } = await getProductBySlug(slug);
