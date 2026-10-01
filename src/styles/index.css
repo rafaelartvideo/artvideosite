@@ -102,12 +102,12 @@ body {
 }
 
 @media (min-width: 768px) {
-	.admin-crm table thead th:not(:last-child) {
+	.admin-crm table thead th:not([data-admin-sort-disabled="true"]) {
 		cursor: pointer;
 		user-select: none;
 	}
 
-	.admin-crm table thead th:not(:last-child)::after {
+	.admin-crm table thead th:not([data-admin-sort-disabled="true"])::after {
 		content: "↕";
 		display: inline-block;
 		margin-left: 0.35rem;
@@ -119,13 +119,13 @@ body {
 		vertical-align: baseline;
 	}
 
-	.admin-crm table thead th[aria-sort="ascending"]:not(:last-child)::after {
+	.admin-crm table thead th[aria-sort="ascending"]:not([data-admin-sort-disabled="true"])::after {
 		content: "↑";
 		color: var(--primary);
 		opacity: 1;
 	}
 
-	.admin-crm table thead th[aria-sort="descending"]:not(:last-child)::after {
+	.admin-crm table thead th[aria-sort="descending"]:not([data-admin-sort-disabled="true"])::after {
 		content: "↓";
 		color: var(--primary);
 		opacity: 1;
