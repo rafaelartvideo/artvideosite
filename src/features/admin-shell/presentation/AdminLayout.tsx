@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { AdminFeedbackHost } from "@/shared/ui/admin/AdminFeedback";
-import { AdminTableSortingBridge } from "@/shared/ui/admin/AdminLayout";
 import { UniqCallOverlay } from "@/features/telephony/presentation/UniqCallOverlay";
 
 type AdminSidebarLayoutContextValue = {
@@ -54,7 +53,6 @@ export function AdminLayout({
   return (
     <div className="admin-crm flex h-screen min-w-0 overflow-hidden bg-[#f8fafc]">
       <AdminFeedbackHost />
-      <AdminTableSortingBridge />
       <UniqCallOverlay />
 
       <aside
