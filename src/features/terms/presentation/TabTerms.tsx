@@ -117,8 +117,6 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
   const [savingType, setSavingType] = useState<OrganizationTermType | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const byType = useMemo(() => new Map(terms.map(term => [term.term_type, term])), [terms]);
-
   const load = async () => {
     if (!activeOrganizationId || !canView) {
       setLoading(false);
@@ -180,9 +178,6 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
       });
       setToast({ msg: `${type === "usage" ? "Termos de Uso" : "Termo de Responsabilidade"} salvos.`, type: "success" });
       await load();
-      if (saved?.version && byType.get(type)?.version !== saved.version) {
-        // O novo versionamento é refletido após o reload acima.
-      }
     } catch (error) {
       setToast({ msg: systemErrorMessage(error, "Não foi possível salvar o termo."), type: "error" });
     } finally {
