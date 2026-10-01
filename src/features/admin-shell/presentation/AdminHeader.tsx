@@ -58,7 +58,7 @@ export function AdminHeader({
             aria-expanded={sidebarOpen}
             aria-label={sidebarOpen ? "Fechar menu" : "Abrir menu"}
             title={sidebarOpen ? "Fechar menu" : "Abrir menu"}
-            className="relative z-10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#0057e7] text-white shadow-sm transition-colors hover:bg-[#1268f3] active:bg-[#0046c0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b4ff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1b2e]"
+            className="relative z-10 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-primary text-white shadow-sm transition-colors hover:bg-primary-hover active:bg-primary-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1b2e]"
           >
             {sidebarOpen ? <X size={20} strokeWidth={2.4} /> : <Menu size={21} strokeWidth={2.4} />}
           </button>
@@ -87,7 +87,7 @@ export function AdminHeader({
                 <button
                   type="button"
                   onClick={page.onBack}
-                  className="min-w-0 truncate font-semibold transition-colors hover:text-[#0057e7]"
+                  className="min-w-0 truncate font-semibold transition-colors hover:text-primary"
                   title={parentBreadcrumb}
                 >
                   {parentBreadcrumb}
@@ -98,7 +98,7 @@ export function AdminHeader({
             </div>
 
             <h2 className={page.titleVariant === "order-number"
-              ? "break-words text-2xl font-black leading-tight text-[#0057e7]"
+              ? "break-words text-2xl font-black leading-tight text-primary"
               : "break-words text-[15px] font-black text-[#0d1b2e]"
             }>{page.title}</h2>
             {page.subtitle && <p className="mt-0.5 max-w-4xl break-words text-[14px] text-[#5a6a82]">{page.subtitle}</p>}
