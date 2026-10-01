@@ -87,6 +87,7 @@ body {
 .admin-crm [class~="border-blue-100"] { border-color: color-mix(in srgb, var(--primary) 15%, transparent) !important; }
 .admin-crm [class~="border-blue-200"] { border-color: color-mix(in srgb, var(--primary) 20%, transparent) !important; }
 .admin-crm [class~="border-blue-300"] { border-color: color-mix(in srgb, var(--primary) 30%, transparent) !important; }
+.admin-crm [class~="ring-blue-200"] { --tw-ring-color: color-mix(in srgb, var(--primary) 20%, transparent) !important; }
 
 .admin-crm [class*="linear-gradient(105deg,#0057e7_0%,#0a66f0_52%,#2f80ed_100%)"],
 .admin-crm [class*="linear-gradient(105deg,#082f63_0%,#0b4f9c_100%)"] {
