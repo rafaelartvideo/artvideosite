@@ -55,7 +55,7 @@ export const operationItems: PermissionAwareHubItem[] = [
   { id: "situations", label: "Situações da OS", icon: Activity, description: "Gerencie as situações disponíveis para as OS.", permissionKey: "situations.view" },
   { id: "roles", label: "Funções e Permissões", icon: ShieldCheck, description: "Configure funções e os acessos herdados pelos usuários da empresa.", permissionKey: "roles.view" },
   { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos de impressão e tipos de anexos das ordens de serviço.", permissionKey: "documents.view" },
-  { id: "settings", label: "Dados da empresa", icon: Building2, description: "Gerencie os dados institucionais, endereço e identidade visual da empresa.", permissionKey: "settings.view" },
+  { id: "settings", label: "Dados da empresa", icon: Building2, description: "Gerencie os dados institucionais, endereço e identidade visual da empresa.", permissionKey: "settings.details.view" },
   { id: "terms", label: "Termos", icon: ScrollText, description: "Configure os Termos de Uso e o Termo de Responsabilidade dos usuários.", permissionKey: "terms.view" },
 ];
 
@@ -84,7 +84,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   roles: "roles.view",
   partnerCompanies: "organizations.view",
   audit: "organizations.audit.view",
-  settings: "settings.view",
+  settings: "settings.details.view",
   terms: "terms.view",
   siteSettings: "site_settings.view",
   contact: "contact.view",
