@@ -34,10 +34,12 @@ import {
 import {
   configurePdvQuickSetup,
   loadPdvBootstrap,
+  loadPdvCashSessionReport,
   savePdvSettings,
 } from "../infrastructure/pdv.repository";
 import { PdvSaleWorkspace } from "./PdvSaleWorkspace";
 import { PdvSalesHistory } from "./PdvSalesHistory";
+import { CashReportDetail, PdvCashReports } from "./PdvCashReports";
 
 type CashAction = "open" | "supply" | "withdraw" | "close";
 
@@ -69,6 +71,7 @@ export function TabPdv({
   const canCloseCash = hasPermission("pdv.cash.close");
   const canSupplyCash = hasPermission("pdv.cash.supply");
   const canWithdrawCash = hasPermission("pdv.cash.withdraw");
+  const canViewCashReports = hasPermission("pdv.cash.reports");
 
   const bootstrapQuery = useQuery({
     queryKey: queryKeys.pdv.bootstrap(organizationId || "none"),
@@ -90,6 +93,17 @@ export function TabPdv({
   const settings = bootstrap?.settings ?? null;
   const cashAccount = bootstrap?.cash_account ?? null;
   const openSession = bootstrap?.open_session ?? null;
+
+  const closeReportQuery = useQuery({
+    queryKey: queryKeys.pdv.cashSessionReport(organizationId || "none", openSession?.id || "none"),
+    queryFn: () => loadPdvCashSessionReport(organizationId, openSession!.id),
+    enabled: Boolean(
+      organizationId
+      && openSession?.id
+      && canViewCashReports
+      && cashDialog === "close"
+    ),
+  });
 
   useEffect(() => {
     if (!settings) return;
@@ -175,6 +189,13 @@ export function TabPdv({
       nextErrors.amount = needsPositiveAmount ? "Informe um valor maior que zero." : "Informe o valor contado no caixa.";
     }
     if (needsPositiveAmount && !cashNote.trim()) nextErrors.note = "Informe o motivo da movimentação.";
+    if (cashDialog === "close" && closeReportQuery.data) {
+      const expected = Number(closeReportQuery.data.session.expected_amount || 0);
+      const difference = Math.round((amount - expected) * 100) / 100;
+      if (difference !== 0 && !cashNote.trim()) {
+        nextErrors.note = "Informe a justificativa para a diferença do fechamento.";
+      }
+    }
 
     setCashErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
@@ -222,6 +243,10 @@ export function TabPdv({
     />;
   }
 
+  if (routeResourceId === "cash" && canViewCashReports) {
+    return <PdvCashReports onBack={() => onRouteChange?.(null, null)} />;
+  }
+
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -229,6 +254,7 @@ export function TabPdv({
       title="PDV"
       subtitle="Venda rápida com produtos, caixa físico e integração automática com o Financeiro."
       actions={<div className="flex flex-wrap justify-end gap-2">
+        {canViewCashReports && <AdminButton variant="secondary" onClick={() => onRouteChange?.("cash", null)}><Banknote size={15} /> Caixas</AdminButton>}
         <AdminButton variant="secondary" onClick={() => onRouteChange?.("sales", null)}><ReceiptText size={15} /> Vendas</AdminButton>
         {canSell && <AdminButton disabled={!canStartSale} onClick={() => onRouteChange?.("sale", null)} title={!canStartSale ? "Abra e configure o caixa antes de iniciar a venda." : "Nova venda"}><ShoppingCart size={15} /> Nova venda</AdminButton>}
       </div>}
@@ -387,6 +413,12 @@ export function TabPdv({
           <p className="mt-1 text-xs text-[#5a6a82]">{cashAccount.name}</p>
         </div>
         <div className="space-y-4 p-5">
+          {cashDialog === "close" && canViewCashReports && closeReportQuery.isPending && <LoadingState text="Calculando fechamento..." />}
+
+          {cashDialog === "close" && closeReportQuery.data && <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
+            <CashReportDetail report={closeReportQuery.data} compact />
+          </div>}
+
           <FCurrencyInput
             label={cashDialog === "open" || cashDialog === "close" ? "Valor contado no caixa" : "Valor"}
             value={cashAmount}
@@ -396,8 +428,30 @@ export function TabPdv({
               setCashAmount(event.target.value);
             }}
           />
+          {cashDialog === "close" && closeReportQuery.data && cashAmount !== "" && <div className={(() => {
+            const expected = Number(closeReportQuery.data.session.expected_amount || 0);
+            const counted = Number(cashAmount || 0);
+            const difference = Math.round((counted - expected) * 100) / 100;
+            return "rounded-xl border px-3 py-2 text-xs font-bold " + (difference === 0
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-amber-200 bg-amber-50 text-amber-800");
+          })()}>
+            {(() => {
+              const expected = Number(closeReportQuery.data.session.expected_amount || 0);
+              const counted = Number(cashAmount || 0);
+              const difference = Math.round((counted - expected) * 100) / 100;
+              return difference === 0
+                ? "Valor contado confere com o esperado."
+                : "Diferença no fechamento: " + formatCurrency(difference);
+            })()}
+          </div>}
+
           <FTextarea
-            label={cashDialog === "supply" || cashDialog === "withdraw" ? "Motivo *" : "Observação / justificativa"}
+            label={cashDialog === "supply" || cashDialog === "withdraw"
+              ? "Motivo *"
+              : cashDialog === "close" && closeReportQuery.data && cashAmount !== "" && Math.round((Number(cashAmount || 0) - Number(closeReportQuery.data.session.expected_amount || 0)) * 100) / 100 !== 0
+                ? "Justificativa *"
+                : "Observação / justificativa"}
             value={cashNote}
             error={cashErrors.note}
             rows={3}
