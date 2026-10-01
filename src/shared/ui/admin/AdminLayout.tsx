@@ -343,17 +343,36 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   </div>;
 }
 
-export function Section({ title, actions, children, flush = false }: { title: string; actions?: React.ReactNode; children: React.ReactNode; flush?: boolean }) {
-  return <AdminCard square>
+export function Section({
+  title,
+  description,
+  actions,
+  children,
+  flush = false,
+  className = "",
+  contentClassName = "",
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+  flush?: boolean;
+  className?: string;
+  contentClassName?: string;
+}) {
+  return <AdminCard square className={className}>
     <AdminCardHeader>
-      <h3 className="min-w-0 flex-1 break-words text-xs font-black uppercase leading-tight tracking-[0.12em] text-[#0d1b2e]">{title}</h3>
+      <div className="min-w-0 flex-1">
+        <h3 className="break-words text-xs font-black uppercase leading-tight tracking-[0.12em] text-[#0d1b2e]">{title}</h3>
+        {description && <p className="mt-1 break-words text-xs leading-relaxed text-[#5a6a82]">{description}</p>}
+      </div>
       {actions && (
-        <div className="flex shrink-0 items-center justify-end gap-2 [&>*]:!h-9 [&>*]:!min-h-9 [&>*]:!w-9 [&>*]:!min-w-9 [&>*]:!justify-center [&>*]:!gap-0 [&>*]:!px-0 [&>*]:!text-[0px] md:[&>*]:!w-auto md:[&>*]:!min-w-0 md:[&>*]:!gap-1.5 md:[&>*]:!px-3 md:[&>*]:!text-xs">
+        <div className="flex shrink-0 items-center justify-end gap-2 [&_button]:!h-9 [&_button]:!min-h-9 [&_button]:!w-9 [&_button]:!min-w-9 [&_button]:!justify-center [&_button]:!gap-0 [&_button]:!px-0 [&_button]:!text-[0px] md:[&_button]:!w-auto md:[&_button]:!min-w-0 md:[&_button]:!gap-1.5 md:[&_button]:!px-3 md:[&_button]:!text-xs">
           {actions}
         </div>
       )}
     </AdminCardHeader>
-    <AdminCardContent className={flush ? "p-0 sm:p-0" : ""}>{children}</AdminCardContent>
+    <AdminCardContent className={cn(flush ? "p-0 sm:p-0" : "", contentClassName)}>{children}</AdminCardContent>
   </AdminCard>;
 }
 
