@@ -33,12 +33,14 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   orderStatuses: "/admin/operation/order-statuses",
   roles: "/admin/operation/roles",
   siteSettings: "/admin/site/settings",
-  settings: "/admin/settings",
+  settings: "/admin/operation/company",
+  terms: "/admin/operation/terms",
   contact: "/admin/contact",
 };
 
 const LEGACY_EMPLOYEES_PATH = "/admin/operation/employees";
 const LEGACY_PRODUCTS_PATH = "/admin/site/products";
+const LEGACY_SETTINGS_PATH = "/admin/settings";
 
 const ROUTES_BY_SPECIFICITY = (Object.entries(ADMIN_TAB_PATHS) as Array<[AdminTab, string]>)
   .sort((left, right) => right[1].length - left[1].length);
@@ -52,6 +54,12 @@ export function adminPath(tab: AdminTab, resourceId?: string | null, subpage?: s
 }
 
 export function resolveAdminRoute(pathname: string): AdminRouteParts {
+  if (pathname === LEGACY_SETTINGS_PATH || matchPath({ path: `${LEGACY_SETTINGS_PATH}/*`, end: false }, pathname)) {
+    const remainder = pathname.slice(LEGACY_SETTINGS_PATH.length).replace(/^\\/+/, "");
+    const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
+    return { tab: "settings", resourceId: segments[0] || null, subpage: segments[1] || null };
+  }
+
   if (pathname === LEGACY_EMPLOYEES_PATH || matchPath({ path: `${LEGACY_EMPLOYEES_PATH}/*`, end: false }, pathname)) {
     return { tab: "roles", resourceId: null, subpage: null };
   }
@@ -77,6 +85,6 @@ export function resolveAdminTab(pathname: string): AdminTab {
 
 export function parentAdminTab(tab: AdminTab): AdminTab | null {
   if (["services", "categories", "brands", "siteSettings", "contact"].includes(tab)) return "site";
-  if (["documents", "equipment", "checklists", "generalServices", "serviceTypes", "situations", "orderStatuses", "roles"].includes(tab)) return "operation";
+  if (["documents", "equipment", "checklists", "generalServices", "serviceTypes", "situations", "orderStatuses", "roles", "settings", "terms"].includes(tab)) return "operation";
   return null;
 }
