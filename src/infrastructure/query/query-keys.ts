@@ -75,6 +75,10 @@ export const queryKeys = {
     salesPage: (organizationId: string, page: number, pageSize: number, search: string, status: string) =>
       ["pdv", organizationId, "sales", "page", page, pageSize, search, status] as const,
     saleDetail: (organizationId: string, saleId: string) => ["pdv", organizationId, "sales", saleId] as const,
+    cashSessions: (organizationId: string, page: number, pageSize: number) =>
+      ["pdv", organizationId, "cash-sessions", page, pageSize] as const,
+    cashSessionReport: (organizationId: string, sessionId: string) =>
+      ["pdv", organizationId, "cash-sessions", sessionId, "report"] as const,
   },
   finance: {
     all: ["finance"] as const,
