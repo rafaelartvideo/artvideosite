@@ -25,7 +25,6 @@ import {
 import {
   AdminButton,
   AdminCard,
-  AdminCardToolbar,
   AdminIconButton,
   AdminPage,
   BtnPrimary,
@@ -34,6 +33,7 @@ import {
   Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
+import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
@@ -638,19 +638,19 @@ export function TabProducts({
         actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo produto</AdminButton> : undefined}
       />
 
-      {canViewTable && <AdminCard>
-        <AdminCardToolbar>
-          <div className="relative max-w-sm flex-1">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-            <input
-              value={search}
-              onChange={event => { setSearch(event.target.value); setPage(1); }}
-              placeholder="Buscar por nome, SKU ou código..."
-              className={cn(INPUT, "py-2 pl-9 text-xs")}
-            />
-          </div>
-        </AdminCardToolbar>
+      {canViewTable && <AdminSearchPanel title="Buscar produtos">
+        <div className="relative max-w-xl">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+          <input
+            value={search}
+            onChange={event => { setSearch(event.target.value); setPage(1); }}
+            placeholder="Nome, SKU ou código de barras"
+            className={cn(INPUT, "h-[42px] w-full pl-9 text-sm md:h-9 md:py-1.5 md:text-xs")}
+          />
+        </div>
+      </AdminSearchPanel>}
 
+      {canViewTable && <AdminCard>
         {loading ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState
             icon={Package}
