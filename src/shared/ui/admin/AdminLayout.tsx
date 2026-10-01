@@ -45,11 +45,11 @@ export function AdminButton({
   const [actionLoading, setActionLoading] = React.useState(false);
   const resolvedLoading = loading || actionLoading;
   const variants: Record<AdminButtonVariant, string> = {
-    primary: "border border-[#0a3b78] bg-[linear-gradient(105deg,#082f63_0%,#0b4f9c_100%)] text-white hover:bg-[linear-gradient(105deg,#072956_0%,#094586_100%)]",
+    primary: "admin-primary-gradient border border-primary/30 text-white",
     secondary: "border border-[#0d1b2e]/15 bg-white text-[#0d1b2e] hover:bg-[#f5f7fa]",
     danger: "border border-red-200 bg-red-600 text-white hover:bg-red-700",
-    ghost: "border border-transparent bg-transparent text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-[#0057e7]",
-    icon: "border border-[#0d1b2e]/15 bg-white text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-[#0057e7]",
+    ghost: "border border-transparent bg-transparent text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-primary",
+    icon: "border border-[#0d1b2e]/15 bg-white text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-primary",
   };
 
   const sizes: Record<AdminButtonSize, string> = {
@@ -79,7 +79,7 @@ export function AdminButton({
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
-      "inline-flex min-w-0 max-w-full cursor-default items-center justify-center whitespace-nowrap rounded-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
+      "inline-flex min-w-0 max-w-full cursor-default items-center justify-center whitespace-nowrap rounded-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
       variants[variant],
       sizes[size],
       className,
@@ -111,9 +111,9 @@ export function AdminIconButton({
   const [actionLoading, setActionLoading] = React.useState(false);
   const resolvedLoading = loading || actionLoading;
   const variants = {
-    secondary: "border border-[#0d1b2e]/15 bg-white text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-[#0057e7]",
+    secondary: "border border-[#0d1b2e]/15 bg-white text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-primary",
     danger: "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100",
-    ghost: "border border-transparent bg-transparent text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-[#0057e7]",
+    ghost: "border border-transparent bg-transparent text-[#5a6a82] hover:bg-[#f5f7fa] hover:text-primary",
   };
   const rawLabel = String(buttonProps["aria-label"] ?? ariaLabel ?? title ?? "").trim();
   const normalizedLabel = rawLabel.toLocaleLowerCase("pt-BR");
@@ -155,7 +155,7 @@ export function AdminIconButton({
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
-      "inline-flex h-8 w-8 cursor-default items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-40",
+      "inline-flex h-8 w-8 cursor-default items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-40",
       activeStateAction ? activeStateClass : variants[variant],
       className,
     )}
@@ -217,8 +217,8 @@ export function AdminSegmentedControl<T extends string>({
         aria-pressed={value === option.value}
         onClick={() => onChange(option.value)}
         className={cn(
-          "cursor-default px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-inset",
-          value === option.value ? "bg-[linear-gradient(105deg,#082f63_0%,#0b4f9c_100%)] text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]",
+          "cursor-default px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset",
+          value === option.value ? "bg-primary text-white" : "bg-white text-[#5a6a82] hover:bg-[#f5f7fa]",
           disabled && "cursor-default opacity-70",
         )}
       >
@@ -337,7 +337,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
         padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important;
       }
     }`}</style>
-    {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute right-4 top-4 z-10 cursor-default rounded-lg border border-[#0d1b2e]/10 bg-white p-2 text-[#5a6a82] shadow-sm hover:bg-[#f5f7fa] hover:text-[#0057e7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"><X size={16} /></button>}
+    {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute right-4 top-4 z-10 cursor-default rounded-lg border border-[#0d1b2e]/10 bg-white p-2 text-[#5a6a82] shadow-sm hover:bg-[#f5f7fa] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><X size={16} /></button>}
     <div className={cn("mx-auto w-full min-w-0 p-4 sm:p-6 lg:p-8", resolvedMaxW)}>{children}</div>
   </div>;
 }
@@ -361,7 +361,7 @@ export function PageHeader({ title, subtitle, eyebrow, actions }: { title: strin
   return (
     <header className="flex min-w-0 flex-col gap-4 border-b border-[#0d1b2e]/8 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        {eyebrow && <p className="mb-1 break-words text-[10px] font-black uppercase tracking-[0.16em] text-[#0057e7]">{eyebrow}</p>}
+        {eyebrow && <p className="mb-1 break-words text-[10px] font-black uppercase tracking-[0.16em] text-primary">{eyebrow}</p>}
         <h1 className="break-words text-2xl font-black leading-tight text-[#0d1b2e]">{title}</h1>
         {subtitle && <p className="mt-1 max-w-3xl break-words text-sm leading-relaxed text-[#5a6a82]">{subtitle}</p>}
       </div>
@@ -405,5 +405,5 @@ export function BtnSecondary({ children, onClick, disabled, loading = false, loa
 export function InternalBackButton({ onBack, inHeader = false }: { onBack: () => void; inHeader?: boolean }) {
   const contextualBack = React.useContext(AdminBackContext);
   if (!inHeader && contextualBack === onBack) return null;
-  return <button type="button" onClick={onBack} className="inline-flex cursor-default items-center gap-1.5 text-xs font-bold text-[#5a6a82] transition-colors hover:text-[#0057e7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40 focus-visible:ring-offset-2"><ArrowLeft size={14} /> Voltar</button>;
+  return <button type="button" onClick={onBack} className="inline-flex cursor-default items-center gap-1.5 text-xs font-bold text-[#5a6a82] transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><ArrowLeft size={14} /> Voltar</button>;
 }
