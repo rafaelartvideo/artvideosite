@@ -1,5 +1,14 @@
 import { supabase } from "@/lib/supabase";
 
+export type ProductInventorySettingsInput = {
+  unit: "un" | "cx";
+  conversion_factor: number;
+  min_quantity: number;
+  storage_shelf?: string | null;
+  storage_level?: string | null;
+  storage_compartment?: string | null;
+};
+
 export async function loadProductCatalog(
   organizationId: string,
   options: { loadCategories?: boolean; loadBrands?: boolean } = {},
@@ -9,6 +18,10 @@ export async function loadProductCatalog(
     .select("*, product_categories(name), brands(name)")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
+
+  const inventoryPromise = supabase.rpc("get_product_inventory_management", {
+    p_organization_id: organizationId,
+  });
 
   const categoriesPromise = options.loadCategories
     ? supabase
@@ -26,18 +39,27 @@ export async function loadProductCatalog(
         .order("sort_order")
     : Promise.resolve({ data: [], error: null });
 
-  const [productsResult, categoriesResult, brandsResult] = await Promise.all([
+  const [productsResult, inventoryResult, categoriesResult, brandsResult] = await Promise.all([
     productsPromise,
+    inventoryPromise,
     categoriesPromise,
     brandsPromise,
   ]);
 
   if (productsResult.error) throw productsResult.error;
+  if (inventoryResult.error) throw inventoryResult.error;
   if (categoriesResult.error) throw categoriesResult.error;
   if (brandsResult.error) throw brandsResult.error;
 
+  const inventoryByProductId = new Map(
+    (inventoryResult.data ?? []).map((item: any) => [String(item.product_id), item]),
+  );
+
   return {
-    products: productsResult.data ?? [],
+    products: (productsResult.data ?? []).map((product: any) => ({
+      ...product,
+      inventory: inventoryByProductId.get(String(product.id)) ?? null,
+    })),
     categories: categoriesResult.data ?? [],
     brands: brandsResult.data ?? [],
   };
@@ -56,6 +78,41 @@ export async function saveProduct(
   const { data, error } = await query.select().single();
   if (error) throw error;
   return data;
+}
+
+export async function saveProductInventorySettings(
+  organizationId: string,
+  productId: string,
+  input: ProductInventorySettingsInput,
+) {
+  const { data, error } = await supabase.rpc("save_product_inventory_settings", {
+    p_organization_id: organizationId,
+    p_product_id: productId,
+    p_unit: input.unit,
+    p_conversion_factor: input.conversion_factor,
+    p_min_quantity: input.min_quantity,
+    p_storage_shelf: input.storage_shelf ?? null,
+    p_storage_level: input.storage_level ?? null,
+    p_storage_compartment: input.storage_compartment ?? null,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function initializeProductInventoryBalance(
+  organizationId: string,
+  productId: string,
+  quantity: number,
+  unitCost: number | null,
+) {
+  const { data, error } = await supabase.rpc("initialize_product_inventory_balance", {
+    p_organization_id: organizationId,
+    p_product_id: productId,
+    p_input_quantity: quantity,
+    p_input_unit_cost: unitCost,
+  });
+  if (error) throw error;
+  return data as string;
 }
 
 export async function deleteProduct(organizationId: string, productId: string): Promise<void> {
