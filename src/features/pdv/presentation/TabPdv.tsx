@@ -50,7 +50,13 @@ function cashActionTitle(action: CashAction) {
   return "Fechar caixa";
 }
 
-export function TabPdv() {
+export function TabPdv({
+  routeResourceId,
+  onRouteChange,
+}: {
+  routeResourceId?: string | null;
+  onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
+}) {
   const { user, activeOrganizationId, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
@@ -200,13 +206,17 @@ export function TabPdv() {
   const cashOptions = (bootstrap?.cash_accounts || []).map(account => ({ value: account.id, label: account.name }));
   const readiness = bootstrap?.readiness || { active_products: 0, active_payment_methods: 0 };
 
+  if (routeResourceId === "sale" && bootstrap && canStartSale) {
+    return <PdvSaleWorkspace bootstrap={bootstrap} onBack={() => onRouteChange?.(null, null)} />;
+  }
+
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <PageHeader
       title="PDV"
       subtitle="Venda rápida com produtos, caixa físico e integração automática com o Financeiro."
-      actions={canSell ? <AdminButton disabled={!canStartSale} title={!canStartSale ? "Abra e configure o caixa antes de iniciar a venda." : "Nova venda"}><ShoppingCart size={15} /> Nova venda</AdminButton> : undefined}
+      actions={canSell ? <AdminButton disabled={!canStartSale} onClick={() => onRouteChange?.("sale", null)} title={!canStartSale ? "Abra e configure o caixa antes de iniciar a venda." : "Nova venda"}><ShoppingCart size={15} /> Nova venda</AdminButton> : undefined}
     />
 
     {!bootstrap?.configured ? <AdminCard className="overflow-hidden">
