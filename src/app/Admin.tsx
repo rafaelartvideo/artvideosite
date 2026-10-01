@@ -30,6 +30,7 @@ const TabInventory = lazy(() => import("@/features/inventory/presentation/TabInv
 const TabFinance = lazy(() => import("@/features/finance/presentation/TabFinance").then(({ TabFinance }) => ({ default: TabFinance })));
 const OrderStatusesAdminPanel = lazy(() => import("@/features/order-statuses/presentation/OrderStatusesAdminPanel").then(({ OrderStatusesAdminPanel }) => ({ default: OrderStatusesAdminPanel })));
 const TabProducts = lazy(() => import("@/features/products/presentation/TabProducts").then(({ TabProducts }) => ({ default: TabProducts })));
+const TabPdv = lazy(() => import("@/features/pdv/presentation/TabPdv").then(({ TabPdv }) => ({ default: TabPdv })));
 const TabQuotes = lazy(() => import("@/features/quotes/presentation/TabQuotes").then(({ TabQuotes }) => ({ default: TabQuotes })));
 const TabRoles = lazy(() => import("@/features/roles/presentation/TabRoles").then(({ TabRoles }) => ({ default: TabRoles })));
 const TabServices = lazy(() => import("@/features/services/presentation/TabServices").then(({ TabServices }) => ({ default: TabServices })));
@@ -45,7 +46,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "dashboard", "orders", "customers", "agenda", "inventory", "products", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "roles", "settings", "contact",
+  "dashboard", "orders", "customers", "agenda", "inventory", "products", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "roles", "settings", "contact",
 ];
 
 function AdminRouteLoading() { return <LoadingState text="Carregando módulo..." />; }
@@ -80,7 +81,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
   const fallbackTab = ACCESS_FALLBACK_TABS.find(canAccessTab) ?? null;
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
   const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
-  const mobileLabelModule = operationModule || siteModule || activeTab === "products" || activeTab === "partnerCompanies" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
+  const mobileLabelModule = operationModule || siteModule || activeTab === "products" || activeTab === "pdv" || activeTab === "partnerCompanies" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
 
   const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] }) => {
     navigate(adminPath(tab, resourceId, subpage), { replace: options?.replace, state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined });
@@ -154,6 +155,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
             <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
             <Route path="products/*" element={<TabProducts routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("products")} />} />
+            <Route path="pdv/*" element={<TabPdv />} />
             <Route path="finance/*" element={<TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
             <Route path="settings/*" element={<TabSettings routeResourceId={route.resourceId} onRouteChange={resourceId => navigateAdmin("settings", resourceId, null)} />} />
             <Route path="contact/*" element={<TabContact />} />
