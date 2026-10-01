@@ -190,11 +190,12 @@ async function getPartnerOrganization(organizationId: string) {
   const platformOrganizationId = await platformOperatorOrganizationId();
   const { data, error } = await adminClient
     .from("organizations")
-    .select("id,name,status,organization_type")
+    .select("id,name,status,organization_type,settings")
     .eq("id", organizationId)
     .maybeSingle();
   if (error) throw error;
-  if (!data || data.id === platformOrganizationId || data.organization_type !== "partner") return null;
+  const isArtvideoTenant = data?.settings?.is_artvideo_tenant === true;
+  if (!data || data.id === platformOrganizationId || (data.organization_type !== "partner" && !isArtvideoTenant)) return null;
   return data;
 }
 
