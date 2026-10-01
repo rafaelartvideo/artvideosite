@@ -99,7 +99,7 @@ export function AdminSidebar({
           ) : (
             <>
               <div className={cn(
-                "flex shrink-0 items-center justify-center rounded-lg bg-white/5 text-[#00b4ff]",
+                "flex shrink-0 items-center justify-center rounded-lg bg-white/5 text-primary-light",
                 collapsed ? "h-9 w-9" : "h-8 w-8",
               )}>
                 <Building2 size={collapsed ? 18 : 16} />
@@ -120,7 +120,7 @@ export function AdminSidebar({
             title={collapsed ? "Expandir menu" : "Recuar menu"}
             aria-label={collapsed ? "Expandir menu lateral" : "Recuar menu lateral"}
             className={cn(
-              "flex items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b4ff]",
+              "flex items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light",
               collapsed ? "h-6 w-8" : "absolute right-2 h-8 w-8",
             )}
           >
@@ -165,7 +165,7 @@ export function AdminSidebar({
                   id="active-organization"
                   value={activeOrganizationId || ""}
                   onChange={(event) => void onOrganizationChange(event.target.value)}
-                  className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-md border border-white/10 bg-white/5 py-2 pl-3 pr-8 text-xs font-black text-white outline-none transition hover:border-white/20 focus:border-[#00b4ff]/60 focus:ring-1 focus:ring-[#00b4ff]/40"
+                  className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-md border border-white/10 bg-white/5 py-2 pl-3 pr-8 text-xs font-black text-white outline-none transition hover:border-white/20 focus:border-[#00b4ff]/60 focus:ring-1 focus:ring-primary-light/40"
                   aria-label="Trocar empresa ativa"
                 >
                   {switchableOrganizations.map(organization => (
@@ -192,19 +192,19 @@ export function AdminSidebar({
         {collapsed ? (
           <div
             title={`${userName} — ${roleName}`}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0057e7]/30"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/30"
             aria-label={`${userName}, ${roleName}`}
           >
-            <Users size={15} className="text-[#00b4ff]" />
+            <Users size={15} className="text-primary-light" />
           </div>
         ) : (
           <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#0057e7]/30">
-              <Users size={14} className="text-[#00b4ff]" />
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/30">
+              <Users size={14} className="text-primary-light" />
             </div>
             <div className="min-w-0">
               <p className="truncate text-xs font-bold text-white">{userName}</p>
-              <span className="rounded bg-[#00b4ff]/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#00b4ff]">{roleName}</span>
+              <span className="rounded bg-[#00b4ff]/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary-light">{roleName}</span>
             </div>
           </div>
         )}
@@ -214,7 +214,7 @@ export function AdminSidebar({
           title="Sair"
           aria-label="Sair"
           className={cn(
-            "flex shrink-0 items-center justify-center rounded-lg text-white/40 transition-colors hover:bg-white/8 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b4ff]",
+            "flex shrink-0 items-center justify-center rounded-lg text-white/40 transition-colors hover:bg-white/8 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light",
             collapsed ? "h-9 w-9" : "p-1.5",
           )}
         >
@@ -280,7 +280,7 @@ export function AdminSidebar({
                   title={collapsed ? link.label : undefined}
                   aria-label={`${link.label} (abre em nova aba)`}
                   className={cn(
-                    "flex w-full items-center rounded-lg text-sm font-semibold text-white/60 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b4ff]",
+                    "flex w-full items-center rounded-lg text-sm font-semibold text-white/60 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light",
                     collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5 text-left",
                   )}
                 >
