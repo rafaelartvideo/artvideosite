@@ -143,6 +143,23 @@ export async function findOrCreateInventoryBrand(
   return { id: String(data.id), name: String(data.name) };
 }
 
+export async function resolveProductMediaImage(
+  organizationId: string,
+  mediaId: string,
+): Promise<ImportedProductImage> {
+  const { data, error } = await supabase
+    .from("media")
+    .select("id,bucket_id,storage_path")
+    .eq("organization_id", organizationId)
+    .eq("id", mediaId)
+    .single();
+  if (error) throw error;
+  return {
+    media_id: String(data.id),
+    public_url: getPublicStorageUrl(String(data.bucket_id), String(data.storage_path)),
+  };
+}
+
 export async function loadProductGallery(
   organizationId: string,
   productId: string,
