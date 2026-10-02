@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FileCheck2, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminCard, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
   listOrganizationTerms,
@@ -193,7 +193,6 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
     <PageHeader
       title="Termos"
       subtitle="Configure os documentos de aceite obrigatório da empresa."
-      actions={<BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
     />
     <div className="grid gap-4 xl:grid-cols-2">
       <TermEditor
@@ -213,5 +212,8 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
         onSave={() => void save("responsibility")}
       />
     </div>
+    <AdminStickyToolbar>
+      <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
+    </AdminStickyToolbar>
   </div>;
 }
