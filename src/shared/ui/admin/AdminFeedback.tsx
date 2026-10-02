@@ -181,7 +181,7 @@ export function LoadingState({ text = "Carregando..." }: { text?: string }) {
     aria-busy="true"
   >
     <LoadingSpinner size="lg" />
-    <p className="text-sm font-semibold text-[#5a6a82]">{text}</p>
+    <p className="text-sm font-semibold text-muted-foreground">{text}</p>
   </div>;
 }
 
@@ -197,8 +197,8 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
       <Icon size={28} className="text-[#0057e7]/50" />
     </div>
     <div className="text-center max-w-xs">
-      <p className="font-bold text-[#0d1b2e] mb-1">{title}</p>
-      {message && <p className="text-sm text-[#5a6a82]">{message}</p>}
+      <p className="mb-1 font-bold text-foreground">{title}</p>
+      {message && <p className="text-sm text-muted-foreground">{message}</p>}
     </div>
     {onAdd && <AdminButton onClick={onAdd}>
       <Plus size={16} /> {addLabel}
@@ -383,18 +383,18 @@ export function ConfirmDialog({ message, onConfirm, onCancel }: { message: strin
   };
 
   return <AlertDialog open onOpenChange={(open) => { if (!open && !confirming) onCancel(); }}>
-    <AlertDialogContent className="admin-crm max-w-sm rounded-2xl border-[#0d1b2e]/10 bg-white">
+    <AlertDialogContent className="admin-crm max-w-sm rounded-2xl border-border bg-card">
       <AlertDialogHeader className="flex-row items-start gap-3 text-left">
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100">
           <AlertTriangle size={18} className="text-red-600" />
         </div>
         <div>
-          <AlertDialogTitle className="mb-1 text-base font-bold text-[#0d1b2e]">Confirmar exclusão</AlertDialogTitle>
-          <AlertDialogDescription className="text-sm leading-relaxed text-[#5a6a82]">{message}</AlertDialogDescription>
+          <AlertDialogTitle className="mb-1 text-base font-bold text-foreground">Confirmar exclusão</AlertDialogTitle>
+          <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground">{message}</AlertDialogDescription>
         </div>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel disabled={confirming} className="border-[#0d1b2e]/15 text-[#0d1b2e] hover:bg-[#f5f7fa]">Cancelar</AlertDialogCancel>
+        <AlertDialogCancel disabled={confirming} className="border-border bg-card text-foreground hover:bg-muted">Cancelar</AlertDialogCancel>
         <AlertDialogAction disabled={confirming} aria-busy={confirming || undefined} onClick={confirm} className="inline-flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">{confirming && <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />}{confirming ? "Excluindo..." : "Excluir"}</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
