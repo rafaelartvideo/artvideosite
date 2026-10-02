@@ -8,7 +8,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, Toast, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FCurrencyInput, FInput, FIntegerInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminCard, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { recordInventoryPurchaseWithFinance } from "../infrastructure/inventory-finance.repository";
 import {
   getInventoryItem,
@@ -291,9 +291,9 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
       <FTextarea label="Observações" value={form.notes} onChange={(event: any) => setForm(current => ({ ...current, notes: event.target.value }))} rows={3} />
       {form.type !== "in" && <FInput label="OS relacionada (opcional)" value={form.service_order_id} onChange={(event: any) => setForm(current => ({ ...current, service_order_id: event.target.value }))} />}
     </div>
-    <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
+    <AdminStickyToolbar className="justify-end">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
       <BtnPrimary onClick={() => void save()} loading={saving} loadingText="Registrando...">Registrar</BtnPrimary>
-    </div>
+    </AdminStickyToolbar>
   </AdminPage>;
 }
