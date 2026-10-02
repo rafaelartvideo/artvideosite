@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  BookOpen,
   CarFront,
   Copy,
   Crosshair,
@@ -193,6 +194,7 @@ export function TabFieldTracking() {
   const [identifierResetUnit, setIdentifierResetUnit] = useState<FieldTrackingUnit | null>(null);
   const [traccarSetup, setTraccarSetup] = useState<TraccarDeviceSetup | null>(null);
   const [serverDialogOpen, setServerDialogOpen] = useState(false);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [serverBusy, setServerBusy] = useState(false);
   const [serverToken, setServerToken] = useState("");
   const [serverInfo, setServerInfo] = useState<TraccarForwardIntegration | null>(null);
@@ -432,6 +434,9 @@ export function TabFieldTracking() {
       </span>}
       subtitle="Rastreamento em tempo real por Traccar Client, Traccar Server e dispositivos vinculados."
       actions={(canShare || canManage) ? <div className="flex flex-wrap justify-end gap-2">
+        <AdminButton variant="secondary" onClick={() => setManualDialogOpen(true)}>
+          <BookOpen size={15} /> Manual
+        </AdminButton>
         {canManage && <AdminButton variant="secondary" onClick={() => void openServerConfig()}>
           <Settings2 size={15} /> Traccar Server
         </AdminButton>}
@@ -628,11 +633,88 @@ export function TabFieldTracking() {
           </div>
         </AdminCard>
 
-        <p className="text-[10px] leading-5 text-muted-foreground">
-          Para técnicos e celulares corporativos, use o Traccar Client com o identificador gerado pelo CRM. O rastreamento pelo navegador acima fica apenas como alternativa de teste.
-        </p>
       </>
     )}
+
+    <AdminDialog
+      open={manualDialogOpen}
+      onClose={() => setManualDialogOpen(false)}
+      title="Manual do Mapa de Campo"
+      description="Passo a passo para configurar um celular com o Traccar Client e começar a enviar posições ao Union World."
+      className="max-w-2xl"
+    >
+      <div className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="border border-border bg-muted/35 p-4">
+            <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">1. Instale o aplicativo</p>
+            <p className="mt-1 text-sm leading-6 text-foreground">
+              Baixe o Traccar Client no celular que será rastreado.
+            </p>
+            <a
+              href="https://www.traccar.org/client/"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-primary/25 bg-primary-soft px-4 py-2 text-xs font-black text-primary transition-colors hover:bg-primary hover:text-white"
+            >
+              Baixar Traccar Client
+            </a>
+          </div>
+
+          <div className="border border-border bg-muted/35 p-4">
+            <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">2. Cadastre o rastreador</p>
+            <p className="mt-1 text-sm leading-6 text-foreground">
+              Em Mapa de Campo, clique em <strong>Novo rastreador</strong>, informe o nome e o tipo do aparelho e conclua o cadastro.
+            </p>
+          </div>
+        </div>
+
+        <div className="border border-border">
+          <div className="border-b border-border bg-muted/70 px-4 py-3">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Configuração no Traccar Client</p>
+          </div>
+          <div className="divide-y divide-border">
+            <div className="grid gap-1 px-4 py-3 sm:grid-cols-[28px_minmax(0,1fr)]">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-soft text-[10px] font-black text-primary">3</span>
+              <p className="text-sm leading-6 text-foreground">
+                No CRM, após criar o rastreador, copie exatamente o <strong>Server URL</strong> e o <strong>Device Identifier</strong> exibidos na tela.
+              </p>
+            </div>
+            <div className="grid gap-1 px-4 py-3 sm:grid-cols-[28px_minmax(0,1fr)]">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-soft text-[10px] font-black text-primary">4</span>
+              <p className="text-sm leading-6 text-foreground">
+                Abra o Traccar Client, informe o endereço do servidor no campo de servidor e cole o identificador gerado pelo CRM no campo de identificação do dispositivo.
+              </p>
+            </div>
+            <div className="grid gap-1 px-4 py-3 sm:grid-cols-[28px_minmax(0,1fr)]">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-soft text-[10px] font-black text-primary">5</span>
+              <p className="text-sm leading-6 text-foreground">
+                Permita o acesso à localização em segundo plano e, quando o sistema solicitar, libere o aplicativo das restrições de bateria para evitar que o rastreamento pare.
+              </p>
+            </div>
+            <div className="grid gap-1 px-4 py-3 sm:grid-cols-[28px_minmax(0,1fr)]">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-soft text-[10px] font-black text-primary">6</span>
+              <p className="text-sm leading-6 text-foreground">
+                Como configuração inicial, use <strong>Precisão High</strong>, <strong>Distância 30 m</strong> e <strong>Intervalo 30 s</strong>. Depois ative o serviço de rastreamento no aplicativo.
+              </p>
+            </div>
+            <div className="grid gap-1 px-4 py-3 sm:grid-cols-[28px_minmax(0,1fr)]">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-soft text-[10px] font-black text-primary">7</span>
+              <p className="text-sm leading-6 text-foreground">
+                Volte ao Mapa de Campo. Quando o primeiro envio chegar, o rastreador aparecerá no mapa e o status mudará conforme as posições forem recebidas.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="border border-amber-300/60 bg-amber-50/70 p-4 text-xs leading-5 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/25 dark:text-amber-200">
+          Se gerar um novo Device Identifier no CRM, o identificador antigo deixa de funcionar. Nesse caso, atualize também o Traccar Client no aparelho.
+        </div>
+
+        <div className="flex justify-end border-t border-border pt-4">
+          <AdminButton onClick={() => setManualDialogOpen(false)}>Fechar</AdminButton>
+        </div>
+      </div>
+    </AdminDialog>
 
     <AdminDialog
       open={Boolean(identifierResetUnit)}
