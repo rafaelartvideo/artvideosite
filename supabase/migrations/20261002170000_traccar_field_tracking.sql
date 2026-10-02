@@ -149,7 +149,7 @@ begin
         encode(extensions.digest('traccar:' || v_device_identifier, 'sha256'), 'hex'),
         right(v_device_identifier, 6),
         true,
-        true,
+        false,
         v_user_id
       )
       returning id into v_unit_id;
@@ -213,7 +213,7 @@ begin
         tracking_provider = 'traccar_client',
         traccar_unique_id_hash = encode(extensions.digest('traccar:' || v_identifier, 'sha256'), 'hex'),
         traccar_unique_id_hint = right(v_identifier, 6),
-        is_sharing = true
+        is_sharing = false
       where organization_id = p_organization_id
         and id = p_unit_id;
       exit;
