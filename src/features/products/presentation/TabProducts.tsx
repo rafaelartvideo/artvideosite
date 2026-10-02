@@ -711,8 +711,13 @@ export function TabProducts({
 
   const toggleActive = async (product: any) => {
     if (!activeOrganizationId || !canToggleActive) return;
+    const nextActive = !product.is_active;
     try {
-      await updateProductFlags(activeOrganizationId, product.id, { is_active: !product.is_active }, user?.id ?? null);
+      await updateProductFlags(activeOrganizationId, product.id, { is_active: nextActive }, user?.id ?? null);
+      queryClient.setQueryData([...queryKeys.catalog.products(), activeOrganizationId], (current: any) => current ? {
+        ...current,
+        products: (current.products ?? []).map((item: any) => item.id === product.id ? { ...item, is_active: nextActive } : item),
+      } : current);
       setToast({ msg: "Status atualizado!", type: "success" });
       await refresh();
     } catch (error) {
@@ -880,7 +885,7 @@ export function TabProducts({
                         {canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar item" title="Editar cadastro" onClick={() => openEditPage(product)}><Edit2 size={15} /></AdminIconButton>}
                         {canViewMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Histórico do estoque" title="Histórico" onClick={() => onRouteChange?.(String(item.inventory_item_id), "history")}><List size={15} /></AdminIconButton>}
                         {canCreateMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Movimentar estoque" title="Movimentar" onClick={() => onRouteChange?.(String(item.inventory_item_id), "move")}><ArrowLeftRight size={15} /></AdminIconButton>}
-                        {canToggleActive && <AdminActiveStateButton active={product.is_active} entityLabel="item" onClick={() => void toggleActive(product)} />}
+                        {canToggleActive && <AdminActiveStateButton active={product.is_active} entityLabel="item" onClick={() => toggleActive(product)} />}
                       </div>
                     </td>}
                   </tr>;
