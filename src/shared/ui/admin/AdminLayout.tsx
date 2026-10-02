@@ -261,7 +261,7 @@ export function AdminDialog({
   </Dialog>;
 }
 
-export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false, closing = false, smoothMotion = false }: {
+export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false, closing = false, smoothMotion = true }: {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -276,20 +276,48 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
 }) {
   const setPage = React.useContext(AdminPageContext)?.setPage;
   const onCloseRef = React.useRef(onClose);
+  const closeTimerRef = React.useRef<number | null>(null);
+  const closingRef = React.useRef(false);
+  const [internalClosing, setInternalClosing] = React.useState(false);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
   onCloseRef.current = onClose;
   const stableOnClose = React.useCallback(() => onCloseRef.current(), []);
+  const requestClose = React.useCallback(() => {
+    if (closingRef.current) return;
+    if (!smoothMotion) {
+      stableOnClose();
+      return;
+    }
+    closingRef.current = true;
+    setInternalClosing(true);
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      stableOnClose();
+    }, 200);
+  }, [smoothMotion, stableOnClose]);
 
   useEffect(() => {
-    if (!open) return;
-    setPage?.({ breadcrumb, title, subtitle, titleVariant, onBack: stableOnClose });
-    const handleKeyDown = (event: KeyboardEvent) => event.key === "Escape" && stableOnClose();
+    if (!open) {
+      closingRef.current = false;
+      setInternalClosing(false);
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+      return;
+    }
+    setPage?.({ breadcrumb, title, subtitle, titleVariant, onBack: requestClose });
+    const handleKeyDown = (event: KeyboardEvent) => event.key === "Escape" && requestClose();
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       setPage?.(null);
     };
-  }, [open, breadcrumb, title, subtitle, titleVariant, stableOnClose, setPage]);
+  }, [open, breadcrumb, title, subtitle, titleVariant, requestClose, setPage]);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -317,12 +345,13 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   }, [open]);
 
   if (!open) return null;
+  const isClosing = closing || internalClosing;
   const legacyCompactWidths = new Set(["max-w-xl", "max-w-2xl", "max-w-3xl"]);
   const resolvedMaxW = legacyCompactWidths.has(maxW) ? "max-w-6xl" : maxW;
   return <div
     className={cn(
       "admin-page-mobile-safe absolute inset-0 z-[35] bg-[#f8fafc] motion-reduce:animate-none",
-      closing
+      isClosing
         ? "pointer-events-none animate-out fade-out slide-out-to-right-4 duration-200 ease-in"
         : smoothMotion
           ? "animate-in fade-in slide-in-from-right-4 duration-300 ease-out"
@@ -347,7 +376,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
         padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important;
       }
     }`}</style>
-    {!fullPage && <button type="button" onClick={onClose} aria-label="Fechar" className="absolute right-4 top-4 z-10 cursor-default rounded-lg border border-[#0d1b2e]/10 bg-white p-2 text-[#5a6a82] shadow-sm hover:bg-[#f5f7fa] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><X size={16} /></button>}
+    {!fullPage && <button type="button" onClick={requestClose} aria-label="Fechar" className="absolute right-4 top-4 z-10 cursor-default rounded-lg border border-[#0d1b2e]/10 bg-white p-2 text-[#5a6a82] shadow-sm hover:bg-[#f5f7fa] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><X size={16} /></button>}
     <div className={cn("mx-auto w-full min-w-0 p-4 sm:p-6 lg:p-8", resolvedMaxW)}>{children}</div>
   </div>;
 }
