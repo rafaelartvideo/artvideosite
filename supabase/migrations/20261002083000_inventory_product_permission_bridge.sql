@@ -63,4 +63,55 @@ $$;
 revoke all on function private.has_tenant_module_permission(uuid,text,text) from public, anon;
 grant execute on function private.has_tenant_module_permission(uuid,text,text) to authenticated;
 
+
+-- Funções antigas que já tinham acesso ao módulo Produtos recebem as permissões
+-- equivalentes de Estoque para não perder acesso após a unificação.
+with permission_map(source_key,target_key) as (
+  values
+    ('products.view','inventory.view'),
+    ('products.table.view','inventory.table.view'),
+    ('products.table.product','inventory.table.name'),
+    ('products.table.price','inventory.table.sale_price'),
+    ('products.table.status','inventory.table.status'),
+    ('products.table.actions','inventory.table.actions'),
+    ('products.details.view','inventory.details.view'),
+    ('products.create','inventory.create'),
+    ('products.update','inventory.update'),
+    ('products.toggle_active','inventory.toggle_active')
+)
+insert into public.role_permissions (role_id,permission_id)
+select distinct rp.role_id,target.id
+from public.role_permissions rp
+join public.permissions source on source.id=rp.permission_id
+join permission_map mapping on mapping.source_key=source.key
+join public.permissions target on target.key=mapping.target_key
+on conflict (role_id,permission_id) do nothing;
+
+with permission_map(source_key,target_key) as (
+  values
+    ('products.view','inventory.view'),
+    ('products.table.view','inventory.table.view'),
+    ('products.table.product','inventory.table.name'),
+    ('products.table.price','inventory.table.sale_price'),
+    ('products.table.status','inventory.table.status'),
+    ('products.table.actions','inventory.table.actions'),
+    ('products.details.view','inventory.details.view'),
+    ('products.create','inventory.create'),
+    ('products.update','inventory.update'),
+    ('products.toggle_active','inventory.toggle_active')
+)
+insert into public.user_permission_overrides (
+  organization_id,user_id,permission_id,created_by
+)
+select distinct
+  override.organization_id,
+  override.user_id,
+  target.id,
+  override.created_by
+from public.user_permission_overrides override
+join public.permissions source on source.id=override.permission_id
+join permission_map mapping on mapping.source_key=source.key
+join public.permissions target on target.key=mapping.target_key
+on conflict (organization_id,user_id,permission_id) do nothing;
+
 commit;
