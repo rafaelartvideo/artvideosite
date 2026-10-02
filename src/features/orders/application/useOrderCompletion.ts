@@ -83,8 +83,11 @@ export function useOrderCompletion({
   const [financeOptionsError, setFinanceOptionsError] = useState("");
 
   const financeEnabled = financeOptions.finance_enabled;
-  const priceAtCompletion = Boolean(detail?.general_service?.price_at_completion);
-  const configuredServicePrice = Number(detail?.general_service?.price || 0);
+  const commercialPricing = Boolean(detail?.commercial_pricing_enabled);
+  const priceAtCompletion = !commercialPricing && Boolean(detail?.general_service?.price_at_completion);
+  const configuredServicePrice = commercialPricing
+    ? Number(detail?.service_price || 0)
+    : Number(detail?.general_service?.price || 0);
   const parsedServicePriceInput = Number(servicePriceInput);
   const servicePrice = priceAtCompletion
     ? (Number.isFinite(parsedServicePriceInput) ? Math.max(0, parsedServicePriceInput) : 0)
@@ -97,21 +100,25 @@ export function useOrderCompletion({
         : ""
     : "";
 
-  const partsTotal = useMemo(() => usedItems.reduce((total, item) =>
+  const legacyPartsTotal = useMemo(() => usedItems.reduce((total, item) =>
     total + Number(item.total_sale_price ?? Number(item.quantity || 0) * Number(item.unit_sale_price || item.inventory_item?.sale_price || 0)), 0), [usedItems]);
-  const subtotal = servicePrice + partsTotal;
-  const maxDiscountPercentage = Number(detail?.general_service?.max_discount_percentage || 0);
-  const maxDiscountAmount = Number(detail?.general_service?.max_discount_amount || 0);
+  const partsTotal = commercialPricing ? Number(detail?.parts_total || 0) : legacyPartsTotal;
+  const subtotal = commercialPricing
+    ? (detail?.subtotal == null ? servicePrice + partsTotal : Number(detail.subtotal || 0))
+    : servicePrice + partsTotal;
+  const discountBase = commercialPricing ? subtotal : servicePrice;
+  const maxDiscountPercentage = commercialPricing ? 100 : Number(detail?.general_service?.max_discount_percentage || 0);
+  const maxDiscountAmount = commercialPricing ? subtotal : Number(detail?.general_service?.max_discount_amount || 0);
   const discountValue = Math.max(0, Number(discount) || 0);
   const discountAmount = discountMode === "amount"
     ? discountValue
-    : servicePrice * discountValue / 100;
+    : discountBase * discountValue / 100;
   const discountPercentage = discountMode === "percentage"
     ? discountValue
-    : servicePrice > 0 ? discountAmount * 100 / servicePrice : 0;
+    : discountBase > 0 ? discountAmount * 100 / discountBase : 0;
   const maxDiscount = discountMode === "percentage" ? maxDiscountPercentage : maxDiscountAmount;
   const discountExceedsMax = discountValue > maxDiscount;
-  const discountExceedsServicePrice = discountAmount > servicePrice + 0.009;
+  const discountExceedsServicePrice = discountAmount > discountBase + 0.009;
   const finalTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
   const effectivePaymentRows = paymentMode === "open" ? [] : payments;
@@ -182,9 +189,16 @@ export function useOrderCompletion({
       return;
     }
     const targetService = target?.general_service || detail?.general_service;
-    setDiscount("0");
-    setDiscountModeState("percentage");
-    setServicePriceInput(targetService?.price_at_completion ? "" : (targetService?.price == null ? "" : String(targetService.price)));
+    const targetCommercialPricing = Boolean(target?.commercial_pricing_enabled ?? detail?.commercial_pricing_enabled);
+    const targetDiscountMode: OrderCompletionDiscountMode = targetCommercialPricing && (target?.discount_type || detail?.discount_type) === "amount" ? "amount" : "percentage";
+    const targetDiscountValue = targetCommercialPricing
+      ? targetDiscountMode === "amount"
+        ? Number(target?.discount_amount ?? detail?.discount_amount ?? 0)
+        : Number(target?.discount_percentage ?? detail?.discount_percentage ?? 0)
+      : 0;
+    setDiscount(String(targetDiscountValue));
+    setDiscountModeState(targetDiscountMode);
+    setServicePriceInput(targetCommercialPricing ? String(target?.service_price ?? detail?.service_price ?? 0) : (targetService?.price_at_completion ? "" : (targetService?.price == null ? "" : String(targetService.price))));
     resetPaymentState();
     setFinanceOptions(emptyFinanceOptions());
     setOpen(true);
@@ -253,7 +267,7 @@ export function useOrderCompletion({
     }
     setSaving(true);
     try {
-      const priceOverride = priceAtCompletion ? servicePrice : null;
+      const priceOverride = commercialPricing ? null : priceAtCompletion ? servicePrice : null;
       const response = financeEnabled
         ? await completeServiceOrderWithFinance(detail.id, priceOverride, discountMode, discountValue, buildFinancePayload())
         : await completeServiceOrder(detail.id, priceOverride, discountMode, discountValue);
@@ -273,7 +287,7 @@ export function useOrderCompletion({
   };
 
   return {
-    open, setOpen, discount, setDiscount, discountMode, setDiscountMode, discountValue, usedItems,
+    open, setOpen, discount, setDiscount, discountMode, setDiscountMode, discountValue, usedItems, commercialPricing,
     priceAtCompletion, servicePriceInput, setServicePriceInput, servicePrice, servicePriceValidationMessage,
     partsTotal, subtotal, maxDiscount, maxDiscountPercentage, maxDiscountAmount,
     discountPercentage, discountAmount, discountExceedsMax, discountExceedsServicePrice, finalTotal,

@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 export const getServiceOrderDetail = (serviceOrderId: string) =>
   supabase
     .from("service_orders")
-    .select("is_solved,solved_at,completed_at,completed_by,situation_started_at,service_price,parts_total,discount_type,discount_percentage,discount_amount,final_total,cannot_be_solved,cannot_be_solved_reason,assigned_profile:profiles!assigned_to(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active))")
+    .select("is_solved,solved_at,completed_at,completed_by,situation_started_at,service_price,parts_total,subtotal,discount_type,discount_percentage,discount_amount,final_total,commercial_pricing_enabled,cannot_be_solved,cannot_be_solved_reason,assigned_profile:profiles!assigned_to(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active))")
     .eq("id", serviceOrderId)
     .maybeSingle();
 

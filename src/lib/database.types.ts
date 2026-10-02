@@ -428,6 +428,7 @@ export interface ServiceOrder {
   discount_percentage: number | null;
   discount_amount: number | null;
   final_total: number | null;
+  commercial_pricing_enabled: boolean;
   assigned_to: string | null;
   assigned_profile?: { id: string; full_name: string | null } | null;
   technician_id: string | null;
@@ -449,10 +450,17 @@ export interface ServiceOrder {
 export interface ServiceOrderItem {
   id: string;
   service_order_id: string;
-  service_id: string;
+  organization_id: string;
+  item_type: "service" | "product" | "custom_service";
+  general_service_id: string | null;
+  inventory_item_id: string | null;
+  title_snapshot: string;
+  description_snapshot: string | null;
   quantity: number;
   unit_price: number | null;
-  notes: string | null;
+  unit_snapshot: string | null;
+  additional_cost: number;
+  subtotal: number | null;
   created_at: string;
   updated_at: string;
 }
