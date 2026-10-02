@@ -186,14 +186,14 @@ export function RegistrationEditor({
 
         {fieldTrackingAvailable && <label className="mt-5 flex items-start gap-3 border-t border-[#0d1b2e]/8 pt-5">
           <Checkbox
-            checked={form.field_tracking_required}
+            checked={form.field_tracking_prompt_on_login}
             disabled={!canModify}
-            onCheckedChange={checked => setForm(current => ({ ...current, field_tracking_required: checked === true }))}
+            onCheckedChange={checked => setForm(current => ({ ...current, field_tracking_prompt_on_login: checked === true }))}
           />
           <span className="min-w-0">
-            <span className="block text-sm font-black text-[#0d1b2e] dark:text-foreground">Exigir localização pelo navegador</span>
+            <span className="block text-sm font-black text-[#0d1b2e] dark:text-foreground">Solicitar localização ao entrar</span>
             <span className="mt-1 block text-xs leading-5 text-[#5a6a82] dark:text-muted-foreground">
-              Ao entrar no sistema, este usuário deverá permitir o compartilhamento da localização. Se não ativar em até 1 minuto, a sessão será encerrada automaticamente.
+              Ao entrar no sistema, este usuário verá uma solicitação para ativar o compartilhamento da localização pelo navegador. Ele poderá ativar naquele momento ou continuar sem compartilhar.
             </span>
           </span>
         </label>}
