@@ -12,6 +12,8 @@ import {
 export type AdminButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "icon";
 export type AdminButtonSize = "sm" | "md" | "lg";
 
+const AdminPageCloseContext = React.createContext<{ onClose: () => void; requestClose: () => void } | null>(null);
+
 type AdminButtonProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
   variant?: AdminButtonVariant;
   size?: AdminButtonSize;
@@ -42,6 +44,10 @@ export function AdminButton({
   onClick,
   ...buttonProps
 }: AdminButtonProps) {
+  const pageClose = React.useContext(AdminPageCloseContext);
+  const resolvedOnClick = pageClose && onClick && onClick === (pageClose.onClose as unknown as typeof onClick)
+    ? (pageClose.requestClose as unknown as typeof onClick)
+    : onClick;
   const [actionLoading, setActionLoading] = React.useState(false);
   const resolvedLoading = loading || actionLoading;
   const variants: Record<AdminButtonVariant, string> = {
@@ -59,8 +65,8 @@ export function AdminButton({
   };
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = event => {
-    if (!onClick || resolvedLoading) return;
-    const result = (onClick as (event: React.MouseEvent<HTMLButtonElement>) => unknown)(event);
+    if (!resolvedOnClick || resolvedLoading) return;
+    const result = (resolvedOnClick as (event: React.MouseEvent<HTMLButtonElement>) => unknown)(event);
     if (!isPromiseLike(result)) return;
     setActionLoading(true);
     result.then(
@@ -108,6 +114,10 @@ export function AdminIconButton({
   onClick,
   ...buttonProps
 }: AdminIconButtonProps) {
+  const pageClose = React.useContext(AdminPageCloseContext);
+  const resolvedOnClick = pageClose && onClick && onClick === (pageClose.onClose as unknown as typeof onClick)
+    ? (pageClose.requestClose as unknown as typeof onClick)
+    : onClick;
   const [actionLoading, setActionLoading] = React.useState(false);
   const resolvedLoading = loading || actionLoading;
   const variants = {
@@ -134,8 +144,8 @@ export function AdminIconButton({
       : "";
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = event => {
-    if (!onClick || resolvedLoading) return;
-    const result = (onClick as (event: React.MouseEvent<HTMLButtonElement>) => unknown)(event);
+    if (!resolvedOnClick || resolvedLoading) return;
+    const result = (resolvedOnClick as (event: React.MouseEvent<HTMLButtonElement>) => unknown)(event);
     if (!isPromiseLike(result)) return;
     setActionLoading(true);
     result.then(
@@ -348,7 +358,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   const isClosing = closing || internalClosing;
   const legacyCompactWidths = new Set(["max-w-xl", "max-w-2xl", "max-w-3xl"]);
   const resolvedMaxW = legacyCompactWidths.has(maxW) ? "max-w-6xl" : maxW;
-  return <div
+  return <AdminPageCloseContext.Provider value={{ onClose, requestClose }}><div
     className={cn(
       "admin-page-mobile-safe absolute inset-0 z-[35] bg-[#f8fafc] motion-reduce:animate-none",
       isClosing
@@ -378,7 +388,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
     }`}</style>
     {!fullPage && <button type="button" onClick={requestClose} aria-label="Fechar" className="absolute right-4 top-4 z-10 cursor-default rounded-lg border border-[#0d1b2e]/10 bg-white p-2 text-[#5a6a82] shadow-sm hover:bg-[#f5f7fa] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><X size={16} /></button>}
     <div className={cn("mx-auto w-full min-w-0 p-4 sm:p-6 lg:p-8", resolvedMaxW)}>{children}</div>
-  </div>;
+  </div></AdminPageCloseContext.Provider>;
 }
 
 export function Section({
@@ -462,6 +472,8 @@ export function BtnSecondary({ children, onClick, disabled, loading = false, loa
 
 export function InternalBackButton({ onBack, inHeader = false }: { onBack: () => void; inHeader?: boolean }) {
   const contextualBack = React.useContext(AdminBackContext);
+  const pageClose = React.useContext(AdminPageCloseContext);
+  const resolvedBack = pageClose && onBack === pageClose.onClose ? pageClose.requestClose : onBack;
   if (!inHeader && contextualBack === onBack) return null;
-  return <button type="button" onClick={onBack} className="inline-flex cursor-default items-center gap-1.5 text-xs font-bold text-[#5a6a82] transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><ArrowLeft size={14} /> Voltar</button>;
+  return <button type="button" onClick={resolvedBack} className="inline-flex cursor-default items-center gap-1.5 text-xs font-bold text-[#5a6a82] transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><ArrowLeft size={14} /> Voltar</button>;
 }
