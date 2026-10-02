@@ -22,7 +22,7 @@ export type FieldTrackingUnit = {
 export type FieldTrackingStatus = "online" | "lost" | "paused" | "unknown";
 
 export function fieldTrackingStatus(unit: FieldTrackingUnit, now = Date.now()): FieldTrackingStatus {
-  if (!unit.latitude || !unit.longitude || !unit.last_seen_at) return unit.is_sharing ? "lost" : "unknown";
+  if (unit.latitude == null || unit.longitude == null || !unit.last_seen_at) return unit.is_sharing ? "lost" : "unknown";
   if (!unit.is_sharing) return "paused";
   const seenAt = new Date(unit.last_seen_at).getTime();
   if (!Number.isFinite(seenAt)) return "lost";
