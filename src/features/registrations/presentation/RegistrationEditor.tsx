@@ -92,10 +92,11 @@ export function RegistrationEditor({
 }) {
   const canShowAccess = showAccess ?? (accessExisting || canModifyAccess);
   const location = useLocation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasModule } = useAuth();
   const route = resolveAdminRoute(location.pathname);
   const registrationId = !creating && route.tab === "customers" && route.resourceId && route.resourceId !== "new" ? route.resourceId : null;
   const canManageEmployeeSignature = hasPermission("registrations.employee_signature.manage");
+  const fieldTrackingAvailable = hasModule("field_tracking");
 
   return <AdminPage
     open
@@ -182,6 +183,20 @@ export function RegistrationEditor({
           <FInput label="Setor" value={form.team_name} onChange={(event: any) => setForm(current => ({ ...current, team_name: event.target.value }))} />
           <FInput label="Data de admissão" type="date" value={form.admission_date} onChange={(event: any) => setForm(current => ({ ...current, admission_date: event.target.value }))} />
         </div>
+
+        {fieldTrackingAvailable && <label className="mt-5 flex items-start gap-3 border-t border-[#0d1b2e]/8 pt-5">
+          <Checkbox
+            checked={form.field_tracking_required}
+            disabled={!canModify}
+            onCheckedChange={checked => setForm(current => ({ ...current, field_tracking_required: checked === true }))}
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-black text-[#0d1b2e] dark:text-foreground">Exigir localização pelo navegador</span>
+            <span className="mt-1 block text-xs leading-5 text-[#5a6a82] dark:text-muted-foreground">
+              Ao entrar no sistema, este usuário deverá permitir o compartilhamento da localização. Se não ativar em até 1 minuto, a sessão será encerrada automaticamente.
+            </span>
+          </span>
+        </label>}
 
         {canShowAccess && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-5">
           <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
