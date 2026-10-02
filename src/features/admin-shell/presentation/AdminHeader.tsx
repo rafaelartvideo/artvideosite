@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import {
   Bell,
   ChevronDown,
@@ -23,6 +24,13 @@ import { cn } from "@/shared/domain/formatters";
 import type { OrganizationAccess } from "@/lib/organization.types";
 import type { AdminPageState } from "../domain/admin.types";
 import { useAdminTheme } from "./AdminLayout";
+import { useAdminNotifications } from "@/features/notifications/application/useAdminNotifications";
+import {
+  AdminNotificationPanel,
+  LiveNotificationToast,
+  NotificationBadge,
+} from "@/features/notifications/presentation/AdminNotifications";
+import type { AdminNotification } from "@/features/notifications/infrastructure/notifications.repository";
 
 type AdminHeaderProps = {
   page: AdminPageState;
@@ -30,6 +38,7 @@ type AdminHeaderProps = {
   activeOrganizationId?: string | null;
   activeOrganizationName?: string | null;
   organizations: OrganizationAccess[];
+  userId?: string | null;
   userName: string;
   username: string;
   roleName: string;
@@ -206,6 +215,7 @@ export function AdminHeader({
   activeOrganizationId,
   activeOrganizationName,
   organizations,
+  userId,
   userName,
   username,
   roleName,
@@ -214,6 +224,8 @@ export function AdminHeader({
   onToggleSidebar,
 }: AdminHeaderProps) {
   const { theme, setTheme } = useAdminTheme();
+  const navigate = useNavigate();
+  const notifications = useAdminNotifications(activeOrganizationId, userId);
   const [openMenu, setOpenMenu] = useState<HeaderMenu>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -243,6 +255,18 @@ export function AdminHeader({
 
   const toggleMenu = (menu: Exclude<HeaderMenu, null>) => {
     setOpenMenu(current => current === menu ? null : menu);
+  };
+
+  const openNotification = async (notification: AdminNotification) => {
+    try {
+      await notifications.markRead(notification);
+    } catch (error) {
+      console.error("Não foi possível marcar a notificação como lida:", error);
+    } finally {
+      notifications.dismissLiveNotification();
+      setOpenMenu(null);
+      if (notification.route) navigate(notification.route);
+    }
   };
 
   const closePasswordModal = () => {
@@ -366,9 +390,23 @@ export function AdminHeader({
     </div>
   </div>;
 
+  const notificationPanel = <AdminNotificationPanel
+    notifications={notifications.notifications}
+    unreadCount={notifications.unreadCount}
+    loading={notifications.isLoading}
+    onOpen={notification => void openNotification(notification)}
+    onMarkAllRead={() => void notifications.markAllRead()}
+  />;
+
   return (
     <>
       {openMenu && <button type="button" aria-label="Fechar menu do cabeçalho" className="fixed inset-0 z-[59] cursor-default bg-transparent" onClick={() => setOpenMenu(null)} />}
+
+      <LiveNotificationToast
+        notification={notifications.liveNotification}
+        onOpen={notification => void openNotification(notification)}
+        onDismiss={notifications.dismissLiveNotification}
+      />
 
       <header className="relative z-[60] shrink-0 border-b border-[#0d1b2e]/10 bg-white">
         <div className="hidden h-16 min-w-0 items-center justify-between gap-4 px-4 md:flex lg:px-6">
@@ -388,13 +426,11 @@ export function AdminHeader({
             <div className="relative">
               <HeaderAction label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}>
                 <Bell size={17} strokeWidth={2} />
+                <NotificationBadge count={notifications.unreadCount} />
               </HeaderAction>
-              {openMenu === "notifications" && <HeaderDropdown title="Notificações">
-                <div className="px-3.5 py-5 text-center">
-                  <p className="text-sm font-semibold text-[#0d1b2e]">Nenhuma notificação</p>
-                  <p className="mt-1 text-xs text-[#7b899d]">Novos avisos aparecerão aqui.</p>
-                </div>
-              </HeaderDropdown>}
+              {openMenu === "notifications" && <div className="absolute left-0 top-[calc(100%+7px)] z-[80] w-[390px] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-xl">
+                {notificationPanel}
+              </div>}
             </div>
 
             <div className="relative">
@@ -453,16 +489,18 @@ export function AdminHeader({
           </div>
 
           <div className="ml-auto flex items-center gap-0.5">
-            <HeaderAction label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}><Bell size={16} /></HeaderAction>
+            <HeaderAction label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}>
+              <Bell size={16} />
+              <NotificationBadge count={notifications.unreadCount} />
+            </HeaderAction>
             <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}><Settings size={16} /></HeaderAction>
             <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
             <ThemeToggle theme={theme} onChange={setTheme} compact />
             <button type="button" onClick={() => toggleMenu("profile")} aria-label="Minha conta" className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/15 bg-[#eef5ff] text-[11px] font-black text-primary">{userInitial}</button>
           </div>
 
-          {openMenu === "notifications" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(280px,calc(100vw-24px))] rounded-lg border border-[#0d1b2e]/10 bg-white">
-            <div className="border-b border-[#0d1b2e]/8 px-3.5 py-2.5 text-[11px] font-black uppercase tracking-[0.1em]">Notificações</div>
-            <div className="px-3.5 py-5 text-center text-xs text-[#7b899d]">Nenhuma notificação.</div>
+          {openMenu === "notifications" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-xl">
+            {notificationPanel}
           </div>}
           {openMenu === "settings" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(260px,calc(100vw-24px))] rounded-lg border border-[#0d1b2e]/10 bg-white">{settingsMenu}</div>}
           {openMenu === "profile" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(280px,calc(100vw-24px))] rounded-lg border border-[#0d1b2e]/10 bg-white">{profileMenu}</div>}
