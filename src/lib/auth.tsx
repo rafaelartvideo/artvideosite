@@ -87,18 +87,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setLoadingProgress(20);
       if (data.session?.user) {
+        let activeSession = data.session;
         setLoadingProgress(28);
-        const sessionValidation = await validateCurrentSessionIp();
+
+        let sessionValidation = await validateCurrentSessionIp();
         if (cancelled) return;
+
+        // Se o access token estiver vencendo justamente na abertura da página,
+        // tenta renovar uma vez antes de considerar a sessão inválida.
+        if (sessionValidation === "session_invalid") {
+          const refreshed = await supabase.auth.refreshSession();
+          if (cancelled) return;
+          if (!refreshed.error && refreshed.data.session?.user) {
+            activeSession = refreshed.data.session;
+            sessionValidation = await validateCurrentSessionIp();
+            if (cancelled) return;
+          }
+        }
+
         if (sessionValidation === "ip_not_allowed" || sessionValidation === "session_invalid") {
           await supabase.auth.signOut();
           setLoading(false);
           return;
         }
+
         setLoadingProgress(36);
-        setSession(data.session);
-        signedInUserRef.current = data.session.user.id;
-        void loadAccess(data.session.user.id);
+        setSession(activeSession);
+        signedInUserRef.current = activeSession.user.id;
+        void loadAccess(activeSession.user.id);
       } else {
         setSession(null);
         setLoadingProgress(100);
@@ -241,10 +257,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (validation === "session_invalid") {
-          // Evita logout falso durante uma corrida de refresh do token.
-          // Só encerra se o próprio Supabase confirmar que não há mais sessão local.
-          const { data } = await supabase.auth.getSession();
-          if (!data.session) await signOut();
+          // Pode acontecer durante a troca automática do access token.
+          // Solicita refresh, mas não força logout por erro temporário:
+          // o próprio Supabase emitirá SIGNED_OUT se a sessão for realmente inválida.
+          await supabase.auth.refreshSession();
         }
       } finally {
         sessionValidationRef.current = false;
