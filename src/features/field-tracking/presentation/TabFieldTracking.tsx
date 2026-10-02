@@ -410,8 +410,8 @@ export function TabFieldTracking() {
           <Metric label="Veículos" value={vehicles} icon={CarFront} />
         </div>
 
-        <AdminCard className="overflow-hidden p-0">
-          <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+        <AdminCard className="relative isolate z-0 overflow-hidden p-0">
+          <div className="relative z-20 flex flex-col gap-3 border-b border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-black text-foreground">Posições em tempo real</p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">Verde = recebendo posição · vermelho = conexão perdida.</p>
@@ -426,13 +426,13 @@ export function TabFieldTracking() {
             </div>
           </div>
 
-          <div className="grid min-h-[560px] lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="relative min-h-[420px] border-b border-border lg:border-b-0 lg:border-r">
+          <div className="relative z-0 grid min-h-[560px] lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="field-tracking-map-shell relative isolate z-0 min-h-[420px] overflow-hidden border-b border-border lg:border-b-0 lg:border-r">
               <MapContainer
                 center={BRAZIL_CENTER}
                 zoom={4}
                 scrollWheelZoom
-                className="h-full min-h-[560px] w-full bg-muted"
+                className="field-tracking-map relative z-0 h-full min-h-[560px] w-full bg-muted"
               >
                 <TileLayer
                   attribution='&copy; OpenStreetMap contributors'
@@ -468,7 +468,7 @@ export function TabFieldTracking() {
                 })}
               </MapContainer>
 
-              {mappedUnits.length === 0 && <div className="pointer-events-none absolute inset-0 z-[500] flex items-center justify-center p-6">
+              {mappedUnits.length === 0 && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
                 <div className="rounded-xl border border-border bg-card/95 px-5 py-4 text-center shadow-lg backdrop-blur">
                   <MapPinned className="mx-auto text-primary" size={24} />
                   <p className="mt-2 text-sm font-black text-foreground">Nenhuma posição disponível</p>
@@ -477,7 +477,7 @@ export function TabFieldTracking() {
               </div>}
             </div>
 
-            <aside className="max-h-[560px] overflow-y-auto bg-card">
+            <aside className="relative z-10 max-h-[560px] overflow-y-auto bg-card">
               <div className="sticky top-0 z-10 border-b border-border bg-card px-4 py-3">
                 <p className="text-xs font-black uppercase tracking-[0.1em] text-muted-foreground">
                   Rastreadores ({visibleUnits.length})
