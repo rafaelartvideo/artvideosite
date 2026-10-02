@@ -90,7 +90,7 @@ export async function saveCompleteProduct(
   initialQuantity: number,
   initialUnitCost: number | null,
 ) {
-  const { data, error } = await supabase.rpc("save_inventory_item_unified_v2", {
+  const { data, error } = await supabase.rpc("save_inventory_item_unified_v3", {
     p_organization_id: organizationId,
     p_product_id: productId ?? null,
     p_product: product,
