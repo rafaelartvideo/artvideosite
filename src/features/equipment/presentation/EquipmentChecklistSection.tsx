@@ -61,7 +61,7 @@ export function EquipmentChecklistSection({ draft, catalog, onChange, errorFor, 
   };
   const removeItem = (index: number) => onChange({ checklistItems: draft.checklistItems.filter((_, itemIndex) => itemIndex !== index) });
 
-  return <div className="border-t border-[#0d1b2e]/8 pt-4">
+  return <div className="border-t border-border pt-4">
     <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Checklist</p></div>
     <div className="space-y-4">
       <FSelect
@@ -80,7 +80,7 @@ export function EquipmentChecklistSection({ draft, catalog, onChange, errorFor, 
         }}
       />
       {draft.checklist_profile_id && <>
-        <div className="rounded-xl border border-[#0057e7]/12 bg-[#eef5ff]/55 p-3 text-xs leading-5 text-[#426080]">
+        <div className="rounded-xl border border-[#0057e7]/12 bg-primary-soft/55 p-3 text-xs leading-5 text-[#426080]">
           Este equipamento usará o perfil selecionado. Os itens abaixo são adicionais e serão copiados para cada nova OS junto com o perfil.
         </div>
         <div className="flex items-center justify-between gap-3"><div><strong className="text-xs uppercase tracking-wide text-[#52647c]">Itens adicionais deste equipamento</strong><p className="mt-0.5 text-xs text-[#6b7c93]">Use apenas para verificações específicas deste tipo de equipamento.</p></div><AdminButton variant="secondary" onClick={addItem} disabled={!stageOptions.length}><Plus size={14} /> Item</AdminButton></div>
