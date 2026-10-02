@@ -30,18 +30,25 @@ export type FieldTrackingUnit = {
   updated_at: string;
 };
 
-export type FieldTrackingStatus = "online" | "lost" | "paused" | "unknown";
+export type FieldTrackingStatus = "online" | "stationary" | "lost" | "paused" | "unknown";
+
+const LIVE_WINDOW_MS = 90_000;
+const LOST_AFTER_MS = 15 * 60_000;
 
 export function fieldTrackingStatus(unit: FieldTrackingUnit, now = Date.now()): FieldTrackingStatus {
   if (unit.latitude == null || unit.longitude == null || !unit.last_seen_at) return unit.is_sharing ? "lost" : "unknown";
   if (!unit.is_sharing) return "paused";
   const seenAt = new Date(unit.last_seen_at).getTime();
   if (!Number.isFinite(seenAt)) return "lost";
-  return now - seenAt <= 90_000 ? "online" : "lost";
+  const silenceMs = Math.max(0, now - seenAt);
+  if (silenceMs <= LIVE_WINDOW_MS) return "online";
+  if (silenceMs <= LOST_AFTER_MS) return "stationary";
+  return "lost";
 }
 
 export function fieldTrackingStatusLabel(status: FieldTrackingStatus) {
   if (status === "online") return "Ao vivo";
+  if (status === "stationary") return "Parado";
   if (status === "lost") return "Sem sinal";
   if (status === "paused") return "Pausado";
   return "Sem posição";
