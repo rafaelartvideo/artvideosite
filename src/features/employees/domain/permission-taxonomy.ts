@@ -19,7 +19,7 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const MODULE_ORDER = ["Dashboard", "Site", "PDV", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Checklists", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Auditoria", "Documentos", "Dados da Empresa", "Termos", "Contato"];
-const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Vendas", "Caixa", "Configurações", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Checklists", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Assinaturas", "Tipos de Anexo", "Calendário", "Endereços", "Funcionários", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
+const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Vendas", "Caixa", "Configurações", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Checklists", "Histórico", "Documentos e Imagens", "SLA", "Cadastros", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Assinaturas", "Tipos de Anexo", "Calendário", "Endereços", "Funcionários", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
@@ -91,6 +91,7 @@ export function permissionSectionName(permission: PermissionRecord) {
     if (key.startsWith("pdv.settings.")) return "Configurações";
   }
   if (module === "inventory") {
+    if (key.includes("categories") || key.includes("brands")) return "Cadastros";
     if (key.includes("movement")) return "Movimentações";
     if (key.includes("supplier")) return "Fornecedores";
     if (key.includes("cost")) return "Custos";
@@ -170,6 +171,8 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "inventory.update": ["inventory.view", "inventory.details.view"],
   "inventory.movements.view": ["inventory.view"], "inventory.movements.create": ["inventory.update", "inventory.view"], "inventory.toggle_active": ["inventory.update", "inventory.view"],
   "inventory.suppliers.view": ["inventory.view"], "inventory.suppliers.manage": ["inventory.suppliers.view", "inventory.update", "inventory.view"], "inventory.costs.view": ["inventory.view"],
+  "inventory.categories.view": ["inventory.view"], "inventory.categories.manage": ["inventory.categories.view", "inventory.update", "inventory.view"],
+  "inventory.brands.view": ["inventory.view"], "inventory.brands.manage": ["inventory.brands.view", "inventory.update", "inventory.view"],
   "products.toggle_active": ["products.update", "products.view"], "products.toggle_featured": ["products.update", "products.view"],
   "pdv.sales.create": ["pdv.view"], "pdv.sales.cancel": ["pdv.view"], "pdv.settings.manage": ["pdv.view"],
   "pdv.cash.open": ["pdv.view"], "pdv.cash.close": ["pdv.view"], "pdv.cash.supply": ["pdv.view"], "pdv.cash.withdraw": ["pdv.view"], "pdv.cash.reports": ["pdv.view"],
