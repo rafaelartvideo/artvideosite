@@ -43,7 +43,7 @@ export function AdminFilterMultiSelect({
   }, [options, normalizedSearch]);
 
   return <div className="min-w-0">
-    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82] md:mb-1">{label}</label>
+    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground md:mb-1">{label}</label>
     <Popover>
       <PopoverTrigger asChild>
         <button
@@ -55,11 +55,11 @@ export function AdminFilterMultiSelect({
             disabled && "cursor-not-allowed opacity-60",
           )}
         >
-          <span className={cn("flex min-w-0 flex-1 items-center gap-2 truncate", selectedValues.length ? "text-[#0d1b2e]" : "text-[#5a6a82]/70")}>
+          <span className={cn("flex min-w-0 flex-1 items-center gap-2 truncate", selectedValues.length ? "text-foreground" : "text-muted-foreground/70")}>
             {loading && <LoadingSpinner size="sm" />}
             <span className="truncate">{loading ? "Carregando..." : selectedValues.length ? selectedLabel : placeholder}</span>
           </span>
-          <ChevronDown size={14} className="shrink-0 text-[#5a6a82] opacity-70" />
+          <ChevronDown size={14} className="shrink-0 text-muted-foreground opacity-70" />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -67,10 +67,10 @@ export function AdminFilterMultiSelect({
         side="bottom"
         sideOffset={4}
         collisionPadding={12}
-        className="z-[120] w-[var(--radix-popover-trigger-width)] min-w-[220px] max-w-[calc(100vw-24px)] overflow-hidden rounded-md border border-[#0d1b2e]/10 bg-white p-1 text-[#0d1b2e] shadow-xl"
+        className="z-[120] w-[var(--radix-popover-trigger-width)] min-w-[220px] max-w-[calc(100vw-24px)] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-xl"
       >
         {!loading && options.length > 0 && <div className="relative mb-1">
-          <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+          <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
             onChange={event => setSearch(event.target.value)}
@@ -79,15 +79,15 @@ export function AdminFilterMultiSelect({
           />
         </div>}
         <div className="max-h-64 overflow-y-auto">
-          {loading ? <div className="flex items-center gap-2 px-2 py-3 text-xs text-[#5a6a82]"><LoadingSpinner size="sm" /><span>Carregando...</span></div> : filteredOptions.length === 0 ? <p className="px-2 py-3 text-xs text-[#5a6a82]">Nenhuma opção encontrada.</p> : filteredOptions.map(option => {
+          {loading ? <div className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground"><LoadingSpinner size="sm" /><span>Carregando...</span></div> : filteredOptions.length === 0 ? <p className="px-2 py-3 text-xs text-muted-foreground">Nenhuma opção encontrada.</p> : filteredOptions.map(option => {
             const selected = selectedValues.includes(option.value);
             return <button
               key={option.value}
               type="button"
               onClick={() => onToggle(option.value)}
               className={cn(
-                "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-left text-sm outline-none transition-colors hover:bg-[#eef5ff] hover:text-[#0057e7] focus-visible:bg-[#eef5ff] focus-visible:text-[#0057e7]",
-                selected && "bg-[#eef5ff] font-semibold text-[#0057e7]",
+                "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-left text-sm outline-none transition-colors hover:bg-primary-soft hover:text-primary focus-visible:bg-primary-soft focus-visible:text-primary",
+                selected && "bg-primary-soft font-semibold text-primary",
               )}
             >
               <span className="min-w-0 flex-1 truncate">{option.label}</span>
