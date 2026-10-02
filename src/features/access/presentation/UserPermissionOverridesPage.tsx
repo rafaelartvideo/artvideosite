@@ -15,7 +15,7 @@ import {
   permissionLabel,
   type PermissionRecord,
 } from "@/features/employees/domain/permission-taxonomy";
-import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 
@@ -198,9 +198,9 @@ export function UserPermissionOverridesPage({
         </div>
       </Section>
     </div>}
-    <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5">
+    <AdminStickyToolbar className="justify-end">
       <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
       {canManage && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
-    </div>
+    </AdminStickyToolbar>
   </AdminPage>;
 }
