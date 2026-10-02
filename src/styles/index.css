@@ -339,6 +339,10 @@ html[data-admin-theme="dark"] {
 	backdrop-filter: none !important;
 }
 
+.admin-crm button[class*="rounded-"] {
+	background-clip: padding-box;
+}
+
 /* Dark-mode guard rails for legacy screens and composed Tailwind utilities. */
 .admin-crm.dark input::placeholder,
 .admin-crm.dark textarea::placeholder,
@@ -530,21 +534,36 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 /* Lifecycle pills generated dynamically by AdminFeedback. */
 .admin-crm.dark span[data-lifecycle-status="active"],
 .dark .admin-crm span[data-lifecycle-status="active"] {
-	color: #6ee7b7 !important;
-	background: rgba(16,185,129,.14) !important;
-	border-color: rgba(52,211,153,.30) !important;
+	color: #9bc9bb !important;
+	background: rgba(16,185,129,.07) !important;
+	border-color: rgba(52,211,153,.18) !important;
+}
+.admin-crm.dark span[data-lifecycle-status="active"]::before,
+.dark .admin-crm span[data-lifecycle-status="active"]::before {
+	background: radial-gradient(circle at 34% 30%, #b8d8cf 0%, #65a995 28%, #2e8069 62%, #215c4d 100%) !important;
+	box-shadow: inset 1px 1px 1px rgba(255,255,255,.28), inset -1px -1px 1.5px rgba(0,0,0,.28), 0 1px 2px rgba(0,0,0,.22) !important;
 }
 .admin-crm.dark span[data-lifecycle-status="disabled"],
 .dark .admin-crm span[data-lifecycle-status="disabled"] {
-	color: #fca5a5 !important;
-	background: rgba(239,68,68,.13) !important;
-	border-color: rgba(248,113,113,.30) !important;
+	color: #dca0a0 !important;
+	background: rgba(239,68,68,.065) !important;
+	border-color: rgba(248,113,113,.18) !important;
+}
+.admin-crm.dark span[data-lifecycle-status="disabled"]::before,
+.dark .admin-crm span[data-lifecycle-status="disabled"]::before {
+	background: radial-gradient(circle at 34% 30%, #dfb2b2 0%, #b96969 28%, #8f4141 62%, #632e2e 100%) !important;
+	box-shadow: inset 1px 1px 1px rgba(255,255,255,.25), inset -1px -1px 1.5px rgba(0,0,0,.30), 0 1px 2px rgba(0,0,0,.22) !important;
 }
 .admin-crm.dark span[data-lifecycle-status="inactive"],
 .dark .admin-crm span[data-lifecycle-status="inactive"] {
-	color: #fcd34d !important;
-	background: rgba(245,158,11,.13) !important;
-	border-color: rgba(251,191,36,.28) !important;
+	color: #d6b77f !important;
+	background: rgba(245,158,11,.065) !important;
+	border-color: rgba(251,191,36,.17) !important;
+}
+.admin-crm.dark span[data-lifecycle-status="inactive"]::before,
+.dark .admin-crm span[data-lifecycle-status="inactive"]::before {
+	background: radial-gradient(circle at 34% 30%, #ddc89e 0%, #b58a46 28%, #8a622b 62%, #62451f 100%) !important;
+	box-shadow: inset 1px 1px 1px rgba(255,255,255,.24), inset -1px -1px 1.5px rgba(0,0,0,.30), 0 1px 2px rgba(0,0,0,.22) !important;
 }
 
 @media (max-width: 767px) {
