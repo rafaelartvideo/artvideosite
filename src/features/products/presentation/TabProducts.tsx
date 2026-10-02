@@ -1594,14 +1594,29 @@ export function TabProducts({
               <p className="mb-4 text-xs leading-5 text-[#7a8aa0]">
                 A foto principal identifica o item no CRM e pode ser reutilizada no catálogo da Artvideo quando a publicação estiver habilitada.
               </p>
-              <ImageUpload
-                bucket="product-images"
-                organizationId={activeOrganizationId || undefined}
-                currentMediaId={form.cover_media_id}
-                onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))}
-                canUpload={!saving && (editItem ? canEdit : canCreate)}
-                label="Foto principal"
-              />
+              <div className="grid gap-5 lg:grid-cols-2">
+                <ImageUpload
+                  bucket="product-images"
+                  organizationId={activeOrganizationId || undefined}
+                  currentMediaId={form.cover_media_id}
+                  onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))}
+                  canUpload={!saving && (editItem ? canEdit : canCreate)}
+                  label="Foto principal"
+                />
+                <ImageUpload
+                  bucket="product-images"
+                  organizationId={activeOrganizationId || undefined}
+                  currentMediaId={null}
+                  onUpload={mediaId => {
+                    setGalleryMedia(current => current.some(image => image.media_id === mediaId)
+                      ? current
+                      : [...current, { media_id: mediaId, public_url: "" }].slice(0, 10));
+                    setForm(current => ({ ...current, cover_media_id: current.cover_media_id || mediaId }));
+                  }}
+                  canUpload={!saving && (editItem ? canEdit : canCreate) && galleryMedia.length < 10}
+                  label="Adicionar foto à galeria"
+                />
+              </div>
 
               {galleryMedia.length > 0 && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-4">
                 <div className="mb-2 flex items-center justify-between">
