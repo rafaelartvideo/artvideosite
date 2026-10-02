@@ -811,6 +811,10 @@ export function TabProducts({
     return String(product.name || "").toLocaleLowerCase("pt-BR").includes(term)
       || String(product.sku || inventory.sku || "").toLocaleLowerCase("pt-BR").includes(term)
       || String(product.barcode || "").toLocaleLowerCase("pt-BR").includes(term)
+      || String(product.model || "").toLocaleLowerCase("pt-BR").includes(term)
+      || String(product.manufacturer_code || "").toLocaleLowerCase("pt-BR").includes(term)
+      || String(product.product_categories?.name || "").toLocaleLowerCase("pt-BR").includes(term)
+      || String(product.brands?.name || "").toLocaleLowerCase("pt-BR").includes(term)
       || String(inventory.storage_shelf || "").toLocaleLowerCase("pt-BR").includes(term)
       || String(inventory.storage_level || "").toLocaleLowerCase("pt-BR").includes(term)
       || String(inventory.storage_compartment || "").toLocaleLowerCase("pt-BR").includes(term);
@@ -845,7 +849,7 @@ export function TabProducts({
           <input
             value={search}
             onChange={event => { setSearch(event.target.value); setPage(1); }}
-            placeholder="Nome, SKU, código de barras ou localização"
+            placeholder="Nome, SKU, GTIN, marca, modelo, categoria ou localização"
             className={cn(INPUT, "h-[42px] w-full pl-9 text-sm md:h-9 md:py-1.5 md:text-xs")}
           />
         </div>
@@ -867,6 +871,7 @@ export function TabProducts({
                 <tr>
                   {showProduct && <th className="text-left">Item</th>}
                   {showCategory && <th className="text-left">Categoria</th>}
+                  {canViewBrands && <th className="text-left">Marca</th>}
                   {showPrice && <th className="text-left">Preço</th>}
                   <th className="text-left">Estoque</th>
                   <th className="text-left">Local</th>
@@ -898,6 +903,7 @@ export function TabProducts({
                       </div>
                     </td>}
                     {showCategory && <td className="text-xs text-[#5a6a82]">{product.product_categories?.name || "—"}</td>}
+                    {canViewBrands && <td className="text-xs text-[#5a6a82]">{product.brands?.name || "—"}</td>}
                     {showPrice && <td className="font-bold text-[#0d1b2e]">{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
                     <td>
                       <div className={cn("text-xs font-bold", lowStock ? "text-amber-700" : "text-[#0d1b2e]")}>
