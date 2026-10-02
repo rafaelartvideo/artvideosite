@@ -311,7 +311,10 @@ function SaleDetail({ detail }: { detail: PdvSaleDetail }) {
             </div>
             <p className="text-xs text-[#5a6a82]">{item.quantity} {item.unit}</p>
             <p className="text-xs text-[#5a6a82]">{formatCurrency(item.unit_price)}</p>
-            <p className="text-sm font-black text-[#0d1b2e] sm:text-right">{formatCurrency(item.line_subtotal)}</p>
+            <div className="sm:text-right">
+              <p className="text-sm font-black text-[#0d1b2e]">{formatCurrency(item.line_total)}</p>
+              {Number(item.discount_amount || 0) > 0 && <p className="mt-0.5 text-[10px] font-bold text-emerald-700">- {formatCurrency(item.discount_amount)}</p>}
+            </div>
           </div>)}
         </div>
       </div>
