@@ -23,6 +23,12 @@ export async function loadProductCatalog(
     p_organization_id: organizationId,
   });
 
+  const inventoryIdentityPromise = supabase
+    .from("inventory_items")
+    .select("product_id,sku")
+    .eq("organization_id", organizationId)
+    .not("product_id", "is", null);
+
   const categoriesPromise = options.loadCategories
     ? supabase
         .from("product_categories")
@@ -39,20 +45,28 @@ export async function loadProductCatalog(
         .order("sort_order")
     : Promise.resolve({ data: [], error: null });
 
-  const [productsResult, inventoryResult, categoriesResult, brandsResult] = await Promise.all([
+  const [productsResult, inventoryResult, inventoryIdentityResult, categoriesResult, brandsResult] = await Promise.all([
     productsPromise,
     inventoryPromise,
+    inventoryIdentityPromise,
     categoriesPromise,
     brandsPromise,
   ]);
 
   if (productsResult.error) throw productsResult.error;
   if (inventoryResult.error) throw inventoryResult.error;
+  if (inventoryIdentityResult.error) throw inventoryIdentityResult.error;
   if (categoriesResult.error) throw categoriesResult.error;
   if (brandsResult.error) throw brandsResult.error;
 
+  const inventoryIdentityByProductId = new Map(
+    (inventoryIdentityResult.data ?? []).map((item: any) => [String(item.product_id), item]),
+  );
   const inventoryByProductId = new Map(
-    (inventoryResult.data ?? []).map((item: any) => [String(item.product_id), item]),
+    (inventoryResult.data ?? []).map((item: any) => {
+      const identity = inventoryIdentityByProductId.get(String(item.product_id));
+      return [String(item.product_id), { ...item, sku: identity?.sku ?? null }];
+    }),
   );
 
   return {
