@@ -3,7 +3,7 @@ import { useLocation } from "react-router";
 import { Building2, Users, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { resolveAdminRoute } from "@/features/admin-shell/admin-routes";
-import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import {
   FBrazilianDateInput,
   FCnpjInput,
@@ -203,9 +203,9 @@ export function RegistrationEditor({
       {form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
     </div>
 
-    <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
+    <AdminStickyToolbar className="flex-wrap justify-end gap-2">
       <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
       <BtnPrimary disabled={!canModify} onClick={onSave} loading={saving} loadingText="Salvando...">{creating ? "Criar" : "Salvar alterações"}</BtnPrimary>
-    </div>
+    </AdminStickyToolbar>
   </AdminPage>;
 }
