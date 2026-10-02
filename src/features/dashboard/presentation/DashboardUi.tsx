@@ -31,26 +31,30 @@ export function DashboardModuleNav({
   onChange: (module: DashboardModule) => void;
 }) {
   return (
-    <nav className="flex min-w-0 gap-1 overflow-x-auto rounded-none border border-[#0d1b2e]/8 bg-white p-1.5 shadow-sm" aria-label="Áreas do dashboard">
-      {items.map(item => {
-        const Icon = item.icon;
-        const selected = item.id === value;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            aria-current={selected ? "page" : undefined}
-            onClick={() => onChange(item.id)}
-            className={cn(
-              "inline-flex min-h-10 shrink-0 cursor-default items-center justify-center gap-2 rounded-none px-3 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40",
-              selected ? "bg-[#0057e7] text-white shadow-sm" : "text-[#5a6a82] hover:bg-[#0057e7]/5 hover:text-[#0057e7]",
-            )}
-          >
-            <Icon size={15} />
-            {item.label}
-          </button>
-        );
-      })}
+    <nav className="min-w-0 overflow-x-auto rounded-xl border border-border bg-card px-2 shadow-sm" aria-label="Áreas do dashboard">
+      <div className="flex w-max min-w-full items-center justify-center gap-1">
+        {items.map(item => {
+          const Icon = item.icon;
+          const selected = item.id === value;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-current={selected ? "page" : undefined}
+              onClick={() => onChange(item.id)}
+              className={cn(
+                "relative inline-flex min-h-11 shrink-0 cursor-default items-center justify-center gap-2 bg-transparent px-3 text-xs font-black transition-colors duration-200 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                selected
+                  ? "text-primary after:scale-x-100"
+                  : "text-muted-foreground after:scale-x-0 hover:text-primary",
+              )}
+            >
+              <Icon size={15} />
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }
