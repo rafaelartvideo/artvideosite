@@ -1,6 +1,6 @@
 import { FilterX, Plus } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { AdminCard, AdminDialog, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import type { useOrderHistory } from "../application/useOrderHistory";
@@ -64,10 +64,10 @@ export function OrderHistoryPage({
           <p className="mt-3 break-words whitespace-pre-line text-sm leading-relaxed text-[#0d1b2e]">{item.content}</p>
         </AdminCard>)}</div>}
       </div>
-      <div className="sticky bottom-0 flex items-center gap-2 border-t border-[#0d1b2e]/8 bg-white px-3 py-3 sm:justify-between sm:px-5 sm:py-4">
+      <AdminStickyToolbar className="gap-2 px-3 py-3 sm:justify-between sm:px-5 sm:py-4">
         <BtnSecondary onClick={onClose} className="min-w-0 flex-1 sm:flex-none">Voltar para a OS</BtnSecondary>
         {canCreate && <BtnPrimary onClick={() => { history.setText(""); history.setModalOpen(true); }} className="h-11 w-11 min-w-0 flex-none !px-0 sm:h-auto sm:w-auto sm:!px-4"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="sr-only sm:not-sr-only">Novo registro</span></BtnPrimary>}
-      </div>
+      </AdminStickyToolbar>
     </AdminPage>
     {history.modalOpen && canCreate && <AdminDialog open={history.modalOpen} onClose={() => { if (!history.saving) history.setModalOpen(false); }} title="Novo registro" description="Adicione uma observação permanente ao histórico" className="max-w-lg" footer={<div className="flex w-full gap-2 sm:justify-end sm:gap-3"><BtnSecondary onClick={() => history.setModalOpen(false)} className="min-w-0 flex-1 sm:flex-none">Cancelar</BtnSecondary><BtnPrimary onClick={history.submit} disabled={!history.text.trim() || history.saving} className="min-w-0 flex-1 sm:flex-none">{history.saving ? "Registrando..." : "Registrar no histórico"}</BtnPrimary></div>}>
       <textarea autoFocus value={history.text} onChange={(event) => history.setText(event.target.value)} maxLength={2000} rows={6} placeholder="Escreva o que precisa ficar registrado nesta OS..." className={cn(INPUT, "h-auto min-w-0 resize-y text-sm")} />
