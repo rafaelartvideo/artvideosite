@@ -14,7 +14,7 @@ import type {
 } from "../domain/finance.types";
 import type { FinancialCounterparty } from "../infrastructure/finance-entries.repository";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FinanceAllocationEditor } from "./FinanceAllocationEditor";
 
@@ -213,7 +213,7 @@ export function FinanceEntryEditorDialog({
         
       </div>
 
-      <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t bg-white px-4 py-4 sm:flex-row sm:justify-end sm:px-5"><AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton><AdminButton onClick={save} loading={saving} loadingText="Salvando...">Salvar lançamento</AdminButton></div>
+      <AdminStickyToolbar className="flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton><AdminButton onClick={save} loading={saving} loadingText="Salvando...">Salvar lançamento</AdminButton></AdminStickyToolbar>
     </div>
   </div>;
 }
