@@ -133,6 +133,8 @@ export type PdvSaleDetail = PdvSaleResult & {
     unit: string;
     unit_price: number;
     line_subtotal: number;
+    discount_amount: number;
+    line_total: number;
   }>;
   payments: Array<{
     id: string;
@@ -238,7 +240,7 @@ export type FinalizePdvSaleInput = {
   discountAmount?: number;
   surchargeAmount?: number;
   note?: string | null;
-  items: Array<{ productId: string; quantity: number }>;
+  items: Array<{ productId: string; quantity: number; discountAmount?: number }>;
   payments: Array<{ paymentMethodId: string; amount: number; tenderedAmount?: number | null }>;
 };
 
@@ -336,6 +338,7 @@ export async function finalizePdvSale(
       items: input.items.map(item => ({
         product_id: item.productId,
         quantity: Number(item.quantity),
+        discount_amount: Number(item.discountAmount || 0),
       })),
       payments: input.payments.map(payment => ({
         payment_method_id: payment.paymentMethodId,
