@@ -127,6 +127,7 @@ export function InventorySuppliersEditor({
   >
     {rows.map(supplier => {
       const selected = selectedIds.has(supplier.id);
+      const selectedSupplier = value.find(item => item.id === supplier.id);
       const inactive = supplier.is_active === false;
       return <AdminListSectionRow key={supplier.id} className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
@@ -138,12 +139,30 @@ export function InventorySuppliersEditor({
             <span className={selected ? "font-bold text-emerald-700" : "text-[#7c899c]"}>{selected ? "Vinculado" : "Não vinculado"}</span>
           </div>
         </div>
-        {!disabled && <button
-          type="button"
-          disabled={!selected && inactive}
-          onClick={() => toggle(supplier)}
-          className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${selected ? "border-red-200 text-red-600 hover:bg-red-50" : "border-[#0d1b2e]/15 bg-white text-[#0057e7] hover:bg-[#f5f7fa]"}`}
-        >{selected ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>}
+        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:min-w-[260px] sm:flex-row sm:items-end">
+          {selected && <label className="min-w-0 flex-1">
+            <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[#7c899c]">Referência no fornecedor</span>
+            <input
+              type="text"
+              disabled={disabled}
+              value={selectedSupplier?.supplier_reference || ""}
+              onChange={event => {
+                const reference = event.target.value;
+                onChange(value.map(item => item.id === supplier.id
+                  ? { ...item, supplier_reference: reference }
+                  : item));
+              }}
+              placeholder="Código deste item no fornecedor"
+              className="h-9 w-full min-w-0 rounded-lg border border-[#0d1b2e]/15 bg-white px-2.5 text-xs text-[#0d1b2e] outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 disabled:bg-slate-100/60"
+            />
+          </label>}
+          {!disabled && <button
+            type="button"
+            disabled={!selected && inactive}
+            onClick={() => toggle(supplier)}
+            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${selected ? "border-red-200 text-red-600 hover:bg-red-50" : "border-primary/25 bg-white text-primary hover:bg-primary-soft/40"}`}
+          >{selected ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>}
+        </div>
       </AdminListSectionRow>;
     })}
   </AdminListSection>;
