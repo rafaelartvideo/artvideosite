@@ -1,10 +1,10 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useEffect, useState } from "react";
-import { Edit2, FileText, Plus, Tag, Trash2, X } from "lucide-react";
+import { Edit2, FileText, Tag, Trash2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
-import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -137,7 +137,6 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
       <PageHeader
         title="Documentos"
         subtitle="Configure modelos de impressão e tipos de anexos das ordens de serviço."
-        actions={onBack ? <InternalBackButton onBack={onBack} /> : undefined}
       />
 
       <div className="flex gap-1 border-b border-[#0d1b2e]/10">
@@ -149,7 +148,6 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
         <DocumentsAreaHeader
           title="Impressão"
           description="Crie e configure os modelos disponíveis no menu Imprimir dos detalhes da OS."
-          action={canCreate ? <BtnPrimary onClick={openNewDocument}><Plus size={16} /> Novo modelo</BtnPrimary> : undefined}
         />
         <AdminCard>
           {errorMessage && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div>}
@@ -162,7 +160,6 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
         <DocumentsAreaHeader
           title="Anexos"
           description="Cadastre os tipos exibidos ao adicionar arquivos aos documentos de uma OS."
-          action={canCreateAttachment ? <BtnPrimary onClick={() => openTypeModal()}><Plus size={16} /> Novo tipo</BtnPrimary> : undefined}
         />
         <AdminCard>
           {attachmentErrorMessage && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{attachmentErrorMessage}</div>}
@@ -172,6 +169,12 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
           </>}
         </AdminCard>
       </>)}
+      <AdminStickyToolbar>
+        {onBack && <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
+        {section === "printing"
+          ? canCreate && <BtnPrimary onClick={openNewDocument}>Novo</BtnPrimary>
+          : canCreateAttachment && <BtnPrimary onClick={() => openTypeModal()}>Novo</BtnPrimary>}
+      </AdminStickyToolbar>
     </>}
 
     {editorRouteActive && !editorOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
