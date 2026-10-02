@@ -3,7 +3,7 @@ import { Link2, Search } from "lucide-react";
 import type { Address } from "@/lib/address";
 import type { CustomerFieldErrors, CustomerForm } from "../domain/customer-form";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
-import { AdminButton, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { CustomerTypeToggle, FBrazilianDateInput, FCnpjInput, FEmailInput, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCpf, isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
 
@@ -100,10 +100,10 @@ export function CreateCustomerPage(props: Props) {
               </div>
             </Section>
           </div>
-          <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+          <AdminStickyToolbar className="justify-end">
             <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
             {canCreate && <BtnPrimary onClick={onCreate} loading={saving} loadingText="Salvando...">Cadastrar Cliente</BtnPrimary>}
-          </div>
+          </AdminStickyToolbar>
         </AdminPage>
       )}
   </>;
