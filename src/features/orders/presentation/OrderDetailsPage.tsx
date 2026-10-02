@@ -3,7 +3,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, FileText, Mail, PackagePlus, Printer, Tag } from "lucide-react";
-import { AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminPage, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { OrderChecklistsPage } from "@/features/checklists/presentation/OrderChecklistsPage";
@@ -254,7 +254,7 @@ export function OrderDetailsPage(props: Props) {
     <OrderUndoSolutionDialog order={detail} open={Boolean(detail) && undoOpen} loading={undoSubmitting} onClose={() => setUndoOpen(false)} onConfirm={undoOrderSolution} />
     <OrderHistoryPage open={historyPageOpen} order={detail} history={history} canCreate={hasPermission("orders.history.create")} formatDate={fmtDate} onClose={onCloseSubpage} />
     {detail && <OrderChecklistsPage open={checklistsPageOpen} order={detail} canManage={hasPermission("orders.checklists.manage")} canReopen={hasPermission("orders.checklists.reopen")} onClose={onCloseSubpage} />}
-    {partRequestsPageOpen && detail && <AdminPage open onClose={onCloseSubpage} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"} > Solicitações de peças`} title="Solicitações de peças" subtitle="Acompanhe os pedidos e o fluxo das peças desta OS" maxW="max-w-2xl"><div className="p-5"><OrderPartRequestsSection requests={detailPartRequests} assignedTo={detail.assigned_to} currentUserId={userId} hasPermission={hasPermission} formatDate={fmtDate} getCommittedQuantity={getTestCommittedQuantity} getPendingQuantity={getTestPendingQuantity} onApprove={openPartApproval} onReject={openPartRejection} onDelivery={openDeliveryRequest} onTestResult={openTestResult} /></div><div className="sticky bottom-0 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onCloseSubpage}>Voltar para a OS</BtnSecondary></div></AdminPage>}
+    {partRequestsPageOpen && detail && <AdminPage open onClose={onCloseSubpage} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"} > Solicitações de peças`} title="Solicitações de peças" subtitle="Acompanhe os pedidos e o fluxo das peças desta OS" maxW="max-w-2xl"><div className="p-5"><OrderPartRequestsSection requests={detailPartRequests} assignedTo={detail.assigned_to} currentUserId={userId} hasPermission={hasPermission} formatDate={fmtDate} getCommittedQuantity={getTestCommittedQuantity} getPendingQuantity={getTestPendingQuantity} onApprove={openPartApproval} onReject={openPartRejection} onDelivery={openDeliveryRequest} onTestResult={openTestResult} /></div><AdminStickyToolbar><BtnSecondary onClick={onCloseSubpage}>Voltar para a OS</BtnSecondary></AdminStickyToolbar></AdminPage>}
     {visible && !routedSubpageOpen && !solutionRecordsOpen && <AdminPage open onClose={closePage} breadcrumb="Ordens de Serviço" title={detail.os_number || "OS"} titleVariant="order-number" maxW="max-w-2xl">
       <div className="space-y-5 p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
