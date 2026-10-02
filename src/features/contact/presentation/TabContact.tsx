@@ -7,7 +7,7 @@ import {
   useSaveSiteSettingsMutation,
   useSiteSettingsQuery,
 } from "@/features/settings/presentation/useSiteSettingsQuery";
-import { BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 
@@ -153,9 +153,9 @@ export function TabContact() {
       </Section>
     </div>}
 
-    <div className="sticky bottom-0 z-20 flex items-center justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
+    <AdminStickyToolbar className="justify-end">
       <BtnSecondary onClick={handleCancel} disabled={saveSettings.isPending}>Cancelar</BtnSecondary>
       {canUpdate && <BtnPrimary onClick={() => void handleSave()} loading={saveSettings.isPending} loadingText="Salvando...">Salvar</BtnPrimary>}
-    </div>
+    </AdminStickyToolbar>
   </div>;
 }
