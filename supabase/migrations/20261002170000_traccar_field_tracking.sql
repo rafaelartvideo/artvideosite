@@ -55,6 +55,14 @@ create table if not exists public.field_tracking_integrations (
 alter table public.field_tracking_integrations enable row level security;
 revoke all on public.field_tracking_integrations from anon, authenticated;
 
+drop policy if exists field_tracking_integrations_no_direct_access on public.field_tracking_integrations;
+create policy field_tracking_integrations_no_direct_access
+on public.field_tracking_integrations
+for all
+to authenticated
+using (false)
+with check (false);
+
 create index if not exists field_tracking_integrations_org_idx
   on public.field_tracking_integrations (organization_id, provider, is_active);
 
