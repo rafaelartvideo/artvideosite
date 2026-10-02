@@ -70,7 +70,7 @@ export async function deleteService(serviceId: string): Promise<void> {
 
 export async function setServiceActive(serviceId: string, isActive: boolean): Promise<void> {
   const organizationId = await getArtVideoOrganizationId();
-  const { error } = await supabase.from("services").update({ is_active: isActive }).eq("organization_id", organizationId).eq("id", serviceId);
+  const { error } = await supabase.from("services").update({ is_active: isActive }).eq("organization_id", organizationId).eq("id", serviceId).select("id").single();
   if (error) throw error;
 }
 
