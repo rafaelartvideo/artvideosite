@@ -1,3 +1,4 @@
+import { TabProducts } from "@/features/products/presentation/TabProducts";
 import { TabInventory as TabInventoryV2 } from "./TabInventoryV2";
 import { InventoryMovementFinancePage } from "./InventoryMovementFinancePage";
 
@@ -14,5 +15,14 @@ export function TabInventory(props: TabInventoryProps) {
       onClose={() => props.onRouteChange?.(null, null)}
     />;
   }
-  return <TabInventoryV2 {...props} />;
+
+  if (props.routeResourceId && props.routeSubpage === "history") {
+    return <TabInventoryV2 {...props} />;
+  }
+
+  return <TabProducts
+    routeResourceId={props.routeResourceId}
+    routeSubpage={props.routeSubpage}
+    onRouteChange={props.onRouteChange}
+  />;
 }
