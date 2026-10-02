@@ -70,7 +70,7 @@ export function OrderSolutionRecordsPage({
       })}
     </div>
 
-    <div className="sticky bottom-0 border-t border-border bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary></div>
+    <AdminStickyToolbar><BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary></AdminStickyToolbar>
   </AdminPage>;
 }
 
