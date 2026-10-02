@@ -6,6 +6,10 @@ import {
   getOrderCompletionFinanceOptions,
   type OrderCompletionFinanceOptions,
 } from "../infrastructure/order-finance.repository";
+import {
+  listOrderCommercialItems,
+  type OrderCommercialItem,
+} from "../infrastructure/order-commercial-items.repository";
 
 type Toast = { msg: string; type: "success" | "error" };
 export type OrderCompletionPaymentMode = "open" | "now" | "partial";
@@ -81,6 +85,9 @@ export function useOrderCompletion({
   const [financeOptions, setFinanceOptions] = useState<OrderCompletionFinanceOptions>(emptyFinanceOptions);
   const [financeOptionsLoading, setFinanceOptionsLoading] = useState(false);
   const [financeOptionsError, setFinanceOptionsError] = useState("");
+  const [commercialItems, setCommercialItems] = useState<OrderCommercialItem[]>([]);
+  const [commercialItemsLoading, setCommercialItemsLoading] = useState(false);
+  const [commercialItemsError, setCommercialItemsError] = useState("");
 
   const financeEnabled = financeOptions.finance_enabled;
   const commercialPricing = Boolean(detail?.commercial_pricing_enabled);
@@ -151,6 +158,19 @@ export function useOrderCompletion({
     return "";
   }, [financeOptionsError, financeEnabled, finalTotal, paymentMode, paymentSplit, payments.length, totalPaidNow, openAmount, installmentCountNumber, firstDueDate]);
 
+  const loadCommercialItems = async (serviceOrderId: string) => {
+    setCommercialItemsLoading(true);
+    setCommercialItemsError("");
+    try {
+      setCommercialItems(await listOrderCommercialItems(serviceOrderId));
+    } catch (error) {
+      setCommercialItems([]);
+      setCommercialItemsError(formatError(error));
+    } finally {
+      setCommercialItemsLoading(false);
+    }
+  };
+
   const loadFinanceOptions = async (organizationId: string) => {
     setFinanceOptionsLoading(true);
     setFinanceOptionsError("");
@@ -201,7 +221,11 @@ export function useOrderCompletion({
     setServicePriceInput(targetCommercialPricing ? String(target?.service_price ?? detail?.service_price ?? 0) : (targetService?.price_at_completion ? "" : (targetService?.price == null ? "" : String(targetService.price))));
     resetPaymentState();
     setFinanceOptions(emptyFinanceOptions());
+    setCommercialItems([]);
+    setCommercialItemsError("");
     setOpen(true);
+    const targetOrderId = target?.id || detail?.id;
+    if (targetOrderId) void loadCommercialItems(String(targetOrderId));
     const organizationId = target?.organization_id || detail?.organization_id;
     if (organizationId) void loadFinanceOptions(String(organizationId));
   };
@@ -260,7 +284,11 @@ export function useOrderCompletion({
   };
 
   const submit = async () => {
-    if (!detail?.id || discountExceedsMax || discountExceedsServicePrice || Boolean(servicePriceValidationMessage) || financeOptionsLoading) return;
+    if (!detail?.id || discountExceedsMax || discountExceedsServicePrice || Boolean(servicePriceValidationMessage) || financeOptionsLoading || commercialItemsLoading) return;
+    if (commercialPricing && commercialItemsError) {
+      showToast({ msg: `Não foi possível validar os Produtos e Serviços da OS: ${commercialItemsError}`, type: "error" });
+      return;
+    }
     if (financeValidationMessage) {
       showToast({ msg: financeValidationMessage, type: "error" });
       return;
@@ -294,6 +322,8 @@ export function useOrderCompletion({
     financeEnabled, paymentMode, setPaymentMode, payments, addPayment, removePayment, updatePayment,
     installmentCount, setInstallmentCount, firstDueDate, setFirstDueDate,
     financeOptions, financeOptionsLoading, financeOptionsError,
+    commercialItems, commercialItemsLoading, commercialItemsError,
+    reloadCommercialItems: () => detail?.id ? loadCommercialItems(String(detail.id)) : Promise.resolve(),
     totalPaidNow, openAmount, financeValidationMessage,
     openCompletion, submit,
   };
