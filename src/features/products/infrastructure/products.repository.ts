@@ -99,7 +99,7 @@ export async function saveCompleteProduct(
     p_initial_unit_cost: initialUnitCost,
   });
   if (error) throw error;
-  if (!data) throw new Error("O produto foi salvo sem retornar seu identificador.");
+  if (!data) throw new Error("O item foi salvo sem retornar seu identificador.");
   return String(data);
 }
 
