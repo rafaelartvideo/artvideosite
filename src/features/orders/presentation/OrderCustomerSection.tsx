@@ -185,7 +185,7 @@ export function OrderCustomerSection({
           {customerResults.length > 0 && (
             <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
               {customerResults.map(c => (
-                <button type="button" disabled={saving} key={c.id} onClick={() => selectCustomer(c)} className="w-full text-left px-3 py-2 hover:bg-[#e8eef8] border-b last:border-b-0 border-[#0d1b2e]/5 disabled:opacity-50">
+                <button type="button" disabled={saving} key={c.id} onClick={() => selectCustomer(c)} className="w-full border-b border-[#0d1b2e]/5 px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-muted disabled:opacity-50">
                   <p className="font-semibold text-sm text-[#0d1b2e]">{c.full_name}</p>
                   <p className="text-xs text-[#5a6a82]">{c.customer_type === "PJ" ? formatCnpj(c.cnpj || "") : formatCpf(c.document || "")} {c.whatsapp && `· ${formatPhone(c.whatsapp)}`}</p>
                 </button>
