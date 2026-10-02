@@ -27,7 +27,6 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { cn } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
-import { QRCodeSVG } from "qrcode.react";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
   fieldTrackingStatus,
