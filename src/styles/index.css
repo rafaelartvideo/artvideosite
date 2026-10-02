@@ -339,6 +339,16 @@ html[data-admin-theme="dark"] {
 	backdrop-filter: none !important;
 }
 
+/* Linha de destaque das toolbars: azul da marca no claro e azul claro no escuro. */
+.admin-crm [data-admin-sticky-toolbar="true"] {
+	border-top-color: var(--primary) !important;
+}
+
+.admin-crm.dark [data-admin-sticky-toolbar="true"],
+.dark .admin-crm [data-admin-sticky-toolbar="true"] {
+	border-top-color: var(--primary-light) !important;
+}
+
 .admin-crm button[class*="rounded-"] {
 	background-clip: padding-box;
 }
