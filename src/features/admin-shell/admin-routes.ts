@@ -40,6 +40,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
 
 const LEGACY_EMPLOYEES_PATH = "/admin/operation/employees";
 const LEGACY_PRODUCTS_PATH = "/admin/site/products";
+const LEGACY_ROOT_PRODUCTS_PATH = "/admin/products";
 const LEGACY_SETTINGS_PATH = "/admin/settings";
 
 const ROUTES_BY_SPECIFICITY = (Object.entries(ADMIN_TAB_PATHS) as Array<[AdminTab, string]>)
@@ -67,7 +68,13 @@ export function resolveAdminRoute(pathname: string): AdminRouteParts {
   if (pathname === LEGACY_PRODUCTS_PATH || matchPath({ path: `${LEGACY_PRODUCTS_PATH}/*`, end: false }, pathname)) {
     const remainder = pathname.slice(LEGACY_PRODUCTS_PATH.length).replace(/^\/+/, "");
     const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
-    return { tab: "products", resourceId: segments[0] || null, subpage: segments[1] || null };
+    return { tab: "inventory", resourceId: segments[0] || null, subpage: segments[1] || null };
+  }
+
+  if (pathname === LEGACY_ROOT_PRODUCTS_PATH || matchPath({ path: `${LEGACY_ROOT_PRODUCTS_PATH}/*`, end: false }, pathname)) {
+    const remainder = pathname.slice(LEGACY_ROOT_PRODUCTS_PATH.length).replace(/^\/+/, "");
+    const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
+    return { tab: "inventory", resourceId: segments[0] || null, subpage: segments[1] || null };
   }
 
   for (const [tab, basePath] of ROUTES_BY_SPECIFICITY) {
