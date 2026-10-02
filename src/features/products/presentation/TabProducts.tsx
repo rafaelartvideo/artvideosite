@@ -13,14 +13,12 @@ import {
   Search,
   ShoppingBag,
   Star,
-  Trash2,
   Truck,
   Warehouse,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
-  deleteProduct,
   getProductInventoryItemId,
   loadProductCatalog,
   saveCompleteProduct,
@@ -39,7 +37,7 @@ import {
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
-import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
   AdminSelect,
   FCurrencyInput,
@@ -278,7 +276,6 @@ export function TabProducts({
   const canViewDetails = hasPermission("products.details.view") || hasPermission("inventory.details.view");
   const canCreate = hasPermission("products.create") || hasPermission("inventory.create");
   const canEdit = hasPermission("products.update") || hasPermission("inventory.update");
-  const canDelete = hasPermission("products.delete");
   const canToggleActive = hasPermission("products.toggle_active") || hasPermission("inventory.toggle_active");
   const canViewMovements = hasPermission("inventory.movements.view");
   const canCreateMovements = hasPermission("inventory.movements.create");
@@ -315,7 +312,6 @@ export function TabProducts({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
-  const [delId, setDelId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -327,7 +323,7 @@ export function TabProducts({
 
   useEffect(() => {
     if (catalogQuery.error) {
-      setToast({ msg: `Erro ao carregar produtos: ${systemErrorMessage(catalogQuery.error)}`, type: "error" });
+      setToast({ msg: `Erro ao carregar estoque: ${systemErrorMessage(catalogQuery.error)}`, type: "error" });
     }
   }, [catalogQuery.error]);
 
@@ -458,7 +454,7 @@ export function TabProducts({
     const initialQuantity = Number(form.initial_quantity || 0);
     const initialUnitCost = nullableNumber(form.initial_unit_cost);
 
-    if (!form.name.trim()) errors.name = "Nome do produto é obrigatório.";
+    if (!form.name.trim()) errors.name = "Nome do item é obrigatório.";
     if (price !== null && price < 0) errors.price = "Informe um preço válido e não negativo.";
     if (form.barcode && !/^[0-9A-Za-z._-]{4,32}$/.test(form.barcode.trim())) {
       errors.barcode = "Informe um código de barras válido.";
@@ -601,24 +597,12 @@ export function TabProducts({
 
       setDrawerOpen(false);
       onRouteChange?.(null, null);
-      setToast({ msg: editItem ? "Produto atualizado!" : "Produto criado!", type: "success" });
+      setToast({ msg: editItem ? "Item atualizado!" : "Item criado!", type: "success" });
       await refresh();
     } catch (error) {
-      setToast({ msg: `Erro ao salvar produto: ${systemErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro ao salvar item: ${systemErrorMessage(error)}`, type: "error" });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!activeOrganizationId || !canDelete) return;
-    try {
-      await deleteProduct(activeOrganizationId, id);
-      setDelId(null);
-      setToast({ msg: "Produto excluído. O histórico de estoque permanece preservado.", type: "success" });
-      await refresh();
-    } catch (error) {
-      setToast({ msg: `Erro ao excluir produto: ${systemErrorMessage(error)}`, type: "error" });
     }
   };
 
@@ -667,7 +651,6 @@ export function TabProducts({
 
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {delId && <ConfirmDialog message="Excluir este cadastro? O histórico de movimentações do estoque será preservado, mas o item deixará de estar disponível para vendas e PDV." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
     {!routeResourceId && <>
       <PageHeader
@@ -702,7 +685,7 @@ export function TabProducts({
             <table className="min-w-[850px]">
               <thead>
                 <tr>
-                  {showProduct && <th className="text-left">Produto</th>}
+                  {showProduct && <th className="text-left">Item</th>}
                   {showCategory && <th className="text-left">Categoria</th>}
                   {showPrice && <th className="text-left">Preço</th>}
                   <th className="text-left">Estoque</th>
@@ -763,7 +746,6 @@ export function TabProducts({
                         {canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar item" title="Editar cadastro" onClick={() => openEditPage(product)}><Edit2 size={15} /></AdminIconButton>}
                         {canViewMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Histórico do estoque" title="Histórico" onClick={() => onRouteChange?.(String(item.inventory_item_id), "history")}><List size={15} /></AdminIconButton>}
                         {canCreateMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Movimentar estoque" title="Movimentar" onClick={() => onRouteChange?.(String(item.inventory_item_id), "move")}><ArrowLeftRight size={15} /></AdminIconButton>}
-                        {canDelete && <AdminIconButton ariaLabel="Excluir cadastro" title="Excluir cadastro" variant="danger" onClick={() => setDelId(product.id)}><Trash2 size={15} /></AdminIconButton>}
                         {canToggleActive && <AdminActiveStateButton active={product.is_active} entityLabel="item" onClick={() => void toggleActive(product)} />}
                       </div>
                     </td>}
@@ -923,8 +905,8 @@ export function TabProducts({
                     <p className="mt-1 text-base font-black text-[#0d1b2e]">{averageCost == null ? "—" : formatCurrency(averageCost)}</p>
                   </AdminCard>}
                   <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Vínculo</p>
-                    <p className="mt-1 text-sm font-black text-[#0d1b2e]">Produto + estoque</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Cadastro</p>
+                    <p className="mt-1 text-sm font-black text-[#0d1b2e]">Item único do estoque</p>
                   </AdminCard>
                 </div>}
 
@@ -969,7 +951,7 @@ export function TabProducts({
                 </div>
 
                 {editItem && <p className="text-xs leading-5 text-[#5a6a82]">
-                  O saldo atual não é alterado pelo cadastro do produto. Entradas, saídas e ajustes continuam sendo registrados como movimentações de estoque para preservar o histórico.
+                  O saldo atual não é alterado pela edição do cadastro. Entradas, saídas e ajustes continuam sendo registrados como movimentações de estoque para preservar o histórico.
                 </p>}
               </div>
             </Section>
