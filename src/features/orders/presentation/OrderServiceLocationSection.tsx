@@ -66,7 +66,7 @@ export function OrderServiceLocationSection({
                     Usar endereço cadastrado do cliente
                   </label>
                   {serviceAddressMessage && <p className="text-xs text-[#5a6a82]">{serviceAddressMessage}</p>}
-                  {serviceUseCustomerAddress && serviceAddressPreview ? <div className="rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 text-xs text-[#5a6a82]">
+                  {serviceUseCustomerAddress && serviceAddressPreview ? <div className="rounded-lg border border-border bg-muted p-3 text-xs text-[#5a6a82]">
                     <p className="mb-1 font-bold text-[#0d1b2e]">Endereço que será usado</p>
                     <p>{[serviceAddressPreview.zip_code, [serviceAddressPreview.street, serviceAddressPreview.number].filter(Boolean).join(", "), serviceAddressPreview.complement, serviceAddressPreview.neighborhood, [serviceAddressPreview.city, serviceAddressPreview.state].filter(Boolean).join(" - ")].filter(Boolean).join(" · ")}</p>
                   </div> : <div className="grid sm:grid-cols-2 gap-4">
