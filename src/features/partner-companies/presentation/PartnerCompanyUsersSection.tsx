@@ -4,7 +4,7 @@ import { Edit2, Plus, Users, X } from "lucide-react";
 import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
 import { isValidBrazilianPhone, isValidCpf, isValidEmail } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCpfInput, FEmailInput, FInput, FPhoneInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { createPartnerUser, listPartnerRoles, listPartnerUsers, updatePartnerUser } from "../infrastructure/partner-companies.repository";
@@ -258,12 +258,12 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
               </div>
             </div>
           </div>
-          <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
+          <AdminStickyToolbar className="justify-end gap-2">
             <BtnSecondary onClick={cancelForm} disabled={saveMutation.isPending}>Cancelar</BtnSecondary>
             <BtnPrimary onClick={saveUser} disabled={saveMutation.isPending || rolesQuery.isPending || rolesQuery.isError}>
               {saveMutation.isPending ? "Salvando..." : "Salvar"}
             </BtnPrimary>
-          </div>
+          </AdminStickyToolbar>
         </div>
       </div>}
 
