@@ -682,6 +682,12 @@ export function TabProducts({
             supplier_entity_ids: linkedSuppliers
               .filter(supplier => supplier.is_active !== false)
               .map(supplier => supplier.id),
+            supplier_links: linkedSuppliers
+              .filter(supplier => supplier.is_active !== false)
+              .map(supplier => ({
+                entity_id: supplier.id,
+                supplier_reference: supplier.supplier_reference?.trim() || null,
+              })),
           } : {}),
           initial_supplier_entity_id: !editItem && canManageSuppliers
             ? (form.initial_supplier_entity_id || null)
