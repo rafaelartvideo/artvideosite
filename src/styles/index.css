@@ -102,6 +102,30 @@ body {
 }
 
 /*
+ * Radix popovers are portaled to <body>. Mirror the admin dark tokens on the
+ * document root so selects/dropdowns keep the same theme outside .admin-crm.
+ */
+html[data-admin-theme="dark"] {
+	--popover: #111827;
+	--popover-foreground: #e8edf5;
+	--card: #111827;
+	--card-foreground: #e8edf5;
+	--muted: #172136;
+	--muted-foreground: #9aa8bb;
+	--border: rgba(226, 232, 240, 0.12);
+	--primary: #1032dc;
+	--primary-hover: #2447e8;
+	--primary-active: #3153ef;
+	--primary-soft: #17224d;
+	--primary-soft-strong: #1c2b62;
+	--primary-light: #7185f5;
+	--primary-foreground: #ffffff;
+	--ring: #5870f0;
+	--accent: #172136;
+	--accent-foreground: #e8edf5;
+}
+
+/*
  * Admin appearance themes.
  * The CRM still has legacy hard-coded neutral utilities, so dark mode remaps
  * those neutral surfaces centrally while preserving Union World blues.
@@ -169,6 +193,31 @@ body {
 .dark .admin-crm [class~="bg-[#e8edf4]"],
 .dark .admin-crm [class~="bg-[#dfe5ee]"] {
 	background-color: #0f1726 !important;
+}
+
+.admin-crm.dark [class~="text-primary"],
+.dark .admin-crm [class~="text-primary"],
+.admin-crm.dark [class~="text-[#0057e7]"],
+.dark .admin-crm [class~="text-[#0057e7]"],
+.admin-crm.dark [class~="text-blue-600"],
+.admin-crm.dark [class~="text-blue-700"],
+.admin-crm.dark [class~="text-blue-800"],
+.dark .admin-crm [class~="text-blue-600"],
+.dark .admin-crm [class~="text-blue-700"],
+.dark .admin-crm [class~="text-blue-800"] {
+	color: var(--primary-light) !important;
+}
+
+.admin-crm.dark [class~="hover:text-primary"]:hover,
+.dark .admin-crm [class~="hover:text-primary"]:hover,
+.admin-crm.dark [class~="hover:text-[#0057e7]"]:hover,
+.dark .admin-crm [class~="hover:text-[#0057e7]"]:hover {
+	color: #91a0ff !important;
+}
+
+.admin-crm.dark [class*="border-[#0057e7]/"],
+.dark .admin-crm [class*="border-[#0057e7]/"] {
+	border-color: color-mix(in srgb, var(--primary-light) 38%, transparent) !important;
 }
 
 .admin-crm.dark [class~="bg-[#eef5ff]"],
@@ -375,6 +424,35 @@ body {
 .dark .admin-crm [class~="text-[#44546b]"],
 .dark .admin-crm [class~="text-[#4b5d73]"] {
 	color: #b1bdd0 !important;
+}
+
+html[data-admin-theme="dark"] [data-slot="select-content"],
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-content"],
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-sub-content"] {
+	background-color: #111827 !important;
+	border-color: rgba(148, 163, 184, 0.18) !important;
+	color: #e8edf5 !important;
+}
+
+html[data-admin-theme="dark"] [data-slot="select-item"]:focus,
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"]:focus,
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-checkbox-item"]:focus,
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-radio-item"]:focus,
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-sub-trigger"]:focus,
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-sub-trigger"][data-state="open"] {
+	background-color: var(--primary-soft) !important;
+	color: #dfe5ff !important;
+}
+
+html[data-admin-theme="dark"] [data-slot="select-content"] [class~="text-primary"],
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-content"] [class~="text-primary"],
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-content"] [class~="text-[#0057e7]"] {
+	color: var(--primary-light) !important;
+}
+
+html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5ff]"] {
+	background-color: var(--primary-soft) !important;
+	color: var(--primary-light) !important;
 }
 
 .admin-crm.dark [data-slot="select-content"],
