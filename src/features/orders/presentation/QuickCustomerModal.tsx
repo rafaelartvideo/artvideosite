@@ -299,7 +299,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
         <DialogTitle className="sr-only">Criar cliente</DialogTitle>
         <div
           style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-          className="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl"
+          className="relative flex max-h-[calc(100dvh-var(--admin-shell-header-height,4rem)-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl"
         >
           <div
             onPointerDown={startDrag}
