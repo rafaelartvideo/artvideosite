@@ -301,7 +301,7 @@ function EditorTabTrigger({
 }) {
   return <TabsTrigger
     value={value}
-    className="h-10 shrink-0 rounded-lg border border-[#dbe3ee] bg-white px-3 text-xs font-bold text-[#44546a] shadow-none data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-white"
+    className="h-10 shrink-0 rounded-lg border border-transparent bg-transparent px-3 text-xs font-bold text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-primary-soft data-[state=active]:text-primary"
   >
     <Icon size={14} />
     {children}
@@ -975,7 +975,7 @@ export function TabProducts({
       fullPage
     >
       <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0">
-        <div className="border-b border-[#0d1b2e]/8 bg-white px-4 pt-4 sm:px-5">
+        <div className="border-b border-border bg-card px-4 pt-4 sm:px-5">
           <TabsList className="h-auto max-w-full gap-1 overflow-x-auto bg-transparent p-0 pb-3">
             <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
             <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
@@ -1728,7 +1728,7 @@ export function TabProducts({
         </div>
       </Tabs>
 
-      <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-5 py-4">
+      <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-border bg-card px-5 py-4">
         <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
         {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </div>
