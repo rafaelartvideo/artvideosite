@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Eye, History, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -639,7 +640,7 @@ export function TabAuditLog() {
         subtitle="Histórico de alterações realizadas nos dados do CRM."
       />
 
-      <Section title="Filtros da auditoria" contentClassName="p-4 sm:p-4">
+      <AdminSearchPanel title="Buscar na auditoria">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Usuário</label>
@@ -689,13 +690,13 @@ export function TabAuditLog() {
         </div>
 
         {hasFilters && (
-          <div className="flex justify-end border-t border-[#0d1b2e]/8 px-4 py-3">
+          <div className="mt-3 flex justify-end border-t border-border pt-3">
             <AdminButton variant="secondary" size="sm" onClick={resetFilters}>
               <RotateCcw size={14} /> Limpar filtros
             </AdminButton>
           </div>
         )}
-      </Section>
+      </AdminSearchPanel>
 
       <Section title="Histórico de alterações" flush>
         {logsQuery.isPending ? (
@@ -823,6 +824,7 @@ function AuditDetailsDialog({
           <Detail label="Usuário" value={entry.actor_name_snapshot || (entry.source === "system" ? "Sistema" : "Usuário")} />
           <Detail label="Módulo" value={MODULE_LABELS[entry.module_key || ""] || "Sistema"} />
           <Detail label="Registro" value={entityLabel(entry)} />
+          {entry.linked_service_order_number && <Detail label="OS vinculada" value={`OS ${entry.linked_service_order_number}`} />}
           <Detail label="Origem" value={entry.source === "authenticated_user" ? "Painel" : entry.source === "server_on_behalf" ? "Servidor em nome do usuário" : "Sistema"} />
         </div>
 
