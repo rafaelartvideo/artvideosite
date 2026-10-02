@@ -275,7 +275,7 @@ export function ProductLookupDialog({
       </div>
 
       <div className="grid gap-3 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-4 sm:grid-cols-3">
-        <LookupMetric label="Fonte" value={selected.provider === "cosmos" ? "Cosmos / Bluesoft" : "UPCitemdb"} />
+        <LookupMetric label="Fonte" value={selected.provider === "openfacts" ? "Open Facts" : selected.provider === "upcitemdb" ? "UPCitemdb" : selected.provider} />
         <LookupMetric label="Preço encontrado" value={priceText(selected.reference_price, selected.currency)} />
         <LookupMetric label="Classificação externa" value={selected.category_code || "—"} />
       </div>
