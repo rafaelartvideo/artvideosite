@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
   ShoppingBag,
+  Sparkles,
   Star,
   Truck,
   Warehouse,
@@ -26,6 +27,7 @@ import {
 import {
   AdminButton,
   AdminCard,
+  AdminDialog,
   AdminIconButton,
   AdminPage,
   BtnPrimary,
@@ -58,6 +60,16 @@ import {
   type InventorySupplier,
 } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
+import {
+  findOrCreateInventoryBrand,
+  findOrCreateInventoryCategory,
+  loadProductGallery,
+  type ImportedProductImage,
+} from "../infrastructure/product-lookup.repository";
+import {
+  ProductLookupDialog,
+  type ProductLookupApplyData,
+} from "./ProductLookupDialog";
 
 type ProductEditorTab = "general" | "commercial" | "suppliers" | "fiscal" | "photos" | "catalog";
 
@@ -66,6 +78,21 @@ type ProductForm = {
   sku: string;
   barcode: string;
   description: string;
+  model: string;
+  manufacturer_code: string;
+  gpc_code: string;
+  gross_weight_grams: string;
+  net_weight_grams: string;
+  width_mm: string;
+  height_mm: string;
+  length_mm: string;
+  external_platform: string;
+  external_product_id: string;
+  external_url: string;
+  external_reference_price: string;
+  external_min_price: string;
+  external_max_price: string;
+  external_currency: string;
   price: string;
   is_active: boolean;
 
@@ -154,6 +181,21 @@ function emptyForm(): ProductForm {
     sku: "",
     barcode: "",
     description: "",
+    model: "",
+    manufacturer_code: "",
+    gpc_code: "",
+    gross_weight_grams: "",
+    net_weight_grams: "",
+    width_mm: "",
+    height_mm: "",
+    length_mm: "",
+    external_platform: "",
+    external_product_id: "",
+    external_url: "",
+    external_reference_price: "",
+    external_min_price: "",
+    external_max_price: "",
+    external_currency: "",
     price: "",
     is_active: true,
 
@@ -284,18 +326,22 @@ export function TabProducts({
   const canCreateMovements = hasPermission("inventory.movements.create");
   const canViewSuppliers = hasPermission("inventory.suppliers.view") || hasPermission("inventory.suppliers.manage");
   const canManageSuppliers = hasPermission("inventory.suppliers.manage");
+  const canViewCategories = hasPermission("inventory.categories.view") || hasPermission("inventory.categories.manage") || hasPermission("categories.view");
+  const canManageCategories = hasPermission("inventory.categories.manage") || (isArtvideoTenant && hasPermission("categories.create"));
+  const canViewBrands = hasPermission("inventory.brands.view") || hasPermission("inventory.brands.manage") || hasPermission("brands.view");
+  const canManageBrands = hasPermission("inventory.brands.manage") || (isArtvideoTenant && hasPermission("brands.create"));
   const canToggleFeatured = isArtvideoTenant && hasPermission("products.toggle_featured");
   const canViewCosts = hasPermission("inventory.costs.view");
 
   const showProduct = hasPermission("products.table.product") || hasPermission("inventory.table.name");
-  const showCategory = isArtvideoTenant && hasPermission("products.table.category");
+  const showCategory = canViewCategories;
   const showPrice = hasPermission("products.table.price") || hasPermission("inventory.table.sale_price");
   const showFeatured = isArtvideoTenant && hasPermission("products.table.featured");
   const showStatus = hasPermission("products.table.status") || hasPermission("inventory.table.status");
   const showActions = hasPermission("products.table.actions") || hasPermission("inventory.table.actions");
 
-  const canLoadCategories = isArtvideoTenant && hasPermission("categories.view");
-  const canLoadBrands = isArtvideoTenant && hasPermission("brands.view");
+  const canLoadCategories = canViewCategories;
+  const canLoadBrands = canViewBrands;
   const queryClient = useQueryClient();
 
   const catalogQuery = useQuery({
@@ -323,6 +369,11 @@ export function TabProducts({
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
+  const [lookupOpen, setLookupOpen] = useState(false);
+  const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
+  const [masterDataDialog, setMasterDataDialog] = useState<"category" | "brand" | null>(null);
+  const [masterDataName, setMasterDataName] = useState("");
+  const [masterDataSaving, setMasterDataSaving] = useState(false);
 
   useEffect(() => {
     if (catalogQuery.error) {
@@ -353,6 +404,7 @@ export function TabProducts({
     setForm(emptyForm());
     setEditItem(null);
     setLinkedSuppliers([]);
+    setGalleryMedia([]);
     setEditorTab("general");
     setDrawerOpen(true);
   };
@@ -370,6 +422,21 @@ export function TabProducts({
       sku: product.sku || inventory?.sku || "",
       barcode: product.barcode || "",
       description: product.description || "",
+      model: product.model || "",
+      manufacturer_code: product.manufacturer_code || "",
+      gpc_code: product.gpc_code || "",
+      gross_weight_grams: product.gross_weight_grams == null ? "" : String(product.gross_weight_grams),
+      net_weight_grams: product.net_weight_grams == null ? "" : String(product.net_weight_grams),
+      width_mm: product.width_mm == null ? "" : String(product.width_mm),
+      height_mm: product.height_mm == null ? "" : String(product.height_mm),
+      length_mm: product.length_mm == null ? "" : String(product.length_mm),
+      external_platform: product.external_platform || "",
+      external_product_id: product.external_product_id || "",
+      external_url: product.external_url || "",
+      external_reference_price: product.external_reference_price == null ? "" : String(product.external_reference_price),
+      external_min_price: product.external_min_price == null ? "" : String(product.external_min_price),
+      external_max_price: product.external_max_price == null ? "" : String(product.external_max_price),
+      external_currency: product.external_currency || "",
       price: product.price == null ? "" : String(product.price),
       is_active: product.is_active ?? true,
 
@@ -415,6 +482,7 @@ export function TabProducts({
     });
     setEditItem(product);
     setLinkedSuppliers([]);
+    setGalleryMedia([]);
     if (canViewSuppliers && inventory?.inventory_item_id && activeOrganizationId) {
       void listInventoryItemSuppliers(String(inventory.inventory_item_id), activeOrganizationId)
         .then(setLinkedSuppliers)
@@ -422,6 +490,11 @@ export function TabProducts({
           setLinkedSuppliers([]);
           setToast({ msg: `Erro ao carregar fornecedores: ${systemErrorMessage(error)}`, type: "error" });
         });
+    }
+    if (activeOrganizationId) {
+      void loadProductGallery(activeOrganizationId, product.id)
+        .then(setGalleryMedia)
+        .catch(() => setGalleryMedia([]));
     }
     setEditorTab("general");
     setDrawerOpen(true);
@@ -543,6 +616,21 @@ export function TabProducts({
         sku: form.sku.trim() || null,
         barcode: form.barcode.trim() || null,
         description: form.description.trim() || null,
+        model: form.model.trim() || null,
+        manufacturer_code: form.manufacturer_code.trim() || null,
+        gpc_code: form.gpc_code.trim() || null,
+        gross_weight_grams: nullableNumber(form.gross_weight_grams),
+        net_weight_grams: nullableNumber(form.net_weight_grams),
+        width_mm: nullableNumber(form.width_mm),
+        height_mm: nullableNumber(form.height_mm),
+        length_mm: nullableNumber(form.length_mm),
+        external_platform: form.external_platform.trim() || null,
+        external_product_id: form.external_product_id.trim() || null,
+        external_url: form.external_url.trim() || null,
+        external_reference_price: nullableNumber(form.external_reference_price),
+        external_min_price: nullableNumber(form.external_min_price),
+        external_max_price: nullableNumber(form.external_max_price),
+        external_currency: form.external_currency.trim() || null,
         price,
         is_active: form.is_active,
         commercial_unit: form.commercial_unit,
@@ -573,8 +661,9 @@ export function TabProducts({
         short_description: isArtvideoTenant ? (form.short_description.trim() || null) : null,
         compare_at_price: isArtvideoTenant ? compareAtPrice : null,
         is_featured: isArtvideoTenant ? form.is_featured : false,
-        category_id: isArtvideoTenant ? (form.category_id || null) : null,
-        brand_id: isArtvideoTenant ? (form.brand_id || null) : null,
+        category_id: form.category_id || null,
+        brand_id: form.brand_id || null,
+        gallery_media_ids: galleryMedia.map(image => image.media_id),
         updated_by: user?.id || null,
       };
 
@@ -633,6 +722,85 @@ export function TabProducts({
       await refresh();
     } catch (error) {
       setToast({ msg: `Erro ao atualizar destaque: ${systemErrorMessage(error)}`, type: "error" });
+    }
+  };
+
+  const handleLookupApply = async (data: ProductLookupApplyData) => {
+    if (!activeOrganizationId) return;
+
+    const [category, brand] = await Promise.all([
+      data.category
+        ? findOrCreateInventoryCategory(activeOrganizationId, data.category, canManageCategories)
+        : Promise.resolve(null),
+      data.brand
+        ? findOrCreateInventoryBrand(activeOrganizationId, data.brand, canManageBrands)
+        : Promise.resolve(null),
+    ]);
+
+    setForm(current => ({
+      ...current,
+      name: data.name || current.name,
+      barcode: data.gtin || current.barcode,
+      description: data.description || current.description,
+      model: data.model || current.model,
+      manufacturer_code: data.manufacturerCode || current.manufacturer_code,
+      gpc_code: data.item.category_code || current.gpc_code,
+      ncm: data.ncm || current.ncm,
+      gross_weight_grams: data.item.gross_weight_grams == null ? current.gross_weight_grams : String(data.item.gross_weight_grams),
+      net_weight_grams: data.item.net_weight_grams == null ? current.net_weight_grams : String(data.item.net_weight_grams),
+      width_mm: data.item.width_mm == null ? current.width_mm : String(data.item.width_mm),
+      height_mm: data.item.height_mm == null ? current.height_mm : String(data.item.height_mm),
+      length_mm: data.item.length_mm == null ? current.length_mm : String(data.item.length_mm),
+      price: data.salePrice || current.price,
+      initial_quantity: !editItem ? (data.initialQuantity || current.initial_quantity) : current.initial_quantity,
+      initial_unit_cost: !editItem ? (data.initialUnitCost || current.initial_unit_cost) : current.initial_unit_cost,
+      category_id: category?.id || current.category_id,
+      brand_id: brand?.id || current.brand_id,
+      cover_media_id: data.coverMediaId || current.cover_media_id,
+      external_platform: data.item.provider,
+      external_product_id: data.item.external_id || "",
+      external_url: data.item.source_url || "",
+      external_reference_price: data.item.reference_price == null ? "" : String(data.item.reference_price),
+      external_min_price: data.item.min_price == null ? "" : String(data.item.min_price),
+      external_max_price: data.item.max_price == null ? "" : String(data.item.max_price),
+      external_currency: data.item.currency || "",
+    }));
+
+    if (data.importedImages.length > 0) {
+      setGalleryMedia(current => {
+        const existing = new Set(current.map(image => image.media_id));
+        return [...current, ...data.importedImages.filter(image => !existing.has(image.media_id))].slice(0, 10);
+      });
+    }
+
+    await queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() });
+    if (data.category && !category) {
+      setToast({ msg: "Produto importado. A categoria externa não foi criada porque sua função não possui permissão para gerenciar categorias.", type: "success" });
+    } else if (data.brand && !brand) {
+      setToast({ msg: "Produto importado. A marca externa não foi criada porque sua função não possui permissão para gerenciar marcas.", type: "success" });
+    } else {
+      setToast({ msg: "Dados externos aplicados ao cadastro. Revise antes de salvar.", type: "success" });
+    }
+  };
+
+  const saveMasterData = async () => {
+    if (!activeOrganizationId || !masterDataDialog || !masterDataName.trim()) return;
+    setMasterDataSaving(true);
+    try {
+      if (masterDataDialog === "category") {
+        const item = await findOrCreateInventoryCategory(activeOrganizationId, masterDataName, canManageCategories);
+        if (item) setForm(current => ({ ...current, category_id: item.id }));
+      } else {
+        const item = await findOrCreateInventoryBrand(activeOrganizationId, masterDataName, canManageBrands);
+        if (item) setForm(current => ({ ...current, brand_id: item.id }));
+      }
+      setMasterDataDialog(null);
+      setMasterDataName("");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() });
+    } catch (error) {
+      setToast({ msg: systemErrorMessage(error, "Não foi possível criar o cadastro."), type: "error" });
+    } finally {
+      setMasterDataSaving(false);
     }
   };
 
