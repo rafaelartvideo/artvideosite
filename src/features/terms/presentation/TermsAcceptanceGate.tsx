@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { FileCheck2, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -9,6 +9,135 @@ import {
   getPendingOrganizationTerms,
   type PendingOrganizationTerm,
 } from "../infrastructure/terms.repository";
+
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  return text.split(/(\\*\\*[^*]+\\*\\*)/g).filter(Boolean).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index} className="font-extrabold text-[#17263b]">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
+function FormattedTermContent({ content }: { content: string }) {
+  const lines = content.replace(/\\r\\n/g, "\\n").split("\\n");
+  const blocks: ReactNode[] = [];
+  let index = 0;
+
+  const isSpecialLine = (line: string) =>
+    /^#{1,3}\\s+/.test(line) ||
+    /^[-*]\\s+/.test(line) ||
+    /^\\d+\\.\\s+/.test(line) ||
+    /^>\\s?/.test(line);
+
+  while (index < lines.length) {
+    const rawLine = lines[index];
+    const line = rawLine.trim();
+
+    if (!line) {
+      index += 1;
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      const text = heading[2];
+
+      if (level === 1) {
+        blocks.push(
+          <h1 key={index} className="mb-5 text-xl font-black leading-tight tracking-[-0.02em] text-[#0d1b2e] sm:text-2xl">
+            {renderInlineMarkdown(text)}
+          </h1>,
+        );
+      } else if (level === 2) {
+        blocks.push(
+          <h2 key={index} className="mb-2 mt-7 border-b border-[#dfe6f0] pb-2 text-[15px] font-black leading-6 text-[#0d1b2e] first:mt-0 sm:text-base">
+            {renderInlineMarkdown(text)}
+          </h2>,
+        );
+      } else {
+        blocks.push(
+          <h3 key={index} className="mb-1.5 mt-5 text-sm font-extrabold leading-6 text-[#1d2d43]">
+            {renderInlineMarkdown(text)}
+          </h3>,
+        );
+      }
+
+      index += 1;
+      continue;
+    }
+
+    if (/^[-*]\\s+/.test(line)) {
+      const items: string[] = [];
+      const start = index;
+      while (index < lines.length && /^[-*]\\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\\s+/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <ul key={start} className="my-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#35465c] marker:text-[#0057e7]">
+          {items.map((item, itemIndex) => <li key={itemIndex}>{renderInlineMarkdown(item)}</li>)}
+        </ul>,
+      );
+      continue;
+    }
+
+    if (/^\\d+\\.\\s+/.test(line)) {
+      const items: string[] = [];
+      const start = index;
+      while (index < lines.length && /^\\d+\\.\\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^\\d+\\.\\s+/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <ol key={start} className="my-3 list-decimal space-y-2 pl-5 text-sm leading-7 text-[#35465c] marker:font-bold marker:text-[#0057e7]">
+          {items.map((item, itemIndex) => <li key={itemIndex}>{renderInlineMarkdown(item)}</li>)}
+        </ol>,
+      );
+      continue;
+    }
+
+    if (/^>\\s?/.test(line)) {
+      const quoteLines: string[] = [];
+      const start = index;
+      while (index < lines.length && /^>\\s?/.test(lines[index].trim())) {
+        quoteLines.push(lines[index].trim().replace(/^>\\s?/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <blockquote key={start} className="my-4 border-l-3 border-[#0057e7] bg-[#f5f8fd] px-4 py-3 text-sm font-medium leading-7 text-[#35465c]">
+          {renderInlineMarkdown(quoteLines.join(" "))}
+        </blockquote>,
+      );
+      continue;
+    }
+
+    const paragraphLines = [line];
+    const start = index;
+    index += 1;
+
+    while (index < lines.length) {
+      const next = lines[index].trim();
+      if (!next || isSpecialLine(next)) break;
+      paragraphLines.push(next);
+      index += 1;
+    }
+
+    blocks.push(
+      <p key={start} className="my-3 text-sm leading-7 text-[#35465c]">
+        {renderInlineMarkdown(paragraphLines.join(" "))}
+      </p>,
+    );
+  }
+
+  return (
+    <article className="mx-auto w-full max-w-[760px] rounded-xl border border-[#dce4ef] bg-white px-5 py-6 shadow-[0_1px_2px_rgba(13,27,46,0.04),0_10px_30px_rgba(13,27,46,0.04)] sm:px-8 sm:py-8">
+      {blocks}
+    </article>
+  );
+}
 
 export function TermsAcceptanceGate() {
   const { activeOrganizationId, user } = useAuth();
@@ -63,7 +192,7 @@ export function TermsAcceptanceGate() {
   if (!loading && !error && !current) return null;
 
   return <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#08111f]/75 p-4 backdrop-blur-sm">
-    <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl">
+    <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl">
       {loading && !current ? <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 p-8 text-center">
         <LoadingSpinner size="lg" />
         <p className="text-sm font-semibold text-[#5a6a82]">Verificando termos de acesso...</p>
