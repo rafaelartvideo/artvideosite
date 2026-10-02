@@ -37,6 +37,7 @@ interface AuthContextValue {
   setActiveOrganization: (organizationId: string) => Promise<void>;
   refreshAccess: () => Promise<void>;
   loading: boolean;
+  loadingProgress: number;
   signOut: () => Promise<void>;
 }
 
@@ -57,6 +58,7 @@ const AuthContext = createContext<AuthContextValue>({
   setActiveOrganization: async () => {},
   refreshAccess: async () => {},
   loading: true,
+  loadingProgress: 8,
   signOut: async () => {},
 });
 
@@ -70,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeOrganization, setActiveOrganizationState] = useState<OrganizationAccess | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(8);
   const accessRequestRef = useRef(0);
   const accessLoadingKeyRef = useRef<string | null>(null);
   const signedInUserRef = useRef<string | null>(null);
@@ -82,7 +85,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data }) => {
       if (cancelled) return;
+      setLoadingProgress(20);
       if (data.session?.user) {
+        setLoadingProgress(28);
         const allowed = await validateCurrentSessionIp();
         if (cancelled) return;
         if (!allowed) {
@@ -90,11 +95,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           return;
         }
+        setLoadingProgress(36);
         setSession(data.session);
         signedInUserRef.current = data.session.user.id;
         void loadAccess(data.session.user.id);
       } else {
         setSession(null);
+        setLoadingProgress(100);
         setLoading(false);
       }
     });
@@ -229,6 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function scheduleAccessLoad(userId: string, preferredOrganizationId?: string | null) {
     cancelScheduledAccessLoad();
     setLoading(true);
+    setLoadingProgress(36);
     setAccessError(null);
     deferredAccessTimerRef.current = window.setTimeout(() => {
       deferredAccessTimerRef.current = null;
@@ -285,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadAccessData(userId: string, preferredOrganizationId?: string | null) {
     const requestId = ++accessRequestRef.current;
     setLoading(true);
+    setLoadingProgress(42);
     setAccessError(null);
 
     const [profileResult, organizationsResult] = await Promise.all([
@@ -319,6 +328,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    setLoadingProgress(64);
+
     const availableOrganizations = (organizationsResult.data || [])
       .map(normalizeOrganizationAccess)
       .filter((organization): organization is OrganizationAccess => organization !== null);
@@ -341,6 +352,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    setLoadingProgress(70);
     const roleId = selectedOrganization.role_id;
     const [employeeResult, roleResult, permissionResult, moduleResult] = await Promise.all([
       supabase
@@ -388,6 +400,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    setLoadingProgress(86);
+
     const permissionKeys = (permissionResult.data || [])
       .map((permission: any) => typeof permission === "string" ? permission : permission?.permission_key)
       .filter((permissionKey: unknown): permissionKey is string =>
@@ -417,6 +431,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions(permissionKeys.map(key => ({ key })));
     setAccessError(null);
     persistActiveOrganization(userId, resolvedOrganization.organization_id);
+    setLoadingProgress(90);
     setLoading(false);
 
     if (previousOrganizationId && previousOrganizationId !== resolvedOrganization.organization_id) {
@@ -497,6 +512,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setActiveOrganization,
       refreshAccess,
       loading,
+      loadingProgress,
       signOut,
     }}>
       {children}
