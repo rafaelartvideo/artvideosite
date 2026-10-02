@@ -173,6 +173,7 @@ export function AdminDashboard({
       activeOrganizationId={activeOrganizationId}
       activeOrganizationName={activeOrganizationName}
       organizations={organizations}
+      userId={user?.id || null}
       userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
       username={(profile as any)?.username || user?.email?.split("@")[0] || ""}
       roleName={roleName}
