@@ -32,7 +32,6 @@ const GeneralServicesPanel = lazy(() => import("@/features/general-services/pres
 const TabInventory = lazy(() => import("@/features/inventory/presentation/TabInventory").then(({ TabInventory }) => ({ default: TabInventory })));
 const TabFinance = lazy(() => import("@/features/finance/presentation/TabFinance").then(({ TabFinance }) => ({ default: TabFinance })));
 const OrderStatusesAdminPanel = lazy(() => import("@/features/order-statuses/presentation/OrderStatusesAdminPanel").then(({ OrderStatusesAdminPanel }) => ({ default: OrderStatusesAdminPanel })));
-const TabProducts = lazy(() => import("@/features/products/presentation/TabProducts").then(({ TabProducts }) => ({ default: TabProducts })));
 const TabPdv = lazy(() => import("@/features/pdv/presentation/TabPdv").then(({ TabPdv }) => ({ default: TabPdv })));
 const TabQuotes = lazy(() => import("@/features/quotes/presentation/TabQuotes").then(({ TabQuotes }) => ({ default: TabQuotes })));
 const TabRoles = lazy(() => import("@/features/roles/presentation/TabRoles").then(({ TabRoles }) => ({ default: TabRoles })));
@@ -50,7 +49,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "dashboard", "orders", "customers", "agenda", "inventory", "products", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "roles", "settings", "terms", "contact",
+  "dashboard", "orders", "customers", "agenda", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "roles", "settings", "terms", "contact",
 ];
 
 function NoEnabledModules() {
@@ -81,6 +80,8 @@ export function AdminDashboard({
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
+    if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
+    if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "operation") return operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     return hasPermission(permissionForTab[tab]) && isAdminModuleEnabled(tab, hasModule);
@@ -89,7 +90,7 @@ export function AdminDashboard({
   const fallbackTab = ACCESS_FALLBACK_TABS.find(canAccessTab) ?? null;
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
   const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
-  const mobileLabelModule = operationModule || siteModule || activeTab === "products" || activeTab === "pdv" || activeTab === "partnerCompanies" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
+  const mobileLabelModule = operationModule || siteModule || activeTab === "inventory" || activeTab === "pdv" || activeTab === "partnerCompanies" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
 
   const navigateAdmin = (tab: AdminTab, resourceId?: string | null, subpage?: string | null, options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] }) => {
     navigate(adminPath(tab, resourceId, subpage), { replace: options?.replace, state: options?.menuTab || options?.origin ? { menuTab: options?.menuTab, origin: options?.origin } : undefined });
@@ -142,7 +143,7 @@ export function AdminDashboard({
             <Route path="site" element={siteHub} />
             <Route path="site/services/*" element={<TabServices onBack={() => backToParent("services")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("services")} />} />
             <Route path="site/categories/*" element={<TabCategories onBack={() => backToParent("categories")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("categories")} />} />
-            <Route path="site/products/*" element={<Navigate to={adminPath("products", route.resourceId, route.subpage)} replace />} />
+            <Route path="site/products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />
             <Route path="site/brands/*" element={<TabBrands onBack={() => backToParent("brands")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("brands")} />} />
             <Route path="site/settings/*" element={<TabSiteSettings onBack={() => backToParent("siteSettings")} />} />
             <Route path="operation" element={operationHub} />
@@ -164,7 +165,7 @@ export function AdminDashboard({
             <Route path="agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
             <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
-            <Route path="products/*" element={<TabProducts routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("products")} />} />
+            <Route path="products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />
             <Route path="pdv/*" element={<TabPdv routeResourceId={route.resourceId} onRouteChange={routeChange("pdv")} />} />
             <Route path="finance/*" element={<TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
             <Route path="settings/*" element={<Navigate to={adminPath("settings", route.resourceId, route.subpage)} replace />} />
