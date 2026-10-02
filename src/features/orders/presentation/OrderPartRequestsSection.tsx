@@ -34,7 +34,7 @@ const stageTone = (state: WizardStepState) => {
   };
   return {
     dot: "bg-[#dfe5ee] text-[#5a6a82]",
-    panel: "border-[#0d1b2e]/10 bg-[#f8fafc]",
+    panel: "border-border bg-muted",
     title: "text-[#5a6a82]",
     line: "#cbd5e1",
   };
@@ -96,7 +96,7 @@ function PartCustodyWizard({ request, orderSolved, getCommittedQuantity }: {
     ]),
   ];
 
-  return <div className="border-t border-[#0d1b2e]/8 px-4 py-3.5 sm:px-5 sm:py-4">
+  return <div className="border-t border-border px-4 py-3.5 sm:px-5 sm:py-4">
     <div className="flex flex-col items-center text-center">
       <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0d1b2e]">Fluxo das peças</p>
       <p className="mt-0.5 text-[10px] text-[#5a6a82]">{purpose === "TEST" ? "Pedido para teste" : "Pedido para resolução"}</p>
@@ -180,7 +180,7 @@ export function OrderPartRequestsSection({ requests, assignedTo, currentUserId, 
     const hasPendingReturnReceipt = request.items.some(item => Number(item.return_pending_quantity ?? 0) > 0);
     const hasPendingTestResult = purpose === "TEST" && request.items.some(item => getPendingQuantity(request, item) > 0);
     const statusLabel = status === "APPROVED" ? "Aprovada" : status === "REJECTED" ? "Rejeitada" : status === "CANCELLED" ? "Cancelada" : "Em análise";
-    const statusClass = status === "APPROVED" ? "bg-green-100 text-green-700" : status === "REJECTED" ? "bg-red-100 text-red-700" : status === "CANCELLED" ? "bg-[#f5f7fa] text-[#5a6a82]" : "bg-amber-100 text-amber-700";
+    const statusClass = status === "APPROVED" ? "bg-green-100 text-green-700" : status === "REJECTED" ? "bg-red-100 text-red-700" : status === "CANCELLED" ? "bg-muted text-[#5a6a82]" : "bg-amber-100 text-amber-700";
 
     return <AdminCard key={request.id} className="min-w-0 bg-white p-0">
       <div className="px-4 py-4 sm:px-5">
@@ -199,7 +199,7 @@ export function OrderPartRequestsSection({ requests, assignedTo, currentUserId, 
 
       <PartCustodyWizard request={request} orderSolved={orderSolved} getCommittedQuantity={getCommittedQuantity} />
 
-      <div className="border-t border-[#0d1b2e]/8">
+      <div className="border-t border-border">
         <div className="px-4 pt-4 sm:px-5"><p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0d1b2e]">Itens solicitados</p></div>
         <div className="divide-y divide-[#0d1b2e]/8">{request.items.map(item => {
           const unit = item.inventory_item?.unit || "un";
@@ -235,11 +235,11 @@ export function OrderPartRequestsSection({ requests, assignedTo, currentUserId, 
         })}</div>
       </div>
 
-      {status !== "PENDING" && (request.reviewed_by_profile?.full_name || request.reviewed_at || request.review_notes) && <div className="border-t border-[#0d1b2e]/8 px-4 py-3 text-[11px] leading-relaxed text-[#5a6a82] sm:px-5">Analisado por {request.reviewed_by_profile?.full_name || "Responsável não informado"}{request.reviewed_at ? ` em ${formatDate(request.reviewed_at, true)}` : ""}{request.review_notes ? ` · ${request.review_notes}` : ""}</div>}
+      {status !== "PENDING" && (request.reviewed_by_profile?.full_name || request.reviewed_at || request.review_notes) && <div className="border-t border-border px-4 py-3 text-[11px] leading-relaxed text-[#5a6a82] sm:px-5">Analisado por {request.reviewed_by_profile?.full_name || "Responsável não informado"}{request.reviewed_at ? ` em ${formatDate(request.reviewed_at, true)}` : ""}{request.review_notes ? ` · ${request.review_notes}` : ""}</div>}
 
-      {status === "APPROVED" && purpose === "TEST" && hasDeliveredItems && <div className="border-t border-[#0d1b2e]/8 px-4 py-3 sm:px-5"><div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-[11px] text-amber-800"><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span>Peças já entregues — a análise não pode mais ser revertida.</span></div></div>}
+      {status === "APPROVED" && purpose === "TEST" && hasDeliveredItems && <div className="border-t border-border px-4 py-3 sm:px-5"><div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-[11px] text-amber-800"><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span>Peças já entregues — a análise não pode mais ser revertida.</span></div></div>}
 
-      <div className="flex min-w-0 flex-wrap justify-end gap-1.5 border-t border-[#0d1b2e]/8 bg-[#f8fafc]/70 px-4 py-3 sm:px-5">
+      <div className="flex min-w-0 flex-wrap justify-end gap-1.5 border-t border-border bg-muted/60 px-4 py-3 sm:px-5">
         {hasPermission("orders.manage_part_requests") && status === "PENDING" && <><button type="button" onClick={event => onApprove(event, request)} aria-label="Aprovar solicitação" title="Aprovar" className="inline-flex h-11 w-11 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-0 text-xs font-semibold text-white hover:bg-emerald-700 sm:h-9 sm:w-auto sm:px-3"><Check className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Aprovar</span></button><button type="button" onClick={event => onReject(event, request)} aria-label="Rejeitar solicitação" title="Rejeitar" className="inline-flex h-11 w-11 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-0 text-xs font-semibold text-white hover:bg-red-700 sm:h-9 sm:w-auto sm:px-3"><X className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Rejeitar</span></button></>}
         {hasPermission("orders.manage_part_requests") && status === "REJECTED" && <button type="button" onClick={event => onApprove(event, request)} aria-label="Aprovar solicitação" title="Aprovar" className="inline-flex h-11 w-11 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-0 text-xs font-semibold text-white hover:bg-emerald-700 sm:h-9 sm:w-auto sm:px-3"><Check className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Aprovar</span></button>}
         {hasPermission("orders.manage_part_requests") && status === "APPROVED" && !hasDeliveredItems && <button type="button" onClick={event => onReject(event, request)} aria-label="Desaprovar solicitação" title="Desaprovar" className="inline-flex h-11 w-11 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-0 text-xs font-semibold text-white hover:bg-amber-700 sm:h-9 sm:w-auto sm:px-3"><RotateCcw className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Desaprovar</span></button>}
@@ -247,7 +247,7 @@ export function OrderPartRequestsSection({ requests, assignedTo, currentUserId, 
         {hasPermission("orders.confirm_part_delivery") && status === "APPROVED" && hasPendingDeliveryConfirmation && <button type="button" onClick={() => onDelivery(request, "CONFIRM_DELIVERY")} aria-label="Confirmar entrega ao técnico" title="Confirmar entrega ao técnico" className="inline-flex h-11 w-11 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-cyan-600 px-0 text-xs font-semibold text-white hover:bg-cyan-700 sm:h-9 sm:w-auto sm:px-3"><PackageCheck className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Confirmar entrega ao técnico</span></button>}
         {hasPermission("orders.register_part_return") && status === "APPROVED" && hasReturnableItems && <button type="button" onClick={() => onDelivery(request, "REGISTER_RETURN")} aria-label="Registrar devolução" title="Registrar devolução" className="inline-flex h-11 w-11 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-0 text-xs font-semibold text-white hover:bg-amber-700 sm:h-9 sm:w-auto sm:px-3"><Undo2 className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Registrar devolução</span></button>}
         {hasPermission("orders.receive_returned_parts") && status === "APPROVED" && hasPendingReturnReceipt && <button type="button" onClick={() => onDelivery(request, "RECEIVE_RETURN")} aria-label="Confirmar retorno ao estoque" title="Confirmar retorno ao estoque" className="inline-flex h-11 w-11 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-0 text-xs font-semibold text-white hover:bg-emerald-700 sm:h-9 sm:w-auto sm:px-3"><PackageCheck className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Confirmar retorno ao estoque</span></button>}
-        {hasPermission("orders.record_test_results") && status === "APPROVED" && purpose === "TEST" && hasDeliveredItems && hasPendingTestResult && currentUserId === assignedTo && <button type="button" onClick={() => onTestResult(request)} aria-label="Registrar resultado do teste" title="Registrar resultado do teste" className="inline-flex h-11 w-11 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-[#0057e7]/30 bg-white px-0 text-xs font-semibold text-[#0057e7] hover:bg-[#eef5ff] sm:h-9 sm:w-auto sm:px-3"><ClipboardCheck className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Registrar resultado do teste</span></button>}
+        {hasPermission("orders.record_test_results") && status === "APPROVED" && purpose === "TEST" && hasDeliveredItems && hasPendingTestResult && currentUserId === assignedTo && <button type="button" onClick={() => onTestResult(request)} aria-label="Registrar resultado do teste" title="Registrar resultado do teste" className="inline-flex h-11 w-11 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-[#0057e7]/30 bg-white px-0 text-xs font-semibold text-[#0057e7] hover:bg-primary-soft sm:h-9 sm:w-auto sm:px-3"><ClipboardCheck className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Registrar resultado do teste</span></button>}
       </div>
     </AdminCard>;
   })}</div>;
