@@ -56,24 +56,6 @@ function lifecycleStatusTone(status: string) {
   return LIFECYCLE_STATUS_TONES[normalized] || null;
 }
 
-function lifecyclePresentation(tone: LifecycleTone) {
-  if (tone === "active") return {
-    badge: "border-emerald-200/80 bg-emerald-50/80 text-emerald-800 shadow-[0_1px_3px_rgba(5,150,105,0.08)]",
-    dot: "radial-gradient(circle at 32% 28%, #ecfdf5 0%, #6ee7b7 24%, #10b981 54%, #047857 78%, #064e3b 100%)",
-    shadow: "inset 1px 1px 1.5px rgba(255,255,255,.9), inset -1px -1px 2px rgba(6,78,59,.45), 0 1px 3px rgba(5,150,105,.38)",
-  };
-  if (tone === "disabled") return {
-    badge: "border-red-200/90 bg-red-50/80 text-red-800 shadow-[0_1px_3px_rgba(220,38,38,0.08)]",
-    dot: "radial-gradient(circle at 32% 28%, #fff1f2 0%, #fda4af 24%, #ef4444 54%, #b91c1c 78%, #7f1d1d 100%)",
-    shadow: "inset 1px 1px 1.5px rgba(255,255,255,.9), inset -1px -1px 2px rgba(127,29,29,.45), 0 1px 3px rgba(220,38,38,.38)",
-  };
-  return {
-    badge: "border-amber-200/90 bg-amber-50/80 text-amber-800 shadow-[0_1px_3px_rgba(217,119,6,0.08)]",
-    dot: "radial-gradient(circle at 32% 28%, #fffbeb 0%, #fde68a 24%, #f59e0b 54%, #b45309 78%, #78350f 100%)",
-    shadow: "inset 1px 1px 1.5px rgba(255,255,255,.9), inset -1px -1px 2px rgba(120,53,15,.42), 0 1px 3px rgba(217,119,6,.34)",
-  };
-}
-
 function dispatchAdminFeedback(detail: AdminFeedbackEvent) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent<AdminFeedbackEvent>(ADMIN_FEEDBACK_EVENT, { detail }));
@@ -108,23 +90,13 @@ export function isHexColor(value: string) {
 
 export function LifecycleStatusBadge({ status }: { status: string }) {
   const tone = lifecycleStatusTone(status) || "inactive";
-  const presentation = lifecyclePresentation(tone);
   return <span
     data-lifecycle-status-badge="true"
-    className={cn(
-      "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold leading-none tracking-normal",
-      presentation.badge,
-    )}
+    data-lifecycle-status={tone}
   >
-    <span
-      aria-hidden="true"
-      className="h-2.5 w-2.5 shrink-0 rounded-full"
-      style={{ background: presentation.dot, boxShadow: presentation.shadow }}
-    />
     <span className="truncate">{status || "—"}</span>
   </span>;
 }
-
 export function StatusBadge({ status, color }: { status: string; color?: string | null }) {
   const lifecycleTone = lifecycleStatusTone(status);
   if (lifecycleTone) return <LifecycleStatusBadge status={status} />;
