@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Eye, FileSignature } from "lucide-react";
 import { PRINT_FIELD_REGISTRY, normalizePrintSelectedFields } from "../domain/print-field-registry";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSelect, FDecimalInput, FIntegerInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { AdminCard, AdminCardContent, AdminCardHeader, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardContent, AdminCardHeader, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { PrintTemplatePreview } from "./PrintTemplatePreview";
 import type { EmployeeSignatureSource, PrintTemplateEditorValue } from "../domain/print-template";
@@ -238,10 +238,10 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
       </aside>
     </div>
 
-    <div className="sticky bottom-0 z-20 flex w-full flex-col-reverse gap-2 border border-[#0d1b2e]/8 bg-white px-4 py-4 sm:mx-auto sm:w-1/2 sm:flex-row sm:justify-end sm:rounded-t-xl sm:border-b-0 sm:px-5">
+    <AdminStickyToolbar className="w-full flex-col-reverse gap-2 border-x border-t sm:mx-auto sm:w-1/2 sm:flex-row sm:justify-end sm:rounded-t-xl sm:px-5">
       <BtnSecondary className="w-full sm:w-auto" onClick={onCancel} disabled={saving}>Cancelar</BtnSecondary>
       <BtnPrimary className="w-full sm:w-auto" onClick={() => { void save(); }} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>
-    </div>
+    </AdminStickyToolbar>
   </div>;
 }
 
