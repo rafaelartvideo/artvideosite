@@ -265,6 +265,8 @@ const FIELD_LABELS: Record<string, string> = {
   is_required: "Obrigatório",
   label: "Nome",
   legal_name: "Razão social",
+  line_subtotal: "Subtotal do item",
+  line_total: "Total do item",
   loose_parts: "Peças avulsas",
   media_id: "Arquivo",
   min_quantity: "Estoque mínimo",
