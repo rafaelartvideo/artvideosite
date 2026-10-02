@@ -284,32 +284,6 @@ export function AdminHeader({
       <KeyRound size={16} className="text-[#718096]" />
       Alterar senha
     </button>
-    <div className="my-2 border-t border-[#0d1b2e]/8" />
-    <div className="px-2.5 pb-1 pt-0.5">
-      <p className="mb-2 text-[10px] font-black uppercase tracking-[0.1em] text-[#8a98aa]">Aparência</p>
-      <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#f5f7fa] p-1">
-        <button
-          type="button"
-          onClick={() => setTheme("light")}
-          className={cn(
-            "flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-bold transition-colors",
-            theme === "light" ? "bg-white text-primary" : "text-[#68788d] hover:text-[#0d1b2e]",
-          )}
-        >
-          <Sun size={14} /> Claro
-        </button>
-        <button
-          type="button"
-          onClick={() => setTheme("dark")}
-          className={cn(
-            "flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-bold transition-colors",
-            theme === "dark" ? "bg-white text-primary" : "text-[#68788d] hover:text-[#0d1b2e]",
-          )}
-        >
-          <Moon size={14} /> Escuro
-        </button>
-      </div>
-    </div>
   </div>;
 
   const profileMenu = <div>
@@ -378,6 +352,14 @@ export function AdminHeader({
               </HeaderDropdown>}
             </div>
 
+            <HeaderAction label="Tema claro" active={theme === "light"} onClick={() => setTheme("light")}>
+              <Sun size={17} strokeWidth={2} />
+            </HeaderAction>
+
+            <HeaderAction label="Tema escuro" active={theme === "dark"} onClick={() => setTheme("dark")}>
+              <Moon size={17} strokeWidth={2} />
+            </HeaderAction>
+
             <div className="relative">
               <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}>
                 <Settings size={17} strokeWidth={2} />
@@ -431,6 +413,8 @@ export function AdminHeader({
 
           <div className="ml-auto flex items-center gap-0.5">
             <HeaderAction label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}><Bell size={16} /></HeaderAction>
+            <HeaderAction label="Tema claro" active={theme === "light"} onClick={() => setTheme("light")}><Sun size={16} /></HeaderAction>
+            <HeaderAction label="Tema escuro" active={theme === "dark"} onClick={() => setTheme("dark")}><Moon size={16} /></HeaderAction>
             <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}><Settings size={16} /></HeaderAction>
             <button type="button" onClick={() => toggleMenu("profile")} aria-label="Minha conta" className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/15 bg-[#eef5ff] text-[11px] font-black text-primary">{userInitial}</button>
           </div>
