@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, ChevronDown, ExternalLink, Globe, LogOut, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
+import { ArrowLeft, Building2, ExternalLink, Globe, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
@@ -13,34 +13,25 @@ import { getCompanySettings } from "@/features/settings/infrastructure/company-s
 
 type AdminSidebarProps = {
   activeTab: AdminTab;
-  userName: string;
-  roleName: string;
   organizations: OrganizationAccess[];
   activeOrganizationId: string | null;
   hasPermission: (permission: string) => boolean;
   hasModule: (moduleKey: string) => boolean;
   onNavigate: (tab: AdminTab) => void;
-  onOrganizationChange: (organizationId: string) => void | Promise<void>;
-  onSignOut: () => void | Promise<void>;
   onBackToSite: () => void;
 };
 
 export function AdminSidebar({
   activeTab,
-  userName,
-  roleName,
   organizations,
   activeOrganizationId,
   hasPermission,
   hasModule,
   onNavigate,
-  onOrganizationChange,
-  onSignOut,
   onBackToSite,
 }: AdminSidebarProps) {
   const { collapsed, canCollapse, toggleCollapsed } = useAdminSidebarLayout();
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
-  const switchableOrganizations = organizations.filter(organization => organization.is_direct_member);
   const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
   const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
   const brandingQuery = useQuery({
@@ -83,17 +74,12 @@ export function AdminSidebar({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className={cn(
-        "relative flex h-20 shrink-0 items-center border-b border-white/8 transition-all",
-        collapsed ? "flex-col justify-center gap-1 px-2" : "justify-center px-10",
+        "relative flex h-16 shrink-0 items-center border-b border-white/8 transition-all",
+        collapsed ? "justify-center px-2" : "justify-center px-9",
       )}>
         <div className={cn("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-2.5")}>
           {menuLogoUrl ? (
-            <div
-              className={cn(
-                "flex shrink-0 items-center justify-center",
-                collapsed ? "h-9 w-9" : "h-12 w-[170px]",
-              )}
-            >
+            <div className={cn("flex shrink-0 items-center justify-center", collapsed ? "h-8 w-8" : "h-10 w-[160px]")}>
               <AutoFitLogo
                 src={menuLogoUrl}
                 alt={activeOrganization?.organization_name || "Logo da empresa"}
@@ -104,12 +90,12 @@ export function AdminSidebar({
             <>
               <div className={cn(
                 "flex shrink-0 items-center justify-center rounded-lg bg-white/5 text-primary-light",
-                collapsed ? "h-9 w-9" : "h-8 w-8",
+                collapsed ? "h-8 w-8" : "h-8 w-8",
               )}>
-                <Building2 size={collapsed ? 18 : 16} />
+                <Building2 size={16} />
               </div>
               {!collapsed && (
-                <span className="max-w-[145px] truncate text-sm font-black text-white">
+                <span className="max-w-[140px] truncate text-sm font-black text-white">
                   {activeOrganization?.organization_name || "Empresa"}
                 </span>
               )}
@@ -124,110 +110,17 @@ export function AdminSidebar({
             title={collapsed ? "Expandir menu" : "Recuar menu"}
             aria-label={collapsed ? "Expandir menu lateral" : "Recuar menu lateral"}
             className={cn(
-              "flex items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light",
-              collapsed ? "h-6 w-8" : "absolute right-2 h-8 w-8",
+              "flex items-center justify-center rounded-lg text-white/45 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light",
+              collapsed ? "absolute bottom-1 h-6 w-8" : "absolute right-2 h-8 w-8",
             )}
           >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
           </button>
         )}
       </div>
 
-      {switchableOrganizations.length > 1 && (
-        <div className={cn(
-          "shrink-0 border-b border-white/8 transition-all",
-          collapsed ? "flex items-center justify-center px-2 py-3" : "px-4 py-3",
-        )}>
-          {collapsed ? (
-            <div className="relative h-9 w-9">
-              <div
-                className="pointer-events-none flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-white/65"
-                title="Trocar empresa"
-              >
-                <ChevronDown size={18} />
-              </div>
-              <select
-                value={activeOrganizationId || ""}
-                onChange={(event) => void onOrganizationChange(event.target.value)}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                aria-label="Trocar empresa ativa"
-              >
-                {switchableOrganizations.map(organization => (
-                  <option key={organization.organization_id} value={organization.organization_id}>
-                    {organization.organization_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label htmlFor="active-organization" className="block text-[9px] font-bold uppercase tracking-[0.14em] text-white/35">
-                Empresa ativa
-              </label>
-              <div className="relative mt-1">
-                <select
-                  id="active-organization"
-                  value={activeOrganizationId || ""}
-                  onChange={(event) => void onOrganizationChange(event.target.value)}
-                  className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-md border border-white/10 bg-white/5 py-2 pl-3 pr-8 text-xs font-black text-white outline-none transition hover:border-white/20 focus:border-[#00b4ff]/60 focus:ring-1 focus:ring-primary-light/40"
-                  aria-label="Trocar empresa ativa"
-                >
-                  {switchableOrganizations.map(organization => (
-                    <option key={organization.organization_id} value={organization.organization_id} className="bg-[#0d1b2e] text-white">
-                      {organization.organization_name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={15}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/55"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className={cn(
-        "shrink-0 border-b border-white/8 transition-all",
-        collapsed ? "flex flex-col items-center gap-2 px-2 py-3" : "flex items-center justify-between gap-2 px-4 py-4",
-      )}>
-        {collapsed ? (
-          <div
-            title={`${userName} — ${roleName}`}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/30"
-            aria-label={`${userName}, ${roleName}`}
-          >
-            <Users size={15} className="text-primary-light" />
-          </div>
-        ) : (
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/30">
-              <Users size={14} className="text-primary-light" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-white">{userName}</p>
-              <span className="rounded bg-[#00b4ff]/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary-light">{roleName}</span>
-            </div>
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => void onSignOut()}
-          title="Sair"
-          aria-label="Sair"
-          className={cn(
-            "flex shrink-0 items-center justify-center rounded-lg text-white/40 transition-colors hover:bg-white/8 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light",
-            collapsed ? "h-9 w-9" : "p-1.5",
-          )}
-        >
-          <LogOut size={16} />
-        </button>
-      </div>
-
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <nav className={cn("space-y-0.5 py-4", collapsed ? "px-3" : "px-3")}>
+        <nav className="space-y-0.5 px-3 py-4">
           {mainItems.filter((item) => canAccessTab(item.id as AdminTab)).map((item) => (
             <SidebarItem
               key={item.id}
