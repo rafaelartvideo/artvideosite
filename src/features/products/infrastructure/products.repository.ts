@@ -7,6 +7,9 @@ export type ProductInventorySettingsInput = {
   storage_shelf?: string | null;
   storage_level?: string | null;
   storage_compartment?: string | null;
+  supplier_entity_ids?: string[];
+  initial_supplier_entity_id?: string | null;
+  initial_reference?: string | null;
 };
 
 export async function loadProductCatalog(
@@ -87,7 +90,7 @@ export async function saveCompleteProduct(
   initialQuantity: number,
   initialUnitCost: number | null,
 ) {
-  const { data, error } = await supabase.rpc("save_product_with_inventory_v1", {
+  const { data, error } = await supabase.rpc("save_inventory_item_unified_v2", {
     p_organization_id: organizationId,
     p_product_id: productId ?? null,
     p_product: product,
@@ -140,18 +143,3 @@ export async function updateProductFlags(
   if (error) throw error;
 }
 
-
-export async function getProductInventoryItemId(
-  organizationId: string,
-  productId: string,
-): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("inventory_items")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .eq("product_id", productId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data?.id ? String(data.id) : null;
-}
