@@ -19,6 +19,7 @@ import {
   AdminCard,
   AdminCardHeader,
   AdminPage,
+  AdminStickyToolbar,
   BtnPrimary,
   BtnSecondary,
 } from "@/shared/ui/admin/AdminLayout";
@@ -219,7 +220,7 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
           {controller.attachmentTypes.length === 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Cadastre pelo menos um tipo em Operação → Documentos → Anexos.</p>}
           {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
         </div>
-        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-muted px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary></div>
+        <AdminStickyToolbar className="justify-end gap-2"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary></AdminStickyToolbar>
       </div>
     </div>
   );
@@ -397,7 +398,7 @@ export function OrderDocumentsPage({
         </div>
 
         <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
-        <div className="fixed inset-x-0 z-[70] border-t border-border bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}><div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div></div>
+        <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}><div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div></AdminStickyToolbar>
       </AdminPage>
 
       {newAttachmentOpen && <NewAttachmentModal controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
