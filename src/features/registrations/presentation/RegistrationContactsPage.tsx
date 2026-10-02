@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Mail, MessageCircle, Phone, Plus, UserRound } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cn, formatPhone, isValidBrazilianMobile, isValidBrazilianPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
-import { AdminCard, AdminDialog, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
@@ -201,10 +201,10 @@ export function RegistrationContactsPage({
         </AdminCard>)}</div>}
       </div>
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-border bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
+      <AdminStickyToolbar className="justify-between gap-2">
         <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
         {canManage && <BtnPrimary onClick={openNew}><Plus size={15} /> Adicionar contato</BtnPrimary>}
-      </div>
+      </AdminStickyToolbar>
     </AdminPage>
 
     <AdminDialog
