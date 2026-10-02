@@ -586,8 +586,8 @@ export function PdvSaleWorkspace({
       <CounterMetric label="Total" value={formatCurrency(total)} emphasis />
     </div>
 
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2 text-[10px] font-bold text-[#5a6a82]">
-      <span className="flex items-center gap-1.5 text-[#0d1b2e]"><Keyboard size={13} /> Atalhos</span>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-[#f8fafc] px-3 py-2 text-[10px] font-bold text-muted-foreground">
+      <span className="flex items-center gap-1.5 text-foreground"><Keyboard size={13} /> Atalhos</span>
       <Shortcut keys="F2" label="Buscar" />
       <Shortcut keys="↑ ↓" label="Selecionar item" />
       <Shortcut keys="+ −" label="Quantidade" />
@@ -616,7 +616,7 @@ export function PdvSaleWorkspace({
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-[#0d1b2e]/10 bg-white px-1.5 py-0.5 text-[9px] font-black text-[#7a8aa0]">F2</span>
           </div>
-          <p className="mt-1.5 text-[10px] leading-4 text-[#5a6a82]">O leitor continua pronto mesmo depois de mexer no carrinho. Código exato + Enter adiciona direto.</p>
+          <p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">O leitor continua pronto mesmo depois de mexer no carrinho. Código exato + Enter adiciona direto.</p>
         </AdminSearchPanel>
 
         <Section title="Produtos encontrados" flush>
@@ -638,12 +638,12 @@ export function PdvSaleWorkspace({
               >
                 <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-black text-[#0d1b2e]">{product.name}</p>
+                  <p className="truncate text-xs font-black text-foreground">{product.name}</p>
                   <p className="mt-0.5 truncate text-[9px] font-semibold text-[#7a8aa0]">{product.sku || "Sem SKU"}{product.barcode ? " · " + product.barcode : ""}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-sm font-black text-[#0d1b2e]">{product.price == null ? "Sem preço" : formatCurrency(product.price)}</p>
-                  <p className={cn("mt-0.5 text-[9px] font-bold", noStock ? "text-red-600" : "text-[#5a6a82]")}>
+                  <p className="text-sm font-black text-foreground">{product.price == null ? "Sem preço" : formatCurrency(product.price)}</p>
+                  <p className={cn("mt-0.5 text-[9px] font-bold", noStock ? "text-red-600" : "text-muted-foreground")}>
                     {formatNumber(available)} {product.unit || "un"} em estoque
                   </p>
                 </div>
@@ -667,8 +667,8 @@ export function PdvSaleWorkspace({
       >
         {cart.length === 0 ? <div className="p-8 text-center">
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft text-primary"><Package size={20} /></div>
-          <p className="mt-3 text-sm font-black text-[#0d1b2e]">Carrinho vazio</p>
-          <p className="mt-1 text-xs leading-5 text-[#5a6a82]">Leia um código de barras ou escolha um produto na busca.</p>
+          <p className="mt-3 text-sm font-black text-foreground">Carrinho vazio</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">Leia um código de barras ou escolha um produto na busca.</p>
         </div> : <div className="max-h-[56vh] divide-y divide-[#0d1b2e]/7 overflow-y-auto">
           {cart.map((item, index) => {
             const productId = item.product.product_id;
@@ -688,10 +688,10 @@ export function PdvSaleWorkspace({
               <div className="grid min-w-0 gap-2 sm:grid-cols-[28px_minmax(0,1fr)_auto] sm:items-start">
                 <div className={cn(
                   "flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-black",
-                  selected ? "bg-primary text-white" : "bg-[#eef1f5] text-[#5a6a82]",
+                  selected ? "bg-primary text-white" : "bg-[#eef1f5] text-muted-foreground",
                 )}>{index + 1}</div>
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-black text-[#0d1b2e]">{item.product.name}</p>
+                  <p className="truncate text-xs font-black text-foreground">{item.product.name}</p>
                   <p className="mt-0.5 truncate text-[9px] text-[#7a8aa0]">{item.product.sku || item.product.barcode || "Sem código"} · {formatCurrency(item.product.price || 0)} / {item.product.unit || "un"}</p>
                 </div>
                 <AdminIconButton ariaLabel="Remover produto" title="Remover" variant="danger" onClick={event => {
@@ -707,7 +707,7 @@ export function PdvSaleWorkspace({
                     <button type="button" onClick={event => {
                       event.stopPropagation();
                       setQuantity(productId, item.quantity - 1);
-                    }} className="flex h-full w-8 items-center justify-center text-[#5a6a82] hover:bg-[#f5f7fa]"><Minus size={12} /></button>
+                    }} className="flex h-full w-8 items-center justify-center text-muted-foreground hover:bg-[#f5f7fa]"><Minus size={12} /></button>
                     <input
                       type="number"
                       min="1"
@@ -719,7 +719,7 @@ export function PdvSaleWorkspace({
                         const next = Number(event.target.value);
                         if (Number.isFinite(next) && next > 0) setQuantity(productId, next);
                       }}
-                      className="h-full min-w-0 flex-1 border-x border-[#0d1b2e]/10 bg-white px-1 text-center text-xs font-black text-[#0d1b2e] outline-none"
+                      className="h-full min-w-0 flex-1 border-x border-[#0d1b2e]/10 bg-white px-1 text-center text-xs font-black text-foreground outline-none"
                     />
                     <button type="button" onClick={event => {
                       event.stopPropagation();
@@ -747,26 +747,26 @@ export function PdvSaleWorkspace({
                 <div className="text-right">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Total do item</p>
                   {itemDiscount > 0 && <p className="mt-0.5 text-[9px] text-[#8a98aa] line-through">{formatCurrency(lineSubtotal)}</p>}
-                  <p className={cn("mt-0.5 text-base font-black", itemDiscount > 0 ? "text-emerald-700" : "text-[#0d1b2e]")}>{formatCurrency(lineTotal)}</p>
+                  <p className={cn("mt-0.5 text-base font-black", itemDiscount > 0 ? "text-emerald-700" : "text-foreground")}>{formatCurrency(lineTotal)}</p>
                 </div>
               </div>
             </div>;
           })}
         </div>}
 
-        <div className="border-t border-[#0d1b2e]/8 bg-[#f8fafc] p-3 sm:p-4">
+        <div className="border-t border-border bg-[#f8fafc] p-3 sm:p-4">
           <div className="space-y-1.5 text-xs">
-            <div className="flex items-center justify-between gap-3 text-[#5a6a82]">
+            <div className="flex items-center justify-between gap-3 text-muted-foreground">
               <span>Subtotal</span>
-              <strong className="text-[#0d1b2e]">{formatCurrency(subtotal)}</strong>
+              <strong className="text-foreground">{formatCurrency(subtotal)}</strong>
             </div>
             {itemDiscountTotal > 0 && <div className="flex items-center justify-between gap-3 text-emerald-700">
               <span>Descontos nos itens</span>
               <strong>- {formatCurrency(itemDiscountTotal)}</strong>
             </div>}
-            <div className="flex items-center justify-between gap-3 border-t border-[#0d1b2e]/8 pt-2">
-              <span className="font-black text-[#0d1b2e]">Total atual</span>
-              <span className="text-2xl font-black text-[#0d1b2e]">{formatCurrency(afterItemDiscounts)}</span>
+            <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
+              <span className="font-black text-foreground">Total atual</span>
+              <span className="text-2xl font-black text-foreground">{formatCurrency(afterItemDiscounts)}</span>
             </div>
           </div>
           <AdminButton
@@ -792,7 +792,7 @@ export function PdvSaleWorkspace({
       description="F3 busca cliente · teclas 1–9 adicionam formas de pagamento · F4 finaliza quando estiver fechado."
       className="max-w-5xl"
       footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-xs text-[#5a6a82]">
+        <div className="text-xs text-muted-foreground">
           {checkoutInvalidReason
             ? <span className="font-semibold text-amber-700">{checkoutInvalidReason}</span>
             : <span className="font-semibold text-emerald-700">Venda pronta. Pressione F4 para finalizar.</span>}
@@ -814,21 +814,21 @@ export function PdvSaleWorkspace({
         <div className="min-w-0 space-y-4">
           <section>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h3 className="flex items-center gap-2 text-sm font-black text-[#0d1b2e]"><UserRound size={15} /> Cliente</h3>
+              <h3 className="flex items-center gap-2 text-sm font-black text-foreground"><UserRound size={15} /> Cliente</h3>
               <span className="text-[10px] font-bold uppercase tracking-wide text-[#7a8aa0]">{settings?.allow_sale_without_customer ? "Opcional" : "Obrigatório"}</span>
             </div>
 
             {selectedCustomer ? <div className="rounded-xl border border-primary/15 bg-primary-soft p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#0d1b2e]">{selectedCustomer.name}</p>
-                  <p className="mt-1 text-[10px] text-[#5a6a82]">{selectedCustomer.document || selectedCustomer.whatsapp || selectedCustomer.phone || "Sem documento ou telefone"}</p>
+                  <p className="truncate text-sm font-black text-foreground">{selectedCustomer.name}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">{selectedCustomer.document || selectedCustomer.whatsapp || selectedCustomer.phone || "Sem documento ou telefone"}</p>
                 </div>
                 <AdminButton variant="ghost" size="sm" onClick={() => setSelectedCustomer(null)}>Trocar</AdminButton>
               </div>
             </div> : <>
               <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input
                   ref={customerSearchInputRef}
                   value={customerSearch}
@@ -838,8 +838,8 @@ export function PdvSaleWorkspace({
                 />
                 <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-[#0d1b2e]/10 px-1.5 py-0.5 text-[8px] font-black text-[#7a8aa0]">F3</span>
               </div>
-              <div className="mt-2 max-h-36 overflow-y-auto rounded-xl border border-[#0d1b2e]/8">
-                {customersQuery.isPending ? <p className="p-3 text-xs text-[#5a6a82]">Buscando clientes...</p> : (customersQuery.data || []).length === 0 ? <p className="p-3 text-xs text-[#5a6a82]">Nenhum cliente encontrado.</p> : (customersQuery.data || []).map(customer => <button
+              <div className="mt-2 max-h-36 overflow-y-auto rounded-xl border border-border">
+                {customersQuery.isPending ? <p className="p-3 text-xs text-muted-foreground">Buscando clientes...</p> : (customersQuery.data || []).length === 0 ? <p className="p-3 text-xs text-muted-foreground">Nenhum cliente encontrado.</p> : (customersQuery.data || []).map(customer => <button
                   key={customer.id}
                   type="button"
                   onClick={() => {
@@ -849,7 +849,7 @@ export function PdvSaleWorkspace({
                   className="flex w-full items-center justify-between gap-3 border-b border-[#0d1b2e]/5 px-3 py-2 text-left last:border-b-0 hover:bg-[#f8fafc]"
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-xs font-bold text-[#0d1b2e]">{customer.name}</span>
+                    <span className="block truncate text-xs font-bold text-foreground">{customer.name}</span>
                     <span className="mt-0.5 block truncate text-[10px] text-[#7a8aa0]">{customer.document || customer.whatsapp || customer.phone || "Sem documento ou telefone"}</span>
                   </span>
                   <Plus size={13} className="shrink-0 text-primary" />
@@ -858,8 +858,8 @@ export function PdvSaleWorkspace({
             </>}
           </section>
 
-          <section className="border-t border-[#0d1b2e]/8 pt-4">
-            <h3 className="mb-3 text-sm font-black text-[#0d1b2e]">Ajustes gerais</h3>
+          <section className="border-t border-border pt-4">
+            <h3 className="mb-3 text-sm font-black text-foreground">Ajustes gerais</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <FCurrencyInput label="Desconto geral" value={discount} onChange={(event: any) => setDiscount(event.target.value)} />
               <FCurrencyInput label="Acréscimo" value={surcharge} onChange={(event: any) => setSurcharge(event.target.value)} />
@@ -875,21 +875,21 @@ export function PdvSaleWorkspace({
             </div>
           </section>
 
-          <section className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-4">
+          <section className="rounded-xl border border-border bg-[#f8fafc] p-4">
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between gap-3 text-[#5a6a82]"><span>Subtotal</span><strong className="text-[#0d1b2e]">{formatCurrency(subtotal)}</strong></div>
+              <div className="flex items-center justify-between gap-3 text-muted-foreground"><span>Subtotal</span><strong className="text-foreground">{formatCurrency(subtotal)}</strong></div>
               {itemDiscountTotal > 0 && <div className="flex items-center justify-between gap-3 text-emerald-700"><span>Descontos nos itens</span><strong>- {formatCurrency(itemDiscountTotal)}</strong></div>}
               {discountValue > 0 && <div className="flex items-center justify-between gap-3 text-emerald-700"><span>Desconto geral</span><strong>- {formatCurrency(discountValue)}</strong></div>}
               {surchargeValue > 0 && <div className="flex items-center justify-between gap-3 text-amber-700"><span>Acréscimo</span><strong>+ {formatCurrency(surchargeValue)}</strong></div>}
-              <div className="flex items-center justify-between gap-3 border-t border-[#0d1b2e]/8 pt-2 text-sm"><span className="font-black text-[#0d1b2e]">Total</span><strong className="text-2xl text-[#0d1b2e]">{formatCurrency(total)}</strong></div>
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-2 text-sm"><span className="font-black text-foreground">Total</span><strong className="text-2xl text-foreground">{formatCurrency(total)}</strong></div>
             </div>
           </section>
         </div>
 
-        <div className="min-w-0 space-y-4 lg:border-l lg:border-[#0d1b2e]/8 lg:pl-5">
+        <div className="min-w-0 space-y-4 lg:border-l lg:border-border lg:pl-5">
           <div>
-            <h3 className="flex items-center gap-2 text-sm font-black text-[#0d1b2e]"><CreditCard size={15} /> Formas de pagamento</h3>
-            <p className="mt-1 text-[10px] leading-4 text-[#5a6a82]">Clique ou use 1–9. É possível dividir a venda entre várias formas.</p>
+            <h3 className="flex items-center gap-2 text-sm font-black text-foreground"><CreditCard size={15} /> Formas de pagamento</h3>
+            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Clique ou use 1–9. É possível dividir a venda entre várias formas.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -919,7 +919,7 @@ export function PdvSaleWorkspace({
             {selectedPayments.map(({ payment, method }) => method && <div key={payment.paymentMethodId} className="rounded-xl border border-[#0d1b2e]/10 bg-white p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-black text-[#0d1b2e]">{method.name}</p>
+                  <p className="truncate text-xs font-black text-foreground">{method.name}</p>
                   <p className="mt-0.5 truncate text-[9px] text-[#7a8aa0]">{method.financial_account_name || paymentTypeLabel(method.method_type)}{method.creates_future_settlement ? " · liquidação futura" : ""}</p>
                 </div>
                 <AdminIconButton ariaLabel={"Remover " + method.name} title="Remover" variant="danger" onClick={() => removePayment(method.id)}><Trash2 size={13} /></AdminIconButton>
@@ -933,12 +933,12 @@ export function PdvSaleWorkspace({
                 {method.method_type === "cash" && <div>
                   <FCurrencyInput label="Valor recebido" value={payment.tenderedAmount} onChange={(event: any) => updatePayment(method.id, { tenderedAmount: event.target.value })} />
                   <div className="mt-1.5 flex flex-wrap gap-1">
-                    <button type="button" onClick={() => updatePayment(method.id, { tenderedAmount: payment.amount })} className="rounded-md border border-[#0d1b2e]/10 px-2 py-1 text-[9px] font-bold text-[#5a6a82] hover:border-primary/30 hover:text-primary">Exato</button>
+                    <button type="button" onClick={() => updatePayment(method.id, { tenderedAmount: payment.amount })} className="rounded-md border border-[#0d1b2e]/10 px-2 py-1 text-[9px] font-bold text-muted-foreground hover:border-primary/30 hover:text-primary">Exato</button>
                     {quickCashValues(currencyNumber(payment.amount)).map(value => <button
                       key={value}
                       type="button"
                       onClick={() => updatePayment(method.id, { tenderedAmount: value.toFixed(2) })}
-                      className="rounded-md border border-[#0d1b2e]/10 px-2 py-1 text-[9px] font-bold text-[#5a6a82] hover:border-primary/30 hover:text-primary"
+                      className="rounded-md border border-[#0d1b2e]/10 px-2 py-1 text-[9px] font-bold text-muted-foreground hover:border-primary/30 hover:text-primary"
                     >{formatCurrency(value)}</button>)}
                   </div>
                 </div>}
@@ -948,11 +948,11 @@ export function PdvSaleWorkspace({
             </div>)}
           </div>
 
-          <div className="sticky bottom-0 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-4 shadow-sm">
+          <div className="sticky bottom-0 rounded-xl border border-border bg-card p-4">
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between gap-3 text-[#5a6a82]"><span>Total da venda</span><strong className="text-base text-[#0d1b2e]">{formatCurrency(total)}</strong></div>
-              <div className="flex items-center justify-between gap-3 text-[#5a6a82]"><span>Pagamentos</span><strong className="text-[#0d1b2e]">{formatCurrency(paymentTotal)}</strong></div>
-              <div className={cn("flex items-center justify-between gap-3 border-t border-[#0d1b2e]/8 pt-2", Math.abs(remaining) < 0.01 ? "text-emerald-700" : "text-amber-700")}>
+              <div className="flex items-center justify-between gap-3 text-muted-foreground"><span>Total da venda</span><strong className="text-base text-foreground">{formatCurrency(total)}</strong></div>
+              <div className="flex items-center justify-between gap-3 text-muted-foreground"><span>Pagamentos</span><strong className="text-foreground">{formatCurrency(paymentTotal)}</strong></div>
+              <div className={cn("flex items-center justify-between gap-3 border-t border-border pt-2", Math.abs(remaining) < 0.01 ? "text-emerald-700" : "text-amber-700")}>
                 <span className="font-black">{remaining > 0 ? "Restante" : remaining < 0 ? "Excedente" : "Pagamento fechado"}</span>
                 <strong className="text-base">{formatCurrency(Math.abs(remaining))}</strong>
               </div>
@@ -978,15 +978,15 @@ export function PdvSaleWorkspace({
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><CheckCircle2 size={28} /></div>
         <div className="text-center">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#7a8aa0]">Venda #{saleResult.sale_number}</p>
-          <p className="mt-2 text-3xl font-black text-[#0d1b2e]">{formatCurrency(saleResult.total_amount)}</p>
-          <p className="mt-1 text-xs text-[#5a6a82]">{new Date(saleResult.sold_at).toLocaleString("pt-BR")}</p>
+          <p className="mt-2 text-3xl font-black text-foreground">{formatCurrency(saleResult.total_amount)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{new Date(saleResult.sold_at).toLocaleString("pt-BR")}</p>
         </div>
-        <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-4 text-xs">
-          <div className="flex items-center justify-between gap-3"><span className="text-[#5a6a82]">Subtotal</span><strong>{formatCurrency(saleResult.subtotal)}</strong></div>
+        <div className="rounded-xl border border-border bg-[#f8fafc] p-4 text-xs">
+          <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Subtotal</span><strong>{formatCurrency(saleResult.subtotal)}</strong></div>
           {Number(saleResult.discount_amount || 0) > 0 && <div className="mt-2 flex items-center justify-between gap-3 text-emerald-700"><span>Descontos</span><strong>- {formatCurrency(saleResult.discount_amount)}</strong></div>}
           {Number(saleResult.surcharge_amount || 0) > 0 && <div className="mt-2 flex items-center justify-between gap-3 text-amber-700"><span>Acréscimo</span><strong>+ {formatCurrency(saleResult.surcharge_amount)}</strong></div>}
           {Number(saleResult.change_amount || 0) > 0 && <div className="mt-2 flex items-center justify-between gap-3 text-primary"><span>Troco</span><strong>{formatCurrency(saleResult.change_amount)}</strong></div>}
-          {saleResult.customer_name && <div className="mt-3 border-t border-[#0d1b2e]/8 pt-3"><span className="text-[#5a6a82]">Cliente</span><strong className="ml-2 text-[#0d1b2e]">{saleResult.customer_name}</strong></div>}
+          {saleResult.customer_name && <div className="mt-3 border-t border-border pt-3"><span className="text-muted-foreground">Cliente</span><strong className="ml-2 text-foreground">{saleResult.customer_name}</strong></div>}
         </div>
         <p className="text-center text-[10px] leading-4 text-[#7a8aa0]">Estoque e Financeiro foram atualizados na mesma transação da venda.</p>
       </div>}
@@ -1007,19 +1007,19 @@ function CounterMetric({
 }) {
   return <div className={cn(
     "rounded-xl border px-3 py-2.5",
-    emphasis ? "border-primary bg-primary text-white" : "border-[#0d1b2e]/8 bg-white",
+    emphasis ? "border-primary bg-primary text-white" : "border-border bg-white",
   )}>
     <p className={cn("text-[9px] font-bold uppercase tracking-wider", emphasis ? "text-white/70" : "text-[#8a98aa]")}>{label}</p>
     <p className={cn(
       "mt-0.5 text-lg font-black",
-      emphasis ? "text-white" : tone === "success" ? "text-emerald-700" : "text-[#0d1b2e]",
+      emphasis ? "text-white" : tone === "success" ? "text-emerald-700" : "text-foreground",
     )}>{value}</p>
   </div>;
 }
 
 function Shortcut({ keys, label }: { keys: string; label: string }) {
   return <span className="flex items-center gap-1">
-    <kbd className="rounded border border-[#0d1b2e]/10 bg-white px-1.5 py-0.5 text-[9px] font-black text-[#0d1b2e]">{keys}</kbd>
+    <kbd className="rounded border border-[#0d1b2e]/10 bg-white px-1.5 py-0.5 text-[9px] font-black text-foreground">{keys}</kbd>
     {label}
   </span>;
 }
