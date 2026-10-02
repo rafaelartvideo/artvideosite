@@ -177,7 +177,7 @@ function Metric({
 }
 
 export function TabFieldTracking() {
-  const { user, profile, activeOrganizationId, hasPermission } = useAuth();
+  const { user, activeOrganizationId, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const canView = hasPermission("field_tracking.view");
   const canShare = hasPermission("field_tracking.share");
@@ -415,7 +415,21 @@ export function TabFieldTracking() {
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <PageHeader
-      title="Mapa de Campo"
+      title={<span className="flex min-w-0 flex-wrap items-center gap-2.5">
+        <span>Mapa de Campo</span>
+        {canShare && <span className={cn(
+          "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wide",
+          trackingEnabled
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+            : "border-border bg-muted text-muted-foreground",
+        )}>
+          <span className={cn(
+            "h-2 w-2 rounded-full",
+            trackingEnabled ? "animate-pulse bg-emerald-500" : "bg-slate-400",
+          )} aria-hidden="true" />
+          {trackingEnabled ? "Ativado" : "Desativado"}
+        </span>}
+      </span>}
       subtitle="Rastreamento em tempo real por Traccar Client, Traccar Server e dispositivos vinculados."
       actions={(canShare || canManage) ? <div className="flex flex-wrap justify-end gap-2">
         {canManage && <AdminButton variant="secondary" onClick={() => void openServerConfig()}>
@@ -436,24 +450,6 @@ export function TabFieldTracking() {
       </div> : undefined}
     />
 
-    {canShare && <AdminCard className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <p className="text-sm font-black text-foreground">Compartilhamento deste dispositivo</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {trackingEnabled
-            ? `${profile?.full_name || "Seu usuário"} está enviando a localização pelo navegador. Para uso contínuo em segundo plano, prefira o Traccar Client.`
-            : "Esta opção serve como teste rápido. Para o uso diário em campo, cadastre o aparelho em Novo rastreador e configure o Traccar Client."}
-        </p>
-      </div>
-      <span className={cn(
-        "inline-flex w-fit shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wide",
-        trackingEnabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-border bg-muted text-muted-foreground",
-      )}>
-        <span className={cn("h-2 w-2 rounded-full", trackingEnabled ? "bg-emerald-500 field-tracking-live-dot" : "bg-slate-400")} />
-        {trackingEnabled ? "Compartilhando" : "Desativado"}
-      </span>
-    </AdminCard>}
-
     {!canView ? (
       <AdminCard className="p-8 text-center">
         <Navigation className="mx-auto text-primary" size={28} />
@@ -473,16 +469,25 @@ export function TabFieldTracking() {
 
         <AdminCard className="relative isolate z-0 overflow-hidden p-0">
           <div className="relative z-20 flex flex-col gap-3 border-b border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-black text-foreground">Posições em tempo real</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">Verde = recebendo posição · amarelo = parado · vermelho = sem sinal há mais de 15 min.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <div className="w-44">
-                <AdminSelect value={typeFilter} onValueChange={setTypeFilter} options={TYPE_OPTIONS} ariaLabel="Filtrar tipo de rastreador" />
+            <p className="text-sm font-black text-foreground">Posições em tempo real</p>
+            <div className="grid w-full min-w-0 gap-2 sm:w-auto sm:grid-cols-[220px_180px]">
+              <div className="min-w-0">
+                <AdminSelect
+                  value={typeFilter}
+                  onValueChange={setTypeFilter}
+                  options={TYPE_OPTIONS}
+                  ariaLabel="Filtrar tipo de rastreador"
+                  className="min-w-0"
+                />
               </div>
-              <div className="w-40">
-                <AdminSelect value={statusFilter} onValueChange={setStatusFilter} options={STATUS_OPTIONS} ariaLabel="Filtrar status do rastreador" />
+              <div className="min-w-0">
+                <AdminSelect
+                  value={statusFilter}
+                  onValueChange={setStatusFilter}
+                  options={STATUS_OPTIONS}
+                  ariaLabel="Filtrar status do rastreador"
+                  className="min-w-0"
+                />
               </div>
             </div>
           </div>
@@ -601,6 +606,25 @@ export function TabFieldTracking() {
                 </div>}
               </div>
             </aside>
+          </div>
+
+          <div
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 text-[11px] font-semibold text-muted-foreground md:py-2"
+            aria-label="Legenda das posições do mapa de campo"
+          >
+            <span className="font-bold text-foreground">Legenda:</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-[#16a34a]" aria-hidden="true" />
+              Recebendo posição
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-[#f59e0b]" aria-hidden="true" />
+              Parado
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-[#dc2626]" aria-hidden="true" />
+              Sem sinal há mais de 15 min
+            </span>
           </div>
         </AdminCard>
 
