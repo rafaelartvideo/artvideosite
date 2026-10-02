@@ -577,7 +577,7 @@ export function TabOrders({
   const editingRouteActive = routeSubpage === "edit" && Boolean(initialOrderId && initialOrderId !== "new");
 
   return (
-    <div className="space-y-5 md:space-y-3 [&>header]:md:pb-3">
+    <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <OrdersListWorkspace

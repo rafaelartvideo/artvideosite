@@ -219,7 +219,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
 
   const InfoRow = ({ label, value }: { label: string; value?: string | null }) => value ? <div className="min-w-0"><p className="mb-0.5 break-words text-[10px] font-bold uppercase text-[#5a6a82]">{label}</p><p className="break-words whitespace-pre-line text-sm font-medium text-[#0d1b2e]">{value}</p></div> : null;
 
-  return <div className="min-w-0 space-y-5 md:space-y-3 [&>header]:md:pb-3">
+  return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     {!routeResourceId && <>

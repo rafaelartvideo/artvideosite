@@ -705,7 +705,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     </DropdownMenu>
   );
 
-  return <div className="space-y-5 md:space-y-3 [&>header]:md:pb-3">
+  return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader
       title={platformUsersOnly ? "Usuários" : "Cadastros"}
