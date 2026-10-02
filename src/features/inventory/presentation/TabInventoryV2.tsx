@@ -15,7 +15,7 @@ import {
   syncInventoryItemSuppliers,
   type InventorySupplier,
 } from "../infrastructure/inventory.repository";
-import { AdminButton, AdminCard, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
@@ -627,7 +627,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
 
         <Section title="Endereço da peça"><div className="grid gap-4 sm:grid-cols-3"><FInput label="Estante" value={form.storage_shelf} onChange={(event: any) => setForm({ ...form, storage_shelf: event.target.value })} placeholder="Ex.: A, 1, A1" /><FInput label="Prateleira" value={form.storage_level} onChange={(event: any) => setForm({ ...form, storage_level: event.target.value })} placeholder="Ex.: 1, B, 2B" /><FInput label="Compartimento" value={form.storage_compartment} onChange={(event: any) => setForm({ ...form, storage_compartment: event.target.value })} placeholder="Ex.: A, 12, C3" /></div></Section>
       </div>
-      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closePage}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void saveItem()}>{selectedItem ? "Salvar" : "Cadastrar"}</BtnPrimary></div>
+      <AdminStickyToolbar className="justify-end"><BtnSecondary onClick={closePage}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void saveItem()}>{selectedItem ? "Salvar" : "Cadastrar"}</BtnPrimary></AdminStickyToolbar>
     </AdminPage>}
 
     {selectedItem && !recordOpen && !historyOpen && canCreateMovements && routeSubpage === "move" && <AdminPage open onClose={closePage} breadcrumb="Estoque" title={`Movimentação — ${selectedItem.name}`} subtitle="Registre compras, saídas e ajustes com histórico completo" maxW="max-w-2xl">
@@ -646,7 +646,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
         <FTextarea label="Observações" value={movementForm.notes} onChange={(event: any) => setMovementForm({ ...movementForm, notes: event.target.value })} rows={3} />
         <FInput label="OS relacionada (opcional)" value={movementForm.service_order_id} onChange={(event: any) => setMovementForm({ ...movementForm, service_order_id: event.target.value })} />
       </div>
-      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closePage}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void saveMovement()}>Registrar</BtnPrimary></div>
+      <AdminStickyToolbar className="justify-end"><BtnSecondary onClick={closePage}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void saveMovement()}>Registrar</BtnPrimary></AdminStickyToolbar>
     </AdminPage>}
 
     {historyOpen && selectedItem && canViewMovements && <AdminPage open onClose={closePage} breadcrumb="Estoque" title={`Histórico — ${selectedItem.name}`} subtitle="Movimentações auditáveis do item" maxW="max-w-3xl"><div className="p-4 sm:p-5">{historyLoading && history.length === 0 ? <LoadingState text="Carregando histórico..." /> : history.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhuma movimentação registrada.</p> : <div className="space-y-3">{history.map((entry: any) => {
