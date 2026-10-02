@@ -192,6 +192,65 @@ function extensionFor(contentType: string) {
   return "jpg";
 }
 
+function assertSafeExternalUrl(rawUrl: string) {
+  const url = new URL(rawUrl);
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("A imagem externa usa um protocolo não permitido.");
+  }
+  if (url.username || url.password) {
+    throw new Error("A URL da imagem externa é inválida.");
+  }
+
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    host === "localhost"
+    || host.endsWith(".localhost")
+    || host.endsWith(".local")
+    || host.endsWith(".internal")
+    || host === "metadata.google.internal"
+    || host === "::"
+    || host === "::1"
+    || /^f[cd][0-9a-f:]*$/i.test(host)
+    || /^fe[89ab][0-9a-f:]*$/i.test(host)
+  ) {
+    throw new Error("A origem da imagem externa não é permitida.");
+  }
+
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const octets = ipv4.slice(1).map(Number);
+    if (octets.some(value => value > 255)) throw new Error("A URL da imagem externa é inválida.");
+    const [a, b] = octets;
+    const blocked = a === 0
+      || a === 10
+      || a === 127
+      || (a === 100 && b >= 64 && b <= 127)
+      || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168)
+      || (a === 198 && (b === 18 || b === 19))
+      || a >= 224;
+    if (blocked) throw new Error("A origem da imagem externa não é permitida.");
+  }
+
+  return url;
+}
+
+async function fetchExternalImage(rawUrl: string) {
+  let currentUrl = assertSafeExternalUrl(rawUrl);
+  for (let redirectCount = 0; redirectCount <= 4; redirectCount += 1) {
+    const response = await fetch(currentUrl, { redirect: "manual" });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) throw new Error("A imagem externa retornou um redirecionamento inválido.");
+      currentUrl = assertSafeExternalUrl(new URL(location, currentUrl).toString());
+      continue;
+    }
+    return response;
+  }
+  throw new Error("A imagem externa excedeu o limite de redirecionamentos.");
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (request.method !== "POST") return json({ success: false, error: "Método não permitido." }, 405);
@@ -242,7 +301,7 @@ Deno.serve(async (request) => {
       const imageUrl = String(body?.image_url || "").trim();
       if (!/^https?:\/\//i.test(imageUrl)) return json({ success: false, error: "URL de imagem inválida." }, 400);
 
-      const imageResponse = await fetch(imageUrl, { redirect: "follow" });
+      const imageResponse = await fetchExternalImage(imageUrl);
       if (!imageResponse.ok) return json({ success: false, error: "Não foi possível baixar a imagem selecionada." }, 422);
       const contentType = String(imageResponse.headers.get("content-type") || "").toLowerCase().split(";")[0];
       if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) {
