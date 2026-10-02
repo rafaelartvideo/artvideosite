@@ -19,7 +19,6 @@ import {
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
-  getProductInventoryItemId,
   loadProductCatalog,
   saveCompleteProduct,
   updateProductFlags,
@@ -56,7 +55,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/primitives
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/primitives/tooltip";
 import {
   listInventoryItemSuppliers,
-  syncInventoryItemSuppliers,
   type InventorySupplier,
 } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
@@ -76,6 +74,8 @@ type ProductForm = {
   min_quantity: string;
   initial_quantity: string;
   initial_unit_cost: string;
+  initial_supplier_entity_id: string;
+  initial_reference: string;
   storage_shelf: string;
   storage_level: string;
   storage_compartment: string;
@@ -119,6 +119,7 @@ type ProductFieldErrors = Partial<Record<
   | "min_quantity"
   | "initial_quantity"
   | "initial_unit_cost"
+  | "initial_supplier_entity_id"
   | "ncm"
   | "cest"
   | "cfop_entry"
@@ -161,6 +162,8 @@ function emptyForm(): ProductForm {
     min_quantity: "0",
     initial_quantity: "0",
     initial_unit_cost: "",
+    initial_supplier_entity_id: "",
+    initial_reference: "",
     storage_shelf: "",
     storage_level: "",
     storage_compartment: "",
@@ -375,6 +378,8 @@ export function TabProducts({
       min_quantity: String(displayStockValue(inventory?.min_quantity, unit, factor)),
       initial_quantity: "0",
       initial_unit_cost: "",
+      initial_supplier_entity_id: "",
+      initial_reference: "",
       storage_shelf: inventory?.storage_shelf || "",
       storage_level: inventory?.storage_level || "",
       storage_compartment: inventory?.storage_compartment || "",
@@ -472,6 +477,13 @@ export function TabProducts({
     if (!editItem && initialUnitCost !== null && initialUnitCost < 0) {
       errors.initial_unit_cost = "O custo inicial não pode ser negativo.";
     }
+    if (
+      !editItem
+      && form.initial_supplier_entity_id
+      && !linkedSuppliers.some(supplier => supplier.id === form.initial_supplier_entity_id)
+    ) {
+      errors.initial_supplier_entity_id = "O fornecedor do saldo inicial precisa estar vinculado ao item.";
+    }
 
     if (form.ncm && !/^\d{1,8}$/.test(form.ncm)) errors.ncm = "NCM deve ter até 8 dígitos.";
     if (form.cest && !/^\d{7}$/.test(form.cest)) errors.cest = "CEST deve ter 7 dígitos.";
@@ -505,7 +517,7 @@ export function TabProducts({
 
     if (Object.keys(errors).length > 0) {
       if (errors.name || errors.barcode) setEditorTab("general");
-      else if (errors.price || errors.conversion_factor || errors.min_quantity || errors.initial_quantity || errors.initial_unit_cost) setEditorTab("commercial");
+      else if (errors.price || errors.conversion_factor || errors.min_quantity || errors.initial_quantity || errors.initial_unit_cost || errors.initial_supplier_entity_id) setEditorTab("commercial");
       else if (errors.compare_at_price) setEditorTab("catalog");
       else setEditorTab("fiscal");
       return false;
@@ -566,7 +578,7 @@ export function TabProducts({
         updated_by: user?.id || null,
       };
 
-      const savedProductId = await saveCompleteProduct(
+      await saveCompleteProduct(
         activeOrganizationId,
         editItem?.id,
         payload,
@@ -577,23 +589,19 @@ export function TabProducts({
           storage_shelf: form.storage_shelf.trim() || null,
           storage_level: form.storage_level.trim() || null,
           storage_compartment: form.storage_compartment.trim() || null,
+          ...(canManageSuppliers ? {
+            supplier_entity_ids: linkedSuppliers
+              .filter(supplier => supplier.is_active !== false)
+              .map(supplier => supplier.id),
+          } : {}),
+          initial_supplier_entity_id: !editItem && canManageSuppliers
+            ? (form.initial_supplier_entity_id || null)
+            : null,
+          initial_reference: !editItem ? (form.initial_reference.trim() || null) : null,
         },
         editItem ? 0 : Number(form.initial_quantity || 0),
         editItem ? null : nullableNumber(form.initial_unit_cost),
       );
-
-      if (canManageSuppliers) {
-        const inventoryItemId = editItem?.inventory?.inventory_item_id
-          ? String(editItem.inventory.inventory_item_id)
-          : await getProductInventoryItemId(activeOrganizationId, savedProductId);
-        if (inventoryItemId) {
-          await syncInventoryItemSuppliers(
-            inventoryItemId,
-            linkedSuppliers.filter(supplier => supplier.is_active !== false).map(supplier => supplier.id),
-            activeOrganizationId,
-          );
-        }
-      }
 
       setDrawerOpen(false);
       onRouteChange?.(null, null);
@@ -947,6 +955,36 @@ export function TabProducts({
                     }}
                   />
                 </div>
+
+                {!editItem && Number(form.initial_quantity || 0) > 0 && <div className="grid grid-cols-1 gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-2">
+                  {canManageSuppliers && <div>
+                    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor do saldo inicial</label>
+                    <AdminSelect
+                      value={form.initial_supplier_entity_id}
+                      onValueChange={value => {
+                        setFieldErrors(current => ({ ...current, initial_supplier_entity_id: undefined }));
+                        setForm(current => ({ ...current, initial_supplier_entity_id: value }));
+                      }}
+                      options={[
+                        { value: "", label: "Sem fornecedor informado" },
+                        ...linkedSuppliers
+                          .filter(supplier => supplier.is_active !== false)
+                          .map(supplier => ({ value: supplier.id, label: supplier.name })),
+                      ]}
+                      disabled={saving}
+                      ariaLabel="Fornecedor do saldo inicial"
+                    />
+                    {fieldErrors.initial_supplier_entity_id && <p className="mt-1 text-[10px] font-semibold text-red-600">{fieldErrors.initial_supplier_entity_id}</p>}
+                    {linkedSuppliers.length === 0 && <p className="mt-1 text-[10px] leading-4 text-[#5a6a82]">Vincule fornecedores na aba Fornecedores para selecioná-los aqui.</p>}
+                  </div>}
+                  <FInput
+                    label="Documento / referência do saldo inicial"
+                    value={form.initial_reference}
+                    disabled={saving}
+                    onChange={(event: any) => setForm(current => ({ ...current, initial_reference: event.target.value }))}
+                    placeholder="NF, pedido, inventário inicial..."
+                  />
+                </div>}
 
                 <div className="grid grid-cols-1 gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-3">
                   <FInput label="Estante" value={form.storage_shelf} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_shelf: event.target.value }))} placeholder="Ex.: A" />
