@@ -1,12 +1,92 @@
-import { createTransientSupabaseClient, supabase } from "@/lib/supabase";
+import { createTransientSupabaseClient, supabase, supabaseUrl } from "@/lib/supabase";
 import type { FieldTrackingUnit } from "../domain/field-tracking";
 
 export async function listFieldTrackingUnits(organizationId: string): Promise<FieldTrackingUnit[]> {
-  const { data, error } = await supabase.rpc("list_field_tracking_units_v2", {
+  const { data, error } = await supabase.rpc("list_field_tracking_units_v3", {
     p_organization_id: organizationId,
   });
   if (error) throw error;
   return (data || []) as FieldTrackingUnit[];
+}
+
+export const TRACCAR_INGEST_URL = `${supabaseUrl}/functions/v1/field-tracking-traccar`;
+
+export type TraccarDeviceSetup = {
+  unit_id: string;
+  unit_name: string;
+  device_identifier: string;
+};
+
+export type TraccarForwardIntegration = {
+  configured: boolean;
+  token_hint: string | null;
+  last_received_at: string | null;
+};
+
+export async function createTraccarFieldTrackingUnit(
+  organizationId: string,
+  input: {
+    unitType: "technician" | "vehicle" | "device";
+    name: string;
+    identifierType?: "plate" | "imei" | "serial" | "other" | null;
+    identifierValue?: string | null;
+  },
+): Promise<TraccarDeviceSetup> {
+  const { data, error } = await supabase.rpc("create_traccar_field_tracking_unit_v1", {
+    p_organization_id: organizationId,
+    p_unit_type: input.unitType,
+    p_name: input.name,
+    p_identifier_type: input.identifierType ?? null,
+    p_identifier_value: input.identifierValue ?? null,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.unit_id || !row?.device_identifier) throw new Error("Não foi possível gerar o rastreador Traccar.");
+  return {
+    unit_id: String(row.unit_id),
+    unit_name: input.name,
+    device_identifier: String(row.device_identifier),
+  };
+}
+
+export async function rotateTraccarFieldTrackingIdentifier(
+  organizationId: string,
+  unitId: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("rotate_traccar_field_tracking_identifier_v1", {
+    p_organization_id: organizationId,
+    p_unit_id: unitId,
+  });
+  if (error) throw error;
+  const identifier = String(data || "");
+  if (!identifier) throw new Error("Não foi possível gerar um novo identificador.");
+  return identifier;
+}
+
+export async function getTraccarForwardIntegration(organizationId: string): Promise<TraccarForwardIntegration> {
+  const { data, error } = await supabase.rpc("get_traccar_forward_integration_v1", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    configured: Boolean(row?.configured),
+    token_hint: row?.token_hint ? String(row.token_hint) : null,
+    last_received_at: row?.last_received_at ? String(row.last_received_at) : null,
+  };
+}
+
+export async function rotateTraccarForwardToken(organizationId: string) {
+  const { data, error } = await supabase.rpc("rotate_traccar_forward_token_v1", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.token) throw new Error("Não foi possível gerar o token do Traccar Server.");
+  return {
+    token: String(row.token),
+    token_hint: String(row.token_hint || ""),
+  };
 }
 
 export type FieldTrackingPairing = {
