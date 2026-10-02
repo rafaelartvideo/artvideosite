@@ -277,6 +277,113 @@ body {
 	color: #e8edf5;
 }
 
+/* Dark-mode guard rails for legacy screens and composed Tailwind utilities. */
+.admin-crm.dark input::placeholder,
+.admin-crm.dark textarea::placeholder,
+.dark .admin-crm input::placeholder,
+.dark .admin-crm textarea::placeholder {
+	color: #74839a !important;
+	opacity: 1 !important;
+}
+
+.admin-crm.dark input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+.admin-crm.dark textarea,
+.admin-crm.dark button[role="combobox"],
+.dark .admin-crm input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+.dark .admin-crm textarea,
+.dark .admin-crm button[role="combobox"] {
+	background-color: #101a2a;
+	border-color: rgba(148, 163, 184, 0.22);
+	color: #e8edf5;
+}
+
+.admin-crm.dark input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):hover,
+.admin-crm.dark textarea:hover,
+.admin-crm.dark button[role="combobox"]:hover,
+.dark .admin-crm input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):hover,
+.dark .admin-crm textarea:hover,
+.dark .admin-crm button[role="combobox"]:hover {
+	border-color: rgba(148, 163, 184, 0.34);
+}
+
+.admin-crm.dark input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
+.admin-crm.dark textarea:focus,
+.admin-crm.dark button[role="combobox"]:focus,
+.dark .admin-crm input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
+.dark .admin-crm textarea:focus,
+.dark .admin-crm button[role="combobox"]:focus {
+	background-color: #121e31;
+	border-color: var(--primary);
+}
+
+.admin-crm.dark input:disabled,
+.admin-crm.dark textarea:disabled,
+.admin-crm.dark button[role="combobox"]:disabled,
+.dark .admin-crm input:disabled,
+.dark .admin-crm textarea:disabled,
+.dark .admin-crm button[role="combobox"]:disabled {
+	background-color: #0d1522;
+	color: #718096;
+}
+
+.admin-crm.dark table thead,
+.dark .admin-crm table thead {
+	background-color: #151f30 !important;
+	color: #9eacc0 !important;
+}
+
+.admin-crm.dark table tbody tr,
+.dark .admin-crm table tbody tr {
+	background-color: transparent;
+}
+
+.admin-crm.dark table tbody tr:hover,
+.dark .admin-crm table tbody tr:hover {
+	background-color: #162237 !important;
+}
+
+.admin-crm.dark [class*="hover:bg-[#f8fafc]"]:hover,
+.admin-crm.dark [class*="hover:bg-[#f5f7fa]"]:hover,
+.admin-crm.dark [class*="hover:bg-[#f4f7fb]"]:hover,
+.admin-crm.dark [class*="hover:bg-[#f3f6fa]"]:hover,
+.admin-crm.dark [class*="hover:bg-[#eef1f6]"]:hover,
+.dark .admin-crm [class*="hover:bg-[#f8fafc]"]:hover,
+.dark .admin-crm [class*="hover:bg-[#f5f7fa]"]:hover,
+.dark .admin-crm [class*="hover:bg-[#f4f7fb]"]:hover,
+.dark .admin-crm [class*="hover:bg-[#f3f6fa]"]:hover,
+.dark .admin-crm [class*="hover:bg-[#eef1f6]"]:hover {
+	background-color: #162237 !important;
+}
+
+.admin-crm.dark [class~="text-[#44546a]"],
+.admin-crm.dark [class~="text-[#44546b]"],
+.admin-crm.dark [class~="text-[#4b5d73]"],
+.dark .admin-crm [class~="text-[#44546a]"],
+.dark .admin-crm [class~="text-[#44546b]"],
+.dark .admin-crm [class~="text-[#4b5d73]"] {
+	color: #b1bdd0 !important;
+}
+
+.admin-crm.dark [data-slot="select-content"],
+.admin-crm.dark [data-radix-popper-content-wrapper] [role="listbox"],
+.dark .admin-crm [data-slot="select-content"],
+.dark .admin-crm [data-radix-popper-content-wrapper] [role="listbox"] {
+	background-color: #111827;
+	border-color: rgba(148, 163, 184, 0.18);
+	color: #e8edf5;
+}
+
+.admin-crm.dark [data-slot="select-item"]:focus,
+.dark .admin-crm [data-slot="select-item"]:focus {
+	background-color: var(--primary-soft);
+	color: var(--primary-light);
+}
+
+.admin-crm.dark [data-slot="tabs-list"],
+.dark .admin-crm [data-slot="tabs-list"] {
+	background-color: transparent;
+}
+
 @media (max-width: 767px) {
 	/*
 	 * Mobile browser bars can cover the final controls of the CRM because the
