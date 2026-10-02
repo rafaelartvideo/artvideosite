@@ -30,6 +30,7 @@ import {
   AdminDialog,
   AdminIconButton,
   AdminPage,
+  AdminStickyToolbar,
   BtnPrimary,
   BtnSecondary,
   PageHeader,
@@ -1728,10 +1729,10 @@ export function TabProducts({
         </div>
       </Tabs>
 
-      <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-border bg-card px-5 py-4">
+      <AdminStickyToolbar className="z-10 justify-end">
         <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
         {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
-      </div>
+      </AdminStickyToolbar>
     </AdminPage>
 
     {activeOrganizationId && <ProductLookupDialog
