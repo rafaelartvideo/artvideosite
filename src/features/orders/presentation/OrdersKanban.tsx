@@ -47,16 +47,16 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
             onDrop(column.id);
           }}
           className={cn(
-            "w-full min-w-0 overflow-hidden rounded-xl border bg-[#f8fafc] transition-all md:w-[320px] md:flex-shrink-0",
-            isDragTarget ? "border-primary bg-primary-soft ring-2 ring-primary/10" : "border-[#0d1b2e]/8",
+            "w-full min-w-0 overflow-hidden rounded-xl border bg-muted transition-all md:w-[320px] md:flex-shrink-0",
+            isDragTarget ? "border-primary bg-primary-soft ring-2 ring-primary/10" : "border-border",
           )}
         >
-          <div className="flex items-center justify-between gap-2 border-b border-[#0d1b2e]/8 bg-white px-3 py-2.5 md:px-4 md:py-3">
+          <div className="flex items-center justify-between gap-2 border-b border-border bg-white px-3 py-2.5 md:px-4 md:py-3">
             <div className="flex min-w-0 items-center gap-2">
               <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: column.color }} />
               <span className="truncate text-sm font-bold text-[#0d1b2e]">{column.name}</span>
             </div>
-            <span className="rounded-full bg-[#f5f7fa] px-2 py-0.5 text-[10px] font-bold text-[#5a6a82] md:bg-transparent md:px-0 md:py-0 md:text-xs">{columnOrders.length}</span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-[#5a6a82] md:bg-transparent md:px-0 md:py-0 md:text-xs">{columnOrders.length}</span>
           </div>
 
           <div className="min-h-0 space-y-2 p-2.5 md:min-h-[180px] md:space-y-3 md:p-3">
@@ -70,7 +70,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
                 onDragEnd={() => draggable && onCardDragEnd()}
                 onClick={() => canOpenDetails && onOpen(order)}
                 className={cn(
-                  "rounded-lg border border-[#0d1b2e]/10 bg-white p-3 shadow-sm transition-all",
+                  "rounded-lg border border-border bg-white p-3 shadow-sm transition-all",
                   canOpenDetails && "hover:border-primary/30",
                   draggable && "md:cursor-grab md:active:cursor-grabbing",
                   draggingId === order.id && "scale-[0.98] opacity-45",
@@ -80,7 +80,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
                   {draggable && <GripVertical size={14} className="hidden shrink-0 text-[#5a6a82]/60 md:block" />}
                   <OrderStatusDot status={orderStatus?.name || ""} color={orderStatus?.color} />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs font-black text-primary">{order.os_number || "—"}</span>
-                  {orderStatus?.name && <span className="shrink-0 rounded-full bg-[#f5f7fa] px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#5a6a82]">{orderStatus.name}</span>}
+                  {orderStatus?.name && <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#5a6a82]">{orderStatus.name}</span>}
                 </div>
 
                 <p className="mt-2 truncate text-sm font-semibold text-[#0d1b2e] md:mt-3">{(order.customer as any)?.full_name || "Cliente não informado"}</p>
@@ -95,7 +95,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
                 {order.is_solved && !order.completed_at && !isCancelled(order) && <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
                 {order.cannot_be_solved && !isCancelled(order) && <span className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span>}
 
-                {(canEdit && !order.is_solved && !isCancelled(order) || canCancel(order)) && <div className="mt-3 flex items-center justify-end gap-2 border-t border-[#0d1b2e]/8 pt-3" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
+                {(canEdit && !order.is_solved && !isCancelled(order) || canCancel(order)) && <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-3" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
                   {canEdit && !order.is_solved && !isCancelled(order) && <button type="button" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => onEdit(order)} className="flex min-h-9 cursor-default items-center gap-1 rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-bold text-primary"><Edit2 size={13} /> Editar</button>}
                   {canCancel(order) && <button type="button" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => setCancelTarget(order)} className="flex min-h-9 cursor-default items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50"><Ban size={13} /> Cancelar</button>}
                 </div>}
