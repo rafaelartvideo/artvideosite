@@ -297,7 +297,7 @@ function EditorTabTrigger({
 }) {
   return <TabsTrigger
     value={value}
-    className="h-10 shrink-0 rounded-lg border border-transparent bg-transparent px-3 text-xs font-bold text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-primary-soft data-[state=active]:text-primary"
+    className="group relative h-10 shrink-0 rounded-none border-0 bg-transparent px-3 text-xs font-bold text-muted-foreground shadow-none transition-colors hover:bg-transparent hover:text-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:scale-x-0 after:transition-transform after:duration-300 data-[state=active]:after:scale-x-100"
   >
     <Icon size={14} />
     {children}
@@ -917,8 +917,8 @@ export function TabProducts({
       fullPage
     >
       <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0">
-        <div className="border-b border-border bg-card px-4 pt-4 sm:px-5">
-          <TabsList className="h-auto max-w-full gap-1 overflow-x-auto bg-transparent p-0 pb-3">
+        <div className="border-b border-border px-4 py-4 sm:px-5">
+          <TabsList className="mx-auto h-auto w-fit max-w-full gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5">
             <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
             <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
             {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
