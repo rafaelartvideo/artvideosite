@@ -717,3 +717,50 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
   background: #111827;
   color: #e8edf5;
 }
+
+
+/* Mantém todas as camadas internas do Leaflet presas ao card do Mapa de Campo.
+   O Leaflet usa z-index altos por padrão (até 1000), então sem esse isolamento
+   panes, controles e popups podem ultrapassar selects e dialogs portaled. */
+.field-tracking-map-shell {
+  isolation: isolate;
+  z-index: 0;
+}
+
+.field-tracking-map {
+  isolation: isolate;
+  z-index: 0 !important;
+}
+
+.field-tracking-map .leaflet-map-pane {
+  z-index: 0 !important;
+}
+
+.field-tracking-map .leaflet-tile-pane {
+  z-index: 1 !important;
+}
+
+.field-tracking-map .leaflet-overlay-pane {
+  z-index: 2 !important;
+}
+
+.field-tracking-map .leaflet-shadow-pane {
+  z-index: 3 !important;
+}
+
+.field-tracking-map .leaflet-marker-pane {
+  z-index: 4 !important;
+}
+
+.field-tracking-map .leaflet-tooltip-pane {
+  z-index: 5 !important;
+}
+
+.field-tracking-map .leaflet-popup-pane {
+  z-index: 6 !important;
+}
+
+.field-tracking-map .leaflet-top,
+.field-tracking-map .leaflet-bottom {
+  z-index: 7 !important;
+}
