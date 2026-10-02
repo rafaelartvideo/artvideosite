@@ -134,7 +134,18 @@ export function AdminDashboard({
 
   return <Suspense fallback={<AdminPanelLoader progress={99} status="Carregando painel" />}>
     <AdminPageContext.Provider value={{ page, setPage }}>
-    <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader page={page} sidebarOpen={sidebarOpen} activeOrganizationId={activeOrganizationId} activeOrganizationName={activeOrganizationName} onToggleSidebar={() => setSidebarOpen(current => !current)} />}>
+    <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader
+      page={page}
+      sidebarOpen={sidebarOpen}
+      activeOrganizationId={activeOrganizationId}
+      activeOrganizationName={activeOrganizationName}
+      userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
+      roleName={roleName}
+      canOpenSettings={canAccessTab("settings")}
+      onOpenSettings={() => navigateAdmin("settings")}
+      onSignOut={() => signOut()}
+      onToggleSidebar={() => setSidebarOpen(current => !current)}
+    />}>
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
         {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes key={activeTab}>
             <Route index element={<TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
