@@ -384,6 +384,78 @@ body {
 	background-color: transparent;
 }
 
+/* Colored feedback/status surfaces stay saturated without turning into light blocks. */
+.admin-crm.dark [class~="bg-emerald-50"],
+.admin-crm.dark [class~="bg-emerald-100"],
+.dark .admin-crm [class~="bg-emerald-50"],
+.dark .admin-crm [class~="bg-emerald-100"] {
+	background-color: rgba(16, 185, 129, 0.14) !important;
+}
+.admin-crm.dark [class~="text-emerald-800"],
+.admin-crm.dark [class~="text-emerald-700"],
+.dark .admin-crm [class~="text-emerald-800"],
+.dark .admin-crm [class~="text-emerald-700"] {
+	color: #6ee7b7 !important;
+}
+.admin-crm.dark [class~="border-emerald-200"],
+.dark .admin-crm [class~="border-emerald-200"] {
+	border-color: rgba(52, 211, 153, 0.32) !important;
+}
+
+.admin-crm.dark [class~="bg-red-50"],
+.admin-crm.dark [class~="bg-red-100"],
+.dark .admin-crm [class~="bg-red-50"],
+.dark .admin-crm [class~="bg-red-100"] {
+	background-color: rgba(239, 68, 68, 0.13) !important;
+}
+.admin-crm.dark [class~="text-red-800"],
+.admin-crm.dark [class~="text-red-700"],
+.dark .admin-crm [class~="text-red-800"],
+.dark .admin-crm [class~="text-red-700"] {
+	color: #fca5a5 !important;
+}
+.admin-crm.dark [class~="border-red-200"],
+.dark .admin-crm [class~="border-red-200"] {
+	border-color: rgba(248, 113, 113, 0.32) !important;
+}
+
+.admin-crm.dark [class~="bg-amber-50"],
+.admin-crm.dark [class~="bg-amber-100"],
+.dark .admin-crm [class~="bg-amber-50"],
+.dark .admin-crm [class~="bg-amber-100"] {
+	background-color: rgba(245, 158, 11, 0.13) !important;
+}
+.admin-crm.dark [class~="text-amber-800"],
+.admin-crm.dark [class~="text-amber-700"],
+.dark .admin-crm [class~="text-amber-800"],
+.dark .admin-crm [class~="text-amber-700"] {
+	color: #fcd34d !important;
+}
+.admin-crm.dark [class~="border-amber-200"],
+.dark .admin-crm [class~="border-amber-200"] {
+	border-color: rgba(251, 191, 36, 0.30) !important;
+}
+
+/* Lifecycle pills generated dynamically by AdminFeedback. */
+.admin-crm.dark span[data-lifecycle-status="active"],
+.dark .admin-crm span[data-lifecycle-status="active"] {
+	color: #6ee7b7 !important;
+	background: rgba(16,185,129,.14) !important;
+	border-color: rgba(52,211,153,.30) !important;
+}
+.admin-crm.dark span[data-lifecycle-status="disabled"],
+.dark .admin-crm span[data-lifecycle-status="disabled"] {
+	color: #fca5a5 !important;
+	background: rgba(239,68,68,.13) !important;
+	border-color: rgba(248,113,113,.30) !important;
+}
+.admin-crm.dark span[data-lifecycle-status="inactive"],
+.dark .admin-crm span[data-lifecycle-status="inactive"] {
+	color: #fcd34d !important;
+	background: rgba(245,158,11,.13) !important;
+	border-color: rgba(251,191,36,.28) !important;
+}
+
 @media (max-width: 767px) {
 	/*
 	 * Mobile browser bars can cover the final controls of the CRM because the
