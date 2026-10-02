@@ -1,10 +1,11 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
+import { getPendingOrganizationTerms, type PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
 
 declare const __APP_TARGET__: "site" | "crm" | "combined";
 declare const __PUBLIC_SITE_URL__: string;
@@ -58,8 +59,8 @@ function CaptureFallback() {
   return <StandaloneFallback text="Carregando captura..." />;
 }
 
-function AdminFallback() {
-  return <AdminPanelLoader />;
+function AdminFallback({ progress = 12, status = "Carregando painel" }: { progress?: number; status?: string }) {
+  return <AdminPanelLoader progress={progress} status={status} />;
 }
 
 function AdminAccessMessage({
@@ -171,9 +172,32 @@ function CombinedApplication() {
 }
 
 function AdminEntry() {
-  const { session, loading, activeOrganization, organizations, accessError, refreshAccess, signOut, setActiveOrganization } = useAuth();
+  const {
+    session,
+    loading,
+    loadingProgress,
+    activeOrganization,
+    organizations,
+    accessError,
+    refreshAccess,
+    signOut,
+    setActiveOrganization,
+  } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [termsRevision, setTermsRevision] = useState(0);
+  const [termsBootstrap, setTermsBootstrap] = useState<{
+    organizationId: string | null;
+    status: "idle" | "loading" | "ready" | "error";
+    pending: PendingOrganizationTerm[];
+    error: string | null;
+  }>({
+    organizationId: null,
+    status: "idle",
+    pending: [],
+    error: null,
+  });
+
   const requestedOrganizationId = new URLSearchParams(location.search).get("org");
   const canOpenRequestedOrganization = Boolean(
     requestedOrganizationId
@@ -188,13 +212,64 @@ function AdminEntry() {
     && canOpenRequestedOrganization
     && activeOrganization?.organization_id !== requestedOrganizationId,
   );
+  const activeOrganizationId = activeOrganization?.organization_id ?? null;
 
   useEffect(() => {
     if (!shouldSwitchOrganization || !requestedOrganizationId) return;
     void setActiveOrganization(requestedOrganizationId);
   }, [shouldSwitchOrganization, requestedOrganizationId, setActiveOrganization]);
 
-  if (loading || shouldSwitchOrganization) return <AdminFallback />;
+  useEffect(() => {
+    if (!session?.user.id || loading || accessError || shouldSwitchOrganization || !activeOrganizationId) return;
+
+    let cancelled = false;
+    setTermsBootstrap({
+      organizationId: activeOrganizationId,
+      status: "loading",
+      pending: [],
+      error: null,
+    });
+
+    void getPendingOrganizationTerms(activeOrganizationId)
+      .then(pending => {
+        if (cancelled) return;
+        setTermsBootstrap({
+          organizationId: activeOrganizationId,
+          status: "ready",
+          pending,
+          error: null,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTermsBootstrap({
+          organizationId: activeOrganizationId,
+          status: "error",
+          pending: [],
+          error: "Não foi possível verificar os termos obrigatórios desta empresa. Tente novamente.",
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    session?.user.id,
+    loading,
+    accessError,
+    shouldSwitchOrganization,
+    activeOrganizationId,
+    termsRevision,
+  ]);
+
+  if (loading || shouldSwitchOrganization) {
+    return (
+      <AdminFallback
+        progress={shouldSwitchOrganization ? Math.max(92, loadingProgress) : loadingProgress}
+        status={shouldSwitchOrganization ? "Trocando empresa" : "Carregando painel"}
+      />
+    );
+  }
 
   const handleBackToSite = () => {
     if (APP_TARGET === "crm") {
@@ -204,29 +279,62 @@ function AdminEntry() {
     navigate("/");
   };
 
-  return (
-    <Suspense fallback={<AdminFallback />}>
-      {!session ? (
+  if (!session) {
+    return (
+      <Suspense fallback={<AdminFallback progress={100} status="Abrindo acesso" />}>
         <AdminLogin onLoginSuccess={() => undefined} />
-      ) : accessError ? (
-        <AdminAccessMessage
-          title="Não foi possível carregar seu acesso"
-          message={accessError}
-          userEmail={session.user.email}
-          onRetry={refreshAccess}
-          onSignOut={signOut}
-        />
-      ) : !activeOrganization ? (
-        <AdminAccessMessage
-          title="Acesso à empresa indisponível"
-          message="Sua conta não está vinculada a uma empresa ativa ou o acesso foi bloqueado pelo administrador."
-          userEmail={session.user.email}
-          onRetry={refreshAccess}
-          onSignOut={signOut}
-        />
-      ) : (
-        <AdminDashboard onBackToSite={handleBackToSite} />
-      )}
+      </Suspense>
+    );
+  }
+
+  if (accessError) {
+    return (
+      <AdminAccessMessage
+        title="Não foi possível carregar seu acesso"
+        message={accessError}
+        userEmail={session.user.email}
+        onRetry={refreshAccess}
+        onSignOut={signOut}
+      />
+    );
+  }
+
+  if (!activeOrganization) {
+    return (
+      <AdminAccessMessage
+        title="Acesso à empresa indisponível"
+        message="Sua conta não está vinculada a uma empresa ativa ou o acesso foi bloqueado pelo administrador."
+        userEmail={session.user.email}
+        onRetry={refreshAccess}
+        onSignOut={signOut}
+      />
+    );
+  }
+
+  const termsStateMatchesOrganization = termsBootstrap.organizationId === activeOrganizationId;
+
+  if (!termsStateMatchesOrganization || termsBootstrap.status === "idle" || termsBootstrap.status === "loading") {
+    return <AdminFallback progress={95} status="Preparando painel" />;
+  }
+
+  if (termsBootstrap.status === "error") {
+    return (
+      <AdminAccessMessage
+        title="Não foi possível concluir o carregamento"
+        message={termsBootstrap.error || "Não foi possível verificar os termos obrigatórios."}
+        userEmail={session.user.email}
+        onRetry={() => setTermsRevision(current => current + 1)}
+        onSignOut={signOut}
+      />
+    );
+  }
+
+  return (
+    <Suspense fallback={<AdminFallback progress={99} status="Finalizando painel" />}>
+      <AdminDashboard
+        onBackToSite={handleBackToSite}
+        pendingTerms={termsBootstrap.pending}
+      />
     </Suspense>
   );
 }
