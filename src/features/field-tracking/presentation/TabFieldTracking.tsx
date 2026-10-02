@@ -7,7 +7,8 @@ import {
   MapPinned,
   Navigation,
   Plus,
-  QrCode,
+  Server,
+  Settings2,
   Smartphone,
   UserRound,
   Wifi,
@@ -36,13 +37,17 @@ import {
   type FieldTrackingUnitType,
 } from "../domain/field-tracking";
 import {
-  createFieldTrackingPairing,
-  createFieldTrackingUnit,
+  createTraccarFieldTrackingUnit,
+  getTraccarForwardIntegration,
   listFieldTrackingUnits,
+  rotateTraccarFieldTrackingIdentifier,
+  rotateTraccarForwardToken,
   stopMyFieldTracking,
   subscribeFieldTracking,
+  TRACCAR_INGEST_URL,
   updateMyFieldLocation,
-  type FieldTrackingPairing,
+  type TraccarDeviceSetup,
+  type TraccarForwardIntegration,
 } from "../infrastructure/field-tracking.repository";
 import {
   isFieldTrackingEnabled,
@@ -59,6 +64,7 @@ const TYPE_OPTIONS = [
 ];
 
 const MANAGED_TYPE_OPTIONS = [
+  { value: "technician", label: "Técnico" },
   { value: "vehicle", label: "Veículo" },
   { value: "device", label: "Celular / dispositivo" },
 ];
@@ -176,11 +182,15 @@ export function TabFieldTracking() {
   const [trackingBusy, setTrackingBusy] = useState(false);
   const [trackerDialogOpen, setTrackerDialogOpen] = useState(false);
   const [trackerSaving, setTrackerSaving] = useState(false);
-  const [pairing, setPairing] = useState<FieldTrackingPairing | null>(null);
+  const [traccarSetup, setTraccarSetup] = useState<TraccarDeviceSetup | null>(null);
+  const [serverDialogOpen, setServerDialogOpen] = useState(false);
+  const [serverBusy, setServerBusy] = useState(false);
+  const [serverToken, setServerToken] = useState("");
+  const [serverInfo, setServerInfo] = useState<TraccarForwardIntegration | null>(null);
   const [trackerForm, setTrackerForm] = useState({
     name: "",
-    unitType: "vehicle" as "vehicle" | "device",
-    identifierType: "plate" as "" | "plate" | "imei" | "serial" | "other",
+    unitType: "technician" as "technician" | "vehicle" | "device",
+    identifierType: "imei" as "" | "plate" | "imei" | "serial" | "other",
     identifierValue: "",
   });
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -289,11 +299,11 @@ export function TabFieldTracking() {
   };
 
   const openNewTracker = () => {
-    setPairing(null);
+    setTraccarSetup(null);
     setTrackerForm({
       name: "",
-      unitType: "vehicle",
-      identifierType: "plate",
+      unitType: "technician",
+      identifierType: "imei",
       identifierValue: "",
     });
     setTrackerDialogOpen(true);
@@ -302,22 +312,21 @@ export function TabFieldTracking() {
   const handleCreateTracker = async () => {
     if (!activeOrganizationId || !canManage || !trackerForm.name.trim()) return;
     const identifier = trackerForm.identifierValue.trim();
-    if (trackerForm.identifierType === "imei" && !/^\d{15}$/.test(identifier.replace(/\D/g, ""))) {
+    if (trackerForm.identifierType === "imei" && identifier && !/^\d{15}$/.test(identifier.replace(/\D/g, ""))) {
       setToast({ msg: "IMEI deve possuir 15 dígitos.", type: "error" });
       return;
     }
 
     setTrackerSaving(true);
     try {
-      const unitId = await createFieldTrackingUnit(activeOrganizationId, {
+      const setup = await createTraccarFieldTrackingUnit(activeOrganizationId, {
         unitType: trackerForm.unitType,
         name: trackerForm.name.trim(),
         identifierType: trackerForm.identifierType || null,
         identifierValue: identifier || null,
       });
-      const nextPairing = await createFieldTrackingPairing(activeOrganizationId, unitId);
-      setPairing(nextPairing);
-      setToast({ msg: "Rastreador criado. Faça o pareamento no dispositivo.", type: "success" });
+      setTraccarSetup(setup);
+      setToast({ msg: "Rastreador criado. Configure estes dados no Traccar Client.", type: "success" });
       await unitsQuery.refetch();
     } catch (error) {
       setToast({ msg: `Não foi possível criar o rastreador: ${systemErrorMessage(error)}`, type: "error" });
@@ -326,25 +335,60 @@ export function TabFieldTracking() {
     }
   };
 
-  const regeneratePairing = async (unit: FieldTrackingUnit) => {
-    if (!activeOrganizationId || !canManage || unit.unit_type === "technician") return;
+  const regenerateTraccarIdentifier = async (unit: FieldTrackingUnit) => {
+    if (!activeOrganizationId || !canManage) return;
     setTrackerSaving(true);
     try {
-      const nextPairing = await createFieldTrackingPairing(activeOrganizationId, unit.id);
-      setPairing(nextPairing);
+      const identifier = await rotateTraccarFieldTrackingIdentifier(activeOrganizationId, unit.id);
+      setTraccarSetup({
+        unit_id: unit.id,
+        unit_name: unit.name,
+        device_identifier: identifier,
+      });
       setTrackerDialogOpen(true);
+      setToast({ msg: "Novo identificador gerado. O identificador anterior deixou de funcionar.", type: "success" });
+      await unitsQuery.refetch();
     } catch (error) {
-      setToast({ msg: `Não foi possível gerar o pareamento: ${systemErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Não foi possível gerar um novo identificador: ${systemErrorMessage(error)}`, type: "error" });
     } finally {
       setTrackerSaving(false);
     }
   };
 
-  const pairingUrl = pairing && typeof window !== "undefined"
-    ? `${window.location.origin}/rastreador/${encodeURIComponent(pairing.pairing_token)}`
-    : "";
+  const openServerConfig = async () => {
+    if (!activeOrganizationId || !canManage) return;
+    setServerDialogOpen(true);
+    setServerToken("");
+    setServerBusy(true);
+    try {
+      setServerInfo(await getTraccarForwardIntegration(activeOrganizationId));
+    } catch (error) {
+      setToast({ msg: `Não foi possível carregar a integração: ${systemErrorMessage(error)}`, type: "error" });
+    } finally {
+      setServerBusy(false);
+    }
+  };
 
-  const copyPairing = async (value: string, label: string) => {
+  const rotateServerToken = async () => {
+    if (!activeOrganizationId || !canManage) return;
+    setServerBusy(true);
+    try {
+      const result = await rotateTraccarForwardToken(activeOrganizationId);
+      setServerToken(result.token);
+      setServerInfo(current => ({
+        configured: true,
+        token_hint: result.token_hint,
+        last_received_at: current?.last_received_at ?? null,
+      }));
+      setToast({ msg: "Token do Traccar Server gerado. Copie agora; ele não será exibido novamente.", type: "success" });
+    } catch (error) {
+      setToast({ msg: `Não foi possível gerar o token: ${systemErrorMessage(error)}`, type: "error" });
+    } finally {
+      setServerBusy(false);
+    }
+  };
+
+  const copyValue = async (value: string, label: string) => {
     try {
       await navigator.clipboard.writeText(value);
       setToast({ msg: `${label} copiado.`, type: "success" });
@@ -353,14 +397,21 @@ export function TabFieldTracking() {
     }
   };
 
+  const traccarForwardSnippet = serverToken
+    ? `<entry key='forward.type'>json</entry>\n<entry key='forward.url'>${TRACCAR_INGEST_URL}</entry>\n<entry key='forward.header'>Authorization: Bearer ${serverToken}</entry>\n<entry key='forward.retry.enable'>true</entry>`
+    : "";
+
   return <div className="min-w-0 space-y-4">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <PageHeader
       title="Mapa de Campo"
-      subtitle="Localização operacional de técnicos e rastreadores vinculados à empresa."
+      subtitle="Rastreamento em tempo real por Traccar Client, Traccar Server e dispositivos vinculados."
       actions={(canShare || canManage) ? <div className="flex flex-wrap justify-end gap-2">
-        {canManage && <AdminButton variant="secondary" onClick={openNewTracker}>
+        {canManage && <AdminButton variant="secondary" onClick={() => void openServerConfig()}>
+          <Settings2 size={15} /> Traccar Server
+        </AdminButton>}
+        {canManage && <AdminButton variant="primary" onClick={openNewTracker}>
           <Plus size={15} /> Novo rastreador
         </AdminButton>}
         {canShare && <AdminButton
@@ -370,7 +421,7 @@ export function TabFieldTracking() {
           onClick={() => trackingEnabled ? void disableTracking() : enableTracking()}
         >
           {trackingEnabled ? <WifiOff size={15} /> : <Navigation size={15} />}
-          {trackingEnabled ? "Pausar neste dispositivo" : "Rastrear este dispositivo"}
+          {trackingEnabled ? "Pausar teste" : "Teste pelo navegador"}
         </AdminButton>}
       </div> : undefined}
     />
@@ -380,8 +431,8 @@ export function TabFieldTracking() {
         <p className="text-sm font-black text-foreground">Compartilhamento deste dispositivo</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {trackingEnabled
-            ? `${profile?.full_name || "Seu usuário"} está enviando a localização enquanto o CRM estiver aberto neste dispositivo.`
-            : "Ative somente quando este dispositivo estiver em atendimento externo ou deslocamento de campo."}
+            ? `${profile?.full_name || "Seu usuário"} está enviando a localização pelo navegador. Para uso contínuo em segundo plano, prefira o Traccar Client.`
+            : "Esta opção serve como teste rápido. Para o uso diário em campo, cadastre o aparelho em Novo rastreador e configure o Traccar Client."}
         </p>
       </div>
       <span className={cn(
@@ -459,7 +510,8 @@ export function TabFieldTracking() {
                         <div className="min-w-[170px]">
                           <strong>{unit.name}</strong>
                           <div>{fieldTrackingStatusLabel(status)} · {formatLastSeen(unit.last_seen_at)}</div>
-                          {unit.device_label && <div>{unit.device_label}</div>}
+                          <div>{unit.tracking_provider === "traccar_client" ? "Traccar Client" : unit.tracking_provider === "traccar_server" ? "Traccar Server" : "Navegador"}</div>
+                          {unit.battery_level != null && <div>Bateria: {Math.round(Number(unit.battery_level))}%{unit.charging ? " · carregando" : ""}</div>}
                           {unit.accuracy_m != null && <div>Precisão: ~{Math.round(Number(unit.accuracy_m))} m</div>}
                         </div>
                       </Popup>
@@ -513,23 +565,24 @@ export function TabFieldTracking() {
                             ? `${unit.identifier_type === "plate" ? "Placa" : unit.identifier_type === "imei" ? "IMEI" : unit.identifier_type === "serial" ? "Série" : "ID"}: ${unit.identifier_value}`
                             : unit.device_label || (unit.unit_type === "vehicle" ? "Veículo" : unit.unit_type === "device" ? "Dispositivo" : "Técnico")}
                         </span>
-                        <span className="mt-1.5 flex items-center gap-2">
+                        <span className="mt-1.5 flex flex-wrap items-center gap-2">
                           <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide", statusClasses(status))}>
                             {fieldTrackingStatusLabel(status)}
                           </span>
                           <span className="text-[9px] font-semibold text-muted-foreground">{formatLastSeen(unit.last_seen_at)}</span>
+                          {unit.battery_level != null && <span className="text-[9px] font-semibold text-muted-foreground">{Math.round(Number(unit.battery_level))}% bateria</span>}
                         </span>
                       </span>
                       <Crosshair size={14} className="mt-2 shrink-0 text-primary" />
                     </button>
-                    {canManage && unit.unit_type !== "technician" && <button
+                    {canManage && unit.tracking_provider !== "native" && <button
                       type="button"
-                      onClick={() => void regeneratePairing(unit)}
-                      title="Gerar novo QR de pareamento"
-                      aria-label={`Parear ${unit.name}`}
+                      onClick={() => void regenerateTraccarIdentifier(unit)}
+                      title="Gerar novo identificador do Traccar Client"
+                      aria-label={`Reconfigurar ${unit.name} no Traccar Client`}
                       className="flex w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition-colors hover:text-primary"
                     >
-                      <QrCode size={15} />
+                      <Smartphone size={15} />
                     </button>}
                   </div>;
                 })}
@@ -542,7 +595,7 @@ export function TabFieldTracking() {
         </AdminCard>
 
         <p className="text-[10px] leading-5 text-muted-foreground">
-          O navegador pode reduzir ou interromper atualizações em segundo plano no celular. Para rastreamento contínuo com a tela bloqueada, use um dispositivo dedicado com a página do rastreador ativa ou integre um equipamento GPS/OBD por API.
+          Para técnicos e celulares corporativos, use o Traccar Client com o identificador gerado pelo CRM. O rastreamento pelo navegador acima fica apenas como alternativa de teste.
         </p>
       </>
     )}
@@ -552,21 +605,21 @@ export function TabFieldTracking() {
       onClose={() => {
         if (trackerSaving) return;
         setTrackerDialogOpen(false);
-        setPairing(null);
+        setTraccarSetup(null);
       }}
-      title={pairing ? `Parear ${pairing.unit_name}` : "Novo rastreador"}
-      description={pairing
-        ? "Abra o QR no dispositivo que ficará no veículo/celular. O código é de uso único e expira em 15 minutos."
-        : "Cadastre um veículo ou dispositivo. IMEI, placa e número de série servem somente como identificação; a localização vem do GPS."}
-      className="max-w-lg"
+      title={traccarSetup ? `Configurar ${traccarSetup.unit_name}` : "Novo rastreador"}
+      description={traccarSetup
+        ? "Copie os dados abaixo para o Traccar Client instalado no celular. O identificador é exclusivo deste rastreador."
+        : "Cadastre o técnico, veículo ou dispositivo. O CRM gera automaticamente um identificador seguro para o Traccar Client."}
+      className="max-w-xl"
     >
-      {!pairing ? <div className="space-y-4">
+      {!traccarSetup ? <div className="space-y-4">
         <FInput
           label="Nome do rastreador"
           value={trackerForm.name}
           disabled={trackerSaving}
           onChange={(event: any) => setTrackerForm(current => ({ ...current, name: event.target.value }))}
-          placeholder={trackerForm.unitType === "vehicle" ? "Ex.: Carro 01" : "Ex.: Celular técnico 02"}
+          placeholder={trackerForm.unitType === "vehicle" ? "Ex.: Carro 01" : trackerForm.unitType === "technician" ? "Ex.: João - Técnico" : "Ex.: Celular técnico 02"}
         />
         <div className="grid gap-4 sm:grid-cols-2">
           <FSelect
@@ -574,7 +627,7 @@ export function TabFieldTracking() {
             value={trackerForm.unitType}
             disabled={trackerSaving}
             onChange={(event: any) => {
-              const nextType = event.target.value as "vehicle" | "device";
+              const nextType = event.target.value as "technician" | "vehicle" | "device";
               setTrackerForm(current => ({
                 ...current,
                 unitType: nextType,
@@ -585,7 +638,7 @@ export function TabFieldTracking() {
             options={MANAGED_TYPE_OPTIONS}
           />
           <FSelect
-            label="Identificador"
+            label="Identificador físico"
             value={trackerForm.identifierType}
             disabled={trackerSaving}
             onChange={(event: any) => setTrackerForm(current => ({
@@ -597,7 +650,7 @@ export function TabFieldTracking() {
           />
         </div>
         {trackerForm.identifierType && <FInput
-          label={trackerForm.identifierType === "imei" ? "IMEI" : trackerForm.identifierType === "plate" ? "Placa" : trackerForm.identifierType === "serial" ? "Número de série" : "Identificador"}
+          label={trackerForm.identifierType === "imei" ? "IMEI (opcional)" : trackerForm.identifierType === "plate" ? "Placa (opcional)" : trackerForm.identifierType === "serial" ? "Número de série (opcional)" : "Identificador (opcional)"}
           value={trackerForm.identifierValue}
           disabled={trackerSaving}
           onChange={(event: any) => setTrackerForm(current => ({
@@ -606,8 +659,11 @@ export function TabFieldTracking() {
               ? String(event.target.value).replace(/\D/g, "").slice(0, 15)
               : event.target.value,
           }))}
-          placeholder={trackerForm.identifierType === "imei" ? "15 dígitos" : trackerForm.identifierType === "plate" ? "ABC1D23" : "Identificação opcional"}
+          placeholder={trackerForm.identifierType === "imei" ? "15 dígitos" : trackerForm.identifierType === "plate" ? "ABC1D23" : "Identificação física"}
         />}
+        <p className="text-xs leading-5 text-muted-foreground">
+          IMEI, placa e série servem apenas para identificar o equipamento. A autenticação do rastreamento usa um ID aleatório gerado pelo Union World.
+        </p>
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <AdminButton variant="secondary" disabled={trackerSaving} onClick={() => setTrackerDialogOpen(false)}>Cancelar</AdminButton>
           <AdminButton
@@ -616,32 +672,121 @@ export function TabFieldTracking() {
             disabled={!trackerForm.name.trim()}
             onClick={() => void handleCreateTracker()}
           >
-            Criar e gerar QR
+            Criar rastreador
           </AdminButton>
         </div>
       </div> : <div className="space-y-4">
-        <div className="mx-auto flex w-fit rounded-2xl border border-border bg-white p-4">
-          <QRCodeSVG value={pairingUrl} size={210} level="M" />
-        </div>
-        <div className="rounded-xl border border-border bg-muted/50 p-4 text-center">
-          <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Código de pareamento</p>
-          <p className="mt-1 font-mono text-2xl font-black tracking-[0.18em] text-foreground">{pairing.pairing_code}</p>
-          <p className="mt-2 text-[10px] text-muted-foreground">
-            Expira às {new Date(pairing.expires_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.
+        <div className="rounded-xl border border-primary/20 bg-primary-soft/50 p-4">
+          <p className="text-xs font-black text-foreground">No Traccar Client</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Instale o app no celular e preencha exatamente os dois campos abaixo. Depois ative o serviço de rastreamento no aplicativo.
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <AdminButton variant="secondary" onClick={() => void copyPairing(pairing.pairing_code, "Código")}>
-            <Copy size={14} /> Copiar código
+
+        <div>
+          <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Server URL</p>
+          <div className="flex gap-2">
+            <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-border bg-muted px-3 py-2.5 text-xs text-foreground">{TRACCAR_INGEST_URL}</code>
+            <AdminButton variant="secondary" className="shrink-0" onClick={() => void copyValue(TRACCAR_INGEST_URL, "Server URL")}>
+              <Copy size={14} />
+            </AdminButton>
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Device identifier</p>
+          <div className="flex gap-2">
+            <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-border bg-muted px-3 py-2.5 font-mono text-xs font-black text-foreground">{traccarSetup.device_identifier}</code>
+            <AdminButton variant="secondary" className="shrink-0" onClick={() => void copyValue(traccarSetup.device_identifier, "Device identifier")}>
+              <Copy size={14} />
+            </AdminButton>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border p-4">
+          <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Configuração recomendada</p>
+          <div className="mt-2 grid gap-2 text-xs text-foreground sm:grid-cols-2">
+            <span><strong>Precisão:</strong> High</span>
+            <span><strong>Distância:</strong> 30 m</span>
+            <span><strong>Intervalo:</strong> 30 s</span>
+            <span><strong>Status:</strong> Serviço ligado</span>
+          </div>
+        </div>
+
+        <p className="text-xs leading-5 text-muted-foreground">
+          Guarde o Device Identifier no aplicativo. Por segurança o valor completo não fica visível depois que este modal for fechado; se precisar configurar outro aparelho, gere um novo identificador pelo ícone de celular na lista.
+        </p>
+
+        <div className="flex justify-end border-t border-border pt-4">
+          <AdminButton onClick={() => {
+            setTrackerDialogOpen(false);
+            setTraccarSetup(null);
+          }}>Concluir</AdminButton>
+        </div>
+      </div>}
+    </AdminDialog>
+
+    <AdminDialog
+      open={serverDialogOpen}
+      onClose={() => {
+        if (serverBusy) return;
+        setServerDialogOpen(false);
+        setServerToken("");
+      }}
+      title="Traccar Server"
+      description="Opcional. Use quando quiser concentrar celulares e rastreadores GPS físicos em um servidor Traccar antes de encaminhar as posições ao Union World."
+      className="max-w-2xl"
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-border p-4">
+            <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Integração</p>
+            <p className="mt-1 text-sm font-black text-foreground">{serverInfo?.configured ? "Configurada" : "Não configurada"}</p>
+            {serverInfo?.token_hint && <p className="mt-1 text-xs text-muted-foreground">Token atual termina em •••{serverInfo.token_hint}</p>}
+          </div>
+          <div className="rounded-xl border border-border p-4">
+            <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Última posição recebida</p>
+            <p className="mt-1 text-sm font-black text-foreground">
+              {serverInfo?.last_received_at
+                ? new Date(serverInfo.last_received_at).toLocaleString("pt-BR")
+                : "Nenhuma ainda"}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Forward URL</p>
+          <div className="flex gap-2">
+            <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-border bg-muted px-3 py-2.5 text-xs text-foreground">{TRACCAR_INGEST_URL}</code>
+            <AdminButton variant="secondary" onClick={() => void copyValue(TRACCAR_INGEST_URL, "Forward URL")}><Copy size={14} /></AdminButton>
+          </div>
+        </div>
+
+        {serverToken && <div>
+          <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Novo token — copie agora</p>
+          <div className="flex gap-2">
+            <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-border bg-muted px-3 py-2.5 font-mono text-xs text-foreground">{serverToken}</code>
+            <AdminButton variant="secondary" onClick={() => void copyValue(serverToken, "Token")}><Copy size={14} /></AdminButton>
+          </div>
+        </div>}
+
+        {traccarForwardSnippet && <div>
+          <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground">traccar.xml</p>
+          <pre className="max-h-52 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-muted p-4 text-[11px] leading-5 text-foreground">{traccarForwardSnippet}</pre>
+          <AdminButton variant="secondary" className="mt-2" onClick={() => void copyValue(traccarForwardSnippet, "Configuração")}>
+            <Copy size={14} /> Copiar configuração
           </AdminButton>
-          <AdminButton variant="secondary" onClick={() => void copyPairing(pairingUrl, "Link")}>
-            <Copy size={14} /> Copiar link
+        </div>}
+
+        <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs leading-5 text-muted-foreground">
+            Gerar um novo token invalida o token anterior e exige atualizar o Traccar Server.
+          </p>
+          <AdminButton loading={serverBusy} loadingText="Gerando..." onClick={() => void rotateServerToken()}>
+            <Server size={14} /> {serverInfo?.configured ? "Gerar novo token" : "Gerar token"}
           </AdminButton>
         </div>
-        <p className="text-xs leading-5 text-muted-foreground">
-          No celular ou dispositivo, abra o QR/link, autorize a localização e toque em ativar. Depois do primeiro pareamento, este QR não pode ser reutilizado.
-        </p>
-      </div>}
+      </div>
     </AdminDialog>
   </div>;
 }
