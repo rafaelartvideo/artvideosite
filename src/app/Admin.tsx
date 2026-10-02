@@ -32,6 +32,8 @@ const TabAuditLog = lazy(() => import("@/features/audit/presentation/TabAuditLog
 const GeneralServicesPanel = lazy(() => import("@/features/general-services/presentation/GeneralServicesPanel").then(({ GeneralServicesPanel }) => ({ default: GeneralServicesPanel })));
 const TabInventory = lazy(() => import("@/features/inventory/presentation/TabInventory").then(({ TabInventory }) => ({ default: TabInventory })));
 const TabFinance = lazy(() => import("@/features/finance/presentation/TabFinance").then(({ TabFinance }) => ({ default: TabFinance })));
+const TabFieldTracking = lazy(() => import("@/features/field-tracking/presentation/TabFieldTracking").then(({ TabFieldTracking }) => ({ default: TabFieldTracking })));
+const FieldTrackingReporter = lazy(() => import("@/features/field-tracking/presentation/FieldTrackingReporter").then(({ FieldTrackingReporter }) => ({ default: FieldTrackingReporter })));
 const OrderStatusesAdminPanel = lazy(() => import("@/features/order-statuses/presentation/OrderStatusesAdminPanel").then(({ OrderStatusesAdminPanel }) => ({ default: OrderStatusesAdminPanel })));
 const TabPdv = lazy(() => import("@/features/pdv/presentation/TabPdv").then(({ TabPdv }) => ({ default: TabPdv })));
 const TabQuotes = lazy(() => import("@/features/quotes/presentation/TabQuotes").then(({ TabQuotes }) => ({ default: TabQuotes })));
@@ -50,7 +52,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "dashboard", "orders", "customers", "agenda", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "terms", "contact",
+  "dashboard", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "terms", "contact",
 ];
 
 function NoEnabledModules() {
@@ -82,6 +84,7 @@ export function AdminDashboard({
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
+    if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled(tab, hasModule);
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
     if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
@@ -199,6 +202,7 @@ export function AdminDashboard({
               ? <UnionOrderMonitor initialOrderId={route.resourceId} onOrderRouteChange={orderId => orderId ? navigateOrderRoute(orderId) : closeOrderRoute()} />
               : <TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={navigateOrderRoute} onOrderRouteClose={closeOrderRoute} />} />
             <Route path="agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
+            <Route path="field-map/*" element={<TabFieldTracking />} />
             <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
             <Route path="products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />
@@ -209,6 +213,7 @@ export function AdminDashboard({
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>}
       </div>
+      <FieldTrackingReporter />
       <TermsAcceptanceGate initialPending={pendingTerms} />
     </AdminLayout>
     </AdminPageContext.Provider>
