@@ -15,7 +15,7 @@ import {
 } from "../infrastructure/quotes.repository";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { initialOrderStatus } from "@/features/orders/domain/order-status";
-import { AdminButton, AdminCard, AdminPage, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminPage, AdminStickyToolbar, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { cn, formatCnpj, formatCpf, formatPhone, formatCurrency, formatDateTime } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -265,7 +265,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
         <Section title="Dados pessoais / empresariais"><div className="grid min-w-0 gap-3 sm:grid-cols-2"><InfoRow label="Tipo" value={(detail.customer as any)?.customer_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} />{(detail.customer as any)?.customer_type === "PJ" ? <><InfoRow label="Nome fantasia" value={(detail.customer as any)?.trade_name || (detail.customer as any)?.full_name} /><InfoRow label="Razão social" value={(detail.customer as any)?.legal_name} /><InfoRow label="CNPJ" value={(detail.customer as any)?.cnpj ? formatCnpj((detail.customer as any).cnpj) : null} /></> : <><InfoRow label="Nome completo" value={(detail.customer as any)?.full_name} /><InfoRow label="CPF" value={(detail.customer as any)?.document ? formatCpf((detail.customer as any).document) : null} /></>}<InfoRow label="E-mail" value={(detail.customer as any)?.email} /><InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)} /><InfoRow label="WhatsApp" value={formatPhone((detail.customer as any)?.whatsapp)} /></div></Section>
         <Section title="Dados do orçamento"><div className="grid min-w-0 gap-3 sm:grid-cols-2"><InfoRow label="Protocolo" value={detail.protocol || detail.id} /><InfoRow label="Serviço" value={(detail.service as any)?.title} /><InfoRow label="Marca" value={(detail.brand as any)?.name} /><InfoRow label="Produto" value={(detail.product as any)?.name} /><InfoRow label="Data de criação" value={formatDateTime(detail.created_at)} /><InfoRow label="Valor estimado" value={detail.estimated_price == null ? null : formatCurrency(detail.estimated_price)} /></div>{detail.customer_message && <div className="mt-4"><InfoRow label="Mensagem do cliente" value={detail.customer_message} /></div>}</Section>
       </div>
-      <div className="sticky bottom-0 flex flex-col gap-2 border-t border-[#0d1b2e]/8 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertToOrder && <AdminButton className="w-full sm:w-auto" onClick={async () => {
+      <AdminStickyToolbar className="flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertToOrder && <AdminButton className="w-full sm:w-auto" onClick={async () => {
         const { data: existing } = await findServiceOrderByQuote(organizationId, detail.id);
         if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
         const { data: availableStatuses, error: statusError } = await listOrderStatuses(organizationId);
@@ -277,7 +277,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
         setToast({ msg: "OS criada com sucesso e vinculada ao orçamento.", type: "success" });
         await syncQuotes();
         onNavigate?.("orders");
-      }}><ClipboardList size={13} /> Converter em OS</AdminButton>}</div><BtnSecondary onClick={closeDetails} className="w-full sm:w-auto">Fechar</BtnSecondary></div>
+      }}><ClipboardList size={13} /> Converter em OS</AdminButton>}</div><BtnSecondary onClick={closeDetails} className="w-full sm:w-auto">Fechar</BtnSecondary></AdminStickyToolbar>
     </AdminPage>}
   </div>;
 }
