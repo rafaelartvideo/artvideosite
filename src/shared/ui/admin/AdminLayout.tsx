@@ -138,9 +138,9 @@ export function AdminIconButton({
       ? rawLabel.replace(/^ativar/i, "Ativar")
       : rawLabel;
   const activeStateClass = activeStateAction === "deactivate"
-    ? "border border-red-200 bg-white text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+    ? "border border-red-500/35 bg-card text-red-500 hover:border-red-500/55 hover:bg-red-500/10 hover:text-red-500"
     : activeStateAction === "activate"
-      ? "border border-emerald-200 bg-white text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+      ? "border border-emerald-500/35 bg-card text-emerald-500 hover:border-emerald-500/55 hover:bg-emerald-500/10 hover:text-emerald-500"
       : "";
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = event => {
