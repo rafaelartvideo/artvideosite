@@ -53,18 +53,18 @@ export function AdminSidebar({
     return hasPermission(permission) && isAdminModuleEnabled(tab, hasModule);
   };
 
-  const selectedTab = parentAdminTab(activeTab) || activeTab;
+  const selectedTab = activeTab === "fieldTracking" ? "tools" : (parentAdminTab(activeTab) || activeTab);
   const canAccessSite = hasPermission("site.view") && siteItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
   const canAccessOperation = operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
-  const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization;
+  const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization || canAccessTab("fieldTracking");
   const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));
   const dashboardItems = visibleMainItems.filter(item => item.id === "dashboard");
   const serviceItems = visibleMainItems.filter(item =>
-    ["quotes", "orders", "customers", "agenda", "fieldTracking"].includes(item.id),
+    ["quotes", "orders", "customers", "agenda"].includes(item.id),
   );
   const commercialItems = visibleMainItems.filter(item =>
     ["inventory", "pdv", "finance"].includes(item.id),
