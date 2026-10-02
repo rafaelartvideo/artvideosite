@@ -110,7 +110,7 @@ export function AdminSidebar({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <nav className="space-y-0.5 px-3 py-4">
+        <nav className="space-y-1 px-3 py-4">
           {mainItems.filter((item) => canAccessTab(item.id as AdminTab)).map((item) => (
             <SidebarItem
               key={item.id}
@@ -152,7 +152,7 @@ export function AdminSidebar({
             />
           )}
 
-          <div className={cn("space-y-0.5", collapsed ? "pt-2" : "pt-3")}>
+          <div className={cn("space-y-1", collapsed ? "pt-2" : "pt-3")}>
             {utilityItems.filter((item) => canAccessTab(item.id as AdminTab)).map((item) => (
               <SidebarItem
                 key={item.id}
