@@ -178,10 +178,13 @@ function Metric({
 }
 
 export function TabFieldTracking() {
-  const { user, activeOrganizationId, hasPermission } = useAuth();
+  const { user, employee, activeOrganizationId, hasPermission, hasModule } = useAuth();
   const queryClient = useQueryClient();
+  const locationRequired = hasModule("field_tracking")
+    && employee?.is_active !== false
+    && employee?.field_tracking_prompt_on_login === true;
   const canView = hasPermission("field_tracking.view");
-  const canShare = hasPermission("field_tracking.share");
+  const canShare = hasPermission("field_tracking.share") || locationRequired;
   const canManage = hasPermission("field_tracking.manage");
   const [now, setNow] = useState(Date.now());
   const [typeFilter, setTypeFilter] = useState("");
