@@ -13,3 +13,9 @@ verify_jwt = false
 # O checklist móvel usa autenticação manual: JWT no desktop e token temporário no celular.
 [functions.order-mobile-checklist]
 verify_jwt = false
+
+
+# O rastreador pareado usa uma credencial própria gerada por QR/código.
+# A Edge Function valida essa credencial antes de aceitar coordenadas.
+[functions.field-tracking-device]
+verify_jwt = false
