@@ -1,7 +1,7 @@
 import { MapPin } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
-import { AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { formatCnpj, formatCpf, formatDateOnly, formatPhone } from "@/shared/domain/formatters";
 import { usernameFromAuthEmail } from "@/features/auth/domain/username";
@@ -139,10 +139,10 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
       </div>
     </div>
 
-    <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
+    <AdminStickyToolbar className="flex-wrap justify-end gap-2">
       <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>
       {roles.includes("customer") && selected.legacy_customer_id && onOpenCustomerHistory && <BtnSecondary onClick={() => onOpenCustomerHistory(selected.legacy_customer_id!)}>Ficha do cliente</BtnSecondary>}
       {canEdit && <BtnPrimary onClick={onEdit}>Editar</BtnPrimary>}
-    </div>
+    </AdminStickyToolbar>
   </AdminPage>;
 }
