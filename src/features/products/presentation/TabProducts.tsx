@@ -64,6 +64,7 @@ import {
   findOrCreateInventoryBrand,
   findOrCreateInventoryCategory,
   loadProductGallery,
+  resolveProductMediaImage,
   type ImportedProductImage,
 } from "../infrastructure/product-lookup.repository";
 import {
@@ -1608,10 +1609,15 @@ export function TabProducts({
                   organizationId={activeOrganizationId || undefined}
                   currentMediaId={null}
                   onUpload={mediaId => {
-                    setGalleryMedia(current => current.some(image => image.media_id === mediaId)
-                      ? current
-                      : [...current, { media_id: mediaId, public_url: "" }].slice(0, 10));
                     setForm(current => ({ ...current, cover_media_id: current.cover_media_id || mediaId }));
+                    if (!activeOrganizationId) return;
+                    void resolveProductMediaImage(activeOrganizationId, mediaId)
+                      .then(image => {
+                        setGalleryMedia(current => current.some(entry => entry.media_id === image.media_id)
+                          ? current
+                          : [...current, image].slice(0, 10));
+                      })
+                      .catch(error => setToast({ msg: `Imagem enviada, mas não foi possível carregar a prévia: ${systemErrorMessage(error)}`, type: "error" }));
                   }}
                   canUpload={!saving && (editItem ? canEdit : canCreate) && galleryMedia.length < 10}
                   label="Adicionar foto à galeria"
