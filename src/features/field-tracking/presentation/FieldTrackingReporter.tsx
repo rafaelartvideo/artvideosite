@@ -10,12 +10,12 @@ function preferenceKey(organizationId: string, userId: string) {
   return `field-tracking:${organizationId}:${userId}`;
 }
 
-function loginPromptKey(
+function requiredVerificationKey(
   organizationId: string,
   userId: string,
   lastSignInAt?: string | null,
 ) {
-  return `field-tracking-login-prompt:${organizationId}:${userId}:${lastSignInAt || "session"}`;
+  return `field-tracking-required:${organizationId}:${userId}:${lastSignInAt || "session"}`;
 }
 
 export function isFieldTrackingEnabled(organizationId?: string | null, userId?: string | null) {
@@ -53,7 +53,7 @@ function positionPayload(position: GeolocationPosition) {
 
 function geolocationErrorMessage(error: GeolocationPositionError) {
   if (error.code === error.PERMISSION_DENIED) {
-    return "A permissão de localização foi recusada. Autorize a localização deste site no navegador e tente novamente.";
+    return "A permissão de localização foi recusada.";
   }
   if (error.code === error.POSITION_UNAVAILABLE) {
     return "O dispositivo não conseguiu determinar sua localização. Verifique se a localização do aparelho está ligada.";
@@ -68,35 +68,39 @@ export function FieldTrackingReporter() {
     activeOrganizationId,
     hasPermission,
     hasModule,
+    signOut,
   } = useAuth();
   const [preferenceVersion, setPreferenceVersion] = useState(0);
-  const [promptVersion, setPromptVersion] = useState(0);
+  const [verificationVersion, setVerificationVersion] = useState(0);
   const [activationBusy, setActivationBusy] = useState(false);
-  const [promptError, setPromptError] = useState("");
+  const [gateError, setGateError] = useState("");
+  const [secondsLeft, setSecondsLeft] = useState(60);
   const lastSentAtRef = useRef(0);
+  const signingOutRef = useRef(false);
 
-  const canShare = hasPermission("field_tracking.share");
-  const enabled = useMemo(
+  const locationRequired = hasModule("field_tracking")
+    && employee?.is_active !== false
+    && employee?.field_tracking_prompt_on_login === true;
+
+  const canShare = hasPermission("field_tracking.share") || locationRequired;
+
+  const optionalEnabled = useMemo(
     () => isFieldTrackingEnabled(activeOrganizationId, user?.id),
     [activeOrganizationId, user?.id, preferenceVersion],
   );
 
-  const promptKey = useMemo(() => {
-    if (!activeOrganizationId || !user?.id) return "";
-    return loginPromptKey(activeOrganizationId, user.id, user.last_sign_in_at);
-  }, [activeOrganizationId, user?.id, user?.last_sign_in_at]);
+  const verificationKey = useMemo(() => {
+    if (!locationRequired || !activeOrganizationId || !user?.id) return "";
+    return requiredVerificationKey(activeOrganizationId, user.id, user.last_sign_in_at);
+  }, [locationRequired, activeOrganizationId, user?.id, user?.last_sign_in_at]);
 
-  const promptOnLogin = hasModule("field_tracking")
-    && employee?.is_active !== false
-    && employee?.field_tracking_prompt_on_login === true
-    && canShare;
+  const requiredVerified = useMemo(() => {
+    if (!locationRequired || !verificationKey || typeof window === "undefined") return false;
+    return window.localStorage.getItem(verificationKey) === "1";
+  }, [locationRequired, verificationKey, verificationVersion]);
 
-  const promptDismissed = useMemo(() => {
-    if (!promptKey || typeof window === "undefined") return false;
-    return window.sessionStorage.getItem(promptKey) === "dismissed";
-  }, [promptKey, promptVersion]);
-
-  const showPrompt = promptOnLogin && !enabled && !promptDismissed;
+  const enabled = locationRequired ? requiredVerified : optionalEnabled;
+  const showRequiredGate = locationRequired && !requiredVerified;
 
   useEffect(() => {
     const handlePreference = () => setPreferenceVersion(value => value + 1);
@@ -104,15 +108,52 @@ export function FieldTrackingReporter() {
     return () => window.removeEventListener(FIELD_TRACKING_PREFERENCE_EVENT, handlePreference);
   }, []);
 
+  useEffect(() => {
+    signingOutRef.current = false;
+    if (!showRequiredGate) {
+      setSecondsLeft(60);
+      return;
+    }
+
+    const deadline = Date.now() + 60_000;
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining === 0 && !signingOutRef.current) {
+        signingOutRef.current = true;
+        void signOut();
+      }
+    };
+
+    updateCountdown();
+    const interval = window.setInterval(updateCountdown, 250);
+    const timeout = window.setTimeout(() => {
+      if (signingOutRef.current) return;
+      signingOutRef.current = true;
+      void signOut();
+    }, 60_000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") updateCountdown();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [showRequiredGate, activeOrganizationId, user?.id, signOut]);
+
   const activateBrowserTracking = useCallback(async () => {
     if (!activeOrganizationId || !user?.id || !canShare || activationBusy) return;
     if (!navigator.geolocation) {
-      setPromptError("Este navegador não disponibiliza geolocalização. Use um navegador ou dispositivo compatível.");
+      setGateError("Este navegador não disponibiliza geolocalização. Use um navegador ou dispositivo compatível.");
       return;
     }
 
     setActivationBusy(true);
-    setPromptError("");
+    setGateError("");
 
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -126,24 +167,35 @@ export function FieldTrackingReporter() {
       await updateMyFieldLocation(activeOrganizationId, positionPayload(position));
       lastSentAtRef.current = Date.now();
       setFieldTrackingEnabled(activeOrganizationId, user.id, true);
-      if (promptKey) window.sessionStorage.removeItem(promptKey);
-      setPromptVersion(value => value + 1);
+
+      if (locationRequired && verificationKey) {
+        window.localStorage.setItem(verificationKey, "1");
+        setVerificationVersion(value => value + 1);
+      }
     } catch (error) {
       if (error && typeof error === "object" && "code" in error) {
-        setPromptError(geolocationErrorMessage(error as GeolocationPositionError));
+        const geoError = error as GeolocationPositionError;
+        if (locationRequired && geoError.code === geoError.PERMISSION_DENIED) {
+          signingOutRef.current = true;
+          void signOut();
+          return;
+        }
+        setGateError(geolocationErrorMessage(geoError));
       } else {
-        setPromptError("Não foi possível iniciar o compartilhamento da localização. Tente novamente.");
+        setGateError("Não foi possível iniciar o compartilhamento da localização. Tente novamente.");
       }
     } finally {
       setActivationBusy(false);
     }
-  }, [activeOrganizationId, user?.id, canShare, activationBusy, promptKey]);
-
-  const dismissPrompt = useCallback(() => {
-    if (promptKey) window.sessionStorage.setItem(promptKey, "dismissed");
-    setPromptError("");
-    setPromptVersion(value => value + 1);
-  }, [promptKey]);
+  }, [
+    activeOrganizationId,
+    user?.id,
+    canShare,
+    activationBusy,
+    locationRequired,
+    verificationKey,
+    signOut,
+  ]);
 
   useEffect(() => {
     if (!activeOrganizationId || !user?.id || !canShare || !enabled || !navigator.geolocation) return;
@@ -156,10 +208,23 @@ export function FieldTrackingReporter() {
         void updateMyFieldLocation(activeOrganizationId, positionPayload(position)).catch(() => undefined);
       },
       error => {
-        if (error.code !== error.PERMISSION_DENIED) return;
         setFieldTrackingEnabled(activeOrganizationId, user.id, false);
-        setPromptError(geolocationErrorMessage(error));
-        setPromptVersion(value => value + 1);
+
+        if (locationRequired) {
+          if (verificationKey) window.localStorage.removeItem(verificationKey);
+          setGateError(geolocationErrorMessage(error));
+          setVerificationVersion(value => value + 1);
+
+          if (error.code === error.PERMISSION_DENIED && !signingOutRef.current) {
+            signingOutRef.current = true;
+            void signOut();
+          }
+          return;
+        }
+
+        if (error.code === error.PERMISSION_DENIED) {
+          setPreferenceVersion(value => value + 1);
+        }
       },
       {
         enableHighAccuracy: true,
@@ -169,9 +234,17 @@ export function FieldTrackingReporter() {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [activeOrganizationId, user?.id, canShare, enabled]);
+  }, [
+    activeOrganizationId,
+    user?.id,
+    canShare,
+    enabled,
+    locationRequired,
+    verificationKey,
+    signOut,
+  ]);
 
-  if (!showPrompt) return null;
+  if (!showRequiredGate) return null;
 
   return <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
     <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
@@ -181,29 +254,36 @@ export function FieldTrackingReporter() {
             <MapPin size={21} />
           </span>
           <div className="min-w-0">
-            <h2 className="text-lg font-black text-foreground">Compartilhar localização</h2>
+            <h2 className="text-lg font-black text-foreground">Localização obrigatória</h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Esta empresa utiliza o Mapa de Campo e solicita sua localização durante o uso do sistema.
+              O compartilhamento da localização é obrigatório para este usuário enquanto estiver usando o sistema.
             </p>
           </div>
         </div>
       </div>
 
       <div className="space-y-4 p-5">
-        <div className="rounded-xl border border-border bg-muted/60 p-4">
-          <p className="text-sm font-bold text-foreground">Deseja ativar a localização neste navegador?</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Ao ativar, sua posição será enviada ao Mapa de Campo enquanto este navegador estiver compartilhando a localização.
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <p className="text-sm font-black">Ative a localização do navegador para continuar.</p>
+          <p className="mt-1 text-xs leading-5">
+            Se você recusar a permissão, sua sessão será encerrada imediatamente. Se não ativar a localização em até 1 minuto, o sistema também fará logout automaticamente.
           </p>
         </div>
 
-        {promptError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
-          {promptError}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
+          <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tempo restante</span>
+          <strong className="font-mono text-lg font-black text-foreground">
+            00:{String(secondsLeft).padStart(2, "0")}
+          </strong>
+        </div>
+
+        {gateError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+          {gateError}
         </div>}
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <AdminButton variant="secondary" disabled={activationBusy} onClick={dismissPrompt}>
-            Agora não
+          <AdminButton variant="secondary" disabled={activationBusy} onClick={() => void signOut()}>
+            Sair
           </AdminButton>
           <AdminButton
             loading={activationBusy}
