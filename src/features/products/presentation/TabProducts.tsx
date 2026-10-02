@@ -2,22 +2,26 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowLeftRight,
   CircleHelp,
   Edit2,
   FileText,
   Image as ImageIcon,
+  List,
   Package,
   Plus,
   Search,
   ShoppingBag,
   Star,
   Trash2,
+  Truck,
   Warehouse,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   deleteProduct,
+  getProductInventoryItemId,
   loadProductCatalog,
   saveCompleteProduct,
   updateProductFlags,
@@ -52,8 +56,14 @@ import { ImageUpload, ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/primitives/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/primitives/tooltip";
+import {
+  listInventoryItemSuppliers,
+  syncInventoryItemSuppliers,
+  type InventorySupplier,
+} from "@/features/inventory/infrastructure/inventory.repository";
+import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
 
-type ProductEditorTab = "general" | "commercial" | "fiscal" | "photos" | "catalog";
+type ProductEditorTab = "general" | "commercial" | "suppliers" | "fiscal" | "photos" | "catalog";
 
 type ProductForm = {
   name: string;
@@ -264,21 +274,25 @@ export function TabProducts({
   const { user, activeOrganization, activeOrganizationId, hasPermission } = useAuth();
   const isArtvideoTenant = activeOrganization?.is_artvideo_tenant === true;
 
-  const canViewTable = hasPermission("products.table.view");
-  const canViewDetails = hasPermission("products.details.view");
-  const canCreate = hasPermission("products.create");
-  const canEdit = hasPermission("products.update");
+  const canViewTable = hasPermission("products.table.view") || hasPermission("inventory.table.view");
+  const canViewDetails = hasPermission("products.details.view") || hasPermission("inventory.details.view");
+  const canCreate = hasPermission("products.create") || hasPermission("inventory.create");
+  const canEdit = hasPermission("products.update") || hasPermission("inventory.update");
   const canDelete = hasPermission("products.delete");
-  const canToggleActive = hasPermission("products.toggle_active");
+  const canToggleActive = hasPermission("products.toggle_active") || hasPermission("inventory.toggle_active");
+  const canViewMovements = hasPermission("inventory.movements.view");
+  const canCreateMovements = hasPermission("inventory.movements.create");
+  const canViewSuppliers = hasPermission("inventory.suppliers.view") || hasPermission("inventory.suppliers.manage");
+  const canManageSuppliers = hasPermission("inventory.suppliers.manage");
   const canToggleFeatured = isArtvideoTenant && hasPermission("products.toggle_featured");
   const canViewCosts = hasPermission("inventory.costs.view");
 
-  const showProduct = hasPermission("products.table.product");
+  const showProduct = hasPermission("products.table.product") || hasPermission("inventory.table.name");
   const showCategory = isArtvideoTenant && hasPermission("products.table.category");
-  const showPrice = hasPermission("products.table.price");
+  const showPrice = hasPermission("products.table.price") || hasPermission("inventory.table.sale_price");
   const showFeatured = isArtvideoTenant && hasPermission("products.table.featured");
-  const showStatus = hasPermission("products.table.status");
-  const showActions = hasPermission("products.table.actions");
+  const showStatus = hasPermission("products.table.status") || hasPermission("inventory.table.status");
+  const showActions = hasPermission("products.table.actions") || hasPermission("inventory.table.actions");
 
   const canLoadCategories = isArtvideoTenant && hasPermission("categories.view");
   const canLoadBrands = isArtvideoTenant && hasPermission("brands.view");
@@ -309,6 +323,7 @@ export function TabProducts({
   const [form, setForm] = useState<ProductForm>(() => emptyForm());
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [saving, setSaving] = useState(false);
+  const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
 
   useEffect(() => {
     if (catalogQuery.error) {
@@ -338,6 +353,7 @@ export function TabProducts({
     setFieldErrors({});
     setForm(emptyForm());
     setEditItem(null);
+    setLinkedSuppliers([]);
     setEditorTab("general");
     setDrawerOpen(true);
   };
@@ -397,6 +413,15 @@ export function TabProducts({
       brand_id: product.brand_id || "",
     });
     setEditItem(product);
+    setLinkedSuppliers([]);
+    if (canViewSuppliers && inventory?.inventory_item_id && activeOrganizationId) {
+      void listInventoryItemSuppliers(String(inventory.inventory_item_id), activeOrganizationId)
+        .then(setLinkedSuppliers)
+        .catch(error => {
+          setLinkedSuppliers([]);
+          setToast({ msg: `Erro ao carregar fornecedores: ${systemErrorMessage(error)}`, type: "error" });
+        });
+    }
     setEditorTab("general");
     setDrawerOpen(true);
   };
@@ -545,7 +570,7 @@ export function TabProducts({
         updated_by: user?.id || null,
       };
 
-      await saveCompleteProduct(
+      const savedProductId = await saveCompleteProduct(
         activeOrganizationId,
         editItem?.id,
         payload,
@@ -560,6 +585,19 @@ export function TabProducts({
         editItem ? 0 : Number(form.initial_quantity || 0),
         editItem ? null : nullableNumber(form.initial_unit_cost),
       );
+
+      if (canManageSuppliers) {
+        const inventoryItemId = editItem?.inventory?.inventory_item_id
+          ? String(editItem.inventory.inventory_item_id)
+          : await getProductInventoryItemId(activeOrganizationId, savedProductId);
+        if (inventoryItemId) {
+          await syncInventoryItemSuppliers(
+            inventoryItemId,
+            linkedSuppliers.filter(supplier => supplier.is_active !== false).map(supplier => supplier.id),
+            activeOrganizationId,
+          );
+        }
+      }
 
       setDrawerOpen(false);
       onRouteChange?.(null, null);
@@ -629,16 +667,16 @@ export function TabProducts({
 
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {delId && <ConfirmDialog message="Excluir este produto? O item e o histórico de estoque serão preservados, mas deixarão de estar vinculados ao produto." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
+    {delId && <ConfirmDialog message="Excluir este cadastro? O histórico de movimentações do estoque será preservado, mas o item deixará de estar disponível para vendas e PDV." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
 
     {!routeResourceId && <>
       <PageHeader
-        title="Produtos"
-        subtitle={`${products.length} produto${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`}
-        actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo produto</AdminButton> : undefined}
+        title="Estoque"
+        subtitle={`${products.length} item${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""} · cadastro, saldo, fornecedores, fiscal e vendas no mesmo lugar`}
+        actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo item</AdminButton> : undefined}
       />
 
-      {canViewTable && <AdminSearchPanel title="Buscar produtos">
+      {canViewTable && <AdminSearchPanel title="Buscar no estoque">
         <div className="relative max-w-xl">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
           <input
@@ -654,10 +692,10 @@ export function TabProducts({
         {loading ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState
             icon={Package}
-            title={search ? "Nenhum resultado" : "Nenhum produto cadastrado"}
-            message="Cadastre produtos completos para vendas, estoque, PDV e dados fiscais."
+            title={search ? "Nenhum resultado" : "Nenhum item cadastrado"}
+            message="Cadastre o item uma única vez para estoque, vendas, PDV, dados fiscais e catálogo quando aplicável."
             onAdd={canCreate ? openNewPage : undefined}
-            addLabel="Novo produto"
+            addLabel="Novo item"
           />
         ) : (
           <div className="overflow-x-auto">
@@ -668,6 +706,8 @@ export function TabProducts({
                   {showCategory && <th className="text-left">Categoria</th>}
                   {showPrice && <th className="text-left">Preço</th>}
                   <th className="text-left">Estoque</th>
+                  <th className="text-left">Local</th>
+                  {canViewCosts && <th className="text-left">Custo médio</th>}
                   {showFeatured && <th className="text-left">Destaque</th>}
                   {showStatus && <th className="text-left">Status</th>}
                   {showActions && <th className="text-right">Ações</th>}
@@ -702,6 +742,12 @@ export function TabProducts({
                       </div>
                       <div className="text-[10px] text-[#7a8aa0]">mín. {formatNumber(minStock)} {unit}</div>
                     </td>
+                    <td className="text-xs text-[#5a6a82]">
+                      {[item?.storage_shelf, item?.storage_level, item?.storage_compartment].filter(Boolean).join(" · ") || "—"}
+                    </td>
+                    {canViewCosts && <td className="text-xs font-bold text-[#0d1b2e]">
+                      {displayUnitCost(item?.average_cost, unit, factor) == null ? "—" : formatCurrency(displayUnitCost(item?.average_cost, unit, factor))}
+                    </td>}
                     {showFeatured && <td>
                       {product.show_in_catalog ? (
                         canToggleFeatured
@@ -714,9 +760,11 @@ export function TabProducts({
                     {showStatus && <td><StatusBadge status={product.is_active ? "Ativo" : "Inativo"} /></td>}
                     {showActions && <td>
                       <div className="flex items-center justify-end gap-1">
-                        {canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar produto" title="Editar" onClick={() => openEditPage(product)}><Edit2 size={15} /></AdminIconButton>}
-                        {canDelete && <AdminIconButton ariaLabel="Excluir produto" title="Excluir" variant="danger" onClick={() => setDelId(product.id)}><Trash2 size={15} /></AdminIconButton>}
-                        {canToggleActive && <AdminActiveStateButton active={product.is_active} entityLabel="produto" onClick={() => void toggleActive(product)} />}
+                        {canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar item" title="Editar cadastro" onClick={() => openEditPage(product)}><Edit2 size={15} /></AdminIconButton>}
+                        {canViewMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Histórico do estoque" title="Histórico" onClick={() => onRouteChange?.(String(item.inventory_item_id), "history")}><List size={15} /></AdminIconButton>}
+                        {canCreateMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Movimentar estoque" title="Movimentar" onClick={() => onRouteChange?.(String(item.inventory_item_id), "move")}><ArrowLeftRight size={15} /></AdminIconButton>}
+                        {canDelete && <AdminIconButton ariaLabel="Excluir cadastro" title="Excluir cadastro" variant="danger" onClick={() => setDelId(product.id)}><Trash2 size={15} /></AdminIconButton>}
+                        {canToggleActive && <AdminActiveStateButton active={product.is_active} entityLabel="item" onClick={() => void toggleActive(product)} />}
                       </div>
                     </td>}
                   </tr>;
@@ -741,9 +789,9 @@ export function TabProducts({
     <AdminPage
       open={drawerOpen}
       onClose={closeEditor}
-      breadcrumb="Produtos"
-      title={editItem ? "Editar produto" : "Novo produto"}
-      subtitle="Identificação, preços, estoque, dados fiscais e publicação organizados em abas."
+      breadcrumb="Estoque"
+      title={editItem ? "Editar item" : "Novo item"}
+      subtitle="Cadastro único para identificação, comercial, estoque, fornecedores, fiscal, fotos e catálogo."
       maxW="max-w-6xl"
       fullPage
     >
@@ -752,6 +800,7 @@ export function TabProducts({
           <TabsList className="h-auto max-w-full gap-1 overflow-x-auto bg-transparent p-0 pb-3">
             <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
             <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
+            {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
             <EditorTabTrigger value="fiscal" icon={FileText}>Fiscais</EditorTabTrigger>
             <EditorTabTrigger value="photos" icon={ImageIcon}>Fotos</EditorTabTrigger>
             {isArtvideoTenant && <EditorTabTrigger value="catalog" icon={ShoppingBag}>Catálogo</EditorTabTrigger>}
@@ -760,11 +809,11 @@ export function TabProducts({
 
         <div className="p-4 sm:p-5">
           <TabsContent value="general" className="mt-0">
-            <Section title="Identificação do produto">
+            <Section title="Identificação do item">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <FInput
-                    label="Nome do produto"
+                    label="Nome do item"
                     value={form.name}
                     required
                     disabled={saving}
@@ -773,7 +822,7 @@ export function TabProducts({
                       setFieldErrors(current => ({ ...current, name: undefined }));
                       setForm(current => ({ ...current, name: event.target.value }));
                     }}
-                    placeholder="Nome do produto"
+                    placeholder="Nome do item"
                   />
                 </div>
                 <FInput
@@ -806,8 +855,8 @@ export function TabProducts({
                 </div>
                 <div className="sm:col-span-2">
                   <FToggle
-                    label="Produto ativo"
-                    description="Disponibiliza o produto para vendas, PDV e demais módulos comerciais."
+                    label="Item ativo"
+                    description="Disponibiliza o item para estoque, vendas, PDV e demais módulos comerciais."
                     checked={form.is_active}
                     disabled={saving}
                     onChange={value => setForm(current => ({ ...current, is_active: value }))}
@@ -926,8 +975,17 @@ export function TabProducts({
             </Section>
           </TabsContent>
 
+          {canViewSuppliers && <TabsContent value="suppliers" className="mt-0">
+            <InventorySuppliersEditor
+              organizationId={activeOrganizationId}
+              value={linkedSuppliers}
+              onChange={setLinkedSuppliers}
+              disabled={!canManageSuppliers || saving}
+            />
+          </TabsContent>}
+
           <TabsContent value="fiscal" className="mt-0">
-            <Section title="Dados fiscais do produto">
+            <Section title="Dados fiscais do item">
               <p className="mb-5 text-xs leading-5 text-[#7a8aa0]">
                 Campos usados em NF-e / NFC-e e escrituração de ICMS, PIS/COFINS e IPI. Preencha conforme o regime da empresa e orientação contábil.
               </p>
@@ -1193,9 +1251,9 @@ export function TabProducts({
           </TabsContent>
 
           <TabsContent value="photos" className="mt-0">
-            <Section title="Fotos do produto">
+            <Section title="Fotos do item">
               <p className="mb-4 text-xs leading-5 text-[#7a8aa0]">
-                A foto principal identifica o produto no CRM e pode ser reutilizada no catálogo da Artvideo quando a publicação estiver habilitada.
+                A foto principal identifica o item no CRM e pode ser reutilizada no catálogo da Artvideo quando a publicação estiver habilitada.
               </p>
               <ImageUpload
                 bucket="product-images"
