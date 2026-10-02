@@ -29,6 +29,7 @@ export interface Employee {
   cpf: string;
   phone: string | null;
   function_name: string;
+  field_tracking_required: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
