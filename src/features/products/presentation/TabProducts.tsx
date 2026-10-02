@@ -669,7 +669,7 @@ export function TabProducts({
           <input
             value={search}
             onChange={event => { setSearch(event.target.value); setPage(1); }}
-            placeholder="Nome, SKU ou código de barras"
+            placeholder="Nome, SKU, código de barras ou localização"
             className={cn(INPUT, "h-[42px] w-full pl-9 text-sm md:h-9 md:py-1.5 md:text-xs")}
           />
         </div>
