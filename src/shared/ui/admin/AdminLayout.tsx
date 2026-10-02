@@ -211,7 +211,7 @@ export function AdminStickyToolbar({ className = "", children, ...props }: React
     {...props}
     data-admin-sticky-toolbar="true"
     className={cn(
-      "sticky bottom-0 z-20 flex min-w-0 items-center justify-start gap-3 border-t border-border bg-card px-4 py-4 text-card-foreground sm:px-5",
+      "sticky bottom-0 z-20 flex min-w-0 items-center justify-start gap-3 border-t border-primary bg-card px-4 py-4 text-card-foreground sm:px-5",
       className,
     )}
   >{children}</div>;
