@@ -34,6 +34,7 @@ const MobileOrderEditPage = lazy(() => import("@/features/device-capture/present
 const MobileOrderChecklistPage = lazy(() => import("@/features/checklists/presentation/MobileOrderChecklistPage").then(module => ({ default: module.MobileOrderChecklistPage })));
 const PublicDocumentSignaturePage = lazy(() => import("@/features/document-signature-public/presentation/PublicDocumentSignaturePage").then(module => ({ default: module.PublicDocumentSignaturePage })));
 const PublicDocumentVerificationPage = lazy(() => import("@/features/document-signature-public/presentation/PublicDocumentVerificationPage").then(module => ({ default: module.PublicDocumentVerificationPage })));
+const FieldTrackerDevicePage = lazy(() => import("@/features/field-tracking/presentation/FieldTrackerDevicePage").then(module => ({ default: module.FieldTrackerDevicePage })));
 
 const PUBLIC_PAGE_PATHS: Record<Page, string> = {
   home: "/",
@@ -150,6 +151,8 @@ function CrmApplication() {
       <Route path="/checklist-mobile" element={<Suspense fallback={<StandaloneFallback text="Abrindo checklist da OS..." />}><MobileOrderChecklistPage /></Suspense>} />
       <Route path="/assinatura/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando assinatura..." />}><PublicDocumentSignaturePage /></Suspense>} />
       <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
+      <Route path="/rastreador" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
+      <Route path="/rastreador/:token" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/admin/*" element={<AdminEntry />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
@@ -165,6 +168,8 @@ function CombinedApplication() {
       <Route path="/checklist-mobile" element={<Suspense fallback={<StandaloneFallback text="Abrindo checklist da OS..." />}><MobileOrderChecklistPage /></Suspense>} />
       <Route path="/assinatura/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando assinatura..." />}><PublicDocumentSignaturePage /></Suspense>} />
       <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
+      <Route path="/rastreador" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
+      <Route path="/rastreador/:token" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/admin/*" element={<AdminEntry />} />
       <Route path="/*" element={<PublicRoutes />} />
     </Routes>
