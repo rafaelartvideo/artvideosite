@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, ExternalLink, Globe, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
+import { ArrowLeft, Building2, Globe, PanelLeftClose, PanelLeftOpen, Settings, Wrench } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
@@ -59,17 +59,7 @@ export function AdminSidebar({
   const canAccessOperation = operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
-  const externalLinks = [
-    ...(isArtVideoOrganization
-      ? [
-          { label: "SAC DIGITAL", href: "https://monitor.sac.digital/login" },
-          { label: "UNIQ", href: "https://web.uniq.app/login" },
-        ]
-      : []),
-    ...((isArtVideoOrganization || isPlatformOperatorOrganization)
-      ? [{ label: "FILA", href: "https://testeteste.com.br/painel" }]
-      : []),
-  ];
+  const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -153,6 +143,15 @@ export function AdminSidebar({
             />
           )}
 
+          {canAccessTools && (
+            <SidebarItem
+              item={{ id: "tools", label: "Ferramentas", icon: Wrench }}
+              active={selectedTab === "tools"}
+              collapsed={collapsed}
+              onClick={() => onNavigate("tools")}
+            />
+          )}
+
           <div className={cn("space-y-0.5", collapsed ? "pt-2" : "pt-3")}>
             {utilityItems.filter((item) => canAccessTab(item.id as AdminTab)).map((item) => (
               <SidebarItem
@@ -165,28 +164,6 @@ export function AdminSidebar({
             ))}
           </div>
 
-          {externalLinks.length > 0 && (
-            <section className={cn("border-t border-white/8", collapsed ? "mt-3 pt-3" : "mt-4 pt-4")} aria-label="Sites externos">
-              {!collapsed && <h2 className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-white/40">SITES EXTERNOS</h2>}
-              {externalLinks.map(link => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={collapsed ? link.label : undefined}
-                  aria-label={`${link.label} (abre em nova aba)`}
-                  className={cn(
-                    "flex w-full items-center rounded-lg text-sm font-semibold text-white/60 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light",
-                    collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5 text-left",
-                  )}
-                >
-                  <ExternalLink size={collapsed ? 18 : 17} className="shrink-0" />
-                  {!collapsed && <span>{link.label}</span>}
-                </a>
-              ))}
-            </section>
-          )}
         </nav>
       </div>
 

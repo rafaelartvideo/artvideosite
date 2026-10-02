@@ -89,6 +89,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   contact: "contact.view",
   site: "site.view",
   operation: "operation.view",
+  tools: "dashboard.view",
 };
 
 export const moduleForTab: Record<AdminTab, string | null> = {
@@ -120,6 +121,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   siteSettings: "site_settings",
   site: null,
   operation: null,
+  tools: null,
 };
 
 export const siteModuleKeys = [
@@ -151,6 +153,7 @@ export function isAdminModuleEnabled(
 ) {
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
+  if (tab === "tools") return true;
   if (tab === "customers") return hasModule("customers") || hasModule("employees");
   if (tab === "inventory" || tab === "products") return hasModule("inventory") || hasModule("products");
   const moduleKey = moduleForTab[tab];

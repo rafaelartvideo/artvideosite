@@ -25,6 +25,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   pdv: "/admin/pdv",
   brands: "/admin/site/brands",
   operation: "/admin/operation",
+  tools: "/admin/tools",
   equipment: "/admin/operation/equipment",
   checklists: "/admin/operation/checklists",
   generalServices: "/admin/operation/general-services",

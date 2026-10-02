@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
+import { List, MessageSquare, Phone } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import type { AdminPageState, AdminTab } from "@/features/admin-shell/domain/admin.types";
@@ -49,7 +50,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "dashboard", "orders", "customers", "agenda", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "roles", "settings", "terms", "contact",
+  "dashboard", "orders", "customers", "agenda", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "terms", "contact",
 ];
 
 function NoEnabledModules() {
@@ -77,6 +78,7 @@ export function AdminDashboard({
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
   const activeOrganizationName = activeOrganization?.organization_name || null;
   const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
+  const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
@@ -84,6 +86,7 @@ export function AdminDashboard({
     if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "operation") return operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
+    if (tab === "tools") return isArtVideoOrganization || isPlatformOperatorOrganization;
     return hasPermission(permissionForTab[tab]) && isAdminModuleEnabled(tab, hasModule);
   };
 
@@ -128,6 +131,26 @@ export function AdminDashboard({
   const backToParent = (tab: AdminTab) => navigateAdmin(parentAdminTab(tab) || "dashboard");
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
+  const toolItems = [
+    ...(isArtVideoOrganization ? [
+      { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Acesse o monitor e atendimento do SAC Digital.", href: "https://monitor.sac.digital/login" },
+      { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
+    ] : []),
+    ...((isArtVideoOrganization || isPlatformOperatorOrganization) ? [
+      { id: "fila", label: "Fila", icon: List, description: "Acesse o painel do sistema de filas e senhas.", href: "https://testeteste.com.br/painel" },
+    ] : []),
+  ];
+  const toolsHub = <AdminHubPage
+    title="Ferramentas"
+    description="Acessos rápidos às ferramentas externas da operação."
+    items={toolItems}
+    centeredIcons
+    actionLabel="Abrir ferramenta"
+    onSelect={id => {
+      const tool = toolItems.find(item => item.id === id);
+      if (tool) window.open(tool.href, "_blank", "noopener,noreferrer");
+    }}
+  />;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("dashboard", null, null, { replace: true }); };
 
   const sidebar = <AdminSidebar activeTab={activeMenuTab} organizations={organizations} activeOrganizationId={activeOrganizationId} hasPermission={hasPermission} hasModule={hasModule} onNavigate={tab => navigateAdmin(tab)} onBackToSite={onBackToSite} />;
@@ -159,6 +182,7 @@ export function AdminDashboard({
             <Route path="site/brands/*" element={<TabBrands onBack={() => backToParent("brands")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("brands")} />} />
             <Route path="site/settings/*" element={<TabSiteSettings onBack={() => backToParent("siteSettings")} />} />
             <Route path="operation" element={operationHub} />
+            <Route path="tools" element={toolsHub} />
             <Route path="operation/equipment/*" element={<EquipmentAdminPanel onBack={() => backToParent("equipment")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("equipment")} />} />
             <Route path="operation/checklists/*" element={<ChecklistAdminPanel onBack={() => backToParent("checklists")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("checklists")} />} />
             <Route path="operation/general-services/*" element={<GeneralServicesPanel onBack={() => backToParent("generalServices")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("generalServices")} />} />
