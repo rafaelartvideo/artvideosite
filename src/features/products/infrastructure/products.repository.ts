@@ -8,6 +8,7 @@ export type ProductInventorySettingsInput = {
   storage_level?: string | null;
   storage_compartment?: string | null;
   supplier_entity_ids?: string[];
+  supplier_links?: Array<{ entity_id: string; supplier_reference?: string | null }>;
   initial_supplier_entity_id?: string | null;
   initial_reference?: string | null;
 };
@@ -90,7 +91,7 @@ export async function saveCompleteProduct(
   initialQuantity: number,
   initialUnitCost: number | null,
 ) {
-  const { data, error } = await supabase.rpc("save_inventory_item_unified_v3", {
+  const { data, error } = await supabase.rpc("save_inventory_item_unified_v4", {
     p_organization_id: organizationId,
     p_product_id: productId ?? null,
     p_product: product,
