@@ -511,7 +511,7 @@ export function TabOrders({
         if (!createdOrder) throw new Error("OS não encontrada após a criação.");
 
         closingRouteRef.current = null;
-        setDetailInitialSection("products-services");
+        setDetailInitialSection("details");
         openFreshDetail(createdOrder);
 
         if (onOrderRouteChange) {

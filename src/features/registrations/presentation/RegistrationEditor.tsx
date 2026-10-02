@@ -193,7 +193,7 @@ export function RegistrationEditor({
           <span className="min-w-0">
             <span className="block text-sm font-black text-[#0d1b2e] dark:text-foreground">Exigir compartilhamento de localização</span>
             <span className="mt-1 block text-xs leading-5 text-[#5a6a82] dark:text-muted-foreground">
-              Ao entrar no sistema, este usuário deverá autorizar a localização pelo navegador. Se recusar a permissão, a sessão será encerrada imediatamente. Se não ativar em até 1 minuto, o sistema fará logout automaticamente.
+              Ao entrar no sistema, este usuário deverá autorizar a localização pelo navegador para continuar. Enquanto não autorizar, o acesso ficará bloqueado, sem alterar a regra geral de expiração da sessão por inatividade.
             </span>
           </span>
         </label>}
