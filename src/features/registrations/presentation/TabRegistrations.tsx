@@ -119,8 +119,8 @@ function hasAddressContent(address: RegistrationAddressForm) {
 
 function MobileCardField({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="min-w-0">
-    <div className="mb-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">{label}</div>
-    <div className="min-w-0 text-xs font-semibold text-[#0d1b2e]">{children}</div>
+    <div className="mb-1 text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">{label}</div>
+    <div className="min-w-0 text-xs font-semibold text-foreground">{children}</div>
   </div>;
 }
 
@@ -680,8 +680,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const sortLabel = sortOrder === "name_asc" ? "Nome A–Z" : sortOrder === "name_desc" ? "Nome Z–A" : sortOrder === "newest" ? "Mais recentes" : sortOrder === "oldest" ? "Mais antigos" : "Ordenação padrão";
   const SortIcon = sortOrder === "name_asc" || sortOrder === "oldest" ? ArrowUpNarrowWide : sortOrder === "name_desc" || sortOrder === "newest" ? ArrowDownWideNarrow : ArrowUpDown;
   const renderMobileFilter = () => {
-    if (mobileFilter === "name") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input aria-label="Buscar por nome ou razão social" value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
-    if (mobileFilter === "document") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input aria-label="Buscar por CPF ou CNPJ" value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
+    if (mobileFilter === "name") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input aria-label="Buscar por nome ou razão social" value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
+    if (mobileFilter === "document") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input aria-label="Buscar por CPF ou CNPJ" value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
     if (mobileFilter === "role") return <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Filtrar por vínculo" className="h-[42px] text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />;
     return <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Filtrar por status" className="h-[42px] text-xs" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />;
   };
@@ -690,7 +690,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       <DropdownMenuTrigger asChild>
         <button type="button" aria-label={`Ordenação atual: ${sortLabel}`} title={`Ordenação: ${sortLabel}`} className={cn(
           "inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
-          sortOrder ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82] hover:border-[#0057e7]/40 hover:bg-[#eef5ff]",
+          sortOrder ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-muted-foreground hover:border-[#0057e7]/40 hover:bg-[#eef5ff]",
         )}><SortIcon size={20} className="text-[#0057e7]" /></button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[200px]">
@@ -700,7 +700,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           ["name_desc", "Nome Z–A", ArrowDownWideNarrow],
           ["newest", "Mais recentes", ArrowDownWideNarrow],
           ["oldest", "Mais antigos", ArrowUpNarrowWide],
-        ] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => setSortOrder(value)} className={cn("cursor-pointer", sortOrder === value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Icon size={15} className={sortOrder === value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{label}</span>{sortOrder === value && <Check size={15} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}
+        ] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => setSortOrder(value)} className={cn("cursor-pointer", sortOrder === value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Icon size={15} className={sortOrder === value ? "text-[#0057e7]" : "text-muted-foreground"} /><span>{label}</span>{sortOrder === value && <Check size={15} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -722,33 +722,33 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       <div className="p-4 md:p-3">
         <div className="space-y-3 md:hidden">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button></DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[240px]">{visibleMobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent>
+            <DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-foreground shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-muted-foreground">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-muted-foreground" /></button></DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[240px]">{visibleMobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-muted-foreground"} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent>
           </DropdownMenu>
           <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1">{renderMobileFilter()}</div>{sortMenu}</div>
         </div>
 
         <div className="hidden gap-2 md:grid md:grid-cols-2 xl:grid-cols-4">
           <div className="min-w-0">
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Nome</label>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nome</label>
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={`${INPUT} h-9 py-1.5 pl-9 text-xs`} />
             </div>
           </div>
           <div className="min-w-0">
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF/CNPJ</label>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">CPF/CNPJ</label>
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={`${INPUT} h-9 py-1.5 pl-9 text-xs`} />
             </div>
           </div>
           {!platformUsersOnly && <div className="min-w-0">
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Vínculo</label>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Vínculo</label>
             <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" className="min-h-9 py-1.5 text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
           </div>}
           <div className="min-w-0">
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label>
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Status</label>
             <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Status" className="min-h-9 py-1.5 text-xs" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
           </div>
         </div>
@@ -771,7 +771,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         return <article key={item.id} className="cursor-default p-4" onClick={() => openItem(item)}>
           <div className="flex items-start justify-between gap-3">
             <MobileCardField label="Nome / Razão social"><span className="break-words text-sm font-black">{item.name}</span></MobileCardField>
-            <div className="shrink-0 text-right"><div className="mb-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">Status</div><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></div>
+            <div className="shrink-0 text-right"><div className="mb-1 text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">Status</div><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
             <MobileCardField label="Tipo">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</MobileCardField>
@@ -779,8 +779,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
             <MobileCardField label="Telefone">{formatPhone(item.phone || item.whatsapp) || "—"}</MobileCardField>
             <MobileCardField label="Vínculos"><div className="flex flex-wrap gap-1">{roles.length ? roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[9px] font-black text-[#0057e7]">{roleLabels[role]}</span>) : <span>—</span>}</div></MobileCardField>
           </div>
-          <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#0d1b2e]/8 pt-3" onClick={event => event.stopPropagation()}>
-            <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#8a98aa]">Ações</span>
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3" onClick={event => event.stopPropagation()}>
+            <span className="text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">Ações</span>
             <div className="flex items-center gap-1">{canEdit && <AdminIconButton ariaLabel="Editar cadastro" title="Editar cadastro" onClick={() => openEditItem(item)}><Edit2 size={15} /></AdminIconButton>}{canToggleEmployee && <AdminActiveStateButton active={employeeUserActive} entityLabel="usuário" disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)} />}</div>
           </div>
         </article>;
@@ -790,7 +790,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         const employeeAccessProfileId = item.legacy_employee?.profile_id || item.employee_details?.[0]?.profile_id || null;
         const employeeUserActive = item.legacy_employee?.is_active !== false;
         const canToggleEmployee = canToggleAccess && activeRegistrationRoles(item).includes("employee") && Boolean(item.legacy_employee_id && employeeAccessProfileId);
-        return <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-[#5a6a82]">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-[#5a6a82]">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canEdit && <AdminIconButton ariaLabel="Editar cadastro" title="Editar cadastro" onClick={() => openEditItem(item)}><Edit2 size={15} /></AdminIconButton>}{canToggleEmployee && <AdminActiveStateButton active={employeeUserActive} entityLabel="usuário" disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)} />}</div></td></tr>;
+        return <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-foreground">{item.name}</td><td className="text-xs text-muted-foreground">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-muted-foreground">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-muted-foreground">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canEdit && <AdminIconButton ariaLabel="Editar cadastro" title="Editar cadastro" onClick={() => openEditItem(item)}><Edit2 size={15} /></AdminIconButton>}{canToggleEmployee && <AdminActiveStateButton active={employeeUserActive} entityLabel="usuário" disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)} />}</div></td></tr>;
       })}</tbody></table></div>
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={setPageSize} />
     </>}</AdminCard>
