@@ -1106,8 +1106,8 @@ export function TabProducts({
                     onChange={(event: any) => setForm(current => ({ ...current, internal_notes: event.target.value }))}
                     rows={3}
                     placeholder="Anotações internas sobre o item, compra, compatibilidade ou operação"
-                    hint="Uso interno do CRM. Não aparece no catálogo, nota fiscal ou documentos."
                   />
+                  <p className="mt-1 text-[10px] leading-4 text-[#7a8aa0]">Uso interno do CRM. Não aparece no catálogo, nota fiscal ou documentos.</p>
                 </div>
               </div>
             </Section>
