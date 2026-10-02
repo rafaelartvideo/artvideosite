@@ -7,6 +7,10 @@ export type FieldTrackingUnit = {
   name: string;
   linked_user_id: string | null;
   device_label: string | null;
+  identifier_type: "plate" | "imei" | "serial" | "other" | null;
+  identifier_value: string | null;
+  paired_at: string | null;
+  paired_device_label: string | null;
   is_active: boolean;
   is_sharing: boolean;
   latitude: number | null;
