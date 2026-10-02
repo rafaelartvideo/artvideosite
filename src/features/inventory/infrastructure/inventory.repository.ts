@@ -9,6 +9,7 @@ export type InventorySupplier = {
   document: string | null;
   person_type: "PF" | "PJ";
   is_active: boolean;
+  supplier_reference?: string | null;
 };
 
 export type InventoryMovementInput = {
@@ -359,12 +360,16 @@ export async function listInventoryItemSuppliers(itemId: string, organizationIdO
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data: links, error: linksError } = await supabase
     .from("entity_supplier_items")
-    .select("entity_id")
+    .select("entity_id,supplier_reference")
     .eq("organization_id", organizationId)
     .eq("inventory_item_id", itemId);
   if (linksError) throw linksError;
   const ids = (links || []).map((link: any) => String(link.entity_id));
   if (!ids.length) return [];
+  const referenceById = new Map((links || []).map((link: any) => [
+    String(link.entity_id),
+    link.supplier_reference ? String(link.supplier_reference) : null,
+  ]));
   const { data, error } = await supabase
     .from("entities")
     .select("id,name,legal_name,trade_name,document,person_type,is_active")
@@ -372,7 +377,10 @@ export async function listInventoryItemSuppliers(itemId: string, organizationIdO
     .in("id", ids)
     .order("name");
   if (error) throw error;
-  return (data || []) as InventorySupplier[];
+  return (data || []).map((item: any) => ({
+    ...item,
+    supplier_reference: referenceById.get(String(item.id)) || null,
+  })) as InventorySupplier[];
 }
 
 export async function syncInventoryItemSuppliers(itemId: string, supplierEntityIds: string[], organizationIdOverride?: string | null): Promise<void> {
