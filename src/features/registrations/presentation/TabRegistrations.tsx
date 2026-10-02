@@ -53,6 +53,7 @@ import {
   getRegistrationSupplierItems,
   listRegistrationsPage,
   saveRegistration,
+  setEmployeeFieldTrackingRequired,
   syncRegistrationAddresses,
   syncRegistrationSupplierItems,
   type Registration,
@@ -134,7 +135,7 @@ function useDebouncedValue<T>(value: T, delay = 350) {
 }
 
 export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange, onOpenCustomerHistory }: Props) {
-  const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
+  const { activeOrganizationId, activeOrganization, hasPermission, hasModule } = useAuth();
   const platformUsersOnly = activeOrganization?.is_platform_operator === true;
   const canView = platformUsersOnly
     ? hasPermission("customers.view") && hasPermission("employees.view")
@@ -469,6 +470,15 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       if (refreshedError || !refreshedData) throw refreshedError || new Error("Não foi possível recarregar o cadastro salvo.");
       let refreshed = refreshedData as unknown as Registration;
 
+      if (refreshed.legacy_employee_id) {
+        const trackingRequirement = await setEmployeeFieldTrackingRequired(
+          activeOrganizationId,
+          refreshed.legacy_employee_id,
+          form.roles.includes("employee") && hasModule("field_tracking") && form.field_tracking_required,
+        );
+        if (trackingRequirement.error) throw trackingRequirement.error;
+      }
+
       if (form.roles.includes("employee") && refreshed.legacy_employee_id && accessDirty) {
         const result = await saveEmployeeAccess({
           organizationId: activeOrganizationId,
@@ -498,7 +508,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
       }
 
-      if (accessDirty || removingEmployeeWithAccess) {
+      if (accessDirty || removingEmployeeWithAccess || refreshed.legacy_employee_id) {
         const refreshedAgain = await getRegistration(activeOrganizationId, savedId);
         if (!refreshedAgain.error && refreshedAgain.data) refreshed = refreshedAgain.data as unknown as Registration;
       }
@@ -546,7 +556,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         ...registration,
         legacy_employee: registration.legacy_employee
           ? { ...registration.legacy_employee, is_active: next }
-          : { id: item.legacy_employee_id!, profile_id: profileId, is_active: next },
+          : { id: item.legacy_employee_id!, profile_id: profileId, is_active: next, field_tracking_required: item.legacy_employee?.field_tracking_required === true },
       } : registration;
       queryClient.setQueriesData<RegistrationListPage>(
         { queryKey: queryKeys.registrations.list(activeOrganizationId) },
