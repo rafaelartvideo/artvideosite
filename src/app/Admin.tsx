@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
-import { List, MessageSquare, Phone } from "lucide-react";
+import { List, MapPinned, MessageSquare, Phone } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import type { AdminPageState, AdminTab } from "@/features/admin-shell/domain/admin.types";
@@ -135,6 +135,9 @@ export function AdminDashboard({
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const toolItems = [
+    ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule) ? [
+      { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
+    ] : []),
     ...(isArtVideoOrganization ? [
       { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Acesse o monitor e atendimento do SAC Digital.", href: "https://monitor.sac.digital/login" },
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
@@ -145,13 +148,17 @@ export function AdminDashboard({
   ];
   const toolsHub = <AdminHubPage
     title="Ferramentas"
-    description="Acessos rápidos às ferramentas externas da operação."
+    description="Ferramentas e recursos de apoio à operação."
     items={toolItems}
     centeredIcons
-    actionLabel="Abrir ferramenta"
+    actionLabel="Abrir"
     onSelect={id => {
+      if (id === "fieldTracking") {
+        navigateAdmin("fieldTracking", null, null, { menuTab: "tools" });
+        return;
+      }
       const tool = toolItems.find(item => item.id === id);
-      if (tool) window.open(tool.href, "_blank", "noopener,noreferrer");
+      if (tool?.href) window.open(tool.href, "_blank", "noopener,noreferrer");
     }}
   />;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("dashboard", null, null, { replace: true }); };
