@@ -277,6 +277,19 @@ body {
 	color: #e8edf5;
 }
 
+/*
+ * Legacy action bars: keep old pages visually aligned with AdminStickyToolbar
+ * until every screen is migrated to the shared component.
+ */
+.admin-crm [class*="sticky"][class*="bottom-0"][class*="border-t"],
+.admin-crm [class*="fixed"][class*="bottom-0"][class*="border-t"] {
+	background-color: var(--card) !important;
+	border-color: var(--border) !important;
+	color: var(--card-foreground);
+	box-shadow: none !important;
+	backdrop-filter: none !important;
+}
+
 /* Dark-mode guard rails for legacy screens and composed Tailwind utilities. */
 .admin-crm.dark input::placeholder,
 .admin-crm.dark textarea::placeholder,
