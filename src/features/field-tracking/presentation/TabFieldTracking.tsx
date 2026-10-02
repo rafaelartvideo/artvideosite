@@ -79,6 +79,7 @@ const IDENTIFIER_OPTIONS = [
 const STATUS_OPTIONS = [
   { value: "", label: "Todos os status" },
   { value: "online", label: "Ao vivo" },
+  { value: "stationary", label: "Parados" },
   { value: "lost", label: "Sem sinal" },
   { value: "paused", label: "Pausados" },
   { value: "unknown", label: "Sem posição" },
@@ -92,6 +93,7 @@ function unitIcon(type: FieldTrackingUnitType) {
 
 function statusColor(status: FieldTrackingStatus) {
   if (status === "online") return "#16a34a";
+  if (status === "stationary") return "#f59e0b";
   if (status === "lost") return "#dc2626";
   if (status === "paused") return "#64748b";
   return "#94a3b8";
@@ -99,22 +101,29 @@ function statusColor(status: FieldTrackingStatus) {
 
 function statusClasses(status: FieldTrackingStatus) {
   if (status === "online") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "stationary") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300";
   if (status === "lost") return "border-red-200 bg-red-50 text-red-700";
   if (status === "paused") return "border-slate-200 bg-slate-50 text-slate-600";
   return "border-border bg-muted text-muted-foreground";
 }
 
-function formatLastSeen(value?: string | null) {
+function formatLastSeen(value?: string | null, now = Date.now()) {
   if (!value) return "Sem atualização";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Sem atualização";
-  const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  const diffSeconds = Math.max(0, Math.floor((now - date.getTime()) / 1000));
   if (diffSeconds < 60) return `há ${diffSeconds}s`;
   const minutes = Math.floor(diffSeconds / 60);
   if (minutes < 60) return `há ${minutes} min`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `há ${hours} h`;
   return date.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function formatStatusTime(status: FieldTrackingStatus, value?: string | null, now = Date.now()) {
+  const elapsed = formatLastSeen(value, now);
+  if (status === "stationary") return `Parado ${elapsed}`;
+  return elapsed;
 }
 
 function MapViewport({
@@ -466,7 +475,7 @@ export function TabFieldTracking() {
           <div className="relative z-20 flex flex-col gap-3 border-b border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-black text-foreground">Posições em tempo real</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">Verde = recebendo posição · vermelho = conexão perdida.</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Verde = recebendo posição · amarelo = parado · vermelho = sem sinal há mais de 15 min.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <div className="w-44">
@@ -510,7 +519,7 @@ export function TabFieldTracking() {
                       <Popup>
                         <div className="min-w-[170px]">
                           <strong>{unit.name}</strong>
-                          <div>{fieldTrackingStatusLabel(status)} · {formatLastSeen(unit.last_seen_at)}</div>
+                          <div>{status === "stationary" ? formatStatusTime(status, unit.last_seen_at, now) : `${fieldTrackingStatusLabel(status)} · ${formatLastSeen(unit.last_seen_at, now)}`}</div>
                           <div>{unit.tracking_provider === "traccar_client" ? "Traccar Client" : unit.tracking_provider === "traccar_server" ? "Traccar Server" : "Navegador"}</div>
                           {unit.battery_level != null && <div>Bateria: {Math.round(Number(unit.battery_level))}%{unit.charging ? " · carregando" : ""}</div>}
                           {unit.accuracy_m != null && <div>Precisão: ~{Math.round(Number(unit.accuracy_m))} m</div>}
@@ -570,7 +579,7 @@ export function TabFieldTracking() {
                           <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide", statusClasses(status))}>
                             {fieldTrackingStatusLabel(status)}
                           </span>
-                          <span className="text-[9px] font-semibold text-muted-foreground">{formatLastSeen(unit.last_seen_at)}</span>
+                          <span className="text-[9px] font-semibold text-muted-foreground">{status === "stationary" ? formatStatusTime(status, unit.last_seen_at, now) : formatLastSeen(unit.last_seen_at, now)}</span>
                           {unit.battery_level != null && <span className="text-[9px] font-semibold text-muted-foreground">{Math.round(Number(unit.battery_level))}% bateria</span>}
                         </span>
                       </span>
