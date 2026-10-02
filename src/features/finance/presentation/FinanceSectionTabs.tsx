@@ -23,7 +23,7 @@ export function FinanceSubsectionTabs<T extends string>({
   onSelect: (value: T) => void;
   ariaLabel?: string;
 }) {
-  return <nav className="overflow-x-auto border border-[#0d1b2e]/8 bg-white px-1.5 shadow-sm" aria-label={ariaLabel}>
+  return <nav className="mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card px-1.5 shadow-sm" aria-label={ariaLabel}>
     <div className="flex min-w-max items-stretch gap-1">
       {items.map(item => {
         const selected = value === item.id;
@@ -41,7 +41,7 @@ export function FinanceSubsectionTabs<T extends string>({
           <span
             aria-hidden="true"
             className={cn(
-              "absolute inset-x-3 bottom-0 h-0.5 origin-center bg-primary transition-transform duration-300 ease-out",
+              "absolute inset-x-3 bottom-0 h-0.5 origin-center rounded-full bg-primary transition-transform duration-300 ease-out",
               selected ? "scale-x-100" : "scale-x-0 group-hover:scale-x-50",
             )}
           />
