@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink, File as FileIcon, Image as ImageIcon, Paperclip, Plus, X } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cn } from "@/shared/domain/formatters";
-import { AdminCard, AdminDialog, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import type { Registration } from "../infrastructure/registrations.repository";
@@ -263,10 +263,10 @@ export function RegistrationRecordsPage({
         </AdminCard>)}</div>}
       </div>
 
-      <div className="sticky bottom-0 flex items-center gap-2 border-t border-border bg-white/95 px-4 py-4 backdrop-blur sm:justify-between sm:px-5">
+      <AdminStickyToolbar className="gap-2 sm:justify-between">
         <BtnSecondary onClick={onClose} className="min-w-0 flex-1 sm:flex-none">Voltar</BtnSecondary>
         {canCreate && <BtnPrimary onClick={() => { resetComposer(); setModalOpen(true); }} className="min-w-0 flex-1 sm:flex-none"><Plus size={17} /> Novo registro</BtnPrimary>}
-      </div>
+      </AdminStickyToolbar>
     </AdminPage>
 
     <AdminDialog
