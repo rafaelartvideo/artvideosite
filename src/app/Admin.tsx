@@ -10,6 +10,7 @@ import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
 import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
 
@@ -51,8 +52,6 @@ type AdminLocationState = {
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
   "dashboard", "orders", "customers", "agenda", "inventory", "products", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "roles", "settings", "terms", "contact",
 ];
-
-function AdminRouteLoading() { return <LoadingState text="Carregando módulo..." />; }
 
 function NoEnabledModules() {
   return <div className="flex min-h-[55vh] items-center justify-center px-4"><div className="w-full max-w-lg rounded-2xl border border-[#d9e1ec] bg-white p-6 text-center shadow-sm sm:p-8"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#e8eef8] text-xl font-black text-[#0057e7]">!</div><h2 className="mt-4 text-xl font-black text-[#0d1b2e]">Nenhum módulo disponível</h2><p className="mt-2 text-sm leading-6 text-[#5a6a82]">Esta empresa não possui módulos liberados para o seu acesso. Troque a empresa ativa ou fale com o administrador.</p></div></div>;
@@ -132,11 +131,11 @@ export function AdminDashboard({
 
   const sidebar = <AdminSidebar activeTab={activeMenuTab} userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"} roleName={roleName} organizations={organizations} activeOrganizationId={activeOrganizationId} hasPermission={hasPermission} hasModule={hasModule} onNavigate={tab => navigateAdmin(tab)} onOrganizationChange={handleOrganizationChange} onSignOut={() => signOut()} onBackToSite={onBackToSite} />;
 
-  return <AdminPageContext.Provider value={{ page, setPage }}>
+  return <Suspense fallback={<AdminPanelLoader progress={99} status="Carregando painel" />}>
+    <AdminPageContext.Provider value={{ page, setPage }}>
     <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader page={page} sidebarOpen={sidebarOpen} activeOrganizationId={activeOrganizationId} activeOrganizationName={activeOrganizationName} onToggleSidebar={() => setSidebarOpen(current => !current)} />}>
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
-        <Suspense fallback={<AdminRouteLoading />}>
-          {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes key={activeTab}>
+        {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes key={activeTab}>
             <Route index element={<TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
             <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("dashboard")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
             <Route path="audit/*" element={<TabAuditLog />} />
@@ -172,9 +171,9 @@ export function AdminDashboard({
             <Route path="contact/*" element={<TabContact />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>}
-        </Suspense>
       </div>
       <TermsAcceptanceGate initialPending={pendingTerms} />
     </AdminLayout>
-  </AdminPageContext.Provider>;
+    </AdminPageContext.Provider>
+  </Suspense>;
 }
