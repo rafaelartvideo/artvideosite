@@ -1163,7 +1163,7 @@ export function TabProducts({
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Fonte</p>
-                  <p className="mt-1 text-xs font-black text-[#0d1b2e]">{form.external_platform === "cosmos" ? "Cosmos / Bluesoft" : form.external_platform}</p>
+                  <p className="mt-1 text-xs font-black text-[#0d1b2e]">{form.external_platform === "openfacts" ? "Open Facts" : form.external_platform === "upcitemdb" ? "UPCitemdb" : form.external_platform}</p>
                 </AdminCard>
                 <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Identificador externo</p>
