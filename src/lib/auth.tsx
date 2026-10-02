@@ -196,7 +196,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       scheduleExpiration();
     };
 
-    const activityEvents: Array<keyof WindowEventMap> = ["pointerdown", "pointermove", "keydown", "touchstart", "scroll"];
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "pointerdown",
+      "pointermove",
+      "keydown",
+      "touchstart",
+      "scroll",
+      "wheel",
+      "input",
+      "change",
+      "focus",
+    ];
     activityEvents.forEach(eventName => window.addEventListener(eventName, recordActivity, { passive: true }));
     scheduleExpiration();
 

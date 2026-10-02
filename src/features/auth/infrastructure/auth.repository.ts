@@ -56,8 +56,17 @@ export async function validateCurrentSessionIp() {
   const result = await supabase.functions.invoke("username-auth", {
     body: { action: "validate_session" },
   });
+
   if (!result.error && result.data?.success === true) return true;
-  return false;
+  if (!result.error) return true;
+
+  const payload = await functionErrorPayload(result.error);
+  if (payload.code === "ip_not_allowed") return false;
+  if (payload.message.toLowerCase().includes("não autenticado")) return false;
+
+  // Falhas transitórias da Edge Function/rede não devem derrubar uma sessão ativa.
+  // O controle de inatividade continua sendo responsável pela expiração normal.
+  return true;
 }
 
 export async function changeAdminPassword(
