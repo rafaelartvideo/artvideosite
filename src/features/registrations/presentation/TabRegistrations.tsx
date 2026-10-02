@@ -53,7 +53,7 @@ import {
   getRegistrationSupplierItems,
   listRegistrationsPage,
   saveRegistration,
-  setEmployeeFieldTrackingRequired,
+  setEmployeeFieldTrackingPrompt,
   syncRegistrationAddresses,
   syncRegistrationSupplierItems,
   type Registration,
@@ -471,10 +471,10 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       let refreshed = refreshedData as unknown as Registration;
 
       if (refreshed.legacy_employee_id) {
-        const trackingRequirement = await setEmployeeFieldTrackingRequired(
+        const trackingRequirement = await setEmployeeFieldTrackingPrompt(
           activeOrganizationId,
           refreshed.legacy_employee_id,
-          form.roles.includes("employee") && hasModule("field_tracking") && form.field_tracking_required,
+          form.roles.includes("employee") && hasModule("field_tracking") && form.field_tracking_prompt_on_login,
         );
         if (trackingRequirement.error) throw trackingRequirement.error;
       }
@@ -556,7 +556,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         ...registration,
         legacy_employee: registration.legacy_employee
           ? { ...registration.legacy_employee, is_active: next }
-          : { id: item.legacy_employee_id!, profile_id: profileId, is_active: next, field_tracking_required: item.legacy_employee?.field_tracking_required === true },
+          : { id: item.legacy_employee_id!, profile_id: profileId, is_active: next, field_tracking_prompt_on_login: item.legacy_employee?.field_tracking_prompt_on_login === true },
       } : registration;
       queryClient.setQueriesData<RegistrationListPage>(
         { queryKey: queryKeys.registrations.list(activeOrganizationId) },
