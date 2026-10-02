@@ -631,9 +631,13 @@ export function TabProducts({
   const filtered = products.filter((product: any) => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     if (!term) return true;
+    const inventory = product.inventory || {};
     return String(product.name || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(product.sku || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(product.barcode || "").toLocaleLowerCase("pt-BR").includes(term);
+      || String(product.sku || inventory.sku || "").toLocaleLowerCase("pt-BR").includes(term)
+      || String(product.barcode || "").toLocaleLowerCase("pt-BR").includes(term)
+      || String(inventory.storage_shelf || "").toLocaleLowerCase("pt-BR").includes(term)
+      || String(inventory.storage_level || "").toLocaleLowerCase("pt-BR").includes(term)
+      || String(inventory.storage_compartment || "").toLocaleLowerCase("pt-BR").includes(term);
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
