@@ -181,6 +181,7 @@ export function TabFieldTracking() {
   const [trackingBusy, setTrackingBusy] = useState(false);
   const [trackerDialogOpen, setTrackerDialogOpen] = useState(false);
   const [trackerSaving, setTrackerSaving] = useState(false);
+  const [identifierResetUnit, setIdentifierResetUnit] = useState<FieldTrackingUnit | null>(null);
   const [traccarSetup, setTraccarSetup] = useState<TraccarDeviceSetup | null>(null);
   const [serverDialogOpen, setServerDialogOpen] = useState(false);
   const [serverBusy, setServerBusy] = useState(false);
@@ -344,8 +345,9 @@ export function TabFieldTracking() {
         unit_name: unit.name,
         device_identifier: identifier,
       });
+      setIdentifierResetUnit(null);
       setTrackerDialogOpen(true);
-      setToast({ msg: "Novo identificador gerado. O identificador anterior deixou de funcionar.", type: "success" });
+      setToast({ msg: "Novo identificador gerado. Atualize o Device Identifier no Traccar Client para continuar recebendo posições.", type: "success" });
       await unitsQuery.refetch();
     } catch (error) {
       setToast({ msg: `Não foi possível gerar um novo identificador: ${systemErrorMessage(error)}`, type: "error" });
@@ -576,8 +578,8 @@ export function TabFieldTracking() {
                     </button>
                     {canManage && unit.tracking_provider !== "native" && <button
                       type="button"
-                      onClick={() => void regenerateTraccarIdentifier(unit)}
-                      title="Gerar novo identificador do Traccar Client"
+                      onClick={() => setIdentifierResetUnit(unit)}
+                      title="Reconfigurar Device Identifier do Traccar Client"
                       aria-label={`Reconfigurar ${unit.name} no Traccar Client`}
                       className="flex w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition-colors hover:text-primary"
                     >
@@ -598,6 +600,51 @@ export function TabFieldTracking() {
         </p>
       </>
     )}
+
+    <AdminDialog
+      open={Boolean(identifierResetUnit)}
+      onClose={() => {
+        if (trackerSaving) return;
+        setIdentifierResetUnit(null);
+      }}
+      title="Gerar novo identificador?"
+      description={identifierResetUnit ? `Você está prestes a alterar o Device Identifier de ${identifierResetUnit.name}.` : "Confirme a alteração do identificador do rastreador."}
+      className="max-w-lg"
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+          <strong className="block font-black">O identificador atual deixará de funcionar imediatamente.</strong>
+          <span className="mt-1 block">
+            Depois de gerar o novo identificador, será obrigatório atualizar o campo <strong>Device Identifier</strong> no Traccar Client deste aparelho. Enquanto o aplicativo continuar usando o identificador antigo, os envios retornarão erro 404 e a posição não será atualizada no mapa.
+          </span>
+        </div>
+
+        <p className="text-xs leading-5 text-muted-foreground">
+          Use esta opção somente quando precisar reconfigurar o aparelho ou substituir a credencial atual do rastreador.
+        </p>
+
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <AdminButton
+            variant="secondary"
+            disabled={trackerSaving}
+            onClick={() => setIdentifierResetUnit(null)}
+          >
+            Cancelar
+          </AdminButton>
+          <AdminButton
+            variant="danger"
+            loading={trackerSaving}
+            loadingText="Gerando..."
+            disabled={!identifierResetUnit}
+            onClick={() => {
+              if (identifierResetUnit) void regenerateTraccarIdentifier(identifierResetUnit);
+            }}
+          >
+            Gerar novo identificador
+          </AdminButton>
+        </div>
+      </div>
+    </AdminDialog>
 
     <AdminDialog
       open={trackerDialogOpen}
