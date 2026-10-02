@@ -85,7 +85,7 @@ export function AdminButton({
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
-      "inline-flex min-w-0 max-w-full cursor-default items-center justify-center whitespace-nowrap rounded-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
+      "inline-flex min-w-0 max-w-full cursor-default items-center justify-center overflow-hidden whitespace-nowrap rounded-lg bg-clip-padding font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
       variants[variant],
       sizes[size],
       className,
@@ -165,7 +165,7 @@ export function AdminIconButton({
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
-      "inline-flex h-8 w-8 cursor-default items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-40",
+      "inline-flex h-8 w-8 cursor-default items-center justify-center overflow-hidden rounded-lg bg-clip-padding transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-40",
       activeStateAction ? activeStateClass : variants[variant],
       className,
     )}
