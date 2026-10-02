@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { DollarSign, MapPin, Maximize2, MessageCircle, Minimize2, Package, Percent, Phone, Wrench } from "lucide-react";
+import { MapPin, Maximize2, MessageCircle, Minimize2, Package, Phone, Wrench } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import {
   AdminButton,
-  AdminCard,
   AdminDialog,
   AdminIconButton,
   BtnPrimary,
   BtnSecondary,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { FCurrencyInput, FDecimalInput } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatNumber, formatPhone } from "@/shared/domain/formatters";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
@@ -281,11 +280,11 @@ export function OrderCompletionModal({
     </div>}
   >
     <div className="min-w-0 space-y-5">
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <Section
-          title="Cliente"
-          actions={<CustomerQuickActions customer={customer} orderId={detail.id} />}
-        >
+      <Section
+        title="Cliente e resumo"
+        actions={<CustomerQuickActions customer={customer} orderId={detail.id} />}
+      >
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
           <div className="min-w-0 space-y-4">
             <div className="grid min-w-0 gap-4 sm:grid-cols-2">
               <InfoItem label="Nome" value={customerName(customer)} />
@@ -319,10 +318,8 @@ export function OrderCompletionModal({
               </div>
             )}
           </div>
-        </Section>
 
-        <Section title="Resumo">
-          <div className="space-y-3">
+          <div className="space-y-3 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <div className="flex items-center justify-between gap-4 text-sm">
               <span className="text-muted-foreground">Serviços</span>
               <strong className="text-foreground">{formatCurrency(completion.servicePrice)}</strong>
@@ -348,8 +345,8 @@ export function OrderCompletionModal({
               <strong className="text-2xl font-black text-primary">{formatCurrency(completion.finalTotal)}</strong>
             </div>
           </div>
-        </Section>
-      </div>
+        </div>
+      </Section>
 
       <Section title="Produtos e serviços">
         <div className="min-w-0 space-y-4">
@@ -413,7 +410,7 @@ export function OrderCompletionModal({
             </>
           ) : !completion.commercialItemsLoading && !completion.commercialItemsError ? (
             <>
-              <AdminCard className="p-4 shadow-none">
+              <div className="border-y border-border py-4">
                 <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                   <InfoItem label="Serviço" value={detail.general_service?.name || "—"} />
                   {completion.priceAtCompletion ? (
@@ -429,7 +426,7 @@ export function OrderCompletionModal({
                     <InfoItem label="Valor do serviço" value={formatCurrency(completion.servicePrice)} />
                   )}
                 </div>
-              </AdminCard>
+              </div>
 
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
@@ -454,57 +451,9 @@ export function OrderCompletionModal({
         </div>
       </Section>
 
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(280px,0.62fr)_minmax(0,1.38fr)]">
-        <Section title="Desconto">
-          <div className="min-w-0 space-y-4">
-            <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-card p-1" aria-label="Tipo de desconto">
-              <button
-                type="button"
-                aria-label="Desconto em porcentagem"
-                aria-pressed={completion.discountMode === "percentage"}
-                disabled={saving}
-                onClick={() => completion.setDiscountMode("percentage")}
-                className={`inline-flex h-9 w-10 items-center justify-center rounded-lg border text-sm font-black transition-colors disabled:opacity-50 ${completion.discountMode === "percentage" ? "border-primary bg-primary text-primary-foreground" : "border-transparent text-muted-foreground hover:bg-primary-soft hover:text-primary"}`}
-              >
-                <Percent size={16} />
-              </button>
-              <button
-                type="button"
-                aria-label="Desconto em valor"
-                aria-pressed={completion.discountMode === "amount"}
-                disabled={saving}
-                onClick={() => completion.setDiscountMode("amount")}
-                className={`inline-flex h-9 w-10 items-center justify-center rounded-lg border text-sm font-black transition-colors disabled:opacity-50 ${completion.discountMode === "amount" ? "border-primary bg-primary text-primary-foreground" : "border-transparent text-muted-foreground hover:bg-primary-soft hover:text-primary"}`}
-              >
-                <DollarSign size={16} />
-              </button>
-            </div>
-
-            {completion.discountMode === "percentage" ? (
-              <FDecimalInput
-                label="Desconto (%)"
-                value={completion.discount}
-                decimalPlaces={2}
-                onChange={(event: any) => completion.setDiscount(event.target.value)}
-                hint={completion.commercialPricing ? "Aplicado sobre o subtotal da OS." : `Máximo permitido: ${formatNumber(completion.maxDiscountPercentage, { maximumFractionDigits: 2 })}%`}
-                error={completion.discountExceedsMax ? "O desconto ultrapassa o máximo permitido." : completion.discountExceedsServicePrice ? "O desconto não pode ser maior que a base da OS." : undefined}
-              />
-            ) : (
-              <FCurrencyInput
-                label="Desconto (R$)"
-                value={completion.discount}
-                onChange={(event: any) => completion.setDiscount(event.target.value)}
-                hint={completion.commercialPricing ? `Máximo: ${formatCurrency(completion.subtotal)}` : `Máximo permitido: ${formatCurrency(completion.maxDiscountAmount)}`}
-                error={completion.discountExceedsMax ? "O desconto ultrapassa o máximo permitido." : completion.discountExceedsServicePrice ? "O desconto não pode ser maior que a base da OS." : undefined}
-              />
-            )}
-          </div>
-        </Section>
-
-        <Section title="Pagamento">
-          <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
-        </Section>
-      </div>
+      <Section title="Pagamento">
+        <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
+      </Section>
     </div>
   </AdminDialog>;
 }
