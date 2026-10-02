@@ -31,8 +31,8 @@ export function DashboardModuleNav({
   onChange: (module: DashboardModule) => void;
 }) {
   return (
-    <nav className="min-w-0 overflow-x-auto rounded-xl border border-border bg-card px-2 shadow-sm" aria-label="Áreas do dashboard">
-      <div className="flex w-max min-w-full items-center justify-center gap-1">
+    <nav className="mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card px-2 shadow-sm" aria-label="Áreas do dashboard">
+      <div className="flex w-max items-center justify-center gap-1">
         {items.map(item => {
           const Icon = item.icon;
           const selected = item.id === value;
