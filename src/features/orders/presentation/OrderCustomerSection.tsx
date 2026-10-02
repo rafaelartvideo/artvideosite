@@ -86,7 +86,7 @@ export function OrderCustomerSection({
   const mapUrl = getAddressMapUrl(selectedAddress);
   const setQuickCustomer = (open: boolean) => { if (open) onCreateCustomer(); };
   const compactActionClass = "h-11 w-11 shrink-0 justify-center !p-0 sm:h-auto sm:w-auto sm:!px-4 sm:!py-2.5";
-  const compactHeaderLinkClass = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white p-0 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
+  const compactHeaderLinkClass = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-card p-0 text-xs font-bold text-primary hover:bg-primary-soft sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
   const mobileHiddenLabel = "hidden sm:inline";
   const actionIconClass = "h-5 w-5 shrink-0";
 
@@ -177,17 +177,17 @@ export function OrderCustomerSection({
         <div className="space-y-2">
           <div className="flex min-w-0 items-end gap-2">
             <div className="relative min-w-0 flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input disabled={saving} value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "min-w-0 pl-9")} />
             </div>
             {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} disabled={saving} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
           </div>
           {customerResults.length > 0 && (
-            <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
+            <div className="overflow-hidden rounded-lg border border-border bg-card">
               {customerResults.map(c => (
-                <button type="button" disabled={saving} key={c.id} onClick={() => selectCustomer(c)} className="w-full text-left px-3 py-2 hover:bg-[#e8eef8] border-b last:border-b-0 border-[#0d1b2e]/5 disabled:opacity-50">
-                  <p className="font-semibold text-sm text-[#0d1b2e]">{c.full_name}</p>
-                  <p className="text-xs text-[#5a6a82]">{c.customer_type === "PJ" ? formatCnpj(c.cnpj || "") : formatCpf(c.document || "")} {c.whatsapp && `· ${formatPhone(c.whatsapp)}`}</p>
+                <button type="button" disabled={saving} key={c.id} onClick={() => selectCustomer(c)} className="w-full border-b border-border bg-card px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-primary-soft focus-visible:bg-primary-soft focus-visible:outline-none disabled:opacity-50">
+                  <p className="text-sm font-semibold text-foreground">{c.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{c.customer_type === "PJ" ? formatCnpj(c.cnpj || "") : formatCpf(c.document || "")} {c.whatsapp && `· ${formatPhone(c.whatsapp)}`}</p>
                 </button>
               ))}
             </div>
