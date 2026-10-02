@@ -217,6 +217,7 @@ export function listSystemModules() {
     .select("key,name,description,category,sort_order,is_active")
     .eq("is_active", true)
     .not("key", "like", "site_%")
+    .neq("key", "products")
     .order("category")
     .order("sort_order");
 }
@@ -228,20 +229,26 @@ export function listOrganizationModules(organizationId: string) {
     .eq("organization_id", organizationId);
 }
 
-export function setOrganizationModuleEnabled(organizationId: string, moduleKey: string, enabled: boolean, userId?: string | null) {
+export async function setOrganizationModuleEnabled(organizationId: string, moduleKey: string, enabled: boolean, userId?: string | null) {
   if (moduleKey.startsWith("site_")) {
     throw new Error("Os módulos do site são exclusivos da ArtVideo.");
   }
+
+  const moduleKeys = moduleKey === "inventory" || moduleKey === "products"
+    ? ["inventory", "products"]
+    : [moduleKey];
+  const now = new Date().toISOString();
+
   return supabase
     .from("organization_modules")
-    .upsert({
+    .upsert(moduleKeys.map(key => ({
       organization_id: organizationId,
-      module_key: moduleKey,
+      module_key: key,
       is_enabled: enabled,
       enabled_by: userId || null,
-      enabled_at: enabled ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "organization_id,module_key" });
+      enabled_at: enabled ? now : null,
+      updated_at: now,
+    })), { onConflict: "organization_id,module_key" });
 }
 
 export async function listPartnerShares(organizationId?: string | null) {
