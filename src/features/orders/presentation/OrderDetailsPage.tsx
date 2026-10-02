@@ -46,6 +46,7 @@ type OrderDetailSubpage = "history" | "documents" | "part-requests" | "sla-recor
 
 type Props = {
   visible: boolean;
+  initialSection?: "details" | "products-services";
   userId?: string;
   profileName?: string | null;
   workspace: ReturnType<typeof useOrdersWorkspace>;
@@ -74,7 +75,7 @@ type Props = {
 
 export function OrderDetailsPage(props: Props) {
   const {
-    visible, userId, profileName, workspace, details, history, documents, routeSubpage, onOpenSubpage, onCloseSubpage, images, partRequests,
+    visible, initialSection = "details", userId, profileName, workspace, details, history, documents, routeSubpage, onOpenSubpage, onCloseSubpage, images, partRequests,
     resolution, completion, mutations, hasPermission, usedItemsTotal: detailUsedItemsTotal,
     formatDate: fmtDate, formatState: stateLabel, formatSolvedAt,
     formatCurrency, getSituations: getSituationsForType, getSla: getSlaForOrder,
@@ -86,7 +87,7 @@ export function OrderDetailsPage(props: Props) {
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
-  const [detailSection, setDetailSection] = useState<"products-services" | "details">("products-services");
+  const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
   const { statuses, situations } = workspace;
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
   const canOpenDocumentsPage = hasPermission("orders.section.images") || hasPermission("documents.signatures.view");
@@ -135,8 +136,8 @@ export function OrderDetailsPage(props: Props) {
 
   useEffect(() => {
     setSolutionRecordsOpen(false);
-    setDetailSection("products-services");
-  }, [detail?.id]);
+    setDetailSection(initialSection);
+  }, [detail?.id, initialSection]);
 
   const openSolutionRecords = () => {
     if (detail?.id) void loadSolutionAttempts(detail.id, detail.organization_id);
@@ -274,8 +275,8 @@ export function OrderDetailsPage(props: Props) {
         {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
         <div className="border-b border-border">
           <div className="flex min-w-0 gap-5 overflow-x-auto">
-            <button type="button" onClick={() => setDetailSection("products-services")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "products-services" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Package size={15} /> Produtos e Serviços</button>
             <button type="button" onClick={() => setDetailSection("details")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "details" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><FileText size={15} /> Detalhes da OS</button>
+            <button type="button" onClick={() => setDetailSection("products-services")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "products-services" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Package size={15} /> Produtos e Serviços</button>
           </div>
         </div>
         {detailSection === "products-services" ? <OrderProductsServicesSection

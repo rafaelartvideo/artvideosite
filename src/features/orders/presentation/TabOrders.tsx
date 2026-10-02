@@ -102,6 +102,7 @@ export function TabOrders({
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
   const [saving, setSaving] = useState(false);
+  const [detailInitialSection, setDetailInitialSection] = useState<"details" | "products-services">("details");
   const editOriginRef = useRef<"details" | "list">("details");
   const cancellingEditRef = useRef(false);
   const closingRouteRef = useRef<string | null>(null);
@@ -361,6 +362,7 @@ export function TabOrders({
         return;
       }
       if (formOpen) closeOrderForm();
+      setDetailInitialSection("details");
       if (detail?.id !== order.id) openDetail(order);
     };
 
@@ -391,6 +393,7 @@ export function TabOrders({
   const openRoutedDetail = (order: any) => {
     closingRouteRef.current = null;
     openingEditRouteRef.current = null;
+    setDetailInitialSection("details");
     if (onOrderRouteChange) {
       onOrderRouteChange(order.id, null);
       return;
@@ -483,6 +486,7 @@ export function TabOrders({
       cancellingEditRef.current = true;
       onOrderRouteChange(order.id, null);
     } else {
+      setDetailInitialSection("details");
       openDetail(order);
     }
   };
@@ -507,6 +511,7 @@ export function TabOrders({
         if (!createdOrder) throw new Error("OS não encontrada após a criação.");
 
         closingRouteRef.current = null;
+        setDetailInitialSection("products-services");
         openFreshDetail(createdOrder);
 
         if (onOrderRouteChange) {
@@ -537,6 +542,7 @@ export function TabOrders({
       if (!updatedOrder) throw new Error("OS não encontrada após a atualização.");
 
       closingRouteRef.current = null;
+      setDetailInitialSection("details");
       openFreshDetail(updatedOrder);
 
       if (onOrderRouteChange) {
@@ -595,6 +601,7 @@ export function TabOrders({
 
       <OrderDetailsPage
         visible={Boolean(detail && !solveOpen && !editingRouteActive)}
+        initialSection={detailInitialSection}
         userId={user?.id}
         profileName={profile?.full_name}
         workspace={workspace}

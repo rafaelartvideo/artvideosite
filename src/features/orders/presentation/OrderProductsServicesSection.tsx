@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Minus, Package, Plus, Search, Trash2, Wrench } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Search, Trash2 } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   AdminDialog,
@@ -11,7 +11,6 @@ import {
 import {
   AdminSelect,
   FCurrencyInput,
-  FDecimalInput,
   FInput,
   FTextarea,
   INPUT,
@@ -82,6 +81,96 @@ function draftFromItem(item: OrderCommercialItem): ItemDraft {
   };
 }
 
+function normalizeStepperText(value: string, integer: boolean) {
+  if (integer) return value.replace(/\D/g, "");
+  const normalized = value.replace(",", ".").replace(/[^\d.]/g, "");
+  const firstDot = normalized.indexOf(".");
+  if (firstDot < 0) return normalized;
+  return normalized.slice(0, firstDot + 1) + normalized.slice(firstDot + 1).replace(/\./g, "");
+}
+
+function NumberStepper({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max,
+  step = 1,
+  integer = false,
+  disabled = false,
+  placeholder,
+  className,
+  inputClassName,
+  ariaLabel,
+  onBlur,
+  onStep,
+}: {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  integer?: boolean;
+  disabled?: boolean;
+  placeholder?: string;
+  className?: string;
+  inputClassName?: string;
+  ariaLabel?: string;
+  onBlur?: () => void;
+  onStep?: (value: string) => void;
+}) {
+  const adjust = (direction: 1 | -1) => {
+    const parsed = Number(String(value || "").replace(",", "."));
+    const base = Number.isFinite(parsed) ? parsed : min;
+    let next = base + direction * step;
+    next = Math.max(min, next);
+    if (max != null) next = Math.min(max, next);
+    const nextText = integer
+      ? String(Math.max(min, Math.trunc(next)))
+      : String(Number(next.toFixed(2)));
+    onChange(nextText);
+    onStep?.(nextText);
+  };
+
+  return <div className={cn("min-w-0", className)}>
+    {label && <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</label>}
+    <div className={cn(
+      "flex min-h-[42px] min-w-0 overflow-hidden rounded-lg border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:bg-card focus-within:ring-2 focus-within:ring-primary/25",
+      disabled && "opacity-65",
+    )}>
+      <input
+        aria-label={ariaLabel || label}
+        inputMode={integer ? "numeric" : "decimal"}
+        disabled={disabled}
+        value={value}
+        placeholder={placeholder}
+        onChange={event => onChange(normalizeStepperText(event.target.value, integer))}
+        onBlur={() => onBlur?.()}
+        className={cn("min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground/65", inputClassName)}
+      />
+      <div className="flex w-8 shrink-0 flex-col border-l border-border">
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={disabled || (max != null && Number(value || 0) >= max)}
+          onClick={() => adjust(1)}
+          aria-label="Aumentar"
+          className="flex flex-1 cursor-default items-center justify-center border-b border-border text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary disabled:opacity-35"
+        ><ChevronUp size={13} /></button>
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={disabled || Number(value || min) <= min}
+          onClick={() => adjust(-1)}
+          aria-label="Diminuir"
+          className="flex flex-1 cursor-default items-center justify-center text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary disabled:opacity-35"
+        ><ChevronDown size={13} /></button>
+      </div>
+    </div>
+  </div>;
+}
+
 function CatalogResults({
   open,
   loading,
@@ -89,6 +178,9 @@ function CatalogResults({
   emptyLabel,
   formatCurrency,
   onSelect,
+  isUnavailable,
+  unavailableLabel,
+  onUnavailable,
 }: {
   open: boolean;
   loading: boolean;
@@ -96,27 +188,42 @@ function CatalogResults({
   emptyLabel: string;
   formatCurrency: (value: number) => string;
   onSelect: (option: OrderCatalogOption) => void;
+  isUnavailable?: (option: OrderCatalogOption) => boolean;
+  unavailableLabel?: (option: OrderCatalogOption) => string;
+  onUnavailable?: (option: OrderCatalogOption) => void;
 }) {
   if (!open) return null;
-  return <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-64 overflow-y-auto border border-border bg-popover shadow-xl">
+
+  return <div className="mb-2 mt-2 max-h-56 overflow-y-auto border border-border bg-popover shadow-sm">
     {loading && <div className="px-3 py-3 text-xs text-muted-foreground">Buscando...</div>}
     {!loading && options.length === 0 && <div className="px-3 py-3 text-xs text-muted-foreground">{emptyLabel}</div>}
-    {!loading && options.map(option => <button
-      key={option.id}
-      type="button"
-      onMouseDown={event => event.preventDefault()}
-      onClick={() => onSelect(option)}
-      className="flex w-full cursor-default items-start justify-between gap-4 border-b border-border px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-primary-soft"
-    >
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold text-foreground">{option.name}</span>
-        {option.description && <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{option.description}</span>}
-        {option.stock != null && <span className="mt-0.5 block text-[10px] text-muted-foreground">Estoque: {option.stock} {option.unit}</span>}
-      </span>
-      <span className="shrink-0 text-xs font-bold text-primary">
-        {option.price == null ? "Preço a definir" : formatCurrency(option.price)}
-      </span>
-    </button>)}
+    {!loading && options.map(option => {
+      const unavailable = Boolean(isUnavailable?.(option));
+      return <button
+        key={option.id}
+        type="button"
+        aria-disabled={unavailable || undefined}
+        onMouseDown={event => event.preventDefault()}
+        onClick={() => unavailable ? onUnavailable?.(option) : onSelect(option)}
+        className={cn(
+          "flex w-full cursor-default items-start justify-between gap-4 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0",
+          unavailable ? "bg-muted/35 text-muted-foreground hover:bg-muted/55" : "hover:bg-primary-soft",
+        )}
+      >
+        <span className="min-w-0">
+          <span className={cn("block truncate text-sm font-semibold", unavailable ? "text-muted-foreground" : "text-foreground")}>{option.name}</span>
+          {option.description && <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{option.description}</span>}
+          {option.stock != null && <span className={cn("mt-0.5 block text-[10px]", option.stock <= 0 ? "font-bold text-red-600 dark:text-red-400" : "text-muted-foreground")}>Estoque: {option.stock} {option.unit}</span>}
+        </span>
+        <span className={cn("shrink-0 text-xs font-bold", unavailable ? "text-red-600 dark:text-red-400" : "text-primary")}>
+          {unavailable
+            ? unavailableLabel?.(option) || "Indisponível"
+            : option.price == null
+              ? "Sem preço"
+              : formatCurrency(option.price)}
+        </span>
+      </button>;
+    })}
   </div>;
 }
 
@@ -241,23 +348,44 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   }, [editable, order?.id, serviceSearch]);
 
   const selectProduct = (option: OrderCatalogOption) => {
+    if (option.stock != null && option.stock <= 0) {
+      setMessage({ type: "error", text: `${option.name} está sem estoque disponível e não pode ser adicionado à OS.` });
+      setSelectedProduct(null);
+      return;
+    }
+    setMessage(null);
     setSelectedProduct(option);
     setProductSearch(option.name);
-    setProductPrice(String(option.price ?? 0));
+    setProductPrice(option.price == null ? "" : String(option.price));
     setProductQuantity("1");
     setProductSearchOpen(false);
   };
 
   const selectService = (option: OrderCatalogOption) => {
+    if (option.price == null) {
+      setMessage({ type: "error", text: `${option.name} não possui preço cadastrado. Defina o preço no cadastro do serviço antes de adicioná-lo à OS.` });
+      setSelectedService(null);
+      return;
+    }
+    setMessage(null);
     setSelectedService(option);
     setServiceSearch(option.name);
-    setServicePrice(option.price == null ? "" : String(option.price));
+    setServicePrice(String(option.price));
     setServiceQuantity("1");
     setServiceSearchOpen(false);
   };
 
   const addProduct = async () => {
     if (!selectedProduct || !order?.id) return;
+    if (selectedProduct.stock != null && selectedProduct.stock <= 0) {
+      setMessage({ type: "error", text: `${selectedProduct.name} está sem estoque disponível e não pode ser adicionado à OS.` });
+      return;
+    }
+    if (productPrice.trim() === "") {
+      setMessage({ type: "error", text: "Informe o preço unitário do produto." });
+      return;
+    }
+
     setMutating(true);
     setMessage(null);
     try {
@@ -283,7 +411,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   const addService = async () => {
-    if (!selectedService || !order?.id || servicePrice.trim() === "") return;
+    if (!selectedService || !order?.id) return;
     setMutating(true);
     setMessage(null);
     try {
@@ -292,7 +420,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         itemType: "service",
         catalogId: selectedService.id,
         quantity: positiveInteger(serviceQuantity),
-        unitPrice: nonNegativeNumber(servicePrice),
+        unitPrice: null,
       });
       applyPricing(nextPricing);
       await loadItems(true);
@@ -327,9 +455,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       setCustomDescription("");
       setCustomPrice("");
       setCustomQuantity("1");
-      setMessage({ type: "success", text: "Serviço avulso adicionado somente a esta OS." });
+      setMessage({ type: "success", text: "Serviço Avulso adicionado somente a esta OS." });
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível adicionar o serviço avulso.") });
+      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível adicionar o Serviço Avulso.") });
     } finally {
       setMutating(false);
     }
@@ -338,14 +466,19 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const updateDraft = (itemId: string, patch: Partial<ItemDraft>) => {
     setDrafts(current => ({
       ...current,
-      [itemId]: { ...(current[itemId] || { quantity: "1", unitPrice: "0", additionalCost: "0", description: "" }), ...patch },
+      [itemId]: {
+        ...(current[itemId] || { quantity: "1", unitPrice: "0", additionalCost: "0", description: "" }),
+        ...patch,
+      },
     }));
   };
 
   const saveItem = async (item: OrderCommercialItem, override?: Partial<ItemDraft>) => {
     const draft = { ...(drafts[item.id] || draftFromItem(item)), ...override };
     const quantity = positiveInteger(draft.quantity);
-    const unitPrice = nonNegativeNumber(draft.unitPrice);
+    const unitPrice = item.item_type === "service"
+      ? nonNegativeNumber(item.unit_price)
+      : nonNegativeNumber(draft.unitPrice);
     const additionalCost = nonNegativeNumber(draft.additionalCost);
     const description = draft.description || "";
     const unchanged =
@@ -353,6 +486,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       && Math.abs(unitPrice - nonNegativeNumber(item.unit_price)) < 0.001
       && Math.abs(additionalCost - nonNegativeNumber(item.additional_cost)) < 0.001
       && description.trim() === String(item.description_snapshot || "").trim();
+
     if (unchanged || !editable) return;
 
     setSavingItemId(item.id);
@@ -373,14 +507,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     } finally {
       setSavingItemId(null);
     }
-  };
-
-  const changeQuantity = (item: OrderCommercialItem, delta: number) => {
-    const current = positiveInteger(drafts[item.id]?.quantity ?? item.quantity);
-    const next = Math.max(1, current + delta);
-    const patch = { quantity: String(next) };
-    updateDraft(item.id, patch);
-    void saveItem(item, patch);
   };
 
   const removeItem = async (item: OrderCommercialItem) => {
@@ -426,53 +552,56 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const typeLabel = (item: OrderCommercialItem) => item.item_type === "product"
     ? "Produto"
     : item.item_type === "custom_service"
-      ? "Serviço avulso"
+      ? "Serviço Avulso"
       : "Serviço";
 
-  const renderEditorFields = (item: OrderCommercialItem, compact = false) => {
+  const renderQuantity = (item: OrderCommercialItem, compact = false) => {
     const draft = drafts[item.id] || draftFromItem(item);
-    const quantityEditor = <div className={cn("flex items-center", compact ? "justify-start" : "justify-center")}>
-      <AdminIconButton
-        ariaLabel="Diminuir quantidade"
-        variant="ghost"
-        disabled={!editable || savingItemId === item.id || positiveInteger(draft.quantity) <= 1}
-        onClick={() => changeQuantity(item, -1)}
-        className="h-7 w-7"
-      ><Minus size={13} /></AdminIconButton>
-      <input
-        aria-label="Quantidade"
-        inputMode="numeric"
-        disabled={!editable || savingItemId === item.id}
-        value={draft.quantity}
-        onChange={event => updateDraft(item.id, { quantity: event.target.value.replace(/\D/g, "") })}
-        onBlur={() => void saveItem(item)}
-        className={cn(INPUT, "mx-1 h-8 w-16 px-2 py-1 text-center text-xs")}
-      />
-      <AdminIconButton
-        ariaLabel="Aumentar quantidade"
-        variant="ghost"
-        disabled={!editable || savingItemId === item.id}
-        onClick={() => changeQuantity(item, 1)}
-        className="h-7 w-7"
-      ><Plus size={13} /></AdminIconButton>
-    </div>;
-    const priceEditor = <FCurrencyInput
+    return <NumberStepper
+      value={draft.quantity}
+      min={1}
+      step={1}
+      integer
+      disabled={!editable || savingItemId === item.id}
+      onChange={value => updateDraft(item.id, { quantity: value })}
+      onBlur={() => void saveItem(item)}
+      onStep={value => void saveItem(item, { quantity: value })}
+      inputClassName={compact ? "py-2" : "py-1.5 text-xs"}
+    />;
+  };
+
+  const renderPrice = (item: OrderCommercialItem, compact = false) => {
+    const draft = drafts[item.id] || draftFromItem(item);
+    if (item.item_type === "service") {
+      return <div className={cn(
+        INPUT,
+        "flex min-h-[38px] items-center bg-muted text-sm font-semibold text-muted-foreground",
+        !compact && "py-1.5 text-xs",
+      )}>{formatCurrency(nonNegativeNumber(item.unit_price))}</div>;
+    }
+
+    return <FCurrencyInput
       aria-label="Preço unitário"
+      placeholder="R$ 0,00"
       disabled={!editable || savingItemId === item.id}
       value={draft.unitPrice}
       onChange={(event: any) => updateDraft(item.id, { unitPrice: event.target.value })}
       onBlur={() => void saveItem(item)}
-      className={compact ? "" : "h-8 py-1 text-xs"}
+      className={compact ? "" : "h-9 py-1.5 text-xs"}
     />;
-    const additionalCostEditor = <FCurrencyInput
+  };
+
+  const renderAdditionalCost = (item: OrderCommercialItem, compact = false) => {
+    const draft = drafts[item.id] || draftFromItem(item);
+    return <FCurrencyInput
       aria-label="Custo adicional"
+      placeholder="R$ 0,00"
       disabled={!editable || savingItemId === item.id}
       value={draft.additionalCost}
       onChange={(event: any) => updateDraft(item.id, { additionalCost: event.target.value })}
       onBlur={() => void saveItem(item)}
-      className={compact ? "" : "h-8 py-1 text-xs"}
+      className={compact ? "" : "h-9 py-1.5 text-xs"}
     />;
-    return [quantityEditor, priceEditor, additionalCostEditor] as const;
   };
 
   return <div className="space-y-4">
@@ -484,19 +613,24 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     )}>{message.text}</div>}
 
     {!editable && <div className="border border-border bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-      {order?.completed_at ? "Esta OS está concluída. Produtos, serviços e desconto estão bloqueados para edição." : order?.cancelled_at ? "Esta OS está cancelada. Produtos, serviços e desconto estão bloqueados para edição." : "Você pode visualizar os valores, mas não possui permissão para alterá-los."}
+      {order?.completed_at
+        ? "Esta OS está concluída. Produtos, serviços e desconto estão bloqueados para edição."
+        : order?.cancelled_at
+          ? "Esta OS está cancelada. Produtos, serviços e desconto estão bloqueados para edição."
+          : "Você pode visualizar os valores, mas não possui permissão para alterá-los."}
     </div>}
 
     {editable && <div className="grid gap-4 lg:grid-cols-2">
-      <Section title={<span className="flex items-center gap-2"><Package size={15} className="text-primary" /> Incluir produto</span>}>
+      <Section title="Incluir produto">
         <div className="space-y-3">
-          <div className="relative">
+          <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Produto</label>
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={productSearch}
                 onFocus={() => setProductSearchOpen(true)}
+                onBlur={() => window.setTimeout(() => setProductSearchOpen(false), 120)}
                 onChange={event => {
                   setProductSearch(event.target.value);
                   setSelectedProduct(null);
@@ -513,28 +647,53 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               emptyLabel="Nenhum produto encontrado."
               formatCurrency={formatCurrency}
               onSelect={selectProduct}
+              isUnavailable={option => option.stock != null && option.stock <= 0}
+              unavailableLabel={() => "Sem estoque"}
+              onUnavailable={option => setMessage({ type: "error", text: `${option.name} está sem estoque disponível e não pode ser adicionado à OS.` })}
             />
           </div>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px_auto] sm:items-end">
-            <FCurrencyInput label="Preço unitário" value={productPrice} onChange={(event: any) => setProductPrice(event.target.value)} disabled={!selectedProduct} />
-            <FInput label="Quantidade" inputMode="numeric" value={productQuantity} onChange={(event: any) => setProductQuantity(event.target.value.replace(/\D/g, ""))} disabled={!selectedProduct} />
-            <BtnPrimary disabled={!selectedProduct || mutating} loading={mutating} onClick={() => void addProduct()} className="h-[42px]"><Plus size={15} /> Adicionar</BtnPrimary>
+
+          <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-end">
+            <NumberStepper
+              label="Quantidade"
+              value={productQuantity}
+              min={1}
+              step={1}
+              integer
+              disabled={!selectedProduct}
+              onChange={setProductQuantity}
+            />
+            <FCurrencyInput
+              label="Preço unitário"
+              placeholder="R$ 0,00"
+              value={productPrice}
+              onChange={(event: any) => setProductPrice(event.target.value)}
+              disabled={!selectedProduct}
+            />
+            <BtnPrimary
+              disabled={!selectedProduct || productPrice.trim() === "" || mutating}
+              loading={mutating}
+              onClick={() => void addProduct()}
+              className="h-[42px]"
+            ><Plus size={15} /> Adicionar</BtnPrimary>
           </div>
-          {selectedProduct && <p className="text-[10px] text-muted-foreground">
-            {selectedProduct.stock == null ? "Produto selecionado." : `Estoque atual: ${selectedProduct.stock} ${selectedProduct.unit}.`} A inclusão na OS registra a cobrança; a movimentação física continua pelo fluxo de estoque/peças.
+
+          {selectedProduct && <p className="pb-1 text-[10px] text-muted-foreground">
+            Estoque atual: {selectedProduct.stock ?? 0} {selectedProduct.unit}. A inclusão na OS registra a cobrança; a movimentação física continua pelo fluxo de estoque/peças.
           </p>}
         </div>
       </Section>
 
-      <Section title={<span className="flex items-center gap-2"><Wrench size={15} className="text-primary" /> Incluir serviço</span>}>
+      <Section title="Incluir serviço">
         <div className="space-y-3">
-          <div className="relative">
+          <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Serviço</label>
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={serviceSearch}
                 onFocus={() => setServiceSearchOpen(true)}
+                onBlur={() => window.setTimeout(() => setServiceSearchOpen(false), 120)}
                 onChange={event => {
                   setServiceSearch(event.target.value);
                   setSelectedService(null);
@@ -551,39 +710,68 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               emptyLabel="Nenhum serviço encontrado."
               formatCurrency={formatCurrency}
               onSelect={selectService}
+              isUnavailable={option => option.price == null}
+              unavailableLabel={() => "Sem preço cadastrado"}
+              onUnavailable={option => setMessage({ type: "error", text: `${option.name} não possui preço cadastrado. Defina o preço no cadastro do serviço antes de adicioná-lo à OS.` })}
             />
           </div>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px_auto] sm:items-end">
-            <FCurrencyInput label="Preço unitário" value={servicePrice} onChange={(event: any) => setServicePrice(event.target.value)} disabled={!selectedService} />
-            <FInput label="Quantidade" inputMode="numeric" value={serviceQuantity} onChange={(event: any) => setServiceQuantity(event.target.value.replace(/\D/g, ""))} disabled={!selectedService} />
-            <BtnPrimary disabled={!selectedService || servicePrice.trim() === "" || mutating} loading={mutating} onClick={() => void addService()} className="h-[42px]"><Plus size={15} /> Adicionar</BtnPrimary>
+
+          <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-end">
+            <NumberStepper
+              label="Quantidade"
+              value={serviceQuantity}
+              min={1}
+              step={1}
+              integer
+              disabled={!selectedService}
+              onChange={setServiceQuantity}
+            />
+            <FCurrencyInput
+              label="Preço unitário"
+              placeholder="R$ 0,00"
+              value={servicePrice}
+              onChange={() => undefined}
+              disabled
+            />
+            <BtnPrimary
+              disabled={!selectedService || mutating}
+              loading={mutating}
+              onClick={() => void addService()}
+              className="h-[42px]"
+            ><Plus size={15} /> Adicionar</BtnPrimary>
           </div>
-          <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-            <p className="text-[10px] leading-relaxed text-muted-foreground">Precisa de algo que não existe no catálogo? Crie somente para esta OS.</p>
-            <BtnSecondary disabled={mutating} onClick={() => setCustomOpen(true)}>Serviço avulso</BtnSecondary>
+
+          <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
+            <p className="text-[10px] leading-relaxed text-muted-foreground">O preço do serviço do catálogo é fixo nesta inclusão. Para um valor livre, use um Serviço Avulso.</p>
+            <BtnSecondary disabled={mutating} onClick={() => setCustomOpen(true)}>Serviço Avulso</BtnSecondary>
           </div>
         </div>
       </Section>
     </div>}
 
     <Section title="Itens da OS" flush>
-      {loadingItems ? <div className="p-5 text-sm text-muted-foreground">Carregando itens...</div> : items.length === 0
-        ? <div className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço foi adicionado a esta OS.</div>
-        : <>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="min-w-[980px]">
-              <thead><tr>
-                <th className="text-left">Item</th>
-                <th className="w-44 text-center">Quantidade</th>
-                <th className="w-36 text-left">Preço</th>
-                <th className="w-36 text-left">Custo adicional</th>
-                <th className="w-32 text-right">Sub-total</th>
-                <th className="w-16 text-center">Ações</th>
-              </tr></thead>
-              <tbody>{items.map(item => {
-                const draft = drafts[item.id] || draftFromItem(item);
-                return <tr key={item.id}>
-                  <td>
+      {loadingItems
+        ? <div className="p-5 text-sm text-muted-foreground">Carregando itens...</div>
+        : items.length === 0
+          ? <div className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço foi adicionado a esta OS.</div>
+          : <>
+            <div className="hidden md:block">
+              <div className="grid grid-cols-[minmax(250px,1fr)_150px_140px_140px_120px_44px] items-center gap-4 border-b border-border px-5 py-2.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                <span>Item</span>
+                <span className="text-center">Quantidade</span>
+                <span>Preço unitário</span>
+                <span>Custo adicional</span>
+                <span className="text-right">Subtotal</span>
+                <span className="text-center">Ações</span>
+              </div>
+
+              <div className="divide-y divide-border">
+                {items.map(item => {
+                  const draft = drafts[item.id] || draftFromItem(item);
+                  return <div
+                    key={item.id}
+                    className="grid grid-cols-[minmax(250px,1fr)_150px_140px_140px_120px_44px] items-center gap-4 px-5 py-4 transition-colors hover:bg-muted/35"
+                  >
                     <div className="min-w-0">
                       <span className={cn(
                         "inline-flex border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide",
@@ -602,63 +790,112 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                         className="mt-1 w-full border-0 border-b border-dashed border-border bg-transparent px-0 py-1 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/55 focus:border-primary"
                       />
                     </div>
-                  </td>
-                  <td>{renderEditorFields(item)[0]}</td>
-                  <td>{renderEditorFields(item)[1]}</td>
-                  <td>{renderEditorFields(item)[2]}</td>
-                  <td className="text-right"><span className="inline-flex bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(item.subtotal))}</span></td>
-                  <td className="text-center"><AdminIconButton ariaLabel="Remover item" variant="danger" disabled={!editable || savingItemId === item.id} onClick={() => void removeItem(item)}><Trash2 size={14} /></AdminIconButton></td>
-                </tr>;
-              })}</tbody>
-            </table>
-          </div>
 
-          <div className="space-y-3 p-4 md:hidden">{items.map(item => {
-            const draft = drafts[item.id] || draftFromItem(item);
-            return <div key={item.id} className="border border-border bg-card p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <span className={cn(
-                    "inline-flex border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide",
-                    item.item_type === "product"
-                      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                      : "border-primary/25 bg-primary-soft text-primary",
-                  )}>{typeLabel(item)}</span>
-                  <p className="mt-1.5 break-words text-sm font-semibold text-foreground">{item.title_snapshot}</p>
-                </div>
-                <AdminIconButton ariaLabel="Remover item" variant="danger" disabled={!editable || savingItemId === item.id} onClick={() => void removeItem(item)}><Trash2 size={14} /></AdminIconButton>
+                    <div>{renderQuantity(item)}</div>
+                    <div>{renderPrice(item)}</div>
+                    <div>{renderAdditionalCost(item)}</div>
+                    <div className="text-right">
+                      <span className="inline-flex bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(item.subtotal))}</span>
+                    </div>
+                    <div className="text-center">
+                      <AdminIconButton
+                        ariaLabel="Remover item"
+                        variant="danger"
+                        disabled={!editable || savingItemId === item.id}
+                        onClick={() => void removeItem(item)}
+                      ><Trash2 size={14} /></AdminIconButton>
+                    </div>
+                  </div>;
+                })}
               </div>
-              <div className="mt-3">
-                <FInput
-                  label="Descrição"
-                  disabled={!editable || savingItemId === item.id}
-                  value={draft.description}
-                  onChange={(event: any) => updateDraft(item.id, { description: event.target.value })}
-                  onBlur={() => void saveItem(item)}
-                  placeholder="Breve descrição (opcional)"
-                />
-              </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Quantidade</label>{renderEditorFields(item, true)[0]}</div>
-                <div>{renderEditorFields(item, true)[1]}</div>
-                <div>{renderEditorFields(item, true)[2]}</div>
-              </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs"><span className="text-muted-foreground">Sub-total</span><strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(item.subtotal))}</strong></div>
-            </div>;
-          })}</div>
-        </>}
+            </div>
+
+            <div className="divide-y divide-border md:hidden">
+              {items.map(item => {
+                const draft = drafts[item.id] || draftFromItem(item);
+                return <div key={item.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className={cn(
+                        "inline-flex border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide",
+                        item.item_type === "product"
+                          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                          : "border-primary/25 bg-primary-soft text-primary",
+                      )}>{typeLabel(item)}</span>
+                      <p className="mt-1.5 break-words text-sm font-semibold text-foreground">{item.title_snapshot}</p>
+                    </div>
+                    <AdminIconButton
+                      ariaLabel="Remover item"
+                      variant="danger"
+                      disabled={!editable || savingItemId === item.id}
+                      onClick={() => void removeItem(item)}
+                    ><Trash2 size={14} /></AdminIconButton>
+                  </div>
+
+                  <div className="mt-3">
+                    <FInput
+                      label="Descrição"
+                      disabled={!editable || savingItemId === item.id}
+                      value={draft.description}
+                      onChange={(event: any) => updateDraft(item.id, { description: event.target.value })}
+                      onBlur={() => void saveItem(item)}
+                      placeholder="Breve descrição (opcional)"
+                    />
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Quantidade</label>
+                      {renderQuantity(item, true)}
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Preço unitário</label>
+                      {renderPrice(item, true)}
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Custo adicional</label>
+                      {renderAdditionalCost(item, true)}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(item.subtotal))}</strong>
+                  </div>
+                </div>;
+              })}
+            </div>
+          </>}
     </Section>
 
     <Section title="Resumo da OS">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-3">
           <div className="grid gap-2 text-sm">
-            <div className="flex items-center justify-between gap-4 border-b border-border py-2"><span className="text-muted-foreground">Total produtos</span><strong className="text-foreground">{formatCurrency(nonNegativeNumber(pricing.parts_total))}</strong></div>
-            {resolutionProductsTotal > 0.009 && <div className="flex items-center justify-between gap-4 border-b border-border py-2 text-xs"><span className="text-muted-foreground">Inclui produtos usados na solução</span><span className="font-semibold text-muted-foreground">{formatCurrency(resolutionProductsTotal)}</span></div>}
-            <div className="flex items-center justify-between gap-4 border-b border-border py-2"><span className="text-muted-foreground">Total serviços</span><strong className="text-foreground">{formatCurrency(nonNegativeNumber(pricing.service_price))}</strong></div>
-            <div className="flex items-center justify-between gap-4 border-b border-border py-2"><span className="text-muted-foreground">Subtotal</span><strong className="text-foreground">{formatCurrency(nonNegativeNumber(pricing.subtotal))}</strong></div>
-            <div className="flex items-center justify-between gap-4 border-b border-border py-2"><span className="text-muted-foreground">Desconto</span><strong className="text-foreground">- {formatCurrency(nonNegativeNumber(pricing.discount_amount))}</strong></div>
-            <div className="flex items-center justify-between gap-4 pt-2"><span className="font-bold text-foreground">Total da OS</span><strong className="text-lg font-black text-primary">{formatCurrency(nonNegativeNumber(pricing.final_total))}</strong></div>
+            <div className="flex items-center justify-between gap-4 border-b border-border py-2">
+              <span className="text-muted-foreground">Total produtos</span>
+              <strong className="text-foreground">{formatCurrency(nonNegativeNumber(pricing.parts_total))}</strong>
+            </div>
+            {resolutionProductsTotal > 0.009 && <div className="flex items-center justify-between gap-4 border-b border-border py-2 text-xs">
+              <span className="text-muted-foreground">Inclui produtos usados na solução</span>
+              <span className="font-semibold text-muted-foreground">{formatCurrency(resolutionProductsTotal)}</span>
+            </div>}
+            <div className="flex items-center justify-between gap-4 border-b border-border py-2">
+              <span className="text-muted-foreground">Total serviços</span>
+              <strong className="text-foreground">{formatCurrency(nonNegativeNumber(pricing.service_price))}</strong>
+            </div>
+            <div className="flex items-center justify-between gap-4 border-b border-border py-2">
+              <span className="text-muted-foreground">Subtotal</span>
+              <strong className="text-foreground">{formatCurrency(nonNegativeNumber(pricing.subtotal))}</strong>
+            </div>
+            <div className="flex items-center justify-between gap-4 border-b border-border py-2">
+              <span className="text-muted-foreground">Desconto</span>
+              <strong className="text-foreground">- {formatCurrency(nonNegativeNumber(pricing.discount_amount))}</strong>
+            </div>
+            <div className="flex items-center justify-between gap-4 pt-2">
+              <span className="font-bold text-foreground">Total da OS</span>
+              <strong className="text-lg font-black text-primary">{formatCurrency(nonNegativeNumber(pricing.final_total))}</strong>
+            </div>
           </div>
         </div>
 
@@ -681,11 +918,32 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                 ]}
               />
             </div>
+
             {discountType === "amount"
-              ? <FCurrencyInput label="Valor do desconto" disabled={!editable} value={discountValue} onChange={(event: any) => setDiscountValue(event.target.value)} />
-              : <FDecimalInput label="Percentual" disabled={!editable} decimalPlaces={2} value={discountValue} onChange={(event: any) => setDiscountValue(event.target.value)} />}
+              ? <FCurrencyInput
+                  label="Valor do desconto"
+                  placeholder="R$ 0,00"
+                  disabled={!editable}
+                  value={discountValue}
+                  onChange={(event: any) => setDiscountValue(event.target.value)}
+                />
+              : <NumberStepper
+                  label="Percentual (%)"
+                  value={discountValue}
+                  min={0}
+                  max={100}
+                  step={1}
+                  disabled={!editable}
+                  onChange={setDiscountValue}
+                />}
           </div>
-          {editable && <BtnSecondary disabled={mutating} loading={mutating} onClick={() => void applyDiscount()} className="mt-3 w-full">Aplicar desconto</BtnSecondary>}
+
+          {editable && <BtnSecondary
+            disabled={mutating}
+            loading={mutating}
+            onClick={() => void applyDiscount()}
+            className="mt-3 w-full"
+          >Aplicar desconto</BtnSecondary>}
         </div>
       </div>
     </Section>
@@ -693,20 +951,49 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     <AdminDialog
       open={customOpen}
       onClose={() => { if (!mutating) setCustomOpen(false); }}
-      title="Serviço avulso"
+      title="Serviço Avulso"
       description="Este serviço ficará vinculado somente a esta OS e não será salvo no catálogo de serviços."
       className="max-w-xl"
       footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <BtnSecondary disabled={mutating} onClick={() => setCustomOpen(false)}>Cancelar</BtnSecondary>
-        <BtnPrimary disabled={mutating || !customName.trim() || customPrice.trim() === ""} loading={mutating} onClick={() => void addCustomService()}>Adicionar serviço</BtnPrimary>
+        <BtnPrimary
+          disabled={mutating || !customName.trim() || customPrice.trim() === ""}
+          loading={mutating}
+          onClick={() => void addCustomService()}
+        >Adicionar serviço</BtnPrimary>
       </div>}
     >
       <div className="space-y-4">
-        <FInput label="Nome do serviço" required value={customName} onChange={(event: any) => setCustomName(event.target.value)} placeholder="Ex.: Ajuste de conector" />
-        <FTextarea label="Descrição" rows={4} value={customDescription} onChange={(event: any) => setCustomDescription(event.target.value)} placeholder="Descreva o que será executado nesta OS" />
+        <FInput
+          label="Nome do serviço"
+          required
+          value={customName}
+          onChange={(event: any) => setCustomName(event.target.value)}
+          placeholder="Ex.: Ajuste de conector"
+        />
+        <FTextarea
+          label="Descrição"
+          rows={4}
+          value={customDescription}
+          onChange={(event: any) => setCustomDescription(event.target.value)}
+          placeholder="Descreva o que será executado nesta OS"
+        />
         <div className="grid gap-3 sm:grid-cols-2">
-          <FCurrencyInput label="Preço unitário" required value={customPrice} onChange={(event: any) => setCustomPrice(event.target.value)} />
-          <FInput label="Quantidade" required inputMode="numeric" value={customQuantity} onChange={(event: any) => setCustomQuantity(event.target.value.replace(/\D/g, ""))} />
+          <NumberStepper
+            label="Quantidade"
+            value={customQuantity}
+            min={1}
+            step={1}
+            integer
+            onChange={setCustomQuantity}
+          />
+          <FCurrencyInput
+            label="Preço unitário"
+            placeholder="R$ 0,00"
+            required
+            value={customPrice}
+            onChange={(event: any) => setCustomPrice(event.target.value)}
+          />
         </div>
       </div>
     </AdminDialog>
