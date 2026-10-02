@@ -12,13 +12,13 @@ export type PermissionModuleGroup = { name: string; sections: PermissionSectionG
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço",
-  customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", inventory: "Estoque", products: "Produtos", pdv: "PDV", categories: "Categorias",
+  customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", inventory: "Estoque", products: "Estoque", pdv: "PDV", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", checklists: "Checklists", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
   situations: "Situações da OS", terms: "Termos", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos", organizations: "Empresas",
 };
 
-const MODULE_ORDER = ["Dashboard", "Site", "Produtos", "PDV", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Checklists", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Auditoria", "Documentos", "Dados da Empresa", "Termos", "Contato"];
+const MODULE_ORDER = ["Dashboard", "Site", "PDV", "Categorias", "Marcas", "Serviços do Site", "Configurações do Site", "Operação", "Ordens de Serviço", "Cadastros", "Cadastros — Acesso ao sistema", "Orçamentos", "Agenda", "Estoque", "Equipamentos", "Checklists", "Serviços Gerais", "Tipos de Atendimento", "Situações da OS", "Funções e Permissões", "Auditoria", "Documentos", "Dados da Empresa", "Termos", "Contato"];
 const SECTION_ORDER = ["Acesso", "Tabela", "Kanban", "Detalhes", "Vendas", "Caixa", "Configurações", "Informações", "Preço", "Ações", "Fluxo da OS", "Peças", "Checklists", "Histórico", "Documentos e Imagens", "SLA", "Movimentações", "Fornecedores", "Custos", "Campos Técnicos", "Permissões", "Impressão / Modelos", "Assinaturas", "Tipos de Anexo", "Calendário", "Endereços", "Funcionários", "Contatos", "Registros", "Conteúdo", "Publicação", "Outros"];
 
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
@@ -35,6 +35,17 @@ const HIDDEN_LEGACY_PERMISSIONS = new Set([
   "employees.table.status",
   "employees.table.actions",
   "inventory.delete",
+  "products.view",
+  "products.create",
+  "products.update",
+  "products.delete",
+  "products.details.view",
+  "products.table.view",
+  "products.table.product",
+  "products.table.price",
+  "products.table.status",
+  "products.table.actions",
+  "products.toggle_active",
 ]);
 
 export function permissionModuleName(permission: PermissionRecord) {
@@ -149,7 +160,16 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "orders.section.checklists": ["orders.details.view", "orders.view"],
   "orders.checklists.manage": ["orders.section.checklists", "orders.details.view", "orders.view"],
   "orders.checklists.reopen": ["orders.section.checklists", "orders.details.view", "orders.view"],
-  "inventory.movements.view": ["inventory.view"], "inventory.movements.create": ["inventory.update", "inventory.view"], "inventory.toggle_active": ["inventory.update", "inventory.view"],
+  "inventory.view": ["products.view"],
+  "inventory.table.view": ["inventory.view", "products.table.view"],
+  "inventory.table.name": ["inventory.table.view", "products.table.product"],
+  "inventory.table.sale_price": ["inventory.table.view", "products.table.price"],
+  "inventory.table.status": ["inventory.table.view", "products.table.status"],
+  "inventory.table.actions": ["inventory.table.view", "products.table.actions"],
+  "inventory.details.view": ["inventory.view", "products.details.view"],
+  "inventory.create": ["inventory.view", "products.create"],
+  "inventory.update": ["inventory.view", "inventory.details.view", "products.update"],
+  "inventory.movements.view": ["inventory.view"], "inventory.movements.create": ["inventory.update", "inventory.view"], "inventory.toggle_active": ["inventory.update", "inventory.view", "products.toggle_active"],
   "inventory.suppliers.view": ["inventory.view"], "inventory.suppliers.manage": ["inventory.suppliers.view", "inventory.update", "inventory.view"], "inventory.costs.view": ["inventory.view"],
   "products.toggle_active": ["products.update", "products.view"], "products.toggle_featured": ["products.update", "products.view"],
   "pdv.sales.create": ["pdv.view"], "pdv.sales.cancel": ["pdv.view"], "pdv.settings.manage": ["pdv.view"],
