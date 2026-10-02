@@ -257,6 +257,7 @@ export function AdminDialog({
   description,
   children,
   footer,
+  headerActions,
   className,
 }: {
   open: boolean;
@@ -265,6 +266,7 @@ export function AdminDialog({
   description?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  headerActions?: React.ReactNode;
   className?: string;
 }) {
   return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
@@ -279,7 +281,10 @@ export function AdminDialog({
           {title ? <DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
           {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
         </div>
-        <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>
+        <div className="flex shrink-0 items-center gap-1">
+          {headerActions}
+          <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>
+        </div>
       </div>}
       <div className="max-h-[calc(90vh-140px)] min-w-0 overflow-y-auto p-5">{children}</div>
       {footer && <div className="border-t border-border bg-muted/60 px-5 py-4">{footer}</div>}
