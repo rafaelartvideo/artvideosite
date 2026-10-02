@@ -191,9 +191,9 @@ export function RegistrationEditor({
             onCheckedChange={checked => setForm(current => ({ ...current, field_tracking_prompt_on_login: checked === true }))}
           />
           <span className="min-w-0">
-            <span className="block text-sm font-black text-[#0d1b2e] dark:text-foreground">Solicitar localização ao entrar</span>
+            <span className="block text-sm font-black text-[#0d1b2e] dark:text-foreground">Exigir compartilhamento de localização</span>
             <span className="mt-1 block text-xs leading-5 text-[#5a6a82] dark:text-muted-foreground">
-              Ao entrar no sistema, este usuário verá uma solicitação para ativar o compartilhamento da localização pelo navegador. Ele poderá ativar naquele momento ou continuar sem compartilhar.
+              Ao entrar no sistema, este usuário deverá autorizar a localização pelo navegador. Se recusar a permissão, a sessão será encerrada imediatamente. Se não ativar em até 1 minuto, o sistema fará logout automaticamente.
             </span>
           </span>
         </label>}
