@@ -970,8 +970,18 @@ export function TabProducts({
         </div>
 
         <div className="p-4 sm:p-5">
-          <TabsContent value="general" className="mt-0">
+          <TabsContent value="general" className="mt-0 space-y-5">
             <Section title="Identificação do item">
+              <div className="mb-4 flex flex-col gap-3 rounded-xl border border-primary/15 bg-primary-soft/45 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-black text-[#0d1b2e]">Cadastro assistido</p>
+                  <p className="mt-0.5 text-[10px] leading-4 text-[#5a6a82]">Busque por nome, GTIN, EAN ou UPC para preencher descrição, marca, categoria, modelo, NCM, dimensões, preço de referência e fotos quando disponíveis.</p>
+                </div>
+                <AdminButton type="button" variant="secondary" disabled={saving} onClick={() => setLookupOpen(true)}>
+                  <Sparkles size={14} /> Buscar produto
+                </AdminButton>
+              </div>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <FInput
@@ -984,9 +994,10 @@ export function TabProducts({
                       setFieldErrors(current => ({ ...current, name: undefined }));
                       setForm(current => ({ ...current, name: event.target.value }));
                     }}
-                    placeholder="Nome do item"
+                    placeholder="Nome completo do item"
                   />
                 </div>
+
                 <FInput
                   label="SKU / código interno"
                   value={form.sku}
@@ -1003,8 +1014,63 @@ export function TabProducts({
                     setFieldErrors(current => ({ ...current, barcode: undefined }));
                     setForm(current => ({ ...current, barcode: event.target.value }));
                   }}
-                  placeholder="EAN, GTIN ou código utilizado no PDV"
+                  placeholder="EAN, GTIN, UPC ou código utilizado no PDV"
+                  hint="GTIN é o identificador global; EAN e UPC são formatos usados em códigos de barras."
                 />
+
+                <div>
+                  <FSelect
+                    label="Categoria"
+                    value={form.category_id}
+                    disabled={saving || !canLoadCategories}
+                    onChange={(event: any) => setForm(current => ({ ...current, category_id: event.target.value }))}
+                    options={catOptions}
+                  />
+                  {canManageCategories && <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setMasterDataName("");
+                      setMasterDataDialog("category");
+                    }}
+                    className="mt-1 text-[10px] font-bold text-primary hover:underline"
+                  >+ Nova categoria</button>}
+                </div>
+
+                <div>
+                  <FSelect
+                    label="Marca"
+                    value={form.brand_id}
+                    disabled={saving || !canLoadBrands}
+                    onChange={(event: any) => setForm(current => ({ ...current, brand_id: event.target.value }))}
+                    options={brandOptions}
+                  />
+                  {canManageBrands && <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setMasterDataName("");
+                      setMasterDataDialog("brand");
+                    }}
+                    className="mt-1 text-[10px] font-bold text-primary hover:underline"
+                  >+ Nova marca</button>}
+                </div>
+
+                <FInput
+                  label="Modelo"
+                  value={form.model}
+                  disabled={saving}
+                  onChange={(event: any) => setForm(current => ({ ...current, model: event.target.value }))}
+                  placeholder="Modelo comercial"
+                />
+                <FInput
+                  label="Código do fabricante / MPN"
+                  value={form.manufacturer_code}
+                  disabled={saving}
+                  onChange={(event: any) => setForm(current => ({ ...current, manufacturer_code: event.target.value }))}
+                  placeholder="Código original do fabricante"
+                />
+
                 <div className="sm:col-span-2">
                   <FTextarea
                     label="Descrição"
@@ -1012,19 +1078,88 @@ export function TabProducts({
                     disabled={saving}
                     onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))}
                     rows={4}
-                    placeholder="Descrição geral do item"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <FToggle
-                    label="Item ativo"
-                    description="Disponibiliza o item para estoque, vendas, PDV e demais módulos comerciais."
-                    checked={form.is_active}
-                    disabled={saving}
-                    onChange={value => setForm(current => ({ ...current, is_active: value }))}
+                    placeholder="Descrição completa, aplicações, compatibilidades e informações úteis"
                   />
                 </div>
               </div>
+            </Section>
+
+            <Section title="Características e classificação">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <FInput
+                  label="Código GPC / classificação externa"
+                  value={form.gpc_code}
+                  disabled={saving}
+                  onChange={(event: any) => setForm(current => ({ ...current, gpc_code: event.target.value }))}
+                  placeholder="Quando disponível"
+                />
+                <FDecimalInput
+                  label="Peso bruto (g)"
+                  value={form.gross_weight_grams}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, gross_weight_grams: event.target.value }))}
+                />
+                <FDecimalInput
+                  label="Peso líquido (g)"
+                  value={form.net_weight_grams}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, net_weight_grams: event.target.value }))}
+                />
+                <FDecimalInput
+                  label="Largura (mm)"
+                  value={form.width_mm}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, width_mm: event.target.value }))}
+                />
+                <FDecimalInput
+                  label="Altura (mm)"
+                  value={form.height_mm}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, height_mm: event.target.value }))}
+                />
+                <FDecimalInput
+                  label="Comprimento (mm)"
+                  value={form.length_mm}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, length_mm: event.target.value }))}
+                />
+              </div>
+            </Section>
+
+            {form.external_platform && <Section title="Origem dos dados">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Fonte</p>
+                  <p className="mt-1 text-xs font-black text-[#0d1b2e]">{form.external_platform === "cosmos" ? "Cosmos / Bluesoft" : form.external_platform}</p>
+                </AdminCard>
+                <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Identificador externo</p>
+                  <p className="mt-1 break-all text-xs font-black text-[#0d1b2e]">{form.external_product_id || "—"}</p>
+                </AdminCard>
+                <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Preço de referência</p>
+                  <p className="mt-1 text-xs font-black text-[#0d1b2e]">{form.external_reference_price ? (form.external_currency === "BRL" ? formatCurrency(Number(form.external_reference_price)) : ((form.external_currency || "") + " " + form.external_reference_price).trim()) : "—"}</p>
+                </AdminCard>
+                <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Faixa encontrada</p>
+                  <p className="mt-1 text-xs font-black text-[#0d1b2e]">{form.external_min_price || form.external_max_price ? (form.external_min_price || "—") + " — " + (form.external_max_price || "—") : "—"}</p>
+                </AdminCard>
+              </div>
+            </Section>}
+
+            <Section title="Disponibilidade">
+              <FToggle
+                label="Item ativo"
+                description="Disponibiliza o item para estoque, vendas, PDV e demais módulos comerciais."
+                checked={form.is_active}
+                disabled={saving}
+                onChange={value => setForm(current => ({ ...current, is_active: value }))}
+              />
             </Section>
           </TabsContent>
 
@@ -1455,6 +1590,43 @@ export function TabProducts({
                 canUpload={!saving && (editItem ? canEdit : canCreate)}
                 label="Foto principal"
               />
+
+              {galleryMedia.length > 0 && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-black text-[#0d1b2e]">Galeria importada</p>
+                    <p className="mt-0.5 text-[10px] text-[#7a8aa0]">Fotos importadas da busca externa. Escolha a principal ou remova as que não quiser salvar.</p>
+                  </div>
+                  <span className="text-[10px] font-bold text-[#5a6a82]">{galleryMedia.length} foto{galleryMedia.length === 1 ? "" : "s"}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+                  {galleryMedia.map(image => <div key={image.media_id} className={cn("relative rounded-xl border bg-white p-1.5", form.cover_media_id === image.media_id ? "border-primary ring-1 ring-primary/20" : "border-[#0d1b2e]/10")}>
+                    <div className="aspect-square overflow-hidden rounded-lg bg-[#f8fafc]">
+                      {image.public_url
+                        ? <img src={image.public_url} alt="" className="h-full w-full object-contain" />
+                        : <div className="flex h-full items-center justify-center"><ImageIcon size={20} className="text-[#9aa6b5]" /></div>}
+                    </div>
+                    <div className="mt-1.5 flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setForm(current => ({ ...current, cover_media_id: image.media_id }))}
+                        className={cn("flex flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-bold", form.cover_media_id === image.media_id ? "bg-primary text-white" : "bg-[#f1f4f8] text-[#5a6a82]")}
+                      ><Star size={10} fill={form.cover_media_id === image.media_id ? "currentColor" : "none"} /> Capa</button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGalleryMedia(current => current.filter(entry => entry.media_id !== image.media_id));
+                          if (form.cover_media_id === image.media_id) {
+                            const next = galleryMedia.find(entry => entry.media_id !== image.media_id);
+                            setForm(current => ({ ...current, cover_media_id: next?.media_id || "" }));
+                          }
+                        }}
+                        className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-bold text-red-700"
+                      >Remover</button>
+                    </div>
+                  </div>)}
+                </div>
+              </div>}
             </Section>
           </TabsContent>
 
@@ -1471,20 +1643,6 @@ export function TabProducts({
 
                 {form.show_in_catalog && <div className="space-y-5 border-t border-[#0d1b2e]/8 pt-5">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FSelect
-                      label="Categoria do catálogo"
-                      value={form.category_id}
-                      disabled={saving || !canLoadCategories}
-                      onChange={(event: any) => setForm(current => ({ ...current, category_id: event.target.value }))}
-                      options={catOptions}
-                    />
-                    <FSelect
-                      label="Marca"
-                      value={form.brand_id}
-                      disabled={saving || !canLoadBrands}
-                      onChange={(event: any) => setForm(current => ({ ...current, brand_id: event.target.value }))}
-                      options={brandOptions}
-                    />
                     <div className="sm:col-span-2">
                       <FInput
                         label="Descrição curta"
@@ -1527,5 +1685,42 @@ export function TabProducts({
         {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </div>
     </AdminPage>
+
+    {activeOrganizationId && <ProductLookupDialog
+      open={lookupOpen}
+      organizationId={activeOrganizationId}
+      onClose={() => setLookupOpen(false)}
+      onApply={handleLookupApply}
+    />}
+
+    <AdminDialog
+      open={Boolean(masterDataDialog)}
+      onClose={() => {
+        if (masterDataSaving) return;
+        setMasterDataDialog(null);
+        setMasterDataName("");
+      }}
+      title={masterDataDialog === "category" ? "Nova categoria" : "Nova marca"}
+      description="O cadastro será vinculado à empresa atual e ficará disponível para todos os itens do Estoque."
+      className="max-w-md"
+      footer={<div className="flex justify-end gap-2">
+        <AdminButton variant="secondary" disabled={masterDataSaving} onClick={() => setMasterDataDialog(null)}>Cancelar</AdminButton>
+        <AdminButton
+          loading={masterDataSaving}
+          loadingText="Criando..."
+          disabled={!masterDataName.trim()}
+          onClick={() => void saveMasterData()}
+        >Criar</AdminButton>
+      </div>}
+    >
+      <FInput
+        autoFocus
+        label={masterDataDialog === "category" ? "Nome da categoria" : "Nome da marca"}
+        value={masterDataName}
+        disabled={masterDataSaving}
+        onChange={(event: any) => setMasterDataName(event.target.value)}
+        placeholder={masterDataDialog === "category" ? "Ex.: Controles remotos" : "Ex.: Samsung"}
+      />
+    </AdminDialog>
   </div>;
 }
