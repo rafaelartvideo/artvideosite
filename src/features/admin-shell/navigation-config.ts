@@ -32,7 +32,6 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "customers", label: "Cadastros", icon: Users },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "inventory", label: "Estoque", icon: Package },
-  { id: "products", label: "Produtos", icon: Package },
   { id: "pdv", label: "PDV", icon: ShoppingCart },
   { id: "finance", label: "Financeiro", icon: Landmark },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
@@ -153,6 +152,7 @@ export function isAdminModuleEnabled(
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
   if (tab === "customers") return hasModule("customers") || hasModule("employees");
+  if (tab === "inventory" || tab === "products") return hasModule("inventory") || hasModule("products");
   const moduleKey = moduleForTab[tab];
   return moduleKey ? hasModule(moduleKey) : true;
 }
