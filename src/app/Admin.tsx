@@ -130,7 +130,7 @@ export function AdminDashboard({
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("dashboard", null, null, { replace: true }); };
 
-  const sidebar = <AdminSidebar activeTab={activeMenuTab} userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"} roleName={roleName} organizations={organizations} activeOrganizationId={activeOrganizationId} hasPermission={hasPermission} hasModule={hasModule} onNavigate={tab => navigateAdmin(tab)} onOrganizationChange={handleOrganizationChange} onSignOut={() => signOut()} onBackToSite={onBackToSite} />;
+  const sidebar = <AdminSidebar activeTab={activeMenuTab} organizations={organizations} activeOrganizationId={activeOrganizationId} hasPermission={hasPermission} hasModule={hasModule} onNavigate={tab => navigateAdmin(tab)} onBackToSite={onBackToSite} />;
 
   return <Suspense fallback={<AdminPanelLoader progress={99} status="Carregando painel" />}>
     <AdminPageContext.Provider value={{ page, setPage }}>
@@ -139,10 +139,11 @@ export function AdminDashboard({
       sidebarOpen={sidebarOpen}
       activeOrganizationId={activeOrganizationId}
       activeOrganizationName={activeOrganizationName}
+      organizations={organizations}
       userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
+      username={(profile as any)?.username || user?.email?.split("@")[0] || ""}
       roleName={roleName}
-      canOpenSettings={canAccessTab("settings")}
-      onOpenSettings={() => navigateAdmin("settings")}
+      onOrganizationChange={handleOrganizationChange}
       onSignOut={() => signOut()}
       onToggleSidebar={() => setSidebarOpen(current => !current)}
     />}>
