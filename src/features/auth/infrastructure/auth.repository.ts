@@ -52,21 +52,22 @@ export async function authenticateAdmin(identifier: string, password: string): P
   return "authenticated";
 }
 
-export async function validateCurrentSessionIp() {
+export type CurrentSessionValidation = "allowed" | "ip_not_allowed" | "session_invalid" | "unavailable";
+
+export async function validateCurrentSessionIp(): Promise<CurrentSessionValidation> {
   const result = await supabase.functions.invoke("username-auth", {
     body: { action: "validate_session" },
   });
 
-  if (!result.error && result.data?.success === true) return true;
-  if (!result.error) return true;
+  if (!result.error && result.data?.success === true) return "allowed";
+  if (!result.error) return "unavailable";
 
   const payload = await functionErrorPayload(result.error);
-  if (payload.code === "ip_not_allowed") return false;
-  if (payload.message.toLowerCase().includes("não autenticado")) return false;
+  if (payload.code === "ip_not_allowed") return "ip_not_allowed";
+  if (payload.message.toLowerCase().includes("não autenticado")) return "session_invalid";
 
-  // Falhas transitórias da Edge Function/rede não devem derrubar uma sessão ativa.
-  // O controle de inatividade continua sendo responsável pela expiração normal.
-  return true;
+  // Falha de rede/Edge Function não é motivo para derrubar uma sessão ativa.
+  return "unavailable";
 }
 
 export async function changeAdminPassword(

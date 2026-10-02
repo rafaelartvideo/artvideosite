@@ -74,7 +74,9 @@ export function FieldTrackingReporter() {
   const [verificationVersion, setVerificationVersion] = useState(0);
   const [activationBusy, setActivationBusy] = useState(false);
   const [gateError, setGateError] = useState("");
+  const [secondsLeft, setSecondsLeft] = useState(60);
   const lastSentAtRef = useRef(0);
+  const signingOutRef = useRef(false);
 
   const locationRequired = hasModule("field_tracking")
     && employee?.is_active !== false
@@ -106,6 +108,35 @@ export function FieldTrackingReporter() {
     return () => window.removeEventListener(FIELD_TRACKING_PREFERENCE_EVENT, handlePreference);
   }, []);
 
+  useEffect(() => {
+    signingOutRef.current = false;
+
+    // Este cronômetro só existe quando a empresa marcou a localização
+    // como obrigatória para este funcionário.
+    if (!showRequiredGate) {
+      setSecondsLeft(60);
+      return;
+    }
+
+    const deadline = Date.now() + 60_000;
+    const expireRequiredLocation = () => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining > 0 || signingOutRef.current) return;
+      signingOutRef.current = true;
+      void signOut();
+    };
+
+    expireRequiredLocation();
+    const interval = window.setInterval(expireRequiredLocation, 250);
+    const timeout = window.setTimeout(expireRequiredLocation, 60_000);
+
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [showRequiredGate, activeOrganizationId, user?.id, signOut]);
+
   const activateBrowserTracking = useCallback(async () => {
     if (!activeOrganizationId || !user?.id || !canShare || activationBusy) return;
     if (!navigator.geolocation) {
@@ -136,6 +167,11 @@ export function FieldTrackingReporter() {
     } catch (error) {
       if (error && typeof error === "object" && "code" in error) {
         const geoError = error as GeolocationPositionError;
+        if (locationRequired && geoError.code === geoError.PERMISSION_DENIED) {
+          signingOutRef.current = true;
+          void signOut();
+          return;
+        }
         setGateError(geolocationErrorMessage(geoError));
       } else {
         setGateError("Não foi possível iniciar o compartilhamento da localização. Tente novamente.");
@@ -150,6 +186,7 @@ export function FieldTrackingReporter() {
     activationBusy,
     locationRequired,
     verificationKey,
+    signOut,
   ]);
 
   useEffect(() => {
@@ -163,16 +200,26 @@ export function FieldTrackingReporter() {
         void updateMyFieldLocation(activeOrganizationId, positionPayload(position)).catch(() => undefined);
       },
       error => {
-        setFieldTrackingEnabled(activeOrganizationId, user.id, false);
-
         if (locationRequired) {
+          // Falha temporária de GPS não deve derrubar a sessão.
+          // Só tratamos como perda da localização obrigatória quando
+          // o navegador informa que a permissão foi negada/revogada.
+          if (error.code !== error.PERMISSION_DENIED) return;
+
+          setFieldTrackingEnabled(activeOrganizationId, user.id, false);
           if (verificationKey) window.localStorage.removeItem(verificationKey);
           setGateError(geolocationErrorMessage(error));
           setVerificationVersion(value => value + 1);
+
+          if (!signingOutRef.current) {
+            signingOutRef.current = true;
+            void signOut();
+          }
           return;
         }
 
         if (error.code === error.PERMISSION_DENIED) {
+          setFieldTrackingEnabled(activeOrganizationId, user.id, false);
           setPreferenceVersion(value => value + 1);
         }
       },
@@ -191,6 +238,7 @@ export function FieldTrackingReporter() {
     enabled,
     locationRequired,
     verificationKey,
+    signOut,
   ]);
 
   if (!showRequiredGate) return null;
@@ -215,8 +263,15 @@ export function FieldTrackingReporter() {
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
           <p className="text-sm font-black">Ative a localização do navegador para continuar.</p>
           <p className="mt-1 text-xs leading-5">
-            Enquanto a localização não for autorizada, o acesso ao sistema permanecerá bloqueado nesta tela. A sessão só expira pela regra geral de inatividade.
+            Esta exigência está ativada para o seu usuário. Se você recusar a permissão, a sessão será encerrada imediatamente. Se não ativar em até 1 minuto, o sistema fará logout automaticamente.
           </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
+          <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tempo restante</span>
+          <strong className="font-mono text-lg font-black text-foreground">
+            00:{String(secondsLeft).padStart(2, "0")}
+          </strong>
         </div>
 
         {gateError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">

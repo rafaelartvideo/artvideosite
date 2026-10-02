@@ -88,9 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoadingProgress(20);
       if (data.session?.user) {
         setLoadingProgress(28);
-        const allowed = await validateCurrentSessionIp();
+        const sessionValidation = await validateCurrentSessionIp();
         if (cancelled) return;
-        if (!allowed) {
+        if (sessionValidation === "ip_not_allowed" || sessionValidation === "session_invalid") {
           await supabase.auth.signOut();
           setLoading(false);
           return;
@@ -205,14 +205,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "wheel",
       "input",
       "change",
-      "focus",
     ];
+    const checkAfterVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      if (isSessionInactive(lastActivityAt)) {
+        void signOut();
+        return;
+      }
+      scheduleExpiration();
+    };
+
     activityEvents.forEach(eventName => window.addEventListener(eventName, recordActivity, { passive: true }));
+    document.addEventListener("visibilitychange", checkAfterVisibilityChange);
     scheduleExpiration();
 
     return () => {
       if (inactivityTimer !== null) window.clearTimeout(inactivityTimer);
       activityEvents.forEach(eventName => window.removeEventListener(eventName, recordActivity));
+      document.removeEventListener("visibilitychange", checkAfterVisibilityChange);
     };
   }, [session?.user.id]);
 
@@ -223,7 +233,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState !== "visible" || sessionValidationRef.current) return;
       sessionValidationRef.current = true;
       try {
-        if (!await validateCurrentSessionIp()) await signOut();
+        const validation = await validateCurrentSessionIp();
+
+        if (validation === "ip_not_allowed") {
+          await signOut();
+          return;
+        }
+
+        if (validation === "session_invalid") {
+          // Evita logout falso durante uma corrida de refresh do token.
+          // Só encerra se o próprio Supabase confirmar que não há mais sessão local.
+          const { data } = await supabase.auth.getSession();
+          if (!data.session) await signOut();
+        }
       } finally {
         sessionValidationRef.current = false;
       }
