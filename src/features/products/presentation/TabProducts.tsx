@@ -364,7 +364,7 @@ export function TabProducts({
     setFieldErrors({});
     setForm({
       name: product.name || "",
-      sku: product.sku || "",
+      sku: product.sku || inventory?.sku || "",
       barcode: product.barcode || "",
       description: product.description || "",
       price: product.price == null ? "" : String(product.price),
@@ -613,7 +613,7 @@ export function TabProducts({
       setToast({ msg: "Status atualizado!", type: "success" });
       await refresh();
     } catch (error) {
-      setToast({ msg: `Erro ao atualizar produto: ${systemErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro ao atualizar item: ${systemErrorMessage(error)}`, type: "error" });
     }
   };
 
@@ -712,7 +712,7 @@ export function TabProducts({
                         <div className="min-w-0">
                           <p className="truncate font-bold text-[#0d1b2e]">{product.name}</p>
                           <p className="mt-0.5 text-[10px] font-semibold text-[#7a8aa0]">
-                            {product.sku || "Sem SKU"}{product.barcode ? ` · ${product.barcode}` : ""}
+                            {product.sku || item?.sku || "Sem SKU"}{product.barcode ? ` · ${product.barcode}` : ""}
                           </p>
                         </div>
                       </div>
@@ -832,7 +832,7 @@ export function TabProducts({
                     disabled={saving}
                     onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))}
                     rows={4}
-                    placeholder="Descrição geral do produto"
+                    placeholder="Descrição geral do item"
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -989,7 +989,7 @@ export function TabProducts({
                   />
                 </FiscalField>
 
-                <FiscalField label="CEST" help="Código Especificador da Substituição Tributária. Use quando aplicável ao produto.">
+                <FiscalField label="CEST" help="Código Especificador da Substituição Tributária. Use quando aplicável ao item.">
                   <FInput
                     value={form.cest}
                     disabled={saving}
@@ -1081,7 +1081,7 @@ export function TabProducts({
                   />
                 </FiscalField>
 
-                <FiscalField label="CST PIS" help="Código de Situação Tributária do PIS aplicável ao produto.">
+                <FiscalField label="CST PIS" help="Código de Situação Tributária do PIS aplicável ao item.">
                   <FInput
                     value={form.cst_pis}
                     disabled={saving}
@@ -1096,7 +1096,7 @@ export function TabProducts({
                   />
                 </FiscalField>
 
-                <FiscalField label="CST COFINS" help="Código de Situação Tributária da COFINS aplicável ao produto.">
+                <FiscalField label="CST COFINS" help="Código de Situação Tributária da COFINS aplicável ao item.">
                   <FInput
                     value={form.cst_cofins}
                     disabled={saving}
