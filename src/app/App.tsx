@@ -35,6 +35,7 @@ const MobileOrderChecklistPage = lazy(() => import("@/features/checklists/presen
 const PublicDocumentSignaturePage = lazy(() => import("@/features/document-signature-public/presentation/PublicDocumentSignaturePage").then(module => ({ default: module.PublicDocumentSignaturePage })));
 const PublicDocumentVerificationPage = lazy(() => import("@/features/document-signature-public/presentation/PublicDocumentVerificationPage").then(module => ({ default: module.PublicDocumentVerificationPage })));
 const FieldTrackerDevicePage = lazy(() => import("@/features/field-tracking/presentation/FieldTrackerDevicePage").then(module => ({ default: module.FieldTrackerDevicePage })));
+const MarketplaceHomePage = lazy(() => import("@/features/marketplace/presentation/MarketplaceHomePage").then(module => ({ default: module.MarketplaceHomePage })));
 
 const PUBLIC_PAGE_PATHS: Record<Page, string> = {
   home: "/",
@@ -137,6 +138,7 @@ export default function App() {
 function PublicApplication() {
   return (
     <Routes>
+      <Route path="/marketplace" element={<Suspense fallback={<StandaloneFallback text="Carregando marketplace..." />}><MarketplaceHomePage /></Suspense>} />
       <Route path="/*" element={<PublicRoutes />} />
     </Routes>
   );
@@ -153,6 +155,7 @@ function CrmApplication() {
       <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
       <Route path="/rastreador" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/rastreador/:token" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
+      <Route path="/marketplace" element={<Suspense fallback={<StandaloneFallback text="Carregando marketplace..." />}><MarketplaceHomePage /></Suspense>} />
       <Route path="/admin/*" element={<AdminEntry />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
@@ -170,6 +173,7 @@ function CombinedApplication() {
       <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
       <Route path="/rastreador" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/rastreador/:token" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
+      <Route path="/marketplace" element={<Suspense fallback={<StandaloneFallback text="Carregando marketplace..." />}><MarketplaceHomePage /></Suspense>} />
       <Route path="/admin/*" element={<AdminEntry />} />
       <Route path="/*" element={<PublicRoutes />} />
     </Routes>
