@@ -234,7 +234,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
           </AdminCard>)}</div>
         </section>
       </div>
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary disabled={saving} onClick={() => void persist()}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div>
+      <AdminStickyToolbar className="justify-end gap-2"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary disabled={saving} onClick={() => void persist()}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></AdminStickyToolbar>
     </AdminPage>}
   </div>;
 }
