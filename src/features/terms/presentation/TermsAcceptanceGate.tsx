@@ -12,7 +12,7 @@ import {
 
 
 function renderInlineMarkdown(text: string): ReactNode[] {
-  return text.split(/(\\*\\*[^*]+\\*\\*)/g).filter(Boolean).map((part, index) => {
+  return text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return <strong key={index} className="font-extrabold text-[#17263b]">{part.slice(2, -2)}</strong>;
     }
@@ -21,46 +21,45 @@ function renderInlineMarkdown(text: string): ReactNode[] {
 }
 
 function FormattedTermContent({ content }: { content: string }) {
-  const lines = content.replace(/\\r\\n/g, "\\n").split("\\n");
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
 
   const isSpecialLine = (line: string) =>
-    /^#{1,3}\\s+/.test(line) ||
-    /^[-*]\\s+/.test(line) ||
-    /^\\d+\\.\\s+/.test(line) ||
-    /^>\\s?/.test(line);
+    /^#{1,3}\s+/.test(line) ||
+    /^[-*]\s+/.test(line) ||
+    /^\d+\.\s+/.test(line) ||
+    /^>\s?/.test(line);
 
   while (index < lines.length) {
-    const rawLine = lines[index];
-    const line = rawLine.trim();
+    const line = lines[index].trim();
 
     if (!line) {
       index += 1;
       continue;
     }
 
-    const heading = line.match(/^(#{1,3})\\s+(.+)$/);
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
     if (heading) {
       const level = heading[1].length;
-      const text = heading[2];
+      const headingText = heading[2];
 
       if (level === 1) {
         blocks.push(
           <h1 key={index} className="mb-5 text-xl font-black leading-tight tracking-[-0.02em] text-[#0d1b2e] sm:text-2xl">
-            {renderInlineMarkdown(text)}
+            {renderInlineMarkdown(headingText)}
           </h1>,
         );
       } else if (level === 2) {
         blocks.push(
           <h2 key={index} className="mb-2 mt-7 border-b border-[#dfe6f0] pb-2 text-[15px] font-black leading-6 text-[#0d1b2e] first:mt-0 sm:text-base">
-            {renderInlineMarkdown(text)}
+            {renderInlineMarkdown(headingText)}
           </h2>,
         );
       } else {
         blocks.push(
           <h3 key={index} className="mb-1.5 mt-5 text-sm font-extrabold leading-6 text-[#1d2d43]">
-            {renderInlineMarkdown(text)}
+            {renderInlineMarkdown(headingText)}
           </h3>,
         );
       }
@@ -69,11 +68,11 @@ function FormattedTermContent({ content }: { content: string }) {
       continue;
     }
 
-    if (/^[-*]\\s+/.test(line)) {
+    if (/^[-*]\s+/.test(line)) {
       const items: string[] = [];
       const start = index;
-      while (index < lines.length && /^[-*]\\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^[-*]\\s+/, ""));
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ""));
         index += 1;
       }
       blocks.push(
@@ -84,11 +83,11 @@ function FormattedTermContent({ content }: { content: string }) {
       continue;
     }
 
-    if (/^\\d+\\.\\s+/.test(line)) {
+    if (/^\d+\.\s+/.test(line)) {
       const items: string[] = [];
       const start = index;
-      while (index < lines.length && /^\\d+\\.\\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^\\d+\\.\\s+/, ""));
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^\d+\.\s+/, ""));
         index += 1;
       }
       blocks.push(
@@ -99,15 +98,15 @@ function FormattedTermContent({ content }: { content: string }) {
       continue;
     }
 
-    if (/^>\\s?/.test(line)) {
+    if (/^>\s?/.test(line)) {
       const quoteLines: string[] = [];
       const start = index;
-      while (index < lines.length && /^>\\s?/.test(lines[index].trim())) {
-        quoteLines.push(lines[index].trim().replace(/^>\\s?/, ""));
+      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
+        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
         index += 1;
       }
       blocks.push(
-        <blockquote key={start} className="my-4 border-l-3 border-[#0057e7] bg-[#f5f8fd] px-4 py-3 text-sm font-medium leading-7 text-[#35465c]">
+        <blockquote key={start} className="my-4 border-l-[3px] border-[#0057e7] bg-[#f5f8fd] px-4 py-3 text-sm font-medium leading-7 text-[#35465c]">
           {renderInlineMarkdown(quoteLines.join(" "))}
         </blockquote>,
       );
