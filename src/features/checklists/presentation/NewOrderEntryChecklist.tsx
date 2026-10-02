@@ -60,7 +60,7 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
   if (!equipmentTypeId || (!loading && !error && !draft)) return null;
 
   return (
-    <div className="min-w-0 border-t border-[#0d1b2e]/8 pt-4 sm:col-span-2">
+    <div className="min-w-0 border-t border-border pt-4 sm:col-span-2">
       <div className="mb-3 flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0057e7] text-white">
           <ClipboardCheck size={18} />
@@ -71,12 +71,12 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
         </div>
       </div>
 
-      {loading && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] p-4 text-sm font-semibold text-[#0057e7]">Carregando checklist de entrada...</div>}
+      {loading && <div className="rounded-xl border border-[#0057e7]/15 bg-primary-soft p-4 text-sm font-semibold text-[#0057e7]">Carregando checklist de entrada...</div>}
       {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
       {draft && (
-        <div className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
-          <div className="flex items-center justify-between gap-2 border-b border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2.5">
+        <div className="overflow-hidden rounded-xl border border-border bg-white">
+          <div className="flex items-center justify-between gap-2 border-b border-border bg-muted px-3 py-2.5">
             <strong className="text-xs font-black text-[#0057e7]">{draft.stageName}</strong>
             <span className="rounded-full bg-[#eaf2ff] px-2 py-0.5 text-[10px] font-black text-[#0057e7]">1ª ETAPA</span>
           </div>
@@ -105,7 +105,7 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
                               type="button"
                               onClick={() => update(index, { responseCode: option.value })}
                               className={`h-9 rounded-lg border px-3 text-xs font-bold transition ${item.responseCode === option.value
-                                ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]"
+                                ? "border-[#0057e7] bg-primary-soft text-[#0057e7]"
                                 : "border-[#0d1b2e]/12 bg-white text-[#52647c] hover:border-[#0057e7]/35 hover:text-[#0057e7]"}`}
                             >
                               {option.label}
@@ -144,12 +144,12 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
 
                     {photoEnabled && (
                       <div className="flex items-center justify-end gap-2 self-center">
-                        <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-[#eef5ff]/70 text-[#0057e7] transition hover:bg-[#e2eeff] sm:hidden" title="Tirar foto" aria-label="Tirar foto">
+                        <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-primary-soft/70 text-[#0057e7] transition hover:bg-primary-soft-strong sm:hidden" title="Tirar foto" aria-label="Tirar foto">
                           <Camera size={16} />
                           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
                         </label>
 
-                        <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white text-[#0057e7] transition hover:bg-[#eef5ff] sm:w-auto sm:gap-1.5 sm:px-3" title="Selecionar imagem" aria-label="Selecionar imagem">
+                        <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white text-[#0057e7] transition hover:bg-primary-soft sm:w-auto sm:gap-1.5 sm:px-3" title="Selecionar imagem" aria-label="Selecionar imagem">
                           <ImagePlus size={16} />
                           <span className="hidden text-xs font-bold sm:inline">Selecionar imagem</span>
                           <input type="file" accept="image/*" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) update(index, { photos: [...item.photos, file] }); event.currentTarget.value = ""; }} />
@@ -199,7 +199,7 @@ function LocalPhotoThumb({ file, onRemove }: { file: File; onRemove: () => void 
   }, [file]);
 
   return (
-    <div className="group relative h-16 w-16 overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-[#f5f7fa]">
+    <div className="group relative h-16 w-16 overflow-hidden rounded-lg border border-border bg-muted">
       {src && <img src={src} alt={file.name || "Foto do checklist"} className="h-full w-full object-cover" />}
       <button type="button" onClick={onRemove} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/65 text-white shadow-sm transition hover:bg-black" title="Remover foto" aria-label="Remover foto">
         <X size={12} />
