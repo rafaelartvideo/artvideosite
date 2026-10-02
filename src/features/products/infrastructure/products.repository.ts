@@ -139,7 +139,9 @@ export async function updateProductFlags(
     .from("products")
     .update({ ...flags, updated_by: updatedBy })
     .eq("organization_id", organizationId)
-    .eq("id", productId);
+    .eq("id", productId)
+    .select("id")
+    .single();
 
   if (error) throw error;
 }
