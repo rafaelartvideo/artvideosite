@@ -12,7 +12,6 @@ import {
   Plus,
   Search,
   ShoppingBag,
-  Sparkles,
   Star,
   Truck,
   Warehouse,
@@ -68,10 +67,6 @@ import {
   resolveProductMediaImage,
   type ImportedProductImage,
 } from "../infrastructure/product-lookup.repository";
-import {
-  ProductLookupDialog,
-  type ProductLookupApplyData,
-} from "./ProductLookupDialog";
 
 type ProductEditorTab = "general" | "commercial" | "suppliers" | "fiscal" | "photos" | "catalog";
 
@@ -373,7 +368,6 @@ export function TabProducts({
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
-  const [lookupOpen, setLookupOpen] = useState(false);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
   const [masterDataDialog, setMasterDataDialog] = useState<"category" | "brand" | null>(null);
   const [masterDataName, setMasterDataName] = useState("");
@@ -737,64 +731,6 @@ export function TabProducts({
     }
   };
 
-  const handleLookupApply = async (data: ProductLookupApplyData) => {
-    if (!activeOrganizationId) return;
-
-    const [category, brand] = await Promise.all([
-      data.category
-        ? findOrCreateInventoryCategory(activeOrganizationId, data.category, canManageCategories)
-        : Promise.resolve(null),
-      data.brand
-        ? findOrCreateInventoryBrand(activeOrganizationId, data.brand, canManageBrands)
-        : Promise.resolve(null),
-    ]);
-
-    setForm(current => ({
-      ...current,
-      name: data.name || current.name,
-      barcode: data.gtin || current.barcode,
-      description: data.description || current.description,
-      model: data.model || current.model,
-      manufacturer_code: data.manufacturerCode || current.manufacturer_code,
-      gpc_code: data.item.category_code || current.gpc_code,
-      ncm: data.ncm || current.ncm,
-      gross_weight_grams: data.item.gross_weight_grams == null ? current.gross_weight_grams : String(data.item.gross_weight_grams),
-      net_weight_grams: data.item.net_weight_grams == null ? current.net_weight_grams : String(data.item.net_weight_grams),
-      width_mm: data.item.width_mm == null ? current.width_mm : String(data.item.width_mm),
-      height_mm: data.item.height_mm == null ? current.height_mm : String(data.item.height_mm),
-      length_mm: data.item.length_mm == null ? current.length_mm : String(data.item.length_mm),
-      price: data.salePrice || current.price,
-      initial_quantity: !editItem ? (data.initialQuantity || current.initial_quantity) : current.initial_quantity,
-      initial_unit_cost: !editItem ? (data.initialUnitCost || current.initial_unit_cost) : current.initial_unit_cost,
-      category_id: category?.id || current.category_id,
-      brand_id: brand?.id || current.brand_id,
-      cover_media_id: data.coverMediaId || current.cover_media_id,
-      external_platform: data.item.provider,
-      external_product_id: data.item.external_id || "",
-      external_url: data.item.source_url || "",
-      external_reference_price: data.item.reference_price == null ? "" : String(data.item.reference_price),
-      external_min_price: data.item.min_price == null ? "" : String(data.item.min_price),
-      external_max_price: data.item.max_price == null ? "" : String(data.item.max_price),
-      external_currency: data.item.currency || "",
-    }));
-
-    if (data.importedImages.length > 0) {
-      setGalleryMedia(current => {
-        const existing = new Set(current.map(image => image.media_id));
-        return [...current, ...data.importedImages.filter(image => !existing.has(image.media_id))].slice(0, 10);
-      });
-    }
-
-    await queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() });
-    if (data.category && !category) {
-      setToast({ msg: "Produto importado. A categoria externa não foi criada porque sua função não possui permissão para gerenciar categorias.", type: "success" });
-    } else if (data.brand && !brand) {
-      setToast({ msg: "Produto importado. A marca externa não foi criada porque sua função não possui permissão para gerenciar marcas.", type: "success" });
-    } else {
-      setToast({ msg: "Dados externos aplicados ao cadastro. Revise antes de salvar.", type: "success" });
-    }
-  };
-
   const saveMasterData = async () => {
     if (!activeOrganizationId || !masterDataDialog || !masterDataName.trim()) return;
     setMasterDataSaving(true);
@@ -990,16 +926,6 @@ export function TabProducts({
         <div className="p-4 sm:p-5">
           <TabsContent value="general" className="mt-0 space-y-5">
             <Section title="Identificação do item">
-              <div className="mb-4 flex flex-col gap-3 rounded-xl border border-primary/15 bg-primary-soft/45 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs font-black text-[#0d1b2e]">Cadastro assistido</p>
-                  <p className="mt-0.5 text-[10px] leading-4 text-[#5a6a82]">Busque por nome, GTIN, EAN ou UPC para preencher descrição, marca, categoria, modelo, NCM, dimensões, preço de referência e fotos quando disponíveis.</p>
-                </div>
-                <AdminButton type="button" variant="secondary" disabled={saving} onClick={() => setLookupOpen(true)}>
-                  <Sparkles size={14} /> Buscar produto
-                </AdminButton>
-              </div>
-
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <FInput
@@ -1036,42 +962,50 @@ export function TabProducts({
                   hint="GTIN é o identificador global; EAN e UPC são formatos usados em códigos de barras."
                 />
 
-                <div>
-                  <FSelect
-                    label="Categoria"
-                    value={form.category_id}
-                    disabled={saving || !canLoadCategories}
-                    onChange={(event: any) => setForm(current => ({ ...current, category_id: event.target.value }))}
-                    options={catOptions}
-                  />
-                  {canManageCategories && <button
+                <div className="flex min-w-0 items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    <FSelect
+                      label="Categoria"
+                      value={form.category_id}
+                      disabled={saving || !canLoadCategories}
+                      onChange={(event: any) => setForm(current => ({ ...current, category_id: event.target.value }))}
+                      options={catOptions}
+                    />
+                  </div>
+                  {canManageCategories && <AdminButton
                     type="button"
                     disabled={saving}
+                    aria-label="Nova categoria"
+                    title="Nova categoria"
                     onClick={() => {
                       setMasterDataName("");
                       setMasterDataDialog("category");
                     }}
-                    className="mt-1 text-[10px] font-bold text-primary hover:underline"
-                  >+ Nova categoria</button>}
+                    className="h-[42px] w-[42px] shrink-0 !p-0"
+                  ><Plus size={17} /></AdminButton>}
                 </div>
 
-                <div>
-                  <FSelect
-                    label="Marca"
-                    value={form.brand_id}
-                    disabled={saving || !canLoadBrands}
-                    onChange={(event: any) => setForm(current => ({ ...current, brand_id: event.target.value }))}
-                    options={brandOptions}
-                  />
-                  {canManageBrands && <button
+                <div className="flex min-w-0 items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    <FSelect
+                      label="Marca"
+                      value={form.brand_id}
+                      disabled={saving || !canLoadBrands}
+                      onChange={(event: any) => setForm(current => ({ ...current, brand_id: event.target.value }))}
+                      options={brandOptions}
+                    />
+                  </div>
+                  {canManageBrands && <AdminButton
                     type="button"
                     disabled={saving}
+                    aria-label="Nova marca"
+                    title="Nova marca"
                     onClick={() => {
                       setMasterDataName("");
                       setMasterDataDialog("brand");
                     }}
-                    className="mt-1 text-[10px] font-bold text-primary hover:underline"
-                  >+ Nova marca</button>}
+                    className="h-[42px] w-[42px] shrink-0 !p-0"
+                  ><Plus size={17} /></AdminButton>}
                 </div>
 
                 <FInput
@@ -1159,27 +1093,6 @@ export function TabProducts({
                 />
               </div>
             </Section>
-
-            {form.external_platform && <Section title="Origem dos dados">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Fonte</p>
-                  <p className="mt-1 text-xs font-black text-[#0d1b2e]">{form.external_platform === "openfacts" ? "Open Facts" : form.external_platform === "upcitemdb" ? "UPCitemdb" : form.external_platform}</p>
-                </AdminCard>
-                <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Identificador externo</p>
-                  <p className="mt-1 break-all text-xs font-black text-[#0d1b2e]">{form.external_product_id || "—"}</p>
-                </AdminCard>
-                <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Preço de referência</p>
-                  <p className="mt-1 text-xs font-black text-[#0d1b2e]">{form.external_reference_price ? (form.external_currency === "BRL" ? formatCurrency(Number(form.external_reference_price)) : ((form.external_currency || "") + " " + form.external_reference_price).trim()) : "—"}</p>
-                </AdminCard>
-                <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Faixa encontrada</p>
-                  <p className="mt-1 text-xs font-black text-[#0d1b2e]">{form.external_min_price || form.external_max_price ? (form.external_min_price || "—") + " — " + (form.external_max_price || "—") : "—"}</p>
-                </AdminCard>
-              </div>
-            </Section>}
 
             <Section title="Disponibilidade">
               <FToggle
@@ -1734,13 +1647,6 @@ export function TabProducts({
         {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </AdminStickyToolbar>
     </AdminPage>
-
-    {activeOrganizationId && <ProductLookupDialog
-      open={lookupOpen}
-      organizationId={activeOrganizationId}
-      onClose={() => setLookupOpen(false)}
-      onApply={handleLookupApply}
-    />}
 
     <AdminDialog
       open={Boolean(masterDataDialog)}
