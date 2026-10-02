@@ -268,7 +268,12 @@ export function AdminDialog({
   className?: string;
 }) {
   return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-    <DialogContent showClose={false} className={cn("admin-crm z-[150] max-h-[90vh] max-w-lg gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl", className)}>
+    <DialogContent
+      showClose={false}
+      overlayClassName="admin-dialog-overlay"
+      data-admin-dialog-content="true"
+      className={cn("admin-crm z-[150] max-h-[90vh] max-w-lg gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl", className)}
+    >
       {(title || description || onClose) && <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0 flex-1">
           {title ? <DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
