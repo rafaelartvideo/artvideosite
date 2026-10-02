@@ -101,6 +101,128 @@ body {
 	font-weight: 800;
 }
 
+/*
+ * Admin appearance themes.
+ * The CRM still has legacy hard-coded neutral utilities, so dark mode remaps
+ * those neutral surfaces centrally while preserving Union World blues.
+ */
+.admin-crm.dark,
+.dark .admin-crm {
+	--background: #0a101c;
+	--foreground: #e8edf5;
+	--card: #111827;
+	--card-foreground: #e8edf5;
+	--popover: #111827;
+	--popover-foreground: #e8edf5;
+	--secondary: #172136;
+	--secondary-foreground: #e8edf5;
+	--muted: #172136;
+	--muted-foreground: #9aa8bb;
+	--border: rgba(226, 232, 240, 0.12);
+	--input: rgba(226, 232, 240, 0.14);
+	--input-background: #131d2f;
+	--switch-background: #526178;
+	--primary: #1032dc;
+	--primary-hover: #2447e8;
+	--primary-active: #3153ef;
+	--primary-soft: #17224d;
+	--primary-soft-strong: #1c2b62;
+	--primary-light: #7185f5;
+	--primary-foreground: #ffffff;
+	--ring: #5870f0;
+	--accent: #7185f5;
+	--navy: #e8edf5;
+	color-scheme: dark;
+}
+
+.admin-crm.dark [class~="bg-white"],
+.dark .admin-crm [class~="bg-white"] {
+	background-color: #111827 !important;
+}
+
+.admin-crm.dark [class~="bg-[#f8fafc]"],
+.admin-crm.dark [class~="bg-[#f5f7fa]"],
+.admin-crm.dark [class~="bg-[#eef1f6]"],
+.dark .admin-crm [class~="bg-[#f8fafc]"],
+.dark .admin-crm [class~="bg-[#f5f7fa]"],
+.dark .admin-crm [class~="bg-[#eef1f6]"] {
+	background-color: #0f1726 !important;
+}
+
+.admin-crm.dark [class~="bg-[#eef5ff]"],
+.admin-crm.dark [class~="bg-[#edf3ff]"],
+.admin-crm.dark [class~="bg-[#f0f6ff]"],
+.admin-crm.dark [class~="bg-[#f4f8ff]"],
+.admin-crm.dark [class~="bg-[#e8eef8]"],
+.admin-crm.dark [class~="bg-[#eaf2ff]"],
+.dark .admin-crm [class~="bg-[#eef5ff]"],
+.dark .admin-crm [class~="bg-[#edf3ff]"],
+.dark .admin-crm [class~="bg-[#f0f6ff]"],
+.dark .admin-crm [class~="bg-[#f4f8ff]"],
+.dark .admin-crm [class~="bg-[#e8eef8]"],
+.dark .admin-crm [class~="bg-[#eaf2ff]"] {
+	background-color: var(--primary-soft) !important;
+}
+
+.admin-crm.dark [class~="text-[#0d1b2e]"],
+.admin-crm.dark [class~="text-[#24354b]"],
+.admin-crm.dark [class~="text-[#34445a]"],
+.dark .admin-crm [class~="text-[#0d1b2e]"],
+.dark .admin-crm [class~="text-[#24354b]"],
+.dark .admin-crm [class~="text-[#34445a]"] {
+	color: #e8edf5 !important;
+}
+
+.admin-crm.dark [class~="text-[#5a6a82]"],
+.admin-crm.dark [class~="text-[#5f6f84]"],
+.admin-crm.dark [class~="text-[#66768c]"],
+.admin-crm.dark [class~="text-[#68788d]"],
+.admin-crm.dark [class~="text-[#6b7c93]"],
+.admin-crm.dark [class~="text-[#718096]"],
+.admin-crm.dark [class~="text-[#7a879a]"],
+.admin-crm.dark [class~="text-[#7b899d]"],
+.admin-crm.dark [class~="text-[#8a96a8]"],
+.admin-crm.dark [class~="text-[#8a98aa]"],
+.dark .admin-crm [class~="text-[#5a6a82]"],
+.dark .admin-crm [class~="text-[#5f6f84]"],
+.dark .admin-crm [class~="text-[#66768c]"],
+.dark .admin-crm [class~="text-[#68788d]"],
+.dark .admin-crm [class~="text-[#6b7c93]"],
+.dark .admin-crm [class~="text-[#718096]"],
+.dark .admin-crm [class~="text-[#7a879a]"],
+.dark .admin-crm [class~="text-[#7b899d]"],
+.dark .admin-crm [class~="text-[#8a96a8]"],
+.dark .admin-crm [class~="text-[#8a98aa]"] {
+	color: #9aa8bb !important;
+}
+
+.admin-crm.dark [class*="border-[#0d1b2e]/"],
+.dark .admin-crm [class*="border-[#0d1b2e]/"] {
+	border-color: rgba(226, 232, 240, 0.12) !important;
+}
+
+.admin-crm.dark [class~="hover:bg-[#f5f7fa]"]:hover,
+.admin-crm.dark [class~="hover:bg-[#f8fafc]"]:hover,
+.dark .admin-crm [class~="hover:bg-[#f5f7fa]"]:hover,
+.dark .admin-crm [class~="hover:bg-[#f8fafc]"]:hover {
+	background-color: #182235 !important;
+}
+
+.admin-crm.dark input:not([type="color"]),
+.admin-crm.dark textarea,
+.admin-crm.dark select,
+.dark .admin-crm input:not([type="color"]),
+.dark .admin-crm textarea,
+.dark .admin-crm select {
+	color-scheme: dark;
+}
+
+.admin-crm.dark select option,
+.dark .admin-crm select option {
+	background: #111827;
+	color: #e8edf5;
+}
+
 @media (max-width: 767px) {
 	/*
 	 * Mobile browser bars can cover the final controls of the CRM because the
@@ -159,6 +281,12 @@ body {
 
 	.admin-crm table:not(.mobile-table-preserve) tbody > tr:last-child {
 		border-bottom: 0;
+	}
+
+	.admin-crm.dark table:not(.mobile-table-preserve) tbody > tr,
+	.dark .admin-crm table:not(.mobile-table-preserve) tbody > tr {
+		border-bottom-color: rgba(226, 232, 240, 0.12);
+		background: #111827;
 	}
 
 	.admin-crm table:not(.mobile-table-preserve) tbody > tr > td {
