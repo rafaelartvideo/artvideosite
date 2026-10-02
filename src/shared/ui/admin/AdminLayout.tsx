@@ -206,11 +206,15 @@ export function AdminCardContent({ className = "", children }: { className?: str
   return <div className={cn("min-w-0 p-4 sm:p-5", className)}>{children}</div>;
 }
 
-export function AdminStickyToolbar({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn(
-    "sticky bottom-0 z-20 flex min-w-0 items-center justify-start gap-3 border-t border-border bg-card px-4 py-4 sm:px-5",
-    className,
-  )}>{children}</div>;
+export function AdminStickyToolbar({ className = "", children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div
+    {...props}
+    data-admin-sticky-toolbar="true"
+    className={cn(
+      "sticky bottom-0 z-20 flex min-w-0 items-center justify-start gap-3 border-t border-border bg-card px-4 py-4 text-card-foreground sm:px-5",
+      className,
+    )}
+  >{children}</div>;
 }
 
 export function AdminSegmentedControl<T extends string>({
