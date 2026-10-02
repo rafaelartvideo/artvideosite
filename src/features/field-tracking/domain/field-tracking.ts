@@ -11,6 +11,13 @@ export type FieldTrackingUnit = {
   identifier_value: string | null;
   paired_at: string | null;
   paired_device_label: string | null;
+  tracking_provider: "native" | "traccar_client" | "traccar_server";
+  traccar_unique_id_hint: string | null;
+  battery_level: number | null;
+  charging: boolean | null;
+  altitude_m: number | null;
+  provider_protocol: string | null;
+  provider_status: string | null;
   is_active: boolean;
   is_sharing: boolean;
   latitude: number | null;
