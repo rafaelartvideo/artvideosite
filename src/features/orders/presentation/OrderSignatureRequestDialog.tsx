@@ -264,10 +264,10 @@ export function OrderSignatureRequestDialog({
 
       </div>
 
-      <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-border bg-white px-5 py-4 sm:flex-row sm:justify-end">
+      <AdminStickyToolbar className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
         <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Congelando e enviando PDF..." disabled={onlineTemplates.length === 0}>Criar e enviar</BtnPrimary>
-      </div>
+      </AdminStickyToolbar>
     </div>
   </div>;
 }
