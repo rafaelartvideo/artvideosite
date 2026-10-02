@@ -39,8 +39,8 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
 
   const displayUrl = previewUrl || currentUrl;
   return <div>
-    <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-2">{label}</label>
-    {displayUrl && <div className="mb-3 flex h-28 w-full max-w-44 items-center justify-center overflow-hidden rounded-xl border border-[#0d1b2e]/15 bg-[#f5f7fa] p-2"><img src={displayUrl} alt="" className="max-h-full max-w-full object-contain" /></div>}
+    <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">{label}</label>
+    {displayUrl && <div className="mb-3 flex h-28 w-full max-w-44 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted p-2"><img src={displayUrl} alt="" className="max-h-full max-w-full object-contain" /></div>}
     <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={handleFile} className="hidden" />
     <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
     {canUpload && (photoActions ? <div className="grid w-full min-w-0 grid-cols-2 gap-2">
@@ -52,10 +52,10 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
 
 export function ProductAdminThumb({ mediaId, name }: { mediaId: string | null; name: string }) {
   const { url } = useMediaUrl(mediaId);
-  return url ? <img src={url} alt={name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-[#0d1b2e]/10" /> : <div className="w-10 h-10 bg-[#f5f7fa] rounded-lg flex-shrink-0 border border-[#0d1b2e]/10 flex items-center justify-center"><Package size={16} className="text-[#5a6a82]" /></div>;
+  return url ? <img src={url} alt={name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-border" /> : <div className="w-10 h-10 bg-muted rounded-lg flex-shrink-0 border border-border flex items-center justify-center"><Package size={16} className="text-muted-foreground" /></div>;
 }
 
 export function BrandAdminLogo({ mediaId, name }: { mediaId: string | null; name: string }) {
   const { url } = useMediaUrl(mediaId);
-  return url ? <img src={url} alt={name} className="h-12 w-auto object-contain max-w-full" /> : <div className="w-12 h-12 bg-[#f5f7fa] rounded-lg flex-shrink-0 border border-[#0d1b2e]/10 flex items-center justify-center"><Tag size={20} className="text-[#5a6a82]" /></div>;
+  return url ? <img src={url} alt={name} className="h-12 w-auto object-contain max-w-full" /> : <div className="w-12 h-12 bg-muted rounded-lg flex-shrink-0 border border-border flex items-center justify-center"><Tag size={20} className="text-muted-foreground" /></div>;
 }
