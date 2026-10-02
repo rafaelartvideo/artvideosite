@@ -61,6 +61,37 @@ export function AdminSidebar({
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
   const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization;
+  const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));
+  const dashboardItems = visibleMainItems.filter(item => item.id === "dashboard");
+  const serviceItems = visibleMainItems.filter(item =>
+    ["quotes", "orders", "customers", "agenda", "fieldTracking"].includes(item.id),
+  );
+  const commercialItems = visibleMainItems.filter(item =>
+    ["inventory", "pdv", "finance"].includes(item.id),
+  );
+  const administrationItems = visibleMainItems.filter(item =>
+    ["partnerCompanies", "audit"].includes(item.id),
+  );
+
+  const renderMainItem = (item: (typeof mainItems)[number]) => (
+    <SidebarItem
+      key={item.id}
+      item={isPlatformOperatorOrganization && item.id === "customers"
+        ? { ...item, label: "Usuários" }
+        : isPlatformOperatorOrganization && item.id === "orders"
+          ? { ...item, label: "Monitoramento de OS" }
+          : item}
+      active={selectedTab === item.id}
+      collapsed={collapsed}
+      onClick={() => onNavigate(item.id as AdminTab)}
+    />
+  );
+
+  const sectionHeader = (label: string) => (
+    collapsed
+      ? <div className="mx-3 my-2 border-t border-white/7" />
+      : <div className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/30">{label}</div>
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -111,60 +142,80 @@ export function AdminSidebar({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <nav className="space-y-1 px-3 py-4">
-          {mainItems.filter((item) => canAccessTab(item.id as AdminTab)).map((item) => (
-            <SidebarItem
-              key={item.id}
-              item={isPlatformOperatorOrganization && item.id === "customers"
-                ? { ...item, label: "Usuários" }
-                : isPlatformOperatorOrganization && item.id === "orders"
-                  ? { ...item, label: "Monitoramento de OS" }
-                  : item}
-              active={selectedTab === item.id}
-              collapsed={collapsed}
-              onClick={() => onNavigate(item.id as AdminTab)}
-            />
-          ))}
-
-          {canAccessSite && (
-            <SidebarItem
-              item={{ id: "site", label: "Site", icon: Globe }}
-              active={selectedTab === "site"}
-              collapsed={collapsed}
-              onClick={() => onNavigate("site")}
-            />
+        <nav className="px-3 py-3">
+          {dashboardItems.length > 0 && (
+            <div className="space-y-1">
+              {!collapsed && (
+                <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/30">
+                  Principal
+                </div>
+              )}
+              {dashboardItems.map(renderMainItem)}
+            </div>
           )}
 
-          {canAccessOperation && (
-            <SidebarItem
-              item={{ id: "operation", label: "Operação", icon: Settings }}
-              active={selectedTab === "operation"}
-              collapsed={collapsed}
-              onClick={() => onNavigate("operation")}
-            />
+          {serviceItems.length > 0 && (
+            <div className="space-y-1">
+              {sectionHeader("Atendimento")}
+              {serviceItems.map(renderMainItem)}
+            </div>
           )}
 
-          {canAccessTools && (
-            <SidebarItem
-              item={{ id: "tools", label: "Ferramentas", icon: Wrench }}
-              active={selectedTab === "tools"}
-              collapsed={collapsed}
-              onClick={() => onNavigate("tools")}
-            />
+          {commercialItems.length > 0 && (
+            <div className="space-y-1">
+              {sectionHeader("Comercial")}
+              {commercialItems.map(renderMainItem)}
+            </div>
           )}
 
-          <div className={cn("space-y-1", collapsed ? "pt-2" : "pt-3")}>
-            {utilityItems.filter((item) => canAccessTab(item.id as AdminTab)).map((item) => (
-              <SidebarItem
-                key={item.id}
-                item={item}
-                active={selectedTab === item.id}
-                collapsed={collapsed}
-                onClick={() => onNavigate(item.id as AdminTab)}
-              />
-            ))}
-          </div>
+          {(administrationItems.length > 0 || canAccessSite || canAccessOperation || canAccessTools) && (
+            <div className="space-y-1">
+              {sectionHeader("Administração")}
+              {administrationItems.map(renderMainItem)}
 
+              {canAccessOperation && (
+                <SidebarItem
+                  item={{ id: "operation", label: "Operação", icon: Settings }}
+                  active={selectedTab === "operation"}
+                  collapsed={collapsed}
+                  onClick={() => onNavigate("operation")}
+                />
+              )}
+
+              {canAccessSite && (
+                <SidebarItem
+                  item={{ id: "site", label: "Site", icon: Globe }}
+                  active={selectedTab === "site"}
+                  collapsed={collapsed}
+                  onClick={() => onNavigate("site")}
+                />
+              )}
+
+              {canAccessTools && (
+                <SidebarItem
+                  item={{ id: "tools", label: "Ferramentas", icon: Wrench }}
+                  active={selectedTab === "tools"}
+                  collapsed={collapsed}
+                  onClick={() => onNavigate("tools")}
+                />
+              )}
+            </div>
+          )}
+
+          {utilityItems.some(item => canAccessTab(item.id as AdminTab)) && (
+            <div className="space-y-1">
+              {sectionHeader("Utilidades")}
+              {utilityItems.filter(item => canAccessTab(item.id as AdminTab)).map(item => (
+                <SidebarItem
+                  key={item.id}
+                  item={item}
+                  active={selectedTab === item.id}
+                  collapsed={collapsed}
+                  onClick={() => onNavigate(item.id as AdminTab)}
+                />
+              ))}
+            </div>
+          )}
         </nav>
       </div>
 
