@@ -43,6 +43,7 @@ export type Registration = {
     id: string;
     profile_id: string | null;
     is_active: boolean;
+    field_tracking_required: boolean;
   } | null;
   addresses?: Array<{
     id: string;
@@ -66,7 +67,7 @@ const REGISTRATION_LIST_SELECT = `
   legacy_employee_id,created_at,updated_at,
   roles:entity_roles(role,is_active),
   employee_details:entity_employee_details(profile_id),
-  legacy_employee:employees!entities_legacy_employee_id_fkey(id,profile_id,is_active)
+  legacy_employee:employees!entities_legacy_employee_id_fkey(id,profile_id,is_active,field_tracking_required)
 `;
 
 const REGISTRATION_SELECT = `
@@ -75,7 +76,7 @@ const REGISTRATION_SELECT = `
   created_at,updated_at,
   roles:entity_roles(role,is_active),
   employee_details:entity_employee_details(job_title,team_name,admission_date,profile_id,role_id,uniq_subscriber_id),
-  legacy_employee:employees!entities_legacy_employee_id_fkey(id,profile_id,is_active),
+  legacy_employee:employees!entities_legacy_employee_id_fkey(id,profile_id,is_active,field_tracking_required),
   addresses:entity_addresses!entity_addresses_entity_organization_fkey(id,type,zip_code,state,city,neighborhood,street,number,complement,reference,location_url,is_primary,is_active)
 `;
 
@@ -232,6 +233,19 @@ export async function saveRegistration(input: SaveRegistrationInput) {
     p_roles: input.roles,
     p_employee: input.employee || {},
     p_address: null,
+  });
+  return result.error ? { ...result, error: normalizeError(result.error) } : result;
+}
+
+export async function setEmployeeFieldTrackingRequired(
+  organizationId: string,
+  employeeId: string,
+  required: boolean,
+) {
+  const result = await supabase.rpc("set_employee_field_tracking_required_v1", {
+    p_organization_id: organizationId,
+    p_employee_id: employeeId,
+    p_required: required,
   });
   return result.error ? { ...result, error: normalizeError(result.error) } : result;
 }
