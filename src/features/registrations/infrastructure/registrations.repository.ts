@@ -242,7 +242,7 @@ export async function setEmployeeFieldTrackingPrompt(
   employeeId: string,
   required: boolean,
 ) {
-  const result = await supabase.rpc("set_employee_field_tracking_prompt_on_login_v1", {
+  const result = await supabase.rpc("set_employee_field_tracking_prompt_v1", {
     p_organization_id: organizationId,
     p_employee_id: employeeId,
     p_prompt: required,
