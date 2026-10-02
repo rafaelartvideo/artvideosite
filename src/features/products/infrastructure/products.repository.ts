@@ -125,3 +125,19 @@ export async function updateProductFlags(
 
   if (error) throw error;
 }
+
+
+export async function getProductInventoryItemId(
+  organizationId: string,
+  productId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("inventory_items")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("product_id", productId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data?.id ? String(data.id) : null;
+}
