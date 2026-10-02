@@ -202,7 +202,7 @@ export function RegistrationRecordsPage({
   return <>
     <AdminPage open onClose={onClose} breadcrumb={`Cadastros > ${registration.name} > Registros`} title="Registros" subtitle="Linha do tempo de observações permanentes deste cadastro" maxW="max-w-4xl">
       <div className="space-y-4 p-4 sm:p-5">
-        <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
+        <AdminCard className="bg-muted p-3 shadow-none">
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="min-w-0">
               <label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Usuário</label>
@@ -243,7 +243,7 @@ export function RegistrationRecordsPage({
             <span className="shrink-0 text-[10px] text-[#5a6a82]">{formatDateTime(record.created_at)}</span>
           </div>
           <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed text-[#0d1b2e]">{record.content}</p>
-          {record.attachments.length > 0 && <div className="mt-4 border-t border-[#0d1b2e]/8 pt-3">
+          {record.attachments.length > 0 && <div className="mt-4 border-t border-border pt-3">
             <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-wide text-[#0057e7]">
               <Paperclip size={13} /> {record.attachments.length} {record.attachments.length === 1 ? "anexo" : "anexos"}
             </div>
@@ -263,7 +263,7 @@ export function RegistrationRecordsPage({
         </AdminCard>)}</div>}
       </div>
 
-      <div className="sticky bottom-0 flex items-center gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:justify-between sm:px-5">
+      <div className="sticky bottom-0 flex items-center gap-2 border-t border-border bg-white/95 px-4 py-4 backdrop-blur sm:justify-between sm:px-5">
         <BtnSecondary onClick={onClose} className="min-w-0 flex-1 sm:flex-none">Voltar</BtnSecondary>
         {canCreate && <BtnPrimary onClick={() => { resetComposer(); setModalOpen(true); }} className="min-w-0 flex-1 sm:flex-none"><Plus size={17} /> Novo registro</BtnPrimary>}
       </div>
@@ -280,13 +280,13 @@ export function RegistrationRecordsPage({
       <textarea autoFocus value={text} onChange={event => setText(event.target.value)} maxLength={2000} rows={6} placeholder="Escreva o que precisa ficar registrado neste cadastro..." className={cn(INPUT, "h-auto min-w-0 resize-y text-sm")} />
       <div className="mt-2 flex justify-between gap-3 text-[10px] text-[#5a6a82]"><span>O registro não poderá ser editado ou excluído.</span><span className="shrink-0">{text.length}/2000</span></div>
 
-      <div className="mt-4 rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-3">
+      <div className="mt-4 rounded-xl border border-border bg-muted p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="text-xs font-black text-[#0d1b2e]">Anexos</div>
             <div className="mt-0.5 text-[10px] text-[#6b7c93]">Arquivos ou imagens • até 10 arquivos • 20 MB por arquivo</div>
           </div>
-          <BtnSecondary onClick={() => fileInputRef.current?.click()} disabled={saving || files.length >= MAX_ATTACHMENTS} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#eef5ff]">
+          <BtnSecondary onClick={() => fileInputRef.current?.click()} disabled={saving || files.length >= MAX_ATTACHMENTS} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-primary-soft">
             <Paperclip size={15} /> Anexar arquivos
           </BtnSecondary>
           <input
@@ -301,7 +301,7 @@ export function RegistrationRecordsPage({
           />
         </div>
 
-        {files.length > 0 && <div className="mt-3 space-y-2">{files.map((file, index) => <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-[#0d1b2e]/8 bg-white px-3 py-2">
+        {files.length > 0 && <div className="mt-3 space-y-2">{files.map((file, index) => <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-white px-3 py-2">
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-bold text-[#0d1b2e]" title={file.name}>{file.name}</div>
             <div className="mt-0.5 text-[10px] text-[#7a8aa0]">{formatFileSize(file.size)}</div>
