@@ -31,6 +31,7 @@ export type RegistrationFormState = {
   job_title: string;
   team_name: string;
   admission_date: string;
+  field_tracking_required: boolean;
 };
 
 export type RegistrationAddressForm = Address & {
@@ -57,6 +58,7 @@ export const emptyRegistrationForm = (): RegistrationFormState => ({
   job_title: "",
   team_name: "",
   admission_date: "",
+  field_tracking_required: false,
 });
 
 export const emptyRegistrationAddress = (primary = false): RegistrationAddressForm => ({
@@ -106,6 +108,7 @@ export function registrationFormFromRecord(registration: Registration): Registra
     job_title: employee?.job_title || "",
     team_name: employee?.team_name || "",
     admission_date: employee?.admission_date || "",
+    field_tracking_required: registration.legacy_employee?.field_tracking_required === true,
   };
 }
 
