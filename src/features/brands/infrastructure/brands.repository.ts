@@ -42,7 +42,9 @@ export async function setBrandActive(
     .from("brands")
     .update({ is_active: isActive })
     .eq("organization_id", organizationId)
-    .eq("id", brandId);
+    .eq("id", brandId)
+    .select("id")
+    .single();
 
   if (error) throw error;
 }
