@@ -431,49 +431,48 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
 
   const renderEditorFields = (item: OrderCommercialItem, compact = false) => {
     const draft = drafts[item.id] || draftFromItem(item);
-    return <>
-      <div className={cn("flex items-center", compact ? "justify-start" : "justify-center")}>
-        <AdminIconButton
-          ariaLabel="Diminuir quantidade"
-          variant="ghost"
-          disabled={!editable || savingItemId === item.id || positiveInteger(draft.quantity) <= 1}
-          onClick={() => changeQuantity(item, -1)}
-          className="h-7 w-7"
-        ><Minus size={13} /></AdminIconButton>
-        <input
-          aria-label="Quantidade"
-          inputMode="numeric"
-          disabled={!editable || savingItemId === item.id}
-          value={draft.quantity}
-          onChange={event => updateDraft(item.id, { quantity: event.target.value.replace(/\D/g, "") })}
-          onBlur={() => void saveItem(item)}
-          className={cn(INPUT, "mx-1 h-8 w-16 px-2 py-1 text-center text-xs")}
-        />
-        <AdminIconButton
-          ariaLabel="Aumentar quantidade"
-          variant="ghost"
-          disabled={!editable || savingItemId === item.id}
-          onClick={() => changeQuantity(item, 1)}
-          className="h-7 w-7"
-        ><Plus size={13} /></AdminIconButton>
-      </div>
-      <FCurrencyInput
-        aria-label="Preço unitário"
+    const quantityEditor = <div className={cn("flex items-center", compact ? "justify-start" : "justify-center")}>
+      <AdminIconButton
+        ariaLabel="Diminuir quantidade"
+        variant="ghost"
+        disabled={!editable || savingItemId === item.id || positiveInteger(draft.quantity) <= 1}
+        onClick={() => changeQuantity(item, -1)}
+        className="h-7 w-7"
+      ><Minus size={13} /></AdminIconButton>
+      <input
+        aria-label="Quantidade"
+        inputMode="numeric"
         disabled={!editable || savingItemId === item.id}
-        value={draft.unitPrice}
-        onChange={(event: any) => updateDraft(item.id, { unitPrice: event.target.value })}
+        value={draft.quantity}
+        onChange={event => updateDraft(item.id, { quantity: event.target.value.replace(/\D/g, "") })}
         onBlur={() => void saveItem(item)}
-        className={compact ? "" : "h-8 py-1 text-xs"}
+        className={cn(INPUT, "mx-1 h-8 w-16 px-2 py-1 text-center text-xs")}
       />
-      <FCurrencyInput
-        aria-label="Custo adicional"
+      <AdminIconButton
+        ariaLabel="Aumentar quantidade"
+        variant="ghost"
         disabled={!editable || savingItemId === item.id}
-        value={draft.additionalCost}
-        onChange={(event: any) => updateDraft(item.id, { additionalCost: event.target.value })}
-        onBlur={() => void saveItem(item)}
-        className={compact ? "" : "h-8 py-1 text-xs"}
-      />
-    </>;
+        onClick={() => changeQuantity(item, 1)}
+        className="h-7 w-7"
+      ><Plus size={13} /></AdminIconButton>
+    </div>;
+    const priceEditor = <FCurrencyInput
+      aria-label="Preço unitário"
+      disabled={!editable || savingItemId === item.id}
+      value={draft.unitPrice}
+      onChange={(event: any) => updateDraft(item.id, { unitPrice: event.target.value })}
+      onBlur={() => void saveItem(item)}
+      className={compact ? "" : "h-8 py-1 text-xs"}
+    />;
+    const additionalCostEditor = <FCurrencyInput
+      aria-label="Custo adicional"
+      disabled={!editable || savingItemId === item.id}
+      value={draft.additionalCost}
+      onChange={(event: any) => updateDraft(item.id, { additionalCost: event.target.value })}
+      onBlur={() => void saveItem(item)}
+      className={compact ? "" : "h-8 py-1 text-xs"}
+    />;
+    return [quantityEditor, priceEditor, additionalCostEditor] as const;
   };
 
   return <div className="space-y-4">
