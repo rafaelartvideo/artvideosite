@@ -55,7 +55,7 @@ export const operationItems: PermissionAwareHubItem[] = [
   { id: "roles", label: "Funções e Permissões", icon: ShieldCheck, description: "Configure funções e os acessos herdados pelos usuários da empresa.", permissionKey: "roles.view" },
   { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos de impressão e tipos de anexos das ordens de serviço.", permissionKey: "documents.view" },
   { id: "settings", label: "Dados da empresa", icon: Building2, description: "Gerencie os dados institucionais, endereço e identidade visual da empresa.", permissionKey: "settings.details.view" },
-  { id: "terms", label: "Termos", icon: ScrollText, description: "Configure os Termos de Uso e o Termo de Responsabilidade dos usuários.", permissionKey: "terms.view" },
+  { id: "terms", label: "Termos/Garantia", icon: ScrollText, description: "Gerencie termos obrigatórios e garantias vinculadas aos Serviços Gerais.", permissionKey: "terms.view" },
 ];
 
 export const utilityItems: AdminNavigationItem[] = [];
