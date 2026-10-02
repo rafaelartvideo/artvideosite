@@ -3,7 +3,7 @@ import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.reposito
 import { getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
 
 export type ExternalProductLookup = {
-  provider: "cosmos" | "upcitemdb" | string;
+  provider: "openfacts" | "upcitemdb" | string;
   external_id: string | null;
   name: string;
   description: string | null;
