@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ban, CheckCircle, PackagePlus, Pencil, Wrench, X } from "lucide-react";
-import { AdminButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { queryKeys } from "@/infrastructure/query/query-keys";
@@ -76,7 +76,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
     <div className="fixed inset-x-0 z-[70] border-t border-[#0d1b2e]/10 bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2.5 md:flex-row md:items-center md:justify-between md:gap-3">
         <div className="flex min-w-0 items-center gap-2 md:flex-wrap">
-          <button type="button" onClick={onClose} aria-label="Fechar detalhes da OS" title="Fechar" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] transition-colors hover:bg-[#f5f7fa] hover:text-[#0d1b2e] md:hidden"><X size={17} /></button>
+          <AdminIconButton onClick={onClose} ariaLabel="Fechar detalhes da OS" title="Fechar" className="h-10 w-10 shrink-0 md:hidden"><X size={17} /></AdminIconButton>
           <div className="hidden md:block"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>
           {canChangeSituation && <div className="min-w-0 flex-1 md:min-w-40 md:flex-none"><AdminSelect value={detail.situation_id || ""} onValueChange={onSituationChange} options={[{ value: "", label: "Situação: selecionar" }, ...situations.map(situation => ({ value: situation.id, label: `Situação: ${situation.name}` }))]} className="min-h-10 w-full min-w-0 py-1.5 text-xs font-bold" ariaLabel="Alterar situação da OS" /></div>}
         </div>
