@@ -79,6 +79,7 @@ type ProductForm = {
   sku: string;
   barcode: string;
   description: string;
+  internal_notes: string;
   model: string;
   manufacturer_code: string;
   gpc_code: string;
@@ -182,6 +183,7 @@ function emptyForm(): ProductForm {
     sku: "",
     barcode: "",
     description: "",
+    internal_notes: "",
     model: "",
     manufacturer_code: "",
     gpc_code: "",
@@ -423,6 +425,7 @@ export function TabProducts({
       sku: product.sku || inventory?.sku || "",
       barcode: product.barcode || "",
       description: product.description || "",
+      internal_notes: product.internal_notes || "",
       model: product.model || "",
       manufacturer_code: product.manufacturer_code || "",
       gpc_code: product.gpc_code || "",
@@ -617,6 +620,7 @@ export function TabProducts({
         sku: form.sku.trim() || null,
         barcode: form.barcode.trim() || null,
         description: form.description.trim() || null,
+        internal_notes: form.internal_notes.trim() || null,
         model: form.model.trim() || null,
         manufacturer_code: form.manufacturer_code.trim() || null,
         gpc_code: form.gpc_code.trim() || null,
@@ -1092,6 +1096,17 @@ export function TabProducts({
                     onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))}
                     rows={4}
                     placeholder="Descrição completa, aplicações, compatibilidades e informações úteis"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <FTextarea
+                    label="Observações internas"
+                    value={form.internal_notes}
+                    disabled={saving}
+                    onChange={(event: any) => setForm(current => ({ ...current, internal_notes: event.target.value }))}
+                    rows={3}
+                    placeholder="Anotações internas sobre o item, compra, compatibilidade ou operação"
+                    hint="Uso interno do CRM. Não aparece no catálogo, nota fiscal ou documentos."
                   />
                 </div>
               </div>
@@ -1627,8 +1642,8 @@ export function TabProducts({
               {galleryMedia.length > 0 && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-4">
                 <div className="mb-2 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-black text-[#0d1b2e]">Galeria importada</p>
-                    <p className="mt-0.5 text-[10px] text-[#7a8aa0]">Fotos importadas da busca externa. Escolha a principal ou remova as que não quiser salvar.</p>
+                    <p className="text-xs font-black text-[#0d1b2e]">Galeria de fotos</p>
+                    <p className="mt-0.5 text-[10px] text-[#7a8aa0]">Fotos importadas pela busca ou enviadas manualmente. Escolha a principal ou remova as que não quiser salvar.</p>
                   </div>
                   <span className="text-[10px] font-bold text-[#5a6a82]">{galleryMedia.length} foto{galleryMedia.length === 1 ? "" : "s"}</span>
                 </div>
