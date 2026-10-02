@@ -95,6 +95,51 @@ function HeaderAction({
   </button>;
 }
 
+function ThemeToggle({
+  theme,
+  onChange,
+  compact = false,
+}: {
+  theme: "light" | "dark";
+  onChange: (theme: "light" | "dark") => void;
+  compact?: boolean;
+}) {
+  const dark = theme === "dark";
+  return <button
+    type="button"
+    role="switch"
+    aria-checked={dark}
+    aria-label={dark ? "Ativar tema claro" : "Ativar tema escuro"}
+    title={dark ? "Tema escuro" : "Tema claro"}
+    onClick={() => onChange(dark ? "light" : "dark")}
+    className={cn(
+      "relative inline-flex shrink-0 items-center rounded-full border border-border bg-muted/80 p-1 shadow-inner transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+      compact ? "h-8 w-[62px]" : "h-9 w-[68px]",
+    )}
+  >
+    <span
+      aria-hidden="true"
+      className={cn(
+        "absolute left-1 top-1 rounded-full border border-border/70 bg-card shadow-sm transition-transform duration-200 ease-out",
+        compact ? "h-6 w-6" : "h-7 w-7",
+        dark && (compact ? "translate-x-[30px]" : "translate-x-8"),
+      )}
+    />
+    <span className={cn(
+      "relative z-10 flex flex-1 items-center justify-center transition-colors",
+      !dark ? "text-primary" : "text-muted-foreground",
+    )}>
+      <Sun size={compact ? 14 : 15} strokeWidth={2.1} />
+    </span>
+    <span className={cn(
+      "relative z-10 flex flex-1 items-center justify-center transition-colors",
+      dark ? "text-primary" : "text-muted-foreground",
+    )}>
+      <Moon size={compact ? 14 : 15} strokeWidth={2.1} />
+    </span>
+  </button>;
+}
+
 function HeaderDropdown({
   title,
   children,
@@ -352,14 +397,6 @@ export function AdminHeader({
               </HeaderDropdown>}
             </div>
 
-            <HeaderAction label="Tema claro" active={theme === "light"} onClick={() => setTheme("light")}>
-              <Sun size={17} strokeWidth={2} />
-            </HeaderAction>
-
-            <HeaderAction label="Tema escuro" active={theme === "dark"} onClick={() => setTheme("dark")}>
-              <Moon size={17} strokeWidth={2} />
-            </HeaderAction>
-
             <div className="relative">
               <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}>
                 <Settings size={17} strokeWidth={2} />
@@ -368,6 +405,10 @@ export function AdminHeader({
                 {settingsMenu}
               </HeaderDropdown>}
             </div>
+
+            <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
+
+            <ThemeToggle theme={theme} onChange={setTheme} />
           </div>
 
           <div className="flex flex-1" />
@@ -413,9 +454,9 @@ export function AdminHeader({
 
           <div className="ml-auto flex items-center gap-0.5">
             <HeaderAction label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}><Bell size={16} /></HeaderAction>
-            <HeaderAction label="Tema claro" active={theme === "light"} onClick={() => setTheme("light")}><Sun size={16} /></HeaderAction>
-            <HeaderAction label="Tema escuro" active={theme === "dark"} onClick={() => setTheme("dark")}><Moon size={16} /></HeaderAction>
             <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}><Settings size={16} /></HeaderAction>
+            <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
+            <ThemeToggle theme={theme} onChange={setTheme} compact />
             <button type="button" onClick={() => toggleMenu("profile")} aria-label="Minha conta" className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/15 bg-[#eef5ff] text-[11px] font-black text-primary">{userInitial}</button>
           </div>
 
