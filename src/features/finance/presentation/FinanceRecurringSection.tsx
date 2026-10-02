@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FIntegerInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, AdminStickyToolbar, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { validateAllocationTotal } from "../domain/finance-entry.mjs";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
@@ -236,10 +236,10 @@ export function FinanceRecurringSection() {
           <FTextarea label="Observações" value={form.notes} onChange={(event: any) => setForm(current => ({ ...current, notes: event.target.value }))} rows={3} />
           
         </div>
-        <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t bg-white px-5 py-4 sm:flex-row sm:justify-end">
+        <AdminStickyToolbar className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <AdminButton variant="secondary" onClick={close} disabled={pending}>Cancelar</AdminButton>
           <AdminButton onClick={() => void save()} loading={pending} loadingText="Salvando...">Salvar recorrência</AdminButton>
-        </div>
+        </AdminStickyToolbar>
       </div>
     </div>}
   </div>;
