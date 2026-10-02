@@ -267,9 +267,18 @@ export function PdvSaleWorkspace({
       return;
     }
 
-    setCart(current => current.map(entry =>
-      entry.product.product_id === productId ? { ...entry, quantity: nextQuantity } : entry,
-    ));
+    setCart(current => current.map(entry => {
+      if (entry.product.product_id !== productId) return entry;
+      const nextLineSubtotal = Number(entry.product.price || 0) * nextQuantity;
+      const currentDiscount = currencyNumber(entry.discount);
+      return {
+        ...entry,
+        quantity: nextQuantity,
+        discount: currentDiscount > nextLineSubtotal
+          ? nextLineSubtotal.toFixed(2)
+          : entry.discount,
+      };
+    }));
   };
 
   const setItemDiscount = (productId: string, rawValue: string) => {
