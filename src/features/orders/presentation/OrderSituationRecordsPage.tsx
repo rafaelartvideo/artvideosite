@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, History } from "lucide-react";
-import { AdminCard, AdminCardHeader, AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardHeader, AdminPage, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { cn, formatDateTime } from "@/shared/domain/formatters";
 import type { ServiceOrderSituationVisit } from "../infrastructure/order-situation-visits.repository";
@@ -166,11 +166,11 @@ export function OrderSituationRecordsPage({
     </div>
 
     <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
-    <div
-      className="fixed inset-x-0 z-[70] border-t border-[#0d1b2e]/10 bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none"
+    <AdminStickyToolbar
+      className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4"
       style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
     >
       <div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div>
-    </div>
+    </AdminStickyToolbar>
   </AdminPage>;
 }
