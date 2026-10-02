@@ -124,7 +124,7 @@ export function FieldTrackerDevicePage() {
       let activeToken = trackerToken;
       let name = unitName;
 
-      if (pairingToken || pairingCode.trim()) {
+      if (!trackerToken && (pairingToken || pairingCode.trim())) {
         const response = await redeemFieldTrackingPairing({
           pairingToken: pairingToken || null,
           pairingCode: pairingToken ? null : pairingCode.trim(),
