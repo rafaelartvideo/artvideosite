@@ -1,13 +1,29 @@
-import { useEffect, useState } from "react";
-import { FileCheck2, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Eye, Pencil, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminCard, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { formatDateTime } from "@/shared/domain/formatters";
+import {
+  AdminCard,
+  AdminCardHeader,
+  AdminCardToolbar,
+  AdminIconButton,
+  AdminPage,
+  AdminStickyToolbar,
+  BtnPrimary,
+  BtnSecondary,
+  PageHeader,
+  Section,
+} from "@/shared/ui/admin/AdminLayout";
+import { LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { FInput, FIntegerInput, FTextarea, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import {
   listOrganizationTerms,
+  listServiceWarrantyTerms,
   saveOrganizationTerm,
+  saveServiceWarrantyTerm,
   type OrganizationTermType,
+  type ServiceWarrantyTermRow,
 } from "../infrastructure/terms.repository";
 
 type Draft = {
@@ -16,6 +32,18 @@ type Draft = {
   is_active: boolean;
   version: number;
 };
+
+type WarrantyDraft = {
+  title: string;
+  content: string;
+  warranty_days: string;
+  is_active: boolean;
+};
+
+type EditorState =
+  | { kind: "term"; type: OrganizationTermType; draft: Draft }
+  | { kind: "warranty"; row: ServiceWarrantyTermRow; draft: WarrantyDraft }
+  | null;
 
 const DEFAULTS: Record<OrganizationTermType, Draft> = {
   usage: {
@@ -32,81 +60,26 @@ const DEFAULTS: Record<OrganizationTermType, Draft> = {
   },
 };
 
-function TermEditor({
-  type,
-  value,
-  canManage,
-  saving,
-  onChange,
-  onSave,
-}: {
-  type: OrganizationTermType;
-  value: Draft;
-  canManage: boolean;
-  saving: boolean;
-  onChange: (value: Draft) => void;
-  onSave: () => void;
-}) {
-  const usage = type === "usage";
-  return <AdminCard className="overflow-hidden p-0">
-    <div className="border-b border-[#0d1b2e]/8 bg-[#f8fafc] px-4 py-4 sm:px-5">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e8eef8] text-[#0057e7]">
-          {usage ? <FileCheck2 size={19} /> : <ShieldCheck size={19} />}
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-base font-black text-[#0d1b2e]">{usage ? "Termos de Uso" : "Termo de Responsabilidade"}</h2>
-          <p className="mt-1 text-sm leading-5 text-[#5a6a82]">
-            {usage
-              ? "Aceite exclusivo do usuário marcado como proprietário de uma empresa parceira. Uma nova versão exige novo aceite."
-              : "Aceite individual de cada usuário no primeiro acesso à versão vigente."}
-          </p>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#8a96a8]">Versão atual: {value.version}</p>
-        </div>
-      </div>
-    </div>
+const TERM_META: Record<OrganizationTermType, { name: string; audience: string; description: string }> = {
+  usage: {
+    name: "Termos de Uso",
+    audience: "Proprietário da empresa",
+    description: "Aceite exclusivo do usuário marcado como proprietário da empresa parceira.",
+  },
+  responsibility: {
+    name: "Termo de Responsabilidade",
+    audience: "Todos os usuários",
+    description: "Aceite individual obrigatório para cada usuário na versão vigente.",
+  },
+};
 
-    <div className="space-y-4 p-4 sm:p-5">
-      <div>
-        <label className="mb-1.5 block text-xs font-bold text-[#35465c]">Título</label>
-        <input
-          value={value.title}
-          disabled={!canManage || saving}
-          onChange={event => onChange({ ...value, title: event.target.value })}
-          className="h-10 w-full rounded-lg border border-[#cfd8e6] bg-white px-3 text-sm font-semibold text-[#0d1b2e] outline-none transition focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/10 disabled:bg-[#f5f7fa]"
-        />
-      </div>
-
-      <div>
-        <div className="mb-1.5 flex flex-wrap items-end justify-between gap-2">
-          <label className="block text-xs font-bold text-[#35465c]">Conteúdo do termo</label>
-          <span className="text-[11px] font-medium text-[#7a8799]">Formatação: # título · ## seção · **negrito** · - lista</span>
-        </div>
-        <textarea
-          value={value.content}
-          disabled={!canManage || saving}
-          onChange={event => onChange({ ...value, content: event.target.value })}
-          placeholder="Digite aqui o texto completo que deverá ser aceito..."
-          className="min-h-[280px] w-full resize-y rounded-lg border border-[#cfd8e6] bg-white px-3 py-3 text-sm leading-6 text-[#0d1b2e] outline-none transition focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/10 disabled:bg-[#f5f7fa]"
-        />
-      </div>
-
-      <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-[#35465c]">
-        <input
-          type="checkbox"
-          checked={value.is_active}
-          disabled={!canManage || saving}
-          onChange={event => onChange({ ...value, is_active: event.target.checked })}
-          className="h-4 w-4 accent-[#0057e7]"
-        />
-        Exigir aceite desta versão
-      </label>
-
-      {canManage && <div className="flex justify-end border-t border-[#0d1b2e]/8 pt-4">
-        <BtnPrimary onClick={onSave} loading={saving} loadingText="Salvando...">Salvar termo</BtnPrimary>
-      </div>}
-    </div>
-  </AdminCard>;
+function warrantyDraft(row: ServiceWarrantyTermRow): WarrantyDraft {
+  return {
+    title: row.title || `Termo de Garantia — ${row.service_name}`,
+    content: row.content || "",
+    warranty_days: String(row.warranty_days ?? 90),
+    is_active: Boolean(row.warranty_id && row.is_active),
+  };
 }
 
 export function TabTerms({ onBack }: { onBack: () => void }) {
@@ -114,8 +87,11 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
   const canView = hasPermission("terms.view") || hasPermission("terms.manage");
   const canManage = hasPermission("terms.manage");
   const [drafts, setDrafts] = useState<Record<OrganizationTermType, Draft>>(DEFAULTS);
+  const [warranties, setWarranties] = useState<ServiceWarrantyTermRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingType, setSavingType] = useState<OrganizationTermType | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editor, setEditor] = useState<EditorState>(null);
+  const [warrantySearch, setWarrantySearch] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
@@ -123,29 +99,34 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
       setLoading(false);
       return;
     }
+
     setLoading(true);
     try {
-      const rows = await listOrganizationTerms(activeOrganizationId);
+      const [rows, warrantyRows] = await Promise.all([
+        listOrganizationTerms(activeOrganizationId),
+        listServiceWarrantyTerms(activeOrganizationId),
+      ]);
+
+      const usage = rows.find(term => term.term_type === "usage");
+      const responsibility = rows.find(term => term.term_type === "responsibility");
+
       setDrafts({
-        usage: rows.find(term => term.term_type === "usage")
-          ? {
-              title: rows.find(term => term.term_type === "usage")!.title,
-              content: rows.find(term => term.term_type === "usage")!.content,
-              is_active: rows.find(term => term.term_type === "usage")!.is_active,
-              version: rows.find(term => term.term_type === "usage")!.version,
-            }
-          : DEFAULTS.usage,
-        responsibility: rows.find(term => term.term_type === "responsibility")
-          ? {
-              title: rows.find(term => term.term_type === "responsibility")!.title,
-              content: rows.find(term => term.term_type === "responsibility")!.content,
-              is_active: rows.find(term => term.term_type === "responsibility")!.is_active,
-              version: rows.find(term => term.term_type === "responsibility")!.version,
-            }
-          : DEFAULTS.responsibility,
+        usage: usage ? {
+          title: usage.title,
+          content: usage.content,
+          is_active: usage.is_active,
+          version: usage.version,
+        } : DEFAULTS.usage,
+        responsibility: responsibility ? {
+          title: responsibility.title,
+          content: responsibility.content,
+          is_active: responsibility.is_active,
+          version: responsibility.version,
+        } : DEFAULTS.responsibility,
       });
+      setWarranties(warrantyRows);
     } catch (error) {
-      setToast({ msg: systemErrorMessage(error, "Não foi possível carregar os termos."), type: "error" });
+      setToast({ msg: systemErrorMessage(error, "Não foi possível carregar termos e garantias."), type: "error" });
     } finally {
       setLoading(false);
     }
@@ -155,9 +136,32 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
     void load();
   }, [activeOrganizationId, canView]);
 
-  const save = async (type: OrganizationTermType) => {
-    if (!activeOrganizationId || !canManage) return;
-    const draft = drafts[type];
+  const filteredWarranties = useMemo(() => {
+    const search = warrantySearch.trim().toLocaleLowerCase("pt-BR");
+    if (!search) return warranties;
+    return warranties.filter(row =>
+      row.service_name.toLocaleLowerCase("pt-BR").includes(search)
+      || String(row.title || "").toLocaleLowerCase("pt-BR").includes(search),
+    );
+  }, [warranties, warrantySearch]);
+
+  const openTerm = (type: OrganizationTermType) => {
+    setEditor({ kind: "term", type, draft: { ...drafts[type] } });
+  };
+
+  const openWarranty = (row: ServiceWarrantyTermRow) => {
+    setEditor({ kind: "warranty", row, draft: warrantyDraft(row) });
+  };
+
+  const closeEditor = () => {
+    if (saving) return;
+    setEditor(null);
+  };
+
+  const saveTerm = async () => {
+    if (!activeOrganizationId || !canManage || editor?.kind !== "term") return;
+    const { type, draft } = editor;
+
     if (!draft.title.trim()) {
       setToast({ msg: "Informe o título do termo.", type: "error" });
       return;
@@ -167,7 +171,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
       return;
     }
 
-    setSavingType(type);
+    setSaving(true);
     try {
       await saveOrganizationTerm({
         organizationId: activeOrganizationId,
@@ -176,44 +180,324 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
         content: draft.content,
         isActive: draft.is_active,
       });
-      setToast({ msg: `${type === "usage" ? "Termos de Uso" : "Termo de Responsabilidade"} salvos.`, type: "success" });
+      setToast({ msg: `${TERM_META[type].name} salvo com sucesso.`, type: "success" });
+      setEditor(null);
       await load();
     } catch (error) {
       setToast({ msg: systemErrorMessage(error, "Não foi possível salvar o termo."), type: "error" });
     } finally {
-      setSavingType(null);
+      setSaving(false);
     }
   };
 
-  if (!canView) return null;
-  if (loading) return <LoadingState text="Carregando termos..." />;
+  const saveWarranty = async () => {
+    if (!activeOrganizationId || !canManage || editor?.kind !== "warranty") return;
+    const { row, draft } = editor;
+    const days = Number(draft.warranty_days);
 
-  return <div className="space-y-5">
+    if (!draft.title.trim()) {
+      setToast({ msg: "Informe o título do termo de garantia.", type: "error" });
+      return;
+    }
+    if (!Number.isInteger(days) || days < 0 || days > 3650) {
+      setToast({ msg: "Informe um prazo de garantia entre 0 e 3650 dias.", type: "error" });
+      return;
+    }
+    if (draft.is_active && days <= 0) {
+      setToast({ msg: "A garantia ativa precisa ter prazo maior que zero.", type: "error" });
+      return;
+    }
+    if (draft.is_active && !draft.content.trim()) {
+      setToast({ msg: "Informe o conteúdo do termo antes de ativar a garantia.", type: "error" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await saveServiceWarrantyTerm({
+        organizationId: activeOrganizationId,
+        generalServiceId: row.general_service_id,
+        title: draft.title,
+        content: draft.content,
+        warrantyDays: days,
+        isActive: draft.is_active,
+      });
+      setToast({ msg: `Garantia de ${row.service_name} salva com sucesso.`, type: "success" });
+      setEditor(null);
+      await load();
+    } catch (error) {
+      setToast({ msg: systemErrorMessage(error, "Não foi possível salvar a garantia do serviço."), type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateTermDraft = (patch: Partial<Draft>) => {
+    setEditor(current => current?.kind === "term"
+      ? { ...current, draft: { ...current.draft, ...patch } }
+      : current);
+  };
+
+  const updateWarrantyDraft = (patch: Partial<WarrantyDraft>) => {
+    setEditor(current => current?.kind === "warranty"
+      ? { ...current, draft: { ...current.draft, ...patch } }
+      : current);
+  };
+
+  if (!canView) return null;
+  if (loading) return <LoadingState text="Carregando termos e garantias..." />;
+
+  return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
     <PageHeader
-      title="Termos"
-      subtitle="Configure os documentos de aceite obrigatório da empresa."
+      title="Termos/Garantia"
+      subtitle="Gerencie os termos obrigatórios da empresa e as garantias vinculadas aos serviços."
     />
-    <div className="grid gap-4 xl:grid-cols-2">
-      <TermEditor
-        type="usage"
-        value={drafts.usage}
-        canManage={canManage}
-        saving={savingType === "usage"}
-        onChange={value => setDrafts(current => ({ ...current, usage: value }))}
-        onSave={() => void save("usage")}
-      />
-      <TermEditor
-        type="responsibility"
-        value={drafts.responsibility}
-        canManage={canManage}
-        saving={savingType === "responsibility"}
-        onChange={value => setDrafts(current => ({ ...current, responsibility: value }))}
-        onSave={() => void save("responsibility")}
-      />
-    </div>
+
+    <AdminCard>
+      <AdminCardHeader>
+        <div className="min-w-0">
+          <h2 className="text-sm font-black text-foreground">Termos</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Documentos de aceite obrigatório dos usuários da empresa.</p>
+        </div>
+        <span className="shrink-0 text-xs font-bold text-muted-foreground">2 documentos</span>
+      </AdminCardHeader>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-[820px]">
+          <thead>
+            <tr>
+              <th className="text-left">Documento</th>
+              <th className="text-left">Aplicação</th>
+              <th className="text-left">Versão</th>
+              <th className="text-left">Status</th>
+              <th className="text-left">Atualização</th>
+              <th className="text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(["usage", "responsibility"] as OrganizationTermType[]).map(type => {
+              const value = drafts[type];
+              const meta = TERM_META[type];
+              return <tr key={type}>
+                <td>
+                  <p className="font-bold text-foreground">{meta.name}</p>
+                  <p className="mt-0.5 max-w-md text-xs text-muted-foreground">{meta.description}</p>
+                </td>
+                <td className="text-xs font-semibold text-muted-foreground">{meta.audience}</td>
+                <td className="text-xs font-bold text-foreground">v{value.version}</td>
+                <td><StatusBadge status={value.is_active ? "Ativo" : "Inativo"} /></td>
+                <td className="text-xs text-muted-foreground">—</td>
+                <td>
+                  <div className="flex justify-end">
+                    <AdminIconButton
+                      ariaLabel={canManage ? `Editar ${meta.name}` : `Visualizar ${meta.name}`}
+                      title={canManage ? "Editar" : "Visualizar"}
+                      onClick={() => openTerm(type)}
+                    >
+                      {canManage ? <Pencil size={14} /> : <Eye size={14} />}
+                    </AdminIconButton>
+                  </div>
+                </td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    </AdminCard>
+
+    <AdminCard>
+      <AdminCardHeader>
+        <div className="min-w-0">
+          <h2 className="text-sm font-black text-foreground">Garantias dos serviços</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Defina prazo e termo de garantia individualmente para cada Serviço Geral.</p>
+        </div>
+        <span className="shrink-0 text-xs font-bold text-muted-foreground">{warranties.length} serviço{warranties.length === 1 ? "" : "s"}</span>
+      </AdminCardHeader>
+
+      <AdminCardToolbar>
+        <div className="relative w-full max-w-md">
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={warrantySearch}
+            onChange={event => setWarrantySearch(event.target.value)}
+            placeholder="Buscar serviço ou termo de garantia"
+            className={`${INPUT} h-9 pl-9 text-xs`}
+          />
+        </div>
+      </AdminCardToolbar>
+
+      {warranties.length === 0 ? (
+        <div className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhum Serviço Geral cadastrado para configurar garantia.</div>
+      ) : filteredWarranties.length === 0 ? (
+        <div className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhum serviço encontrado para esta busca.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-[900px]">
+            <thead>
+              <tr>
+                <th className="text-left">Serviço</th>
+                <th className="text-left">Prazo</th>
+                <th className="text-left">Versão</th>
+                <th className="text-left">Status</th>
+                <th className="text-left">Atualização</th>
+                <th className="text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredWarranties.map(row => <tr key={row.general_service_id}>
+                <td>
+                  <p className="font-bold text-foreground">{row.service_name}</p>
+                  {!row.service_is_active && <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Serviço inativo</p>}
+                </td>
+                <td className="text-xs font-semibold text-foreground">
+                  {row.warranty_id && row.warranty_days != null ? `${row.warranty_days} dia${row.warranty_days === 1 ? "" : "s"}` : "Não configurada"}
+                </td>
+                <td className="text-xs font-bold text-foreground">{row.version > 0 ? `v${row.version}` : "—"}</td>
+                <td>
+                  {row.warranty_id
+                    ? <StatusBadge status={row.is_active ? "Ativo" : "Inativo"} />
+                    : <span className="text-xs font-semibold text-muted-foreground">Não configurada</span>}
+                </td>
+                <td className="text-xs text-muted-foreground">{row.updated_at ? formatDateTime(row.updated_at, "—") : "—"}</td>
+                <td>
+                  <div className="flex justify-end">
+                    <AdminIconButton
+                      ariaLabel={canManage ? `Configurar garantia de ${row.service_name}` : `Visualizar garantia de ${row.service_name}`}
+                      title={canManage ? "Configurar garantia" : "Visualizar garantia"}
+                      onClick={() => openWarranty(row)}
+                    >
+                      {canManage ? <Pencil size={14} /> : <Eye size={14} />}
+                    </AdminIconButton>
+                  </div>
+                </td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </AdminCard>
+
     <AdminStickyToolbar>
       <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
     </AdminStickyToolbar>
+
+    {editor?.kind === "term" && <AdminPage
+      open
+      onClose={closeEditor}
+      breadcrumb="Operação > Termos/Garantia"
+      title={TERM_META[editor.type].name}
+      subtitle={TERM_META[editor.type].description}
+      maxW="max-w-3xl"
+    >
+      <div className="space-y-5 p-4 sm:p-5">
+        <Section title="Configuração do termo">
+          <div className="space-y-4">
+            <FInput
+              label="Título"
+              value={editor.draft.title}
+              disabled={!canManage || saving}
+              onChange={(event: any) => updateTermDraft({ title: event.target.value })}
+            />
+            <FTextarea
+              label="Conteúdo do termo"
+              value={editor.draft.content}
+              disabled={!canManage || saving}
+              onChange={(event: any) => updateTermDraft({ content: event.target.value })}
+              rows={16}
+              placeholder="Digite o texto completo que deverá ser aceito..."
+              hint="Formatação disponível: # título · ## seção · **negrito** · - lista"
+            />
+            <FToggle
+              label="Exigir aceite desta versão"
+              description={editor.type === "usage"
+                ? "Quando ativo, o proprietário da empresa deverá aceitar a versão vigente."
+                : "Quando ativo, cada usuário deverá aceitar a versão vigente."}
+              checked={editor.draft.is_active}
+              disabled={!canManage || saving}
+              onChange={value => updateTermDraft({ is_active: value })}
+            />
+          </div>
+        </Section>
+
+        <Section title="Versão">
+          <p className="text-sm text-muted-foreground">Versão atual: <strong className="text-foreground">v{editor.draft.version}</strong>. Alterações no conteúdo, título ou status geram uma nova versão.</p>
+        </Section>
+      </div>
+
+      <AdminStickyToolbar className="justify-end">
+        <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
+        {canManage && <BtnPrimary onClick={() => void saveTerm()} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+      </AdminStickyToolbar>
+    </AdminPage>}
+
+    {editor?.kind === "warranty" && <AdminPage
+      open
+      onClose={closeEditor}
+      breadcrumb="Operação > Termos/Garantia"
+      title={`Garantia — ${editor.row.service_name}`}
+      subtitle="Prazo e condições de garantia aplicáveis a este serviço."
+      maxW="max-w-3xl"
+    >
+      <div className="space-y-5 p-4 sm:p-5">
+        <Section title="Serviço">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Serviço Geral</p>
+              <p className="mt-1 text-sm font-bold text-foreground">{editor.row.service_name}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Versão</p>
+              <p className="mt-1 text-sm font-bold text-foreground">{editor.row.version > 0 ? `v${editor.row.version}` : "Nova configuração"}</p>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Termo de garantia">
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FIntegerInput
+                label="Prazo da garantia (dias)"
+                value={editor.draft.warranty_days}
+                disabled={!canManage || saving}
+                onChange={(event: any) => updateWarrantyDraft({ warranty_days: event.target.value })}
+              />
+              <FInput
+                label="Título"
+                value={editor.draft.title}
+                disabled={!canManage || saving}
+                onChange={(event: any) => updateWarrantyDraft({ title: event.target.value })}
+              />
+            </div>
+            <FTextarea
+              label="Conteúdo do termo de garantia"
+              value={editor.draft.content}
+              disabled={!canManage || saving}
+              onChange={(event: any) => updateWarrantyDraft({ content: event.target.value })}
+              rows={16}
+              placeholder="Descreva cobertura, condições, exclusões e demais regras da garantia..."
+              hint="Formatação disponível: # título · ## seção · **negrito** · - lista"
+            />
+            <FToggle
+              label="Garantia ativa"
+              description="Quando ativa, esta será a configuração vigente de garantia para o serviço."
+              checked={editor.draft.is_active}
+              disabled={!canManage || saving}
+              onChange={value => updateWarrantyDraft({ is_active: value })}
+            />
+          </div>
+        </Section>
+
+        <Section title="Versionamento">
+          <p className="text-sm text-muted-foreground">Alterações no prazo, título, conteúdo ou status criam uma nova versão da garantia. Isso preserva a rastreabilidade das condições vigentes ao longo do tempo.</p>
+        </Section>
+      </div>
+
+      <AdminStickyToolbar className="justify-end">
+        <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
+        {canManage && <BtnPrimary onClick={() => void saveWarranty()} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+      </AdminStickyToolbar>
+    </AdminPage>}
   </div>;
 }
