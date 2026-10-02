@@ -35,7 +35,7 @@ export function OrderSolutionRecordsPage({
     <div className="space-y-4 p-4 sm:p-5">
       {loading && <LoadingState text="Carregando registros da solução..." />}
       {!loading && error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-xs font-semibold text-red-700">{error}</div>}
-      {!loading && !error && attempts.length === 0 && <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]"><History className="mx-auto mb-2 text-[#8b98aa]" size={22} />Nenhuma solução registrada nesta OS.</div>}
+      {!loading && !error && attempts.length === 0 && <div className="rounded-xl border border-dashed border-border px-3 py-10 text-center text-xs text-[#5a6a82]"><History className="mx-auto mb-2 text-[#8b98aa]" size={22} />Nenhuma solução registrada nesta OS.</div>}
 
       {!loading && !error && attempts.map(attempt => {
         const active = !attempt.reverted_at;
@@ -59,7 +59,7 @@ export function OrderSolutionRecordsPage({
             <RecordText label="Solução" value={attempt.solution} />
             <RecordText label="Peças avulsas" value={attempt.loose_parts} />
 
-            {(attempt.items || []).length > 0 && <div><p className="mb-2 text-[10px] font-bold uppercase text-[#5a6a82]">Produtos utilizados</p><div className="space-y-2">{(attempt.items || []).map(item => <div key={item.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2 text-xs"><span className="min-w-0 break-words font-semibold text-[#0d1b2e]">{item.inventory_name_snapshot}</span><span className="shrink-0 font-black text-[#0d1b2e]">{Number(item.quantity)} {item.unit_snapshot}{item.unit_sale_price != null && item.total_sale_price != null ? ` × ${formatCurrency(Number(item.unit_sale_price))} = ${formatCurrency(Number(item.total_sale_price))}` : ""}</span></div>)}</div>{itemTotal > 0 && <div className="mt-2 flex items-center justify-between rounded-lg bg-[#eef5ff] px-3 py-2 text-xs"><span className="font-bold">Total dos produtos</span><span className="font-black text-[#0057e7]">{formatCurrency(itemTotal)}</span></div>}</div>}
+            {(attempt.items || []).length > 0 && <div><p className="mb-2 text-[10px] font-bold uppercase text-[#5a6a82]">Produtos utilizados</p><div className="space-y-2">{(attempt.items || []).map(item => <div key={item.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-xs"><span className="min-w-0 break-words font-semibold text-[#0d1b2e]">{item.inventory_name_snapshot}</span><span className="shrink-0 font-black text-[#0d1b2e]">{Number(item.quantity)} {item.unit_snapshot}{item.unit_sale_price != null && item.total_sale_price != null ? ` × ${formatCurrency(Number(item.unit_sale_price))} = ${formatCurrency(Number(item.total_sale_price))}` : ""}</span></div>)}</div>{itemTotal > 0 && <div className="mt-2 flex items-center justify-between rounded-lg bg-primary-soft px-3 py-2 text-xs"><span className="font-bold">Total dos produtos</span><span className="font-black text-[#0057e7]">{formatCurrency(itemTotal)}</span></div>}</div>}
 
             {(attempt.media || []).length > 0 && <div><p className="mb-2 text-[10px] font-bold uppercase text-[#5a6a82]">Imagens da solução</p><div className="flex flex-wrap gap-3">{(attempt.media || []).map(media => {
               const image: OrderImage = { key: media.id, mediaId: media.media_id, name: media.file_name_snapshot || media.media?.file_name || "Imagem da solução", kind: "solution" };
@@ -70,7 +70,7 @@ export function OrderSolutionRecordsPage({
       })}
     </div>
 
-    <div className="sticky bottom-0 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary></div>
+    <div className="sticky bottom-0 border-t border-border bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={onClose}>Voltar para a OS</BtnSecondary></div>
   </AdminPage>;
 }
 
