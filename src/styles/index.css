@@ -135,6 +135,8 @@ body {
 	color-scheme: dark;
 }
 
+.admin-crm.dark[class~="bg-white"],
+.dark .admin-crm[class~="bg-white"],
 .admin-crm.dark [class~="bg-white"],
 .dark .admin-crm [class~="bg-white"] {
 	background-color: #111827 !important;
@@ -143,9 +145,29 @@ body {
 .admin-crm.dark [class~="bg-[#f8fafc]"],
 .admin-crm.dark [class~="bg-[#f5f7fa]"],
 .admin-crm.dark [class~="bg-[#eef1f6]"],
+.admin-crm.dark [class~="bg-[#f1f5f9]"],
+.admin-crm.dark [class~="bg-[#f3f6fa]"],
+.admin-crm.dark [class~="bg-[#f4f7fb]"],
+.admin-crm.dark [class~="bg-[#f5f8fc]"],
+.admin-crm.dark [class~="bg-[#f5f8fd]"],
+.admin-crm.dark [class~="bg-[#f5f8ff]"],
+.admin-crm.dark [class~="bg-[#f7faff]"],
+.admin-crm.dark [class~="bg-[#f8fbff]"],
+.admin-crm.dark [class~="bg-[#e8edf4]"],
+.admin-crm.dark [class~="bg-[#dfe5ee]"],
 .dark .admin-crm [class~="bg-[#f8fafc]"],
 .dark .admin-crm [class~="bg-[#f5f7fa]"],
-.dark .admin-crm [class~="bg-[#eef1f6]"] {
+.dark .admin-crm [class~="bg-[#eef1f6]"],
+.dark .admin-crm [class~="bg-[#f1f5f9]"],
+.dark .admin-crm [class~="bg-[#f3f6fa]"],
+.dark .admin-crm [class~="bg-[#f4f7fb]"],
+.dark .admin-crm [class~="bg-[#f5f8fc]"],
+.dark .admin-crm [class~="bg-[#f5f8fd]"],
+.dark .admin-crm [class~="bg-[#f5f8ff]"],
+.dark .admin-crm [class~="bg-[#f7faff]"],
+.dark .admin-crm [class~="bg-[#f8fbff]"],
+.dark .admin-crm [class~="bg-[#e8edf4]"],
+.dark .admin-crm [class~="bg-[#dfe5ee]"] {
 	background-color: #0f1726 !important;
 }
 
@@ -165,34 +187,66 @@ body {
 }
 
 .admin-crm.dark [class~="text-[#0d1b2e]"],
+.admin-crm.dark [class~="text-[#172536]"],
+.admin-crm.dark [class~="text-[#17263b]"],
 .admin-crm.dark [class~="text-[#24354b]"],
+.admin-crm.dark [class~="text-[#334155]"],
 .admin-crm.dark [class~="text-[#34445a]"],
+.admin-crm.dark [class~="text-[#34445b]"],
+.admin-crm.dark [class~="text-[#35465c]"],
+.admin-crm.dark [class~="text-[#3a4a5e]"],
+.admin-crm.dark [class~="text-[#45566d]"],
 .dark .admin-crm [class~="text-[#0d1b2e]"],
+.dark .admin-crm [class~="text-[#172536]"],
+.dark .admin-crm [class~="text-[#17263b]"],
 .dark .admin-crm [class~="text-[#24354b]"],
-.dark .admin-crm [class~="text-[#34445a]"] {
+.dark .admin-crm [class~="text-[#334155]"],
+.dark .admin-crm [class~="text-[#34445a]"],
+.dark .admin-crm [class~="text-[#34445b]"],
+.dark .admin-crm [class~="text-[#35465c]"],
+.dark .admin-crm [class~="text-[#3a4a5e]"],
+.dark .admin-crm [class~="text-[#45566d]"] {
 	color: #e8edf5 !important;
 }
 
+.admin-crm.dark [class~="text-[#52647c]"],
 .admin-crm.dark [class~="text-[#5a6a82]"],
+.admin-crm.dark [class~="text-[#5b6d86]"],
 .admin-crm.dark [class~="text-[#5f6f84]"],
+.admin-crm.dark [class~="text-[#64748b]"],
 .admin-crm.dark [class~="text-[#66768c]"],
 .admin-crm.dark [class~="text-[#68788d]"],
 .admin-crm.dark [class~="text-[#6b7c93]"],
 .admin-crm.dark [class~="text-[#718096]"],
 .admin-crm.dark [class~="text-[#7a879a]"],
+.admin-crm.dark [class~="text-[#7a8aa0]"],
+.admin-crm.dark [class~="text-[#7b899c]"],
 .admin-crm.dark [class~="text-[#7b899d]"],
+.admin-crm.dark [class~="text-[#7c899c]"],
 .admin-crm.dark [class~="text-[#8a96a8]"],
 .admin-crm.dark [class~="text-[#8a98aa]"],
+.admin-crm.dark [class~="text-[#8b98aa]"],
+.admin-crm.dark [class~="text-[#93a7bd]"],
+.admin-crm.dark [class~="text-[#94a0b0]"],
+.dark .admin-crm [class~="text-[#52647c]"],
 .dark .admin-crm [class~="text-[#5a6a82]"],
+.dark .admin-crm [class~="text-[#5b6d86]"],
 .dark .admin-crm [class~="text-[#5f6f84]"],
+.dark .admin-crm [class~="text-[#64748b]"],
 .dark .admin-crm [class~="text-[#66768c]"],
 .dark .admin-crm [class~="text-[#68788d]"],
 .dark .admin-crm [class~="text-[#6b7c93]"],
 .dark .admin-crm [class~="text-[#718096]"],
 .dark .admin-crm [class~="text-[#7a879a]"],
+.dark .admin-crm [class~="text-[#7a8aa0]"],
+.dark .admin-crm [class~="text-[#7b899c]"],
 .dark .admin-crm [class~="text-[#7b899d]"],
+.dark .admin-crm [class~="text-[#7c899c]"],
 .dark .admin-crm [class~="text-[#8a96a8]"],
-.dark .admin-crm [class~="text-[#8a98aa]"] {
+.dark .admin-crm [class~="text-[#8a98aa]"],
+.dark .admin-crm [class~="text-[#8b98aa]"],
+.dark .admin-crm [class~="text-[#93a7bd]"],
+.dark .admin-crm [class~="text-[#94a0b0]"] {
 	color: #9aa8bb !important;
 }
 
