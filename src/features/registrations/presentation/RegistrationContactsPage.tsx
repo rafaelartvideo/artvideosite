@@ -68,9 +68,9 @@ function ContactChannels({ phone, whatsapp, email }: { phone?: string | null; wh
   const phoneDigits = normalizeDigits(phone || "");
   const whatsUrl = whatsappUrl(whatsapp);
   return <div className="mt-3 flex min-w-0 flex-wrap gap-2">
-    {phoneDigits && <a href={`tel:${phoneDigits}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-[#0d1b2e]/10 bg-white px-2.5 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><Phone size={13} /><span>{formatPhone(phone) || phone}</span></a>}
+    {phoneDigits && <a href={`tel:${phoneDigits}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-muted"><Phone size={13} /><span>{formatPhone(phone) || phone}</span></a>}
     {whatsUrl && <a href={whatsUrl} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100"><MessageCircle size={13} /><span>{formatPhone(whatsapp) || whatsapp}</span></a>}
-    {email && <a href={`mailto:${email}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-[#0d1b2e]/10 bg-white px-2.5 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><Mail size={13} /><span className="max-w-[16rem] truncate">{email}</span></a>}
+    {email && <a href={`mailto:${email}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-muted"><Mail size={13} /><span className="max-w-[16rem] truncate">{email}</span></a>}
   </div>;
 }
 
@@ -183,7 +183,7 @@ export function RegistrationContactsPage({
           {hasPrimaryChannels ? <ContactChannels phone={registration.phone} whatsapp={registration.whatsapp} email={registration.email} /> : <p className="mt-3 text-sm text-[#5a6a82]">Nenhum telefone, WhatsApp ou e-mail principal informado.</p>}
         </AdminCard>
 
-        {loading ? <LoadingState text="Carregando contatos..." /> : contacts.length === 0 ? <AdminCard className="shadow-none"><EmptyState icon={UserRound} title="Nenhum contato adicional" message="Adicione outros responsáveis, setores ou pessoas de contato para este cadastro." onAdd={canManage ? openNew : undefined} addLabel="Adicionar contato" /></AdminCard> : <div className="grid gap-3 md:grid-cols-2">{contacts.map(contact => <AdminCard key={contact.id} className={cn("p-4 shadow-none", !contact.is_active && "bg-[#f8fafc] opacity-80")}>
+        {loading ? <LoadingState text="Carregando contatos..." /> : contacts.length === 0 ? <AdminCard className="shadow-none"><EmptyState icon={UserRound} title="Nenhum contato adicional" message="Adicione outros responsáveis, setores ou pessoas de contato para este cadastro." onAdd={canManage ? openNew : undefined} addLabel="Adicionar contato" /></AdminCard> : <div className="grid gap-3 md:grid-cols-2">{contacts.map(contact => <AdminCard key={contact.id} className={cn("p-4 shadow-none", !contact.is_active && "bg-muted opacity-80")}>
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -201,7 +201,7 @@ export function RegistrationContactsPage({
         </AdminCard>)}</div>}
       </div>
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
+      <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-border bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
         <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
         {canManage && <BtnPrimary onClick={openNew}><Plus size={15} /> Adicionar contato</BtnPrimary>}
       </div>
