@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Edit2, Plus, ShieldCheck } from "lucide-react";
+import { ChevronDown, Edit2, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   addRolePermission,
@@ -23,7 +23,7 @@ import {
   AdminPage,
   BtnPrimary,
   BtnSecondary,
-  InternalBackButton,
+  AdminStickyToolbar,
   PageHeader,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
@@ -378,11 +378,10 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     <PageHeader
       title="Funções e Permissões"
       subtitle="Configure os perfis-base e os acessos herdados pelos funcionários."
-      actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{canCreate && <BtnPrimary onClick={openNew}><Plus size={15} /> Nova função</BtnPrimary>}</div>}
     />
 
     {canViewTable && <AdminCard>
-      {loading ? <LoadingState /> : roles.length === 0 ? <EmptyState icon={ShieldCheck} title="Nenhuma função cadastrada" message="Cadastre a primeira função para definir permissões." onAdd={canCreate ? openNew : undefined} addLabel="Nova função" /> : <>
+      {loading ? <LoadingState /> : roles.length === 0 ? <EmptyState icon={ShieldCheck} title="Nenhuma função cadastrada" message="Cadastre a primeira função para definir permissões." /> : <>
         <div className="overflow-x-auto">
           <table className="min-w-[720px]">
             <thead><tr><th className="text-left">Função</th><th className="text-left">Descrição</th><th className="text-left">Vinculados</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead>
@@ -398,5 +397,9 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
         <PaginationBar page={safePage} pageSize={pageSize} totalItems={roles.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
       </>}
     </AdminCard>}
+    <AdminStickyToolbar>
+      <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
+      {canCreate && <BtnPrimary onClick={openNew}>Novo</BtnPrimary>}
+    </AdminStickyToolbar>
   </div>;
 }
