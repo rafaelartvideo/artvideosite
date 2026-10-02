@@ -33,36 +33,52 @@ function numberValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function normalizeCosmos(item: any) {
-  const gtin = textValue(item?.gtin);
-  const avgPrice = numberValue(item?.avg_price);
-  const minPrice = numberValue(item?.min_price);
-  const maxPrice = numberValue(item?.max_price);
-  const images = [item?.thumbnail, item?.picture, item?.image]
-    .filter((value): value is string => typeof value === "string" && /^https?:\/\//i.test(value));
+function normalizeOpenFacts(item: any) {
+  const gtin = textValue(item?.code) || textValue(item?._id);
+  const images = [
+    item?.image_front_url,
+    item?.image_url,
+    item?.selected_images?.front?.display?.pt,
+    item?.selected_images?.front?.display?.en,
+  ].filter((value): value is string => typeof value === "string" && /^https?:\/\//i.test(value));
+  const brands = textValue(item?.brands);
+  const categories = textValue(item?.categories);
+  const productName =
+    textValue(item?.product_name_pt)
+    || textValue(item?.product_name)
+    || textValue(item?.generic_name_pt)
+    || textValue(item?.generic_name)
+    || "Produto";
+  const description =
+    textValue(item?.generic_name_pt)
+    || textValue(item?.generic_name)
+    || textValue(item?.quantity)
+    || textValue(item?.product_name)
+    || productName;
+
   return {
-    provider: "cosmos",
+    provider: "openfacts",
     external_id: gtin,
-    name: textValue(item?.description) || "Produto",
-    description: textValue(item?.full_description) || textValue(item?.description),
+    name: productName,
+    description,
     gtin,
-    brand: textValue(item?.brand?.name),
-    model: textValue(item?.model),
-    manufacturer_code: textValue(item?.manufacturer_code),
-    category_name: textValue(item?.gpc?.description),
-    category_code: textValue(item?.gpc?.code),
-    ncm: textValue(item?.ncm?.code),
-    gross_weight_grams: numberValue(item?.gross_weight),
-    net_weight_grams: numberValue(item?.net_weight),
-    width_mm: numberValue(item?.width),
-    height_mm: numberValue(item?.height),
-    length_mm: numberValue(item?.length),
-    reference_price: avgPrice,
-    min_price: minPrice,
-    max_price: maxPrice,
-    currency: avgPrice != null ? "BRL" : null,
-    images: Array.from(new Set(images)),
-    source_url: gtin ? `https://cosmos.bluesoft.com.br/produtos/${encodeURIComponent(gtin)}` : null,
+    brand: brands ? brands.split(",")[0]?.trim() || brands : null,
+    model: null,
+    manufacturer_code: null,
+    category_name: categories ? categories.split(",")[0]?.trim() || categories : null,
+    category_code: null,
+    ncm: null,
+    gross_weight_grams: null,
+    net_weight_grams: null,
+    width_mm: null,
+    height_mm: null,
+    length_mm: null,
+    reference_price: null,
+    min_price: null,
+    max_price: null,
+    currency: null,
+    images: Array.from(new Set(images)).slice(0, 8),
+    source_url: gtin ? `https://world.openfoodfacts.org/product/${encodeURIComponent(gtin)}` : null,
   };
 }
 
@@ -100,38 +116,43 @@ function normalizeUpc(item: any) {
   };
 }
 
-async function cosmosSearch(query: string) {
-  const token = Deno.env.get("COSMOS_API_TOKEN");
-  const userAgent = Deno.env.get("COSMOS_USER_AGENT");
-  if (!token || !userAgent) return [] as any[];
-
+async function openFactsSearch(query: string) {
   const digits = query.replace(/\D/g, "");
-  const exact = /^\d{8,14}$/.test(digits);
-  const url = exact
-    ? `https://cosmos.bluesoft.com.br/api/gtins/${encodeURIComponent(digits)}.json`
-    : `https://cosmos.bluesoft.com.br/api/products?query=${encodeURIComponent(query)}&per_page=20`;
+  if (!/^\d{8,14}$/.test(digits)) return [] as any[];
+
+  const fields = [
+    "code",
+    "product_name",
+    "product_name_pt",
+    "generic_name",
+    "generic_name_pt",
+    "brands",
+    "categories",
+    "quantity",
+    "image_front_url",
+    "image_url",
+    "selected_images",
+  ].join(",");
+  const url = `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(digits)}.json?product_type=all&fields=${encodeURIComponent(fields)}`;
 
   const response = await fetch(url, {
     headers: {
       Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-Cosmos-Token": token,
-      "User-Agent": userAgent,
+      "User-Agent": "UnionWorldCRM/1.0 (product lookup; https://unionworld.com.br)",
     },
   });
 
   if (response.status === 404) return [];
   if (!response.ok) {
-    if (response.status === 429) throw new Error("O limite de consultas do Cosmos foi atingido.");
-    throw new Error(`Cosmos indisponível (HTTP ${response.status}).`);
+    if (response.status === 429) throw new Error("O limite temporário da base Open Facts foi atingido.");
+    throw new Error(`Open Facts indisponível (HTTP ${response.status}).`);
   }
 
   const payload = await response.json().catch(() => null) as any;
-  const rows = exact
-    ? (payload ? [payload] : [])
-    : Array.isArray(payload) ? payload : Array.isArray(payload?.products) ? payload.products : Array.isArray(payload?.items) ? payload.items : [];
+  if (!payload || payload?.status === 0 || !payload?.product) return [];
 
-  return rows.map(normalizeCosmos).filter((item: any) => item.name);
+  const normalized = normalizeOpenFacts({ ...payload.product, code: payload?.code || payload.product?.code || digits });
+  return normalized?.name ? [normalized] : [];
 }
 
 async function upcSearch(query: string) {
@@ -167,21 +188,30 @@ async function upcSearch(query: string) {
 }
 
 async function searchProducts(query: string) {
-  let cosmosError: string | null = null;
-  try {
-    const cosmos = await cosmosSearch(query);
-    if (cosmos.length) return { provider: "cosmos", results: cosmos };
-  } catch (error) {
-    cosmosError = error instanceof Error ? error.message : "Falha no Cosmos.";
-    console.warn("[PRODUCT LOOKUP] Cosmos:", cosmosError);
+  const digits = query.replace(/\D/g, "");
+  const exactBarcode = /^\d{8,14}$/.test(digits);
+  let openFactsError: string | null = null;
+
+  if (exactBarcode) {
+    try {
+      const openFacts = await openFactsSearch(digits);
+      if (openFacts.length) return { provider: "openfacts", results: openFacts };
+    } catch (error) {
+      openFactsError = error instanceof Error ? error.message : "Falha no Open Facts.";
+      console.warn("[PRODUCT LOOKUP] Open Facts:", openFactsError);
+    }
   }
 
   try {
     const upc = await upcSearch(query);
-    return { provider: "upcitemdb", results: upc, warning: cosmosError };
+    return {
+      provider: "upcitemdb",
+      results: upc,
+      warning: openFactsError,
+    };
   } catch (error) {
-    const fallbackError = error instanceof Error ? error.message : "Falha no catálogo alternativo.";
-    if (cosmosError) throw new Error(`${cosmosError} ${fallbackError}`);
+    const fallbackError = error instanceof Error ? error.message : "Falha no catálogo UPCitemdb.";
+    if (openFactsError) throw new Error(`${openFactsError} ${fallbackError}`);
     throw error;
   }
 }
