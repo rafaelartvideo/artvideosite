@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { DollarSign, MapPin, MessageCircle, Package, Percent, Phone, Wrench } from "lucide-react";
+import { DollarSign, MapPin, Maximize2, MessageCircle, Minimize2, Package, Percent, Phone, Wrench } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import {
   AdminButton,
   AdminCard,
   AdminDialog,
+  AdminIconButton,
   BtnPrimary,
   BtnSecondary,
   Section,
@@ -181,9 +182,13 @@ export function OrderCompletionModal({
   formatCurrency: (value: number) => string;
 }) {
   const [addressExpanded, setAddressExpanded] = useState(false);
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
-    if (completion.open) setAddressExpanded(false);
+    if (completion.open) {
+      setAddressExpanded(false);
+      setMinimized(false);
+    }
   }, [completion.open, detail?.id]);
 
   const commercialServices = useMemo(
@@ -209,7 +214,10 @@ export function OrderCompletionModal({
   const address = customerAddress(customer);
   const isCompany = customer?.customer_type === "PJ";
   const close = () => {
-    if (!saving) completion.setOpen(false);
+    if (!saving) {
+      setMinimized(false);
+      completion.setOpen(false);
+    }
   };
 
   const completionBlocked = completion.discountExceedsMax
@@ -220,11 +228,45 @@ export function OrderCompletionModal({
     || completion.commercialItemsLoading
     || (completion.commercialPricing && Boolean(completion.commercialItemsError));
 
+  if (minimized) {
+    return <div
+      className="admin-crm fixed bottom-4 right-4 z-[150] flex w-[min(92vw,360px)] items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-card-foreground shadow-2xl"
+      role="dialog"
+      aria-label={`Concluir OS ${detail.os_number || ""} minimizada`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-foreground">Concluir OS {detail.os_number || ""}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {customerName(customer)} · {formatCurrency(completion.finalTotal)}
+        </p>
+      </div>
+      <AdminIconButton
+        ariaLabel="Restaurar modal"
+        title="Restaurar"
+        onClick={() => setMinimized(false)}
+        variant="ghost"
+        className="shrink-0"
+      >
+        <Maximize2 size={16} />
+      </AdminIconButton>
+    </div>;
+  }
+
   return <AdminDialog
     open={completion.open}
     onClose={close}
     title={`Concluir OS ${detail.os_number || ""}`}
     description="Confira a composição da OS, os valores e o recebimento antes de finalizar."
+    headerActions={<AdminIconButton
+      ariaLabel="Minimizar modal"
+      title="Minimizar"
+      onClick={() => setMinimized(true)}
+      disabled={saving}
+      variant="ghost"
+      className="shrink-0"
+    >
+      <Minimize2 size={16} />
+    </AdminIconButton>}
     className="!max-w-6xl"
     footer={<div className="flex min-w-0 flex-wrap justify-end gap-3">
       <BtnSecondary onClick={close} disabled={saving}>Cancelar</BtnSecondary>
