@@ -31,6 +31,7 @@ type Draft = {
   content: string;
   is_active: boolean;
   version: number;
+  updated_at?: string | null;
 };
 
 type WarrantyDraft = {
@@ -116,12 +117,14 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
           content: usage.content,
           is_active: usage.is_active,
           version: usage.version,
+          updated_at: usage.updated_at,
         } : DEFAULTS.usage,
         responsibility: responsibility ? {
           title: responsibility.title,
           content: responsibility.content,
           is_active: responsibility.is_active,
           version: responsibility.version,
+          updated_at: responsibility.updated_at,
         } : DEFAULTS.responsibility,
       });
       setWarranties(warrantyRows);
@@ -288,7 +291,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
                 <td className="text-xs font-semibold text-muted-foreground">{meta.audience}</td>
                 <td className="text-xs font-bold text-foreground">v{value.version}</td>
                 <td><StatusBadge status={value.is_active ? "Ativo" : "Inativo"} /></td>
-                <td className="text-xs text-muted-foreground">—</td>
+                <td className="text-xs text-muted-foreground">{value.updated_at ? formatDateTime(value.updated_at, "—") : "—"}</td>
                 <td>
                   <div className="flex justify-end">
                     <AdminIconButton
@@ -400,15 +403,17 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
               disabled={!canManage || saving}
               onChange={(event: any) => updateTermDraft({ title: event.target.value })}
             />
-            <FTextarea
-              label="Conteúdo do termo"
-              value={editor.draft.content}
-              disabled={!canManage || saving}
-              onChange={(event: any) => updateTermDraft({ content: event.target.value })}
-              rows={16}
-              placeholder="Digite o texto completo que deverá ser aceito..."
-              hint="Formatação disponível: # título · ## seção · **negrito** · - lista"
-            />
+            <div>
+              <FTextarea
+                label="Conteúdo do termo"
+                value={editor.draft.content}
+                disabled={!canManage || saving}
+                onChange={(event: any) => updateTermDraft({ content: event.target.value })}
+                rows={16}
+                placeholder="Digite o texto completo que deverá ser aceito..."
+              />
+              <p className="mt-1 text-[10px] text-muted-foreground">Formatação disponível: # título · ## seção · **negrito** · - lista</p>
+            </div>
             <FToggle
               label="Exigir aceite desta versão"
               description={editor.type === "usage"
@@ -470,15 +475,17 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
                 onChange={(event: any) => updateWarrantyDraft({ title: event.target.value })}
               />
             </div>
-            <FTextarea
-              label="Conteúdo do termo de garantia"
-              value={editor.draft.content}
-              disabled={!canManage || saving}
-              onChange={(event: any) => updateWarrantyDraft({ content: event.target.value })}
-              rows={16}
-              placeholder="Descreva cobertura, condições, exclusões e demais regras da garantia..."
-              hint="Formatação disponível: # título · ## seção · **negrito** · - lista"
-            />
+            <div>
+              <FTextarea
+                label="Conteúdo do termo de garantia"
+                value={editor.draft.content}
+                disabled={!canManage || saving}
+                onChange={(event: any) => updateWarrantyDraft({ content: event.target.value })}
+                rows={16}
+                placeholder="Descreva cobertura, condições, exclusões e demais regras da garantia..."
+              />
+              <p className="mt-1 text-[10px] text-muted-foreground">Formatação disponível: # título · ## seção · **negrito** · - lista</p>
+            </div>
             <FToggle
               label="Garantia ativa"
               description="Quando ativa, esta será a configuração vigente de garantia para o serviço."
