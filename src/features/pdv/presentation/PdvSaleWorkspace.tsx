@@ -570,7 +570,7 @@ export function PdvSaleWorkspace({
     finalizeMutation.isPending,
   ]);
 
-  return <div className="min-w-0 space-y-4">
+  return <div className="min-w-0 space-y-4 xl:w-[38%] xl:flex-none">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <PageHeader
@@ -790,14 +790,14 @@ export function PdvSaleWorkspace({
       }}
       title="Pagamento"
       description="F3 busca cliente · teclas 1–9 adicionam formas de pagamento · F4 finaliza quando estiver fechado."
-      className="max-w-5xl"
-      footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+      className="w-[calc(100vw-2rem)] !max-w-[1280px] sm:w-[min(96vw,1280px)]"
+      footer={<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-xs text-muted-foreground">
           {checkoutInvalidReason
             ? <span className="font-semibold text-amber-700">{checkoutInvalidReason}</span>
             : <span className="font-semibold text-emerald-700">Venda pronta. Pressione F4 para finalizar.</span>}
         </div>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row">
+        <div className="flex flex-wrap justify-end gap-2">
           <AdminButton variant="secondary" onClick={closeCheckout} disabled={finalizeMutation.isPending}>Voltar</AdminButton>
           <AdminButton
             onClick={() => finalizeMutation.mutate()}
@@ -810,7 +810,7 @@ export function PdvSaleWorkspace({
         </div>
       </div>}
     >
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      <div className="flex min-w-0 flex-col gap-6 xl:flex-row xl:items-start">
         <div className="min-w-0 space-y-4">
           <section>
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -886,13 +886,13 @@ export function PdvSaleWorkspace({
           </section>
         </div>
 
-        <div className="min-w-0 space-y-4 lg:border-l lg:border-border lg:pl-5">
+        <div className="min-w-0 flex-1 space-y-4 xl:border-l xl:border-border xl:pl-6">
           <div>
             <h3 className="flex items-center gap-2 text-sm font-black text-foreground"><CreditCard size={15} /> Formas de pagamento</h3>
             <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Clique ou use 1–9. É possível dividir a venda entre várias formas.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-4">
             {paymentMethods.map((method, index) => {
               const selected = payments.some(payment => payment.paymentMethodId === method.id);
               const cashClosed = method.method_type === "cash" && !bootstrap.open_session;
@@ -903,7 +903,7 @@ export function PdvSaleWorkspace({
                 disabled={disabled}
                 onClick={() => addPaymentMethod(method)}
                 className={cn(
-                  "relative rounded-xl border p-3 text-left transition",
+                  "relative min-h-[68px] rounded-xl border p-3.5 text-left transition",
                   selected ? "border-primary/30 bg-primary-soft text-primary" : "border-[#0d1b2e]/10 bg-white hover:border-primary/30 hover:bg-primary-soft/40",
                   disabled && !selected && "cursor-default opacity-45",
                 )}
@@ -925,7 +925,7 @@ export function PdvSaleWorkspace({
                 <AdminIconButton ariaLabel={"Remover " + method.name} title="Remover" variant="danger" onClick={() => removePayment(method.id)}><Trash2 size={13} /></AdminIconButton>
               </div>
 
-              <div className={cn("mt-3 grid gap-3", method.method_type === "cash" ? "sm:grid-cols-2" : "grid-cols-1")}>
+              <div className={cn("mt-3 flex min-w-0 flex-col gap-3", method.method_type === "cash" && "md:flex-row md:[&>div]:min-w-0 md:[&>div]:flex-1")}>
                 <div>
                   <FCurrencyInput label="Valor aplicado" value={payment.amount} onChange={(event: any) => updatePayment(method.id, { amount: event.target.value })} />
                   <button type="button" onClick={() => fillRemaining(method.id)} className="mt-1 text-[9px] font-bold text-primary hover:underline">Usar valor restante</button>
