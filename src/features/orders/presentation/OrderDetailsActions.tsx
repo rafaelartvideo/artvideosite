@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ban, CheckCircle, PackagePlus, Pencil, Wrench, X } from "lucide-react";
-import { AdminButton, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { queryKeys } from "@/infrastructure/query/query-keys";
@@ -73,7 +73,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
 
   return <>
     <div aria-hidden="true" className="h-[9.5rem] md:hidden" />
-    <div className="fixed inset-x-0 z-[70] border-t border-[#0d1b2e]/10 bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
+    <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2.5 md:flex-row md:items-center md:justify-between md:gap-3">
         <div className="flex min-w-0 items-center gap-2 md:flex-wrap">
           <AdminIconButton onClick={onClose} ariaLabel="Fechar detalhes da OS" title="Fechar" className="h-10 w-10 shrink-0 md:hidden"><X size={17} /></AdminIconButton>
@@ -88,7 +88,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-11 w-11 min-w-0 border-red-200 !px-0 text-red-600 hover:bg-red-50 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
         </div>}
       </div>
-    </div>
+    </AdminStickyToolbar>
     <OrderCancelDialog
       order={detail}
       open={cancelOpen}
