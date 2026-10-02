@@ -13,7 +13,7 @@ import {
 } from "@/shared/domain/formatters";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton, AdminPage, AdminSegmentedControl, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton, AdminPage, AdminSegmentedControl, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCnpjInput, FCpfInput, FEmailInput, FInput, FIntegerInput, FPhoneInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
@@ -519,11 +519,11 @@ export function PartnerCompanyEditorPage({
       </AdminCard>
     </div>
 
-    <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white/95 px-4 py-4 backdrop-blur sm:px-5">
+    <AdminStickyToolbar className="flex-wrap justify-end gap-2">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
       <BtnPrimary onClick={() => void save()} disabled={!canSave || saving || consultingCnpj}>
         {saving ? "Salvando..." : editing ? "Salvar" : "Cadastrar empresa"}
       </BtnPrimary>
-    </div>
+    </AdminStickyToolbar>
   </AdminPage>;
 }
