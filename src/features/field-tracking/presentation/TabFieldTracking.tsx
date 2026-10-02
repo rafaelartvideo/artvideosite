@@ -447,10 +447,15 @@ export function TabFieldTracking() {
           variant={trackingEnabled ? "secondary" : "primary"}
           loading={trackingBusy}
           loadingText={trackingEnabled ? "Pausando..." : "Ativando..."}
+          disabled={locationRequired && trackingEnabled}
           onClick={() => trackingEnabled ? void disableTracking() : enableTracking()}
         >
           {trackingEnabled ? <WifiOff size={15} /> : <Navigation size={15} />}
-          {trackingEnabled ? "Pausar teste" : "Teste pelo navegador"}
+          {locationRequired && trackingEnabled
+            ? "Localização obrigatória"
+            : trackingEnabled
+              ? "Pausar teste"
+              : "Teste pelo navegador"}
         </AdminButton>}
       </div> : undefined}
     />
