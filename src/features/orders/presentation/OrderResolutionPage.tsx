@@ -3,6 +3,7 @@ import { Camera, CheckCircle, Upload } from "lucide-react";
 import {
   AdminButton,
   AdminPage,
+  AdminStickyToolbar,
   BtnPrimary,
   BtnSecondary,
   Section,
@@ -158,10 +159,10 @@ export function OrderResolutionPage({
             {solutionImages.length > 0 ? <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onRemove={() => onRemoveSolutionImage(image.key)} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem adicionada para a solução.</p>}
           </Section>
         </div>
-        <div className="sticky bottom-0 bg-white border-t border-[#0d1b2e]/8 px-5 py-4 flex justify-end gap-3">
+        <AdminStickyToolbar className="justify-end">
           <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
           <BtnPrimary onClick={onSubmit} loading={saving} loadingText="Concluindo..."><CheckCircle size={14} /> Concluir solução</BtnPrimary>
-        </div>
+        </AdminStickyToolbar>
       </AdminPage>
   );
 }
