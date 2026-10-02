@@ -47,7 +47,9 @@ export async function setCategoryActive(
     .from("service_categories")
     .update({ is_active: isActive })
     .eq("organization_id", organizationId)
-    .eq("id", categoryId);
+    .eq("id", categoryId)
+    .select("id")
+    .single();
 
   if (error) throw error;
 }
