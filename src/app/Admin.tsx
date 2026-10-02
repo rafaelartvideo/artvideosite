@@ -11,6 +11,7 @@ import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } fro
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
+import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
 
 const TabDocuments = lazy(() => import("@/features/documents/presentation/TabDocuments").then(({ TabDocuments }) => ({ default: TabDocuments })));
 const TabOrders = lazy(() => import("@/features/orders/presentation/TabOrders").then(({ TabOrders }) => ({ default: TabOrders })));
@@ -57,7 +58,13 @@ function NoEnabledModules() {
   return <div className="flex min-h-[55vh] items-center justify-center px-4"><div className="w-full max-w-lg rounded-2xl border border-[#d9e1ec] bg-white p-6 text-center shadow-sm sm:p-8"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#e8eef8] text-xl font-black text-[#0057e7]">!</div><h2 className="mt-4 text-xl font-black text-[#0d1b2e]">Nenhum módulo disponível</h2><p className="mt-2 text-sm leading-6 text-[#5a6a82]">Esta empresa não possui módulos liberados para o seu acesso. Troque a empresa ativa ou fale com o administrador.</p></div></div>;
 }
 
-export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
+export function AdminDashboard({
+  onBackToSite,
+  pendingTerms,
+}: {
+  onBackToSite: () => void;
+  pendingTerms: PendingOrganizationTerm[];
+}) {
   const { user, profile, role, loading, signOut, hasPermission, hasModule, organizations, activeOrganizationId, setActiveOrganization } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -167,7 +174,7 @@ export function AdminDashboard({ onBackToSite }: { onBackToSite: () => void }) {
           </Routes>}
         </Suspense>
       </div>
-      <TermsAcceptanceGate />
+      <TermsAcceptanceGate initialPending={pendingTerms} />
     </AdminLayout>
   </AdminPageContext.Provider>;
 }
