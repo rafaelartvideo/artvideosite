@@ -183,9 +183,9 @@ function CatalogCombobox({
           const target = event.target as Node | null;
           if (target && anchorRef.current?.contains(target)) event.preventDefault();
         }}
-        className="z-[220] w-[var(--radix-popover-trigger-width)] min-w-[220px] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white p-0 text-[#0d1b2e] shadow-2xl"
+        className="z-[220] w-[var(--radix-popover-trigger-width)] min-w-[220px] overflow-hidden rounded-xl border border-border bg-white p-0 text-[#0d1b2e] shadow-2xl"
       >
-        <div className="flex items-center gap-2 border-b border-[#0d1b2e]/8 px-3 py-2 text-[11px] font-semibold text-[#5a6a82]">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-[11px] font-semibold text-[#5a6a82]">
           <Search size={13} className="shrink-0" />
           <span>{query ? "Resultados encontrados" : "Cadastros recentes"}</span>
         </div>
@@ -215,7 +215,7 @@ function CatalogCombobox({
           }) : <p className="px-2.5 py-3 text-xs text-[#5a6a82]">{emptyText}</p>}
         </div>
         {allowCreate && cleanCatalogValue(value) && !exactOption && (
-          <div className="border-t border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2 text-[10px] text-[#5a6a82]">
+          <div className="border-t border-border bg-muted px-3 py-2 text-[10px] text-[#5a6a82]">
             <span className="font-bold text-primary">{createLabel}:</span> {cleanCatalogValue(value)}
           </div>
         )}
@@ -472,14 +472,14 @@ export function QuickEquipmentModal({
         <DialogTitle className="sr-only">Cadastro rápido de equipamento</DialogTitle>
         <div
           style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-          className="relative flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl sm:max-h-[92dvh] sm:max-w-4xl sm:rounded-2xl"
+          className="relative flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-xl border border-border bg-white shadow-2xl sm:max-h-[92dvh] sm:max-w-4xl sm:rounded-2xl"
         >
           <div
             onPointerDown={startDrag}
             onPointerMove={moveDrag}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
-            className="flex shrink-0 cursor-default items-start justify-between gap-3 border-b border-[#0d1b2e]/10 bg-white px-3 py-3 select-none sm:cursor-move sm:items-center sm:px-6 sm:py-4"
+            className="flex shrink-0 cursor-default items-start justify-between gap-3 border-b border-border bg-white px-3 py-3 select-none sm:cursor-move sm:items-center sm:px-6 sm:py-4"
           >
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-black leading-5 text-[#0d1b2e] sm:text-base">Cadastro rápido de equipamento</h3>
@@ -514,7 +514,7 @@ export function QuickEquipmentModal({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4 sm:p-6">
+              <div className="rounded-xl border border-border bg-muted p-4 sm:p-6">
                 <div className="mb-5">
                   <p className="text-sm font-black text-[#0d1b2e]">Dados do equipamento</p>
                   <p className="mt-1 text-[11px] leading-4 text-[#5a6a82] sm:text-xs">Digite em cada campo para pesquisar os cadastros existentes. Cadastros selecionados são reutilizados sem alteração.</p>
@@ -601,14 +601,14 @@ export function QuickEquipmentModal({
               </div>
 
               {mode === "full" && activeTechnicalFields.length > 0 && !selectedTypeId && cleanCatalogValue(typeName) && !typeConflict && (
-                <div className="rounded-xl border border-[#0d1b2e]/10 p-3 sm:p-5">
+                <div className="rounded-xl border border-border p-3 sm:p-5">
                   <div className="mb-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Campos do equipamento</p>
                     <p className="mt-1 text-[11px] leading-4 text-[#5a6a82] sm:text-xs">Opcional. Escolha os campos técnicos que aparecerão nas OS deste novo equipamento.</p>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {activeTechnicalFields.map(field => (
-                      <label key={field.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-2.5 text-sm font-medium text-[#0d1b2e] transition hover:border-primary/25 hover:bg-primary-soft/50">
+                      <label key={field.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5 text-sm font-medium text-[#0d1b2e] transition hover:border-primary/25 hover:bg-primary-soft/50">
                         <Checkbox disabled={saving} checked={selectedFieldIds.includes(field.id)} onCheckedChange={checked => setSelectedFieldIds(current => checked === true ? [...current, field.id] : current.filter(id => id !== field.id))} />
                         <span className="min-w-0 break-words">{field.label}</span>
                       </label>
@@ -624,7 +624,7 @@ export function QuickEquipmentModal({
               )}
 
               {canSave && (
-                <div className="rounded-xl border border-[#0d1b2e]/10 bg-white p-3 shadow-sm sm:px-4 sm:py-3.5">
+                <div className="rounded-xl border border-border bg-white p-3 shadow-sm sm:px-4 sm:py-3.5">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-black text-[#0d1b2e]">Resumo do cadastro</p>
@@ -642,7 +642,7 @@ export function QuickEquipmentModal({
             </div>
           </div>
 
-          <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-[#0d1b2e]/10 bg-white px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:flex sm:items-center sm:justify-end sm:px-6 sm:py-4">
+          <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-border bg-white px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:flex sm:items-center sm:justify-end sm:px-6 sm:py-4">
             <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
             {hasPermission("equipment.create") && (
               <BtnPrimary className="w-full sm:w-auto" onClick={save} disabled={!canSave} loading={saving} loadingText="Salvando...">
@@ -695,8 +695,8 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
     <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <DialogContent showClose={false} className="admin-crm max-w-sm border-0 bg-transparent p-0 shadow-none">
       <DialogTitle className="sr-only">Novo tipo de atendimento</DialogTitle>
-      <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-[#0d1b2e]/10 overflow-hidden">
-        <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex cursor-move items-center justify-between border-b border-[#0d1b2e]/10 px-4 py-3 select-none">
+      <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-border overflow-hidden">
+        <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex cursor-move items-center justify-between border-b border-border px-4 py-3 select-none">
           <div><h3 className="text-sm font-bold text-[#0d1b2e]">Novo tipo de atendimento</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre sem sair da OS</p></div>
           <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost"><X size={16} /></AdminIconButton>
         </div>
@@ -706,7 +706,7 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
           <FIntegerInput label="Previsão em dias" disabled={saving} error={fieldErrors.forecast_days} value={form.forecast_days} onChange={(event: any) => { setFieldErrors(current => ({ ...current, forecast_days: undefined })); setForm({ ...form, forecast_days: event.target.value }); }} />
           <FToggle label="Tipo ativo" disabled={saving} checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#0d1b2e]/10 px-4 py-3"><BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>{hasPermission("service_types.create") && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}</div>
+        <div className="flex justify-end gap-2 border-t border-border px-4 py-3"><BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>{hasPermission("service_types.create") && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}</div>
       </div>
       </DialogContent>
     </Dialog>
