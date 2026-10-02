@@ -1,5 +1,5 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { buildInstallments, normalizePaymentSplits } from "@/features/finance/domain/finance-integration.mjs";
+import { buildInstallments } from "@/features/finance/domain/finance-integration.mjs";
 import { completeServiceOrder } from "../infrastructure/orders.repository";
 import {
   completeServiceOrderWithFinance,
@@ -12,13 +12,16 @@ import {
 } from "../infrastructure/order-commercial-items.repository";
 
 type Toast = { msg: string; type: "success" | "error" };
-export type OrderCompletionPaymentMode = "open" | "now" | "partial";
 export type OrderCompletionDiscountMode = "percentage" | "amount";
-export type OrderCompletionPaymentDraft = {
+
+export type OrderCompletionInstallmentDraft = {
   id: string;
-  principal_amount: string;
+  amount: string;
+  due_date: string;
   payment_method_id: string;
   financial_account_id: string;
+  received: boolean;
+  received_at: string;
 };
 
 function isOrderOverride(value: unknown): value is Record<string, any> {
@@ -36,15 +39,54 @@ function todayIsoDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-let paymentSequence = 0;
-function newPaymentDraft(amount = 0): OrderCompletionPaymentDraft {
-  paymentSequence += 1;
+function addMonthsClamped(dateText: string, months: number) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateText || ""));
+  if (!match) return todayIsoDate();
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const first = new Date(Date.UTC(year, month - 1 + months, 1));
+  const targetYear = first.getUTCFullYear();
+  const targetMonth = first.getUTCMonth();
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  return `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
+}
+
+let installmentSequence = 0;
+function installmentId() {
+  installmentSequence += 1;
+  return `installment-${Date.now()}-${installmentSequence}`;
+}
+
+function emptyInstallment(overrides: Partial<OrderCompletionInstallmentDraft> = {}): OrderCompletionInstallmentDraft {
   return {
-    id: `payment-${Date.now()}-${paymentSequence}`,
-    principal_amount: amount > 0 ? amount.toFixed(2) : "",
+    id: installmentId(),
+    amount: "",
+    due_date: todayIsoDate(),
     payment_method_id: "",
     financial_account_id: "",
+    received: false,
+    received_at: todayIsoDate(),
+    ...overrides,
   };
+}
+
+function splitInstallments(
+  total: number,
+  count: number,
+  firstDueDate: string,
+  template?: Partial<OrderCompletionInstallmentDraft>,
+): OrderCompletionInstallmentDraft[] {
+  const normalizedCount = Math.max(1, Math.min(60, Math.trunc(count || 1)));
+  if (total <= 0) return [];
+  return buildInstallments(total, normalizedCount, firstDueDate).map((item, index) => emptyInstallment({
+    amount: Number(item.amount || 0).toFixed(2),
+    due_date: item.due_date,
+    payment_method_id: template?.payment_method_id || "",
+    financial_account_id: template?.financial_account_id || "",
+    received: index === 0 ? Boolean(template?.received) : false,
+    received_at: index === 0 && template?.received_at ? template.received_at : todayIsoDate(),
+  }));
 }
 
 const emptyFinanceOptions = (): OrderCompletionFinanceOptions => ({
@@ -78,10 +120,7 @@ export function useOrderCompletion({
   const [discount, setDiscount] = useState("0");
   const [discountMode, setDiscountModeState] = useState<OrderCompletionDiscountMode>("percentage");
   const [servicePriceInput, setServicePriceInput] = useState("");
-  const [paymentMode, setPaymentModeState] = useState<OrderCompletionPaymentMode>("open");
-  const [payments, setPayments] = useState<OrderCompletionPaymentDraft[]>([]);
-  const [installmentCount, setInstallmentCount] = useState("1");
-  const [firstDueDate, setFirstDueDate] = useState(todayIsoDate());
+  const [installments, setInstallments] = useState<OrderCompletionInstallmentDraft[]>([]);
   const [financeOptions, setFinanceOptions] = useState<OrderCompletionFinanceOptions>(emptyFinanceOptions);
   const [financeOptionsLoading, setFinanceOptionsLoading] = useState(false);
   const [financeOptionsError, setFinanceOptionsError] = useState("");
@@ -128,35 +167,32 @@ export function useOrderCompletion({
   const discountExceedsServicePrice = discountAmount > discountBase + 0.009;
   const finalTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
-  const effectivePaymentRows = paymentMode === "open" ? [] : payments;
-  const paymentSplit = useMemo(() => normalizePaymentSplits(finalTotal, effectivePaymentRows.map(item => ({
-    principal_amount: Number(item.principal_amount || 0),
-    payment_method_id: item.payment_method_id,
-    financial_account_id: item.financial_account_id,
-  }))), [finalTotal, effectivePaymentRows]);
-  const totalPaidNow = paymentMode === "open" ? 0 : Number(paymentSplit.totalPaid || 0);
+  const installmentTotal = useMemo(
+    () => Math.round(installments.reduce((total, item) => total + Math.max(0, Number(item.amount) || 0), 0) * 100) / 100,
+    [installments],
+  );
+  const installmentDifference = Math.round((finalTotal - installmentTotal) * 100) / 100;
+  const totalPaidNow = useMemo(
+    () => Math.round(installments.reduce((total, item) => item.received ? total + Math.max(0, Number(item.amount) || 0) : total, 0) * 100) / 100,
+    [installments],
+  );
   const openAmount = Math.max(0, Math.round((finalTotal - totalPaidNow) * 100) / 100);
 
-  const installmentCountNumber = Math.trunc(Number(installmentCount) || 0);
   const financeValidationMessage = useMemo(() => {
     if (financeOptionsError) return `Não foi possível carregar as opções financeiras: ${financeOptionsError}`;
     if (!financeEnabled || finalTotal <= 0) return "";
-    if (paymentMode === "open") {
-      if (installmentCountNumber < 1 || installmentCountNumber > 60) return "Informe entre 1 e 60 parcelas.";
-      if (!firstDueDate) return "Informe o primeiro vencimento.";
-      return "";
-    }
-    if (!paymentSplit.valid) {
-      if (paymentSplit.reason === "payments_exceed_total") return "Os recebimentos imediatos ultrapassam o valor final da OS.";
-      return "Preencha valor, forma de pagamento e conta em cada recebimento imediato.";
-    }
-    if (payments.length === 0 || totalPaidNow <= 0) return "Adicione ao menos um recebimento imediato.";
-    if (paymentMode === "now" && Math.abs(totalPaidNow - finalTotal) > 0.009) return "Para receber agora, os pagamentos devem fechar o valor final da OS.";
-    if (paymentMode === "partial" && (totalPaidNow >= finalTotal || openAmount <= 0)) return "No recebimento parcial, deixe um saldo maior que zero em aberto.";
-    if (openAmount > 0 && (installmentCountNumber < 1 || installmentCountNumber > 60)) return "Informe entre 1 e 60 parcelas para o saldo em aberto.";
-    if (openAmount > 0 && !firstDueDate) return "Informe o primeiro vencimento do saldo em aberto.";
+    if (installments.length === 0) return "Adicione ao menos uma parcela.";
+    if (installments.some(item => !item.due_date)) return "Informe o vencimento de todas as parcelas.";
+    if (installments.some(item => !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0)) return "Todas as parcelas devem ter valor maior que zero.";
+    if (Math.abs(installmentDifference) > 0.009) return "A soma das parcelas precisa ser igual ao valor final da OS.";
+    const receivedWithoutMethod = installments.find(item => item.received && !item.payment_method_id);
+    if (receivedWithoutMethod) return "Selecione a forma de recebimento das parcelas marcadas como recebidas.";
+    const receivedWithoutAccount = installments.find(item => item.received && !item.financial_account_id);
+    if (receivedWithoutAccount) return "Não há conta financeira definida para uma parcela recebida.";
+    const receivedWithoutDate = installments.find(item => item.received && !item.received_at);
+    if (receivedWithoutDate) return "Informe a data de recebimento das parcelas recebidas.";
     return "";
-  }, [financeOptionsError, financeEnabled, finalTotal, paymentMode, paymentSplit, payments.length, totalPaidNow, openAmount, installmentCountNumber, firstDueDate]);
+  }, [financeOptionsError, financeEnabled, finalTotal, installments, installmentDifference]);
 
   const loadCommercialItems = async (serviceOrderId: string) => {
     setCommercialItemsLoading(true);
@@ -185,13 +221,9 @@ export function useOrderCompletion({
     }
   };
 
-  const resetPaymentState = (targetTotal = finalTotal) => {
-    setPaymentModeState("open");
-    setPayments([]);
-    setInstallmentCount("1");
-    setFirstDueDate(todayIsoDate());
+  const resetPaymentState = (targetTotal: number) => {
+    setInstallments(targetTotal > 0 ? splitInstallments(targetTotal, 1, todayIsoDate()) : []);
     setFinanceOptionsError("");
-    if (targetTotal <= 0) setPayments([]);
   };
 
   const openCompletion = (orderOverride?: unknown) => {
@@ -208,6 +240,7 @@ export function useOrderCompletion({
       showToast({ msg: "Esta OS já foi concluída.", type: "error" });
       return;
     }
+
     const targetService = target?.general_service || detail?.general_service;
     const targetCommercialPricing = Boolean(target?.commercial_pricing_enabled ?? detail?.commercial_pricing_enabled);
     const targetDiscountMode: OrderCompletionDiscountMode = targetCommercialPricing && (target?.discount_type || detail?.discount_type) === "amount" ? "amount" : "percentage";
@@ -216,14 +249,30 @@ export function useOrderCompletion({
         ? Number(target?.discount_amount ?? detail?.discount_amount ?? 0)
         : Number(target?.discount_percentage ?? detail?.discount_percentage ?? 0)
       : 0;
+    const targetServicePrice = targetCommercialPricing
+      ? Number(target?.service_price ?? detail?.service_price ?? 0)
+      : Number(targetService?.price || 0);
+    const targetPartsTotal = targetCommercialPricing
+      ? Number(target?.parts_total ?? detail?.parts_total ?? 0)
+      : legacyPartsTotal;
+    const targetSubtotal = targetCommercialPricing
+      ? Number(target?.subtotal ?? detail?.subtotal ?? (targetServicePrice + targetPartsTotal))
+      : targetServicePrice + targetPartsTotal;
+    const targetDiscountBase = targetCommercialPricing ? targetSubtotal : targetServicePrice;
+    const targetDiscountAmount = targetDiscountMode === "amount"
+      ? targetDiscountValue
+      : targetDiscountBase * targetDiscountValue / 100;
+    const targetFinalTotal = Math.max(0, Math.round((targetSubtotal - targetDiscountAmount) * 100) / 100);
+
     setDiscount(String(targetDiscountValue));
     setDiscountModeState(targetDiscountMode);
-    setServicePriceInput(targetCommercialPricing ? String(target?.service_price ?? detail?.service_price ?? 0) : (targetService?.price_at_completion ? "" : (targetService?.price == null ? "" : String(targetService.price))));
-    resetPaymentState();
+    setServicePriceInput(targetCommercialPricing ? String(targetServicePrice) : (targetService?.price_at_completion ? "" : (targetService?.price == null ? "" : String(targetService.price))));
+    resetPaymentState(targetFinalTotal);
     setFinanceOptions(emptyFinanceOptions());
     setCommercialItems([]);
     setCommercialItemsError("");
     setOpen(true);
+
     const targetOrderId = target?.id || detail?.id;
     if (targetOrderId) void loadCommercialItems(String(targetOrderId));
     const organizationId = target?.organization_id || detail?.organization_id;
@@ -235,52 +284,69 @@ export function useOrderCompletion({
     setDiscount("0");
   };
 
-  const setPaymentMode = (mode: OrderCompletionPaymentMode) => {
-    setPaymentModeState(mode);
-    if (mode === "open") {
-      setPayments([]);
+  const applyInstallmentCount = (count: number) => {
+    if (finalTotal <= 0) {
+      setInstallments([]);
       return;
     }
-    setPayments(current => current.length ? current : [newPaymentDraft(mode === "now" ? finalTotal : 0)]);
+    const template = installments[0];
+    const firstDueDate = template?.due_date || todayIsoDate();
+    setInstallments(splitInstallments(finalTotal, count, firstDueDate, template));
   };
 
-  const addPayment = () => setPayments(current => [...current, newPaymentDraft()]);
-  const removePayment = (id: string) => setPayments(current => current.filter(item => item.id !== id));
-  const updatePayment = (id: string, patch: Partial<OrderCompletionPaymentDraft>) => {
-    setPayments(current => current.map(item => {
+  const addInstallment = () => {
+    const last = installments[installments.length - 1];
+    const dueDate = last?.due_date ? addMonthsClamped(last.due_date, 1) : todayIsoDate();
+    setInstallments(current => [...current, emptyInstallment({
+      due_date: dueDate,
+      payment_method_id: last?.payment_method_id || "",
+      financial_account_id: last?.financial_account_id || "",
+    })]);
+  };
+
+  const removeInstallment = (id: string) => {
+    setInstallments(current => current.length <= 1 ? current : current.filter(item => item.id !== id));
+  };
+
+  const updateInstallment = (id: string, patch: Partial<OrderCompletionInstallmentDraft>) => {
+    setInstallments(current => current.map(item => {
       if (item.id !== id) return item;
       const next = { ...item, ...patch };
+
       if (patch.payment_method_id !== undefined) {
         const method = financeOptions.payment_methods.find(option => option.id === patch.payment_method_id);
-        if (method?.default_financial_account_id && !patch.financial_account_id) next.financial_account_id = method.default_financial_account_id;
+        next.financial_account_id = method?.default_financial_account_id
+          || next.financial_account_id
+          || financeOptions.accounts[0]?.id
+          || "";
       }
+
+      if (patch.received === true && !next.received_at) next.received_at = todayIsoDate();
       return next;
     }));
   };
 
   const buildFinancePayload = () => {
     if (!financeEnabled || finalTotal <= 0) return { installments: [], payments: [] };
-    const normalizedPayments = paymentMode === "open" ? [] : paymentSplit.payments;
-    const installments: Array<{ installment_number: number; due_date: string; amount: number }> = [];
-    let offset = 0;
-    if (normalizedPayments.length > 0 && totalPaidNow > 0) {
-      installments.push({ installment_number: 1, due_date: todayIsoDate(), amount: totalPaidNow });
-      offset = 1;
-    }
-    if (openAmount > 0) {
-      const openInstallments = buildInstallments(openAmount, Math.max(1, installmentCountNumber), firstDueDate);
-      installments.push(...openInstallments.map(item => ({ ...item, installment_number: item.installment_number + offset })));
-    }
-    return {
-      installments,
-      payments: normalizedPayments.map(item => ({
-        installment_number: 1,
-        principal_amount: item.principal_amount,
+
+    const installmentPayload = installments.map((item, index) => ({
+      installment_number: index + 1,
+      due_date: item.due_date,
+      amount: Math.round(Number(item.amount || 0) * 100) / 100,
+    }));
+
+    const payments = installments.flatMap((item, index) => {
+      if (!item.received) return [];
+      return [{
+        installment_number: index + 1,
+        principal_amount: Math.round(Number(item.amount || 0) * 100) / 100,
         payment_method_id: item.payment_method_id,
         financial_account_id: item.financial_account_id,
-        occurred_at: new Date().toISOString(),
-      })),
-    };
+        occurred_at: item.received_at ? new Date(`${item.received_at}T12:00:00`).toISOString() : null,
+      }];
+    });
+
+    return { installments: installmentPayload, payments };
   };
 
   const submit = async () => {
@@ -293,6 +359,7 @@ export function useOrderCompletion({
       showToast({ msg: financeValidationMessage, type: "error" });
       return;
     }
+
     setSaving(true);
     try {
       const priceOverride = commercialPricing ? null : priceAtCompletion ? servicePrice : null;
@@ -319,12 +386,11 @@ export function useOrderCompletion({
     priceAtCompletion, servicePriceInput, setServicePriceInput, servicePrice, servicePriceValidationMessage,
     partsTotal, subtotal, maxDiscount, maxDiscountPercentage, maxDiscountAmount,
     discountPercentage, discountAmount, discountExceedsMax, discountExceedsServicePrice, finalTotal,
-    financeEnabled, paymentMode, setPaymentMode, payments, addPayment, removePayment, updatePayment,
-    installmentCount, setInstallmentCount, firstDueDate, setFirstDueDate,
-    financeOptions, financeOptionsLoading, financeOptionsError,
+    financeEnabled, installments, applyInstallmentCount, addInstallment, removeInstallment, updateInstallment,
+    installmentTotal, installmentDifference, totalPaidNow, openAmount,
+    financeOptions, financeOptionsLoading, financeOptionsError, financeValidationMessage,
     commercialItems, commercialItemsLoading, commercialItemsError,
     reloadCommercialItems: () => detail?.id ? loadCommercialItems(String(detail.id)) : Promise.resolve(),
-    totalPaidNow, openAmount, financeValidationMessage,
     openCompletion, submit,
   };
 }
