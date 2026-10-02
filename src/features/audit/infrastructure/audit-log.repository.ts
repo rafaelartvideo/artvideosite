@@ -21,6 +21,8 @@ export type AuditLogEntry = {
   resolved_changed_fields?: Record<string, { before?: unknown; after?: unknown }> | null;
   resolved_row_snapshot?: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
+  linked_service_order_id?: string | null;
+  linked_service_order_number?: string | null;
   changed_field_count?: number;
   first_changed_field?: string | null;
   created_at: string;
@@ -96,7 +98,7 @@ export async function getAuditLogDetail(
   auditLogId: number,
 ): Promise<AuditLogEntry | null> {
   const { data, error } = await supabase.rpc(
-    "get_organization_audit_log_detail_v1",
+    "get_organization_audit_log_detail_v2",
     {
       p_organization_id: organizationId,
       p_audit_log_id: auditLogId,
