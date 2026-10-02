@@ -213,9 +213,9 @@ export function OrderSignatureRequestDialog({
 
   return <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label="Enviar documento para assinatura">
     <div className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-      <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[#0d1b2e]/10 bg-white px-5 py-4">
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-white px-5 py-4">
         <div className="flex min-w-0 items-start gap-3"><span className="mt-0.5 rounded-xl bg-[#edf3ff] p-2 text-[#0057e7]"><FileSignature size={20} /></span><div className="min-w-0"><h2 className="text-lg font-black text-[#0d1b2e]">Enviar para assinatura</h2><p className="mt-0.5 text-xs text-[#5a6a82]">O mesmo documento de impressão será congelado em PDF no momento do envio.</p></div></div>
-        <button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa] disabled:opacity-50" aria-label="Fechar"><X size={18} /></button>
+        <button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-muted disabled:opacity-50" aria-label="Fechar"><X size={18} /></button>
       </div>
 
       <div className="space-y-5 p-5">
@@ -225,14 +225,14 @@ export function OrderSignatureRequestDialog({
             <AdminSelect value={templateId} onValueChange={value => { setTemplateId(value); setManualEmployeeEntityId(""); setFieldErrors({}); }} ariaLabel="Modelo de documento" options={onlineTemplates.map(template => ({ value: template.id, label: template.name }))} />
           </div>
 
-          {selectedTemplate && <div className="grid gap-2 rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4 sm:grid-cols-2">
+          {selectedTemplate && <div className="grid gap-2 rounded-xl border border-border bg-muted p-4 sm:grid-cols-2">
             <Info label="Assinatura externa" value={selectedTemplate.require_external_signature ? "Obrigatória" : "Não exigida"} />
             <Info label="Assinatura do funcionário" value={selectedTemplate.require_employee_signature ? "Obrigatória" : "Não exigida"} />
             <Info label="Validade do link" value={`${selectedTemplate.signature_link_ttl_hours || 72} horas`} />
             <Info label="OS" value={String(order.os_number || "—")} />
           </div>}
 
-          {selectedTemplate?.require_external_signature && <div className="space-y-4 rounded-xl border border-[#0d1b2e]/10 p-4">
+          {selectedTemplate?.require_external_signature && <div className="space-y-4 rounded-xl border border-border p-4">
             <div><h3 className="text-sm font-black text-[#0d1b2e]">Assinante externo</h3><p className="mt-1 text-xs text-[#5a6a82]">O CPF/CNPJ será confirmado antes de liberar o PDF para assinatura.</p></div>
             <AdminSelect value={signerType} onValueChange={value => { setSignerType(value as "customer" | "contact"); setFieldErrors({}); }} ariaLabel="Tipo de assinante" options={signerOptions} />
             {signerType === "customer" ? <div>
@@ -251,7 +251,7 @@ export function OrderSignatureRequestDialog({
             </div>}
           </div>}
 
-          {selectedTemplate?.require_employee_signature && <div className="space-y-3 rounded-xl border border-[#0d1b2e]/10 p-4">
+          {selectedTemplate?.require_employee_signature && <div className="space-y-3 rounded-xl border border-border p-4">
             <div><h3 className="text-sm font-black text-[#0d1b2e]">Assinatura do funcionário</h3><p className="mt-1 text-xs text-[#5a6a82]">A assinatura ativa será copiada e congelada nesta emissão.</p></div>
             {selectedTemplate.employee_signature_source === "manual" ? <div>
               <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Funcionário</label>
@@ -264,7 +264,7 @@ export function OrderSignatureRequestDialog({
 
       </div>
 
-      <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-[#0d1b2e]/10 bg-white px-5 py-4 sm:flex-row sm:justify-end">
+      <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-border bg-white px-5 py-4 sm:flex-row sm:justify-end">
         <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
         <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Congelando e enviando PDF..." disabled={onlineTemplates.length === 0}>Criar e enviar</BtnPrimary>
       </div>
