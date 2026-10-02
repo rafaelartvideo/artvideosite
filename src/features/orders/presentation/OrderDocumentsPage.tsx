@@ -98,7 +98,7 @@ function AttachmentCard({
           type="button"
           onClick={openAttachment}
           disabled={loading || !url}
-          className="flex min-h-28 w-full items-center justify-center gap-3 bg-[#f8fafc] px-4 py-5 text-left disabled:cursor-not-allowed"
+          className="flex min-h-28 w-full items-center justify-center gap-3 bg-muted px-4 py-5 text-left disabled:cursor-not-allowed"
         >
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0057e7]"><File size={21} /></span>
           <span className="min-w-0"><span className="block truncate text-xs font-black text-[#0d1b2e]">{name}</span><span className="mt-1 block text-[10px] text-[#7c899c]">{loading ? "Carregando..." : error ? "Arquivo indisponível" : "Clique para abrir"}</span></span>
@@ -134,11 +134,11 @@ function SelectedFilePreview({ file, onRemove }: { file: File; onRemove: () => v
   }, [file, isImage]);
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
+    <div className="relative overflow-hidden rounded-xl border border-border bg-white">
       {isImage && previewUrl ? (
         <img src={previewUrl} alt={file.name} className="h-28 w-full object-cover" />
       ) : (
-        <div className="flex h-20 items-center justify-center bg-[#f8fafc] text-[#0057e7]"><FileText size={22} /></div>
+        <div className="flex h-20 items-center justify-center bg-muted text-[#0057e7]"><FileText size={22} /></div>
       )}
       <div className="min-w-0 px-2.5 py-2 pr-9">
         <p className="truncate text-[11px] font-bold text-[#0d1b2e]" title={file.name}>{file.name}</p>
@@ -182,7 +182,7 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label="Novo anexo">
       <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[#0d1b2e]/10 bg-white px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Novo anexo</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Confira o preview antes de anexar.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]" aria-label="Fechar"><X size={18} /></button></div>
+        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-white px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Novo anexo</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Confira o preview antes de anexar.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-[#5a6a82] hover:bg-muted" aria-label="Fechar"><X size={18} /></button></div>
         <div className="space-y-4 p-5">
           <div className="min-w-0">
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Tipo de anexo</label>
@@ -219,7 +219,7 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
           {controller.attachmentTypes.length === 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Cadastre pelo menos um tipo em Operação → Documentos → Anexos.</p>}
           {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
         </div>
-        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#0d1b2e]/10 bg-[#f8fafc] px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary></div>
+        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-muted px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary></div>
       </div>
     </div>
   );
@@ -325,7 +325,7 @@ export function OrderDocumentsPage({
   return (
     <>
       <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos, imagens e assinaturas da ordem de serviço" maxW="max-w-4xl">
-        <div className="border-b border-[#0d1b2e]/10 px-5 pt-2">
+        <div className="border-b border-border px-5 pt-2">
           <nav className="flex items-center gap-6 overflow-x-auto" aria-label="Seções de documentos">
             <button type="button" onClick={() => setActiveTab("attachments")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Anexos</button>
             {canViewSignatures && <button type="button" onClick={() => setActiveTab("signatures")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "signatures" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Assinaturas</button>}
@@ -365,9 +365,9 @@ export function OrderDocumentsPage({
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
               <div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Solução</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Imagens registradas no momento da resolução da OS.</p></div>
               {solutionImages.length === 0 ? (
-                <div className="max-w-full rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhuma imagem da solução registrada nesta OS.</div>
+                <div className="max-w-full rounded-xl border border-dashed border-border px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhuma imagem da solução registrada nesta OS.</div>
               ) : (
-                <div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4">
+                <div className="rounded-xl border border-border bg-muted p-4">
                   <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onView(image)} />)}</div>
                 </div>
               )}
@@ -388,7 +388,7 @@ export function OrderDocumentsPage({
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm" aria-label="Novo anexo" title="Novo anexo" className="h-11 w-11 !px-0 sm:h-9 sm:w-auto sm:!px-3"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="hidden sm:inline">Novo anexo</span></AdminButton>}</div>
               {typedAttachments.length === 0 ? (
-                <div className="max-w-full rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
+                <div className="max-w-full rounded-xl border border-dashed border-border px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
               ) : (
                 <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{typedAttachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
               )}
@@ -397,7 +397,7 @@ export function OrderDocumentsPage({
         </div>
 
         <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
-        <div className="fixed inset-x-0 z-[70] border-t border-[#0d1b2e]/10 bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}><div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div></div>
+        <div className="fixed inset-x-0 z-[70] border-t border-border bg-white/95 px-3 pt-3 shadow-[0_-10px_30px_rgba(13,27,46,0.10)] backdrop-blur md:sticky md:bottom-0 md:z-auto md:bg-white md:px-5 md:py-4 md:shadow-none md:backdrop-blur-none" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}><div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div></div>
       </AdminPage>
 
       {newAttachmentOpen && <NewAttachmentModal controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
