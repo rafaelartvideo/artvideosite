@@ -62,7 +62,7 @@ function normalizeCosmos(item: any) {
     max_price: maxPrice,
     currency: avgPrice != null ? "BRL" : null,
     images: Array.from(new Set(images)),
-    source_url: gtin ? `https://cosmos.bluesoft.com.br/produtos/${encodeURIComponent(gtin)}` : null,
+    source_url: gtin ? `https://api.cosmos.bluesoft.com.br/produtos/${encodeURIComponent(gtin)}` : null,
   };
 }
 
@@ -108,8 +108,8 @@ async function cosmosSearch(query: string) {
   const digits = query.replace(/\D/g, "");
   const exact = /^\d{8,14}$/.test(digits);
   const url = exact
-    ? `https://cosmos.bluesoft.com.br/api/gtins/${encodeURIComponent(digits)}.json`
-    : `https://cosmos.bluesoft.com.br/api/products?query=${encodeURIComponent(query)}&per_page=20`;
+    ? `https://api.cosmos.bluesoft.com.br/gtins/${encodeURIComponent(digits)}.json`
+    : `https://api.cosmos.bluesoft.com.br/products?query=${encodeURIComponent(query)}&per_page=20`;
 
   const response = await fetch(url, {
     headers: {
