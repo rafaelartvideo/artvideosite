@@ -32,7 +32,7 @@ export type FieldTrackingUnit = {
 
 export type FieldTrackingStatus = "online" | "stationary" | "lost" | "paused" | "unknown";
 
-const LIVE_WINDOW_MS = 90_000;
+const LIVE_WINDOW_MS = 60_000;
 const LOST_AFTER_MS = 15 * 60_000;
 
 export function fieldTrackingStatus(unit: FieldTrackingUnit, now = Date.now()): FieldTrackingStatus {
