@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CarFront,
@@ -346,7 +346,7 @@ export function TabFieldTracking() {
                   const status = unit.trackingStatus;
                   const color = statusColor(status);
                   const point: [number, number] = [Number(unit.latitude), Number(unit.longitude)];
-                  return <span key={unit.id}>
+                  return <Fragment key={unit.id}>
                     {status === "online" && <CircleMarker
                       center={point}
                       radius={15}
@@ -367,7 +367,7 @@ export function TabFieldTracking() {
                         </div>
                       </Popup>
                     </CircleMarker>
-                  </span>;
+                  </Fragment>;
                 })}
               </MapContainer>
 
