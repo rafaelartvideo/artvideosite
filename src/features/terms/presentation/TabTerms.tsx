@@ -78,7 +78,10 @@ function TermEditor({
       </div>
 
       <div>
-        <div className="mb-1.5 flex flex-wrap items-end justify-between gap-2">\n          <label className="block text-xs font-bold text-[#35465c]">Conteúdo do termo</label>\n          <span className="text-[11px] font-medium text-[#7a8799]">Formatação: # título · ## seção · **negrito** · - lista</span>\n        </div>
+        <div className="mb-1.5 flex flex-wrap items-end justify-between gap-2">
+          <label className="block text-xs font-bold text-[#35465c]">Conteúdo do termo</label>
+          <span className="text-[11px] font-medium text-[#7a8799]">Formatação: # título · ## seção · **negrito** · - lista</span>
+        </div>
         <textarea
           value={value.content}
           disabled={!canManage || saving}
