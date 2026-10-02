@@ -206,6 +206,13 @@ export function AdminCardContent({ className = "", children }: { className?: str
   return <div className={cn("min-w-0 p-4 sm:p-5", className)}>{children}</div>;
 }
 
+export function AdminStickyToolbar({ className = "", children }: { className?: string; children: React.ReactNode }) {
+  return <div className={cn(
+    "sticky bottom-0 z-20 flex min-w-0 items-center justify-start gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 shadow-[0_-10px_30px_rgba(13,27,46,0.08)] sm:px-5",
+    className,
+  )}>{children}</div>;
+}
+
 export function AdminSegmentedControl<T extends string>({
   value,
   options,
