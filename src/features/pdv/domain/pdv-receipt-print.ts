@@ -24,8 +24,9 @@ export function printPdvReceipt(sale: PdvSaleDetail, organizationName: string) {
       <div class="item-name">${escapeHtml(item.product_name)}</div>
       <div class="item-line">
         <span>${escapeHtml(item.quantity)} ${escapeHtml(item.unit)} × ${escapeHtml(formatCurrency(item.unit_price))}</span>
-        <strong>${escapeHtml(formatCurrency(item.line_subtotal))}</strong>
+        <strong>${escapeHtml(formatCurrency(item.line_total))}</strong>
       </div>
+      ${Number(item.discount_amount || 0) > 0 ? `<div class="row sub"><span>Desconto no item</span><span>- ${escapeHtml(formatCurrency(item.discount_amount))}</span></div>` : ""}
     </div>
   `).join("");
 
