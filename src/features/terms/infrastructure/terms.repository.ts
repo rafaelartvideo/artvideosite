@@ -74,3 +74,52 @@ export async function acceptOrganizationTerm(
   });
   if (error) throw error;
 }
+
+export type ServiceWarrantyTermRow = {
+  general_service_id: string;
+  service_name: string;
+  service_is_active: boolean;
+  warranty_id: string | null;
+  title: string | null;
+  content: string | null;
+  warranty_days: number | null;
+  version: number;
+  is_active: boolean;
+  updated_at: string | null;
+};
+
+export async function listServiceWarrantyTerms(organizationId: string): Promise<ServiceWarrantyTermRow[]> {
+  const { data, error } = await supabase.rpc("list_service_warranty_terms_v1", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+  return (data || []) as ServiceWarrantyTermRow[];
+}
+
+export async function saveServiceWarrantyTerm({
+  organizationId,
+  generalServiceId,
+  title,
+  content,
+  warrantyDays,
+  isActive,
+}: {
+  organizationId: string;
+  generalServiceId: string;
+  title: string;
+  content: string;
+  warrantyDays: number;
+  isActive: boolean;
+}) {
+  const { data, error } = await supabase.rpc("save_service_warranty_term_v1", {
+    p_organization_id: organizationId,
+    p_general_service_id: generalServiceId,
+    p_title: title,
+    p_content: content,
+    p_warranty_days: warrantyDays,
+    p_is_active: isActive,
+  });
+  if (error) throw error;
+  return data;
+}
+
