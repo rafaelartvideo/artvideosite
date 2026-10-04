@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, Clock, Activity, DollarSign, Edit2, FileText, HelpCircle, List, Plus, Search, Star, Trash2, Wrench, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { deleteService, loadServicesCatalog, saveServiceAggregate, setServiceActive } from "../infrastructure/services.repository";
 import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -30,7 +31,7 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const showStatus = hasPermission("services.table.status");
   const showActions = hasPermission("services.table.actions");
   const queryClient = useQueryClient();
-  const catalogQuery = useQuery({ queryKey: queryKeys.catalog.services(), queryFn: loadServicesCatalog, enabled: canView });
+  const catalogQuery = useQuery({ queryKey: queryKeys.catalog.services(), queryFn: loadServicesCatalog, enabled: canView, staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const services = catalogQuery.data?.services ?? [];
   const categories = catalogQuery.data?.categories ?? [];
   const brands = catalogQuery.data?.brands ?? [];
