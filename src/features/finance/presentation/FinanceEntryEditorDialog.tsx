@@ -200,6 +200,8 @@ export function FinanceEntryEditorDialog({
     onClose={onClose}
     title={initial ? `Editar ${title.toLocaleLowerCase("pt-BR")}` : `Nova ${title.toLocaleLowerCase("pt-BR")}`}
     description="O lançamento será enviado para aprovação financeira."
+    minimizedDescription={[description.trim(), counterpartName || selectedCounterpart?.name, numericAmount > 0 ? formatCurrency(numericAmount) : null].filter(Boolean).join(" · ") || "Lançamento em preenchimento"}
+    minimizable={!saving}
     className="max-w-5xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton>
