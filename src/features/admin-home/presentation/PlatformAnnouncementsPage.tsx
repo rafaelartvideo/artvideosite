@@ -15,6 +15,7 @@ import {
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
+  broadcastAdminHomeRefresh,
   loadPlatformAnnouncementsAdmin,
   savePlatformAnnouncement,
   setPlatformAnnouncementActive,
@@ -136,6 +137,7 @@ export function PlatformAnnouncementsPage() {
         queryClient.invalidateQueries({ queryKey: ["platform-announcements-admin"] }),
         queryClient.invalidateQueries({ queryKey: ["admin-home", "announcements"] }),
       ]);
+      broadcastAdminHomeRefresh("announcements");
       notifyAdmin(editing ? "Aviso atualizado." : "Aviso publicado.");
     },
     onError: error => notifyAdmin(systemErrorMessage(error, "Não foi possível salvar o aviso."), "error"),
@@ -148,6 +150,7 @@ export function PlatformAnnouncementsPage() {
         queryClient.invalidateQueries({ queryKey: ["platform-announcements-admin"] }),
         queryClient.invalidateQueries({ queryKey: ["admin-home", "announcements"] }),
       ]);
+      broadcastAdminHomeRefresh("announcements");
       notifyAdmin(variables.active ? "Aviso ativado." : "Aviso encerrado.");
     },
     onError: error => notifyAdmin(systemErrorMessage(error, "Não foi possível alterar o aviso."), "error"),
