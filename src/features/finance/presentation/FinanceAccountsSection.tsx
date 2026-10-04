@@ -1,11 +1,11 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useState } from "react";
-import { Banknote, Landmark, Pencil, Plus, X } from "lucide-react";
+import { Banknote, Landmark, Pencil, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardToolbar, AdminDialog, AdminIconButton, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceMovements } from "../application/useFinanceMovements";
@@ -149,10 +149,14 @@ export function FinanceAccountsSection() {
 
     {Boolean(finance.settingsQuery.data?.cash_session_enabled) && <FinanceCashSection accounts={accounts} />}
 
-    {formOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">{form.id ? "Editar conta" : "Nova conta"}</h2><p className="mt-1 text-xs text-[#5a6a82]">O saldo não é editável aqui; ele é formado pelo livro financeiro.</p></div><button type="button" onClick={closeForm} disabled={finance.saveAccount.isPending} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button></div>
-        <div className="space-y-4 p-5">
+    {formOpen && <AdminDialog
+      open
+      onClose={closeForm}
+      title={form.id ? "Editar conta" : "Nova conta"}
+      description="O saldo não é editável aqui; ele é formado pelo livro financeiro."
+      className="max-w-2xl"
+      footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={closeForm} disabled={finance.saveAccount.isPending}>Cancelar</AdminButton><AdminButton onClick={submit} loading={finance.saveAccount.isPending} loadingText="Salvando...">Salvar conta</AdminButton></div>}
+    ><div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <FInput label="Nome" required error={nameError} value={form.name} onChange={(event: any) => { setNameError(""); setForm(current => ({ ...current, name: event.target.value })); }} placeholder="Ex.: Banco principal" />
             <FSelect label="Tipo" required value={form.account_type} onChange={(event: any) => {
@@ -165,10 +169,7 @@ export function FinanceAccountsSection() {
           {form.account_type === "cash" && <FToggle label="Permitir sessão de caixa" description="Habilita esta conta para o fluxo de abertura e fechamento de caixa." checked={form.allows_cash_session} onChange={value => setForm(current => ({ ...current, allows_cash_session: value }))} />}
           <FTextarea label="Descrição" value={form.description} onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))} placeholder="Observações opcionais sobre a conta" />
           {errorMessage && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div>}
-        </div>
-        <div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={closeForm} disabled={finance.saveAccount.isPending}>Cancelar</AdminButton><AdminButton onClick={submit} loading={finance.saveAccount.isPending} loadingText="Salvando...">Salvar conta</AdminButton></div>
-      </div>
-    </div>}
+</div></AdminDialog>}
 
     <FinanceOpeningBalanceDialog
       open={Boolean(openingAccount)}
