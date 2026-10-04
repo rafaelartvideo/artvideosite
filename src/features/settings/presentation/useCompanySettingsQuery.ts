@@ -4,6 +4,7 @@ import {
   getCompanySettings,
   saveCompanySettings,
   type CompanySettings,
+  type SaveCompanySettingsScope,
 } from "../infrastructure/company-settings.repository";
 
 export function useCompanySettingsQuery(organizationId?: string | null) {
@@ -23,11 +24,13 @@ export function useSaveCompanySettingsMutation() {
       organizationId,
       settings,
       updatedBy,
+      scope,
     }: {
       organizationId: string;
       settings: CompanySettings;
       updatedBy: string | null;
-    }) => saveCompanySettings(settings, updatedBy, organizationId),
+      scope?: SaveCompanySettingsScope;
+    }) => saveCompanySettings(settings, updatedBy, organizationId, scope),
     onSuccess: (saved, variables) => {
       queryClient.setQueryData(["company-settings", variables.organizationId], saved);
     },
