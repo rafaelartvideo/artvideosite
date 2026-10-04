@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { ArrowLeft, Pause, Play, X } from "lucide-react";
+import { ArrowLeft, Maximize2, Minimize2, Pause, Play, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
 import {
@@ -259,6 +259,7 @@ export function AdminDialog({
   footer,
   headerActions,
   className,
+  minimizable = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -268,26 +269,51 @@ export function AdminDialog({
   footer?: React.ReactNode;
   headerActions?: React.ReactNode;
   className?: string;
+  minimizable?: boolean;
 }) {
-  return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+  const [minimized, setMinimized] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) setMinimized(false);
+  }, [open]);
+
+  return <Dialog open={open} modal={!minimized} onOpenChange={(nextOpen) => { if (!nextOpen && !minimized) onClose(); }}>
     <DialogContent
       showClose={false}
+      showOverlay={!minimized}
       overlayClassName="admin-dialog-overlay"
       data-admin-dialog-content="true"
-      className={cn("admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl", className)}
+      data-admin-dialog-minimized={minimized ? "true" : "false"}
+      className={cn(
+        "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl",
+        minimized && "!bottom-4 !left-auto !right-4 !top-auto !w-[min(420px,calc(100vw-2rem))] !max-w-none !translate-x-0 !translate-y-0",
+        !minimized && className,
+      )}
     >
-      {(title || description || onClose) && <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
+      {(title || description || onClose) && <div className={cn(
+        "flex min-w-0 shrink-0 items-start justify-between gap-3 border-border px-5 py-4",
+        !minimized && "border-b",
+      )}>
         <div className="min-w-0 flex-1">
           {title ? <DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
-          {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
+          {!minimized && description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {headerActions}
+          {!minimized && headerActions}
+          {minimizable && <AdminIconButton
+            ariaLabel={minimized ? "Restaurar modal" : "Minimizar modal"}
+            title={minimized ? "Restaurar" : "Minimizar"}
+            onClick={() => setMinimized(current => !current)}
+            className="shrink-0"
+            variant="ghost"
+          >
+            {minimized ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
+          </AdminIconButton>}
           <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>
         </div>
       </div>}
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5">{children}</div>
-      {footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 py-4">{footer}</div>}
+      {!minimized && <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5">{children}</div>}
+      {!minimized && footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 py-4">{footer}</div>}
     </DialogContent>
   </Dialog>;
 }
