@@ -25,3 +25,9 @@ verify_jwt = false
 # A função valida o identificador secreto do dispositivo ou o token Bearer da integração.
 [functions.field-tracking-traccar]
 verify_jwt = false
+
+
+# Ponte autenticada entre o CRM Union World e o Supabase da Fila.
+# O usuário do CRM precisa estar autenticado; as credenciais do segundo projeto ficam apenas no servidor.
+[functions.queue-integration]
+verify_jwt = true
