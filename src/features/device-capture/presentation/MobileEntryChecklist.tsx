@@ -64,6 +64,7 @@ export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; 
     let cancelled = false;
 
     const load = async (initial = false) => {
+      if (!initial && document.visibilityState !== "visible") return;
       try {
         const result = await getDeviceEntryChecklist(sessionId, token);
         if (cancelled) return;
@@ -76,7 +77,7 @@ export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; 
     };
 
     void load(true);
-    const timer = window.setInterval(() => void load(false), 4000);
+    const timer = window.setInterval(() => void load(false), 10000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
