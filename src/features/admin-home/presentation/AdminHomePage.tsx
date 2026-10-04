@@ -280,6 +280,29 @@ export function AdminHomePage({
       <AdminCard>
         <AdminCardContent>
           <div className="flex items-center gap-2">
+            <ClipboardList size={16} className="text-primary" />
+            <div><h2 className="text-sm font-black text-foreground">Minhas pendências</h2><p className="mt-0.5 text-xs text-muted-foreground">O que precisa da sua atenção agora.</p></div>
+          </div>
+          <div className="mt-4 space-y-2">
+            {pendingAcknowledgments > 0 && <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-3 dark:border-amber-900/60 dark:bg-amber-950/20">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-card text-amber-600"><Megaphone size={16} /></span>
+              <div className="min-w-0"><strong className="block text-xs text-foreground">{pendingAcknowledgments} {pendingAcknowledgments === 1 ? "aviso aguarda" : "avisos aguardam"} confirmação</strong><span className="mt-0.5 block text-[10px] text-muted-foreground">Confirme a leitura no quadro de avisos acima.</span></div>
+            </div>}
+            {unreadCount > 0 && <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-3 dark:border-blue-900/60 dark:bg-blue-950/20">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-card text-primary"><Bell size={16} /></span>
+              <div className="min-w-0"><strong className="block text-xs text-foreground">{unreadCount} {unreadCount === 1 ? "notificação não lida" : "notificações não lidas"}</strong><span className="mt-0.5 block text-[10px] text-muted-foreground">Veja os eventos recentes no sino de notificações.</span></div>
+            </div>}
+            {pendingAcknowledgments === 0 && unreadCount === 0 && <div className="rounded-xl border border-border bg-muted/40 px-4 py-6 text-center">
+              <p className="text-sm font-black text-foreground">Tudo em dia</p>
+              <p className="mt-1 text-xs text-muted-foreground">Nenhuma pendência pessoal identificada agora.</p>
+            </div>}
+          </div>
+        </AdminCardContent>
+      </AdminCard>
+
+      <AdminCard>
+        <AdminCardContent>
+          <div className="flex items-center gap-2">
             <Bell size={16} className="text-primary" />
             <div><h2 className="text-sm font-black text-foreground">Atividade recente</h2><p className="mt-0.5 text-xs text-muted-foreground">Últimas movimentações da empresa ativa.</p></div>
           </div>
@@ -300,20 +323,6 @@ export function AdminHomePage({
               </span>
               <span className="shrink-0 text-[9px] font-semibold text-muted-foreground">{notificationTime(item.created_at)}</span>
             </button>)}
-          </div>
-        </AdminCardContent>
-      </AdminCard>
-
-      <AdminCard>
-        <AdminCardContent>
-          <div className="flex items-center gap-2">
-            <Keyboard size={16} className="text-primary" />
-            <div><h2 className="text-sm font-black text-foreground">Atalhos do painel</h2><p className="mt-0.5 text-xs text-muted-foreground">A Home funciona como um lançador rápido dos módulos.</p></div>
-          </div>
-          <div className="mt-4 space-y-3 text-xs leading-5 text-muted-foreground">
-            <p>As teclas <strong className="text-foreground">F1 a F12</strong> abrem somente módulos que você possui permissão para visualizar.</p>
-            <p>Dentro de módulos que já têm atalhos próprios, como o PDV, passam a valer os atalhos daquele módulo e os atalhos da Home deixam de escutar o teclado.</p>
-            <p>No celular, os mesmos acessos continuam disponíveis pelos cards acima.</p>
           </div>
         </AdminCardContent>
       </AdminCard>
