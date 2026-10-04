@@ -3,7 +3,7 @@ import { getAddressMapUrl } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
 import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { formatCnpj, formatCpf, formatDateOnly, formatPhone } from "@/shared/domain/formatters";
+import { formatCnpj, formatCpf, formatDateOnly, formatDateTime, formatPhone } from "@/shared/domain/formatters";
 import { usernameFromAuthEmail } from "@/features/auth/domain/username";
 import { activeRegistrationRoles } from "../domain/registration-form";
 import type { Registration, RegistrationRole, SupplierInventoryItem } from "../infrastructure/registrations.repository";
@@ -102,6 +102,13 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
             {detailValue("Fundação", formatDateOnly(selected.foundation_date, "—"))}
           </> : detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
         </div></Section>
+
+        <Section title="Cadastro">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {detailValue("Data de cadastro", formatDateTime(selected.created_at, "—"))}
+            {detailValue("Cadastrado por", selected.created_by_profile?.full_name || "Sistema")}
+          </div>
+        </Section>
 
         <Section title="Endereços">
           {activeAddresses.length ? <div className="divide-y divide-[#0d1b2e]/8">{activeAddresses.map((address, index) => {
