@@ -133,12 +133,15 @@ export function DeviceCaptureBridge({
     let cancelled = false;
 
     const poll = async () => {
-      if (pollingRef.current || cancelled) return;
+      if (pollingRef.current || cancelled || document.visibilityState !== "visible") return;
       pollingRef.current = true;
       try {
+        const checklistEnabled = Boolean(currentEquipmentTypeId());
         const [captureResult, checklistEvents] = await Promise.all([
           pollDeviceCaptureSession(session.id, lastEventIdRef.current),
-          pollDeviceChecklistEvents(session.id, session.token, lastChecklistEventIdRef.current),
+          checklistEnabled
+            ? pollDeviceChecklistEvents(session.id, session.token, lastChecklistEventIdRef.current)
+            : Promise.resolve([]),
         ]);
         if (cancelled) return;
 
@@ -198,7 +201,7 @@ export function DeviceCaptureBridge({
     };
 
     void poll();
-    const timer = window.setInterval(() => void poll(), 1500);
+    const timer = window.setInterval(() => void poll(), 5000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
