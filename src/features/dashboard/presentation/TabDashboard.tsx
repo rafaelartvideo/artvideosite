@@ -199,8 +199,9 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
   }, [activeModule, modules]);
 
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.admin.dashboard(periodDays, accessScope),
-    queryFn: () => loadDashboardOverview({ periodDays, access }),
+    queryKey: queryKeys.admin.dashboard(activeOrganizationId || "no-organization", periodDays, accessScope),
+    queryFn: () => loadDashboardOverview({ organizationId: activeOrganizationId!, periodDays, access }),
+    enabled: Boolean(activeOrganizationId),
   });
   const inventoryPurchasesQuery = useQuery({
     queryKey: ["dashboard", "inventory-purchases", activeOrganizationId, periodDays],
