@@ -8,8 +8,10 @@ export type AdminRouteParts = {
 };
 
 export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
-  dashboard: "/admin",
+  home: "/admin",
+  dashboard: "/admin/dashboard",
   crm: "/admin/crm",
+  announcements: "/admin/announcements",
   quotes: "/admin/quotes",
   orders: "/admin/orders",
   agenda: "/admin/agenda",
@@ -86,7 +88,7 @@ export function resolveAdminRoute(pathname: string): AdminRouteParts {
     const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
     return { tab, resourceId: segments[0] || null, subpage: segments[1] || null };
   }
-  return { tab: "dashboard", resourceId: null, subpage: null };
+  return { tab: "home", resourceId: null, subpage: null };
 }
 
 export function resolveAdminTab(pathname: string): AdminTab {
