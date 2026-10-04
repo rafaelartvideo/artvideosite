@@ -37,7 +37,9 @@ export function AdminSidebar({
   const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data?.company_menu_logo_media_id ?? null);
 
   const canAccessTab = (tab: AdminTab) => {
+    if (tab === "home") return true;
     if (tab === "crm") return isPlatformOperatorOrganization;
+    if (tab === "announcements") return isPlatformOperatorOrganization && hasPermission("platform.announcements.view");
     if (tab === "settings" && isPlatformOperatorOrganization) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (tab === "finance" && isPlatformOperatorOrganization) return hasPermission("platform.billing.view");
     if (isPlatformOperatorOrganization && ["quotes", "inventory", "pdv"].includes(tab)) return false;
@@ -64,7 +66,7 @@ export function AdminSidebar({
   const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization || canAccessTab("fieldTracking");
   const canAccessPlatformSettings = isPlatformOperatorOrganization && canAccessTab("settings");
   const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));
-  const dashboardItems = visibleMainItems.filter(item => item.id === "dashboard");
+  const dashboardItems = visibleMainItems.filter(item => ["home", "dashboard"].includes(item.id));
   const serviceItems = visibleMainItems.filter(item =>
     ["quotes", "orders", "customers", "agenda"].includes(item.id),
   );
@@ -75,6 +77,9 @@ export function AdminSidebar({
     isPlatformOperatorOrganization
       ? ["partnerCompanies", "finance", "audit"].includes(item.id)
       : ["partnerCompanies", "audit"].includes(item.id),
+  );
+  const communicationItems = visibleMainItems.filter(item =>
+    isPlatformOperatorOrganization && item.id === "announcements",
   );
 
   const renderMainItem = (item: (typeof mainItems)[number]) => (
@@ -170,6 +175,13 @@ export function AdminSidebar({
             <div className="space-y-1">
               {sectionHeader("Atendimento")}
               {serviceItems.map(renderMainItem)}
+            </div>
+          )}
+
+          {communicationItems.length > 0 && (
+            <div className="space-y-1">
+              {sectionHeader("Comunicação")}
+              {communicationItems.map(renderMainItem)}
             </div>
           )}
 
