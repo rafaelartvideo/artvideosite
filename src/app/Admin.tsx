@@ -27,6 +27,8 @@ const TabCategories = lazy(() => import("@/features/categories/presentation/TabC
 const ChecklistAdminPanel = lazy(() => import("@/features/checklists/presentation/ChecklistAdminPanel").then(({ ChecklistAdminPanel }) => ({ default: ChecklistAdminPanel })));
 const TabContact = lazy(() => import("@/features/contact/presentation/TabContact").then(({ TabContact }) => ({ default: TabContact })));
 const TabCustomers = lazy(() => import("@/features/customers/presentation/TabCustomers").then(({ TabCustomers }) => ({ default: TabCustomers })));
+const AdminHomePage = lazy(() => import("@/features/admin-home/presentation/AdminHomePage").then(({ AdminHomePage }) => ({ default: AdminHomePage })));
+const PlatformAnnouncementsPage = lazy(() => import("@/features/admin-home/presentation/PlatformAnnouncementsPage").then(({ PlatformAnnouncementsPage }) => ({ default: PlatformAnnouncementsPage })));
 const TabDashboard = lazy(() => import("@/features/dashboard/presentation/TabDashboard").then(({ TabDashboard }) => ({ default: TabDashboard })));
 const UnionPlatformDashboard = lazy(() => import("@/features/dashboard/presentation/UnionPlatformDashboard").then(({ UnionPlatformDashboard }) => ({ default: UnionPlatformDashboard })));
 const EquipmentAdminPanel = lazy(() => import("@/features/equipment/presentation/EquipmentAdminPanel").then(({ EquipmentAdminPanel }) => ({ default: EquipmentAdminPanel })));
@@ -57,7 +59,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "dashboard", "crm", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "terms", "contact",
+  "home", "dashboard", "crm", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "terms", "contact",
 ];
 
 function NoEnabledModules() {
@@ -90,7 +92,9 @@ export function AdminDashboard({
   const activeMenuTab: AdminTab = crmMode ? "crm" : (locationState?.menuTab || activeTab);
 
   const canAccessTab = (tab: AdminTab) => {
+    if (tab === "home") return true;
     if (tab === "crm") return isPlatformOperatorOrganization;
+    if (tab === "announcements") return isPlatformOperatorOrganization && !crmMode && hasPermission("platform.announcements.view");
     if (tab === "settings" && isPlatformOperatorOrganization && !crmMode) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
@@ -206,7 +210,7 @@ export function AdminDashboard({
   const toolsContent = route.resourceId === "union-senhas"
     ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
     : toolsHub;
-  const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("dashboard", null, null, { replace: true, crmMode: false }); };
+  const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("home", null, null, { replace: true, crmMode: false }); };
 
   const sidebar = <AdminSidebar
     activeTab={activeMenuTab}
@@ -236,9 +240,15 @@ export function AdminDashboard({
     />}>
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
         {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes key={activeTab}>
-            <Route index element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
+            <Route index element={<AdminHomePage
+              onNavigate={tab => navigateAdmin(tab, null, null, { crmMode: false })}
+              canAccessTab={canAccessTab}
+              isPlatformOperatorOrganization={isPlatformOperatorOrganization}
+            />} />
+            <Route path="dashboard" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
+            <Route path="announcements" element={<PlatformAnnouncementsPage />} />
             <Route path="crm" element={crmHub} />
-            <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("dashboard")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
+            <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("home")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
             <Route path="audit/*" element={<TabAuditLog />} />
             <Route path="site" element={siteHub} />
             <Route path="site/services/*" element={<TabServices onBack={() => backToParent("services")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("services")} />} />
