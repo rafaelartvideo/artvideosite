@@ -4,7 +4,6 @@ import {
   Banknote,
   CheckCircle2,
   CreditCard,
-  LockKeyhole,
   Minus,
   Package,
   Plus,
