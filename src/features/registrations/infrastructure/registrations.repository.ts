@@ -28,6 +28,8 @@ export type Registration = {
   is_active: boolean;
   legacy_customer_id: string | null;
   legacy_employee_id: string | null;
+  created_by: string | null;
+  created_by_profile?: { full_name: string | null } | null;
   created_at: string;
   updated_at: string;
   roles?: Array<{ role: RegistrationRole; is_active: boolean }> | null;
@@ -73,7 +75,8 @@ const REGISTRATION_LIST_SELECT = `
 const REGISTRATION_SELECT = `
   id,organization_id,person_type,name,legal_name,trade_name,document,state_registration,municipal_registration,
   birth_date,foundation_date,phone,whatsapp,email,is_active,legacy_customer_id,legacy_employee_id,
-  created_at,updated_at,
+  created_by,created_at,updated_at,
+  created_by_profile:profiles!entities_created_by_fkey(full_name),
   roles:entity_roles(role,is_active),
   employee_details:entity_employee_details(job_title,team_name,admission_date,profile_id,role_id,uniq_subscriber_id),
   legacy_employee:employees!entities_legacy_employee_id_fkey(id,profile_id,is_active,field_tracking_prompt_on_login),
