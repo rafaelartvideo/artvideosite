@@ -43,6 +43,7 @@ const ServiceTypesAdminPanel = lazy(() => import("@/features/service-types/prese
 const TabSettings = lazy(() => import("@/features/settings/presentation/TabSettings").then(({ TabSettings }) => ({ default: TabSettings })));
 const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabSiteSettings").then(({ TabSiteSettings }) => ({ default: TabSiteSettings })));
 const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
+const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
 
@@ -143,7 +144,7 @@ export function AdminDashboard({
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
     ] : []),
     ...((isArtVideoOrganization || isPlatformOperatorOrganization) ? [
-      { id: "fila", label: "Fila", icon: List, description: "Acesse o painel do sistema de filas e senhas.", href: "https://testeteste.com.br/painel" },
+      { id: "union-senhas", label: "Union Senhas", icon: List, description: "Configure e acesse o sistema Union de fila e senhas.", href: null },
     ] : []),
   ];
   const toolsHub = <AdminHubPage
@@ -157,10 +158,17 @@ export function AdminDashboard({
         navigateAdmin("fieldTracking", null, null, { menuTab: "tools" });
         return;
       }
+      if (id === "union-senhas") {
+        navigateAdmin("tools", "union-senhas");
+        return;
+      }
       const tool = toolItems.find(item => item.id === id);
       if (tool?.href) window.open(tool.href, "_blank", "noopener,noreferrer");
     }}
   />;
+  const toolsContent = route.resourceId === "union-senhas"
+    ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
+    : toolsHub;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("dashboard", null, null, { replace: true }); };
 
   const sidebar = <AdminSidebar activeTab={activeMenuTab} organizations={organizations} activeOrganizationId={activeOrganizationId} hasPermission={hasPermission} hasModule={hasModule} onNavigate={tab => navigateAdmin(tab)} onBackToSite={onBackToSite} />;
@@ -193,7 +201,7 @@ export function AdminDashboard({
             <Route path="site/brands/*" element={<TabBrands onBack={() => backToParent("brands")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("brands")} />} />
             <Route path="site/settings/*" element={<TabSiteSettings onBack={() => backToParent("siteSettings")} />} />
             <Route path="operation" element={operationHub} />
-            <Route path="tools" element={toolsHub} />
+            <Route path="tools/*" element={toolsContent} />
             <Route path="operation/equipment/*" element={<EquipmentAdminPanel onBack={() => backToParent("equipment")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("equipment")} />} />
             <Route path="operation/checklists/*" element={<ChecklistAdminPanel onBack={() => backToParent("checklists")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("checklists")} />} />
             <Route path="operation/general-services/*" element={<GeneralServicesPanel onBack={() => backToParent("generalServices")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("generalServices")} />} />
