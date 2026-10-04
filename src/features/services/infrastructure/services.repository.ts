@@ -48,18 +48,16 @@ type SaveServiceAggregateInput = {
 };
 
 export async function loadServicesCatalog() {
-  const organizationId = await getArtVideoOrganizationId();
-  const [servicesResult, categoriesResult, brandsResult, productsResult] = await Promise.all([
-    supabase.from("services").select("*, service_variants(*), service_inclusions(*), service_exclusions(*), service_price_factors(*), service_faqs(*), service_sections(*)").eq("organization_id", organizationId).order("sort_order"),
-    supabase.from("service_categories").select("id, name").eq("organization_id", organizationId).order("sort_order"),
-    supabase.from("brands").select("id, name").eq("organization_id", organizationId).eq("is_active", true).order("sort_order"),
-    supabase.from("products").select("id, name").eq("organization_id", organizationId).eq("is_active", true).order("created_at", { ascending: false }),
-  ]);
-
-  const error = servicesResult.error || categoriesResult.error || brandsResult.error || productsResult.error;
+  const { data, error } = await supabase.rpc("load_services_catalog_admin_v1");
   if (error) throw error;
 
-  return { services: servicesResult.data ?? [], categories: categoriesResult.data ?? [], brands: brandsResult.data ?? [], products: productsResult.data ?? [] };
+  const catalog = (data || {}) as Record<string, unknown>;
+  return {
+    services: Array.isArray(catalog.services) ? catalog.services : [],
+    categories: Array.isArray(catalog.categories) ? catalog.categories : [],
+    brands: Array.isArray(catalog.brands) ? catalog.brands : [],
+    products: Array.isArray(catalog.products) ? catalog.products : [],
+  };
 }
 
 export async function deleteService(serviceId: string): Promise<void> {
