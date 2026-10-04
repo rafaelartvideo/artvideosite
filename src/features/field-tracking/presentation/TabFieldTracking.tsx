@@ -222,7 +222,6 @@ export function TabFieldTracking() {
     queryKey: ["field-tracking-units", activeOrganizationId],
     enabled: Boolean(activeOrganizationId && canView),
     queryFn: () => listFieldTrackingUnits(activeOrganizationId!),
-    refetchInterval: 30_000,
   });
 
   useEffect(() => {
