@@ -21,6 +21,7 @@ import { AdminSelect, FCurrencyInput, FTextarea, FToggle } from "@/shared/ui/adm
 import {
   AdminButton,
   AdminCard,
+  AdminDialog,
   PageHeader,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
@@ -354,9 +355,8 @@ export function TabPdv({
           actions={<StatusBadge status={openSession ? "Aberto" : "Fechado"} />}
           contentClassName="space-y-4"
         >
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Metric label="Saldo da conta" value={formatCurrency(Number(cashAccount?.balance || 0))} />
-              <Metric label="Situação" value={openSession ? "Caixa aberto" : "Caixa fechado"} />
               <Metric label="Abertura" value={openSession ? formatDateTime(openSession.opened_at) : "—"} />
             </div>
 
@@ -442,68 +442,68 @@ export function TabPdv({
       </Section>
     </>}
 
-    {cashDialog && cashAccount && <div className="fixed inset-0 z-[160] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
-      <div className="admin-crm flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="shrink-0 border-b border-[#0d1b2e]/8 px-5 py-4">
-          <h2 className="text-lg font-black text-[#0d1b2e]">{cashActionTitle(cashDialog)}</h2>
-          <p className="mt-1 text-xs text-[#5a6a82]">{cashAccount.name}</p>
-        </div>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-          {cashDialog === "close" && canViewCashReports && closeReportQuery.isPending && <LoadingState text="Calculando fechamento..." />}
+    {cashDialog && cashAccount && <AdminDialog
+      open
+      onClose={closeCashDialog}
+      title={cashActionTitle(cashDialog)}
+      description={cashAccount.name}
+      className="max-w-lg"
+      footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <AdminButton variant="secondary" onClick={closeCashDialog}>Cancelar</AdminButton>
+        <AdminButton onClick={() => void submitCashAction()}>Confirmar</AdminButton>
+      </div>}
+    >
+      <div className="space-y-4">
+        {cashDialog === "close" && canViewCashReports && closeReportQuery.isPending && <LoadingState text="Calculando fechamento..." />}
 
-          {cashDialog === "close" && closeReportQuery.data && <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
-            <CashReportDetail report={closeReportQuery.data} compact />
-          </div>}
+        {cashDialog === "close" && closeReportQuery.data && <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
+          <CashReportDetail report={closeReportQuery.data} compact />
+        </div>}
 
-          <FCurrencyInput
-            label={cashDialog === "open" || cashDialog === "close" ? "Valor contado no caixa" : "Valor"}
-            value={cashAmount}
-            error={cashErrors.amount}
-            onChange={(event: any) => {
-              setCashErrors(current => ({ ...current, amount: undefined }));
-              setCashAmount(event.target.value);
-            }}
-          />
-          {cashDialog === "close" && closeReportQuery.data && cashAmount !== "" && <div className={(() => {
+        <FCurrencyInput
+          label={cashDialog === "open" || cashDialog === "close" ? "Valor contado no caixa" : "Valor"}
+          value={cashAmount}
+          error={cashErrors.amount}
+          onChange={(event: any) => {
+            setCashErrors(current => ({ ...current, amount: undefined }));
+            setCashAmount(event.target.value);
+          }}
+        />
+        {cashDialog === "close" && closeReportQuery.data && cashAmount !== "" && <div className={(() => {
+          const expected = Number(closeReportQuery.data.session.expected_amount || 0);
+          const counted = Number(cashAmount || 0);
+          const difference = Math.round((counted - expected) * 100) / 100;
+          return "rounded-xl border px-3 py-2 text-xs font-bold " + (difference === 0
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : "border-amber-200 bg-amber-50 text-amber-800");
+        })()}>
+          {(() => {
             const expected = Number(closeReportQuery.data.session.expected_amount || 0);
             const counted = Number(cashAmount || 0);
             const difference = Math.round((counted - expected) * 100) / 100;
-            return "rounded-xl border px-3 py-2 text-xs font-bold " + (difference === 0
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-amber-200 bg-amber-50 text-amber-800");
-          })()}>
-            {(() => {
-              const expected = Number(closeReportQuery.data.session.expected_amount || 0);
-              const counted = Number(cashAmount || 0);
-              const difference = Math.round((counted - expected) * 100) / 100;
-              return difference === 0
-                ? "Valor contado confere com o esperado."
-                : "Diferença no fechamento: " + formatCurrency(difference);
-            })()}
-          </div>}
+            return difference === 0
+              ? "Valor contado confere com o esperado."
+              : "Diferença no fechamento: " + formatCurrency(difference);
+          })()}
+        </div>}
 
-          <FTextarea
-            label={cashDialog === "supply" || cashDialog === "withdraw"
-              ? "Motivo *"
-              : cashDialog === "close" && closeReportQuery.data && cashAmount !== "" && Math.round((Number(cashAmount || 0) - Number(closeReportQuery.data.session.expected_amount || 0)) * 100) / 100 !== 0
-                ? "Justificativa *"
-                : "Observação / justificativa"}
-            value={cashNote}
-            error={cashErrors.note}
-            rows={3}
-            onChange={(event: any) => {
-              setCashErrors(current => ({ ...current, note: undefined }));
-              setCashNote(event.target.value);
-            }}
-            placeholder={cashDialog === "close" ? "Obrigatória apenas se houver diferença no fechamento" : undefined}
-          />
-        </div>
-        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 sm:flex-row sm:justify-end">
-          <AdminButton variant="secondary" onClick={closeCashDialog}>Cancelar</AdminButton>
-          <AdminButton onClick={() => void submitCashAction()}>Confirmar</AdminButton>
-        </div>
+        <FTextarea
+          label={cashDialog === "supply" || cashDialog === "withdraw"
+            ? "Motivo *"
+            : cashDialog === "close" && closeReportQuery.data && cashAmount !== "" && Math.round((Number(cashAmount || 0) - Number(closeReportQuery.data.session.expected_amount || 0)) * 100) / 100 !== 0
+              ? "Justificativa *"
+              : "Observação / justificativa"}
+          value={cashNote}
+          error={cashErrors.note}
+          rows={3}
+          onChange={(event: any) => {
+            setCashErrors(current => ({ ...current, note: undefined }));
+            setCashNote(event.target.value);
+          }}
+          placeholder={cashDialog === "close" ? "Obrigatória apenas se houver diferença no fechamento" : undefined}
+        />
       </div>
-    </div>}
+    </AdminDialog>}
   </div>;
 }
 
