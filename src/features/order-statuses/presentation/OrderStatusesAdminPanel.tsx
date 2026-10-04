@@ -5,6 +5,7 @@ import { CheckCircle, Edit2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminBackContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { deleteOrderStatus, listOrderStatuses, saveOrderStatus } from "../infrastructure/order-statuses.repository";
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { ConfirmDialog, EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -35,7 +36,7 @@ function OrderStatusesAdminPanelContent({ routeResourceId, routeSubpage, onRoute
   const showSortOrder = hasPermission("order_statuses.table.sort_order");
   const showActions = hasPermission("order_statuses.table.actions");
   const queryClient = useQueryClient();
-  const statusesQuery = useQuery({ queryKey: queryKeys.orderStatuses.lists(), queryFn: listOrderStatuses, enabled: canViewTable || canCreate || canEdit });
+  const statusesQuery = useQuery({ queryKey: queryKeys.orderStatuses.lists(), queryFn: listOrderStatuses, enabled: canViewTable || canCreate || canEdit, staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const items = statusesQuery.data ?? [];
   const loading = statusesQuery.isPending;
   const [formOpen, setFormOpen] = useState(false);
