@@ -266,6 +266,7 @@ export function OrderDocumentsPage({
   hasPermission,
   onClose,
   onView,
+  readOnly = false,
 }: {
   open: boolean;
   order: any;
@@ -277,6 +278,7 @@ export function OrderDocumentsPage({
   hasPermission: PermissionCheck;
   onClose: () => void;
   onView: (image: OrderImage) => void;
+  readOnly?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<DocumentsTab>("attachments");
   const [newAttachmentOpen, setNewAttachmentOpen] = useState(false);
@@ -346,7 +348,7 @@ export function OrderDocumentsPage({
               <p className="py-8 text-center text-sm text-[#5a6a82]">Este tipo de atendimento não possui situações configuradas.</p>
             ) : controller.flowSituations.map(situation => {
               const situationImages = visibleDocuments.filter(item => item.situation_id === situation.id && !item.attachment_type_id);
-              const canUpload = controller.canUpload(situation.id);
+              const canUpload = !readOnly && controller.canUpload(situation.id);
               const current = situation.id === currentSituationId;
               return (
                 <AdminCard key={situation.id} className={cn("min-w-0 max-w-full shadow-none", current && "border-[#0057e7]/30 bg-[#f7faff]")}>
@@ -355,7 +357,7 @@ export function OrderDocumentsPage({
                     {canUpload && <SituationQuickUploads situation={situation} controller={controller} onSuccess={text => setMessage({ text, type: "success" })} onError={text => setMessage({ text, type: "error" })} />}
                   </AdminCardHeader>
                   {situationImages.length > 0 ? (
-                    <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{situationImages.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
+                    <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{situationImages.map(document => <AttachmentCard key={document.id} document={document} canRemove={!readOnly && controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
                   ) : (
                     <div className="px-4 py-6 text-center text-xs text-[#7c899c]">Nenhuma imagem registrada nesta situação.</div>
                   )}
@@ -387,11 +389,11 @@ export function OrderDocumentsPage({
             />
           ) : (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm" aria-label="Novo anexo" title="Novo anexo" className="h-11 w-11 !px-0 sm:h-9 sm:w-auto sm:!px-3"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="hidden sm:inline">Novo anexo</span></AdminButton>}</div>
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{!readOnly && controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm" aria-label="Novo anexo" title="Novo anexo" className="h-11 w-11 !px-0 sm:h-9 sm:w-auto sm:!px-3"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="hidden sm:inline">Novo anexo</span></AdminButton>}</div>
               {typedAttachments.length === 0 ? (
                 <div className="max-w-full rounded-xl border border-dashed border-border px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
               ) : (
-                <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{typedAttachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
+                <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{typedAttachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={!readOnly && controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
               )}
             </div>
           )}
@@ -401,7 +403,7 @@ export function OrderDocumentsPage({
         <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}><div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div></AdminStickyToolbar>
       </AdminPage>
 
-      {newAttachmentOpen && <NewAttachmentModal controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
+      {!readOnly && newAttachmentOpen && <NewAttachmentModal controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
     </>
   );
 }
