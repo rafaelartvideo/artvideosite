@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, Eraser, Search, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatDateOnly, formatPhone, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -67,6 +69,7 @@ export function PartnerCustomersList({
   const showCreatedAt = hasPermission("customers.table.created_at");
   const showActions = hasPermission("customers.table.actions");
   const hasFilters = Boolean(nameSearch || documentSearch);
+  const [mobileSearchField, setMobileSearchField] = useState<"name" | "document">("name");
   const sortLabel = orderSort === "asc" ? "Nome crescente" : orderSort === "desc" ? "Nome decrescente" : "Ordenação padrão";
   const SortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
 
@@ -102,7 +105,27 @@ export function PartnerCustomersList({
     />
 
     <AdminSearchPanel title="Buscar clientes">
-      <div className="grid grid-cols-[minmax(0,1fr)_42px] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_36px] md:gap-2">
+      <AdminMobileSearchSwitch
+        value={mobileSearchField}
+        options={[{ value: "name", label: "Nome" }, { value: "document", label: "CPF / CNPJ" }]}
+        onChange={setMobileSearchField}
+        actions={sortMenu}
+      >
+        {mobileSearchField === "name" ? <SearchField
+          label=""
+          value={nameSearch}
+          onChange={value => { onNameSearchChange(value); onPageChange(1); }}
+          placeholder="Digite o nome do cliente"
+        /> : <SearchField
+          label=""
+          value={documentSearch}
+          onChange={value => { onDocumentSearchChange(formatDocumentSearch(value)); onPageChange(1); }}
+          placeholder="Digite o CPF ou CNPJ"
+          inputMode="numeric"
+        />}
+      </AdminMobileSearchSwitch>
+      <div className="hidden md:block">
+<div className="grid grid-cols-[minmax(0,1fr)_42px] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_36px] md:gap-2">
         <SearchField
           label="Nome"
           value={nameSearch}
@@ -129,11 +152,14 @@ export function PartnerCustomersList({
           inputMode="numeric"
         />
       </div>
+      
+      </div>
       {hasFilters && <div className="mt-3 flex justify-end md:mt-2">
         <AdminButton variant="danger" size="sm" onClick={onClearFilters} className="bg-white text-red-600 hover:bg-red-50">
           <Eraser size={14} /> Limpar filtros
         </AdminButton>
       </div>}
+    
     </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
