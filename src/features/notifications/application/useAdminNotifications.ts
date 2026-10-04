@@ -11,7 +11,7 @@ import {
   type AdminNotificationsBootstrap,
 } from "../infrastructure/notifications.repository";
 
-const notificationsKey = (organizationId: string | null, userId: string | null) => [
+export const adminNotificationsKey = (organizationId: string | null, userId: string | null) => [
   "admin-notifications",
   organizationId || "none",
   userId || "none",
@@ -26,7 +26,7 @@ export function useAdminNotifications(
   const normalizedOrganizationId = organizationId || null;
   const normalizedUserId = userId || null;
   const enabled = Boolean(normalizedOrganizationId && normalizedUserId);
-  const queryKey = notificationsKey(normalizedOrganizationId, normalizedUserId);
+  const queryKey = adminNotificationsKey(normalizedOrganizationId, normalizedUserId);
 
   const notificationsQuery = useQuery({
     queryKey,
