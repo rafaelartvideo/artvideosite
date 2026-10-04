@@ -4,8 +4,6 @@ import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import {
-  mobileSessionConnected,
-  mobileSessionDisconnectDelay,
   subscribeMobileSessionRealtime,
   type MobileSessionRealtimeRow,
 } from "@/features/device-capture/infrastructure/mobile-session-realtime";
@@ -65,7 +63,6 @@ export function DeviceCaptureBridge({
   const lastChecklistEventIdRef = useRef(0);
   const pollingRef = useRef(false);
   const refreshQueuedRef = useRef(false);
-  const disconnectTimerRef = useRef<number | null>(null);
   const sessionRef = useRef<DeviceCaptureSession | null>(null);
 
   sessionRef.current = session;
@@ -140,33 +137,14 @@ export function DeviceCaptureBridge({
     if (!session || expired) return;
     let cancelled = false;
 
-    const clearDisconnectTimer = () => {
-      if (disconnectTimerRef.current !== null) {
-        window.clearTimeout(disconnectTimerRef.current);
-        disconnectTimerRef.current = null;
-      }
-    };
-
     const applySessionRow = (row: MobileSessionRealtimeRow) => {
       if (cancelled) return;
-      clearDisconnectTimer();
-
       const status = String(row.status || "active");
       const expiresAt = row.expires_at ? Date.parse(row.expires_at) : NaN;
       const isExpired = status !== "active" || (Number.isFinite(expiresAt) && expiresAt <= Date.now());
       if (isExpired) {
         setExpired(true);
         setConnected(false);
-        return;
-      }
-
-      const isConnected = mobileSessionConnected(row);
-      setConnected(isConnected);
-      if (isConnected) {
-        const delay = mobileSessionDisconnectDelay(row);
-        disconnectTimerRef.current = window.setTimeout(() => {
-          if (!cancelled) setConnected(false);
-        }, Math.max(1_000, delay + 250));
       }
     };
 
@@ -248,6 +226,10 @@ export function DeviceCaptureBridge({
 
     const unsubscribe = subscribeMobileSessionRealtime({
       sessionId: session.id,
+      presenceRole: "desktop",
+      onMobilePresenceChange: value => {
+        if (!cancelled) setConnected(value);
+      },
       onSessionChange: applySessionRow,
       onEventInsert: () => void refresh(),
       onReady: () => void refresh(),
@@ -261,7 +243,6 @@ export function DeviceCaptureBridge({
     return () => {
       cancelled = true;
       refreshQueuedRef.current = false;
-      clearDisconnectTimer();
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       unsubscribe();
     };
