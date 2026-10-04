@@ -10,28 +10,6 @@ export type MobileSessionRealtimeRow = {
   equipment_type_id?: string | null;
 };
 
-export function mobileSessionConnected(
-  row: MobileSessionRealtimeRow,
-  now = Date.now(),
-  timeoutMs = 35_000,
-) {
-  if (String(row.status || "active") !== "active") return false;
-  if (!row.connected_at || !row.last_seen_at) return false;
-  const lastSeenAt = Date.parse(row.last_seen_at);
-  return Number.isFinite(lastSeenAt) && now - lastSeenAt < timeoutMs;
-}
-
-export function mobileSessionDisconnectDelay(
-  row: MobileSessionRealtimeRow,
-  now = Date.now(),
-  timeoutMs = 35_000,
-) {
-  if (!row.last_seen_at) return 0;
-  const lastSeenAt = Date.parse(row.last_seen_at);
-  if (!Number.isFinite(lastSeenAt)) return 0;
-  return Math.max(0, timeoutMs - (now - lastSeenAt));
-}
-
 export function subscribeMobileSessionRealtime({
   sessionId,
   presenceRole,
