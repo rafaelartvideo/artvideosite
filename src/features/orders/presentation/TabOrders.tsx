@@ -31,11 +31,10 @@ import {
 import { getServiceOrderForRoute } from "@/features/orders/infrastructure/orders-list.repository";
 import {
   consumeQueueOsCode,
-  getQueueIntegrationSettings,
   releaseQueueOsCode,
-  type QueueIntegrationSettings,
   type QueueReservation,
 } from "@/features/queue-integration/infrastructure/queue-integration.repository";
+import { useQueueIntegrationSettings } from "@/features/queue-integration/application/useQueueIntegrationSettings";
 import { QueueOsCodeDialog } from "@/features/queue-integration/presentation/QueueOsCodeDialog";
 import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPage";
 import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage";
@@ -104,8 +103,6 @@ export function TabOrders({
   };
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [queueSettings, setQueueSettings] = useState<QueueIntegrationSettings | null>(null);
-  const [queueSettingsLoading, setQueueSettingsLoading] = useState(true);
   const [queueGateOpen, setQueueGateOpen] = useState(false);
   const [subView, setSubView] = useState<"list" | "situations">("list");
   const [displayMode, setDisplayMode] = useState<"list" | "kanban">(() => {
@@ -135,28 +132,9 @@ export function TabOrders({
   const formState = useOrderFormState();
   const { formOpen, editingOS, form, setForm, closeOrderForm } = formState;
 
-  useEffect(() => {
-    let active = true;
-    const organizationId = workspaceBase.organizationId;
-    if (!organizationId) {
-      setQueueSettings(null);
-      setQueueSettingsLoading(false);
-      return () => { active = false; };
-    }
-
-    setQueueSettingsLoading(true);
-    void getQueueIntegrationSettings(organizationId)
-      .then((settings) => { if (active) setQueueSettings(settings); })
-      .catch((error) => {
-        if (!active) return;
-        setQueueSettings(null);
-        setToast({ msg: `Não foi possível carregar a integração da fila: ${systemErrorMessage(error)}`, type: "error" });
-      })
-      .finally(() => { if (active) setQueueSettingsLoading(false); });
-
-    return () => { active = false; };
-  }, [workspaceBase.organizationId]);
-
+  const queueSettingsQuery = useQueueIntegrationSettings(workspaceBase.organizationId);
+  const queueSettings = workspaceBase.organizationId ? queueSettingsQuery.data || null : null;
+  const queueSettingsLoading = queueSettingsQuery.isLoading;
   const queueCodeRequired = Boolean(queueSettings?.enabled && queueSettings.require_code_for_orders);
 
   const imagesController = useOrderImages();
