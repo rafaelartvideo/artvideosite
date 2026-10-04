@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Plus, Search, Trash2 } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
+  AdminButton,
   AdminDialog,
   AdminIconButton,
   BtnPrimary,
@@ -742,8 +743,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
-            <p className="text-[10px] leading-relaxed text-muted-foreground">O preço do serviço do catálogo é fixo nesta inclusão. Para um valor livre, use um Serviço Avulso.</p>
-            <BtnSecondary disabled={mutating} onClick={() => setCustomOpen(true)}>Serviço Avulso</BtnSecondary>
+            <p className="text-[10px] leading-relaxed text-muted-foreground">O preço do serviço do catálogo é fixo nesta inclusão. Para um valor livre, use Avulso.</p>
+            <AdminButton variant="secondary" disabled={mutating} onClick={() => setCustomOpen(true)} className="h-10 shrink-0 px-4"><Plus size={15} /> Avulso</AdminButton>
           </div>
         </div>
       </Section>
