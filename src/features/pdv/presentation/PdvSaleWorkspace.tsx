@@ -424,7 +424,7 @@ export function PdvSaleWorkspace({
       const amount = currencyNumber(entry.payment.amount);
       if (amount <= 0) return "Todos os pagamentos precisam ter valor maior que zero.";
       if (entry.method.method_type === "cash" && currencyNumber(entry.payment.tenderedAmount) < amount) {
-        return "O valor recebido em dinheiro não pode ser menor que o valor aplicado.";
+        return "O valor recebido em dinheiro não pode ser menor que o valor usado na venda.";
       }
     }
 
@@ -906,21 +906,22 @@ export function PdvSaleWorkspace({
             {paymentMethods.map((method, index) => {
               const selected = payments.some(payment => payment.paymentMethodId === method.id);
               const cashClosed = method.method_type === "cash" && !bootstrap.open_session;
-              const disabled = selected || cashClosed || !method.available_for_pdv;
+              const disabled = cashClosed || !method.available_for_pdv;
               return <button
                 key={method.id}
                 type="button"
                 disabled={disabled}
-                onClick={() => addPaymentMethod(method)}
+                aria-pressed={selected}
+                onClick={() => selected ? removePayment(method.id) : addPaymentMethod(method)}
                 className={cn(
                   "relative rounded-xl border p-3 text-left transition",
-                  selected ? "border-primary/30 bg-primary-soft text-primary" : "border-[#0d1b2e]/10 bg-white hover:border-primary/30 hover:bg-primary-soft/40",
-                  disabled && !selected && "cursor-default opacity-45",
+                  selected ? "border-primary bg-primary-soft text-primary ring-1 ring-primary/20 hover:bg-primary-soft-strong" : "border-[#0d1b2e]/10 bg-white hover:border-primary/30 hover:bg-primary-soft/40",
+                  disabled && "cursor-default opacity-45",
                 )}
               >
                 {index < 9 && <span className="absolute right-2 top-2 rounded border border-current/15 px-1 py-0.5 text-[8px] font-black opacity-70">{index + 1}</span>}
                 <p className="truncate pr-5 text-xs font-black">{method.name}</p>
-                <p className="mt-1 truncate text-[9px] text-[#7a8aa0]">{cashClosed ? "Abra o caixa" : method.financial_account_name || paymentTypeLabel(method.method_type)}</p>
+                <p className="mt-1 truncate text-[9px] text-[#7a8aa0]">{cashClosed ? "Abra o caixa" : selected ? "Selecionado · clique para remover" : method.financial_account_name || paymentTypeLabel(method.method_type)}</p>
               </button>;
             })}
           </div>
@@ -937,11 +938,11 @@ export function PdvSaleWorkspace({
 
               <div className={cn("mt-3 flex min-w-0 flex-col gap-3", method.method_type === "cash" && "sm:flex-row sm:[&>div]:min-w-0 sm:[&>div]:flex-1")}>
                 <div>
-                  <FCurrencyInput label="Valor aplicado" value={payment.amount} onChange={(event: any) => updatePayment(method.id, { amount: event.target.value })} />
+                  <FCurrencyInput label="Valor usado na venda" value={payment.amount} onChange={(event: any) => updatePayment(method.id, { amount: event.target.value })} />
                   <button type="button" onClick={() => fillRemaining(method.id)} className="mt-1 text-[9px] font-bold text-primary hover:underline">Usar valor restante</button>
                 </div>
                 {method.method_type === "cash" && <div>
-                  <FCurrencyInput label="Valor recebido" value={payment.tenderedAmount} onChange={(event: any) => updatePayment(method.id, { tenderedAmount: event.target.value })} />
+                  <FCurrencyInput label="Valor recebido do cliente" value={payment.tenderedAmount} onChange={(event: any) => updatePayment(method.id, { tenderedAmount: event.target.value })} />
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     <button type="button" onClick={() => updatePayment(method.id, { tenderedAmount: payment.amount })} className="rounded-md border border-[#0d1b2e]/10 px-2 py-1 text-[9px] font-bold text-muted-foreground hover:border-primary/30 hover:text-primary">Exato</button>
                     {quickCashValues(currencyNumber(payment.amount)).map(value => <button
@@ -954,19 +955,21 @@ export function PdvSaleWorkspace({
                 </div>}
               </div>
 
-              {method.method_type === "cash" && currencyNumber(payment.tenderedAmount) >= currencyNumber(payment.amount) && currencyNumber(payment.amount) > 0 && <p className="mt-2 text-right text-[10px] font-bold text-emerald-700">Troco: {formatCurrency(Math.max(0, currencyNumber(payment.tenderedAmount) - currencyNumber(payment.amount)))}</p>}
+              {method.method_type === "cash" && currencyNumber(payment.tenderedAmount) >= currencyNumber(payment.amount) && currencyNumber(payment.amount) > 0 && <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-800">
+                <span className="text-xs font-black uppercase tracking-[0.12em]">Troco</span>
+                <strong className="text-2xl font-black">{formatCurrency(Math.max(0, currencyNumber(payment.tenderedAmount) - currencyNumber(payment.amount)))}</strong>
+              </div>}
             </div>)}
           </div>
 
           <div className="sticky bottom-0 rounded-xl border border-border bg-card p-4">
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between gap-3 text-muted-foreground"><span>Total da venda</span><strong className="text-base text-foreground">{formatCurrency(total)}</strong></div>
-              <div className="flex items-center justify-between gap-3 text-muted-foreground"><span>Pagamentos</span><strong className="text-foreground">{formatCurrency(paymentTotal)}</strong></div>
+              <div className="flex items-center justify-between gap-3 text-muted-foreground"><span>Pagamentos</span><strong className="text-base text-foreground">{formatCurrency(paymentTotal)}</strong></div>
               <div className={cn("flex items-center justify-between gap-3 border-t border-border pt-2", Math.abs(remaining) < 0.01 ? "text-emerald-700" : "text-amber-700")}>
                 <span className="font-black">{remaining > 0 ? "Restante" : remaining < 0 ? "Excedente" : "Pagamento fechado"}</span>
                 <strong className="text-base">{formatCurrency(Math.abs(remaining))}</strong>
               </div>
-              {changeTotal > 0 && <div className="flex items-center justify-between gap-3 text-primary"><span>Troco</span><strong>{formatCurrency(changeTotal)}</strong></div>}
+              {changeTotal > 0 && <div className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800"><span className="font-black">Troco</span><strong className="text-xl font-black">{formatCurrency(changeTotal)}</strong></div>}
             </div>
           </div>
         </div>
