@@ -54,7 +54,7 @@ type CheckoutPayment = {
   tenderedAmount: string;
 };
 
-function useDebouncedValue(value: string, delay = 220) {
+function useDebouncedValue(value: string, delay = 320) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebounced(value), delay);
@@ -151,13 +151,23 @@ export function PdvSaleWorkspace({
   const productsQuery = useQuery({
     queryKey: queryKeys.pdv.products(organizationId || "none", debouncedSearch),
     queryFn: () => searchPdvProducts(organizationId, debouncedSearch, 30),
-    enabled: Boolean(organizationId && canSell),
+    enabled: Boolean(
+      organizationId
+      && canSell
+      && (debouncedSearch.trim().length === 0 || debouncedSearch.trim().length >= 2)
+    ),
   });
 
   const customersQuery = useQuery({
     queryKey: queryKeys.pdv.customers(organizationId || "none", debouncedCustomerSearch),
     queryFn: () => searchPdvCustomers(organizationId, debouncedCustomerSearch, 20),
-    enabled: Boolean(organizationId && canSell && checkoutOpen && !selectedCustomer),
+    enabled: Boolean(
+      organizationId
+      && canSell
+      && checkoutOpen
+      && !selectedCustomer
+      && (debouncedCustomerSearch.trim().length === 0 || debouncedCustomerSearch.trim().length >= 2)
+    ),
   });
 
   const products = productsQuery.data || [];
