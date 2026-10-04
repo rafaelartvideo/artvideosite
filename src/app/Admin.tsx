@@ -8,6 +8,7 @@ import { AdminHeader } from "@/features/admin-shell/presentation/AdminHeader";
 import { AdminLayout } from "@/features/admin-shell/presentation/AdminLayout";
 import { AdminHubPage } from "@/features/admin-shell/presentation/AdminNavigation";
 import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
+import { PlatformCrmHub } from "@/features/admin-shell/presentation/PlatformCrmHub";
 import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -55,7 +56,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "dashboard", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "terms", "contact",
+  "dashboard", "crm", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "terms", "contact",
 ];
 
 function NoEnabledModules() {
@@ -75,6 +76,7 @@ export function AdminDashboard({
   const route = resolveAdminRoute(location.pathname);
   const activeTab = route.tab;
   const locationState = (location.state as AdminLocationState | null) || null;
+  const requestedCrmMode = activeTab === "crm" || new URLSearchParams(location.search).get("mode") === "crm";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState<AdminPageState>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -83,13 +85,14 @@ export function AdminDashboard({
   const activeOrganizationName = activeOrganization?.organization_name || null;
   const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
   const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
-  const activeMenuTab: AdminTab = locationState?.menuTab || activeTab;
+  const crmMode = isPlatformOperatorOrganization && requestedCrmMode;
+  const activeMenuTab: AdminTab = crmMode ? "crm" : (locationState?.menuTab || activeTab);
 
   const canAccessTab = (tab: AdminTab) => {
-    if (tab === "crm") return false;
-    if (tab === "settings" && isPlatformOperatorOrganization) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
-    if (tab === "finance" && isPlatformOperatorOrganization) return hasPermission("platform.billing.view");
-    if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
+    if (tab === "crm") return isPlatformOperatorOrganization;
+    if (tab === "settings" && isPlatformOperatorOrganization && !crmMode) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
+    if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
+    if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled(tab, hasModule);
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
     if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
@@ -108,9 +111,12 @@ export function AdminDashboard({
     tab: AdminTab,
     resourceId?: string | null,
     subpage?: string | null,
-    options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"] },
+    options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"]; crmMode?: boolean },
   ) => {
-    navigate(adminPath(tab, resourceId, subpage), {
+    const nextCrmMode = options?.crmMode ?? crmMode;
+    const basePath = adminPath(tab, resourceId, subpage);
+    const targetPath = nextCrmMode && tab !== "crm" ? `${basePath}?mode=crm` : basePath;
+    navigate(targetPath, {
       replace: options?.replace,
       state: options?.menuTab || options?.origin
         ? { menuTab: options?.menuTab, origin: options?.origin }
@@ -147,7 +153,10 @@ export function AdminDashboard({
     return () => observer.disconnect();
   }, [mobileLabelModule, activeTab, route.resourceId, route.subpage]);
 
-  const backToParent = (tab: AdminTab) => navigateAdmin(parentAdminTab(tab) || "dashboard");
+  const backToParent = (tab: AdminTab) => crmMode
+    ? navigateAdmin("crm", null, null, { crmMode: true })
+    : navigateAdmin(parentAdminTab(tab) || "dashboard");
+  const crmHub = <PlatformCrmHub onSelect={tab => navigateAdmin(tab, null, null, { crmMode: true })} />;
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const toolItems = [
@@ -184,7 +193,7 @@ export function AdminDashboard({
   const toolsContent = route.resourceId === "union-senhas"
     ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
     : toolsHub;
-  const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("dashboard", null, null, { replace: true }); };
+  const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("dashboard", null, null, { replace: true, crmMode: false }); };
 
   const sidebar = <AdminSidebar
     activeTab={activeMenuTab}
@@ -192,7 +201,7 @@ export function AdminDashboard({
     activeOrganizationId={activeOrganizationId}
     hasPermission={hasPermission}
     hasModule={hasModule}
-    onNavigate={tab => navigateAdmin(tab)}
+    onNavigate={tab => navigateAdmin(tab, null, null, { crmMode: tab === "crm" })}
     onBackToSite={onBackToSite}
   />;
 
@@ -214,7 +223,8 @@ export function AdminDashboard({
     />}>
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
         {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes key={activeTab}>
-            <Route index element={isPlatformOperatorOrganization ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
+            <Route index element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
+            <Route path="crm" element={crmHub} />
             <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("dashboard")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
             <Route path="audit/*" element={<TabAuditLog />} />
             <Route path="site" element={siteHub} />
@@ -234,10 +244,10 @@ export function AdminDashboard({
             <Route path="operation/roles/*" element={<TabRoles onBack={() => backToParent("roles")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("roles")} />} />
             <Route path="operation/employees/*" element={<Navigate to="/admin/operation/roles" replace />} />
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
-            <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization} onBack={() => isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
+            <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization && !crmMode} onBack={() => crmMode ? navigateAdmin("crm", null, null, { crmMode: true }) : isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
-            <Route path="orders/*" element={isPlatformOperatorOrganization
+            <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode
               ? <UnionOrderMonitor initialOrderId={route.resourceId} onOrderRouteChange={orderId => orderId ? navigateOrderRoute(orderId) : closeOrderRoute()} />
               : <TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={navigateOrderRoute} onOrderRouteClose={closeOrderRoute} />} />
             <Route path="agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
@@ -246,7 +256,7 @@ export function AdminDashboard({
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
             <Route path="products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />
             <Route path="pdv/*" element={<TabPdv routeResourceId={route.resourceId} onRouteChange={routeChange("pdv")} />} />
-            <Route path="finance/*" element={isPlatformOperatorOrganization ? <UnionPlatformFinance /> : <TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
+            <Route path="finance/*" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformFinance /> : <TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
             <Route path="settings/*" element={<Navigate to={adminPath("settings", route.resourceId, route.subpage)} replace />} />
             <Route path="contact/*" element={<TabContact />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
