@@ -38,6 +38,7 @@ export function AdminSidebar({
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "crm") return isPlatformOperatorOrganization;
+    if (isPlatformOperatorOrganization && ["quotes", "inventory", "pdv", "finance"].includes(tab)) return false;
     if (tab === "partnerCompanies" && !isPlatformOperatorOrganization) return false;
     if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled(tab, hasModule);
@@ -53,7 +54,7 @@ export function AdminSidebar({
   const canAccessSite = hasPermission("site.view") && siteItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
-  const canAccessOperation = operationItems.some(item =>
+  const canAccessOperation = !isPlatformOperatorOrganization && operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
   const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization || canAccessTab("fieldTracking");
