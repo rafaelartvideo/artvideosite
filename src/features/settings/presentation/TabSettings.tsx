@@ -8,6 +8,7 @@ import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { formatCnpj, formatPhone, isValidBrazilianPhone, isValidCnpj, isValidEmail } from "@/shared/domain/formatters";
 import { formatZipCode } from "@/lib/address";
+import { QueueIntegrationSettingsSection } from "@/features/queue-integration/presentation/QueueIntegrationSettingsSection";
 
 type CompanyForm = {
   company_name: string;
@@ -136,6 +137,7 @@ export function TabSettings({ onBack }: {
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo do menu" />
         </div></Section>
+        {activeOrganizationId && <QueueIntegrationSettingsSection organizationId={activeOrganizationId} canUpdate={canUpdate} />}
       </div>
       <AdminStickyToolbar><BtnSecondary onClick={onBack} disabled={busy}>Voltar</BtnSecondary>{canUpdate && <BtnPrimary onClick={save} loading={saveSettings.isPending} loadingText="Salvando...">Salvar</BtnPrimary>}</AdminStickyToolbar>
   </div>;
