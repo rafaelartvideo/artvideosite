@@ -428,3 +428,48 @@ export async function loadPdvCashSessionReport(
   if (error) throw error;
   return data as PdvCashSessionReport;
 }
+
+const PDV_TERMINAL_KEY = "union-pdv-terminal-id";
+const PDV_TERMINAL_SYNC_KEY = "union-pdv-terminal-last-sync";
+
+function getOrCreatePdvTerminalKey() {
+  if (typeof window === "undefined") return "";
+  try {
+    let key = window.localStorage.getItem(PDV_TERMINAL_KEY);
+    if (!key) {
+      key = window.crypto?.randomUUID?.() || ("pdv-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+      window.localStorage.setItem(PDV_TERMINAL_KEY, key);
+    }
+    return key;
+  } catch {
+    return "";
+  }
+}
+
+export async function registerCurrentPdvTerminal(organizationId: string): Promise<void> {
+  const org = requiredOrganizationId(organizationId);
+  if (typeof window === "undefined") return;
+
+  const terminalKey = getOrCreatePdvTerminalKey();
+  if (!terminalKey) return;
+
+  try {
+    const previous = Number(window.localStorage.getItem(PDV_TERMINAL_SYNC_KEY) || 0);
+    if (Date.now() - previous < 12 * 60 * 60 * 1000) return;
+  } catch {}
+
+  const platform = typeof navigator !== "undefined" ? navigator.platform || navigator.userAgent || "Navegador" : "Navegador";
+  const label = "PDV - " + platform.slice(0, 80);
+
+  const { error } = await supabase.rpc("register_pdv_terminal_v1", {
+    p_organization_id: org,
+    p_terminal_key: terminalKey,
+    p_label: label,
+    p_metadata: { user_agent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 500) : null },
+  });
+  if (error) throw error;
+
+  try {
+    window.localStorage.setItem(PDV_TERMINAL_SYNC_KEY, String(Date.now()));
+  } catch {}
+}
