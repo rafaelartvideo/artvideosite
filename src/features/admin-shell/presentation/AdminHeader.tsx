@@ -403,6 +403,8 @@ export function AdminHeader({
     loading={notifications.isLoading}
     onOpen={notification => void openNotification(notification)}
     onMarkAllRead={() => void notifications.markAllRead()}
+    onDismiss={notification => void notifications.dismiss(notification)}
+    onDismissAll={() => void notifications.dismissAll()}
   />;
 
   return (
