@@ -82,6 +82,7 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
   if (detail.entry_type !== "receivable" || !canView) return null;
   const logs = query.data || [];
   const error = query.error || mutation.error;
+  const errorText = error ? systemErrorMessage(error) : "";
   useEffect(() => {
     if (error) notifyAdmin(systemErrorMessage(error), "error");
   }, [error]);
