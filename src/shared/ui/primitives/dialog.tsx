@@ -188,7 +188,7 @@ function DialogContent({
           onClick={minimize}
           className={cn(
             "absolute top-4 inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            showClose ? "right-12" : "right-4",
+            "right-12",
           )}
           aria-label={`Minimizar ${dockTitle}`}
           title="Minimizar"
