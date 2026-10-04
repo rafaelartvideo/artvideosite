@@ -43,6 +43,7 @@ export function useOrderSituationDocuments({
   const documentsQuery = useQuery({
     queryKey,
     enabled: Boolean(orderId && effectiveOrganizationId && hasPermission("orders.section.images")),
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await listOrderSituationDocuments(orderId!, effectiveOrganizationId);
       if (error) throw error;
@@ -53,6 +54,7 @@ export function useOrderSituationDocuments({
   const attachmentTypesQuery = useQuery({
     queryKey: ["documents", effectiveOrganizationId || "none", "attachment-types", "active"],
     enabled: Boolean(orderId && effectiveOrganizationId && hasPermission("orders.section.images")),
+    staleTime: 30 * 60_000,
     queryFn: async () => {
       const { data, error } = await listAttachmentTypes(true, effectiveOrganizationId);
       if (error) throw error;
