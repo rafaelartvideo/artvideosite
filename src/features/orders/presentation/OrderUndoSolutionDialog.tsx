@@ -55,7 +55,6 @@ export function OrderUndoSolutionDialog({
       <label className="block">
         <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Motivo *</span>
         <textarea
-          autoFocus
           value={reason}
           onChange={event => setReason(event.target.value)}
           rows={5}
