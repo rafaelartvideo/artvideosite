@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Search } from "lucide-react";
+import { Eraser, MoreVertical, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -210,9 +210,11 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
         {hasActiveFilters && <button
           type="button"
           onClick={clearFilters}
-          className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80"
+          aria-label="Limpar filtros"
+          title="Limpar filtros"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
         >
-          Limpar filtros
+          <Eraser size={13} /> Limpar filtros
         </button>}
       </div>
 
