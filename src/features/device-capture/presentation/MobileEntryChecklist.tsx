@@ -77,10 +77,15 @@ export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; 
     };
 
     void load(true);
-    const timer = window.setInterval(() => void load(false), 10000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load(false);
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
     };
   }, [sessionId, token]);
 
