@@ -100,6 +100,9 @@ values
   ('audit_retention_days', 'Retenção da auditoria', 'Período de retenção previsto para o histórico de auditoria.', 'days', 80),
   ('field_devices', 'Dispositivos de campo', 'Dispositivos previstos no módulo Mapa de Campo.', 'count', 90),
   ('queue_units', 'Unidades Union Senhas', 'Unidades previstas no módulo de fila eletrônica.', 'count', 100),
+  ('queue_displays', 'Displays da fila', 'Quantidade de TVs/displays previstos no Union Senhas.', 'count', 105),
+  ('queue_kiosks', 'Kiosks da fila', 'Quantidade de pontos de retirada de senha previstos.', 'count', 106),
+  ('queue_attendants', 'Atendentes da fila', 'Quantidade de atendentes previstos no módulo de fila.', 'count', 107),
   ('pbx_extensions', 'Ramais PABX', 'Ramais previstos no módulo PABX Union.', 'count', 110),
   ('ai_credits', 'Créditos de IA', 'Franquia de créditos de IA prevista no contrato.', 'credits', 120)
 on conflict (key) do update set
@@ -120,6 +123,7 @@ values
   ('white_label', 'White label', 'Permite identidade personalizada do produto conforme contrato.', 60),
   ('custom_domain', 'Domínio próprio', 'Permite domínio próprio conforme configuração contratada.', 70),
   ('marketplace_catalog', 'Catálogo no Marketplace', 'Permite publicar catálogo no ecossistema Union.', 80),
+  ('advanced_backup_export', 'Backup e exportação avançados', 'Libera rotinas avançadas de backup e exportação previstas no contrato.', 85),
   ('priority_support', 'Suporte prioritário', 'Atendimento prioritário conforme política comercial.', 90),
   ('dedicated_support', 'Suporte dedicado', 'Atendimento dedicado conforme contrato Enterprise.', 100)
 on conflict (key) do update set
@@ -181,6 +185,49 @@ from defaults
 join public.platform_billing_plans plan
   on lower(btrim(plan.name)) = defaults.plan_name
 on conflict (plan_id, feature_key) do nothing;
+
+
+-- Catálogo comercial inicial. Tudo permanece configurável e sem enforcement.
+insert into public.platform_billing_addons
+  (code, name, description, amount, billing_type, module_key, limit_deltas, feature_grants, settings, is_active)
+values
+  ('extra_users_5', '5 usuários adicionais', 'Adiciona cinco usuários ativos ao contrato.', 49.90, 'fixed', null, '{"users":5}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('storage_10gb', '10 GB adicionais', 'Adiciona 10 GB ao armazenamento contratado.', 19.90, 'fixed', null, '{"storage_bytes":10737418240}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('storage_50gb', '50 GB adicionais', 'Adiciona 50 GB ao armazenamento contratado.', 59.90, 'fixed', null, '{"storage_bytes":53687091200}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('storage_100gb', '100 GB adicionais', 'Adiciona 100 GB ao armazenamento contratado.', 99.90, 'fixed', null, '{"storage_bytes":107374182400}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('extra_branch', 'Unidade/filial adicional', 'Adiciona uma unidade ou filial ao contrato.', 49.00, 'per_unit', null, '{"branches":1}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+
+  ('field_map', 'Mapa de Campo', 'Módulo de rastreamento com três dispositivos previstos.', 79.00, 'fixed', 'field_tracking', '{"field_devices":3}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('field_device_extra', 'Dispositivo de campo adicional', 'Adiciona um dispositivo ao Mapa de Campo.', 12.00, 'per_unit', 'field_tracking', '{"field_devices":1}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+
+  ('queue', 'Union Senhas', 'Fila eletrônica para uma unidade, com um display, um kiosk e cinco atendentes previstos.', 129.00, 'fixed', 'queue', '{"queue_units":1,"queue_displays":1,"queue_kiosks":1,"queue_attendants":5}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('queue_extra_unit', 'Unidade Union Senhas adicional', 'Adiciona uma unidade completa ao módulo de fila.', 129.00, 'per_unit', 'queue', '{"queue_units":1,"queue_displays":1,"queue_kiosks":1}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('queue_display_extra', 'Display adicional da fila', 'Adiciona uma TV/display ao Union Senhas.', 19.90, 'per_unit', 'queue', '{"queue_displays":1}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('queue_kiosk_extra', 'Kiosk adicional da fila', 'Adiciona um ponto de retirada de senha.', 29.90, 'per_unit', 'queue', '{"queue_kiosks":1}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('queue_attendants_10', '10 atendentes adicionais da fila', 'Adiciona dez atendentes ao Union Senhas.', 29.90, 'fixed', 'queue', '{"queue_attendants":10}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+
+  ('pbx', 'PABX Union', 'Telefonia com cinco ramais previstos.', 99.00, 'fixed', 'pbx', '{"pbx_extensions":5}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('pbx_extension_extra', 'Ramal PABX adicional', 'Adiciona um ramal ao PABX Union.', 15.00, 'per_unit', 'pbx', '{"pbx_extensions":1}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+
+  ('custom_domain', 'Domínio próprio', 'Libera domínio próprio conforme configuração contratada.', 29.90, 'fixed', null, '{}'::jsonb, '{"custom_domain":true}'::jsonb, '{}'::jsonb, true),
+  ('white_label', 'White label', 'Libera identidade personalizada conforme contrato.', 149.00, 'fixed', null, '{}'::jsonb, '{"white_label":true}'::jsonb, '{}'::jsonb, true),
+  ('api_access', 'Acesso à API', 'Libera acesso comercial à API externa.', 49.00, 'fixed', null, '{}'::jsonb, '{"api_access":true}'::jsonb, '{}'::jsonb, true),
+  ('webhooks', 'Webhooks', 'Libera integrações por webhooks.', 29.00, 'fixed', null, '{}'::jsonb, '{"webhooks":true}'::jsonb, '{}'::jsonb, true),
+  ('advanced_backup_export', 'Backup/exportação avançados', 'Libera recursos avançados de backup e exportação.', 29.00, 'fixed', null, '{}'::jsonb, '{"advanced_backup_export":true}'::jsonb, '{}'::jsonb, true),
+
+  ('ai_credits_100', 'IA — 100 créditos', 'Pacote com 100 créditos de IA.', 19.90, 'fixed', 'ai', '{"ai_credits":100}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('ai_credits_500', 'IA — 500 créditos', 'Pacote com 500 créditos de IA.', 59.90, 'fixed', 'ai', '{"ai_credits":500}'::jsonb, '{}'::jsonb, '{}'::jsonb, true),
+  ('ai_credits_2000', 'IA — 2.000 créditos', 'Pacote com 2.000 créditos de IA.', 149.90, 'fixed', 'ai', '{"ai_credits":2000}'::jsonb, '{}'::jsonb, '{}'::jsonb, true)
+on conflict (code) do update set
+  name = excluded.name,
+  description = excluded.description,
+  amount = excluded.amount,
+  billing_type = excluded.billing_type,
+  module_key = excluded.module_key,
+  limit_deltas = excluded.limit_deltas,
+  feature_grants = excluded.feature_grants,
+  settings = excluded.settings,
+  is_active = excluded.is_active;
 
 create or replace function public.load_union_subscription_configuration_v1()
 returns jsonb
