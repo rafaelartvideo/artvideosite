@@ -27,6 +27,7 @@ function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   const manager = useOptionalAdminDialogManager();
+  const unregisterDialog = manager?.unregisterDialog;
   const ownerKey = useAdminDialogOwner();
   const id = React.useId();
   const [internalOpen, setInternalOpen] = React.useState(Boolean(defaultOpen));
@@ -39,12 +40,12 @@ function Dialog({
   }, [open, onOpenChange]);
 
   React.useEffect(() => {
-    if (!effectiveOpen) manager?.unregisterDialog(id);
-  }, [effectiveOpen, id, manager]);
+    if (!effectiveOpen) unregisterDialog?.(id);
+  }, [effectiveOpen, id, unregisterDialog]);
 
   React.useEffect(() => () => {
-    manager?.unregisterDialog(id);
-  }, [id, manager]);
+    unregisterDialog?.(id);
+  }, [id, unregisterDialog]);
 
   const runtime = React.useMemo<DialogRuntimeValue>(() => ({
     id,
@@ -98,7 +99,7 @@ function DialogOverlay({
   );
 }
 
-function minimizeCurrentDialog(title: string) {
+function useDialogMinimizeAction(title: string) {
   const runtime = React.useContext(DialogRuntimeContext);
   const manager = useOptionalAdminDialogManager();
 
@@ -122,7 +123,7 @@ function DialogMinimizeButton({
 }) {
   const runtime = React.useContext(DialogRuntimeContext);
   const manager = useOptionalAdminDialogManager();
-  const minimize = minimizeCurrentDialog(title);
+  const minimize = useDialogMinimizeAction(title);
 
   if (!runtime || !manager || runtime.minimized) return null;
 
@@ -164,7 +165,7 @@ function DialogContent({
   const canMinimize = Boolean((minimizable ?? isAdminDialog) && runtime && manager);
   const fallbackTitle = typeof props["aria-label"] === "string" ? props["aria-label"] : "Janela minimizada";
   const dockTitle = minimizedTitle || fallbackTitle;
-  const minimize = minimizeCurrentDialog(dockTitle);
+  const minimize = useDialogMinimizeAction(dockTitle);
 
   if (canMinimize && runtime?.minimized) return null;
 
