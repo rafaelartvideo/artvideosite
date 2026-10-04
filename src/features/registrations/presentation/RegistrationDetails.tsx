@@ -54,7 +54,8 @@ type RegistrationDetailsProps = {
 };
 
 export function RegistrationDetails({ selected, supplierItems, accessForm, accessExisting, accessLoading, permissionUserId, canViewAccess, canViewPermissionOverrides, canEdit, onClose, onEdit, onOpenContacts, onOpenRecords, onOpenCustomerHistory, onOpenPermissions }: RegistrationDetailsProps) {
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
+  const platformUsersOnly = activeOrganization?.is_platform_operator === true;
   const roles = activeRegistrationRoles(selected);
   const employee = selected.employee_details?.[0];
   const employeeRecord = selected.legacy_employee;
@@ -67,13 +68,15 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
   const canViewRecords = hasPermission("registrations.records.view") || canCreateRecords;
   const canOpenPermissions = roles.includes("employee") && Boolean(permissionUserId) && canViewPermissionOverrides;
 
-  return <AdminPage open onClose={onClose} breadcrumb="Cadastros" title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-7xl">
+  return <AdminPage open onClose={onClose} breadcrumb={platformUsersOnly ? "Usuários" : "Cadastros"} title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-7xl">
     <div className="space-y-5 p-4 sm:p-5">
       <div className="flex min-w-0 flex-wrap items-center justify-center gap-3 py-1">
-        <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
-          {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
-        </div>
-        <div className="hidden h-7 w-px shrink-0 bg-[#0d1b2e]/14 sm:block" aria-hidden="true" />
+        {!platformUsersOnly && <>
+          <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
+            {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
+          </div>
+          <div className="hidden h-7 w-px shrink-0 bg-[#0d1b2e]/14 sm:block" aria-hidden="true" />
+        </>}
         <RegistrationDetailsToolbar
           canViewContacts={Boolean(activeOrganizationId && canViewContacts)}
           canViewRecords={Boolean(activeOrganizationId && canViewRecords)}
