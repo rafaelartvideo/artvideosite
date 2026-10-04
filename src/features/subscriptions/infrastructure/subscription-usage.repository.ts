@@ -18,7 +18,9 @@ export type OrganizationPlanUsageData = {
     billing_day?: number | null;
   };
   limits: Record<string, number>;
-  usage: Record<string, number>;\n  usage_sources: Record<string, "measured" | "configured" | "manual" | "not_tracked">;\n  usage_measured_at?: string | null;
+  usage: Record<string, number>;
+  usage_sources: Record<string, "measured" | "configured" | "manual" | "not_tracked">;
+  usage_measured_at?: string | null;
   features: Record<string, boolean>;
   modules: Array<{ key: string; name: string; source: "plan" | "addon" }>;
   addons: Array<{
