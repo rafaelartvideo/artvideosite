@@ -314,7 +314,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   }, [loadItems, order?.id]);
 
   useEffect(() => {
-    if (!editable || !order?.id) return;
+    if (!editable || !order?.id || !productSearchOpen || selectedProduct) return;
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       setProductSearching(true);
@@ -326,12 +326,12 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       } finally {
         if (!cancelled) setProductSearching(false);
       }
-    }, 180);
+    }, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [editable, order?.id, productSearch]);
+  }, [editable, order?.id, productSearch, productSearchOpen, selectedProduct]);
 
   useEffect(() => {
-    if (!editable || !order?.id) return;
+    if (!editable || !order?.id || !serviceSearchOpen || selectedService) return;
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       setServiceSearching(true);
@@ -343,9 +343,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       } finally {
         if (!cancelled) setServiceSearching(false);
       }
-    }, 180);
+    }, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [editable, order?.id, serviceSearch]);
+  }, [editable, order?.id, serviceSearch, serviceSearchOpen, selectedService]);
 
   const selectProduct = (option: OrderCatalogOption) => {
     if (option.stock != null && option.stock <= 0) {
