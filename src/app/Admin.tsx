@@ -88,6 +88,7 @@ export function AdminDashboard({
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "crm") return isPlatformOperatorOrganization;
+    if (tab === "settings" && isPlatformOperatorOrganization) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled(tab, hasModule);
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
@@ -240,7 +241,7 @@ export function AdminDashboard({
             <Route path="operation/roles/*" element={<TabRoles onBack={() => backToParent("roles")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("roles")} />} />
             <Route path="operation/employees/*" element={<Navigate to="/admin/operation/roles" replace />} />
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
-            <Route path="operation/company/*" element={<TabSettings onBack={() => backToParent("settings")} />} />
+            <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization} onBack={() => isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode
