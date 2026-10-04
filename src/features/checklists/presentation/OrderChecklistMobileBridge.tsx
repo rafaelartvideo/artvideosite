@@ -6,6 +6,12 @@ import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import {
+  mobileSessionConnected,
+  mobileSessionDisconnectDelay,
+  subscribeMobileSessionRealtime,
+  type MobileSessionRealtimeRow,
+} from "@/features/device-capture/infrastructure/mobile-session-realtime";
+import {
   closeMobileOrderChecklistSession,
   createMobileOrderChecklistSession,
   pollMobileOrderChecklistSession,
@@ -37,7 +43,7 @@ export function OrderChecklistMobileBridge({
   const [savedChanges, setSavedChanges] = useState(0);
   const sessionRef = useRef<MobileOrderChecklistSession | null>(null);
   const lastChecklistUpdateRef = useRef("");
-  const pollingRef = useRef(false);
+  const disconnectTimerRef = useRef<number | null>(null);
 
   sessionRef.current = session;
 
@@ -85,44 +91,76 @@ export function OrderChecklistMobileBridge({
     if (!session || expired) return;
     let cancelled = false;
 
-    const poll = async () => {
-      if (cancelled || pollingRef.current || document.visibilityState !== "visible") return;
-      pollingRef.current = true;
+    const clearDisconnectTimer = () => {
+      if (disconnectTimerRef.current !== null) {
+        window.clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
+    };
+
+    const applyUpdatedAt = (updatedAt: string) => {
+      if (!updatedAt || updatedAt === lastChecklistUpdateRef.current) return;
+      if (lastChecklistUpdateRef.current) setSavedChanges(current => current + 1);
+      else setSavedChanges(1);
+      lastChecklistUpdateRef.current = updatedAt;
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.checklists.order(orderId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
+      ]);
+    };
+
+    const applySessionRow = (row: MobileSessionRealtimeRow) => {
+      if (cancelled) return;
+      clearDisconnectTimer();
+
+      const status = String(row.status || "active");
+      const expiresAt = row.expires_at ? Date.parse(row.expires_at) : NaN;
+      const isExpired = status !== "active" || (Number.isFinite(expiresAt) && expiresAt <= Date.now());
+      if (isExpired) {
+        setExpired(true);
+        setConnected(false);
+        return;
+      }
+
+      const isConnected = mobileSessionConnected(row);
+      setConnected(isConnected);
+      if (isConnected) {
+        const delay = mobileSessionDisconnectDelay(row);
+        disconnectTimerRef.current = window.setTimeout(() => {
+          if (!cancelled) setConnected(false);
+        }, Math.max(1_000, delay + 250));
+      }
+
+      applyUpdatedAt(String(row.order_updated_at || ""));
+    };
+
+    const loadInitialState = async () => {
       try {
         const result = await pollMobileOrderChecklistSession(session.id);
         if (cancelled) return;
-
-        const status = String(result.status || "active");
         setConnected(Boolean(result.connected));
-        if (status !== "active") {
+        if (String(result.status || "active") !== "active") {
           setExpired(true);
           setConnected(false);
         }
-
-        const updatedAt = String(result.checklist_updated_at || "");
-        if (updatedAt && updatedAt !== lastChecklistUpdateRef.current) {
-          if (lastChecklistUpdateRef.current) setSavedChanges(current => current + 1);
-          else setSavedChanges(1);
-          lastChecklistUpdateRef.current = updatedAt;
-          void Promise.all([
-            queryClient.invalidateQueries({ queryKey: queryKeys.checklists.order(orderId) }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
-          ]);
-        }
+        applyUpdatedAt(String(result.checklist_updated_at || ""));
       } catch (pollError) {
         if (!cancelled) {
           setError(pollError instanceof Error ? pollError.message : "Falha ao acompanhar o checklist no celular.");
         }
-      } finally {
-        pollingRef.current = false;
       }
     };
 
-    void poll();
-    const timer = window.setInterval(() => void poll(), 5000);
+    const unsubscribe = subscribeMobileSessionRealtime({
+      sessionId: session.id,
+      onSessionChange: applySessionRow,
+      onReady: () => void loadInitialState(),
+    });
+
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      clearDisconnectTimer();
+      unsubscribe();
     };
   }, [session?.id, expired, orderId, queryClient]);
 
