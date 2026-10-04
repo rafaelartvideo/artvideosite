@@ -2,8 +2,8 @@ import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, FileText, Mail, Package, PackagePlus, Printer, Tag  } from "lucide-react";
-import { AdminPage, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { CheckCircle2, ChevronDown, FileText, Mail, MessageCircle, Package, PackagePlus, Phone, Printer, Tag } from "lucide-react";
+import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { OrderChecklistsPage } from "@/features/checklists/presentation/OrderChecklistsPage";
@@ -71,6 +71,7 @@ type Props = {
   getSla: (serviceTypeId?: string, situationId?: string, relatedSituation?: any) => any;
   onEdit: (order: any) => void;
   onClose?: () => void;
+  monitorView?: boolean;
 };
 
 export function OrderDetailsPage(props: Props) {
@@ -79,7 +80,7 @@ export function OrderDetailsPage(props: Props) {
     resolution, completion, mutations, hasPermission, usedItemsTotal: detailUsedItemsTotal,
     formatDate: fmtDate, formatState: stateLabel, formatSolvedAt,
     formatCurrency, getSituations: getSituationsForType, getSla: getSlaForOrder,
-    onEdit: openEdit, onClose,
+    onEdit: openEdit, onClose, monitorView = false,
   } = props;
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
   const labelQrCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -90,19 +91,20 @@ export function OrderDetailsPage(props: Props) {
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
   const { statuses, situations } = workspace;
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
-  const canOpenDocumentsPage = hasPermission("orders.section.images") || hasPermission("documents.signatures.view");
-  const historyPageOpen = Boolean(detail) && routeSubpage === "history" && hasPermission("orders.section.history");
-  const documentsPageOpen = Boolean(detail) && routeSubpage === "documents" && canOpenDocumentsPage;
-  const partRequestsPageOpen = Boolean(detail) && routeSubpage === "part-requests" && hasPermission("orders.section.parts");
-  const slaRecordsPageOpen = Boolean(detail) && routeSubpage === "sla-records" && hasPermission("orders.section.sla_cards");
-  const checklistsPageOpen = Boolean(detail) && routeSubpage === "checklists" && hasPermission("orders.section.checklists");
+  const effectiveRouteSubpage = monitorView ? null : routeSubpage;
+  const canOpenDocumentsPage = !monitorView && (hasPermission("orders.section.images") || hasPermission("documents.signatures.view"));
+  const historyPageOpen = Boolean(detail) && effectiveRouteSubpage === "history" && hasPermission("orders.section.history");
+  const documentsPageOpen = Boolean(detail) && effectiveRouteSubpage === "documents" && canOpenDocumentsPage;
+  const partRequestsPageOpen = Boolean(detail) && effectiveRouteSubpage === "part-requests" && hasPermission("orders.section.parts");
+  const slaRecordsPageOpen = Boolean(detail) && effectiveRouteSubpage === "sla-records" && hasPermission("orders.section.sla_cards");
+  const checklistsPageOpen = Boolean(detail) && effectiveRouteSubpage === "checklists" && hasPermission("orders.section.checklists");
   const routedSubpageOpen = historyPageOpen || documentsPageOpen || partRequestsPageOpen || slaRecordsPageOpen || checklistsPageOpen;
-  const routedSubpageDenied = Boolean(detail && (
-    (routeSubpage === "history" && !hasPermission("orders.section.history"))
-    || (routeSubpage === "documents" && !canOpenDocumentsPage)
-    || (routeSubpage === "part-requests" && !hasPermission("orders.section.parts"))
-    || (routeSubpage === "sla-records" && !hasPermission("orders.section.sla_cards"))
-    || (routeSubpage === "checklists" && !hasPermission("orders.section.checklists"))
+  const routedSubpageDenied = !monitorView && Boolean(detail && (
+    (effectiveRouteSubpage === "history" && !hasPermission("orders.section.history"))
+    || (effectiveRouteSubpage === "documents" && !canOpenDocumentsPage)
+    || (effectiveRouteSubpage === "part-requests" && !hasPermission("orders.section.parts"))
+    || (effectiveRouteSubpage === "sla-records" && !hasPermission("orders.section.sla_cards"))
+    || (effectiveRouteSubpage === "checklists" && !hasPermission("orders.section.checklists"))
   ));
   const slaVisits = useOrderSituationVisits(detail?.id, detail?.situation_id, detail?.situation_started_at);
   const { setViewImage, orderImages } = images;
@@ -133,6 +135,11 @@ export function OrderDetailsPage(props: Props) {
   const labelUrl = detail?.id && detail?.organization_id
     ? `${window.location.origin}/admin/orders/${encodeURIComponent(detail.id)}?org=${encodeURIComponent(detail.organization_id)}`
     : "";
+  const contactPhone = String((detail?.customer as any)?.phone || "").replace(/\D/g, "");
+  const contactWhatsappRaw = String((detail?.customer as any)?.whatsapp || (detail?.customer as any)?.phone || "").replace(/\D/g, "");
+  const contactWhatsapp = contactWhatsappRaw && !contactWhatsappRaw.startsWith("55") && contactWhatsappRaw.length <= 11
+    ? `55${contactWhatsappRaw}`
+    : contactWhatsappRaw;
 
   useEffect(() => {
     setSolutionRecordsOpen(false);
@@ -263,14 +270,14 @@ export function OrderDetailsPage(props: Props) {
       <div className="space-y-5 p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2"><StatusBadge status={(detail.order_status as any)?.name || "—"} color={(detail.order_status as any)?.color} />{(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}{detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={15} />OS solucionada</span>}</div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-[#0d1b2e]/10 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+          {!monitorView && <div className="flex flex-wrap items-center gap-2 border-t border-[#0d1b2e]/10 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
             {canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72"><DropdownMenuItem onSelect={event => { event.preventDefault(); printLabel(); }} className="flex cursor-pointer items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><Tag size={15} /></span><span className="min-w-0"><span className="block truncate font-semibold">Etiqueta</span><span className="block text-[10px] text-[#5a6a82]">60 × 40 mm • QR para abrir a OS</span></span></DropdownMenuItem>{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => <DropdownMenuItem key={template.id} disabled={Boolean(printingTemplateId)} onSelect={event => { event.preventDefault(); void printTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4"><span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>{printingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Preparando...</span>}</DropdownMenuItem>)}{printError && <DropdownMenuItem disabled className="max-w-72 whitespace-normal text-red-600">{printError}</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum outro modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
             {ORDER_EMAIL_ACTION_VISIBLE && canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Mail size={14} /> Enviar e-mail <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72">{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => <DropdownMenuItem key={template.id} disabled={Boolean(emailingTemplateId)} onSelect={event => { event.preventDefault(); void emailTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4"><span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>{emailingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Enviando...</span>}</DropdownMenuItem>)}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
             {hasPermission("orders.section.checklists") && <OrderChecklistToolbarButton orderId={detail.id} onClick={() => onOpenSubpage("checklists")} />}
             {hasPermission("orders.section.parts") && <button type="button" onClick={() => onOpenSubpage("part-requests")} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button>}
             {canOpenDocumentsPage && <button type="button" onClick={() => onOpenSubpage("documents")} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos{visibleDocumentCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{visibleDocumentCount}</span>}</button>}
             {hasPermission("orders.section.history") && <button type="button" onClick={() => onOpenSubpage("history")} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button>}
-          </div>
+          </div>}
         </div>
         {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
         <div className="border-b border-border">
@@ -285,13 +292,23 @@ export function OrderDetailsPage(props: Props) {
           formatCurrency={formatCurrency}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
         /> : <>
-          {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} visits={slaVisits.visits} onOpenRecords={() => onOpenSubpage("sla-records")} />}
+          {!monitorView && hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} visits={slaVisits.visits} onOpenRecords={() => onOpenSubpage("sla-records")} />}
           <OrderDetailsContent detail={detail} formatDate={fmtDate} formatState={stateLabel} getSla={getSlaForOrder} hasPermission={hasPermission} orderImages={orderImages} onViewImage={setViewImage} />
           <OrderFinancialSummary detail={detail} formatCurrency={formatCurrency} />
           <OrderSolutionSummary detail={detail} usedItems={detailUsedItems} solutionImages={detailSolutionImages} usedItemsTotal={detailUsedItemsTotal} solutionCount={solutionCount} activeAttempt={activeSolutionAttempt} canUndo={hasPermission("orders.solve") && !detail.completed_at} formatSolvedAt={formatSolvedAt} formatCurrency={formatCurrency} onViewImage={setViewImage} onOpenRecords={openSolutionRecords} onUndo={openUndoSolution} />
         </>}
       </div>
-      <OrderDetailsActions detail={detail} statuses={statuses} situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)} hasPermission={hasPermission} onClose={closePage} onStatusChange={statusId => updateOrderStatus(detail, statusId)} onSituationChange={situationId => { void updateOrderSituation(detail, situationId); }} onRequestParts={openPartRequestModal} onResolve={() => openSolveOrder(detail)} onComplete={openCompletion} onEdit={() => { void openEdit(detail); }} />
+      {monitorView ? <AdminStickyToolbar className="justify-between">
+        <BtnSecondary onClick={closePage}>Voltar</BtnSecondary>
+        <div className="flex items-center gap-2">
+          {contactPhone && <AdminButton variant="secondary" onClick={() => { window.location.href = `tel:${contactPhone}`; }}>
+            <Phone size={15} /> Ligar
+          </AdminButton>}
+          {contactWhatsapp && <BtnPrimary onClick={() => { window.open(`https://wa.me/${contactWhatsapp}`, "_blank", "noopener,noreferrer"); }}>
+            <MessageCircle size={15} /> WhatsApp
+          </BtnPrimary>}
+        </div>
+      </AdminStickyToolbar> : <OrderDetailsActions detail={detail} statuses={statuses} situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)} hasPermission={hasPermission} onClose={closePage} onStatusChange={statusId => updateOrderStatus(detail, statusId)} onSituationChange={situationId => { void updateOrderSituation(detail, situationId); }} onRequestParts={openPartRequestModal} onResolve={() => openSolveOrder(detail)} onComplete={openCompletion} onEdit={() => { void openEdit(detail); }} />}
     </AdminPage>}
   </>;
 }
