@@ -347,7 +347,7 @@ export function MobileOrderChecklistPage() {
       }
     };
 
-    const timer = window.setInterval(() => void ping(), 15000);
+    const timer = window.setInterval(() => void ping(), 20000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
