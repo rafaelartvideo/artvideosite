@@ -68,7 +68,7 @@ function registrationEmployeeKeys(payload: RealtimePayload) {
   const organizationId = textValue(row, "organization_id");
   const employeeId = textValue(row, "id") || textValue(row, "employee_id");
   const entityId = textValue(row, "entity_id");
-  const keys: QueryKey[] = [queryKeys.employees.all, queryKeys.orders.all, queryKeys.orders.workspace()];
+  const keys: QueryKey[] = [queryKeys.employees.all, queryKeys.orders.lists(), queryKeys.orders.workspace()];
   if (organizationId && employeeId) keys.push(queryKeys.registrations.access(organizationId, employeeId));
   else keys.push(queryKeys.registrations.accessAll);
   if (organizationId && entityId) keys.push(queryKeys.registrations.detail(organizationId, entityId));
@@ -76,16 +76,25 @@ function registrationEmployeeKeys(payload: RealtimePayload) {
   return keys;
 }
 
+function orderDetailKey(payload: RealtimePayload, idField = "service_order_id") {
+  const row = payloadRow(payload);
+  const orderId = textValue(row, idField);
+  return orderId ? queryKeys.orders.detail(orderId) : queryKeys.orders.details();
+}
+
 function serviceOrderKeys(payload: RealtimePayload) {
+  const row = payloadRow(payload);
+  const orderId = textValue(row, "id");
+  const organizationId = textValue(row, "organization_id");
   const keys: QueryKey[] = [
-    queryKeys.orders.all,
-    queryKeys.customers.all,
-    queryKeys.appointments.all,
-    queryKeys.admin.dashboard(),
+    orderId ? queryKeys.orders.detail(orderId) : queryKeys.orders.details(),
+    queryKeys.orders.lists(),
+    queryKeys.admin.all,
   ];
 
+  if (orderId) keys.push(queryKeys.orders.partRequests(orderId));
+
   if (payload.eventType === "INSERT" || payload.eventType === "DELETE") {
-    const organizationId = textValue(payloadRow(payload), "organization_id");
     keys.push(organizationId ? queryKeys.orders.total(organizationId) : queryKeys.orders.totals());
   }
 
@@ -94,15 +103,31 @@ function serviceOrderKeys(payload: RealtimePayload) {
 
 function serviceOrderPartRequestKeys(payload: RealtimePayload) {
   const serviceOrderId = textValue(payloadRow(payload), "service_order_id");
-  return [
-    serviceOrderId
-      ? queryKeys.orders.partRequests(serviceOrderId)
-      : queryKeys.orders.partRequestsAll,
-  ];
+  return serviceOrderId
+    ? [
+        queryKeys.orders.partRequests(serviceOrderId),
+        queryKeys.orders.detail(serviceOrderId),
+      ]
+    : [
+        queryKeys.orders.partRequestsAll,
+        queryKeys.orders.details(),
+      ];
+}
+
+function serviceOrderPartRequestItemKeys() {
+  // O item possui request_id, mas não service_order_id. Limitamos a invalidação
+  // às famílias de detalhe/peças, sem derrubar lista, clientes, agenda ou dashboard.
+  return [queryKeys.orders.partRequestsAll, queryKeys.orders.details()];
+}
+
+function checklistOrderKeys(payload: RealtimePayload) {
+  const serviceOrderId = textValue(payloadRow(payload), "service_order_id");
+  return serviceOrderId
+    ? [queryKeys.checklists.order(serviceOrderId)]
+    : [queryKeys.checklists.ordersAll];
 }
 
 const checklistConfigKeys: QueryKey[] = [queryKeys.checklists.all, queryKeys.equipment.all];
-const checklistOrderKeys: QueryKey[] = [queryKeys.checklists.ordersAll, queryKeys.orders.all];
 
 const organizationScopedRealtimeTables = new Set([
   "appointments",
@@ -183,8 +208,8 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "service_categories", keys: [queryKeys.publicSite.all, queryKeys.catalog.categories()] },
   { table: "products", keys: [queryKeys.publicSite.all, queryKeys.catalog.products(), queryKeys.orders.workspace()] },
   { table: "brands", keys: [queryKeys.publicSite.all, queryKeys.catalog.brands(), queryKeys.orders.workspace()] },
-  { table: "customers", keys: [queryKeys.customers.all, queryKeys.orders.all] },
-  { table: "customer_addresses", keys: [queryKeys.customers.all, queryKeys.orders.all] },
+  { table: "customers", keys: [queryKeys.customers.all, queryKeys.orders.lists()] },
+  { table: "customer_addresses", keys: [queryKeys.customers.all] },
   { table: "entities", keys: registrationEntityKeys },
   { table: "entity_roles", keys: registrationEntityKeys },
   { table: "entity_addresses", keys: registrationEntityKeys },
@@ -202,7 +227,7 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "service_order_checklists", keys: checklistOrderKeys },
   { table: "service_order_checklist_stages", keys: checklistOrderKeys },
   { table: "service_order_checklist_items", keys: checklistOrderKeys },
-  { table: "service_order_checklist_item_media", keys: [...checklistOrderKeys, queryKeys.orders.all] },
+  { table: "service_order_checklist_item_media", keys: checklistOrderKeys },
   { table: "equipment_types", keys: [queryKeys.equipment.all, queryKeys.orders.all, queryKeys.orders.workspace(), queryKeys.checklists.all] },
   { table: "equipment_brands", keys: [queryKeys.equipment.all, queryKeys.orders.all, queryKeys.orders.workspace()] },
   { table: "equipment_models", keys: [queryKeys.equipment.all, queryKeys.orders.all, queryKeys.orders.workspace()] },
@@ -213,15 +238,15 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "service_types", keys: [queryKeys.serviceTypes.all, queryKeys.orders.all, queryKeys.orders.workspace()] },
   { table: "service_type_situations", keys: [queryKeys.serviceTypes.all, queryKeys.orders.workspace()] },
   { table: "os_situations", keys: [queryKeys.orderSituations.all, queryKeys.orders.all, queryKeys.orders.workspace(), queryKeys.checklists.all] },
-  { table: "inventory_items", keys: [queryKeys.inventory.all, queryKeys.orders.all, queryKeys.registrations.supplierItemsAll] },
+  { table: "inventory_items", keys: [queryKeys.inventory.all, queryKeys.registrations.supplierItemsAll] },
   { table: "inventory_movements", keys: [queryKeys.inventory.all] },
   { table: "service_orders", keys: serviceOrderKeys },
-  { table: "service_order_status_history", keys: [queryKeys.orders.all, queryKeys.customers.all] },
+  { table: "service_order_status_history", keys: payload => [orderDetailKey(payload)] },
   { table: "service_order_part_requests", keys: serviceOrderPartRequestKeys },
-  { table: "service_order_part_request_items", keys: [queryKeys.orders.partRequestsAll] },
-  { table: "service_order_items", keys: [queryKeys.orders.all] },
-  { table: "service_order_used_items", keys: [queryKeys.orders.all, queryKeys.inventory.all] },
-  { table: "appointments", keys: [queryKeys.appointments.all, queryKeys.orders.all] },
+  { table: "service_order_part_request_items", keys: serviceOrderPartRequestItemKeys },
+  { table: "service_order_items", keys: payload => [orderDetailKey(payload)] },
+  { table: "service_order_used_items", keys: payload => [orderDetailKey(payload), queryKeys.inventory.all] },
+  { table: "appointments", keys: [queryKeys.appointments.all] },
   { table: "quote_requests", keys: [queryKeys.quotes.all, queryKeys.customers.all, queryKeys.admin.dashboard()] },
   { table: "quote_status_history", keys: [queryKeys.quotes.all, queryKeys.customers.all] },
   { table: "employees", keys: registrationEmployeeKeys },
@@ -250,7 +275,7 @@ export function QueryRealtimeSync() {
         window.setTimeout(() => {
           pending.delete(id);
           void queryClient.invalidateQueries({ queryKey });
-        }, 500),
+        }, 900),
       );
     };
 
