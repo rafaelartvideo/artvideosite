@@ -5,6 +5,7 @@ import {
   ArrowLeftRight,
   CircleHelp,
   Edit2,
+  Eraser,
   FileText,
   Image as ImageIcon,
   List,
@@ -880,7 +881,7 @@ export function TabProducts({
             }}
             className="bg-card text-red-600 hover:bg-red-50"
           >
-            Limpar filtros
+            <Eraser size={14} /> Limpar filtros
           </AdminButton>
         </div>}
       </AdminSearchPanel>}
