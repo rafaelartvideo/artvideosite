@@ -188,17 +188,20 @@ export function MobileDeviceCapturePage() {
     };
 
     setConnectionState("checking");
-    const unsubscribe = subscribeMobileSessionRealtime({
-      sessionId: pairing.sessionId,
-      presenceRole: "mobile",
-    });
     void connect();
 
     return () => {
       cancelled = true;
-      unsubscribe();
     };
   }, [pairing?.sessionId, pairing?.token]);
+
+  useEffect(() => {
+    if (!pairing || connectionState !== "connected") return;
+    return subscribeMobileSessionRealtime({
+      sessionId: pairing.sessionId,
+      presenceRole: "mobile",
+    });
+  }, [pairing?.sessionId, connectionState]);
 
   useEffect(() => {
     if (!pairing || !expiresAt || connectionState === "expired") return;
