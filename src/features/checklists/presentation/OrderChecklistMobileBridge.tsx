@@ -86,7 +86,7 @@ export function OrderChecklistMobileBridge({
     let cancelled = false;
 
     const poll = async () => {
-      if (cancelled || pollingRef.current) return;
+      if (cancelled || pollingRef.current || document.visibilityState !== "visible") return;
       pollingRef.current = true;
       try {
         const result = await pollMobileOrderChecklistSession(session.id);
@@ -119,7 +119,7 @@ export function OrderChecklistMobileBridge({
     };
 
     void poll();
-    const timer = window.setInterval(() => void poll(), 1500);
+    const timer = window.setInterval(() => void poll(), 5000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
