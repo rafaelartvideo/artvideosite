@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, List, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatDurationHours } from "@/shared/domain/formatters";
 import { ConfirmDialog, EmptyState, isHexColor, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -32,7 +33,7 @@ export function OSSituationsView({ onBack, routeResourceId, routeSubpage, onRout
   const showStatus = hasPermission("situations.table.status");
   const showActions = hasPermission("situations.table.actions");
   const queryClient = useQueryClient();
-  const situationsQuery = useQuery({ queryKey: queryKeys.orderSituations.lists(), queryFn: listOrderSituations, enabled: canView && (canViewTable || canCreate || canEdit) });
+  const situationsQuery = useQuery({ queryKey: queryKeys.orderSituations.lists(), queryFn: listOrderSituations, enabled: canView && (canViewTable || canCreate || canEdit), staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const items = situationsQuery.data ?? [];
   const loading = situationsQuery.isPending;
   const [editItem, setEditItem] = useState<any>(null);
