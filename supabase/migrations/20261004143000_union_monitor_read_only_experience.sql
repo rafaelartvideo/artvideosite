@@ -1,7 +1,6 @@
 -- Ajusta a experiência de monitoramento da Union World:
 -- 1) busca textual somente por OS / OS externa;
--- 2) contato da empresa parceira disponível apenas para OS monitorada;
--- 3) itens comerciais da OS participam do realtime.
+-- 2) contato da empresa parceira disponível apenas para OS monitorada.
 
 create or replace function public.list_union_monitored_orders_v2(
   p_search text default null,
@@ -148,19 +147,6 @@ revoke all on function public.get_union_monitored_order_contact(uuid) from publi
 revoke all on function public.get_union_monitored_order_contact(uuid) from anon;
 grant execute on function public.get_union_monitored_order_contact(uuid) to authenticated;
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_publication_tables
-    where pubname = 'supabase_realtime'
-      and schemaname = 'public'
-      and tablename = 'service_order_items'
-  ) then
-    alter publication supabase_realtime add table public.service_order_items;
-  end if;
-end
-$$;
 
 comment on function public.list_union_monitored_orders_v2(text, uuid, uuid, uuid, uuid, integer, integer) is
   'Lista OS monitoradas pela Union World; a busca textual considera somente número da OS e OS externa.';
