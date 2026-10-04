@@ -83,7 +83,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
         {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel) && <div className="flex min-w-0 flex-wrap justify-end gap-1.5 md:gap-2">
           {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
           {canResolve && <BtnPrimary onClick={onResolve} className="h-11 w-auto min-w-0 px-4 md:h-10">Solucionar</BtnPrimary>}
-          {canComplete && <BtnPrimary onClick={() => onComplete()} className="h-11 w-auto min-w-0 px-4 md:h-10">Concluir</BtnPrimary>}
+          {canComplete && <BtnPrimary onClick={() => onComplete()} className="h-11 w-auto min-w-0 px-4 md:h-10">Concluir OS</BtnPrimary>}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><Pencil className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Editar OS</span></BtnPrimary>}
           {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-11 w-11 min-w-0 border-red-200 !px-0 text-red-600 hover:bg-red-50 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
         </div>}
