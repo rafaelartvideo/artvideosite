@@ -121,7 +121,7 @@ export function FinanceOverviewFoundation({ onSelectEntry }: { onSelectEntry: (t
   const [period, setPeriod] = useState(() => defaultPeriod());
   const filters = useMemo<FinancialReportFilters>(() => ({ ...period }), [period]);
   const foundation = useFinanceFoundation();
-  const reports = useFinanceReports(filters);
+  const reports = useFinanceReports(filters, { dre: false });
   const canViewAccounts = hasPermission("finance.accounts.view") || hasPermission("finance.accounts.manage");
 
   const dashboard = reports.dashboardQuery.data;
