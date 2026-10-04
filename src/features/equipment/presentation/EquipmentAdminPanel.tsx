@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Trash2, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import type { EquipmentDraft, EquipmentDraftBrand, EquipmentDraftModel, EquipmentTypeRow, TechnicalField } from "../domain/equipment";
 import { loadEquipmentCatalog, saveEquipmentHierarchy, saveTechnicalField, setEquipmentTypeActive } from "../infrastructure/equipment.repository";
 import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
@@ -47,7 +48,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const showFieldStatus = hasPermission("equipment.technical_fields.column.status");
   const showFieldActions = hasPermission("equipment.technical_fields.column.actions");
   const queryClient = useQueryClient();
-  const catalogQuery = useQuery({ queryKey: queryKeys.equipment.catalog(), queryFn: loadEquipmentCatalog, enabled: canView && (canViewTable || canViewDetails || canCreate || canEdit || canViewFields || canManageFields) });
+  const catalogQuery = useQuery({ queryKey: queryKeys.equipment.catalog(), queryFn: loadEquipmentCatalog, enabled: canView && (canViewTable || canViewDetails || canCreate || canEdit || canViewFields || canManageFields), staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const catalog = catalogQuery.data;
   const types = catalog?.types ?? [];
   const brands = catalog?.brands ?? [];
