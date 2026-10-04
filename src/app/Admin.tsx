@@ -136,6 +136,13 @@ export function AdminDashboard({
   const closeOrderRoute = () => locationState?.origin ? navigateAdmin(locationState.origin.tab, locationState.origin.resourceId, locationState.origin.subpage) : navigateAdmin("orders");
 
   useEffect(() => { if (!route.resourceId) setPage(null); setSidebarOpen(false); }, [location.pathname, route.resourceId]);
+
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+    root.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, location.search]);
+
   useEffect(() => { if (canAccessTab(activeTab) || !fallbackTab || fallbackTab === activeTab) return; navigateAdmin(fallbackTab, null, null, { replace: true }); }, [activeTab, fallbackTab, hasPermission, hasModule]);
 
   useEffect(() => {
