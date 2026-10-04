@@ -53,7 +53,7 @@ export type UnionOrderMonitorOptions = {
 };
 
 export async function listUnionMonitoredOrders(input: UnionOrderMonitorListInput): Promise<UnionOrderMonitorPage> {
-  const { data, error } = await supabase.rpc("list_union_monitored_orders", {
+  const { data, error } = await supabase.rpc("list_union_monitored_orders_v2", {
     p_search: input.search?.trim() || null,
     p_organization_id: input.organizationId || null,
     p_service_type_id: input.serviceTypeId || null,
@@ -83,9 +83,24 @@ export async function getUnionOrderMonitorOptions(): Promise<UnionOrderMonitorOp
 }
 
 export async function getUnionMonitoredOrder(serviceOrderId: string): Promise<any> {
-  const { data, error } = await supabase.rpc("get_union_monitored_order", {
-    p_service_order_id: serviceOrderId,
-  });
-  if (error) throw error;
-  return data;
+  const [detailResult, contactResult] = await Promise.all([
+    supabase.rpc("get_union_monitored_order", {
+      p_service_order_id: serviceOrderId,
+    }),
+    supabase.rpc("get_union_monitored_order_contact", {
+      p_service_order_id: serviceOrderId,
+    }),
+  ]);
+  if (detailResult.error) throw detailResult.error;
+  if (contactResult.error) throw contactResult.error;
+
+  const detail = (detailResult.data || {}) as any;
+  const contact = (contactResult.data || {}) as Record<string, unknown>;
+  return {
+    ...detail,
+    organization: {
+      ...(detail.organization || {}),
+      ...contact,
+    },
+  };
 }
