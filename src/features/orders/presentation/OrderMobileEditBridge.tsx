@@ -12,7 +12,6 @@ import {
 import {
   closeMobileOrderEditSession,
   createMobileOrderEditSession,
-  pollMobileOrderEditSession,
   type MobileOrderEditSession,
 } from "../infrastructure/order-mobile-edit.gateway";
 
@@ -107,20 +106,6 @@ export function OrderMobileEditBridge({
       applyUpdatedAt(String(row.order_updated_at || ""));
     };
 
-    const loadInitialState = async () => {
-      try {
-        const result = await pollMobileOrderEditSession(session.id);
-        if (cancelled) return;
-        if (String(result.status || "active") !== "active") {
-          setExpired(true);
-          setConnected(false);
-        }
-        applyUpdatedAt(String(result.order_updated_at || ""));
-      } catch (pollError) {
-        if (!cancelled) setError(pollError instanceof Error ? pollError.message : "Falha ao acompanhar o celular.");
-      }
-    };
-
     const unsubscribe = subscribeMobileSessionRealtime({
       sessionId: session.id,
       presenceRole: "desktop",
@@ -128,7 +113,6 @@ export function OrderMobileEditBridge({
         if (!cancelled) setConnected(value);
       },
       onSessionChange: applySessionRow,
-      onReady: () => void loadInitialState(),
     });
 
     const expiresAtMs = Date.parse(session.expiresAt);
