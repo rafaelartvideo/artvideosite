@@ -52,10 +52,14 @@ export async function ensureCpfAvailable(
   const digits = cpf.replace(/\D/g, "");
   if (!organizationId) throw new Error("Empresa ativa não informada para validar o CPF.");
 
-  await invokeCpfLookup({
+  const data = await invokeCpfLookup({
     cpf: digits,
     organization_id: organizationId,
     exclude_registration_id: excludeRegistrationId || null,
     check_only: true,
   }, "Não foi possível verificar se o CPF já está cadastrado.");
+
+  // Compatibilidade defensiva com versões anteriores da Edge Function:
+  // se a base interna responder como source=local, continua sendo duplicidade.
+  if (data?.source === "local") normalizeCpfLookupPayload(data);
 }
