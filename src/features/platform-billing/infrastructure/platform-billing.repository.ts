@@ -120,13 +120,13 @@ function normalizeDashboard(data: any): UnionPlatformDashboardData {
 }
 
 export async function loadUnionPlatformDashboard(): Promise<UnionPlatformDashboardData> {
-  const { data, error } = await supabase.rpc("load_union_platform_dashboard_v2");
+  const { data, error } = await supabase.rpc("load_union_platform_dashboard_v3");
   if (error) throw error;
   return normalizeDashboard(data);
 }
 
 export async function loadUnionPlatformFinance(): Promise<UnionPlatformFinanceData> {
-  const { data, error } = await supabase.rpc("load_union_platform_finance_v2");
+  const { data, error } = await supabase.rpc("load_union_platform_finance_v3");
   if (error) throw error;
   return {
     metrics: {
