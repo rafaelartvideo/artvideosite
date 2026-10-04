@@ -89,7 +89,7 @@ export function AdminDashboard({
   const activeMenuTab: AdminTab = crmMode ? "crm" : (locationState?.menuTab || activeTab);
 
   const canAccessTab = (tab: AdminTab) => {
-    if (tab === "crm") return isPlatformOperatorOrganization;
+    if (tab === "crm") return false;
     if (tab === "settings" && isPlatformOperatorOrganization) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
