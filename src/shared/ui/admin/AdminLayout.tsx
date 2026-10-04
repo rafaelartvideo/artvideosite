@@ -278,6 +278,29 @@ export function AdminDialog({
 }) {
   const minimizedTitle = typeof title === "string" ? title : "Janela administrativa";
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
+  const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      setBrowserBottomInset(0);
+      return;
+    }
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setBrowserBottomInset(Math.min(140, Math.round(inset)));
+    };
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
 
   return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
     <DialogContent
@@ -288,6 +311,7 @@ export function AdminDialog({
       minimizedDescription={effectiveMinimizedDescription}
       overlayClassName="admin-dialog-overlay"
       data-admin-dialog-content="true"
+      style={{ "--admin-browser-bottom-inset": `${browserBottomInset}px` } as React.CSSProperties}
       className={cn(
         "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl",
         className,
@@ -305,7 +329,7 @@ export function AdminDialog({
         </div>
       </div>}
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5">{children}</div>
-      {footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 py-4">{footer}</div>}
+      {footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>}
     </DialogContent>
   </Dialog>;
 }
