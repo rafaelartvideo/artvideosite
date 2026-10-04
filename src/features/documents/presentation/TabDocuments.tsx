@@ -187,7 +187,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
       className="max-w-md"
       footer={<div className="flex justify-end gap-2"><BtnSecondary onClick={closeTypeModal} disabled={savingAttachmentType}>Cancelar</BtnSecondary><BtnPrimary onClick={submitType} loading={savingAttachmentType} loadingText="Salvando...">Salvar</BtnPrimary></div>}
     >
-      <FInput label="Nome do tipo" required autoFocus disabled={savingAttachmentType} error={typeNameError} value={typeName} onChange={(event: any) => { setTypeNameError(""); setTypeName(event.target.value); }} placeholder="Nome do tipo" />
+      <FInput label="Nome do tipo" required disabled={savingAttachmentType} error={typeNameError} value={typeName} onChange={(event: any) => { setTypeNameError(""); setTypeName(event.target.value); }} placeholder="Nome do tipo" />
     </AdminDialog>}
   </div>;
 }
