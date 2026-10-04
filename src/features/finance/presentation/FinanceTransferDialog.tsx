@@ -69,6 +69,12 @@ export function FinanceTransferDialog({
     onClose={onClose}
     title="Nova transferência"
     description="Movimenta saldo entre duas contas sem gerar receita ou despesa."
+    minimizedDescription={[
+      activeAccounts.find(item => item.id === fromId)?.name,
+      activeAccounts.find(item => item.id === toId)?.name,
+      Number(amount || 0) > 0 ? Number(amount || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : null,
+    ].filter(Boolean).join(" → ") || "Transferência em preenchimento"}
+    minimizable={!saving}
     className="max-w-2xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton>
