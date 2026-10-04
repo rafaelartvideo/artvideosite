@@ -14,6 +14,7 @@ export const queryKeys = {
   },
   admin: {
     all: ["admin"] as const,
+    dashboards: () => ["admin", "dashboard"] as const,
     dashboard: (periodDays = 30, accessScope = "default") => ["admin", "dashboard", periodDays, accessScope] as const,
   },
   customers: {
