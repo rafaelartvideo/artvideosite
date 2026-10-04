@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, Globe, PanelLeftClose, PanelLeftOpen, Settings, Wrench } from "lucide-react";
+import { ArrowLeft, Building2, Globe, LayoutGrid, PanelLeftClose, PanelLeftOpen, Settings, Wrench } from "lucide-react";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { isAdminModuleEnabled, mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "../navigation-config";
@@ -37,6 +37,7 @@ export function AdminSidebar({
   const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data?.company_menu_logo_media_id ?? null);
 
   const canAccessTab = (tab: AdminTab) => {
+    if (tab === "crm") return isPlatformOperatorOrganization;
     if (tab === "partnerCompanies" && !isPlatformOperatorOrganization) return false;
     if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled(tab, hasModule);
@@ -138,7 +139,7 @@ export function AdminSidebar({
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <nav className="px-3 py-3">
-          {dashboardItems.length > 0 && (
+          {(dashboardItems.length > 0 || isPlatformOperatorOrganization) && (
             <div className="space-y-1">
               {!collapsed && (
                 <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/30">
@@ -146,6 +147,14 @@ export function AdminSidebar({
                 </div>
               )}
               {dashboardItems.map(renderMainItem)}
+              {isPlatformOperatorOrganization && (
+                <SidebarItem
+                  item={{ id: "crm", label: "CRM", icon: LayoutGrid }}
+                  active={selectedTab === "crm"}
+                  collapsed={collapsed}
+                  onClick={() => onNavigate("crm")}
+                />
+              )}
             </div>
           )}
 
