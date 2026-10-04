@@ -90,13 +90,26 @@ export function FDecimalInput({ value, onChange, allowNegative = false, decimalP
 }
 
 function currencyInputDisplay(value: unknown) {
-  if (value == null || value === "") return "";
+  if (value == null || value === "") return "R$ ";
   const raw = String(value);
-  const numericValue = /^-?\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : Number(raw.replace(/[^\d]/g, "")) / 100;
-  return Number.isFinite(numericValue) ? formatCurrency(numericValue, "") : "";
+  const numericValue = /^-?\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : Number(raw.replace(/[^\d-]/g, "")) / 100;
+  return Number.isFinite(numericValue) ? formatCurrency(numericValue, "R$ ") : "R$ ";
 }
-function currencyInputValue(value: string) { const digits = value.replace(/\D/g, ""); if (!digits) return ""; return (Number(digits) / 100).toFixed(2); }
-export function FCurrencyInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) { return <FInput {...props} type="text" inputMode="numeric" value={currencyInputDisplay(value)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: currencyInputValue(event.target.value) } })} />; }
+function currencyInputValue(value: string, allowNegative = false) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  const normalized = (Number(digits) / 100).toFixed(2);
+  return allowNegative && value.includes("-") ? `-${normalized}` : normalized;
+}
+export function FCurrencyInput({ value, onChange, allowNegative = false, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; allowNegative?: boolean; [key: string]: any }) {
+  return <FInput
+    {...props}
+    type="text"
+    inputMode={allowNegative ? "decimal" : "numeric"}
+    value={currencyInputDisplay(value)}
+    onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: currencyInputValue(event.target.value, allowNegative) } })}
+  />;
+}
 
 function hoursInputDisplay(value: unknown) {
   if (value == null || value === "") return "";
