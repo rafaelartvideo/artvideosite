@@ -2,39 +2,66 @@
 
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Maximize2, Minimize2, XIcon } from "lucide-react";
+import { Minimize2, XIcon } from "lucide-react";
 
+import {
+  useAdminDialogOwner,
+  useOptionalAdminDialogManager,
+} from "@/shared/ui/admin/AdminDialogManager";
 import { cn } from "./utils";
 
-const DialogMinimizeContext = React.createContext<{
+type DialogRuntimeValue = {
+  id: string;
+  ownerKey: string;
   minimized: boolean;
-  setMinimized: React.Dispatch<React.SetStateAction<boolean>>;
-} | null>(null);
+  requestClose: () => void;
+};
+
+const DialogRuntimeContext = React.createContext<DialogRuntimeValue | null>(null);
 
 function Dialog({
   open,
+  defaultOpen,
   modal,
   onOpenChange,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  const [minimized, setMinimized] = React.useState(false);
+  const manager = useOptionalAdminDialogManager();
+  const ownerKey = useAdminDialogOwner();
+  const id = React.useId();
+  const [internalOpen, setInternalOpen] = React.useState(Boolean(defaultOpen));
+  const effectiveOpen = open ?? internalOpen;
+  const minimized = Boolean(manager?.tasks.find(task => task.id === id)?.minimized);
+
+  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+    if (open === undefined) setInternalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  }, [open, onOpenChange]);
 
   React.useEffect(() => {
-    if (open === false) setMinimized(false);
-  }, [open]);
+    if (!effectiveOpen) manager?.unregisterDialog(id);
+  }, [effectiveOpen, id, manager]);
 
-  return <DialogMinimizeContext.Provider value={{ minimized, setMinimized }}>
+  React.useEffect(() => () => {
+    manager?.unregisterDialog(id);
+  }, [id, manager]);
+
+  const runtime = React.useMemo<DialogRuntimeValue>(() => ({
+    id,
+    ownerKey,
+    minimized,
+    requestClose: () => handleOpenChange(false),
+  }), [id, ownerKey, minimized, handleOpenChange]);
+
+  return <DialogRuntimeContext.Provider value={runtime}>
     <DialogPrimitive.Root
       data-slot="dialog"
       {...props}
-      open={open}
+      open={effectiveOpen}
       modal={minimized ? false : modal}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) setMinimized(false);
-        onOpenChange?.(nextOpen);
-      }}
+      onOpenChange={handleOpenChange}
     />
-  </DialogMinimizeContext.Provider>;
+  </DialogRuntimeContext.Provider>;
 }
 
 function DialogTrigger({
@@ -71,69 +98,106 @@ function DialogOverlay({
   );
 }
 
+function minimizeCurrentDialog(title: string) {
+  const runtime = React.useContext(DialogRuntimeContext);
+  const manager = useOptionalAdminDialogManager();
+
+  return () => {
+    if (!runtime || !manager) return;
+    manager.pinDialog({
+      id: runtime.id,
+      ownerKey: runtime.ownerKey,
+      title,
+      onClose: runtime.requestClose,
+    });
+  };
+}
+
+function DialogMinimizeButton({
+  title = "Janela minimizada",
+  className,
+}: {
+  title?: string;
+  className?: string;
+}) {
+  const runtime = React.useContext(DialogRuntimeContext);
+  const manager = useOptionalAdminDialogManager();
+  const minimize = minimizeCurrentDialog(title);
+
+  if (!runtime || !manager || runtime.minimized) return null;
+
+  return <button
+    type="button"
+    onClick={minimize}
+    className={cn(
+      "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+      className,
+    )}
+    aria-label={`Minimizar ${title}`}
+    title="Minimizar"
+  >
+    <Minimize2 size={15} />
+  </button>;
+}
+
 function DialogContent({
   className,
   children,
   showClose = true,
   showOverlay = true,
   minimizable,
+  showMinimizeControl = true,
+  minimizedTitle,
   overlayClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showClose?: boolean;
   showOverlay?: boolean;
   minimizable?: boolean;
+  showMinimizeControl?: boolean;
+  minimizedTitle?: string;
   overlayClassName?: string;
 }) {
   const isAdminDialog = typeof className === "string" && className.includes("admin-crm");
-  const minimizeContext = React.useContext(DialogMinimizeContext);
-  const canMinimize = minimizable ?? isAdminDialog;
-  const minimized = Boolean(canMinimize && minimizeContext?.minimized);
+  const runtime = React.useContext(DialogRuntimeContext);
+  const manager = useOptionalAdminDialogManager();
+  const canMinimize = Boolean((minimizable ?? isAdminDialog) && runtime && manager);
+  const fallbackTitle = typeof props["aria-label"] === "string" ? props["aria-label"] : "Janela minimizada";
+  const dockTitle = minimizedTitle || fallbackTitle;
+  const minimize = minimizeCurrentDialog(dockTitle);
+
+  if (canMinimize && runtime?.minimized) return null;
 
   return (
     <DialogPortal data-slot="dialog-portal">
-      {showOverlay && !minimized && <DialogOverlay className={cn(isAdminDialog && "admin-dialog-overlay z-[140]", overlayClassName)} />}
+      {showOverlay && <DialogOverlay className={cn(isAdminDialog && "admin-dialog-overlay z-[140]", overlayClassName)} />}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-admin-dialog-content={isAdminDialog ? "true" : undefined}
         className={cn(
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
           isAdminDialog && "z-[150]",
-          minimized && "!bottom-4 !left-auto !right-4 !top-auto !flex !w-[min(360px,calc(100vw-2rem))] !max-w-none !translate-x-0 !translate-y-0 !items-center !justify-between !gap-3 !rounded-xl !p-3",
           className,
         )}
         {...props}
       >
-        {minimized ? <>
-          <span className="min-w-0 truncate text-sm font-bold text-foreground">Janela minimizada</span>
-          <button
-            type="button"
-            onClick={() => minimizeContext?.setMinimized(false)}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="Restaurar modal"
-            title="Restaurar"
-          >
-            <Maximize2 size={15} />
-          </button>
-        </> : <>
-          {children}
-          {canMinimize && minimizeContext && <button
-            type="button"
-            onClick={() => minimizeContext.setMinimized(true)}
-            className={cn(
-              "absolute top-4 inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              showClose ? "right-12" : "right-11",
-            )}
-            aria-label="Minimizar modal"
-            title="Minimizar"
-          >
-            <Minimize2 size={15} />
-          </button>}
-          {showClose && <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>}
-        </>}
+        {children}
+        {canMinimize && showMinimizeControl && <button
+          type="button"
+          onClick={minimize}
+          className={cn(
+            "absolute top-4 inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            showClose ? "right-12" : "right-4",
+          )}
+          aria-label={`Minimizar ${dockTitle}`}
+          title="Minimizar"
+        >
+          <Minimize2 size={15} />
+        </button>}
+        {showClose && <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+          <XIcon />
+          <span className="sr-only">Fechar</span>
+        </DialogPrimitive.Close>}
       </DialogPrimitive.Content>
     </DialogPortal>
   );
@@ -195,6 +259,7 @@ export {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogMinimizeButton,
   DialogOverlay,
   DialogPortal,
   DialogTitle,
