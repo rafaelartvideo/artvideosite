@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, Plus, Users, X } from "lucide-react";
+import { Edit2, Plus, Users } from "lucide-react";
 import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
 import { isValidBrazilianPhone, isValidCpf, isValidEmail } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCpfInput, FEmailInput, FInput, FPhoneInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { createPartnerUser, listPartnerRoles, listPartnerUsers, updatePartnerUser } from "../infrastructure/partner-companies.repository";
@@ -211,16 +211,20 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
         <p className="text-sm font-semibold text-red-700">Não foi possível carregar as funções disponíveis para esta empresa.</p>
       </AdminCardContent>}
 
-      {formOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label={editing ? "Editar usuário" : "Novo usuário"}>
-        <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[#0d1b2e]/8 bg-white px-5 py-4">
-            <div className="min-w-0">
-              <h3 className="text-base font-black text-[#0d1b2e]">{editing ? "Editar usuário" : "Novo usuário"}</h3>
-              <p className="mt-0.5 text-xs text-[#5a6a82]">{editing ? "Atualize os dados e o acesso deste usuário." : "Cadastre um novo usuário para acessar esta empresa."}</p>
-            </div>
-            <button type="button" onClick={cancelForm} disabled={saveMutation.isPending} aria-label="Fechar" title="Fechar" className="rounded-lg p-2 text-[#5a6a82] transition-colors hover:bg-slate-100 hover:text-[#0d1b2e] disabled:opacity-40"><X size={18} /></button>
-          </div>
-          <div className="p-5">
+      {formOpen && <AdminDialog
+        open
+        onClose={cancelForm}
+        title={editing ? "Editar usuário" : "Novo usuário"}
+        description={editing ? "Atualize os dados e o acesso deste usuário." : "Cadastre um novo usuário para acessar esta empresa."}
+        className="max-w-2xl"
+        footer={<div className="flex justify-end gap-2">
+          <BtnSecondary onClick={cancelForm} disabled={saveMutation.isPending}>Cancelar</BtnSecondary>
+          <BtnPrimary onClick={saveUser} disabled={saveMutation.isPending || rolesQuery.isPending || rolesQuery.isError}>
+            {saveMutation.isPending ? "Salvando..." : "Salvar"}
+          </BtnPrimary>
+        </div>}
+      >
+        <div>
             <div className="grid gap-4 sm:grid-cols-2">
               <FInput label="Nome completo" required error={errors.full_name} value={form.full_name} onChange={(e: any) => setField("full_name", e.target.value)} />
               <FCpfInput label="CPF" required error={errors.cpf} value={form.cpf} onChange={(e: any) => setField("cpf", e.target.value)} />
@@ -257,15 +261,9 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
                 <FToggle label="Proprietário da empresa" checked={form.is_owner} onChange={value => setField("is_owner", value)} />
               </div>
             </div>
-          </div>
-          <AdminStickyToolbar className="justify-end gap-2">
-            <BtnSecondary onClick={cancelForm} disabled={saveMutation.isPending}>Cancelar</BtnSecondary>
-            <BtnPrimary onClick={saveUser} disabled={saveMutation.isPending || rolesQuery.isPending || rolesQuery.isError}>
-              {saveMutation.isPending ? "Salvando..." : "Salvar"}
-            </BtnPrimary>
-          </AdminStickyToolbar>
         </div>
-      </div>}
+
+      </AdminDialog>}
 
       {usersQuery.isPending ? <LoadingState /> : usersQuery.isError ? <AdminCardContent><p className="text-sm font-semibold text-red-700">Não foi possível carregar os usuários.</p></AdminCardContent> : (usersQuery.data || []).length === 0 ? <AdminCardContent><EmptyState icon={Users} title="Nenhum usuário vinculado" message="Esta empresa ainda não possui usuários cadastrados." /></AdminCardContent> : <div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr><th className="text-left">Usuário</th><th className="text-left">Login</th><th className="text-left">E-mail</th><th className="text-left">Função</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{(usersQuery.data || []).map((user: any) => <tr key={user.membership_id}><td>
   <div className="flex flex-wrap items-center gap-2">
