@@ -6,8 +6,6 @@ import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import {
-  mobileSessionConnected,
-  mobileSessionDisconnectDelay,
   subscribeMobileSessionRealtime,
   type MobileSessionRealtimeRow,
 } from "@/features/device-capture/infrastructure/mobile-session-realtime";
@@ -43,7 +41,6 @@ export function OrderChecklistMobileBridge({
   const [savedChanges, setSavedChanges] = useState(0);
   const sessionRef = useRef<MobileOrderChecklistSession | null>(null);
   const lastChecklistUpdateRef = useRef("");
-  const disconnectTimerRef = useRef<number | null>(null);
 
   sessionRef.current = session;
 
@@ -91,13 +88,6 @@ export function OrderChecklistMobileBridge({
     if (!session || expired) return;
     let cancelled = false;
 
-    const clearDisconnectTimer = () => {
-      if (disconnectTimerRef.current !== null) {
-        window.clearTimeout(disconnectTimerRef.current);
-        disconnectTimerRef.current = null;
-      }
-    };
-
     const applyUpdatedAt = (updatedAt: string) => {
       if (!updatedAt || updatedAt === lastChecklistUpdateRef.current) return;
       if (lastChecklistUpdateRef.current) setSavedChanges(current => current + 1);
@@ -111,8 +101,6 @@ export function OrderChecklistMobileBridge({
 
     const applySessionRow = (row: MobileSessionRealtimeRow) => {
       if (cancelled) return;
-      clearDisconnectTimer();
-
       const status = String(row.status || "active");
       const expiresAt = row.expires_at ? Date.parse(row.expires_at) : NaN;
       const isExpired = status !== "active" || (Number.isFinite(expiresAt) && expiresAt <= Date.now());
@@ -120,15 +108,6 @@ export function OrderChecklistMobileBridge({
         setExpired(true);
         setConnected(false);
         return;
-      }
-
-      const isConnected = mobileSessionConnected(row);
-      setConnected(isConnected);
-      if (isConnected) {
-        const delay = mobileSessionDisconnectDelay(row);
-        disconnectTimerRef.current = window.setTimeout(() => {
-          if (!cancelled) setConnected(false);
-        }, Math.max(1_000, delay + 250));
       }
 
       applyUpdatedAt(String(row.order_updated_at || ""));
@@ -153,13 +132,16 @@ export function OrderChecklistMobileBridge({
 
     const unsubscribe = subscribeMobileSessionRealtime({
       sessionId: session.id,
+      presenceRole: "desktop",
+      onMobilePresenceChange: value => {
+        if (!cancelled) setConnected(value);
+      },
       onSessionChange: applySessionRow,
       onReady: () => void loadInitialState(),
     });
 
     return () => {
       cancelled = true;
-      clearDisconnectTimer();
       unsubscribe();
     };
   }, [session?.id, expired, orderId, queryClient]);
