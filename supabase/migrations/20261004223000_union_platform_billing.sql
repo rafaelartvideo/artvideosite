@@ -270,30 +270,34 @@ begin
     raise exception 'Sem permissão para visualizar o financeiro da plataforma.' using errcode = '42501';
   end if;
 
-  update public.platform_subscription_charges
-  set status = 'overdue',
-      updated_at = now()
-  where status = 'pending'
-    and due_date < current_date;
-
-  update public.platform_subscriptions subscription
-  set status = 'past_due',
-      updated_at = now()
-  where subscription.status = 'active'
-    and exists (
-      select 1
-      from public.platform_subscription_charges charge
-      where charge.subscription_id = subscription.id
-        and charge.status = 'overdue'
-    );
-
   select jsonb_build_object(
     'metrics', jsonb_build_object(
       'active_subscriptions', (select count(*) from public.platform_subscriptions where status in ('trial','active')),
-      'past_due_subscriptions', (select count(*) from public.platform_subscriptions where status = 'past_due'),
+      'past_due_subscriptions', (
+        select count(*)
+        from public.platform_subscriptions subscription
+        where subscription.status = 'past_due'
+           or (
+             subscription.status = 'active'
+             and exists (
+               select 1
+               from public.platform_subscription_charges charge
+               where charge.subscription_id = subscription.id
+                 and (
+                   charge.status = 'overdue'
+                   or (charge.status = 'pending' and charge.due_date < current_date)
+                 )
+             )
+           )
+      ),
       'mrr', coalesce((select sum(greatest(amount - discount_amount, 0)) from public.platform_subscriptions where status = 'active'), 0),
       'open_receivables', coalesce((select sum(amount) from public.platform_subscription_charges where status in ('pending','overdue')), 0),
-      'overdue_receivables', coalesce((select sum(amount) from public.platform_subscription_charges where status = 'overdue'), 0),
+      'overdue_receivables', coalesce((
+        select sum(amount)
+        from public.platform_subscription_charges
+        where status = 'overdue'
+           or (status = 'pending' and due_date < current_date)
+      ), 0),
       'received_month', coalesce((
         select sum(amount)
         from public.platform_subscription_charges
@@ -317,7 +321,20 @@ begin
           organization.name as organization_name,
           subscription.plan_id,
           plan.name as plan_name,
-          subscription.status,
+          case
+            when subscription.status = 'active'
+             and exists (
+               select 1
+               from public.platform_subscription_charges overdue_charge
+               where overdue_charge.subscription_id = subscription.id
+                 and (
+                   overdue_charge.status = 'overdue'
+                   or (overdue_charge.status = 'pending' and overdue_charge.due_date < current_date)
+                 )
+             )
+            then 'past_due'
+            else subscription.status
+          end as status,
           subscription.start_date,
           subscription.next_due_date,
           subscription.amount,
@@ -344,7 +361,10 @@ begin
           charge.reference_month,
           charge.due_date,
           charge.amount,
-          charge.status,
+          case
+            when charge.status = 'pending' and charge.due_date < current_date then 'overdue'
+            else charge.status
+          end as status,
           charge.paid_at,
           charge.payment_method,
           charge.notes,
