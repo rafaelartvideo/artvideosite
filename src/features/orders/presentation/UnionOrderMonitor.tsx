@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Search } from "lucide-react";
+import { MoreVertical, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/ui/primitives/dropdown-menu";
 import {
   getUnionMonitoredOrder,
   getUnionOrderMonitorOptions,
@@ -31,13 +37,6 @@ function formatDateTime(value?: string | null) {
   }).format(date);
 }
 
-function ColorBadge({ name, color }: { name?: string | null; color?: string | null }) {
-  return <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-bold text-foreground">
-    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color || "#94a3b8" }} />
-    <span className="truncate">{name || "—"}</span>
-  </span>;
-}
-
 export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteChange }: UnionOrderMonitorProps) {
   const queryClient = useQueryClient();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(initialOrderId || null);
@@ -47,6 +46,25 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
   const [situationId, setSituationId] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const orderActions = (row: UnionOrderMonitorRow) => <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <button
+        type="button"
+        onClick={event => event.stopPropagation()}
+        aria-label={`Ações rápidas da OS ${row.os_number || ""}`}
+        title="Ações rápidas"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center bg-transparent text-foreground transition-opacity hover:opacity-65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+      >
+        <MoreVertical size={17} />
+      </button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-48" onClick={event => event.stopPropagation()}>
+      <DropdownMenuItem onSelect={() => openOrder(row)} className="font-semibold">
+        Abrir OS
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>;
 
   useEffect(() => {
     setSelectedOrderId(initialOrderId || null);
@@ -259,12 +277,6 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
       />
     ) : (
       <AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border px-4 py-3 text-[11px] text-muted-foreground">
-          <span className="font-black uppercase tracking-[0.12em] text-foreground">Legenda</span>
-          <span className="inline-flex items-center gap-2"><span className="h-5 w-1.5 rounded-full bg-muted-foreground" />A cor ao lado da OS acompanha a situação atual.</span>
-          <span><strong className="font-bold text-foreground">OS Externa</strong> é o número informado pela empresa parceira.</span>
-        </div>
-
         <div className="hidden overflow-x-auto md:block">
           <table className="min-w-[980px]">
             <thead><tr>
@@ -274,14 +286,16 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
               <th className="text-left">Tipo</th>
               <th className="text-left">Situação</th>
               <th className="text-left">Atualização</th>
+              <th className="w-16 text-right">Ações</th>
             </tr></thead>
             <tbody>{rows.map(row => <tr key={row.id} className="cursor-pointer" onClick={() => openOrder(row)}>
-              <td><div className="flex items-center gap-2"><span className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.situation_color || "#94a3b8" }} /><div><p className="font-mono text-base font-black text-primary">{row.os_number}</p>{row.external_os_number && <p className="text-[11px] font-semibold text-muted-foreground">OS Externa {row.external_os_number}</p>}</div></div></td>
+              <td><div className="flex items-center gap-2"><span aria-label={`Cor do status ${row.status_name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.status_color || "transparent" }} /><div><p className="font-mono text-base font-black text-primary">{row.os_number}</p>{row.external_os_number && <p className="text-[11px] font-semibold text-muted-foreground">OS Externa {row.external_os_number}</p>}</div></div></td>
               <td><p className="font-bold text-foreground">{row.organization_name}</p></td>
               <td><p className="max-w-[240px] truncate text-sm font-semibold text-foreground">{row.customer_name || "—"}</p></td>
               <td className="text-sm text-muted-foreground">{row.service_type_title}</td>
-              <td><ColorBadge name={row.situation_name} color={row.situation_color} /></td>
+              <td>{row.situation_name ? <StatusBadge status={row.situation_name} color={row.situation_color} /> : <span className="text-xs text-muted-foreground">—</span>}</td>
               <td className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(row.updated_at)}</td>
+              <td onClick={event => event.stopPropagation()}><div className="flex justify-end">{orderActions(row)}</div></td>
             </tr>)}</tbody>
           </table>
         </div>
@@ -295,14 +309,22 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
                 <p className="mt-1 truncate text-xs font-bold text-muted-foreground">{row.organization_name}</p>
                 <p className="mt-1 truncate text-sm font-semibold text-foreground">{row.customer_name || "—"}</p>
               </div>
-              <Eye size={16} className="mt-1 shrink-0 text-primary" />
+              <div onClick={event => event.stopPropagation()}>{orderActions(row)}</div>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">{row.service_type_title}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <ColorBadge name={row.situation_name} color={row.situation_color} />
+              {row.situation_name ? <StatusBadge status={row.situation_name} color={row.situation_color} /> : <span className="text-xs text-muted-foreground">—</span>}
             </div>
             <p className="mt-3 text-[11px] text-muted-foreground">Atualizada em {formatDateTime(row.updated_at)}</p>
           </button>)}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 text-[11px] font-semibold text-muted-foreground md:py-2" aria-label="Legenda dos indicadores da ordem de serviço">
+          <span className="font-bold text-foreground">Legenda:</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#16a34a]" aria-hidden="true" />Aberta</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#0057e7]" aria-hidden="true" />Fechada</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#dc2626]" aria-hidden="true" />Cancelada</span>
+          <span className="inline-flex items-center border-l border-border pl-4 font-normal text-primary">OS Externa: número informado pela empresa parceira.</span>
         </div>
 
         <PaginationBar
