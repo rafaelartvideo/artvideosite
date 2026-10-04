@@ -41,6 +41,38 @@ export type FinancialPaymentMethodInput = Omit<FinancialPaymentMethod, "id" | "o
   is_active?: boolean;
 };
 export type FinancialSettingsInput = Omit<FinancialSettings, "organization_id">;
+export type FinancialFoundation = {
+  accounts: FinancialAccount[];
+  categories: FinancialCategory[];
+  costCenters: FinancialCostCenter[];
+  paymentMethods: FinancialPaymentMethod[];
+  settings: FinancialSettings;
+};
+
+export async function loadFinanceFoundation(organizationId: string): Promise<FinancialFoundation> {
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase.rpc("load_finance_foundation_v1", {
+    p_organization_id: org,
+  });
+  if (error) throw error;
+
+  const foundation = (data || {}) as Record<string, unknown>;
+  return {
+    accounts: Array.isArray(foundation.accounts) ? foundation.accounts as FinancialAccount[] : [],
+    categories: Array.isArray(foundation.categories) ? foundation.categories as FinancialCategory[] : [],
+    costCenters: Array.isArray(foundation.costCenters) ? foundation.costCenters as FinancialCostCenter[] : [],
+    paymentMethods: Array.isArray(foundation.paymentMethods) ? foundation.paymentMethods as FinancialPaymentMethod[] : [],
+    settings: (foundation.settings || {
+      organization_id: org,
+      second_approval_threshold: null,
+      cash_session_enabled: false,
+      default_receivable_category_id: null,
+      default_payable_category_id: null,
+      default_cost_center_id: null,
+    }) as FinancialSettings,
+  };
+}
+
 
 export async function listFinancialAccounts(organizationId: string): Promise<FinancialAccount[]> {
   const org = requiredOrganizationId(organizationId);
