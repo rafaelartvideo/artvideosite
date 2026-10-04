@@ -1,8 +1,6 @@
-import { X } from "lucide-react";
 import type { AppointmentWithRelations } from "../application/agenda-calendar";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
-import { AdminButton, AdminIconButton, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
-import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
+import { AdminButton, AdminDialog, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 
 type Props = {
   appointment: AppointmentWithRelations | null;
@@ -24,42 +22,44 @@ function periodLabel(appointment: AppointmentWithRelations) {
 }
 
 export function AppointmentDetailsDialog({ appointment, onClose, onOpenOrder }: Props) {
-  return <Dialog open={Boolean(appointment)} onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent showClose={false} minimizedTitle="Detalhes do agendamento" className="admin-crm max-h-[calc(100vh-2rem)] max-w-2xl gap-0 overflow-y-auto rounded-xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl">
-      <DialogTitle className="sr-only">Detalhes do agendamento</DialogTitle>
-      {appointment && <>
-        <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4">
-          <div><h2 className="font-black text-[#0d1b2e]">Detalhes do agendamento</h2><span className="mt-1 inline-block rounded-full px-2 py-1 text-[10px] font-bold text-white" style={{ backgroundColor: appointment.situation?.color || "var(--primary)" }}>{appointment.situation?.name || "Agendamento"}</span></div>
-          <AdminIconButton ariaLabel="Fechar detalhes" onClick={onClose} variant="ghost"><X size={18} /></AdminIconButton>
-        </div>
-        <div className="space-y-4 p-5">
-          <Section title="Cliente">
-            <p className="font-bold text-[#0d1b2e]">{appointment.customer?.customer_type === "PJ" ? (appointment.customer.trade_name || appointment.customer.legal_name || appointment.customer.full_name) : appointment.customer?.full_name || "Cliente"}</p>
-            <p className="text-sm text-[#5a6a82]">{appointment.customer?.customer_type === "PJ" ? "Pessoa jurídica" : "Pessoa física"}</p>
-            <p className="text-sm text-[#5a6a82]">{appointment.customer?.customer_type === "PJ" ? `CNPJ: ${formatCnpj(appointment.customer?.cnpj || "")}` : `CPF: ${formatCpf(appointment.customer?.document || "")}`}</p>
-            {(appointment.customer?.whatsapp || appointment.customer?.phone) && <p className="text-sm text-[#5a6a82]">{appointment.customer.whatsapp ? `WhatsApp: ${formatPhone(appointment.customer.whatsapp)}` : `Telefone: ${formatPhone(appointment.customer.phone)}`}</p>}
-            {appointment.customer?.email && <p className="text-sm text-[#5a6a82]">E-mail: {appointment.customer.email}</p>}
-          </Section>
-          <Section title="Agendamento">
-            <p className="text-sm text-[#0d1b2e]">Data: {formatDate(appointment.appointment_date)}</p>
-            <p className="text-sm text-[#0d1b2e]">Horário/Período: {periodLabel(appointment)}</p>
-            {appointment.sector_location && <p className="text-sm text-[#0d1b2e]">Setor/Local: {appointment.sector_location}</p>}
-            {appointment.description && <p className="whitespace-pre-wrap text-sm text-[#0d1b2e]">{appointment.description}</p>}
-            <p className="text-sm text-[#0d1b2e]">É retorno: {appointment.is_return ? "Sim" : "Não"}</p>
-          </Section>
-          <Section title="Técnicos">
-            {appointment.appointment_technicians?.length ? <div className="flex flex-wrap gap-2">{appointment.appointment_technicians.map(technician => <span key={technician.employee_id} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-primary">{technician.employee?.full_name || "Técnico"}</span>)}</div> : <p className="text-sm text-[#5a6a82]">Nenhum técnico selecionado</p>}
-          </Section>
-          <Section title="Endereço">
-            {appointment.street || appointment.city || appointment.zip_code ? <p className="whitespace-pre-wrap text-sm text-[#0d1b2e]">{[appointment.zip_code, [appointment.street, appointment.number].filter(Boolean).join(", "), appointment.complement, appointment.neighborhood, [appointment.city, appointment.state].filter(Boolean).join(" - ")].filter(Boolean).join("\n")}</p> : <p className="text-sm text-[#5a6a82]">Endereço não informado</p>}
-          </Section>
-          {appointment.service_order_id && <Section title="OS relacionada">
-            <p className="text-sm font-bold text-primary">{appointment.service_order?.os_number ? `OS ${appointment.service_order.os_number}` : "OS relacionada"}</p>
-            <AdminButton variant="secondary" size="sm" onClick={() => { onClose(); onOpenOrder(appointment.service_order_id as string); }} className="mt-2 border-primary/30 text-primary">Abrir OS</AdminButton>
-          </Section>}
-        </div>
-        <div className="flex justify-end border-t border-[#0d1b2e]/10 px-5 py-4"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>
-      </>}
-    </DialogContent>
-  </Dialog>;
+  const customerName = appointment?.customer?.customer_type === "PJ"
+    ? (appointment?.customer?.trade_name || appointment?.customer?.legal_name || appointment?.customer?.full_name || "Cliente")
+    : (appointment?.customer?.full_name || "Cliente");
+
+  return <AdminDialog
+    open={Boolean(appointment)}
+    onClose={onClose}
+    title="Detalhes do agendamento"
+    description={appointment?.situation?.name || "Agendamento"}
+    minimizedDescription={appointment ? `${customerName} · ${formatDate(appointment.appointment_date)} · ${periodLabel(appointment)}` : "Agendamento"}
+    className="max-w-2xl"
+    footer={<div className="flex justify-end"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>}
+  >
+    {appointment && <div className="space-y-4">
+      <Section title="Cliente">
+        <p className="font-bold text-[#0d1b2e]">{customerName}</p>
+        <p className="text-sm text-[#5a6a82]">{appointment.customer?.customer_type === "PJ" ? "Pessoa jurídica" : "Pessoa física"}</p>
+        <p className="text-sm text-[#5a6a82]">{appointment.customer?.customer_type === "PJ" ? `CNPJ: ${formatCnpj(appointment.customer?.cnpj || "")}` : `CPF: ${formatCpf(appointment.customer?.document || "")}`}</p>
+        {(appointment.customer?.whatsapp || appointment.customer?.phone) && <p className="text-sm text-[#5a6a82]">{appointment.customer.whatsapp ? `WhatsApp: ${formatPhone(appointment.customer.whatsapp)}` : `Telefone: ${formatPhone(appointment.customer.phone)}`}</p>}
+        {appointment.customer?.email && <p className="text-sm text-[#5a6a82]">E-mail: {appointment.customer.email}</p>}
+      </Section>
+      <Section title="Agendamento">
+        <p className="text-sm text-[#0d1b2e]">Data: {formatDate(appointment.appointment_date)}</p>
+        <p className="text-sm text-[#0d1b2e]">Horário/Período: {periodLabel(appointment)}</p>
+        {appointment.sector_location && <p className="text-sm text-[#0d1b2e]">Setor/Local: {appointment.sector_location}</p>}
+        {appointment.description && <p className="whitespace-pre-wrap text-sm text-[#0d1b2e]">{appointment.description}</p>}
+        <p className="text-sm text-[#0d1b2e]">É retorno: {appointment.is_return ? "Sim" : "Não"}</p>
+      </Section>
+      <Section title="Técnicos">
+        {appointment.appointment_technicians?.length ? <div className="flex flex-wrap gap-2">{appointment.appointment_technicians.map(technician => <span key={technician.employee_id} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-primary">{technician.employee?.full_name || "Técnico"}</span>)}</div> : <p className="text-sm text-[#5a6a82]">Nenhum técnico selecionado</p>}
+      </Section>
+      <Section title="Endereço">
+        {appointment.street || appointment.city || appointment.zip_code ? <p className="whitespace-pre-wrap text-sm text-[#0d1b2e]">{[appointment.zip_code, [appointment.street, appointment.number].filter(Boolean).join(", "), appointment.complement, appointment.neighborhood, [appointment.city, appointment.state].filter(Boolean).join(" - ")].filter(Boolean).join("\n")}</p> : <p className="text-sm text-[#5a6a82]">Endereço não informado</p>}
+      </Section>
+      {appointment.service_order_id && <Section title="OS relacionada">
+        <p className="text-sm font-bold text-primary">{appointment.service_order?.os_number ? `OS ${appointment.service_order.os_number}` : "OS relacionada"}</p>
+        <AdminButton variant="secondary" size="sm" onClick={() => { onClose(); onOpenOrder(appointment.service_order_id as string); }} className="mt-2 border-primary/30 text-primary">Abrir OS</AdminButton>
+      </Section>}
+    </div>}
+  </AdminDialog>;
 }
