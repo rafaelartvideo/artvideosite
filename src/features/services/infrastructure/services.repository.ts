@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { getArtVideoOrganizationId } from "@/lib/organization-identities";
+import { getArtVideoOrganizationId } from "@/lib/organization-identity";
 
 type ServiceVariantInput = {
   title: string;
