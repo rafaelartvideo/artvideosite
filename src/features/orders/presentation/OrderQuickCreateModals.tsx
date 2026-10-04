@@ -467,6 +467,7 @@ export function QuickEquipmentModal({
     <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
       <DialogContent
         showClose={false}
+        minimizedTitle="Cadastro rápido de equipamento"
         className="admin-crm w-[calc(100vw-0.5rem)] max-w-[calc(100vw-0.5rem)] gap-0 border-0 bg-transparent p-0 shadow-none sm:w-full sm:max-w-4xl"
       >
         <DialogTitle className="sr-only">Cadastro rápido de equipamento</DialogTitle>
@@ -693,7 +694,7 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
   };
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent showClose={false} className="admin-crm max-w-sm border-0 bg-transparent p-0 shadow-none">
+      <DialogContent showClose={false} minimizedTitle="Novo tipo de atendimento" className="admin-crm max-w-sm border-0 bg-transparent p-0 shadow-none">
       <DialogTitle className="sr-only">Novo tipo de atendimento</DialogTitle>
       <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-border overflow-hidden">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex cursor-move items-center justify-between border-b border-border px-4 py-3 select-none">
