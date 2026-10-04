@@ -109,18 +109,7 @@ export function RegistrationEditor({
     maxW="max-w-6xl"
   >
     <div className="space-y-5 p-4 sm:p-5">
-      {employeeOnly ? (
-        <Section title="Vínculo">
-          <div className="flex items-center gap-3 rounded-xl border border-[#0057e7] bg-[#0057e7]/5 p-4">
-            <Checkbox checked disabled tabIndex={-1} />
-            <Users size={18} className="text-[#0057e7]" />
-            <div>
-              <div className="text-sm font-black text-[#0d1b2e]">Funcionário</div>
-              <div className="mt-0.5 text-xs text-[#5a6a82]">Usuário interno da Union World.</div>
-            </div>
-          </div>
-        </Section>
-      ) : (
+      {!employeeOnly && (
         <Section title="Tipo e vínculos">
           <div className="grid gap-3 sm:grid-cols-2">
             <button type="button" disabled={!canModify} onClick={() => setForm(current => ({ ...current, person_type: "PF" }))} className={`rounded-xl border p-4 text-left disabled:opacity-50 ${form.person_type === "PF" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
