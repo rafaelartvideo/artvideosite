@@ -113,7 +113,7 @@ export function useOrdersWorkspace({
       queryClient.invalidateQueries({ queryKey: queryKeys.customers.all }),
       queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
       queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() }),
     ]);
   }, [queryClient]);
 
