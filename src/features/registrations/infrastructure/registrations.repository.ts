@@ -120,8 +120,8 @@ export async function listRegistrationsPage({
   sort = "",
   employeeOnly = false,
 }: RegistrationListPageInput): Promise<RegistrationListPage> {
-  const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
-    "search_registration_page_ids_v1",
+  const { data, error } = await supabase.rpc(
+    "search_registration_page_v2",
     {
       p_organization_id: organizationId,
       p_page: Math.max(1, page),
@@ -134,29 +134,15 @@ export async function listRegistrationsPage({
       p_employee_only: employeeOnly,
     },
   );
-  if (pageIndexError) throw normalizeError(pageIndexError);
+  if (error) throw normalizeError(error);
 
-  const rows = (pageIndex ?? []) as Array<{ id: string; total_count: number | string }>;
-  const ids = rows.map(row => row.id);
-  const total = rows.length ? Number(rows[0].total_count ?? 0) : 0;
-  if (!ids.length) return { items: [], total };
-
-  const result = await supabase
-    .from("entities")
-    .select(REGISTRATION_LIST_SELECT)
-    .eq("organization_id", organizationId)
-    .in("id", ids);
-  if (result.error) throw normalizeError(result.error);
-
-  const byId = new Map(
-    (result.data ?? [])
-      .map(row => normalizeRegistration(row))
-      .map(row => [row.id, row] as const),
-  );
+  const pageData = (data || {}) as Record<string, unknown>;
+  const items = (Array.isArray(pageData.items) ? pageData.items : [])
+    .map(row => normalizeRegistration(row as Record<string, any>));
 
   return {
-    items: ids.map(id => byId.get(id)).filter(Boolean) as unknown as Registration[],
-    total,
+    items: items as Registration[],
+    total: Number(pageData.total || 0),
   };
 }
 
