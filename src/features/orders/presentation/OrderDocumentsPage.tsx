@@ -16,6 +16,7 @@ import { cn } from "@/shared/domain/formatters";
 import {
   AdminCard,
   AdminCardHeader,
+  AdminDialog,
   AdminPage,
   AdminStickyToolbar,
   BtnPrimary,
@@ -179,10 +180,18 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label="Novo anexo">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-white px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Novo anexo</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Confira o preview antes de anexar.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-[#5a6a82] hover:bg-muted" aria-label="Fechar"><X size={18} /></button></div>
-        <div className="space-y-4 p-5">
+    <AdminDialog
+      open
+      onClose={onClose}
+      title="Novo anexo"
+      description="Confira o preview antes de anexar."
+      className="max-w-lg"
+      footer={<div className="flex justify-end gap-2">
+        <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
+        <BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary>
+      </div>}
+    >
+      <div className="space-y-4">
           <div className="min-w-0">
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Tipo de anexo</label>
             <AdminSelect
@@ -217,10 +226,9 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
 
           {controller.attachmentTypes.length === 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Cadastre pelo menos um tipo em Operação → Documentos → Anexos.</p>}
           {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
-        </div>
-        <AdminStickyToolbar className="justify-end gap-2"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void submit()} disabled={uploading || controller.attachmentTypes.length === 0}>{uploading ? "Enviando..." : "Anexar"}</BtnPrimary></AdminStickyToolbar>
+
       </div>
-    </div>
+    </AdminDialog>
   );
 }
 
