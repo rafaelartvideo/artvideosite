@@ -24,7 +24,7 @@ export function AppointmentTechniciansDialog({ technicians, selectedIds, onSelec
   };
 
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent showClose={false} className="admin-crm max-w-lg gap-0 rounded-xl bg-white p-5 shadow-2xl">
+    <DialogContent showClose={false} minimizedTitle="Selecionar técnicos" className="admin-crm max-w-lg gap-0 rounded-xl bg-white p-5 shadow-2xl">
       <DialogTitle className="sr-only">Selecionar técnicos</DialogTitle>
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-black text-[#0d1b2e]">Selecionar Técnicos</h3>
