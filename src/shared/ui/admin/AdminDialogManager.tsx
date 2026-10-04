@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Maximize2, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
+import { setDialogMinimizedState } from "./admin-dialog-behavior.mjs";
 
 type AdminDialogTask = {
   id: string;
@@ -75,13 +76,7 @@ export function AdminDialogManagerProvider({ children }: { children: React.React
   }, []);
 
   const setMinimized = React.useCallback((id: string, minimized: boolean) => {
-    setTasks(current => current.map(item => {
-      if (item.id === id) return { ...item, minimized };
-      // Só uma janela restaurada do dock fica ativa por vez. Ao restaurar
-      // outra, a que estava aberta volta automaticamente para o dock.
-      if (!minimized && !item.minimized) return { ...item, minimized: true };
-      return item;
-    }));
+    setTasks(current => setDialogMinimizedState(current, id, minimized));
   }, []);
 
   const unregisterDialog = React.useCallback((id: string) => {

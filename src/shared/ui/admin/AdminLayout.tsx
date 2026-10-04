@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { ArrowLeft, Pause, Play, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
+import { preventAdminDialogOutsideInteraction } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
 import {
   Dialog,
   DialogContent,
@@ -310,6 +311,8 @@ export function AdminDialog({
       minimizedTitle={minimizedTitle}
       minimizedDescription={effectiveMinimizedDescription}
       overlayClassName="admin-dialog-overlay"
+      onPointerDownOutside={preventAdminDialogOutsideInteraction}
+      onInteractOutside={preventAdminDialogOutsideInteraction}
       data-admin-dialog-content="true"
       style={{
         "--admin-browser-bottom-inset": `${browserBottomInset}px`,

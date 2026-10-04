@@ -9,6 +9,7 @@ import {
   useOptionalAdminDialogManager,
 } from "@/shared/ui/admin/AdminDialogManager";
 import { cn } from "./utils";
+import { dialogSizingClass, resolveDialogModalMode } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
 
 type DialogRuntimeValue = {
   id: string;
@@ -32,7 +33,9 @@ function Dialog({
   const id = React.useId();
   const [internalOpen, setInternalOpen] = React.useState(Boolean(defaultOpen));
   const effectiveOpen = open ?? internalOpen;
-  const minimized = Boolean(manager?.tasks.find(task => task.id === id)?.minimized);
+  const managedTask = manager?.tasks.find(task => task.id === id);
+  const minimized = Boolean(managedTask?.minimized);
+  const isManaged = Boolean(managedTask);
 
   const commitOpenChange = React.useCallback((nextOpen: boolean) => {
     if (open === undefined) setInternalOpen(nextOpen);
@@ -67,7 +70,7 @@ function Dialog({
       data-slot="dialog"
       {...props}
       open={effectiveOpen}
-      modal={minimized ? false : modal}
+      modal={resolveDialogModalMode(isManaged, modal)}
       onOpenChange={handleOpenChange}
     />
   </DialogRuntimeContext.Provider>;
@@ -193,7 +196,8 @@ function DialogContent({
         data-slot="dialog-content"
         data-admin-dialog-content={isAdminDialog ? "true" : undefined}
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-4 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg motion-reduce:animate-none",
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-4 fixed top-[50%] left-[50%] z-50 grid translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 motion-reduce:animate-none",
+          dialogSizingClass(isAdminDialog),
           isAdminDialog && "z-[150]",
           className,
         )}
