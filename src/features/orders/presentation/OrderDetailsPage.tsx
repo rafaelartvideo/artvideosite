@@ -142,8 +142,8 @@ export function OrderDetailsPage(props: Props) {
   const labelUrl = detail?.id && detail?.organization_id
     ? `${window.location.origin}/admin/orders/${encodeURIComponent(detail.id)}?org=${encodeURIComponent(detail.organization_id)}`
     : "";
-  const contactPhone = String((detail?.customer as any)?.phone || "").replace(/\D/g, "");
-  const contactWhatsappRaw = String((detail?.customer as any)?.whatsapp || (detail?.customer as any)?.phone || "").replace(/\D/g, "");
+  const contactPhone = String(monitorContact?.phone || "").replace(/\D/g, "");
+  const contactWhatsappRaw = String(monitorContact?.whatsapp || monitorContact?.phone || "").replace(/\D/g, "");
   const contactWhatsapp = contactWhatsappRaw && !contactWhatsappRaw.startsWith("55") && contactWhatsappRaw.length <= 11
     ? `55${contactWhatsappRaw}`
     : contactWhatsappRaw;
