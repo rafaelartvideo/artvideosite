@@ -13,6 +13,7 @@ import {
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -62,6 +63,7 @@ export function PdvSalesHistory({
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search);
   const [status, setStatus] = useState<"" | "completed" | "cancelled">("");
+  const [mobileSearchField, setMobileSearchField] = useState<"query" | "status">("query");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
@@ -150,7 +152,31 @@ export function PdvSalesHistory({
     />
 
     <AdminSearchPanel title="Buscar vendas">
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+      <AdminMobileSearchSwitch
+        value={mobileSearchField}
+        options={[{ value: "query", label: "Venda / cliente / documento" }, { value: "status", label: "Situação" }]}
+        onChange={setMobileSearchField}
+      >
+        {mobileSearchField === "query" ? <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+          <input
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+            placeholder="Número da venda, cliente ou CPF/CNPJ"
+            className={cn(INPUT, "h-[42px] w-full pl-9")}
+          />
+        </div> : <AdminSelect
+          value={status}
+          onValueChange={value => setStatus(value as "" | "completed" | "cancelled")}
+          options={[
+            { value: "", label: "Todas as situações" },
+            { value: "completed", label: "Concluídas" },
+            { value: "cancelled", label: "Canceladas" },
+          ]}
+          ariaLabel="Filtrar situação da venda"
+        />}
+      </AdminMobileSearchSwitch>
+      <div className="hidden gap-3 md:grid md:grid-cols-[minmax(0,1fr)_220px]">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
           <input
