@@ -1,4 +1,4 @@
-import { History, RotateCcw } from "lucide-react";
+import { CheckCircle2, History, RotateCcw } from "lucide-react";
 import { AdminButton, Section } from "@/shared/ui/admin/AdminLayout";
 import type { ServiceOrderSolutionAttempt } from "../infrastructure/order-solution-history.repository";
 import {
@@ -48,7 +48,7 @@ export function OrderSolutionSummary({
 
   return <Section title="Solução da OS" actions={actions}>
     {!detail.is_solved && hasHistory && !detail.cannot_be_solved ? <div className="flex items-start gap-3 rounded-xl border border-border bg-muted p-3"><History size={17} className="mt-0.5 shrink-0 text-[#0057e7]" /><div><p className="text-sm font-bold text-[#0d1b2e]">Sem solução ativa</p><p className="mt-0.5 text-xs text-[#5a6a82]">Esta OS já foi solucionada {solutionCount} {solutionCount === 1 ? "vez" : "vezes"}. Consulte os registros para ver as soluções anteriores e os desfazimentos.</p></div></div> : <div className="space-y-4">
-      {detail.is_solved && <div className="flex items-center gap-2 flex-wrap"><span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2.5 py-1 text-[10px] font-bold uppercase">✓ OS solucionada</span>{detail.solved_at && <span className="text-xs text-[#5a6a82]">Solucionada em {formatSolvedAt(detail.solved_at)} por: {activeAttempt?.solved_by_profile?.full_name || "Nome não informado"}</span>}{hasHistory && <span className="text-[10px] font-bold text-[#7c899c]">{solutionCount} {solutionCount === 1 ? "solução registrada" : "soluções registradas"}</span>}</div>}
+      {detail.is_solved && <div className="flex items-center gap-2 flex-wrap"><span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={15} />OS solucionada</span>{detail.solved_at && <span className="text-xs text-[#5a6a82]">Solucionada em {formatSolvedAt(detail.solved_at)} por: {activeAttempt?.solved_by_profile?.full_name || "Nome não informado"}</span>}{hasHistory && <span className="text-[10px] font-bold text-[#7c899c]">{solutionCount} {solutionCount === 1 ? "solução registrada" : "soluções registradas"}</span>}</div>}
       {detail.cannot_be_solved && <div className="space-y-1"><span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span><p className="text-sm text-[#0d1b2e] whitespace-pre-line"><strong>Justificativa:</strong> {detail.cannot_be_solved_reason}</p></div>}
       {detail.customer_notes && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Descrição do problema</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p></div>}
       {detail.diagnosis && <div><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-1">Diagnóstico</p><p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.diagnosis}</p></div>}
