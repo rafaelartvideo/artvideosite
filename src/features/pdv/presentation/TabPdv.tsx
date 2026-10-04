@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminSelect, FCurrencyInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
@@ -76,6 +77,8 @@ export function TabPdv({
     queryKey: queryKeys.pdv.bootstrap(organizationId || "none"),
     queryFn: () => loadPdvBootstrap(organizationId),
     enabled: Boolean(organizationId),
+    staleTime: REFERENCE_DATA_CACHE_TIME,
+    gcTime: REFERENCE_DATA_CACHE_TIME,
   });
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
