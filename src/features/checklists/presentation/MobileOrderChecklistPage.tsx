@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
+import { subscribeMobileSessionRealtime } from "@/features/device-capture/infrastructure/mobile-session-realtime";
 import {
   Camera,
   Check,
@@ -19,7 +20,6 @@ import {
 import {
   completeMobileOrderChecklistStage,
   getMobileOrderChecklist,
-  getMobileOrderChecklistStatus,
   pairMobileOrderChecklistCode,
   reopenMobileOrderChecklistStage,
   saveMobileOrderChecklistItem,
@@ -333,26 +333,33 @@ export function MobileOrderChecklistPage() {
 
   useEffect(() => {
     if (!pairing || state !== "ready") return;
-    let cancelled = false;
+    return subscribeMobileSessionRealtime({
+      sessionId: pairing.id,
+      presenceRole: "mobile",
+    });
+  }, [pairing?.id, state]);
 
-    const ping = async () => {
-      try {
-        await getMobileOrderChecklistStatus(pairing.id, pairing.token);
-      } catch {
-        if (cancelled) return;
-        storePairing(null);
-        setPairing(null);
-        setData(null);
-        setState("expired");
-      }
-    };
-
-    const timer = window.setInterval(() => void ping(), 20000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [pairing?.id, pairing?.token, state]);
+  useEffect(() => {
+    if (!pairing || state !== "ready" || !data?.expires_at) return;
+    const expiresAtMs = Date.parse(data.expires_at);
+    if (!Number.isFinite(expiresAtMs)) return;
+    const remaining = expiresAtMs - Date.now();
+    if (remaining <= 0) {
+      storePairing(null);
+      setPairing(null);
+      setData(null);
+      setState("expired");
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      storePairing(null);
+      setPairing(null);
+      setData(null);
+      setState("expired");
+      setNotice({ type: "error", text: "A conexão expirou. Conecte novamente para continuar." });
+    }, remaining + 250);
+    return () => window.clearTimeout(timer);
+  }, [pairing?.id, state, data?.expires_at]);
 
   const checklist = data?.checklist || null;
   const progress = checklistProgress(checklist);
