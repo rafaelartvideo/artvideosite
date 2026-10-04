@@ -99,7 +99,7 @@ function DialogOverlay({
   );
 }
 
-function useDialogMinimizeAction(title: string) {
+function useDialogMinimizeAction(title: string, description?: React.ReactNode) {
   const runtime = React.useContext(DialogRuntimeContext);
   const manager = useOptionalAdminDialogManager();
 
@@ -109,6 +109,7 @@ function useDialogMinimizeAction(title: string) {
       id: runtime.id,
       ownerKey: runtime.ownerKey,
       title,
+      description,
       onClose: runtime.requestClose,
     });
   };
@@ -116,14 +117,16 @@ function useDialogMinimizeAction(title: string) {
 
 function DialogMinimizeButton({
   title = "Janela minimizada",
+  description,
   className,
 }: {
   title?: string;
+  description?: React.ReactNode;
   className?: string;
 }) {
   const runtime = React.useContext(DialogRuntimeContext);
   const manager = useOptionalAdminDialogManager();
-  const minimize = useDialogMinimizeAction(title);
+  const minimize = useDialogMinimizeAction(title, description);
 
   if (!runtime || !manager || runtime.minimized) return null;
 
@@ -149,6 +152,7 @@ function DialogContent({
   minimizable,
   showMinimizeControl = true,
   minimizedTitle,
+  minimizedDescription,
   overlayClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
@@ -157,6 +161,7 @@ function DialogContent({
   minimizable?: boolean;
   showMinimizeControl?: boolean;
   minimizedTitle?: string;
+  minimizedDescription?: React.ReactNode;
   overlayClassName?: string;
 }) {
   const isAdminDialog = typeof className === "string" && className.includes("admin-crm");
@@ -165,7 +170,7 @@ function DialogContent({
   const canMinimize = Boolean((minimizable ?? isAdminDialog) && runtime && manager);
   const fallbackTitle = typeof props["aria-label"] === "string" ? props["aria-label"] : "Janela minimizada";
   const dockTitle = minimizedTitle || fallbackTitle;
-  const minimize = useDialogMinimizeAction(dockTitle);
+  const minimize = useDialogMinimizeAction(dockTitle, minimizedDescription);
 
   if (canMinimize && runtime?.minimized) return null;
 
