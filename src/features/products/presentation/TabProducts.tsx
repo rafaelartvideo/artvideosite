@@ -1751,7 +1751,6 @@ export function TabProducts({
       </div>}
     >
       <FInput
-        autoFocus
         label={masterDataDialog === "category" ? "Nome da categoria" : "Nome da marca"}
         value={masterDataName}
         disabled={masterDataSaving}
