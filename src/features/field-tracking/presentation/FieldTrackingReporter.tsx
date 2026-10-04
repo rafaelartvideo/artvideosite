@@ -249,6 +249,7 @@ export function FieldTrackingReporter() {
     title="Localização obrigatória"
     description="O compartilhamento da localização é obrigatório para este usuário enquanto estiver usando o sistema."
     minimizable={false}
+    closable={false}
     className="max-w-lg"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <AdminButton variant="secondary" disabled={activationBusy} onClick={() => void signOut()}>
