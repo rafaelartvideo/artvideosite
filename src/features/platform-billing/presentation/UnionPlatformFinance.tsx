@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Banknote, CalendarDays, CheckCircle2, CreditCard, Plus, TrendingUp } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import {
@@ -52,6 +53,7 @@ function todayDate() {
 
 export function UnionPlatformFinance() {
   const { hasPermission } = useAuth();
+  const queryClient = useQueryClient();
   const canManage = hasPermission("platform.billing.manage");
   const [section, setSection] = useState<SectionId>("subscriptions");
   const [planOpen, setPlanOpen] = useState(false);
@@ -93,7 +95,10 @@ export function UnionPlatformFinance() {
   const activePlans = useMemo(() => (data?.plans || []).filter(plan => plan.is_active), [data?.plans]);
 
   const refresh = async () => {
-    await query.refetch();
+    await Promise.all([
+      query.refetch(),
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() }),
+    ]);
   };
 
   const openNewPlan = () => {
