@@ -114,6 +114,26 @@ function AdminMinimizedDialogDock({
   tasks: AdminDialogTask[];
   setMinimized: (id: string, minimized: boolean) => void;
 }) {
+  const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
+
+  React.useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setBrowserBottomInset(Math.min(140, Math.round(inset)));
+    };
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
   const minimized = tasks
     .filter(task => task.minimized)
     .sort((a, b) => a.order - b.order);
@@ -121,12 +141,13 @@ function AdminMinimizedDialogDock({
   if (!minimized.length) return null;
 
   return <div
-    className="pointer-events-none fixed bottom-4 right-4 z-[240] flex w-[calc(100vw-2rem)] flex-row-reverse flex-wrap-reverse content-end items-end gap-2"
+    className="pointer-events-none fixed left-3 right-3 z-[240] flex max-h-[52dvh] flex-col-reverse items-stretch gap-2 overflow-y-auto sm:left-auto sm:right-4 sm:w-[calc(100vw-2rem)] sm:flex-row-reverse sm:flex-wrap-reverse sm:content-end sm:items-end sm:overflow-visible"
+    style={{ bottom: `calc(0.75rem + env(safe-area-inset-bottom, 0px) + ${browserBottomInset}px)` }}
     aria-label="Modais minimizados"
   >
     {minimized.map(task => <div
       key={task.id}
-      className="admin-crm pointer-events-auto flex w-[min(92vw,360px)] min-w-0 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-card-foreground shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 ease-out motion-reduce:animate-none"
+      className="admin-crm pointer-events-auto flex w-full min-w-0 shrink-0 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-card-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out motion-reduce:animate-none sm:w-[360px]"
     >
       <button
         type="button"
