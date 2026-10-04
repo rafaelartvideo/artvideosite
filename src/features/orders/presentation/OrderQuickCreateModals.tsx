@@ -664,4 +664,3 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
     </div>
   </AdminDialog>;
 }
-}
