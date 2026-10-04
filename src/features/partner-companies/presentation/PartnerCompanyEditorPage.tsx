@@ -2,14 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { lookupCompanyByCnpj } from "@/features/settings/infrastructure/company-registry.gateway";
+import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
 import { type Address } from "@/lib/address";
 import {
   isValidBrazilianMobile,
   isValidBrazilianPhone,
+  isPastOrTodayIsoDate,
   isValidCnpj,
   isValidCpf,
   isValidEmail,
   normalizeDigits,
+  todayDateOnly,
 } from "@/shared/domain/formatters";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -35,6 +38,7 @@ type CompanyDraft = {
   document: string;
   stateRegistration: string;
   municipalRegistration: string;
+  birthDate: string;
   phone: string;
   whatsapp: string;
   email: string;
@@ -65,6 +69,7 @@ const emptyDraft: CompanyDraft = {
   document: "",
   stateRegistration: "",
   municipalRegistration: "",
+  birthDate: "",
   phone: "",
   whatsapp: "",
   email: "",
@@ -102,6 +107,7 @@ function toDraft(company?: any | null): CompanyDraft {
     document: company.document || "",
     stateRegistration: settings.state_registration || "",
     municipalRegistration: settings.municipal_registration || "",
+    birthDate: settings.birth_date || "",
     phone: settings.phone || "",
     whatsapp: settings.whatsapp || "",
     email: settings.email || "",
@@ -129,6 +135,7 @@ function validateCompany(form: CompanyDraft): FormErrors {
 
   if (form.personType === "PF") {
     if (!isValidCpf(documentDigits)) errors.document = "Informe um CPF válido.";
+    if (!form.birthDate || !isPastOrTodayIsoDate(form.birthDate)) errors.birthDate = "Informe uma data de nascimento válida.";
   } else {
     if (!isValidCnpj(documentDigits)) errors.document = "Informe um CNPJ válido.";
     if (!form.legalName.trim()) errors.legalName = "Informe a razão social.";
@@ -161,13 +168,14 @@ export function PartnerCompanyEditorPage({
   onClose: () => void;
   onSaved: (company: any) => void;
 }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, activeOrganizationId } = useAuth();
   const editing = Boolean(company?.id);
   const canManageMonitoring = hasPermission("orders.monitor.manage");
   const [form, setForm] = useState<CompanyDraft>(() => toDraft(company));
   const [monitoringTypes, setMonitoringTypes] = useState<MonitoringDraft[]>([]);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
+  const [consultingCpf, setConsultingCpf] = useState(false);
   const [consultingCnpj, setConsultingCnpj] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const lastCnpjLookupRef = useRef("");
@@ -251,6 +259,48 @@ export function PartnerCompanyEditorPage({
     setForm({ ...emptyDraft, personType: value });
   };
 
+  const lookupCpfIdentity = async () => {
+    if (!activeOrganizationId) {
+      setToast({ msg: "Selecione a organização da plataforma antes de consultar o CPF.", type: "error" });
+      return;
+    }
+    if (!isValidCpf(form.document)) {
+      setErrors(current => ({ ...current, document: "Informe um CPF válido." }));
+      return;
+    }
+
+    const requestedCpf = normalizeDigits(form.document);
+    setConsultingCpf(true);
+    setErrors(current => ({ ...current, document: undefined }));
+    try {
+      const result = await lookupCpf(requestedCpf, activeOrganizationId);
+      setForm(current => {
+        if (current.personType !== "PF" || normalizeDigits(current.document) !== requestedCpf) return current;
+        return {
+          ...current,
+          name: result.name || current.name,
+          birthDate: result.birthDate || current.birthDate,
+        };
+      });
+      setErrors(current => ({ ...current, name: undefined, birthDate: undefined }));
+      setToast({
+        msg: result.source === "local"
+          ? "CPF encontrado no cadastro interno. Nome e nascimento foram reaproveitados."
+          : result.birthDate
+            ? "Nome e data de nascimento preenchidos pela consulta de CPF."
+            : "Nome preenchido pela consulta de CPF.",
+        type: "success",
+      });
+    } catch (error) {
+      setErrors(current => ({
+        ...current,
+        document: systemErrorMessage(error, "Não foi possível consultar o CPF."),
+      }));
+    } finally {
+      setConsultingCpf(false);
+    }
+  };
+
   const addressValue: Address = {
     zip_code: form.zipCode,
     street: form.street,
@@ -302,6 +352,7 @@ export function PartnerCompanyEditorPage({
       email: form.email.trim(),
       state_registration: form.stateRegistration.trim(),
       municipal_registration: form.municipalRegistration.trim(),
+      birth_date: form.personType === "PF" ? form.birthDate : "",
       zip_code: form.zipCode.trim(),
       street: form.street.trim(),
       number: form.number.trim(),
@@ -376,8 +427,14 @@ export function PartnerCompanyEditorPage({
             </div>
 
             {form.personType === "PF" ? <>
-              <FCpfInput label="CPF" required error={errors.document} value={form.document} onChange={(event: any) => setField("document", event.target.value)} />
+              <div className="min-w-0">
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                  <FCpfInput label="CPF" required error={errors.document} value={form.document} onChange={(event: any) => setField("document", event.target.value)} />
+                  <AdminButton variant="secondary" size="sm" loading={consultingCpf} loadingText="Consultar" onClick={() => void lookupCpfIdentity()} disabled={saving || !isValidCpf(form.document)} className="h-[42px] shrink-0 border-primary/30 px-4 text-primary hover:bg-primary/5">Consultar</AdminButton>
+                </div>
+              </div>
               <FInput label="Nome completo" required error={errors.name} value={form.name} onChange={(event: any) => setField("name", event.target.value)} />
+              <FInput label="Data de nascimento" type="date" required max={todayDateOnly()} error={errors.birthDate} value={form.birthDate} onChange={(event: any) => setField("birthDate", event.target.value)} />
               <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(event: any) => setField("phone", event.target.value)} />
               <FPhoneInput label="WhatsApp" mobile error={errors.whatsapp} value={form.whatsapp} onChange={(event: any) => setField("whatsapp", event.target.value)} />
               <div className="min-w-0 md:col-span-2"><FEmailInput label="E-mail" error={errors.email} value={form.email} onChange={(event: any) => setField("email", event.target.value)} /></div>
@@ -521,7 +578,7 @@ export function PartnerCompanyEditorPage({
 
     <AdminStickyToolbar className="flex-wrap justify-end gap-2">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-      <BtnPrimary onClick={() => void save()} disabled={!canSave || saving || consultingCnpj}>
+      <BtnPrimary onClick={() => void save()} disabled={!canSave || saving || consultingCpf || consultingCnpj}>
         {saving ? "Salvando..." : editing ? "Salvar" : "Cadastrar empresa"}
       </BtnPrimary>
     </AdminStickyToolbar>

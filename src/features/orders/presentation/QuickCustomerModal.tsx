@@ -192,13 +192,6 @@ export function QuickCustomerModal({ onClose, onSaved }: {
     clearFieldError("document");
 
     try {
-      const duplicate = await findQuickCustomerByTaxId(activeOrganizationId, "PF", requestedCpf);
-      if (duplicate.error) throw duplicate.error;
-      if (duplicate.data) {
-        setFieldError("document", duplicateMessage("PF", duplicate.data));
-        return;
-      }
-
       const result = await lookupCpf(requestedCpf, activeOrganizationId);
       setForm(current => {
         if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
@@ -206,6 +199,14 @@ export function QuickCustomerModal({ onClose, onSaved }: {
       });
       clearFieldError("full_name");
       clearFieldError("birth_date");
+      notifyAdmin(
+        result.source === "local"
+          ? "CPF encontrado no cadastro interno. Nome e nascimento foram reaproveitados."
+          : result.birthDate
+            ? "Nome e data de nascimento preenchidos pela consulta de CPF."
+            : "Nome preenchido pela consulta de CPF.",
+        "success",
+      );
     } catch (error) {
       const message = quickCustomerErrorMessage(error, "Não foi possível consultar o CPF.");
       if (/cadastro já existente|cpf já cadastrado|cpf inválido|cpf não encontrado/i.test(message)) {

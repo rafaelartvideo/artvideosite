@@ -139,6 +139,20 @@ function validOptionalPhone(value: string | null) {
   return digits.length === 10 || digits.length === 11;
 }
 
+function validOptionalBirthDate(value: string | null) {
+  if (!value) return true;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day
+    && value <= new Date().toISOString().slice(0, 10);
+}
+
 async function platformOperatorOrganizationId() {
   const { data, error } = await adminClient.rpc("platform_operator_organization_id");
   if (error || !data) throw error || new Error("Operadora Union World não configurada.");
@@ -220,8 +234,114 @@ async function findProfileByUsername(username: string) {
   return data;
 }
 
+async function syncPartnerUserRegistrationIdentity(input: {
+  organizationId: string;
+  employeeId: string;
+  profileId: string;
+  roleId: string;
+  fullName: string;
+  cpf: string;
+  birthDate: string | null;
+  phone: string | null;
+  email: string;
+  functionName: string;
+  isActive: boolean;
+}) {
+  const {
+    organizationId, employeeId, profileId, roleId, fullName, cpf,
+    birthDate, phone, email, functionName, isActive,
+  } = input;
+
+  let { data: entity, error: entityError } = await adminClient
+    .from("entities")
+    .select("id,legacy_employee_id")
+    .eq("organization_id", organizationId)
+    .eq("legacy_employee_id", employeeId)
+    .maybeSingle();
+  if (entityError) throw entityError;
+
+  if (!entity) {
+    const result = await adminClient
+      .from("entities")
+      .select("id,legacy_employee_id")
+      .eq("organization_id", organizationId)
+      .eq("document", cpf)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (result.error) throw result.error;
+    entity = result.data?.[0] ?? null;
+  }
+
+  if (entity?.legacy_employee_id && entity.legacy_employee_id !== employeeId) {
+    throw new Error("Este CPF já está vinculado a outro funcionário nesta empresa.");
+  }
+
+  if (!entity) {
+    const inserted = await adminClient
+      .from("entities")
+      .insert({
+        organization_id: organizationId,
+        person_type: "PF",
+        name: fullName,
+        document: cpf,
+        birth_date: birthDate,
+        phone,
+        email: email || null,
+        is_active: isActive,
+        legacy_employee_id: employeeId,
+      })
+      .select("id,legacy_employee_id")
+      .single();
+    if (inserted.error) throw inserted.error;
+    entity = inserted.data;
+  } else {
+    const updated = await adminClient
+      .from("entities")
+      .update({
+        name: fullName,
+        document: cpf,
+        birth_date: birthDate,
+        phone,
+        email: email || null,
+        is_active: isActive,
+        legacy_employee_id: employeeId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", entity.id)
+      .eq("organization_id", organizationId);
+    if (updated.error) throw updated.error;
+  }
+
+  const roleLink = await adminClient
+    .from("entity_roles")
+    .upsert({
+      entity_id: entity.id,
+      role: "employee",
+      is_active: isActive,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "entity_id,role" });
+  if (roleLink.error) throw roleLink.error;
+
+  const employeeDetails = await adminClient
+    .from("entity_employee_details")
+    .upsert({
+      entity_id: entity.id,
+      profile_id: profileId,
+      role_id: roleId,
+      job_title: functionName || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "entity_id" });
+  if (employeeDetails.error) throw employeeDetails.error;
+
+  return entity.id;
+}
+
 async function listPartnerUsers(organizationId: string) {
-  const [{ data: members, error: membersError }, { data: employees, error: employeesError }] = await Promise.all([
+  const [
+    { data: members, error: membersError },
+    { data: employees, error: employeesError },
+    { data: entities, error: entitiesError },
+  ] = await Promise.all([
     adminClient
       .from("organization_members")
       .select("id,organization_id,user_id,role_id,status,is_owner,joined_at,profile:profiles!organization_members_user_id_fkey(id,full_name,username,email,is_active),role:roles(id,name)")
@@ -231,14 +351,25 @@ async function listPartnerUsers(organizationId: string) {
       .from("employees")
       .select("id,profile_id,full_name,cpf,phone,function_name,role_id,is_active")
       .eq("organization_id", organizationId),
+    adminClient
+      .from("entities")
+      .select("id,name,document,birth_date,phone,email,legacy_employee_id")
+      .eq("organization_id", organizationId)
+      .eq("person_type", "PF"),
   ]);
   if (membersError) throw membersError;
   if (employeesError) throw employeesError;
+  if (entitiesError) throw entitiesError;
 
   const employeeByProfile = new Map((employees ?? []).map((employee: any) => [employee.profile_id, employee]));
+  const entityByEmployee = new Map((entities ?? []).filter((entity: any) => entity.legacy_employee_id).map((entity: any) => [entity.legacy_employee_id, entity]));
+  const entityByDocument = new Map((entities ?? []).filter((entity: any) => entity.document).map((entity: any) => [normalizeDigits(entity.document), entity]));
 
   return (members ?? []).map((member: any) => {
     const employee = employeeByProfile.get(member.user_id) as any;
+    const entity = employee
+      ? entityByEmployee.get(employee.id) || entityByDocument.get(normalizeDigits(employee.cpf))
+      : null;
     return {
       membership_id: member.id,
       organization_id: member.organization_id,
@@ -248,11 +379,13 @@ async function listPartnerUsers(organizationId: string) {
       status: member.status,
       is_owner: member.is_owner === true,
       joined_at: member.joined_at,
-      full_name: employee?.full_name ?? member.profile?.full_name ?? "",
+      full_name: entity?.name ?? employee?.full_name ?? member.profile?.full_name ?? "",
       username: member.profile?.username ?? "",
-      email: member.profile?.email ?? "",
-      cpf: employee?.cpf ?? "",
-      phone: employee?.phone ?? "",
+      email: entity?.email ?? member.profile?.email ?? "",
+      cpf: employee?.cpf ?? entity?.document ?? "",
+      birth_date: entity?.birth_date ?? null,
+      phone: entity?.phone ?? employee?.phone ?? "",
+      entity_id: entity?.id ?? null,
       function_name: employee?.function_name ?? member.role?.name ?? "",
       employee_id: employee?.id ?? null,
       employee_active: employee?.is_active !== false,
@@ -330,6 +463,7 @@ Deno.serve(async (request) => {
     const roleId = String(body?.role_id ?? "").trim();
     const fullName = String(body?.full_name ?? "").trim();
     const cpf = normalizeDigits(body?.cpf);
+    const birthDate = String(body?.birth_date ?? "").trim() || null;
     const phone = String(body?.phone ?? "").trim() || null;
     const email = normalizeEmail(body?.email);
     const functionName = String(body?.function_name ?? "").trim();
@@ -341,6 +475,9 @@ Deno.serve(async (request) => {
     }
     if (!validCpf(cpf)) {
       return fail(request, "O CPF informado não é válido.", 400, "invalid_cpf");
+    }
+    if (!validOptionalBirthDate(birthDate)) {
+      return fail(request, "A data de nascimento informada não é válida.", 400, "invalid_birth_date");
     }
     if (!validOptionalPhone(phone)) {
       return fail(request, "O telefone informado não é válido.", 400, "invalid_phone");
@@ -438,7 +575,7 @@ Deno.serve(async (request) => {
         if (membershipInsertError) throw membershipInsertError;
         createdMembership = true;
 
-        const { error: employeeInsertError } = await adminClient.from("employees").insert({
+        const { data: createdEmployee, error: employeeInsertError } = await adminClient.from("employees").insert({
           organization_id: organizationId,
           profile_id: authUser.id,
           full_name: fullName,
@@ -447,8 +584,22 @@ Deno.serve(async (request) => {
           function_name: functionName || role.name,
           role_id: roleId,
           is_active: isActive,
+        }).select("id").single();
+        if (employeeInsertError || !createdEmployee) throw employeeInsertError || new Error("Funcionário não retornado após o cadastro.");
+
+        await syncPartnerUserRegistrationIdentity({
+          organizationId,
+          employeeId: createdEmployee.id,
+          profileId: authUser.id,
+          roleId,
+          fullName,
+          cpf,
+          birthDate,
+          phone,
+          email,
+          functionName: functionName || role.name,
+          isActive,
         });
-        if (employeeInsertError) throw employeeInsertError;
 
         return respond(request, {
           success: true,
@@ -541,17 +692,34 @@ Deno.serve(async (request) => {
       .maybeSingle();
     if (employeeLookupError) throw employeeLookupError;
 
+    let savedEmployeeId = employee?.id ?? null;
     if (employee) {
       const { error } = await adminClient.from("employees").update(employeePayload).eq("id", employee.id);
       if (error) throw error;
     } else {
-      const { error } = await adminClient.from("employees").insert({
+      const inserted = await adminClient.from("employees").insert({
         organization_id: organizationId,
         profile_id: userId,
         ...employeePayload,
-      });
-      if (error) throw error;
+      }).select("id").single();
+      if (inserted.error || !inserted.data) throw inserted.error || new Error("Funcionário não retornado após o cadastro.");
+      savedEmployeeId = inserted.data.id;
     }
+
+    if (!savedEmployeeId) throw new Error("Funcionário não identificado após salvar.");
+    await syncPartnerUserRegistrationIdentity({
+      organizationId,
+      employeeId: savedEmployeeId,
+      profileId: userId,
+      roleId,
+      fullName,
+      cpf,
+      birthDate,
+      phone,
+      email,
+      functionName: functionName || role.name,
+      isActive,
+    });
 
     const { count: membershipCount, error: membershipCountError } = await adminClient
       .from("organization_members")

@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Users } from "lucide-react";
 import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
-import { isValidBrazilianPhone, isValidCpf, isValidEmail } from "@/shared/domain/formatters";
+import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
+import { isPastOrTodayIsoDate, isValidBrazilianPhone, isValidCpf, isValidEmail, normalizeDigits, todayDateOnly } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCpfInput, FEmailInput, FInput, FPhoneInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { createPartnerUser, listPartnerRoles, listPartnerUsers, updatePartnerUser } from "../infrastructure/partner-companies.repository";
@@ -12,6 +13,7 @@ import { createPartnerUser, listPartnerRoles, listPartnerUsers, updatePartnerUse
 type Form = {
   full_name: string;
   cpf: string;
+  birth_date: string;
   phone: string;
   email: string;
   username: string;
@@ -27,6 +29,7 @@ type FormErrors = Partial<Record<keyof Form, string>>;
 const empty: Form = {
   full_name: "",
   cpf: "",
+  birth_date: "",
   phone: "",
   email: "",
   username: "",
@@ -43,6 +46,7 @@ function validateUser(form: Form, editing: boolean): FormErrors {
   const errors: FormErrors = {};
   if (!form.full_name.trim()) errors.full_name = "Informe o nome completo.";
   if (!isValidCpf(form.cpf)) errors.cpf = "Informe um CPF válido.";
+  if (!form.birth_date || !isPastOrTodayIsoDate(form.birth_date)) errors.birth_date = "Informe uma data de nascimento válida.";
   if (form.phone && !isValidBrazilianPhone(form.phone)) errors.phone = "Informe um telefone brasileiro válido.";
   if (form.email.trim() && !isValidEmail(form.email)) errors.email = "Informe um e-mail válido.";
   if (!editing && !form.username.trim()) errors.username = "Informe o usuário de acesso.";
@@ -59,6 +63,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<Form>(empty);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [cpfLoading, setCpfLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const usersQuery = useQuery({
@@ -98,6 +103,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
         organization_id: organizationId,
         full_name: form.full_name.trim(),
         cpf: form.cpf,
+        birth_date: form.birth_date || null,
         phone: form.phone.trim() || null,
         email: form.email.trim().toLowerCase(),
         username: normalizeUsername(form.username),
@@ -149,6 +155,44 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
     setErrors(current => ({ ...current, [key]: undefined }));
   };
 
+  const lookupCpfIdentity = async () => {
+    if (!isValidCpf(form.cpf)) {
+      setErrors(current => ({ ...current, cpf: "Informe um CPF válido." }));
+      return;
+    }
+
+    const requestedCpf = normalizeDigits(form.cpf);
+    setCpfLoading(true);
+    setErrors(current => ({ ...current, cpf: undefined }));
+    try {
+      const result = await lookupCpf(requestedCpf, organizationId);
+      setForm(current => {
+        if (normalizeDigits(current.cpf) !== requestedCpf) return current;
+        return {
+          ...current,
+          full_name: result.name || current.full_name,
+          birth_date: result.birthDate || current.birth_date,
+        };
+      });
+      setErrors(current => ({ ...current, full_name: undefined, birth_date: undefined }));
+      setToast({
+        msg: result.source === "local"
+          ? "CPF encontrado no cadastro da empresa. Nome e nascimento foram reaproveitados."
+          : result.birthDate
+            ? "Nome e data de nascimento preenchidos pela consulta de CPF."
+            : "Nome preenchido pela consulta de CPF.",
+        type: "success",
+      });
+    } catch (error) {
+      setErrors(current => ({
+        ...current,
+        cpf: systemErrorMessage(error, "Não foi possível consultar o CPF."),
+      }));
+    } finally {
+      setCpfLoading(false);
+    }
+  };
+
   const saveUser = () => {
     const validationErrors = validateUser(form, Boolean(editing));
     setErrors(validationErrors);
@@ -162,6 +206,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
     setForm({
       full_name: user.full_name || "",
       cpf: user.cpf || "",
+      birth_date: user.birth_date || "",
       phone: user.phone || "",
       email: user.email || "",
       username: user.username || "",
@@ -227,7 +272,13 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
         <div>
             <div className="grid gap-4 sm:grid-cols-2">
               <FInput label="Nome completo" required error={errors.full_name} value={form.full_name} onChange={(e: any) => setField("full_name", e.target.value)} />
-              <FCpfInput label="CPF" required error={errors.cpf} value={form.cpf} onChange={(e: any) => setField("cpf", e.target.value)} />
+              <div className="min-w-0">
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                  <FCpfInput label="CPF" required error={errors.cpf} value={form.cpf} onChange={(e: any) => setField("cpf", e.target.value)} />
+                  <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfIdentity()} disabled={saveMutation.isPending || !isValidCpf(form.cpf)} className="h-[42px] shrink-0 border-primary/30 px-4 text-primary hover:bg-primary/5">Consultar</AdminButton>
+                </div>
+              </div>
+              <FInput label="Data de nascimento" type="date" required max={todayDateOnly()} error={errors.birth_date} value={form.birth_date} onChange={(e: any) => setField("birth_date", e.target.value)} />
               <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(e: any) => setField("phone", e.target.value)} />
               <FEmailInput label="E-mail" error={errors.email} autoComplete="email" value={form.email} onChange={(e: any) => setField("email", e.target.value)} />
               <FInput

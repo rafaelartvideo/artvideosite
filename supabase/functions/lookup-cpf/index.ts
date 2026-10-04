@@ -39,9 +39,10 @@ Deno.serve(async (request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const apiKey = Deno.env.get("APICPF_API_KEY");
 
-    if (!supabaseUrl || !anonKey) {
+    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
       return json({ success: false, error: "Supabase não configurado para a consulta de CPF." });
     }
     if (!apiKey) {
@@ -51,6 +52,9 @@ Deno.serve(async (request) => {
     const client = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authorization } },
       auth: { persistSession: false },
+    });
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
     const { data: authData, error: authError } = await client.auth.getUser();
     if (authError || !authData.user) {
@@ -78,6 +82,9 @@ Deno.serve(async (request) => {
       "registrations.records.create",
       "employees.create",
       "employees.edit",
+      "organizations.create",
+      "organizations.edit",
+      "organizations.members.manage",
     ].some(key => permissionKeys.has(key));
     if (!canLookup) {
       return json({ success: false, error: "Você não possui permissão para consultar CPF nesta empresa." }, 403);
@@ -86,6 +93,35 @@ Deno.serve(async (request) => {
     const cpf = String(body?.cpf || "").replace(/\D/g, "");
     if (!isValidCpfDigits(cpf)) {
       return json({ success: false, error: "CPF inválido. Verifique os números informados." });
+    }
+
+    const excludeRegistrationId = String(body?.exclude_registration_id || "").trim();
+    if (excludeRegistrationId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(excludeRegistrationId)) {
+      return json({ success: false, error: "Cadastro de exclusão inválido." }, 400);
+    }
+
+    let localQuery = adminClient
+      .from("entities")
+      .select("id,name,birth_date")
+      .eq("organization_id", organizationId)
+      .eq("document", cpf)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (excludeRegistrationId) localQuery = localQuery.neq("id", excludeRegistrationId);
+    const { data: localRows, error: localError } = await localQuery;
+    if (localError) {
+      console.error("[CPF LOOKUP] local registration lookup failed", localError);
+      return json({ success: false, error: "Não foi possível verificar os cadastros internos antes da consulta de CPF." });
+    }
+    const local = Array.isArray(localRows) ? localRows[0] : null;
+    if (local) {
+      return json({
+        success: true,
+        source: "local",
+        registration_id: local.id,
+        name: String(local.name || "").trim(),
+        birth_date: normalizeBirthDate(local.birth_date) || null,
+      });
     }
 
     const response = await fetch(`https://apicpf.com/api/consulta?cpf=${encodeURIComponent(cpf)}`, {
@@ -120,7 +156,7 @@ Deno.serve(async (request) => {
       return json({ success: false, error: "A consulta foi concluída, mas não retornou o nome da pessoa." });
     }
 
-    return json({ success: true, name, birth_date: birthDate || null });
+    return json({ success: true, source: "external", name, birth_date: birthDate || null });
   } catch (error) {
     console.error("[CPF LOOKUP]", error);
     return json({

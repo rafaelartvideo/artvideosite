@@ -9,6 +9,7 @@ export type PartnerCompanySettings = {
   email?: string;
   state_registration?: string;
   municipal_registration?: string;
+  birth_date?: string;
   zip_code?: string;
   street?: string;
   number?: string;
@@ -33,6 +34,7 @@ export type PartnerUserInput = {
   organization_id: string;
   full_name: string;
   cpf: string;
+  birth_date?: string | null;
   phone: string | null;
   email: string;
   username?: string;

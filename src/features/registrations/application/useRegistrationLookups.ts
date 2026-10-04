@@ -47,11 +47,6 @@ export function useRegistrationLookups({
     setCpfLoading(true);
     setCpfError("");
     try {
-      const duplicate = await findDuplicate(value);
-      if (duplicate) {
-        setCpfError(`Cadastro já existente: ${duplicate.name}.`);
-        return;
-      }
       const result = await lookupCpf(value, organizationId, registrationId);
       setForm(current => ({
         ...current,
