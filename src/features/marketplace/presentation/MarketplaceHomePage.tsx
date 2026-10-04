@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Building2,
   ChevronRight,
+  Eraser,
   Heart,
   Laptop,
   MapPin,
@@ -369,7 +370,7 @@ export function MarketplaceHomePage() {
               <h2 className="mt-1 text-xl font-black sm:text-2xl">Categorias</h2>
             </div>
             {(activeCategory || activeCompany || activeKind !== "all" || query) && (
-              <button type="button" onClick={clearFilters} className="text-xs font-black text-[#1032dc] hover:underline">Limpar filtros</button>
+              <button type="button" onClick={clearFilters} className="inline-flex h-8 items-center gap-1.5 border border-[#1032dc]/20 bg-white px-3 text-xs font-black text-[#1032dc] transition hover:bg-[#eef1ff]"><Eraser size={13} /> Limpar filtros</button>
             )}
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -454,7 +455,7 @@ export function MarketplaceHomePage() {
               <Search size={30} className="mx-auto text-[#9aa5b5]" />
               <h3 className="mt-4 text-base font-black">Nenhum anúncio encontrado</h3>
               <p className="mt-1 text-sm text-[#738095]">Tente remover algum filtro ou buscar outro termo.</p>
-              <button type="button" onClick={clearFilters} className="mt-5 bg-[#1032dc] px-5 py-2.5 text-sm font-black text-white">Limpar filtros</button>
+              <button type="button" onClick={clearFilters} className="mt-5 inline-flex items-center gap-2 bg-[#1032dc] px-5 py-2.5 text-sm font-black text-white"><Eraser size={15} /> Limpar filtros</button>
             </div>
           )}
         </section>
