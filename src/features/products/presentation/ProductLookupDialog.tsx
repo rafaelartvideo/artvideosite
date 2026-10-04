@@ -220,7 +220,6 @@ export function ProductLookupDialog({
         <div className="relative min-w-0 flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
           <input
-            autoFocus
             value={query}
             onChange={event => setQuery(event.target.value)}
             placeholder="Ex.: controle remoto, 789..., EAN/GTIN/UPC"
