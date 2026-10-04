@@ -156,11 +156,13 @@ export async function saveCompanySettings(
 
   if (organization.organization_type === "partner") {
     const normalized = (value: unknown) => text(value).trim();
-    const partnerStateMatches =
-      normalized(organizationSettings.phone) === normalized(settings.company_phone)
-      && normalized(organizationSettings.email) === normalized(settings.company_email)
-      && normalized(organizationSettings.company_logo_media_id) === normalized(settings.company_logo_media_id)
+    const brandingMatches =
+      normalized(organizationSettings.company_logo_media_id) === normalized(settings.company_logo_media_id)
       && normalized(organizationSettings.menu_logo_media_id) === normalized(settings.company_menu_logo_media_id);
+    const contactsMatch =
+      normalized(organizationSettings.phone) === normalized(settings.company_phone)
+      && normalized(organizationSettings.email) === normalized(settings.company_email);
+    const partnerStateMatches = brandingMatches && (scope === "branding" || contactsMatch);
 
     if (partnerStateMatches) return { ...settings };
     throw new Error("Não foi possível localizar os dados da empresa parceira para salvar a identidade visual.");
