@@ -295,7 +295,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent showClose={false} className="admin-crm w-[calc(100vw-1rem)] max-w-4xl gap-0 border-0 bg-transparent p-0 shadow-none sm:max-w-4xl">
+      <DialogContent showClose={false} minimizedTitle="Criar cliente" className="admin-crm w-[calc(100vw-1rem)] max-w-4xl gap-0 border-0 bg-transparent p-0 shadow-none sm:max-w-4xl">
         <DialogTitle className="sr-only">Criar cliente</DialogTitle>
         <div
           style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
