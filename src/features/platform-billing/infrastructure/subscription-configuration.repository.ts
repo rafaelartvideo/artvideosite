@@ -235,3 +235,20 @@ export async function syncUnionQueueUsage(organizationId: string) {
   if (!data?.success) throw new Error(String(data?.error || "Não foi possível sincronizar o consumo da fila."));
   return data.usage as Record<string, number>;
 }
+
+export async function saveUnionExternalUsage(input: {
+  organizationId: string;
+  pbxExtensions?: number | null;
+  pbxRecordingBytes?: number | null;
+  aiCredits?: number | null;
+  aiRequests30d?: number | null;
+}) {
+  const { error } = await supabase.rpc("save_union_external_usage_v1", {
+    p_organization_id: input.organizationId,
+    p_pbx_extensions: input.pbxExtensions ?? null,
+    p_pbx_recording_bytes: input.pbxRecordingBytes ?? null,
+    p_ai_credits: input.aiCredits ?? null,
+    p_ai_requests_30d: input.aiRequests30d ?? null,
+  });
+  if (error) throw error;
+}
