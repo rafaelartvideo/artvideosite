@@ -181,6 +181,7 @@ export function TermsAcceptanceGate({
     title={current.title}
     description={`${current.organization_name} · versão ${current.version}`}
     minimizable={false}
+    closable={false}
     className="max-w-3xl"
     footer={<div>
       {error && <p className="mb-3 text-sm font-semibold text-red-600">{error}</p>}
