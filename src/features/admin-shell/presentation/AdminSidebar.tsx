@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, Globe, PanelLeftClose, PanelLeftOpen, Settings, Wrench } from "lucide-react";
+import { ArrowLeft, Building2, Globe, LayoutGrid, PanelLeftClose, PanelLeftOpen, Settings, Wrench } from "lucide-react";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { isAdminModuleEnabled, mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "../navigation-config";
@@ -155,6 +155,14 @@ export function AdminSidebar({
                 </div>
               )}
               {dashboardItems.map(renderMainItem)}
+              {isPlatformOperatorOrganization && (
+                <SidebarItem
+                  item={{ id: "crm", label: "CRM", icon: LayoutGrid }}
+                  active={selectedTab === "crm"}
+                  collapsed={collapsed}
+                  onClick={() => onNavigate("crm")}
+                />
+              )}
             </div>
           )}
 
