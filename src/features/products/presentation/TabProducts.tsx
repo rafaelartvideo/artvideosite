@@ -37,6 +37,7 @@ import {
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
@@ -366,6 +367,7 @@ export function TabProducts({
   const [gtinSearch, setGtinSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [locationSearch, setLocationSearch] = useState("");
+  const [mobileSearchField, setMobileSearchField] = useState<"name" | "gtin" | "category" | "location">("name");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -805,7 +807,38 @@ export function TabProducts({
       />
 
       {canViewTable && <AdminSearchPanel title="Buscar no estoque">
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <AdminMobileSearchSwitch
+          value={mobileSearchField}
+          options={[
+            { value: "name", label: "Nome" },
+            { value: "gtin", label: "GTIN" },
+            { value: "category", label: "Categoria" },
+            { value: "location", label: "Localização" },
+          ]}
+          onChange={setMobileSearchField}
+        >
+          {mobileSearchField === "name" ? <FInput
+            value={nameSearch}
+            onChange={(event: any) => { setNameSearch(event.target.value); setPage(1); }}
+            placeholder="Nome do item"
+          /> : mobileSearchField === "gtin" ? <FInput
+            value={gtinSearch}
+            onChange={(event: any) => { setGtinSearch(event.target.value); setPage(1); }}
+            placeholder="EAN, UPC ou GTIN"
+          /> : mobileSearchField === "category" ? <FSelect
+            value={categoryFilter}
+            onChange={(event: any) => { setCategoryFilter(event.target.value); setPage(1); }}
+            options={[
+              { value: "", label: "Todas as categorias" },
+              ...categories.map((item: any) => ({ value: item.id, label: item.name })),
+            ]}
+          /> : <FInput
+            value={locationSearch}
+            onChange={(event: any) => { setLocationSearch(event.target.value); setPage(1); }}
+            placeholder="Estante, nível ou compartimento"
+          />}
+        </AdminMobileSearchSwitch>
+        <div className="hidden grid-cols-1 gap-2 md:grid md:grid-cols-2 xl:grid-cols-4">
           <FInput
             label="Nome"
             value={nameSearch}
