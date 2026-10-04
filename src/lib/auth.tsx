@@ -310,50 +310,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoadingProgress(42);
     setAccessError(null);
 
-    const [profileResult, organizationsResult] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-      supabase.rpc("my_organizations_v2"),
-    ]);
+    const persistedOrganizationId =
+      localStorage.getItem(activeOrganizationStorageKey(userId))
+      || localStorage.getItem(legacyActiveOrganizationStorageKey(userId));
+    const requestedOrganizationId =
+      preferredOrganizationId
+      ?? activeOrganizationIdRef.current
+      ?? persistedOrganizationId
+      ?? null;
+
+    const { data, error } = await supabase.rpc("load_auth_access_v1", {
+      p_preferred_organization_id: requestedOrganizationId,
+    });
 
     if (requestId !== accessRequestRef.current) return;
 
-    if (profileResult.error) {
-      console.error("Auth profile load error:", profileResult.error);
+    if (error) {
+      console.error("Auth access bootstrap error:", error);
       clearResolvedAccess();
       setProfile(null);
-      setAccessError("Não foi possível carregar seu perfil de acesso. Tente novamente.");
+      setAccessError("Não foi possível carregar seu acesso. Tente novamente.");
       setLoading(false);
       return;
     }
 
-    if (!profileResult.data) {
+    const access = (data || {}) as Record<string, any>;
+    const resolvedProfile = access.profile ?? null;
+    if (!resolvedProfile) {
       clearResolvedAccess();
       setProfile(null);
-      setLoading(false);
-      return;
-    }
-
-    if (organizationsResult.error) {
-      console.error("Auth organizations load error:", organizationsResult.error);
-      clearResolvedAccess();
-      setProfile(profileResult.data);
-      setAccessError("Não foi possível carregar as empresas vinculadas à sua conta. Tente novamente.");
+      setLoadingProgress(100);
       setLoading(false);
       return;
     }
 
     setLoadingProgress(64);
 
-    const availableOrganizations = (organizationsResult.data || [])
+    const availableOrganizations = (Array.isArray(access.organizations) ? access.organizations : [])
       .map(normalizeOrganizationAccess)
       .filter((organization): organization is OrganizationAccess => organization !== null);
-    const selectedOrganization = selectOrganization(
-      userId,
-      availableOrganizations,
-      preferredOrganizationId ?? activeOrganizationIdRef.current,
-    );
+    const selectedOrganization = normalizeOrganizationAccess(access.activeOrganization);
 
-    setProfile(profileResult.data);
+    setProfile(resolvedProfile);
     setOrganizations(availableOrganizations);
 
     if (!selectedOrganization) {
@@ -362,70 +360,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPermissions([]);
       setActiveOrganizationState(null);
       activeOrganizationIdRef.current = null;
-      setLoading(false);
-      return;
-    }
-
-    setLoadingProgress(70);
-    const roleId = selectedOrganization.role_id;
-    const [employeeResult, roleResult, permissionResult, moduleResult] = await Promise.all([
-      supabase
-        .from("employees")
-        .select("*")
-        .eq("profile_id", userId)
-        .eq("organization_id", selectedOrganization.organization_id)
-        .maybeSingle(),
-      roleId
-        ? supabase.from("roles").select("*").eq("id", roleId).maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      supabase.rpc("my_organization_permissions", {
-        p_organization_id: selectedOrganization.organization_id,
-      }),
-      supabase.rpc("my_organization_modules", {
-        p_organization_id: selectedOrganization.organization_id,
-      }),
-    ]);
-
-    if (requestId !== accessRequestRef.current) return;
-
-    if (employeeResult.error) console.error("Auth employee load error:", employeeResult.error);
-    if (roleResult.error) console.error("Auth role load error:", roleResult.error);
-    if (permissionResult.error) {
-      console.error("Auth permissions load error:", permissionResult.error);
-      activeOrganizationIdRef.current = selectedOrganization.organization_id;
-      setActiveOrganizationState(selectedOrganization);
-      setEmployee(employeeResult.data ?? null);
-      setRole(!roleResult.error ? roleResult.data ?? null : null);
-      setPermissions([]);
-      setAccessError("Não foi possível carregar suas permissões. Tente novamente.");
-      setLoading(false);
-      return;
-    }
-
-    if (moduleResult.error) {
-      console.error("Auth modules load error:", moduleResult.error);
-      activeOrganizationIdRef.current = selectedOrganization.organization_id;
-      setActiveOrganizationState(selectedOrganization);
-      setEmployee(employeeResult.data ?? null);
-      setRole(!roleResult.error ? roleResult.data ?? null : null);
-      setPermissions([]);
-      setAccessError("Não foi possível carregar os módulos liberados para esta empresa. Tente novamente.");
+      setLoadingProgress(100);
       setLoading(false);
       return;
     }
 
     setLoadingProgress(86);
 
-    const permissionKeys = (permissionResult.data || [])
-      .map((permission: any) => typeof permission === "string" ? permission : permission?.permission_key)
+    const permissionKeys = (Array.isArray(access.permissions) ? access.permissions : [])
       .filter((permissionKey: unknown): permissionKey is string =>
         typeof permissionKey === "string" && permissionKey.length > 0,
       );
-    const moduleKeys = (moduleResult.data || [])
-      .map((module: any) => typeof module === "string" ? module : module?.module_key)
+    const moduleKeys = (Array.isArray(access.modules) ? access.modules : [])
       .filter((moduleKey: unknown): moduleKey is string =>
         typeof moduleKey === "string" && moduleKey.length > 0,
       );
+
     const resolvedOrganization: OrganizationAccess = {
       ...selectedOrganization,
       enabled_modules: moduleKeys,
@@ -440,12 +390,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     activeOrganizationIdRef.current = resolvedOrganization.organization_id;
     setOrganizations(resolvedOrganizations);
     setActiveOrganizationState(resolvedOrganization);
-    setEmployee(employeeResult.data ?? null);
-    setRole(!roleResult.error ? roleResult.data ?? null : null);
+    setEmployee(access.employee ?? null);
+    setRole(access.role ?? null);
     setPermissions(permissionKeys.map(key => ({ key })));
     setAccessError(null);
     persistActiveOrganization(userId, resolvedOrganization.organization_id);
-    setLoadingProgress(90);
+    setLoadingProgress(100);
     setLoading(false);
 
     if (previousOrganizationId && previousOrganizationId !== resolvedOrganization.organization_id) {
@@ -569,29 +519,6 @@ function normalizeOrganizationType(value: unknown): OrganizationType {
 function normalizeOrganizationStatus(value: unknown): OrganizationStatus {
   if (value === "suspended" || value === "cancelled") return value;
   return "active";
-}
-
-function selectOrganization(
-  userId: string,
-  organizations: OrganizationAccess[],
-  preferredOrganizationId?: string | null,
-) {
-  const persistedOrganizationId = localStorage.getItem(activeOrganizationStorageKey(userId))
-    || localStorage.getItem(legacyActiveOrganizationStorageKey(userId));
-  if (persistedOrganizationId) {
-    localStorage.setItem(activeOrganizationStorageKey(userId), persistedOrganizationId);
-  }
-  const directOrganizations = organizations.filter(organization => organization.is_direct_member);
-  const requestedIds = [preferredOrganizationId, persistedOrganizationId].filter(Boolean);
-
-  for (const organizationId of requestedIds) {
-    const selected = directOrganizations.find(organization => organization.organization_id === organizationId);
-    if (selected) return selected;
-  }
-
-  return directOrganizations.find(organization =>
-    organization.organization_type === "parent" && organization.organization_status === "active",
-  ) ?? directOrganizations.find(organization => organization.organization_status === "active") ?? directOrganizations[0] ?? null;
 }
 
 function persistActiveOrganization(userId: string, organizationId: string) {
