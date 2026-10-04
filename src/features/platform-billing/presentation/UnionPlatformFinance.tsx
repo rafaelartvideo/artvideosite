@@ -284,7 +284,7 @@ export function UnionPlatformFinance() {
             key={item.id}
             type="button"
             onClick={() => setSection(item.id)}
-            className={\`shrink-0 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors \${section === item.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}\`}
+            className={`shrink-0 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${section === item.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >{item.label}</button>)}
         </div>
       </div>
@@ -345,7 +345,7 @@ export function UnionPlatformFinance() {
             <tbody>{data.plans.map(plan => <tr key={plan.id}>
               <td><strong className="block text-foreground">{plan.name}</strong>{plan.description && <span className="mt-0.5 block max-w-[360px] truncate text-xs text-muted-foreground">{plan.description}</span>}</td>
               <td className="font-bold text-foreground">{formatCurrency(plan.amount)}</td>
-              <td className="text-sm text-muted-foreground">{plan.interval_months === 1 ? "Mensal" : \`A cada \${plan.interval_months} meses\`}</td>
+              <td className="text-sm text-muted-foreground">{plan.interval_months === 1 ? "Mensal" : `A cada ${plan.interval_months} meses`}</td>
               <td><StatusBadge status={plan.is_active ? "Ativo" : "Inativo"} /></td>
               <td><div className="flex justify-end">{canManage && <AdminButton size="sm" variant="secondary" onClick={() => openEditPlan(plan)}>Editar</AdminButton>}</div></td>
             </tr>)}</tbody>
@@ -399,7 +399,7 @@ export function UnionPlatformFinance() {
       open={chargeOpen}
       onClose={() => !saving && setChargeOpen(false)}
       title="Gerar cobrança"
-      description={chargeSubscription ? \`\${chargeSubscription.organization_name} · \${chargeSubscription.plan_name}\` : undefined}
+      description={chargeSubscription ? `${chargeSubscription.organization_name} · ${chargeSubscription.plan_name}` : undefined}
       footer={<div className="flex justify-end gap-2"><AdminButton variant="secondary" disabled={saving} onClick={() => setChargeOpen(false)}>Cancelar</AdminButton><AdminButton loading={saving} disabled={!chargeDueDate} onClick={() => void submitCharge()}>Gerar cobrança</AdminButton></div>}
     >
       <FInput label="Vencimento" type="date" value={chargeDueDate} onChange={(event: any) => setChargeDueDate(event.target.value)} required />
@@ -409,7 +409,7 @@ export function UnionPlatformFinance() {
       open={paymentOpen}
       onClose={() => !saving && setPaymentOpen(false)}
       title="Registrar pagamento"
-      description={paymentCharge ? \`\${paymentCharge.organization_name} · \${formatCurrency(paymentCharge.amount)}\` : undefined}
+      description={paymentCharge ? `${paymentCharge.organization_name} · ${formatCurrency(paymentCharge.amount)}` : undefined}
       footer={<div className="flex justify-end gap-2"><AdminButton variant="secondary" disabled={saving} onClick={() => setPaymentOpen(false)}>Cancelar</AdminButton><AdminButton loading={saving} onClick={() => void submitPayment()}>Confirmar recebimento</AdminButton></div>}
     >
       <div className="space-y-4">
