@@ -287,7 +287,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
     description="Cadastre o cliente sem sair da Nova OS."
     minimizedDescription={minimizedDescription}
     minimizable={!saving}
-    className="max-w-4xl"
+    className="max-w-6xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
       {hasPermission("customers.create") && <BtnPrimary className="w-full sm:w-auto" onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}
