@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Boxes, Building2, PackagePlus, Settings2, SlidersHorizontal } from "lucide-react";
+import { Building2, PackagePlus, Settings2, SlidersHorizontal } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency } from "@/shared/domain/formatters";
 import {
