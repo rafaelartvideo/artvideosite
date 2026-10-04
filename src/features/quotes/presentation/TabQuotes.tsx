@@ -161,7 +161,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all }),
       queryClient.invalidateQueries({ queryKey: queryKeys.customers.all }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() }),
     ]);
   };
 
