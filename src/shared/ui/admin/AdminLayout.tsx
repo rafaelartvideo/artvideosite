@@ -311,7 +311,10 @@ export function AdminDialog({
       minimizedDescription={effectiveMinimizedDescription}
       overlayClassName="admin-dialog-overlay"
       data-admin-dialog-content="true"
-      style={{ "--admin-browser-bottom-inset": `${browserBottomInset}px` } as React.CSSProperties}
+      style={{
+        "--admin-browser-bottom-inset": `${browserBottomInset}px`,
+        "--admin-browser-bottom-half-inset": `${Math.round(browserBottomInset / 2)}px`,
+      } as React.CSSProperties}
       className={cn(
         "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl",
         className,
