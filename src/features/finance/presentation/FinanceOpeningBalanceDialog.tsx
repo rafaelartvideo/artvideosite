@@ -61,6 +61,8 @@ export function FinanceOpeningBalanceDialog({
     onClose={onClose}
     title="Configurar saldo inicial"
     description={`${account.name} · esta configuração só pode ser feita uma vez.`}
+    minimizedDescription={`${account.name}${Number.isFinite(parseMoneyInput(amount)) ? ` · ${parseMoneyInput(amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : ""}`}
+    minimizable={!saving}
     className="max-w-lg"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton>
