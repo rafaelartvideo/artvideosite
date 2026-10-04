@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  dismissAdminNotification,
+  dismissAllAdminNotifications,
   loadAdminNotifications,
   markAdminNotificationRead,
   markAllAdminNotificationsRead,
@@ -37,18 +39,25 @@ export function useAdminNotifications(
     setLiveNotification(null);
     if (!normalizedOrganizationId || !normalizedUserId) return;
 
-    return subscribeToAdminNotifications(normalizedOrganizationId, notification => {
-      queryClient.setQueryData<AdminNotificationsBootstrap>(
-        queryKey,
-        current => ({
-          items: [
-            notification,
-            ...(current?.items || []).filter(item => item.id !== notification.id),
-          ].slice(0, 50),
-          unreadCount: (current?.unreadCount || 0) + 1,
-        }),
-      );
-      setLiveNotification(notification);
+    return subscribeToAdminNotifications(normalizedOrganizationId, normalizedUserId, {
+      onNotification: notification => {
+        queryClient.setQueryData<AdminNotificationsBootstrap>(
+          queryKey,
+          current => ({
+            items: [
+              notification,
+              ...(current?.items || []).filter(item => item.id !== notification.id),
+            ].slice(0, 50),
+            unreadCount: (current?.unreadCount || 0) + 1,
+          }),
+        );
+        void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
+        setLiveNotification(notification);
+      },
+      onStateChange: () => {
+        void queryClient.invalidateQueries({ queryKey });
+        void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
+      },
     });
   }, [normalizedOrganizationId, normalizedUserId, queryClient]);
 
@@ -102,6 +111,46 @@ export function useAdminNotifications(
     }
   };
 
+  const dismiss = async (notification: AdminNotification) => {
+    if (!normalizedOrganizationId || !normalizedUserId) return;
+
+    queryClient.setQueryData<AdminNotificationsBootstrap>(
+      queryKey,
+      current => {
+        const item = (current?.items || []).find(entry => entry.id === notification.id);
+        return {
+          items: (current?.items || []).filter(entry => entry.id !== notification.id),
+          unreadCount: Math.max(0, (current?.unreadCount || 0) - (item && !item.read_at ? 1 : 0)),
+        };
+      },
+    );
+    setLiveNotification(current => current?.id === notification.id ? null : current);
+
+    try {
+      await dismissAdminNotification(notification.id, normalizedOrganizationId);
+    } finally {
+      void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
+    }
+  };
+
+  const dismissAll = async () => {
+    if (!normalizedOrganizationId || !normalizedUserId) return;
+
+    queryClient.setQueryData<AdminNotificationsBootstrap>(
+      queryKey,
+      { items: [], unreadCount: 0 },
+    );
+    setLiveNotification(null);
+
+    try {
+      await dismissAllAdminNotifications(normalizedOrganizationId);
+    } finally {
+      void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
+    }
+  };
+
   return {
     notifications: notificationsQuery.data?.items || [],
     unreadCount: notificationsQuery.data?.unreadCount || 0,
@@ -110,5 +159,7 @@ export function useAdminNotifications(
     dismissLiveNotification: () => setLiveNotification(null),
     markRead,
     markAllRead,
+    dismiss,
+    dismissAll,
   };
 }
