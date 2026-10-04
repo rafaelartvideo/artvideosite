@@ -19,7 +19,9 @@ export type OrganizationPlanUsageData = {
   };
   limits: Record<string, number>;
   usage: Record<string, number>;
-  features: Record<string, boolean>;\n  modules: Array<{ key: string; name: string; source: "plan" | "addon" }>;\n  addons: Array<{
+  features: Record<string, boolean>;
+  modules: Array<{ key: string; name: string; source: "plan" | "addon" }>;
+  addons: Array<{
     id: string;
     code: string;
     name: string;
@@ -64,6 +66,10 @@ export async function loadOrganizationPlanUsage(organizationId: string): Promise
     subscription,
     limits: numericRecord(raw.limits),
     usage: numericRecord(raw.usage),
+    features: raw.features && typeof raw.features === "object" && !Array.isArray(raw.features)
+      ? Object.fromEntries(Object.entries(raw.features).map(([key, value]) => [key, Boolean(value)]))
+      : {},
+    modules: Array.isArray(raw.modules) ? raw.modules : [],
     addons: (Array.isArray(raw.addons) ? raw.addons : []).map((addon: any) => ({
       ...addon,
       quantity: Number(addon.quantity || 0),

@@ -14,7 +14,8 @@ import {
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
 import { FCurrencyInput, FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";\nimport { SubscriptionConfiguration } from "./SubscriptionConfiguration";
+import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { SubscriptionConfiguration } from "./SubscriptionConfiguration";
 import {
   generatePlatformCharge,
   loadUnionPlatformFinance,
@@ -284,7 +285,8 @@ export function UnionPlatformFinance() {
           {[
             { id: "subscriptions" as const, label: "Assinaturas" },
             { id: "charges" as const, label: "Cobranças" },
-            { id: "plans" as const, label: "Planos" },\n            { id: "configuration" as const, label: "Configuração" },
+            { id: "plans" as const, label: "Planos" },
+            { id: "configuration" as const, label: "Configuração" },
           ].map(item => <button
             key={item.id}
             type="button"
@@ -339,7 +341,9 @@ export function UnionPlatformFinance() {
         </div> : <AdminCardContent><p className="text-sm text-muted-foreground">Nenhuma cobrança gerada.</p></AdminCardContent>}
       </AdminCard>}
 
-      {section === "configuration" && <SubscriptionConfiguration financeData={data} canManage={canManage} onChanged={refresh} />}\n\n      {section === "plans" && <AdminCard square>
+      {section === "configuration" && <SubscriptionConfiguration financeData={data} canManage={canManage} onChanged={refresh} />}
+
+      {section === "plans" && <AdminCard square>
         <AdminCardHeader>
           <div><h3 className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Planos</h3><p className="mt-1 text-xs text-muted-foreground">Planos comerciais disponíveis para as empresas parceiras.</p></div>
           {canManage && <AdminButton size="sm" onClick={openNewPlan}><Plus size={14} /> Novo plano</AdminButton>}
