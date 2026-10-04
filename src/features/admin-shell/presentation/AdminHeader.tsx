@@ -55,10 +55,12 @@ function normalizeBreadcrumb(breadcrumb: string, title: string) {
     .filter(Boolean);
   const normalizedTitle = String(title || "").trim().toLocaleLowerCase("pt-BR");
 
-  while (
-    parts.length > 0
-    && parts[parts.length - 1].toLocaleLowerCase("pt-BR") === normalizedTitle
-  ) {
+  while (parts.length > 0) {
+    const lastPart = parts[parts.length - 1].toLocaleLowerCase("pt-BR");
+    const redundant = lastPart === normalizedTitle
+      || normalizedTitle.startsWith(`${lastPart} `)
+      || lastPart.startsWith(`${normalizedTitle} `);
+    if (!redundant) break;
     parts.pop();
   }
 
@@ -513,23 +515,20 @@ export function AdminHeader({
 
       {page && (
         <header className="relative z-30 hidden min-w-0 shrink-0 border-b border-border bg-card px-6 py-3 md:block">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-1.5 text-[10px] text-[#5a6a82]">
             {parentBreadcrumb && <>
               <button
                 type="button"
                 onClick={page.onBack}
-                className="min-w-0 max-w-[340px] truncate text-[13px] font-semibold text-muted-foreground transition-colors hover:text-primary"
+                className="min-w-0 max-w-[340px] truncate font-normal transition-colors hover:text-primary"
                 title={parentBreadcrumb}
               >
                 {parentBreadcrumb}
               </button>
-              <span aria-hidden="true" className="shrink-0 text-xs text-muted-foreground">&gt;</span>
+              <span aria-hidden="true" className="shrink-0">&gt;</span>
             </>}
             <span
-              className={cn(
-                "min-w-0 truncate font-black text-foreground",
-                page.titleVariant === "order-number" ? "text-base" : "text-[15px]",
-              )}
+              className="min-w-0 truncate font-normal text-[#0d1b2e] underline decoration-current underline-offset-4"
               title={page.title}
             >
               {page.title}
