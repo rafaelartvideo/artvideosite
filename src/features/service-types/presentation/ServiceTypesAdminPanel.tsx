@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, List, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { deleteServiceType, loadServiceTypesConfiguration, saveServiceType, setServiceTypeActive } from "../infrastructure/service-types.repository";
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -42,7 +43,7 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
   const showStatus = hasPermission("service_types.table.status");
   const showActions = hasPermission("service_types.table.actions");
   const queryClient = useQueryClient();
-  const configurationQuery = useQuery({ queryKey: queryKeys.serviceTypes.configuration(), queryFn: loadServiceTypesConfiguration, enabled: canView });
+  const configurationQuery = useQuery({ queryKey: queryKeys.serviceTypes.configuration(), queryFn: loadServiceTypesConfiguration, enabled: canView, staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const items = configurationQuery.data?.serviceTypes ?? [];
   const situations = configurationQuery.data?.situations ?? [];
   const situationLinks = configurationQuery.data?.links ?? [];
