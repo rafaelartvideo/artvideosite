@@ -4,6 +4,12 @@ import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import {
+  mobileSessionConnected,
+  mobileSessionDisconnectDelay,
+  subscribeMobileSessionRealtime,
+  type MobileSessionRealtimeRow,
+} from "@/features/device-capture/infrastructure/mobile-session-realtime";
+import {
   applyDeviceEntryChecklistAnswer,
   applyDeviceEntryChecklistPhoto,
   getNewOrderEntryChecklistDraft,
@@ -58,6 +64,8 @@ export function DeviceCaptureBridge({
   const lastEventIdRef = useRef(0);
   const lastChecklistEventIdRef = useRef(0);
   const pollingRef = useRef(false);
+  const refreshQueuedRef = useRef(false);
+  const disconnectTimerRef = useRef<number | null>(null);
   const sessionRef = useRef<DeviceCaptureSession | null>(null);
 
   sessionRef.current = session;
@@ -132,67 +140,105 @@ export function DeviceCaptureBridge({
     if (!session || expired) return;
     let cancelled = false;
 
-    const poll = async () => {
-      if (pollingRef.current || cancelled || document.visibilityState !== "visible") return;
+    const clearDisconnectTimer = () => {
+      if (disconnectTimerRef.current !== null) {
+        window.clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
+    };
+
+    const applySessionRow = (row: MobileSessionRealtimeRow) => {
+      if (cancelled) return;
+      clearDisconnectTimer();
+
+      const status = String(row.status || "active");
+      const expiresAt = row.expires_at ? Date.parse(row.expires_at) : NaN;
+      const isExpired = status !== "active" || (Number.isFinite(expiresAt) && expiresAt <= Date.now());
+      if (isExpired) {
+        setExpired(true);
+        setConnected(false);
+        return;
+      }
+
+      const isConnected = mobileSessionConnected(row);
+      setConnected(isConnected);
+      if (isConnected) {
+        const delay = mobileSessionDisconnectDelay(row);
+        disconnectTimerRef.current = window.setTimeout(() => {
+          if (!cancelled) setConnected(false);
+        }, Math.max(1_000, delay + 250));
+      }
+    };
+
+    const refresh = async () => {
+      if (cancelled || document.visibilityState !== "visible") return;
+      if (pollingRef.current) {
+        refreshQueuedRef.current = true;
+        return;
+      }
+
       pollingRef.current = true;
       try {
-        const checklistEnabled = Boolean(currentEquipmentTypeId());
-        const [captureResult, checklistEvents] = await Promise.all([
-          pollDeviceCaptureSession(session.id, lastEventIdRef.current),
-          checklistEnabled
-            ? pollDeviceChecklistEvents(session.id, session.token, lastChecklistEventIdRef.current)
-            : Promise.resolve([]),
-        ]);
-        if (cancelled) return;
+        do {
+          refreshQueuedRef.current = false;
+          const checklistEnabled = Boolean(currentEquipmentTypeId());
+          const [captureResult, checklistEvents] = await Promise.all([
+            pollDeviceCaptureSession(session.id, lastEventIdRef.current),
+            checklistEnabled
+              ? pollDeviceChecklistEvents(session.id, session.token, lastChecklistEventIdRef.current)
+              : Promise.resolve([]),
+          ]);
+          if (cancelled) return;
 
-        setConnected(captureResult.connected);
-        if (captureResult.status !== "active") {
-          setExpired(true);
-          setConnected(false);
-        }
+          setConnected(captureResult.connected);
+          if (captureResult.status !== "active") {
+            setExpired(true);
+            setConnected(false);
+          }
 
-        for (const event of captureResult.events) {
-          if (cancelled || event.id <= lastEventIdRef.current) continue;
-          if (event.type === "serial") {
-            const value = event.value.trim();
-            if (value) {
-              onSerial(value);
-              setLastSerial(value);
+          for (const event of captureResult.events) {
+            if (cancelled || event.id <= lastEventIdRef.current) continue;
+            if (event.type === "serial") {
+              const value = event.value.trim();
+              if (value) {
+                onSerial(value);
+                setLastSerial(value);
+              }
+              lastEventIdRef.current = event.id;
+              continue;
             }
-            lastEventIdRef.current = event.id;
-            continue;
+
+            try {
+              const file = await signedUrlToFile(event.signedUrl, event.fileName, event.mimeType, event.id);
+              onPhoto(file, event.kind);
+              setReceivedPhotos(current => current + 1);
+              lastEventIdRef.current = event.id;
+            } catch (photoError) {
+              setError(photoError instanceof Error ? photoError.message : "Não foi possível receber uma foto do celular.");
+              break;
+            }
           }
 
-          try {
-            const file = await signedUrlToFile(event.signedUrl, event.fileName, event.mimeType, event.id);
-            onPhoto(file, event.kind);
-            setReceivedPhotos(current => current + 1);
-            lastEventIdRef.current = event.id;
-          } catch (photoError) {
-            setError(photoError instanceof Error ? photoError.message : "Não foi possível receber uma foto do celular.");
-            break;
-          }
-        }
+          for (const event of checklistEvents) {
+            if (cancelled || event.id <= lastChecklistEventIdRef.current) continue;
+            if (event.type === "checklist") {
+              applyDeviceEntryChecklistAnswer(event.itemKey, event.payload);
+              setReceivedChecklistChanges(current => current + 1);
+              lastChecklistEventIdRef.current = event.id;
+              continue;
+            }
 
-        for (const event of checklistEvents) {
-          if (cancelled || event.id <= lastChecklistEventIdRef.current) continue;
-          if (event.type === "checklist") {
-            applyDeviceEntryChecklistAnswer(event.itemKey, event.payload);
-            setReceivedChecklistChanges(current => current + 1);
-            lastChecklistEventIdRef.current = event.id;
-            continue;
+            try {
+              const file = await signedUrlToFile(event.signedUrl, event.fileName, event.mimeType, event.id);
+              applyDeviceEntryChecklistPhoto(event.itemKey, file);
+              setReceivedChecklistChanges(current => current + 1);
+              lastChecklistEventIdRef.current = event.id;
+            } catch (photoError) {
+              setError(photoError instanceof Error ? photoError.message : "Não foi possível receber a foto do checklist.");
+              break;
+            }
           }
-
-          try {
-            const file = await signedUrlToFile(event.signedUrl, event.fileName, event.mimeType, event.id);
-            applyDeviceEntryChecklistPhoto(event.itemKey, file);
-            setReceivedChecklistChanges(current => current + 1);
-            lastChecklistEventIdRef.current = event.id;
-          } catch (photoError) {
-            setError(photoError instanceof Error ? photoError.message : "Não foi possível receber a foto do checklist.");
-            break;
-          }
-        }
+        } while (refreshQueuedRef.current && !cancelled);
       } catch (pollError) {
         if (!cancelled) setError(pollError instanceof Error ? pollError.message : "Falha na conexão com o celular.");
       } finally {
@@ -200,13 +246,26 @@ export function DeviceCaptureBridge({
       }
     };
 
-    void poll();
-    const timer = window.setInterval(() => void poll(), 5000);
+    const unsubscribe = subscribeMobileSessionRealtime({
+      sessionId: session.id,
+      onSessionChange: applySessionRow,
+      onEventInsert: () => void refresh(),
+      onReady: () => void refresh(),
+    });
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      refreshQueuedRef.current = false;
+      clearDisconnectTimer();
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      unsubscribe();
     };
-  }, [session?.id, session?.token, expired, onPhoto, onSerial]);
+  }, [session?.id, session?.token, expired, equipmentTypeId, onPhoto, onSerial]);
 
   const captureUrl = session
     ? `${window.location.origin}/captura?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}`
