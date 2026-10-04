@@ -16,22 +16,98 @@ import {
 } from "../infrastructure/partner-companies.repository";
 
 const SAFE_PARTNER_MODULES = new Set([
+  "dashboard",
   "customers",
+  "employees",
   "orders",
-  "inventory",
-  "products",
   "equipment",
   "services",
   "service_types",
   "order_situations",
   "order_statuses",
   "documents",
-  "employees",
+  "checklists",
+  "agenda",
+  "inventory",
+  "products",
+  "quotes",
+  "pdv",
+  "finance",
+  "field_tracking",
   "company_settings",
 ]);
 
+const PARTNER_MODULE_GROUPS = [
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    description: "Indicadores e visão geral da operação.",
+    moduleKeys: ["dashboard"],
+  },
+  {
+    key: "registrations",
+    label: "Cadastro",
+    description: "Cadastros, contatos e gestão de clientes.",
+    moduleKeys: ["customers"],
+  },
+  {
+    key: "employees",
+    label: "Funcionários",
+    description: "Usuários, equipes, funções e permissões.",
+    moduleKeys: ["employees"],
+  },
+  {
+    key: "orders",
+    label: "Ordens de Serviço",
+    description: "Ativa todo o domínio da OS: equipamentos, serviços, tipos de atendimento, situações, status, documentos e checklists.",
+    moduleKeys: ["orders", "equipment", "services", "service_types", "order_situations", "order_statuses", "documents", "checklists"],
+  },
+  {
+    key: "agenda",
+    label: "Agenda",
+    description: "Agendamentos, visitas e retornos.",
+    moduleKeys: ["agenda"],
+  },
+  {
+    key: "inventory",
+    label: "Estoque",
+    description: "Estoque e base integrada de produtos.",
+    moduleKeys: ["inventory", "products"],
+  },
+  {
+    key: "quotes",
+    label: "Orçamentos",
+    description: "Solicitações e gestão de orçamentos.",
+    moduleKeys: ["quotes"],
+  },
+  {
+    key: "pdv",
+    label: "PDV",
+    description: "Ponto de venda, caixa e venda rápida.",
+    moduleKeys: ["pdv"],
+  },
+  {
+    key: "finance",
+    label: "Financeiro",
+    description: "Contas, pagamentos, recebimentos e gestão financeira.",
+    moduleKeys: ["finance"],
+  },
+  {
+    key: "field_tracking",
+    label: "Mapa de Campo",
+    description: "Rastreamento operacional de técnicos, dispositivos e veículos.",
+    moduleKeys: ["field_tracking"],
+  },
+  {
+    key: "company_settings",
+    label: "Dados da empresa",
+    description: "Dados cadastrais e identidade visual da empresa.",
+    moduleKeys: ["company_settings"],
+  },
+] as const;
+
 const SHARE_RESOURCES = [
-  { key: "customers" as const, label: "Clientes", description: "Cadastros, contatos e endereços dos clientes." },
+  { key: "customers" as const, label: "Cadastro", description: "Cadastros, contatos e endereços dos clientes." },
   { key: "orders" as const, label: "Ordens de Serviço e Operação", description: "OS, histórico, documentos, SLA e fluxo operacional." },
   { key: "inventory" as const, label: "Estoque", description: "Itens, saldos, movimentações e fluxo de peças." },
 ];
@@ -88,47 +164,73 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     [modulesQuery.data],
   );
 
-  const sortedModules = useMemo(
-    () => [...(modulesQuery.data?.systemModules || [])].sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" })),
+  const systemModuleKeys = useMemo(
+    () => new Set((modulesQuery.data?.systemModules || []).map((module: any) => String(module.key))),
     [modulesQuery.data?.systemModules],
   );
 
-  const moduleColumns = useMemo(() => {
-    const splitAt = Math.ceil(sortedModules.length / 2);
-    return [sortedModules.slice(0, splitAt), sortedModules.slice(splitAt)];
-  }, [sortedModules]);
+  const visibleGroups = useMemo(
+    () => PARTNER_MODULE_GROUPS
+      .map(group => ({
+        ...group,
+        moduleKeys: group.moduleKeys.filter(key => systemModuleKeys.has(key)),
+      }))
+      .filter(group => group.moduleKeys.length > 0),
+    [systemModuleKeys],
+  );
 
-  const allModulesEnabled = sortedModules.length > 0 && sortedModules.every((module: any) => enabledByKey.get(module.key) === true);
+  const groupedModuleKeys = useMemo(
+    () => Array.from(new Set(visibleGroups.flatMap(group => group.moduleKeys))),
+    [visibleGroups],
+  );
+
+  const moduleColumns = useMemo(() => {
+    const splitAt = Math.ceil(visibleGroups.length / 2);
+    return [visibleGroups.slice(0, splitAt), visibleGroups.slice(splitAt)];
+  }, [visibleGroups]);
+
+  const allModulesEnabled = groupedModuleKeys.length > 0
+    && groupedModuleKeys.every(key => enabledByKey.get(key) === true);
 
   const shareByKey = useMemo(
     () => new Map((sharesQuery.data || []).map((item: any) => [item.resource_key, normalizeShareLevel(item.access_level as PartnerShareAccessLevel)])),
     [sharesQuery.data],
   );
 
-  const toggleMutation = useMutation({
-    mutationFn: async ({ key, enabled }: { key: string; enabled: boolean }) => {
-      const { error } = await setOrganizationModuleEnabled(organizationId, key, enabled, user?.id);
-      if (error) throw error;
+  const toggleGroupMutation = useMutation({
+    mutationFn: async ({ keys, enabled }: { keys: readonly string[]; enabled: boolean }) => {
+      for (const key of keys) {
+        if ((enabledByKey.get(key) === true) === enabled) continue;
+        const { error } = await setOrganizationModuleEnabled(organizationId, key, enabled, user?.id);
+        if (error) throw error;
+      }
+      return { keys, enabled };
     },
-    onSuccess: () => {
+    onSuccess: ({ keys, enabled }) => {
       void queryClient.invalidateQueries({ queryKey: ["partner-companies", "modules", organizationId] });
-      setToast({ msg: "Módulo atualizado.", type: "success" });
+      const isOrdersDomain = keys.includes("orders");
+      setToast({
+        msg: isOrdersDomain
+          ? enabled ? "Todo o módulo de Ordens de Serviço foi ativado." : "Todo o módulo de Ordens de Serviço foi desativado."
+          : "Módulo atualizado.",
+        type: "success",
+      });
     },
     onError: (error: any) => setToast({ msg: `Não foi possível atualizar o módulo: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }),
   });
 
   const bulkModulesMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
-      for (const module of sortedModules) {
-        if ((enabledByKey.get(module.key) === true) === enabled) continue;
-        const { error } = await setOrganizationModuleEnabled(organizationId, module.key, enabled, user?.id);
+      for (const key of groupedModuleKeys) {
+        if ((enabledByKey.get(key) === true) === enabled) continue;
+        const { error } = await setOrganizationModuleEnabled(organizationId, key, enabled, user?.id);
         if (error) throw error;
       }
       return enabled;
     },
     onSuccess: (enabled) => {
       void queryClient.invalidateQueries({ queryKey: ["partner-companies", "modules", organizationId] });
-      setToast({ msg: enabled ? "Todos os módulos foram marcados." : "Todos os módulos foram desmarcados.", type: "success" });
+      setToast({ msg: enabled ? "Todos os módulos foram ativados." : "Todos os módulos foram desativados.", type: "success" });
     },
     onError: (error: any) => setToast({ msg: `Não foi possível atualizar todos os módulos: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }),
   });
@@ -146,7 +248,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     onError: (error: any) => setToast({ msg: `Não foi possível atualizar o compartilhamento: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }),
   });
 
-  const busy = toggleMutation.isPending || bulkModulesMutation.isPending || shareMutation.isPending;
+  const busy = toggleGroupMutation.isPending || bulkModulesMutation.isPending || shareMutation.isPending;
 
   return <div className="space-y-4">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -155,16 +257,16 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       <AdminCardHeader>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-black text-[#0d1b2e]">Módulos disponíveis</h3>
-          <p className="mt-0.5 text-xs text-[#5a6a82]">Define quais áreas esta empresa pode utilizar.</p>
+          <p className="mt-0.5 text-xs text-[#5a6a82]">Ative apenas as áreas que esta empresa poderá utilizar. Ordens de Serviço controla todo o conjunto necessário ao fluxo da OS.</p>
         </div>
-        {!modulesQuery.isPending && !modulesQuery.isError && sortedModules.length > 0 && (
+        {!modulesQuery.isPending && !modulesQuery.isError && visibleGroups.length > 0 && (
           <button
             type="button"
             disabled={!canManageModules || busy}
             onClick={() => bulkModulesMutation.mutate(!allModulesEnabled)}
-            className="shrink-0 rounded-lg border border-[#0057e7]/20 bg-white px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#eef5ff] disabled:cursor-default disabled:opacity-50"
+            className="shrink-0 rounded-lg border border-[#0057e7]/20 bg-card px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#eef5ff] disabled:cursor-default disabled:opacity-50"
           >
-            {bulkModulesMutation.isPending ? "Atualizando..." : allModulesEnabled ? "Desmarcar todos" : "Marcar todos"}
+            {bulkModulesMutation.isPending ? "Atualizando..." : allModulesEnabled ? "Desativar todos" : "Ativar todos"}
           </button>
         )}
       </AdminCardHeader>
@@ -180,15 +282,15 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
                   ? "divide-y divide-[#d9e1ec] sm:pr-8"
                   : "divide-y divide-[#d9e1ec] border-t border-[#d9e1ec] pt-4 sm:ml-4 sm:border-l sm:border-t-0 sm:pl-8 sm:pt-0"}
               >
-                {column.map((module: any) => {
-                  const enabled = enabledByKey.get(module.key) === true;
-                  return <div key={module.key} className="py-4 first:pt-0 last:pb-0">
+                {column.map(group => {
+                  const enabled = group.moduleKeys.every(key => enabledByKey.get(key) === true);
+                  return <div key={group.key} className="py-4 first:pt-0 last:pb-0">
                     <FToggle
-                      label={module.name}
-                      description={module.description}
+                      label={group.label}
+                      description={group.description}
                       checked={enabled}
                       disabled={!canManageModules || busy}
-                      onChange={(nextEnabled) => toggleMutation.mutate({ key: module.key, enabled: nextEnabled })}
+                      onChange={(nextEnabled) => toggleGroupMutation.mutate({ keys: group.moduleKeys, enabled: nextEnabled })}
                     />
                   </div>;
                 })}
