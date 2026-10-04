@@ -56,6 +56,13 @@ type TabOrdersProps = {
   accessMode?: SharedAccessMode;
   detailOnly?: boolean;
   monitorView?: boolean;
+  monitorContact?: {
+    phone?: string | null;
+    whatsapp?: string | null;
+    email?: string | null;
+    owner_name?: string | null;
+    owner_user_id?: string | null;
+  } | null;
 };
 
 const READ_ONLY_PERMISSION_MARKERS = [
@@ -69,6 +76,7 @@ const READ_ONLY_PERMISSION_MARKERS = [
   ".dispatch",
   ".confirm",
   ".register",
+  ".record",
   ".receive",
   ".resolve",
   ".solve",
@@ -102,6 +110,7 @@ export function TabOrders({
   accessMode = "default",
   detailOnly = false,
   monitorView = false,
+  monitorContact = null,
 }: TabOrdersProps) {
   const { user, profile, hasPermission } = useAuth();
   const scopedReadOnly = accessMode === "read";
@@ -709,6 +718,7 @@ export function TabOrders({
         onEdit={openRoutedEdit}
         onClose={closeRoutedPage}
         monitorView={monitorView}
+        monitorContact={monitorContact}
       />
 
       {!scopedReadOnly && <OrderEditorPage
