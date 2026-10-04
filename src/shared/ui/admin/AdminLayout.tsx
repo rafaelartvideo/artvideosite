@@ -281,6 +281,7 @@ export function AdminDialog({
     <DialogContent
       showClose={false}
       showOverlay={!minimized}
+      minimizable={false}
       overlayClassName="admin-dialog-overlay"
       data-admin-dialog-content="true"
       data-admin-dialog-minimized={minimized ? "true" : "false"}
