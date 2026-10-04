@@ -4,6 +4,8 @@ const ONE_MINUTE = 60_000;
 const FIVE_MINUTES = 5 * ONE_MINUTE;
 const THIRTY_MINUTES = 30 * ONE_MINUTE;
 
+export const REFERENCE_DATA_CACHE_TIME = 24 * 60 * ONE_MINUTE;
+
 export function createAppQueryClient() {
   return new QueryClient({
     defaultOptions: {
