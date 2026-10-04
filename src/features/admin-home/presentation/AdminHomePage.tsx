@@ -25,6 +25,7 @@ import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   acknowledgeHomeAnnouncement,
   loadHomeAnnouncements,
+  subscribeToAdminHomeRefresh,
   type HomeAnnouncement,
   type HomeAnnouncementPriority,
 } from "@/features/home/infrastructure/home.repository";
@@ -167,6 +168,18 @@ export function AdminHomePage({
     queryFn: () => loadAdminNotifications(activeOrganizationId!, 50),
     staleTime: 5 * 60_000,
   });
+
+  useEffect(() => {
+    if (!activeOrganizationId) return;
+    return subscribeToAdminHomeRefresh(kind => {
+      if (kind === "all" || kind === "announcements") {
+        void queryClient.invalidateQueries({ queryKey: ["admin-home", "announcements", activeOrganizationId] });
+      }
+      if (kind === "all" || kind === "notifications") {
+        void queryClient.invalidateQueries({ queryKey: adminNotificationsKey(activeOrganizationId, user?.id || null) });
+      }
+    });
+  }, [activeOrganizationId, user?.id, queryClient]);
 
   const acknowledgeMutation = useMutation({
     mutationFn: (announcement: HomeAnnouncement) => acknowledgeHomeAnnouncement(announcement.id, activeOrganizationId!),
