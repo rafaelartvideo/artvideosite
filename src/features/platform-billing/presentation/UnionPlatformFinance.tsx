@@ -14,7 +14,7 @@ import {
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
 import { FCurrencyInput, FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";\nimport { SubscriptionConfiguration } from "./SubscriptionConfiguration";
 import {
   generatePlatformCharge,
   loadUnionPlatformFinance,
@@ -26,7 +26,7 @@ import {
   type PlatformSubscription,
 } from "../infrastructure/platform-billing.repository";
 
-type SectionId = "subscriptions" | "charges" | "plans";
+type SectionId = "subscriptions" | "charges" | "plans" | "configuration";
 
 const subscriptionStatusOptions = [
   { value: "trial", label: "Teste" },
@@ -251,7 +251,7 @@ export function UnionPlatformFinance() {
     <PageHeader
       title="Financeiro"
       subtitle="Assinaturas e recebimentos da Union World. Os dados financeiros operacionais das empresas parceiras não entram neste módulo."
-      actions={canManage ? <AdminButton onClick={section === "plans" ? openNewPlan : openNewSubscription}><Plus size={15} /> {section === "plans" ? "Novo plano" : "Nova assinatura"}</AdminButton> : undefined}
+      actions={canManage && section !== "configuration" ? <AdminButton onClick={section === "plans" ? openNewPlan : openNewSubscription}><Plus size={15} /> {section === "plans" ? "Novo plano" : "Nova assinatura"}</AdminButton> : undefined}
     />
 
     {query.isPending ? <LoadingState text="Carregando financeiro da Union..." /> : query.isError || !data ? (
@@ -284,7 +284,7 @@ export function UnionPlatformFinance() {
           {[
             { id: "subscriptions" as const, label: "Assinaturas" },
             { id: "charges" as const, label: "Cobranças" },
-            { id: "plans" as const, label: "Planos" },
+            { id: "plans" as const, label: "Planos" },\n            { id: "configuration" as const, label: "Configuração" },
           ].map(item => <button
             key={item.id}
             type="button"
@@ -339,7 +339,7 @@ export function UnionPlatformFinance() {
         </div> : <AdminCardContent><p className="text-sm text-muted-foreground">Nenhuma cobrança gerada.</p></AdminCardContent>}
       </AdminCard>}
 
-      {section === "plans" && <AdminCard square>
+      {section === "configuration" && <SubscriptionConfiguration financeData={data} canManage={canManage} onChanged={refresh} />}\n\n      {section === "plans" && <AdminCard square>
         <AdminCardHeader>
           <div><h3 className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Planos</h3><p className="mt-1 text-xs text-muted-foreground">Planos comerciais disponíveis para as empresas parceiras.</p></div>
           {canManage && <AdminButton size="sm" onClick={openNewPlan}><Plus size={14} /> Novo plano</AdminButton>}

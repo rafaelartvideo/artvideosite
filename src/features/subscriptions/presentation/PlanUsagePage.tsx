@@ -142,6 +142,32 @@ export function PlanUsagePage() {
         <AdminCard square>
           <AdminCardContent className="p-5">
             <div className="flex items-center gap-2">
+              <Boxes size={17} className="text-primary" />
+              <h3 className="text-sm font-black text-foreground">Módulos incluídos</h3>
+            </div>
+            {data.modules.length ? <div className="mt-4 flex flex-wrap gap-2">
+              {data.modules.map(module => <span key={module.key + module.source} className="border border-border bg-muted/30 px-2.5 py-1.5 text-xs font-bold text-foreground">{module.name}</span>)}
+            </div> : <p className="mt-4 text-sm text-muted-foreground">Nenhum módulo comercial foi configurado para este plano ainda.</p>}
+          </AdminCardContent>
+        </AdminCard>
+
+        <AdminCard square>
+          <AdminCardContent className="p-5">
+            <div className="flex items-center gap-2">
+              <Boxes size={17} className="text-primary" />
+              <h3 className="text-sm font-black text-foreground">Recursos do contrato</h3>
+            </div>
+            {Object.keys(data.features).length ? <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {Object.entries(data.features).map(([key, enabled]) => <div key={key} className="flex items-center justify-between gap-3 border border-border px-3 py-2 text-xs"><span className="font-semibold text-foreground">{key.replace(/_/g, " ")}</span><span className={enabled ? "font-black text-emerald-600" : "font-bold text-muted-foreground"}>{enabled ? "Incluído" : "Não incluído"}</span></div>)}
+            </div> : <p className="mt-4 text-sm text-muted-foreground">Nenhum recurso comercial foi configurado para este plano ainda.</p>}
+          </AdminCardContent>
+        </AdminCard>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <AdminCard square>
+          <AdminCardContent className="p-5">
+            <div className="flex items-center gap-2">
               <FileImage size={17} className="text-primary" />
               <h3 className="text-sm font-black text-foreground">Arquivos e histórico</h3>
             </div>
