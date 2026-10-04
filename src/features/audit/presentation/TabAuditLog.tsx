@@ -4,6 +4,7 @@ import { Eye, History, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -583,6 +584,7 @@ export function TabAuditLog() {
   const [contextId, setContextId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [mobileSearchField, setMobileSearchField] = useState<"actor" | "module" | "operation" | "context" | "from" | "to">("actor");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const debouncedContextId = useDebouncedValue(contextId);
 
@@ -644,7 +646,26 @@ export function TabAuditLog() {
       />
 
       <AdminSearchPanel title="Buscar na auditoria">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <AdminMobileSearchSwitch
+          value={mobileSearchField}
+          options={[
+            { value: "actor", label: "Usuário" },
+            { value: "module", label: "Módulo" },
+            { value: "operation", label: "Ação" },
+            { value: "context", label: "Registro" },
+            { value: "from", label: "Data inicial" },
+            { value: "to", label: "Data final" },
+          ]}
+          onChange={setMobileSearchField}
+        >
+          {mobileSearchField === "actor" ? <AdminSelect value={actorUserId} onValueChange={value => { setActorUserId(value); setPage(1); }} options={actorOptions} ariaLabel="Filtrar por usuário" />
+            : mobileSearchField === "module" ? <AdminSelect value={moduleKey} onValueChange={value => { setModuleKey(value); setPage(1); }} options={MODULE_OPTIONS} ariaLabel="Filtrar por módulo" />
+              : mobileSearchField === "operation" ? <AdminSelect value={operation} onValueChange={value => { setOperation(value); setPage(1); }} options={OPERATION_OPTIONS} ariaLabel="Filtrar por ação" />
+                : mobileSearchField === "context" ? <FInput value={contextId} onChange={(event: any) => { setContextId(event.target.value); setPage(1); }} placeholder="ID do registro" />
+                  : mobileSearchField === "from" ? <FInput type="date" value={dateFrom} onChange={(event: any) => { setDateFrom(event.target.value); setPage(1); }} />
+                    : <FInput type="date" value={dateTo} onChange={(event: any) => { setDateTo(event.target.value); setPage(1); }} />}
+        </AdminMobileSearchSwitch>
+        <div className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-6">
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Usuário</label>
             <AdminSelect
