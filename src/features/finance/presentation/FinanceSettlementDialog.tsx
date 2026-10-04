@@ -145,6 +145,8 @@ export function FinanceSettlementDialog({
     onClose={onClose}
     title={`${actionLabel} lançamento`}
     description="Registre baixa total ou parcial sem alterar o valor original do título."
+    minimizedDescription={[detail.counterpart_name_snapshot || detail.description, gross > 0 ? formatCurrency(gross) : null, selectedMethod?.name].filter(Boolean).join(" · ") || "Baixa em preenchimento"}
+    minimizable={!saving}
     className="max-w-3xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton>
