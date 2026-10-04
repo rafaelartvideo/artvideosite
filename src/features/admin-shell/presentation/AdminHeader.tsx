@@ -512,20 +512,28 @@ export function AdminHeader({
       </header>
 
       {page && (
-        <header className="relative z-30 hidden min-w-0 shrink-0 border-b border-[#0d1b2e]/8 bg-white px-6 py-3 md:block">
-          <div className="min-w-0">
-            <div className="mb-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-[#5a6a82]">
-              {parentBreadcrumb && <>
-                <button type="button" onClick={page.onBack} className="min-w-0 truncate font-semibold transition-colors hover:text-primary" title={parentBreadcrumb}>{parentBreadcrumb}</button>
-                <span aria-hidden="true" className="shrink-0">&gt;</span>
-              </>}
-              <span className="max-w-[220px] truncate" title={page.title}>{page.title}</span>
-            </div>
-            <h2 className={page.titleVariant === "order-number"
-              ? "break-words text-2xl font-black leading-tight text-foreground"
-              : "break-words text-[15px] font-black text-[#0d1b2e]"
-            }>{page.title}</h2>
-            {page.subtitle && <p className="mt-0.5 max-w-4xl break-words text-[14px] text-[#5a6a82]">{page.subtitle}</p>}
+        <header className="relative z-30 hidden min-w-0 shrink-0 border-b border-border bg-card px-6 py-3 md:block">
+          <div className="flex min-w-0 items-center gap-2">
+            {parentBreadcrumb && <>
+              <button
+                type="button"
+                onClick={page.onBack}
+                className="min-w-0 max-w-[340px] truncate text-[13px] font-semibold text-muted-foreground transition-colors hover:text-primary"
+                title={parentBreadcrumb}
+              >
+                {parentBreadcrumb}
+              </button>
+              <span aria-hidden="true" className="shrink-0 text-xs text-muted-foreground">&gt;</span>
+            </>}
+            <span
+              className={cn(
+                "min-w-0 truncate font-black text-foreground",
+                page.titleVariant === "order-number" ? "text-base" : "text-[15px]",
+              )}
+              title={page.title}
+            >
+              {page.title}
+            </span>
           </div>
         </header>
       )}
