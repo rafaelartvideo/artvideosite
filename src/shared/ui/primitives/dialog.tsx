@@ -180,26 +180,15 @@ function DialogContent({
   const fallbackTitle = typeof props["aria-label"] === "string" ? props["aria-label"] : "Janela minimizada";
   const dockTitle = minimizedTitle || fallbackTitle;
   const minimize = useDialogMinimizeAction(dockTitle, minimizedDescription);
-  const [renderMinimizeTransition, setRenderMinimizeTransition] = React.useState(true);
   const minimizing = Boolean(canMinimize && runtime?.minimized);
 
-  React.useEffect(() => {
-    if (!minimizing) {
-      setRenderMinimizeTransition(true);
-      return;
-    }
-    const timer = window.setTimeout(() => setRenderMinimizeTransition(false), 190);
-    return () => window.clearTimeout(timer);
-  }, [minimizing]);
-
-  if (minimizing && !renderMinimizeTransition) return null;
+  // The minimized card owns the minimize animation. Removing the full dialog
+  // immediately avoids mobile browsers stretching the closing portal.
+  if (minimizing) return null;
 
   return (
     <DialogPortal data-slot="dialog-portal">
-      {showOverlay && <DialogOverlay
-        className={cn(isAdminDialog && "admin-dialog-overlay z-[140]", overlayClassName)}
-        style={minimizing ? { opacity: 0, transition: "opacity 180ms ease-in" } : undefined}
-      />}
+      {showOverlay && <DialogOverlay className={cn(isAdminDialog && "admin-dialog-overlay z-[140]", overlayClassName)} />}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-admin-dialog-content={isAdminDialog ? "true" : undefined}
@@ -208,12 +197,7 @@ function DialogContent({
           isAdminDialog && "z-[150]",
           className,
         )}
-        style={minimizing ? {
-          ...style,
-          opacity: 0,
-          transform: "translate(-50%, -46%) scale(0.96)",
-          transition: "opacity 180ms ease-in, transform 180ms ease-in",
-        } : style}
+        style={style}
         {...props}
       >
         {children}
