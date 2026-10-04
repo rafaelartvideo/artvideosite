@@ -34,12 +34,6 @@ function formatDateTime(value?: string | null) {
   return new Date(value).toLocaleString("pt-BR");
 }
 
-function statusPill(status: "open" | "closed") {
-  return status === "open"
-    ? <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Aberto</span>
-    : <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-600">Fechado</span>;
-}
-
 function movementLabel(type: string) {
   if (type === "receipt") return "Recebimento";
   if (type === "supply") return "Suprimento";
