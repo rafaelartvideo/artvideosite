@@ -215,6 +215,12 @@ export function OrderSignatureRequestDialog({
     onClose={onClose}
     title="Enviar para assinatura"
     description="O mesmo documento de impressão será congelado em PDF no momento do envio."
+    minimizedDescription={[
+      `OS ${order?.os_number || "—"}`,
+      signerType === "customer" ? customerName(customer) : contactName.trim(),
+      selectedTemplate?.name,
+    ].filter(Boolean).join(" · ")}
+    minimizable={!saving}
     className="max-w-xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
