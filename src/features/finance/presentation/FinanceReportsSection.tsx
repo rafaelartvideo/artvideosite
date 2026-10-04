@@ -82,7 +82,7 @@ export function FinanceReportsSection() {
   const [tab, setTab] = useState<ReportTab>(canDre ? "dre" : "cash-flow");
   const [filters, setFilters] = useState<FinancialReportFilters>(() => currentMonthFilters());
   const foundation = useFinanceFoundation();
-  const reports = useFinanceReports(filters);
+  const reports = useFinanceReports(filters, { dashboard: false, dre: tab === "dre", cashFlow: tab === "cash-flow" });
 
   const categories = foundation.categoriesQuery.data || [];
   const costCenters = foundation.costCentersQuery.data || [];
