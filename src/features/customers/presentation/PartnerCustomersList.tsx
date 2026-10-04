@@ -243,7 +243,7 @@ function SearchField({
   inputMode?: "numeric";
 }) {
   return <div className="min-w-0">
-    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82] md:mb-1">{label}</label>
+    {label && <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82] md:mb-1">{label}</label>}
     <div className="relative">
       <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
       <input
