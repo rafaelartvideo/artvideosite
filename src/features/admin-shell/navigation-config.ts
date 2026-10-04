@@ -7,9 +7,11 @@ import {
   ClipboardList,
   FileText,
   FolderTree,
+  House,
   Landmark,
   LayoutDashboard,
   MapPinned,
+  Megaphone,
   List,
   Package,
   Phone,
@@ -27,6 +29,7 @@ import type { AdminHubItem, AdminNavigationItem } from "./presentation/AdminNavi
 type PermissionAwareHubItem = AdminHubItem & { permissionKey: string };
 
 export const mainItems: AdminNavigationItem[] = [
+  { id: "home", label: "Home", icon: House },
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "quotes", label: "Orçamentos", icon: FileText },
   { id: "orders", label: "Ordens de Serviço", icon: ClipboardList },
@@ -38,6 +41,7 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "finance", label: "Financeiro", icon: Landmark },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
   { id: "audit", label: "Auditoria", icon: History },
+  { id: "announcements", label: "Avisos", icon: Megaphone },
 ];
 
 export const siteItems: PermissionAwareHubItem[] = [
@@ -63,8 +67,10 @@ export const operationItems: PermissionAwareHubItem[] = [
 export const utilityItems: AdminNavigationItem[] = [];
 
 export const permissionForTab: Record<AdminTab, string> = {
+  home: "dashboard.view",
   dashboard: "dashboard.view",
   crm: "dashboard.view",
+  announcements: "platform.announcements.view",
   quotes: "quotes.view",
   orders: "orders.view",
   customers: "customers.view",
@@ -97,8 +103,10 @@ export const permissionForTab: Record<AdminTab, string> = {
 };
 
 export const moduleForTab: Record<AdminTab, string | null> = {
+  home: null,
   dashboard: "dashboard",
   crm: null,
+  announcements: null,
   quotes: "quotes",
   orders: "orders",
   customers: "customers",
@@ -157,7 +165,7 @@ export function isAdminModuleEnabled(
   tab: AdminTab,
   hasModule: (moduleKey: string) => boolean,
 ) {
-  if (tab === "crm") return true;
+  if (tab === "home" || tab === "crm" || tab === "announcements") return true;
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
   if (tab === "tools") return true;
