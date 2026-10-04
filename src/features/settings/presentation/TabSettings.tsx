@@ -109,7 +109,12 @@ export function TabSettings({ onBack, identityOnly = false }: {
             company_menu_logo_media_id: form.company_menu_logo_media_id,
           }
         : form;
-      await saveSettings.mutateAsync({ organizationId: activeOrganizationId, settings: settingsToSave, updatedBy: user?.id ?? null });
+      await saveSettings.mutateAsync({
+        organizationId: activeOrganizationId,
+        settings: settingsToSave,
+        updatedBy: user?.id ?? null,
+        scope: identityOnly ? "branding" : isPartnerOrganization ? "partner" : "full",
+      });
       setToast({ msg: identityOnly ? "Identidade visual salva com sucesso." : "Dados da empresa salvos com sucesso.", type: "success" });
     } catch (error) {
       setToast({ msg: systemErrorMessage(error, "Não foi possível salvar os dados."), type: "error" });
