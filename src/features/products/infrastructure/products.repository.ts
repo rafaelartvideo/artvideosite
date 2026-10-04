@@ -17,69 +17,18 @@ export async function loadProductCatalog(
   organizationId: string,
   options: { loadCategories?: boolean; loadBrands?: boolean } = {},
 ) {
-  const productsPromise = supabase
-    .from("products")
-    .select("*, product_categories(name), brands(name)")
-    .eq("organization_id", organizationId)
-    .order("created_at", { ascending: false });
-
-  const inventoryPromise = supabase.rpc("get_product_inventory_management", {
+  const { data, error } = await supabase.rpc("load_product_catalog_admin_v1", {
     p_organization_id: organizationId,
+    p_load_categories: options.loadCategories !== false,
+    p_load_brands: options.loadBrands !== false,
   });
+  if (error) throw error;
 
-  const inventoryIdentityPromise = supabase
-    .from("inventory_items")
-    .select("product_id,sku")
-    .eq("organization_id", organizationId)
-    .not("product_id", "is", null);
-
-  const categoriesPromise = options.loadCategories
-    ? supabase
-        .from("product_categories")
-        .select("id, name")
-        .eq("organization_id", organizationId)
-        .order("sort_order")
-    : Promise.resolve({ data: [], error: null });
-
-  const brandsPromise = options.loadBrands
-    ? supabase
-        .from("brands")
-        .select("id, name")
-        .eq("organization_id", organizationId)
-        .order("sort_order")
-    : Promise.resolve({ data: [], error: null });
-
-  const [productsResult, inventoryResult, inventoryIdentityResult, categoriesResult, brandsResult] = await Promise.all([
-    productsPromise,
-    inventoryPromise,
-    inventoryIdentityPromise,
-    categoriesPromise,
-    brandsPromise,
-  ]);
-
-  if (productsResult.error) throw productsResult.error;
-  if (inventoryResult.error) throw inventoryResult.error;
-  if (inventoryIdentityResult.error) throw inventoryIdentityResult.error;
-  if (categoriesResult.error) throw categoriesResult.error;
-  if (brandsResult.error) throw brandsResult.error;
-
-  const inventoryIdentityByProductId = new Map(
-    (inventoryIdentityResult.data ?? []).map((item: any) => [String(item.product_id), item]),
-  );
-  const inventoryByProductId = new Map(
-    (inventoryResult.data ?? []).map((item: any) => {
-      const identity = inventoryIdentityByProductId.get(String(item.product_id));
-      return [String(item.product_id), { ...item, sku: identity?.sku ?? null }];
-    }),
-  );
-
+  const catalog = (data || {}) as Record<string, unknown>;
   return {
-    products: (productsResult.data ?? []).map((product: any) => ({
-      ...product,
-      inventory: inventoryByProductId.get(String(product.id)) ?? null,
-    })),
-    categories: categoriesResult.data ?? [],
-    brands: brandsResult.data ?? [],
+    products: Array.isArray(catalog.products) ? catalog.products : [],
+    categories: Array.isArray(catalog.categories) ? catalog.categories : [],
+    brands: Array.isArray(catalog.brands) ? catalog.brands : [],
   };
 }
 
