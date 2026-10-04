@@ -117,7 +117,6 @@ export function OrderChecklistMobileBridge({
       try {
         const result = await pollMobileOrderChecklistSession(session.id);
         if (cancelled) return;
-        setConnected(Boolean(result.connected));
         if (String(result.status || "active") !== "active") {
           setExpired(true);
           setConnected(false);
@@ -140,8 +139,19 @@ export function OrderChecklistMobileBridge({
       onReady: () => void loadInitialState(),
     });
 
+    const expiresAtMs = Date.parse(session.expiresAt);
+    const expiryTimer = Number.isFinite(expiresAtMs)
+      ? window.setTimeout(() => {
+          if (!cancelled) {
+            setExpired(true);
+            setConnected(false);
+          }
+        }, Math.max(0, expiresAtMs - Date.now()) + 250)
+      : null;
+
     return () => {
       cancelled = true;
+      if (expiryTimer !== null) window.clearTimeout(expiryTimer);
       unsubscribe();
     };
   }, [session?.id, expired, orderId, queryClient]);
