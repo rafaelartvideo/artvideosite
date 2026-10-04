@@ -126,7 +126,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
   {
     key: "resolution",
     label: "Solução",
-    description: "Diagnóstico e solução técnica registrados ao resolver a OS.",
+    description: "Diagnóstico e solução técnica registrados ao solucionar a OS.",
     defaultColumns: 1,
     fields: [
       { key: "resolution.diagnosis", label: "Diagnóstico" },
