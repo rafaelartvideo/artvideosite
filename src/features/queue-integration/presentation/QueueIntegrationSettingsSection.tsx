@@ -53,7 +53,7 @@ export function QueueIntegrationSettingsSection({
     setMessage(null);
     try {
       await saveQueueIntegrationSettings(settings);
-      setMessage({ text: "Integração com a Fila Eletrônica salva." });
+      setMessage({ text: "Configuração do Union Senhas salva." });
     } catch (error) {
       setMessage({ text: systemErrorMessage(error, "Não foi possível salvar a integração da fila."), error: true });
     } finally {
@@ -61,12 +61,12 @@ export function QueueIntegrationSettingsSection({
     }
   };
 
-  return <Section title="Integração com Fila Eletrônica">
+  return <Section title="Configuração do Union Senhas">
     {loading ? <LoadingState /> : <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 border-b border-[#0d1b2e]/10 pb-4">
         <div>
           <p className="text-sm font-semibold text-[#0d1b2e] dark:text-white">Ativar integração</p>
-          <p className="mt-1 text-xs text-[#5a6a82] dark:text-slate-400">Permite validar as senhas emitidas pelo sistema de filas.</p>
+          <p className="mt-1 text-xs text-[#5a6a82] dark:text-slate-400">Permite validar as senhas emitidas pelo Union Senhas.</p>
         </div>
         <Switch checked={settings.enabled} onCheckedChange={(checked) => update("enabled", checked)} disabled={!canUpdate || saving} />
       </div>
@@ -104,7 +104,7 @@ export function QueueIntegrationSettingsSection({
         </label>
 
         <label className="space-y-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Se a Fila estiver indisponível</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Se o Union Senhas estiver indisponível</span>
           <Select
             value={settings.outage_policy}
             onValueChange={(value) => update("outage_policy", value as QueueOutagePolicy)}
