@@ -262,6 +262,7 @@ export function AdminDialog({
   className,
   minimizable = true,
   minimizedDescription,
+  closable = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -273,6 +274,7 @@ export function AdminDialog({
   className?: string;
   minimizable?: boolean;
   minimizedDescription?: React.ReactNode;
+  closable?: boolean;
 }) {
   const minimizedTitle = typeof title === "string" ? title : "Janela administrativa";
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
@@ -299,7 +301,7 @@ export function AdminDialog({
         <div className="flex shrink-0 items-center gap-1">
           {headerActions}
           {minimizable && <DialogMinimizeButton title={minimizedTitle} description={effectiveMinimizedDescription} />}
-          <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>
+          {closable && <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>}
         </div>
       </div>}
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5">{children}</div>
