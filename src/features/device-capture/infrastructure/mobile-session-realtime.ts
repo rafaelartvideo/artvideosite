@@ -34,16 +34,26 @@ export function mobileSessionDisconnectDelay(
 
 export function subscribeMobileSessionRealtime({
   sessionId,
+  presenceRole,
+  onMobilePresenceChange,
   onSessionChange,
   onEventInsert,
   onReady,
 }: {
   sessionId: string;
+  presenceRole?: "desktop" | "mobile";
+  onMobilePresenceChange?: (connected: boolean) => void;
   onSessionChange?: (row: MobileSessionRealtimeRow) => void;
   onEventInsert?: () => void;
   onReady?: () => void;
 }) {
-  let channel = supabase.channel(`mobile-session-realtime:${sessionId}`);
+  const presenceKey = presenceRole
+    ? `${presenceRole}:${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`
+    : undefined;
+  let channel = supabase.channel(
+    `mobile-session-realtime:${sessionId}`,
+    presenceKey ? { config: { presence: { key: presenceKey } } } : undefined,
+  );
 
   if (onSessionChange) {
     channel = channel.on(
@@ -71,8 +81,23 @@ export function subscribeMobileSessionRealtime({
     );
   }
 
+  if (onMobilePresenceChange) {
+    const syncPresence = () => {
+      const state = channel.presenceState() as Record<string, Array<{ role?: string }>>;
+      const mobileConnected = Object.values(state)
+        .flat()
+        .some(presence => presence?.role === "mobile");
+      onMobilePresenceChange(mobileConnected);
+    };
+    channel = channel.on("presence", { event: "sync" }, syncPresence);
+  }
+
   channel.subscribe(status => {
-    if (status === "SUBSCRIBED") onReady?.();
+    if (status !== "SUBSCRIBED") return;
+    if (presenceRole) {
+      void channel.track({ role: presenceRole, connected_at: new Date().toISOString() });
+    }
+    onReady?.();
   });
 
   return () => {
