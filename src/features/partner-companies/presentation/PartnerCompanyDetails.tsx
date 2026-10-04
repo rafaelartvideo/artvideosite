@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { Edit2, MapPin, MessageCircle, Phone } from "lucide-react";
+import { Building2, Database, Edit2, MapPin, MessageCircle, Phone, RadioTower, ShieldCheck } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
 import { cn, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminCard, AdminCardContent, AdminCardHeader, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -11,11 +11,11 @@ import { PartnerCompanyOrderMonitoringSection } from "./PartnerCompanyOrderMonit
 
 type CompanySection = "general" | "access" | "monitoring" | "data";
 
-const COMPANY_SECTIONS: Array<{ key: CompanySection; label: string }> = [
-  { key: "general", label: "Geral" },
-  { key: "access", label: "Acessos" },
-  { key: "monitoring", label: "Monitoramento" },
-  { key: "data", label: "Dados" },
+const COMPANY_SECTIONS = [
+  { key: "general" as const, label: "Geral", icon: Building2 },
+  { key: "access" as const, label: "Acessos", icon: ShieldCheck },
+  { key: "monitoring" as const, label: "Monitoramento", icon: RadioTower },
+  { key: "data" as const, label: "Dados", icon: Database },
 ];
 
 function statusLabel(value: string) {
@@ -57,19 +57,27 @@ export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { co
       actions={<InternalBackButton onBack={onBack} />}
     />
 
-    <div className="overflow-x-auto border-b border-[#0d1b2e]/10">
-      <nav className="flex min-w-max items-center gap-6" aria-label="Seções da empresa parceira">
-        {visibleSections.map(section => <button
-          key={section.key}
-          type="button"
-          onClick={() => setActiveSection(section.key)}
-          className={cn(
-            "border-b-2 px-1 py-3 text-xs font-black transition-colors",
-            activeSection === section.key ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]",
-          )}
-        >{section.label}</button>)}
-      </nav>
-    </div>
+    <nav className="mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card px-2 shadow-sm" aria-label="Seções da empresa parceira">
+      <div className="flex w-max items-center justify-center gap-1">
+        {visibleSections.map(section => {
+          const Icon = section.icon;
+          const selected = activeSection === section.key;
+          return <button
+            key={section.key}
+            type="button"
+            aria-current={selected ? "page" : undefined}
+            onClick={() => setActiveSection(section.key)}
+            className={cn(
+              "relative inline-flex min-h-11 shrink-0 items-center justify-center gap-2 bg-transparent px-3 text-xs font-black transition-colors duration-200 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+              selected ? "text-primary after:scale-x-100" : "text-muted-foreground after:scale-x-0 hover:text-primary",
+            )}
+          >
+            <Icon size={15} />
+            {section.label}
+          </button>;
+        })}
+      </div>
+    </nav>
 
     {activeSection === "general" && <>
       <AdminCard>
