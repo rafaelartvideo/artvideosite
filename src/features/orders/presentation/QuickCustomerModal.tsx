@@ -1,5 +1,4 @@
-import React, { useRef, useState } from "react";
-import { X } from "lucide-react";
+import React, { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { normalizeSharedMapUrl, type Address } from "@/lib/address";
 import {
@@ -10,7 +9,7 @@ import {
   type CustomerForm,
   validateCustomerFormFields,
 } from "@/features/customers/domain/customer-form";
-import { AdminButton, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
   CustomerTypeToggle,
   FBrazilianDateInput,
@@ -29,7 +28,6 @@ import {
   findQuickCustomerByTaxId,
   updateOrderCustomer,
 } from "../infrastructure/orders-customer.repository";
-import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 import { QuickCustomerAddressesEditor, newQuickCustomerAddress } from "./QuickCustomerAddressesEditor";
@@ -71,23 +69,6 @@ export function QuickCustomerModal({ onClose, onSaved }: {
   const [fieldErrors, setFieldErrors] = useState<CustomerFieldErrors>({});
   const [cpfLoading, setCpfLoading] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
-
-  const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (window.innerWidth < 640) return;
-    const target = event.target as HTMLElement;
-    if (target.closest("button, a, input, textarea, select, [role='button']")) return;
-    dragRef.current = { x: position.x, y: position.y, startX: event.clientX, startY: event.clientY };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current) return;
-    setPosition({ x: dragRef.current.x + event.clientX - dragRef.current.startX, y: dragRef.current.y + event.clientY - dragRef.current.startY });
-  };
-  const endDrag = () => { dragRef.current = null; };
-
-
   const clearFieldError = (field: keyof CustomerForm) => {
     setFieldErrors(current => {
       if (!current[field]) return current;
@@ -293,30 +274,27 @@ export function QuickCustomerModal({ onClose, onSaved }: {
     }
   };
 
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent showClose={false} minimizedTitle="Criar cliente" className="admin-crm w-[calc(100vw-1rem)] max-w-4xl gap-0 border-0 bg-transparent p-0 shadow-none sm:max-w-4xl">
-        <DialogTitle className="sr-only">Criar cliente</DialogTitle>
-        <div
-          style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-          className="relative flex max-h-[calc(100dvh-var(--admin-shell-header-height,4rem)-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl"
-        >
-          <div
-            onPointerDown={startDrag}
-            onPointerMove={moveDrag}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-            className="z-10 flex shrink-0 cursor-default items-center justify-between border-b border-[#0d1b2e]/10 bg-white px-4 py-3 select-none sm:cursor-move sm:px-5"
-          >
-            <div className="min-w-0 pr-2">
-              <h3 className="text-sm font-bold text-[#0d1b2e]">Criar cliente</h3>
-              <p className="mt-0.5 text-[11px] text-[#5a6a82]">Cadastre o cliente sem sair da Nova OS</p>
-            </div>
-            <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost"><X size={16} /></AdminIconButton>
-          </div>
+  const minimizedDescription = [
+    form.customerType === "PF" ? form.full_name : form.trade_name || form.legal_name,
+    form.customerType === "PF" ? form.document : form.cnpj,
+    form.whatsapp || form.phone,
+  ].map(value => String(value || "").trim()).filter(Boolean).join(" · ") || "Cadastro em andamento";
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-5">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+  return <AdminDialog
+    open
+    onClose={() => { if (!saving) onClose(); }}
+    title="Criar cliente"
+    description="Cadastre o cliente sem sair da Nova OS."
+    minimizedDescription={minimizedDescription}
+    minimizable={!saving}
+    className="max-w-4xl"
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+      {hasPermission("customers.create") && <BtnPrimary className="w-full sm:w-auto" onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}
+    </div>}
+  >
+    <div className="space-y-4">
+<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
               <CustomerTypeToggle value={form.customerType} onChange={customerType => { setFieldErrors({}); setForm({ ...form, customerType }); }} />
 
               {form.customerType === "PF" ? <>
@@ -342,15 +320,6 @@ export function QuickCustomerModal({ onClose, onSaved }: {
             </div>
 
             <QuickCustomerAddressesEditor value={addresses} onChange={setAddresses} disabled={saving} />
-
-          </div>
-
-          <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#0d1b2e]/10 bg-white px-3 py-3 sm:flex-row sm:justify-end sm:px-5">
-            <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-            {hasPermission("customers.create") && <BtnPrimary className="w-full sm:w-auto" onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+    </div>
+  </AdminDialog>;
 }
