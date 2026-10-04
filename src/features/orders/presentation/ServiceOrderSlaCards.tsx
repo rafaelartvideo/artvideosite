@@ -78,7 +78,7 @@ export function ServiceOrderSlaCards({
               className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full border bg-card px-1 text-[10px] font-black", styles.infoBorder, styles.title)}
             >{currentSituationVisits.length}</span>}
           </div>
-          <p className="mt-1 break-words text-2xl font-black text-foreground">{formatElapsedHours(situationElapsed)}</p>
+          <p className="mt-1 min-h-14 break-words text-2xl font-black leading-[1.15] text-foreground">{formatElapsedHours(situationElapsed)}</p>
           <p className="break-words text-[11px] leading-relaxed text-muted-foreground">Tempo corrido nesta passagem pela situação</p>
         </div>
         <button
@@ -120,7 +120,7 @@ export function ServiceOrderSlaCards({
         <div className="shrink-0 rounded-lg bg-primary-soft-strong p-2 text-primary"><Clock size={18} /></div>
         <div className="min-w-0">
           <p className="break-words text-[10px] font-black uppercase tracking-wider text-primary">Tempo total da ordem de serviço</p>
-          <p className="mt-1 break-words text-2xl font-black text-foreground">{formatElapsedHours(orderElapsed)}</p>
+          <p className="mt-1 min-h-14 break-words text-2xl font-black leading-[1.15] text-foreground">{formatElapsedHours(orderElapsed)}</p>
           <p className="break-words text-[11px] leading-relaxed text-muted-foreground">{order.completed_at ? "Tempo encerrado na conclusão" : "Correndo desde a abertura da OS"}</p>
         </div>
       </div>
