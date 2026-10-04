@@ -191,16 +191,22 @@ export function OrdersFilters({
     selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo || orderSort
   );
 
-  const sortMenu = () => (
+  const sortMenu = (mobile = false) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           aria-label={`Ordenação atual: ${orderLabel}`}
           title={`Ordenação: ${orderLabel}`}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10] text-white transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          className={cn(
+            "inline-flex shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2",
+            mobile
+              ? "h-[42px] w-[42px] border-[#0d1b2e]/15 bg-white text-[#5a6a82] shadow-sm focus-visible:ring-[#0057e7]/40"
+              : "h-7 w-7 border-white/10 bg-white/[0.10] text-white hover:bg-white/[0.14] focus-visible:ring-white/60",
+            mobile && orderSort && "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]",
+          )}
         >
-          <OrderSortIcon size={15} className="shrink-0 text-white/90" />
+          <OrderSortIcon size={mobile ? 17 : 15} className={cn("shrink-0", mobile ? "text-[#0057e7]" : "text-white/90")} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[190px]">
@@ -249,13 +255,13 @@ export function OrdersFilters({
         {selectedStates.length > 0 && <button type="button" onClick={onStatesClear} aria-label="Limpar Estados" title="Limpar Estados" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar Estados</button>}
         {selectedCities.length > 0 && <button type="button" onClick={onCitiesClear} aria-label="Limpar Cidades" title="Limpar Cidades" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar Cidades</button>}
         {hasActiveFilters && <button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar filtros</button>}
-        {sortMenu()}
+        <span className="hidden md:inline-flex">{sortMenu()}</span>
       </div>
     </div>
     <div className="p-4 md:p-3">
       <div className="space-y-3 md:hidden">
         <div className="flex items-center gap-2"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[240px]">{mobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div>
-        <div className="min-w-0">{renderMobileFilter()}</div>
+        <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1">{renderMobileFilter()}</div>{sortMenu(true)}</div>
       </div>
 
       <div className="hidden space-y-2 md:block">
