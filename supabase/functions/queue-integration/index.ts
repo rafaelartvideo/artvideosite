@@ -94,9 +94,6 @@ Deno.serve(async (request) => {
     }
 
     const permissionsSet = permissionSet(permissions);
-    if (!permissionsSet.has("orders.create")) {
-      return json({ success: false, error: "Sem permissão para abrir OS nesta empresa." }, 403);
-    }
 
     const currentSettings = settings || {
       enabled: false,
@@ -104,6 +101,49 @@ Deno.serve(async (request) => {
       reservation_ttl_seconds: 600,
       outage_policy: "manager_override",
     };
+
+    if (action === "usage") {
+      if (!currentSettings.enabled) {
+        return json({ success: false, error: "A integração com a fila está desativada.", code: "integration_disabled" }, 409);
+      }
+
+      const bridgeUrl = String(Deno.env.get("QUEUE_BRIDGE_URL") || "").trim();
+      const sharedSecret = String(Deno.env.get("QUEUE_BRIDGE_SHARED_SECRET") || "").trim();
+      if (!/^https:\/\//i.test(bridgeUrl) || !sharedSecret) {
+        return json({ success: false, error: "A ponte com o sistema de filas ainda não foi configurada.", code: "queue_unavailable" }, 503);
+      }
+
+      const remote = await parseResponse(await fetch(bridgeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-union-integration-secret": sharedSecret,
+        },
+        body: JSON.stringify({ action: "usage" }),
+      }));
+
+      if (!remote.response.ok || !remote.payload?.ok || !remote.payload?.usage) {
+        return json({
+          success: false,
+          error: String(remote.payload?.error || "Não foi possível medir o consumo da fila."),
+          code: remote.payload?.code || "queue_unavailable",
+        }, remote.response.status || 503);
+      }
+
+      const { error: syncError } = await userClient.rpc("sync_union_queue_usage_v1", {
+        p_organization_id: organizationId,
+        p_usage: remote.payload.usage,
+      });
+      if (syncError) {
+        return json({ success: false, error: "Sem permissão para sincronizar o consumo da fila." }, 403);
+      }
+
+      return json({ success: true, usage: remote.payload.usage });
+    }
+
+    if (!permissionsSet.has("orders.create")) {
+      return json({ success: false, error: "Sem permissão para abrir OS nesta empresa." }, 403);
+    }
 
     if (action === "reserve") {
       if (!currentSettings.enabled) {

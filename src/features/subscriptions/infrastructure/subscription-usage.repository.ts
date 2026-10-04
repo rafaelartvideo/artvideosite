@@ -19,7 +19,7 @@ export type OrganizationPlanUsageData = {
   };
   limits: Record<string, number>;
   usage: Record<string, number>;
-  usage_sources: Record<string, "measured" | "configured" | "manual" | "not_tracked">;
+  usage_sources: Record<string, "measured" | "configured" | "manual" | "integration" | "not_tracked">;
   usage_measured_at?: string | null;
   features: Record<string, boolean>;
   modules: Array<{ key: string; name: string; source: "plan" | "addon" }>;
@@ -46,7 +46,7 @@ function numericRecord(value: unknown): Record<string, number> {
 }
 
 export async function loadOrganizationPlanUsage(organizationId: string): Promise<OrganizationPlanUsageData> {
-  const { data, error } = await supabase.rpc("load_organization_plan_usage_v3", {
+  const { data, error } = await supabase.rpc("load_organization_plan_usage_v4", {
     p_organization_id: organizationId,
   });
   if (error) throw error;

@@ -20,7 +20,7 @@ import {
   refreshUnionOrganizationDatabaseUsage,
   saveUnionBillingAddon,
   saveUnionPlanConfiguration,
-  saveUnionSubscriptionConfiguration,
+  saveUnionSubscriptionConfiguration,\n  syncUnionQueueUsage,
   type BillingAddon,
   type BillingLimitDefinition,
 } from "../infrastructure/subscription-configuration.repository";
@@ -381,6 +381,20 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
     setCompanyOpen(true);
   };
 
+  const syncQueueUsage = async () => {
+    if (!selectedSubscription || !canManage) return;
+    setSaving(true);
+    try {
+      await syncUnionQueueUsage(selectedSubscription.organization_id);
+      await usageQuery.refetch();
+      notifyAdmin("Consumo da fila sincronizado.");
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível sincronizar a fila."), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const measureDatabaseUsage = async () => {
     if (!selectedSubscription || !canManage) return;
     setSaving(true);
@@ -673,6 +687,22 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
             <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Linhas atribuídas</p><p className="mt-1 text-base font-black text-foreground">{databaseUsageQuery.data.row_count.toLocaleString("pt-BR")}</p></div>
             <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Tabelas com dados</p><p className="mt-1 text-base font-black text-foreground">{databaseUsageQuery.data.tables_with_data.toLocaleString("pt-BR")}</p></div>
           </div> : <p className="mt-4 text-xs text-muted-foreground">Ainda não há snapshot. Use “Atualizar medição” quando quiser calcular o consumo do banco desta empresa.</p>}
+        </section>
+
+        <section className="border border-border p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-[0.11em] text-foreground">Union Senhas — consumo integrado</h4>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Sincroniza a instalação da Fila vinculada a esta empresa. Não altera filas, atendimentos ou limites.</p>
+            </div>
+            {canManage && <AdminButton size="sm" variant="secondary" loading={saving} onClick={() => void syncQueueUsage()}>Sincronizar Fila</AdminButton>}
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Unidades</p><p className="mt-1 text-base font-black text-foreground">{Number(usageQuery.data?.usage.queue_units || 0).toLocaleString("pt-BR")}</p></div>
+            <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Atendentes ativos</p><p className="mt-1 text-base font-black text-foreground">{Number(usageQuery.data?.usage.queue_attendants || 0).toLocaleString("pt-BR")}</p></div>
+            <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Senhas em 30 dias</p><p className="mt-1 text-base font-black text-foreground">{Number(usageQuery.data?.usage.queue_tickets_30d || 0).toLocaleString("pt-BR")}</p></div>
+            <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Banco da Fila</p><p className="mt-1 text-base font-black text-foreground">{formatUsageBytes(usageQuery.data?.usage.queue_database_bytes || 0)}</p></div>
+          </div>
         </section>
 
         <section>

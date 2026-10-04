@@ -225,3 +225,13 @@ export async function refreshUnionOrganizationDatabaseUsage(organizationId: stri
   if (error) throw error;
   return normalizeDatabaseUsage(data, organizationId);
 }
+
+
+export async function syncUnionQueueUsage(organizationId: string) {
+  const { data, error } = await supabase.functions.invoke("queue-integration", {
+    body: { action: "usage", organization_id: organizationId },
+  });
+  if (error) throw error;
+  if (!data?.success) throw new Error(String(data?.error || "Não foi possível sincronizar o consumo da fila."));
+  return data.usage as Record<string, number>;
+}
