@@ -800,6 +800,7 @@ export function PdvSaleWorkspace({
       }}
       title="Pagamento"
       description="F3 busca cliente · teclas 1–9 adicionam formas de pagamento · F4 finaliza quando estiver fechado."
+      minimizedDescription={`${selectedCustomer?.name || "Sem cliente"} · ${formatCurrency(total)} · ${remaining > 0.009 ? `Restante ${formatCurrency(remaining)}` : changeTotal > 0 ? `Troco ${formatCurrency(changeTotal)}` : "Pagamento fechado"}`}
       className="!max-w-6xl"
       footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-xs text-muted-foreground">
@@ -981,6 +982,7 @@ export function PdvSaleWorkspace({
       onClose={newSale}
       title="Venda concluída"
       description={saleResult ? `Venda #${saleResult.sale_number} registrada com sucesso.` : undefined}
+      minimizedDescription={saleResult ? [`Venda #${saleResult.sale_number}`, saleResult.customer_name, formatCurrency(saleResult.total_amount)].filter(Boolean).join(" · ") : undefined}
       className="max-w-lg"
       footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <AdminButton variant="secondary" onClick={onBack}>Voltar ao PDV</AdminButton>
