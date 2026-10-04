@@ -179,7 +179,9 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
           initialOrderId={selectedOrderId}
           routeSubpage={routeSubpage}
           organizationIdOverride={monitoredOrganizationId}
+          accessMode="read"
           detailOnly
+          monitorView
           onOrderRouteChange={(orderId, subpage) => {
             setSelectedOrderId(orderId);
             onOrderRouteChange?.(orderId, subpage);
