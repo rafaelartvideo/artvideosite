@@ -142,6 +142,7 @@ export function PdvSaleWorkspace({
   const [saleResult, setSaleResult] = useState<PdvSaleResult | null>(null);
 
   const focusProductSearch = () => {
+    if (!window.matchMedia("(min-width: 768px) and (pointer: fine)").matches) return;
     window.setTimeout(() => {
       searchInputRef.current?.focus();
       searchInputRef.current?.select();
@@ -260,7 +261,6 @@ export function PdvSaleWorkspace({
     });
     setSelectedCartProductId(product.product_id);
     setSearch("");
-    focusProductSearch();
   };
 
   const setQuantity = (productId: string, nextQuantity: number) => {
@@ -596,7 +596,7 @@ export function PdvSaleWorkspace({
       <CounterMetric label="Total" value={formatCurrency(total)} emphasis />
     </div>
 
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-[#f8fafc] px-3 py-2 text-[10px] font-bold text-muted-foreground">
+    <div className="hidden flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-[#f8fafc] px-3 py-2 text-[10px] font-bold text-muted-foreground md:flex">
       <span className="flex items-center gap-1.5 text-foreground"><Keyboard size={13} /> Atalhos</span>
       <Shortcut keys="F2" label="Buscar" />
       <Shortcut keys="↑ ↓" label="Selecionar item" />
@@ -612,7 +612,6 @@ export function PdvSaleWorkspace({
             <Barcode size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
             <input
               ref={searchInputRef}
-              autoFocus
               value={search}
               onChange={event => setSearch(event.target.value)}
               onKeyDown={event => {
@@ -799,7 +798,6 @@ export function PdvSaleWorkspace({
         closeCheckout();
       }}
       title="Pagamento"
-      description="F3 busca cliente · teclas 1–9 adicionam formas de pagamento · F4 finaliza quando estiver fechado."
       minimizedDescription={`${selectedCustomer?.name || "Sem cliente"} · ${formatCurrency(total)} · ${remaining > 0.009 ? `Restante ${formatCurrency(remaining)}` : changeTotal > 0 ? `Troco ${formatCurrency(changeTotal)}` : "Pagamento fechado"}`}
       className="!max-w-6xl"
       footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
