@@ -1,9 +1,9 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useMemo, useRef, useState } from "react";
-import { AlertCircle, Check, ChevronDown, Search, X } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
-import { AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FIntegerInput, FTextarea, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
@@ -16,7 +16,6 @@ import {
   findEquipmentModelByName,
   findEquipmentTypeByName,
 } from "../infrastructure/orders-catalog.repository";
-import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/popover";
 import { saveEquipmentTypeTechnicalFields } from "@/features/equipment/infrastructure/equipment.repository";
@@ -280,8 +279,6 @@ export function QuickEquipmentModal({
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
 
   const typeOptions = useMemo<CatalogOption[]>(
     () => equipmentTypes.map(type => ({ id: type.id, name: type.name })),
@@ -333,19 +330,6 @@ export function QuickEquipmentModal({
   const canSave = mode === "full"
     ? typeReady && brandReady && modelReady && !typeConflict && !brandConflict && !modelConflict
     : Boolean(selectedTypeId && selectedBrandId && modelReady && !modelConflict);
-
-  const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (typeof window !== "undefined" && window.innerWidth < 640) return;
-    const target = event.target as HTMLElement;
-    if (target.closest("button, input, textarea, select, a, [role='button'], [data-no-drag='true']")) return;
-    dragRef.current = { x: position.x, y: position.y, startX: event.clientX, startY: event.clientY };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current) return;
-    setPosition({ x: dragRef.current.x + event.clientX - dragRef.current.startX, y: dragRef.current.y + event.clientY - dragRef.current.startY });
-  };
-  const endDrag = () => { dragRef.current = null; };
 
   const resetBrand = () => {
     setSelectedBrandId("");
@@ -463,35 +447,25 @@ export function QuickEquipmentModal({
     ? "Digite para pesquisar modelos desta marca. Se não existir, será criado."
     : "Informe a marca para continuar.";
 
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent
-        showClose={false}
-        minimizedTitle="Cadastro rápido de equipamento"
-        className="admin-crm w-[calc(100vw-0.5rem)] max-w-[calc(100vw-0.5rem)] gap-0 border-0 bg-transparent p-0 shadow-none sm:w-full sm:max-w-4xl"
-      >
-        <DialogTitle className="sr-only">Cadastro rápido de equipamento</DialogTitle>
-        <div
-          style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-          className="relative flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-xl border border-border bg-white shadow-2xl sm:max-h-[92dvh] sm:max-w-4xl sm:rounded-2xl"
-        >
-          <div
-            onPointerDown={startDrag}
-            onPointerMove={moveDrag}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-            className="flex shrink-0 cursor-default items-start justify-between gap-3 border-b border-border bg-white px-3 py-3 select-none sm:cursor-move sm:items-center sm:px-6 sm:py-4"
-          >
-            <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-black leading-5 text-[#0d1b2e] sm:text-base">Cadastro rápido de equipamento</h3>
-              <p className="mt-0.5 text-[11px] leading-4 text-[#5a6a82] sm:mt-1 sm:text-xs">Pesquise antes de cadastrar e evite duplicidades no catálogo.</p>
-            </div>
-            <AdminIconButton ariaLabel="Fechar" onPointerDown={(event) => event.stopPropagation()} onClick={onClose} disabled={saving} variant="ghost" className="shrink-0"><X size={17} /></AdminIconButton>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:px-6 sm:py-6">
-            <div className="space-y-5 sm:space-y-6">
-              <div>
+  return <AdminDialog
+    open
+    onClose={() => { if (!saving) onClose(); }}
+    title="Cadastro rápido de equipamento"
+    description="Pesquise antes de cadastrar e evite duplicidades no catálogo."
+    minimizedDescription={[typeName, brandName, modelName].map(value => String(value || "").trim()).filter(Boolean).join(" · ") || (mode === "model" ? "Novo modelo" : "Cadastro em andamento")}
+    minimizable={!saving}
+    className="max-w-4xl"
+    footer={<div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
+      <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+      {hasPermission("equipment.create") && (
+        <BtnPrimary className="w-full sm:w-auto" onClick={save} disabled={!canSave} loading={saving} loadingText="Salvando...">
+          {newItems.length === 0 && selectedModelId ? "Usar" : "Criar"}
+        </BtnPrimary>
+      )}
+    </div>}
+  >
+    <div className="space-y-5 sm:space-y-6">
+<div>
                 <p className="mb-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Tipo de cadastro</p>
                 <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#f3f6fa] p-1.5">
                   {modes.map(item => {
@@ -640,21 +614,8 @@ export function QuickEquipmentModal({
               )}
 
               {errorMessage && <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700"><AlertCircle size={15} className="mt-0.5 shrink-0" />{errorMessage}</p>}
-            </div>
-          </div>
-
-          <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-border bg-white px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:flex sm:items-center sm:justify-end sm:px-6 sm:py-4">
-            <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-            {hasPermission("equipment.create") && (
-              <BtnPrimary className="w-full sm:w-auto" onClick={save} disabled={!canSave} loading={saving} loadingText="Salvando...">
-                {newItems.length === 0 && selectedModelId ? "Usar" : "Criar"}
-              </BtnPrimary>
-            )}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+    </div>
+  </AdminDialog>;
 }
 
 export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; onSaved: (serviceType: any) => void }) {
@@ -662,16 +623,6 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
   const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true });
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ title?: string; forecast_days?: string }>({});
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
-  const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    dragRef.current = { x: position.x, y: position.y, startX: event.clientX, startY: event.clientY };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current) return;
-    setPosition({ x: dragRef.current.x + event.clientX - dragRef.current.startX, y: dragRef.current.y + event.clientY - dragRef.current.startY });
-  };
   const save = async () => {
     const nextErrors: { title?: string; forecast_days?: string } = {};
     if (!form.title.trim()) nextErrors.title = "Informe o título do tipo de atendimento.";
@@ -692,24 +643,25 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
       setSaving(false);
     }
   };
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent showClose={false} minimizedTitle="Novo tipo de atendimento" className="admin-crm max-w-sm border-0 bg-transparent p-0 shadow-none">
-      <DialogTitle className="sr-only">Novo tipo de atendimento</DialogTitle>
-      <div style={{ transform: `translate(${position.x}px, ${position.y}px)` }} className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl border border-border overflow-hidden">
-        <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex cursor-move items-center justify-between border-b border-border px-4 py-3 select-none">
-          <div><h3 className="text-sm font-bold text-[#0d1b2e]">Novo tipo de atendimento</h3><p className="text-[11px] text-[#5a6a82] mt-0.5">Cadastre sem sair da OS</p></div>
-          <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={saving} variant="ghost"><X size={16} /></AdminIconButton>
-        </div>
-        <div className="p-4 space-y-3">
-          <FInput label="Título" required autoFocus disabled={saving} error={fieldErrors.title} value={form.title} onChange={(event: any) => { setFieldErrors(current => ({ ...current, title: undefined })); setForm({ ...form, title: event.target.value }); }} />
-          <FTextarea label="Descrição" disabled={saving} value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} rows={3} />
-          <FIntegerInput label="Previsão em dias" disabled={saving} error={fieldErrors.forecast_days} value={form.forecast_days} onChange={(event: any) => { setFieldErrors(current => ({ ...current, forecast_days: undefined })); setForm({ ...form, forecast_days: event.target.value }); }} />
-          <FToggle label="Tipo ativo" disabled={saving} checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
-        </div>
-        <div className="flex justify-end gap-2 border-t border-border px-4 py-3"><BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>{hasPermission("service_types.create") && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}</div>
-      </div>
-      </DialogContent>
-    </Dialog>
-  );
+  return <AdminDialog
+    open
+    onClose={() => { if (!saving) onClose(); }}
+    title="Novo tipo de atendimento"
+    description="Cadastre sem sair da OS."
+    minimizedDescription={form.title.trim() || (form.forecast_days ? `Previsão: ${form.forecast_days} dia(s)` : "Cadastro em andamento")}
+    minimizable={!saving}
+    className="max-w-sm"
+    footer={<div className="flex justify-end gap-2">
+      <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+      {hasPermission("service_types.create") && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}
+    </div>}
+  >
+    <div className="space-y-3">
+      <FInput label="Título" required autoFocus disabled={saving} error={fieldErrors.title} value={form.title} onChange={(event: any) => { setFieldErrors(current => ({ ...current, title: undefined })); setForm({ ...form, title: event.target.value }); }} />
+      <FTextarea label="Descrição" disabled={saving} value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} rows={3} />
+      <FIntegerInput label="Previsão em dias" disabled={saving} error={fieldErrors.forecast_days} value={form.forecast_days} onChange={(event: any) => { setFieldErrors(current => ({ ...current, forecast_days: undefined })); setForm({ ...form, forecast_days: event.target.value }); }} />
+      <FToggle label="Tipo ativo" disabled={saving} checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
+    </div>
+  </AdminDialog>;
+}
 }
