@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import {
   getCompanySettings,
   saveCompanySettings,
@@ -10,6 +11,8 @@ export function useCompanySettingsQuery(organizationId?: string | null) {
     queryKey: ["company-settings", organizationId || "none"],
     enabled: Boolean(organizationId),
     queryFn: () => getCompanySettings(organizationId),
+    staleTime: REFERENCE_DATA_CACHE_TIME,
+    gcTime: REFERENCE_DATA_CACHE_TIME,
   });
 }
 
