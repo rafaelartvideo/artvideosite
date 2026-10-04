@@ -180,7 +180,7 @@ export function MobileOrderEditPage() {
         setNotice({ type: "error", text: error instanceof Error ? error.message : "A conexão expirou." });
       }
     };
-    const timer = window.setInterval(() => void heartbeat(), 15_000);
+    const timer = window.setInterval(() => void heartbeat(), 20_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [pairing?.id, pairing?.token, state]);
 
