@@ -31,7 +31,7 @@ import {
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
 import { formatDateTime } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminStickyToolbar, AdminCard, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminStickyToolbar, AdminCard, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
 
 type PermissionCheck = (permission: string) => boolean;
