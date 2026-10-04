@@ -29,6 +29,14 @@ import {
   usedItemsTotal,
 } from "@/features/orders/application/order-display-rules";
 import { getServiceOrderForRoute } from "@/features/orders/infrastructure/orders-list.repository";
+import {
+  consumeQueueOsCode,
+  getQueueIntegrationSettings,
+  releaseQueueOsCode,
+  type QueueIntegrationSettings,
+  type QueueReservation,
+} from "@/features/queue-integration/infrastructure/queue-integration.repository";
+import { QueueOsCodeDialog } from "@/features/queue-integration/presentation/QueueOsCodeDialog";
 import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPage";
 import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage";
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
@@ -96,6 +104,9 @@ export function TabOrders({
   };
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [queueSettings, setQueueSettings] = useState<QueueIntegrationSettings | null>(null);
+  const [queueSettingsLoading, setQueueSettingsLoading] = useState(true);
+  const [queueGateOpen, setQueueGateOpen] = useState(false);
   const [subView, setSubView] = useState<"list" | "situations">("list");
   const [displayMode, setDisplayMode] = useState<"list" | "kanban">(() => {
     if (typeof window === "undefined") return "list";
@@ -123,6 +134,30 @@ export function TabOrders({
 
   const formState = useOrderFormState();
   const { formOpen, editingOS, form, setForm, closeOrderForm } = formState;
+
+  useEffect(() => {
+    let active = true;
+    const organizationId = workspaceBase.organizationId;
+    if (!organizationId) {
+      setQueueSettings(null);
+      setQueueSettingsLoading(false);
+      return () => { active = false; };
+    }
+
+    setQueueSettingsLoading(true);
+    void getQueueIntegrationSettings(organizationId)
+      .then((settings) => { if (active) setQueueSettings(settings); })
+      .catch((error) => {
+        if (!active) return;
+        setQueueSettings(null);
+        setToast({ msg: `Não foi possível carregar a integração da fila: ${systemErrorMessage(error)}`, type: "error" });
+      })
+      .finally(() => { if (active) setQueueSettingsLoading(false); });
+
+    return () => { active = false; };
+  }, [workspaceBase.organizationId]);
+
+  const queueCodeRequired = Boolean(queueSettings?.enabled && queueSettings.require_code_for_orders);
 
   const imagesController = useOrderImages();
   const { solutionImages, replaceOrderImages, replaceSolutionImages } = imagesController;
@@ -316,7 +351,11 @@ export function TabOrders({
           return () => { cancelled = true; };
         }
         if (detail) closeDetail();
-        if (!formOpen || editingOS) openNew();
+        if (!formOpen || editingOS) {
+          if (queueSettingsLoading) return () => { cancelled = true; };
+          if (queueCodeRequired) setQueueGateOpen(true);
+          else openNew();
+        }
         return () => { cancelled = true; };
       }
     }
@@ -388,7 +427,7 @@ export function TabOrders({
       });
 
     return () => { cancelled = true; };
-  }, [initialOrderId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly]);
+  }, [initialOrderId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly, queueSettingsLoading, queueCodeRequired]);
 
   const openRoutedDetail = (order: any) => {
     closingRouteRef.current = null;
@@ -415,7 +454,33 @@ export function TabOrders({
       onOrderRouteChange("new", null);
       return;
     }
+    if (queueSettingsLoading) {
+      setToast({ msg: "Carregando a configuração da Fila Eletrônica.", type: "error" });
+      return;
+    }
+    if (queueCodeRequired) {
+      setQueueGateOpen(true);
+      return;
+    }
     openNew();
+  };
+
+  const cancelQueueGate = () => {
+    setQueueGateOpen(false);
+    if (initialOrderId === "new") onOrderRouteChange?.(null, null);
+  };
+
+  const openNewWithQueueReservation = (reservation: QueueReservation) => {
+    setQueueGateOpen(false);
+    openNew({
+      reservationId: reservation.id,
+      ticketNumber: reservation.ticket_number,
+    });
+  };
+
+  const openNewWithQueueOverride = (reason: string) => {
+    setQueueGateOpen(false);
+    openNew({ overrideReason: reason });
   };
 
   const openRoutedEdit = async (order: any) => {
@@ -471,6 +536,10 @@ export function TabOrders({
 
   const cancelOrderEditor = () => {
     if (!editingOS) {
+      const reservationId = String(form.queue_reservation_id || "");
+      if (workspaceBase.organizationId && reservationId) {
+        void releaseQueueOsCode(workspaceBase.organizationId, reservationId).catch(() => undefined);
+      }
       closeRoutedPage();
       return;
     }
@@ -493,10 +562,22 @@ export function TabOrders({
 
   const saveRoutedOrder = async () => {
     const wasCreating = !editingOS;
+    const queueReservationId = wasCreating ? String(form.queue_reservation_id || "") : "";
     const savedOrderId = await saveOS();
     if (!savedOrderId) return;
 
     openingEditRouteRef.current = null;
+
+    if (wasCreating && queueReservationId && workspaceBase.organizationId) {
+      try {
+        await consumeQueueOsCode(workspaceBase.organizationId, queueReservationId, savedOrderId);
+      } catch (error) {
+        setToast({
+          msg: systemErrorMessage(error, "A OS foi criada, mas a confirmação no sistema de filas ficou pendente."),
+          type: "error",
+        });
+      }
+    }
 
     if (wasCreating) {
       if (!workspaceBase.organizationId) {
@@ -579,6 +660,16 @@ export function TabOrders({
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+      {queueSettings && workspaceBase.organizationId && <QueueOsCodeDialog
+        open={queueGateOpen}
+        organizationId={workspaceBase.organizationId}
+        settings={queueSettings}
+        canManagerOverride={effectiveHasPermission("settings.update")}
+        onValidated={openNewWithQueueReservation}
+        onOverride={openNewWithQueueOverride}
+        onCancel={cancelQueueGate}
+      />}
 
       <OrdersListWorkspace
         visible={!editingRouteActive && !detail && !formOpen && !solveOpen}
