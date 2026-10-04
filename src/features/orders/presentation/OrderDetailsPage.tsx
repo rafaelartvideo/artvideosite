@@ -131,7 +131,7 @@ export function OrderDetailsPage(props: Props) {
   const { updateOrderStatus, updateOrderSituation } = mutations;
   const canPrintDocuments = hasPermission("documents.print");
   const canUseSignatureDocuments = hasPermission("documents.signatures.view") || hasPermission("documents.signatures.send");
-  const printTemplates = useOrderPrintTemplates(canPrintDocuments || canUseSignatureDocuments);
+  const printTemplates = useOrderPrintTemplates(!monitorView && (canPrintDocuments || canUseSignatureDocuments));
   const labelUrl = detail?.id && detail?.organization_id
     ? `${window.location.origin}/admin/orders/${encodeURIComponent(detail.id)}?org=${encodeURIComponent(detail.organization_id)}`
     : "";
@@ -295,7 +295,7 @@ export function OrderDetailsPage(props: Props) {
           {!monitorView && hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} visits={slaVisits.visits} onOpenRecords={() => onOpenSubpage("sla-records")} />}
           <OrderDetailsContent detail={detail} formatDate={fmtDate} formatState={stateLabel} getSla={getSlaForOrder} hasPermission={hasPermission} orderImages={orderImages} onViewImage={setViewImage} />
           <OrderFinancialSummary detail={detail} formatCurrency={formatCurrency} />
-          <OrderSolutionSummary detail={detail} usedItems={detailUsedItems} solutionImages={detailSolutionImages} usedItemsTotal={detailUsedItemsTotal} solutionCount={solutionCount} activeAttempt={activeSolutionAttempt} canUndo={hasPermission("orders.solve") && !detail.completed_at} formatSolvedAt={formatSolvedAt} formatCurrency={formatCurrency} onViewImage={setViewImage} onOpenRecords={openSolutionRecords} onUndo={openUndoSolution} />
+          <OrderSolutionSummary detail={detail} usedItems={detailUsedItems} solutionImages={detailSolutionImages} usedItemsTotal={detailUsedItemsTotal} solutionCount={solutionCount} activeAttempt={activeSolutionAttempt} canUndo={!monitorView && hasPermission("orders.solve") && !detail.completed_at} formatSolvedAt={formatSolvedAt} formatCurrency={formatCurrency} onViewImage={setViewImage} onOpenRecords={openSolutionRecords} onUndo={openUndoSolution} showActions={!monitorView} />
         </>}
       </div>
       {monitorView ? <AdminStickyToolbar className="justify-between">
