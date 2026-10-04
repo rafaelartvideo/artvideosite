@@ -85,7 +85,7 @@ export function AdminDashboard({
   const activeOrganizationName = activeOrganization?.organization_name || null;
   const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
   const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
-  const crmMode = isPlatformOperatorOrganization && requestedCrmMode;
+  const crmMode = false;
   const activeMenuTab: AdminTab = crmMode ? "crm" : (locationState?.menuTab || activeTab);
 
   const canAccessTab = (tab: AdminTab) => {
