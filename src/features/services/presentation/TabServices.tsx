@@ -46,7 +46,7 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar serviços: ${systemErrorMessage(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
-  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() }), queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard() })]);
+  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() }), queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() })]);
   const openNew = () => { if (!canCreate) return; setEditItem(null); setDrawerOpen(true); };
   const openEdit = (service: any) => { if (!(canViewDetails && canUpdate)) return; setEditItem(service); setDrawerOpen(true); };
   const closeEditor = () => { setDrawerOpen(false); onRouteChange?.(null, null); };
