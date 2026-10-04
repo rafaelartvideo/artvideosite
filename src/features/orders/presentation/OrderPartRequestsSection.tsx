@@ -90,7 +90,7 @@ function PartCustodyWizard({ request, orderSolved, getCommittedQuantity }: {
     ] : [
       step(
         "Uso na resolução",
-        requestOrderSolved ? "Peça registrada na solução da OS" : deliveryDone ? "Disponível para resolver a OS" : "Disponível após a entrega",
+        requestOrderSolved ? "Peça registrada na solução da OS" : deliveryDone ? "Disponível para solucionar a OS" : "Disponível após a entrega",
         requestOrderSolved ? "done" : deliveryDone ? "current" : "pending",
       ),
     ]),
