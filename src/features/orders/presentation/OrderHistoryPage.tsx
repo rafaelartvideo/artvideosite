@@ -70,7 +70,7 @@ export function OrderHistoryPage({
       </AdminStickyToolbar>
     </AdminPage>
     {history.modalOpen && canCreate && <AdminDialog open={history.modalOpen} onClose={() => { if (!history.saving) history.setModalOpen(false); }} title="Novo registro" description="Adicione uma observação permanente ao histórico" className="max-w-lg" footer={<div className="flex w-full gap-2 sm:justify-end sm:gap-3"><BtnSecondary onClick={() => history.setModalOpen(false)} className="min-w-0 flex-1 sm:flex-none">Cancelar</BtnSecondary><BtnPrimary onClick={history.submit} disabled={!history.text.trim() || history.saving} className="min-w-0 flex-1 sm:flex-none">{history.saving ? "Registrando..." : "Registrar no histórico"}</BtnPrimary></div>}>
-      <textarea autoFocus value={history.text} onChange={(event) => history.setText(event.target.value)} maxLength={2000} rows={6} placeholder="Escreva o que precisa ficar registrado nesta OS..." className={cn(INPUT, "h-auto min-w-0 resize-y text-sm")} />
+      <textarea value={history.text} onChange={(event) => history.setText(event.target.value)} maxLength={2000} rows={6} placeholder="Escreva o que precisa ficar registrado nesta OS..." className={cn(INPUT, "h-auto min-w-0 resize-y text-sm")} />
       <div className="mt-2 flex justify-between gap-3 text-[10px] text-[#5a6a82]"><span>O registro não poderá ser editado ou excluído.</span><span className="shrink-0">{history.text.length}/2000</span></div>
     </AdminDialog>}
   </>;
