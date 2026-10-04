@@ -40,7 +40,7 @@ import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPag
 import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage";
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
-import { Toast } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type SharedAccessMode = "default" | "read";
@@ -54,6 +54,7 @@ type TabOrdersProps = {
   onOrderRouteClose?: () => void;
   organizationIdOverride?: string | null;
   accessMode?: SharedAccessMode;
+  detailOnly?: boolean;
 };
 
 const READ_ONLY_PERMISSION_MARKERS = [
@@ -92,6 +93,7 @@ export function TabOrders({
   onOrderRouteClose,
   organizationIdOverride,
   accessMode = "default",
+  detailOnly = false,
 }: TabOrdersProps) {
   const { user, profile, hasPermission } = useAuth();
   const scopedReadOnly = accessMode === "read";
@@ -650,8 +652,10 @@ export function TabOrders({
         onCancel={cancelQueueGate}
       />}
 
+      {detailOnly && Boolean(initialOrderId) && !detail && !formOpen && !solveOpen && !editingRouteActive && <LoadingState text="Carregando OS..." />}
+
       <OrdersListWorkspace
-        visible={!editingRouteActive && !detail && !formOpen && !solveOpen}
+        visible={!detailOnly && !editingRouteActive && !detail && !formOpen && !solveOpen}
         displayMode={displayMode}
         workspace={workspace}
         filters={filters}
