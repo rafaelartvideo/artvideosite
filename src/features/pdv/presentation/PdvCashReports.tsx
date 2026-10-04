@@ -125,7 +125,7 @@ export function PdvCashReports({
         />
       ) : <>
         <div className="overflow-x-auto">
-          <table className="min-w-[980px]">
+          <table className="min-w-[900px]">
             <thead>
               <tr>
                 <th className="text-left">Abertura</th>
@@ -135,7 +135,6 @@ export function PdvCashReports({
                 <th className="text-right">Esperado</th>
                 <th className="text-right">Contado</th>
                 <th className="text-right">Diferença</th>
-                <th className="text-left">Situação</th>
                 <th className="text-right">Ações</th>
               </tr>
             </thead>
@@ -160,7 +159,6 @@ export function PdvCashReports({
                 )}>
                   {session.closing_difference == null ? "—" : formatCurrency(session.closing_difference)}
                 </td>
-                <td>{statusPill(session.status)}</td>
                 <td>
                   <div className="flex justify-end">
                     <AdminIconButton
