@@ -20,7 +20,8 @@ import {
   refreshUnionOrganizationDatabaseUsage,
   saveUnionBillingAddon,
   saveUnionPlanConfiguration,
-  saveUnionSubscriptionConfiguration,\n  syncUnionQueueUsage,
+  saveUnionSubscriptionConfiguration,
+  syncUnionQueueUsage,
   type BillingAddon,
   type BillingLimitDefinition,
 } from "../infrastructure/subscription-configuration.repository";
