@@ -1,5 +1,4 @@
 import { ArrowLeft, Building2, Globe, PanelLeftClose, PanelLeftOpen, Settings, Wrench } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { isAdminModuleEnabled, mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "../navigation-config";
@@ -9,7 +8,7 @@ import { useAdminSidebarLayout } from "./AdminLayout";
 import type { OrganizationAccess } from "@/lib/organization.types";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { AutoFitLogo } from "@/shared/ui/media/AutoFitLogo";
-import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
+import { useCompanySettingsQuery } from "@/features/settings/presentation/useCompanySettingsQuery";
 
 type AdminSidebarProps = {
   activeTab: AdminTab;
@@ -34,11 +33,7 @@ export function AdminSidebar({
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
   const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
   const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
-  const brandingQuery = useQuery({
-    queryKey: ["company-settings", activeOrganizationId || "none"],
-    enabled: Boolean(activeOrganizationId),
-    queryFn: () => getCompanySettings(activeOrganizationId),
-  });
+  const brandingQuery = useCompanySettingsQuery(activeOrganizationId);
   const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data?.company_menu_logo_media_id ?? null);
 
   const canAccessTab = (tab: AdminTab) => {
