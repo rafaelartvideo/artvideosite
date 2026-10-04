@@ -39,7 +39,8 @@ export function AdminSidebar({
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "crm") return isPlatformOperatorOrganization;
     if (tab === "settings" && isPlatformOperatorOrganization) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
-    if (isPlatformOperatorOrganization && ["quotes", "inventory", "pdv", "finance"].includes(tab)) return false;
+    if (tab === "finance" && isPlatformOperatorOrganization) return hasPermission("platform.billing.view");
+    if (isPlatformOperatorOrganization && ["quotes", "inventory", "pdv"].includes(tab)) return false;
     if (tab === "partnerCompanies" && !isPlatformOperatorOrganization) return false;
     if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled(tab, hasModule);
@@ -68,10 +69,12 @@ export function AdminSidebar({
     ["quotes", "orders", "customers", "agenda"].includes(item.id),
   );
   const commercialItems = visibleMainItems.filter(item =>
-    ["inventory", "pdv", "finance"].includes(item.id),
+    !isPlatformOperatorOrganization && ["inventory", "pdv", "finance"].includes(item.id),
   );
   const administrationItems = visibleMainItems.filter(item =>
-    ["partnerCompanies", "audit"].includes(item.id),
+    isPlatformOperatorOrganization
+      ? ["partnerCompanies", "finance", "audit"].includes(item.id)
+      : ["partnerCompanies", "audit"].includes(item.id),
   );
 
   const renderMainItem = (item: (typeof mainItems)[number]) => (
