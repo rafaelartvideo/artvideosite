@@ -265,7 +265,7 @@ function AdminEntry() {
 
   return (
     <Suspense fallback={<AdminFallback progress={99} status="Finalizando painel" />}>
-      <AdminDialogManagerProvider>
+      <AdminDialogManagerProvider key={activeOrganization.organization_id}>
         <AdminDashboard
           onBackToSite={handleBackToSite}
           pendingTerms={pendingTerms}
