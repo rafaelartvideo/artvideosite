@@ -36,6 +36,7 @@ import {
   loadPdvBootstrap,
   loadPdvCashSessionReport,
   savePdvSettings,
+  registerCurrentPdvTerminal,
 } from "../infrastructure/pdv.repository";
 import { PdvSaleWorkspace } from "./PdvSaleWorkspace";
 import { PdvSalesHistory } from "./PdvSalesHistory";
@@ -139,6 +140,11 @@ export function TabPdv({
   const [cashAmount, setCashAmount] = useState("");
   const [cashNote, setCashNote] = useState("");
   const [cashErrors, setCashErrors] = useState<{ amount?: string; note?: string }>({});
+
+  useEffect(() => {
+    if (!organizationId) return;
+    void registerCurrentPdvTerminal(organizationId).catch(() => undefined);
+  }, [organizationId]);
 
   const bootstrap = bootstrapQuery.data;
   const settings = bootstrap?.settings ?? null;
