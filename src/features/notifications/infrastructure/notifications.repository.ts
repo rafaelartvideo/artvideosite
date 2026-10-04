@@ -120,12 +120,31 @@ export async function markAllAdminNotificationsRead(organizationId: string) {
   if (error) throw error;
 }
 
+export async function dismissAdminNotification(notificationId: number, organizationId: string) {
+  const { error } = await supabase.rpc("dismiss_organization_notification_v1", {
+    p_notification_id: notificationId,
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+}
+
+export async function dismissAllAdminNotifications(organizationId: string) {
+  const { error } = await supabase.rpc("dismiss_all_organization_notifications_v1", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+}
+
 export function subscribeToAdminNotifications(
   organizationId: string,
-  onNotification: (notification: AdminNotification) => void,
+  userId: string,
+  handlers: {
+    onNotification: (notification: AdminNotification) => void;
+    onStateChange?: () => void;
+  },
 ) {
   const channel = supabase
-    .channel(`organization-notifications:${organizationId}`)
+    .channel(`organization-notifications:${organizationId}:${userId}`)
     .on(
       "postgres_changes",
       {
@@ -137,8 +156,18 @@ export function subscribeToAdminNotifications(
       payload => {
         const row = payload.new as NotificationRow;
         if (!row?.id) return;
-        onNotification({ ...row, read_at: null });
+        handlers.onNotification({ ...row, read_at: null });
       },
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "organization_notification_reads",
+        filter: `user_id=eq.${userId}`,
+      },
+      () => handlers.onStateChange?.(),
     )
     .subscribe();
 
