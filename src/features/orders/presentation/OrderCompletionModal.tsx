@@ -225,6 +225,7 @@ export function OrderCompletionModal({
     onClose={close}
     title={`Concluir OS ${detail.os_number || ""}`}
     description="Confira a composição da OS, os valores e o recebimento antes de finalizar."
+    minimizedDescription={`${customerName(customer)} · ${formatCurrency(completion.finalTotal)}`}
     minimizable={!saving}
     className="!max-w-6xl"
     footer={<div className="flex min-w-0 flex-wrap justify-end gap-3">
