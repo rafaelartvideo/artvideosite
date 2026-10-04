@@ -144,7 +144,6 @@ export function MobileOrderEditPage() {
   const loadEditor = useCallback(async (current: Pairing) => {
     setLoading(true);
     try {
-      await getMobileOrderEditStatus(current.id, current.token);
       const editor = await getMobileOrderEditor(current.id, current.token);
       hydrate(editor);
       setState("connected");
