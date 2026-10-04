@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { BtnPrimary } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, BtnPrimary } from "@/shared/ui/admin/AdminLayout";
 import {
   acceptOrganizationTerm,
   type PendingOrganizationTerm,
@@ -175,49 +175,44 @@ export function TermsAcceptanceGate({
 
   if (!current) return null;
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#08111f]/75 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="border-b border-[#0d1b2e]/8 bg-white px-5 py-4 sm:px-6">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0057e7]">
-            {current.term_type === "usage" ? "Aceite do proprietário" : "Aceite individual"}
-          </p>
-          <h2 className="mt-1 text-lg font-black text-[#0d1b2e]">{current.title}</h2>
-          <p className="mt-1 text-xs text-[#5a6a82]">
-            {current.organization_name} · versão {current.version}
-          </p>
-        </div>
+  return <AdminDialog
+    open
+    onClose={() => undefined}
+    title={current.title}
+    description={`${current.organization_name} · versão ${current.version}`}
+    minimizable={false}
+    className="max-w-3xl"
+    footer={<div>
+      {error && <p className="mb-3 text-sm font-semibold text-red-600">{error}</p>}
+      <label className="flex cursor-pointer items-start gap-3 text-sm font-semibold leading-5 text-[#35465c]">
+        <input
+          type="checkbox"
+          checked={accepted}
+          onChange={event => setAccepted(event.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[#0057e7]"
+        />
+        <span>
+          Li e concordo com {current.term_type === "usage" ? "os Termos de Uso" : "o Termo de Responsabilidade"} apresentados acima.
+        </span>
+      </label>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-[#f8fafc] px-5 py-5 sm:px-7 sm:py-6">
-          <FormattedTermContent content={current.content} />
-        </div>
-
-        <div className="border-t border-[#0d1b2e]/8 bg-white px-5 py-4 sm:px-6">
-          {error && <p className="mb-3 text-sm font-semibold text-red-600">{error}</p>}
-          <label className="flex cursor-pointer items-start gap-3 text-sm font-semibold leading-5 text-[#35465c]">
-            <input
-              type="checkbox"
-              checked={accepted}
-              onChange={event => setAccepted(event.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[#0057e7]"
-            />
-            <span>
-              Li e concordo com {current.term_type === "usage" ? "os Termos de Uso" : "o Termo de Responsabilidade"} apresentados acima.
-            </span>
-          </label>
-
-          <div className="mt-4 flex justify-end">
-            <BtnPrimary
-              onClick={() => void confirm()}
-              disabled={!accepted || submitting}
-              loading={submitting}
-              loadingText="Registrando aceite..."
-            >
-              Aceitar e continuar
-            </BtnPrimary>
-          </div>
-        </div>
+      <div className="mt-4 flex justify-end">
+        <BtnPrimary
+          onClick={() => void confirm()}
+          disabled={!accepted || submitting}
+          loading={submitting}
+          loadingText="Registrando aceite..."
+        >
+          Aceitar e continuar
+        </BtnPrimary>
       </div>
+    </div>}
+  >
+    <div className="space-y-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-primary">
+        {current.term_type === "usage" ? "Aceite do proprietário" : "Aceite individual"}
+      </p>
+      <FormattedTermContent content={current.content} />
     </div>
-  );
+  </AdminDialog>;
 }
