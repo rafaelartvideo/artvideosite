@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Database, PackagePlus, Settings2, SlidersHorizontal } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -21,6 +21,7 @@ import {
   saveUnionBillingAddon,
   saveUnionPlanConfiguration,
   saveUnionSubscriptionConfiguration,
+  saveUnionExternalUsage,
   syncUnionQueueUsage,
   type BillingAddon,
   type BillingLimitDefinition,
@@ -248,6 +249,10 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
   const [companyAddons, setCompanyAddons] = useState<Record<string, { selected: boolean; quantity: string; amount: string }>>({});
   const [companyLimitOverrides, setCompanyLimitOverrides] = useState<Record<string, { mode: "default" | "replace" | "add"; value: string }>>({});
   const [companyFeatureOverrides, setCompanyFeatureOverrides] = useState<Record<string, "default" | "enabled" | "disabled">>({});
+  const [pbxExtensions, setPbxExtensions] = useState("");
+  const [pbxRecordingGb, setPbxRecordingGb] = useState("");
+  const [aiCreditsUsed, setAiCreditsUsed] = useState("");
+  const [aiRequests30d, setAiRequests30d] = useState("");
 
   const query = useQuery({
     queryKey: ["union-subscription-configuration"],
@@ -265,6 +270,14 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
     queryFn: () => loadUnionOrganizationDatabaseUsage(selectedSubscription?.organization_id || ""),
     enabled: companyOpen && Boolean(selectedSubscription?.organization_id),
   });
+
+  useEffect(() => {
+    if (!companyOpen || !usageQuery.data) return;
+    setPbxExtensions(String(usageQuery.data.usage.pbx_extensions || 0));
+    setPbxRecordingGb(String((usageQuery.data.usage.pbx_recording_bytes || 0) / (1024 ** 3)));
+    setAiCreditsUsed(String(usageQuery.data.usage.ai_credits || 0));
+    setAiRequests30d(String(usageQuery.data.usage.ai_requests_30d || 0));
+  }, [companyOpen, usageQuery.data]);
 
   const refresh = async () => {
     await query.refetch();
@@ -405,6 +418,26 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
       notifyAdmin("Medição do banco atualizada.");
     } catch (error) {
       notifyAdmin(systemErrorMessage(error, "Não foi possível medir o uso do banco."), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveExternalUsageMeasurement = async () => {
+    if (!selectedSubscription || !canManage) return;
+    setSaving(true);
+    try {
+      await saveUnionExternalUsage({
+        organizationId: selectedSubscription.organization_id,
+        pbxExtensions: Math.max(0, Number(pbxExtensions || 0)),
+        pbxRecordingBytes: Math.max(0, Number(pbxRecordingGb || 0)) * (1024 ** 3),
+        aiCredits: Math.max(0, Number(aiCreditsUsed || 0)),
+        aiRequests30d: Math.max(0, Number(aiRequests30d || 0)),
+      });
+      await usageQuery.refetch();
+      notifyAdmin("Medições externas atualizadas.");
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível salvar as medições externas."), "error");
     } finally {
       setSaving(false);
     }
@@ -703,6 +736,22 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
             <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Atendentes ativos</p><p className="mt-1 text-base font-black text-foreground">{Number(usageQuery.data?.usage.queue_attendants || 0).toLocaleString("pt-BR")}</p></div>
             <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Senhas em 30 dias</p><p className="mt-1 text-base font-black text-foreground">{Number(usageQuery.data?.usage.queue_tickets_30d || 0).toLocaleString("pt-BR")}</p></div>
             <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Banco da Fila</p><p className="mt-1 text-base font-black text-foreground">{formatUsageBytes(usageQuery.data?.usage.queue_database_bytes || 0)}</p></div>
+          </div>
+        </section>
+
+        <section className="border border-border p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-[0.11em] text-foreground">PABX e IA — medição externa</h4>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Valores administrativos temporários. Quando houver integração automática, a origem passará de manual para integração.</p>
+            </div>
+            {canManage && <AdminButton size="sm" variant="secondary" loading={saving} onClick={() => void saveExternalUsageMeasurement()}>Salvar medição</AdminButton>}
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <FInput label="Ramais PABX em uso" type="number" min={0} value={pbxExtensions} onChange={(event: any) => setPbxExtensions(event.target.value)} />
+            <FInput label="Gravações PABX (GB)" type="number" min={0} step="0.1" value={pbxRecordingGb} onChange={(event: any) => setPbxRecordingGb(event.target.value)} />
+            <FInput label="Créditos IA consumidos" type="number" min={0} value={aiCreditsUsed} onChange={(event: any) => setAiCreditsUsed(event.target.value)} />
+            <FInput label="Requisições IA — 30 dias" type="number" min={0} value={aiRequests30d} onChange={(event: any) => setAiRequests30d(event.target.value)} />
           </div>
         </section>
 
