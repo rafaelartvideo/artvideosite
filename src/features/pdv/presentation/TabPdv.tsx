@@ -55,6 +55,55 @@ function cashActionTitle(action: CashAction) {
   return "Fechar caixa";
 }
 
+function CashDrawerControl({
+  open,
+  disabled,
+  onClick,
+}: {
+  open: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={open ? "Fechar caixa" : "Abrir caixa"}
+    className="group relative block h-[132px] w-full overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition-all duration-300 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-default disabled:opacity-60"
+  >
+    <div className="absolute inset-x-0 top-0 z-20 h-[54px] border-b border-border bg-muted px-4">
+      <div className="flex h-full items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card shadow-sm">
+            <span className={`h-2.5 w-2.5 rounded-full transition-colors duration-300 ${open ? "bg-emerald-500" : "bg-slate-400"}`} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-black uppercase tracking-[0.12em] text-foreground">Caixa PDV</p>
+            <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">{open ? "Gaveta aberta" : "Gaveta fechada"}</p>
+          </div>
+        </div>
+        <span className="rounded-full border border-border bg-card px-2.5 py-1 text-[10px] font-black text-foreground">
+          {open ? "Fechar" : "Abrir"}
+        </span>
+      </div>
+    </div>
+
+    <div
+      aria-hidden="true"
+      className={`absolute left-4 right-4 top-[45px] z-10 h-[58px] rounded-b-xl border border-border bg-card shadow-[0_12px_24px_rgba(15,23,42,0.12)] transition-transform duration-500 ease-out ${open ? "translate-y-[21px]" : "translate-y-0"}`}
+    >
+      <div className="absolute left-1/2 top-3 h-2 w-16 -translate-x-1/2 rounded-full bg-muted-foreground/35 transition-all duration-300 group-hover:w-20" />
+      <div className="absolute inset-x-3 bottom-3 grid grid-cols-5 gap-1.5">
+        {Array.from({ length: 5 }).map((_, index) => <span key={index} className="h-2 rounded-sm bg-muted" />)}
+      </div>
+    </div>
+
+    <div className="absolute inset-x-0 bottom-0 z-30 flex h-[31px] items-center justify-center border-t border-border bg-card/95 text-[11px] font-black text-primary backdrop-blur">
+      {open ? "Clique para fechar a gaveta" : "Clique para puxar a gaveta"}
+    </div>
+  </button>;
+}
+
 export function TabPdv({
   routeResourceId,
   onRouteChange,
@@ -317,12 +366,16 @@ export function TabPdv({
               {Number(openSession.opening_difference || 0) !== 0 && <p className="mt-1 text-xs text-emerald-700">Diferença registrada: {formatCurrency(openSession.opening_difference)}</p>}
             </div>}
 
-            <div className="flex flex-wrap gap-2">
-              {!openSession && canOpenCash && <AdminButton onClick={() => openCashDialog("open")}><Banknote size={14} /> Abrir caixa</AdminButton>}
-              {openSession && canSupplyCash && <AdminButton variant="secondary" onClick={() => openCashDialog("supply")}><Plus size={14} /> Suprimento</AdminButton>}
-              {openSession && canWithdrawCash && <AdminButton variant="secondary" onClick={() => openCashDialog("withdraw")}><Minus size={14} /> Sangria</AdminButton>}
-              {openSession && canCloseCash && <AdminButton variant="secondary" onClick={() => openCashDialog("close")}><LockKeyhole size={14} /> Fechar caixa</AdminButton>}
-            </div>
+            {(canOpenCash || canCloseCash) && <CashDrawerControl
+              open={Boolean(openSession)}
+              disabled={openSession ? !canCloseCash : !canOpenCash}
+              onClick={() => openCashDialog(openSession ? "close" : "open")}
+            />}
+
+            {openSession && (canSupplyCash || canWithdrawCash) && <div className="flex flex-wrap gap-2">
+              {canSupplyCash && <AdminButton variant="secondary" onClick={() => openCashDialog("supply")}><Plus size={14} /> Suprimento</AdminButton>}
+              {canWithdrawCash && <AdminButton variant="secondary" onClick={() => openCashDialog("withdraw")}><Minus size={14} /> Sangria</AdminButton>}
+            </div>}
 
             {!canOpenCash && !canCloseCash && <p className="text-xs text-[#5a6a82]">Seu perfil pode acessar o PDV, mas não possui permissão para operar abertura e fechamento de caixa.</p>}
         </Section>
