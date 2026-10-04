@@ -90,7 +90,6 @@ const READ_ONLY_PERMISSION_MARKERS = [
   ".upload",
   ".remove",
   ".attach",
-  ".print",
   ".email",
   ".send",
   ".export",
