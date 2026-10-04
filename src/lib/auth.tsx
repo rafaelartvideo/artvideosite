@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 import type { Profile } from "./database.types";
 import type { OrganizationAccess, OrganizationStatus, OrganizationType } from "./organization.types";
 import { validateCurrentSessionIp } from "@/features/auth/infrastructure/auth.repository";
+import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
 import { INACTIVITY_TIMEOUT_MS, isSessionInactive, remainingSessionTime } from "./session-security";
 import {
   ACTIVE_ORGANIZATION_STORAGE_PREFIX,
@@ -32,6 +33,7 @@ interface AuthContextValue {
   activeOrganizationId: string | null;
   enabledModules: string[];
   accessError: string | null;
+  pendingTerms: PendingOrganizationTerm[];
   hasPermission: (permissionKey: string) => boolean;
   hasModule: (moduleKey: string) => boolean;
   setActiveOrganization: (organizationId: string) => Promise<void>;
@@ -53,6 +55,7 @@ const AuthContext = createContext<AuthContextValue>({
   activeOrganizationId: null,
   enabledModules: [],
   accessError: null,
+  pendingTerms: [],
   hasPermission: () => false,
   hasModule: () => false,
   setActiveOrganization: async () => {},
@@ -71,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [organizations, setOrganizations] = useState<OrganizationAccess[]>([]);
   const [activeOrganization, setActiveOrganizationState] = useState<OrganizationAccess | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
+  const [pendingTerms, setPendingTerms] = useState<PendingOrganizationTerm[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(8);
   const accessRequestRef = useRef(0);
@@ -270,6 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions([]);
     setOrganizations([]);
     setActiveOrganizationState(null);
+    setPendingTerms([]);
     setAccessError(null);
 
     if (notifyOrganizationChange && previousOrganizationId) {
@@ -288,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions([]);
     setOrganizations([]);
     setActiveOrganizationState(null);
+    setPendingTerms([]);
   }
 
   async function loadAccess(userId: string, preferredOrganizationId?: string | null) {
@@ -367,6 +373,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setLoadingProgress(86);
 
+    const pendingTermsFromAccess = (Array.isArray(access.pendingTerms) ? access.pendingTerms : []) as PendingOrganizationTerm[];
     const permissionKeys = (Array.isArray(access.permissions) ? access.permissions : [])
       .filter((permissionKey: unknown): permissionKey is string =>
         typeof permissionKey === "string" && permissionKey.length > 0,
@@ -393,6 +400,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setEmployee(access.employee ?? null);
     setRole(access.role ?? null);
     setPermissions(permissionKeys.map(key => ({ key })));
+    setPendingTerms(pendingTermsFromAccess);
     setAccessError(null);
     persistActiveOrganization(userId, resolvedOrganization.organization_id);
     setLoadingProgress(100);
@@ -471,6 +479,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activeOrganizationId: activeOrganization?.organization_id ?? null,
       enabledModules: activeOrganization?.enabled_modules ?? [],
       accessError,
+      pendingTerms,
       hasPermission,
       hasModule,
       setActiveOrganization,
