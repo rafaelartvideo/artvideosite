@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
-import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/ui/primitives/dialog";
 import {
   QueueIntegrationError,
   reserveQueueOsCode,
@@ -82,59 +74,55 @@ export function QueueOsCodeDialog({
     onOverride(normalized);
   };
 
-  return <Dialog open={open} onOpenChange={(next) => { if (!next && !busy) onCancel(); }}>
-    <DialogContent className="admin-crm max-w-md" showClose={!busy} minimizedTitle="Código da Fila">
-      <DialogHeader>
-        <DialogTitle>Código da Fila</DialogTitle>
-        <DialogDescription>
-          Informe o código de 4 dígitos entregue ao cliente. Ele será reservado para esta OS e não poderá ser reutilizado.
-        </DialogDescription>
-      </DialogHeader>
+  return <AdminDialog
+    open={open}
+    onClose={() => { if (!busy) onCancel(); }}
+    title="Código da Fila"
+    description="Informe o código de 4 dígitos entregue ao cliente. Ele será reservado para esta OS e não poderá ser reutilizado."
+    minimizedDescription={code ? `Código ${code}` : "Aguardando código"}
+    minimizable={!busy}
+    className="max-w-md"
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><BtnSecondary onClick={onCancel} disabled={busy}>Cancelar</BtnSecondary>         <BtnPrimary onClick={validate} loading={busy} loadingText="Validando..." disabled={code.length !== 4}>Validar código</BtnPrimary></div>}
+  >
+    <div className="space-y-4">
+      <label className="block space-y-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Código</span>
+        <input
+          autoFocus
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          value={code}
+          maxLength={4}
+          disabled={busy}
+          onChange={(event) => {
+            setCode(event.target.value.replace(/\D/g, "").slice(0, 4));
+            setError("");
+            setQueueUnavailable(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !busy) void validate();
+          }}
+          placeholder="0000"
+          className={`${INPUT} text-center font-mono text-2xl font-bold tracking-[0.45em]`}
+        />
+      </label>
 
-      <div className="space-y-4">
-        <label className="block space-y-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Código</span>
-          <input
-            autoFocus
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            value={code}
-            maxLength={4}
-            disabled={busy}
-            onChange={(event) => {
-              setCode(event.target.value.replace(/\D/g, "").slice(0, 4));
-              setError("");
-              setQueueUnavailable(false);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !busy) void validate();
-            }}
-            placeholder="0000"
-            className={`${INPUT} text-center font-mono text-2xl font-bold tracking-[0.45em]`}
-          />
-        </label>
+      {error && <div className="border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
 
-        {error && <div className="border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
+      {canOverride && <div className="space-y-2 border-t border-[#0d1b2e]/10 pt-4">
+        <p className="text-sm font-semibold text-[#0d1b2e] dark:text-white">Contingência</p>
+        <p className="text-xs leading-5 text-[#5a6a82] dark:text-slate-400">A Fila está indisponível. Esta política permite continuar somente com uma justificativa registrada na OS.</p>
+        <textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value.slice(0, 500))}
+          disabled={busy}
+          rows={3}
+          className={INPUT}
+          placeholder="Motivo da liberação excepcional"
+        />
+        <BtnSecondary onClick={override} disabled={busy}>Abrir sem código</BtnSecondary>
+      </div>}
+    </div>
 
-        {canOverride && <div className="space-y-2 border-t border-[#0d1b2e]/10 pt-4">
-          <p className="text-sm font-semibold text-[#0d1b2e] dark:text-white">Contingência</p>
-          <p className="text-xs leading-5 text-[#5a6a82] dark:text-slate-400">A Fila está indisponível. Esta política permite continuar somente com uma justificativa registrada na OS.</p>
-          <textarea
-            value={reason}
-            onChange={(event) => setReason(event.target.value.slice(0, 500))}
-            disabled={busy}
-            rows={3}
-            className={INPUT}
-            placeholder="Motivo da liberação excepcional"
-          />
-          <BtnSecondary onClick={override} disabled={busy}>Abrir sem código</BtnSecondary>
-        </div>}
-      </div>
-
-      <DialogFooter>
-        <BtnSecondary onClick={onCancel} disabled={busy}>Cancelar</BtnSecondary>
-        <BtnPrimary onClick={validate} loading={busy} loadingText="Validando..." disabled={code.length !== 4}>Validar código</BtnPrimary>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>;
+  </AdminDialog>;
 }
