@@ -40,7 +40,7 @@ html[data-admin-theme] {
 }
 
 [data-admin-dialog-content="true"] {
-	top: calc(50dvh + 2rem - (var(--admin-browser-bottom-inset, 0px) / 2)) !important;
+	top: calc(50dvh + 2rem - var(--admin-browser-bottom-half-inset, 0px)) !important;
 	max-height: calc(100dvh - var(--admin-shell-header-height, 4rem) - var(--admin-browser-bottom-inset, 0px) - 0.75rem) !important;
 }
 
