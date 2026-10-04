@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, ClipboardCheck, Edit2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import {
   AdminButton,
   AdminCard,
@@ -65,7 +66,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const canView = hasPermission("checklists.view") || hasPermission("checklists.manage");
   const canManage = hasPermission("checklists.manage");
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: queryKeys.checklists.profiles(), queryFn: loadChecklistAdminData, enabled: canView });
+  const query = useQuery({ queryKey: queryKeys.checklists.profiles(), queryFn: loadChecklistAdminData, enabled: canView, staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const data = query.data;
   const [draft, setDraft] = useState<Draft | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; stages?: string; stageNames?: Record<number, string>; itemTitles?: Record<string, string> }>({});
