@@ -266,6 +266,7 @@ export function OrderDetailsPage(props: Props) {
       hasPermission={hasPermission}
       onClose={onCloseSubpage}
       onView={setViewImage}
+      readOnly={monitorView}
     />
     <OrderSituationRecordsPage open={slaRecordsPageOpen} order={detail} visits={slaVisits.visits} loading={slaVisits.loading} error={slaVisits.error} onClose={onCloseSubpage} />
     <OrderSolutionRecordsPage open={solutionRecordsOpen && Boolean(detail)} order={detail} attempts={solutionAttempts} loading={solutionHistoryLoading} error={solutionHistoryError} onClose={() => setSolutionRecordsOpen(false)} onViewImage={setViewImage} />
@@ -308,10 +309,19 @@ export function OrderDetailsPage(props: Props) {
       {monitorView ? <AdminStickyToolbar className="justify-between">
         <BtnSecondary onClick={closePage}>Voltar</BtnSecondary>
         <div className="flex items-center gap-2">
-          {contactPhone && <AdminButton variant="secondary" onClick={() => { window.location.href = `tel:${contactPhone}`; }}>
+          {contactPhone && <AdminButton
+            variant="secondary"
+            title={monitorContact?.owner_name ? `Ligar para a empresa · proprietário: ${monitorContact.owner_name}` : "Ligar para a empresa"}
+            aria-label="Ligar para a empresa parceira"
+            onClick={() => { window.location.href = `tel:${contactPhone}`; }}
+          >
             <Phone size={15} /> Ligar
           </AdminButton>}
-          {contactWhatsapp && <BtnPrimary onClick={() => { window.open(`https://wa.me/${contactWhatsapp}`, "_blank", "noopener,noreferrer"); }}>
+          {contactWhatsapp && <BtnPrimary
+            title={monitorContact?.owner_name ? `WhatsApp da empresa · proprietário: ${monitorContact.owner_name}` : "WhatsApp da empresa"}
+            aria-label="Abrir WhatsApp da empresa parceira"
+            onClick={() => { window.open(`https://wa.me/${contactWhatsapp}`, "_blank", "noopener,noreferrer"); }}
+          >
             <MessageCircle size={15} /> WhatsApp
           </BtnPrimary>}
         </div>
