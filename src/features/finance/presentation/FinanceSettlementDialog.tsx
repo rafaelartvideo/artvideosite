@@ -3,7 +3,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import {
   expectedSettlementDate,
@@ -142,18 +142,18 @@ export function FinanceSettlementDialog({
   if (!open) return null;
   const actionLabel = detail.entry_type === "receivable" ? "Receber" : "Pagar";
   return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
-    <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-      <div className="flex items-center justify-between border-b px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">{actionLabel} lançamento</h2><p className="mt-1 text-xs text-[#5a6a82]">Registre baixa total ou parcial sem alterar o valor original do título.</p></div><button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button></div>
-      <div className="space-y-5 p-5">
+    <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="flex shrink-0 items-center justify-between border-b px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">{actionLabel} lançamento</h2><p className="mt-1 text-xs text-[#5a6a82]">Registre baixa total ou parcial sem alterar o valor original do título.</p></div><button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button></div>
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <FSelect label="Parcela" required error={fieldErrors.installment} value={installmentId} onChange={(event: any) => selectInstallment(event.target.value)} options={openInstallments.map(item => ({ value: item.id, label: `${item.installment_number}/${item.total_installments} · saldo ${formatCurrency(Number(item.original_amount) - Number(item.settled_amount))}` }))} />
-          <FInput label="Valor principal" required error={fieldErrors.principal} type="number" min="0.01" step="0.01" value={principal} onChange={(event: any) => { setFieldErrors(current => ({ ...current, principal: undefined })); setPrincipal(event.target.value); }} />
+          <FCurrencyInput label="Valor principal" required error={fieldErrors.principal} value={principal} onChange={(event: any) => { setFieldErrors(current => ({ ...current, principal: undefined })); setPrincipal(event.target.value); }} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <FInput label="Juros" type="number" min="0" step="0.01" value={interest} onChange={(event: any) => setInterest(event.target.value)} />
-          <FInput label="Multa" type="number" min="0" step="0.01" value={penalty} onChange={(event: any) => setPenalty(event.target.value)} />
-          <FInput label="Outros acréscimos" type="number" min="0" step="0.01" value={additions} onChange={(event: any) => setAdditions(event.target.value)} />
-          <FInput label="Desconto" type="number" min="0" step="0.01" value={discount} onChange={(event: any) => setDiscount(event.target.value)} />
+          <FCurrencyInput label="Juros" value={interest} onChange={(event: any) => setInterest(event.target.value)} />
+          <FCurrencyInput label="Multa" value={penalty} onChange={(event: any) => setPenalty(event.target.value)} />
+          <FCurrencyInput label="Outros acréscimos" value={additions} onChange={(event: any) => setAdditions(event.target.value)} />
+          <FCurrencyInput label="Desconto" value={discount} onChange={(event: any) => setDiscount(event.target.value)} />
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <FSelect label="Forma de pagamento" required error={fieldErrors.method} value={methodId} onChange={(event: any) => setMethodId(event.target.value)} options={activeMethods.map(item => ({ value: item.id, label: item.name }))} />
@@ -170,7 +170,7 @@ export function FinanceSettlementDialog({
         {selectedMethod && <div className={`rounded-lg border px-4 py-3 text-xs font-semibold ${scheduled ? "border-amber-200 bg-amber-50 text-amber-800" : "border-blue-200 bg-blue-50 text-blue-800"}`}>{scheduled ? `Liquidação futura: o título será baixado agora e o saldo da conta será movimentado quando a liquidação for confirmada. Previsão: ${expectedDate || "—"}.` : `Liquidação imediata. Previsão da forma de pagamento: ${expectedDate || "—"}.`}</div>}
         
       </div>
-      <div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton><AdminButton onClick={save} loading={saving} loadingText="Registrando...">{actionLabel}</AdminButton></div>
+      <div className="flex shrink-0 flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton><AdminButton onClick={save} loading={saving} loadingText="Registrando...">{actionLabel}</AdminButton></div>
     </div>
   </div>;
 }
