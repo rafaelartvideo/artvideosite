@@ -60,7 +60,7 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
   const metrics = data?.metrics;
   const open = (tab: AdminTab) => onNavigate?.(tab);
 
-  return <div className="flex min-h-0 flex-col gap-4">
+  return <div className="min-w-0 space-y-4 pb-2">
     <PageHeader
       title="Dashboard"
       subtitle="Visão geral da operação da Union World, empresas parceiras, monitoramento e assinaturas."
