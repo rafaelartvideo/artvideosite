@@ -1,7 +1,7 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown, ClipboardList, Eraser, FileText, Search } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ClipboardList, Eraser, FileText, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
@@ -17,6 +17,7 @@ import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { initialOrderStatus } from "@/features/orders/domain/order-status";
 import { AdminButton, AdminCard, AdminPage, AdminStickyToolbar, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCnpj, formatCpf, formatPhone, formatCurrency, formatDateTime } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -185,7 +186,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   };
   const closeDetails = () => { setDetail(null); onRouteChange?.(null, null); };
 
-  const mobileFilterLabel = quoteMobileFilters.find(option => option.value === mobileFilter)?.label || "Cliente";
   const sortLabel = orderSort === "asc" ? "Protocolo crescente" : orderSort === "desc" ? "Protocolo decrescente" : "Ordenação padrão";
   const SortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
   const hasMobileFilters = Boolean(mobileCustomerSearch || mobileDocumentSearch || mobileWhatsappSearch || mobileProtocolSearch || filterStatus || orderSort);
@@ -201,19 +201,32 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   };
 
   const renderMobileFilter = () => {
-    if (mobileFilter === "customer") return <MobileSearchField value={mobileCustomerSearch} onChange={setMobileCustomerSearch} placeholder="Digite o nome do cliente" />;
-    if (mobileFilter === "document") return <MobileSearchField value={mobileDocumentSearch} onChange={value => setMobileDocumentSearch(formatDocumentSearch(value))} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />;
-    if (mobileFilter === "whatsapp") return <MobileSearchField value={mobileWhatsappSearch} onChange={value => setMobileWhatsappSearch(formatPhone(value))} placeholder="Digite o WhatsApp" inputMode="numeric" />;
-    if (mobileFilter === "protocol") return <MobileSearchField value={mobileProtocolSearch} onChange={setMobileProtocolSearch} placeholder="Digite o protocolo" />;
+    if (mobileFilter === "customer") return <MobileSearchField value={mobileCustomerSearch} onChange={setMobileCustomerSearch} placeholder="Digite o nome do cliente" ariaLabel="Buscar por nome do cliente" />;
+    if (mobileFilter === "document") return <MobileSearchField value={mobileDocumentSearch} onChange={value => setMobileDocumentSearch(formatDocumentSearch(value))} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
+    if (mobileFilter === "whatsapp") return <MobileSearchField value={mobileWhatsappSearch} onChange={value => setMobileWhatsappSearch(formatPhone(value))} placeholder="Digite o WhatsApp" ariaLabel="Buscar por WhatsApp" inputMode="numeric" />;
+    if (mobileFilter === "protocol") return <MobileSearchField value={mobileProtocolSearch} onChange={setMobileProtocolSearch} placeholder="Digite o protocolo" ariaLabel="Buscar por protocolo" />;
     return <AdminSelect value={filterStatus} onValueChange={value => { setFilterStatus(value); setPage(1); }} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar orçamentos por status" />;
   };
 
-  const sortMenu = <DropdownMenu>
+  const sortMenu = (mobile = false) => <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <button type="button" aria-label={`Ordenação atual: ${sortLabel}`} title={sortLabel} className={cn("inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40 md:h-9 md:w-9", orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82]")}><SortIcon size={17} /></button>
+      <button
+        type="button"
+        aria-label={`Ordenação atual: ${sortLabel}`}
+        title={`Ordenação: ${sortLabel}`}
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2",
+          mobile
+            ? "h-[42px] w-[42px] border-[#0d1b2e]/15 bg-white text-[#5a6a82] shadow-sm focus-visible:ring-[#0057e7]/40"
+            : "h-9 w-9 border-[#0d1b2e]/15 bg-white text-[#5a6a82] shadow-sm focus-visible:ring-[#0057e7]/40",
+          orderSort && "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]",
+        )}
+      >
+        <SortIcon size={mobile ? 17 : 16} className={cn("shrink-0", mobile && "text-[#0057e7]")} />
+      </button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="min-w-[220px]">
-      {([["", "Ordenação padrão", ArrowUpDown], ["asc", "Protocolo crescente", ArrowUpNarrowWide], ["desc", "Protocolo decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => setOrderSort(value)} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] font-bold text-[#0057e7]")}><Icon size={15} /><span>{label}</span>{orderSort === value && <Check size={15} className="ml-auto" />}</DropdownMenuItem>)}
+      {([["", "Ordenação padrão", ArrowUpDown], ["asc", "Protocolo crescente", ArrowUpNarrowWide], ["desc", "Protocolo decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => setOrderSort(value)} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Icon size={15} className={orderSort === value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{label}</span>{orderSort === value && <Check size={15} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}
     </DropdownMenuContent>
   </DropdownMenu>;
 
@@ -225,21 +238,21 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     {!routeResourceId && <>
       <PageHeader title="Orçamentos" subtitle={`${totalItems} solicitaç${totalItems !== 1 ? "ões" : "ão"} recebida${totalItems !== 1 ? "s" : ""}`} />
       {canViewTable && <AdminSearchPanel title="Buscar orçamentos">
-        <div className="space-y-3 md:hidden">
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} /></button></DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-[220px]">{quoteMobileFilters.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7]")}><Search size={14} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto" />}</DropdownMenuItem>)}</DropdownMenuContent>
-            </DropdownMenu>
-            {sortMenu}
+        <AdminMobileSearchSwitch
+          value={mobileFilter}
+          options={quoteMobileFilters}
+          onChange={setMobileFilter}
+        >
+          <div className="flex min-w-0 items-start gap-2">
+            <div className="min-w-0 flex-1">{renderMobileFilter()}</div>
+            {sortMenu(true)}
           </div>
-          {renderMobileFilter()}
-          {hasMobileFilters && <div className="flex justify-end"><button type="button" onClick={clearMobileFilters} aria-label="Limpar filtros" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"><Eraser size={15} /></button></div>}
-        </div>
+          {hasMobileFilters && <div className="mt-3 flex justify-end"><button type="button" onClick={clearMobileFilters} aria-label="Limpar filtros" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"><Eraser size={15} /></button></div>}
+        </AdminMobileSearchSwitch>
         <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-[minmax(0,1fr)_220px_36px]">
           <SearchField value={search} onChange={setSearch} placeholder="Cliente, CPF/CNPJ, WhatsApp ou protocolo" />
           <AdminSelect value={filterStatus} onValueChange={setFilterStatus} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs md:h-9 md:py-1.5" ariaLabel="Filtrar por status" />
-          {sortMenu}
+          {sortMenu()}
         </div>
       </AdminSearchPanel>}
 
@@ -286,8 +299,8 @@ function SearchField({ value, onChange, placeholder }: { value: string; onChange
   return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs md:h-9 md:py-1.5")} /></div>;
 }
 
-function MobileSearchField({ value, onChange, placeholder, inputMode }: { value: string; onChange: (value: string) => void; placeholder: string; inputMode?: "numeric" }) {
-  return <div className="relative min-w-0"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs")} /></div>;
+function MobileSearchField({ value, onChange, placeholder, ariaLabel, inputMode }: { value: string; onChange: (value: string) => void; placeholder: string; ariaLabel: string; inputMode?: "numeric" }) {
+  return <div className="relative min-w-0 overflow-hidden rounded-lg"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input inputMode={inputMode} aria-label={ariaLabel} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] min-w-0 w-full overflow-hidden text-ellipsis whitespace-nowrap py-2 pl-9 text-sm")} /></div>;
 }
 
 function MobileInfo({ label, value }: { label: string; value: string }) {
