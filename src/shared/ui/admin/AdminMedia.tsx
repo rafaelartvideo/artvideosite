@@ -20,7 +20,8 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
   }, [previewUrl]);
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
     setPreviewUrl(URL.createObjectURL(file));
     setUploading(true);
@@ -33,7 +34,7 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
       notifyAdmin(`Erro ao enviar imagem: ${supabaseErrorMessage(error)}`, "error");
     } finally {
       setUploading(false);
-      event.currentTarget.value = "";
+      input.value = "";
     }
   };
 
