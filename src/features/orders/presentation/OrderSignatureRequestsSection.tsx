@@ -31,7 +31,7 @@ import {
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
 import { formatDateTime } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminStickyToolbar, AdminCard, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminDialog, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
 
 type PermissionCheck = (permission: string) => boolean;
@@ -281,13 +281,16 @@ export function OrderSignatureRequestsSection({
       }}
     />
 
-    {auditRequest && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label="Auditoria da assinatura">
-      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-[#0d1b2e]/10 bg-white px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Auditoria da assinatura</h2><p className="mt-1 text-xs text-[#5a6a82]">{auditRequest.template_name_snapshot} · {auditRequest.verification_code}</p></div><button type="button" onClick={() => setAuditRequest(null)} className="rounded-lg p-2 text-[#5a6a82] hover:bg-[#f5f7fa]"><X size={18} /></button></div>
-        <div className="space-y-3 p-5">{auditLoading ? <LoadingState text="Carregando auditoria..." /> : auditEvents.length === 0 ? <p className="py-8 text-center text-sm text-[#5a6a82]">Nenhum evento registrado.</p> : auditEvents.map(event => <div key={event.id} className="rounded-xl border border-[#0d1b2e]/10 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-black text-[#0d1b2e]">{eventLabels[event.event_type] || event.event_type}</span><span className="text-[10px] font-semibold text-[#5a6a82]">{formatDateTime(event.created_at, "—")}</span></div><div className="mt-2 grid gap-2 text-[10px] text-[#5a6a82] sm:grid-cols-2"><span>Origem: {event.actor_type}</span><span>IP: {event.ip_address || "—"}</span>{event.user_agent && <span className="break-words sm:col-span-2">Navegador: {event.user_agent}</span>}</div></div>)}</div>
-        <AdminStickyToolbar><BtnSecondary onClick={() => setAuditRequest(null)}>Fechar</BtnSecondary></AdminStickyToolbar>
-      </div>
-    </div>}
+    {auditRequest && <AdminDialog
+      open
+      onClose={() => setAuditRequest(null)}
+      title="Auditoria da assinatura"
+      description={`${auditRequest.template_name_snapshot} · ${auditRequest.verification_code}`}
+      className="max-w-xl"
+      footer={<BtnSecondary onClick={() => setAuditRequest(null)}>Fechar</BtnSecondary>}
+    >
+      <div className="space-y-3">{auditLoading ? <LoadingState text="Carregando auditoria..." /> : auditEvents.length === 0 ? <p className="py-8 text-center text-sm text-[#5a6a82]">Nenhum evento registrado.</p> : auditEvents.map(event => <div key={event.id} className="rounded-xl border border-[#0d1b2e]/10 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-black text-[#0d1b2e]">{eventLabels[event.event_type] || event.event_type}</span><span className="text-[10px] font-semibold text-[#5a6a82]">{formatDateTime(event.created_at, "—")}</span></div><div className="mt-2 grid gap-2 text-[10px] text-[#5a6a82] sm:grid-cols-2"><span>Origem: {event.actor_type}</span><span>IP: {event.ip_address || "—"}</span>{event.user_agent && <span className="break-words sm:col-span-2">Navegador: {event.user_agent}</span>}</div></div>)}</div>
+    </AdminDialog>}
   </>;
 }
 
