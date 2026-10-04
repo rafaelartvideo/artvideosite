@@ -7,6 +7,7 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { useAuth } from "@/lib/auth";
 import { loadOrdersReferenceData } from "../infrastructure/orders-workspace.repository";
 import type { ServiceOrderPage } from "../infrastructure/orders-list.repository";
@@ -75,7 +76,8 @@ export function useOrdersWorkspace({
   const workspaceQuery = useQuery({
     queryKey: workspaceKey,
     enabled: Boolean(organizationId),
-    staleTime: 30 * 60_000,
+    staleTime: REFERENCE_DATA_CACHE_TIME,
+    gcTime: REFERENCE_DATA_CACHE_TIME,
     queryFn: () => fetchOrdersWorkspace(organizationId!),
   });
   const workspace = workspaceQuery.data ?? EMPTY_WORKSPACE;
