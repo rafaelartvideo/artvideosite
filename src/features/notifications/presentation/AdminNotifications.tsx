@@ -97,56 +97,66 @@ export function NotificationBadge({ count }: { count: number }) {
 function NotificationRow({
   notification,
   onOpen,
+  onDismiss,
 }: {
   notification: AdminNotification;
   onOpen: (notification: AdminNotification) => void;
+  onDismiss: (notification: AdminNotification) => void;
 }) {
   const visual = notificationVisual(notification);
   const ModuleIcon = visual.icon;
   const EventIcon = eventIcon(notification);
   const unread = !notification.read_at;
 
-  return <button
-    type="button"
-    onClick={() => onOpen(notification)}
-    className={cn(
-      "group relative flex w-full gap-3 border-b border-[#0d1b2e]/7 px-3.5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-[#f7f9fc]",
-      unread && "bg-[#f4f8ff]",
-    )}
-  >
+  return <div className={cn(
+    "group relative flex w-full gap-2 border-b border-[#0d1b2e]/7 px-3.5 py-3.5 transition-colors last:border-b-0 hover:bg-[#f7f9fc]",
+    unread && "bg-[#f4f8ff]",
+  )}>
     {unread && <span className="absolute bottom-0 left-0 top-0 w-0.5 bg-primary" />}
-    <div className="relative shrink-0">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#0d1b2e]/8 bg-white text-[#53657b]">
-        <ModuleIcon size={18} strokeWidth={1.9} />
-      </div>
-      <span className={cn(
-        "absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border",
-        eventTone(notification),
-      )}>
-        <EventIcon size={10} strokeWidth={2.4} />
-      </span>
-    </div>
-
-    <div className="min-w-0 flex-1">
-      <div className="flex items-start gap-2">
-        <p className={cn(
-          "min-w-0 flex-1 text-[13px] leading-5 text-[#17283d]",
-          unread ? "font-black" : "font-bold",
+    <button type="button" onClick={() => onOpen(notification)} className="flex min-w-0 flex-1 gap-3 text-left">
+      <div className="relative shrink-0">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#0d1b2e]/8 bg-white text-[#53657b]">
+          <ModuleIcon size={18} strokeWidth={1.9} />
+        </div>
+        <span className={cn(
+          "absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border",
+          eventTone(notification),
         )}>
-          {notification.title}
+          <EventIcon size={10} strokeWidth={2.4} />
+        </span>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start gap-2">
+          <p className={cn(
+            "min-w-0 flex-1 text-[13px] leading-5 text-[#17283d]",
+            unread ? "font-black" : "font-bold",
+          )}>
+            {notification.title}
+          </p>
+          {unread && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+        </div>
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#718096]">
+          {notification.message}
         </p>
-        {unread && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+        <div className="mt-2 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.08em] text-[#96a2b2]">
+          <span className="truncate">{visual.label}</span>
+          <span aria-hidden="true">•</span>
+          <span className="shrink-0 normal-case tracking-normal">{notificationTime(notification.created_at)}</span>
+        </div>
       </div>
-      <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#718096]">
-        {notification.message}
-      </p>
-      <div className="mt-2 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.08em] text-[#96a2b2]">
-        <span className="truncate">{visual.label}</span>
-        <span aria-hidden="true">•</span>
-        <span className="shrink-0 normal-case tracking-normal">{notificationTime(notification.created_at)}</span>
-      </div>
-    </div>
-  </button>;
+    </button>
+
+    <button
+      type="button"
+      onClick={() => onDismiss(notification)}
+      aria-label="Remover notificação"
+      title="Remover notificação"
+      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#9aa6b5] transition-colors hover:bg-red-50 hover:text-red-600"
+    >
+      <Trash2 size={14} />
+    </button>
+  </div>;
 }
 
 export function AdminNotificationPanel({
@@ -155,12 +165,16 @@ export function AdminNotificationPanel({
   loading,
   onOpen,
   onMarkAllRead,
+  onDismiss,
+  onDismissAll,
 }: {
   notifications: AdminNotification[];
   unreadCount: number;
   loading: boolean;
   onOpen: (notification: AdminNotification) => void;
   onMarkAllRead: () => void;
+  onDismiss: (notification: AdminNotification) => void;
+  onDismissAll: () => void;
 }) {
   return <div className="flex max-h-[430px] flex-col">
     <div className="flex items-center justify-between border-b border-[#0d1b2e]/8 px-3.5 py-2.5">
@@ -170,13 +184,24 @@ export function AdminNotificationPanel({
           {unreadCount > 0 ? `${unreadCount} não ${unreadCount === 1 ? "lida" : "lidas"}` : "Tudo em dia"}
         </p>
       </div>
-      {unreadCount > 0 && <button
-        type="button"
-        onClick={onMarkAllRead}
-        className="rounded-md px-2 py-1 text-[10px] font-bold text-primary transition-colors hover:bg-primary/5"
-      >
-        Marcar todas como lidas
-      </button>}
+      <div className="flex items-center gap-1">
+        {unreadCount > 0 && <button
+          type="button"
+          onClick={onMarkAllRead}
+          className="rounded-md px-2 py-1 text-[10px] font-bold text-primary transition-colors hover:bg-primary/5"
+        >
+          Marcar lidas
+        </button>}
+        {notifications.length > 0 && <button
+          type="button"
+          onClick={onDismissAll}
+          aria-label="Limpar todas as notificações"
+          title="Limpar todas"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-[#8a98aa] transition-colors hover:bg-red-50 hover:text-red-600"
+        >
+          <Trash2 size={14} />
+        </button>}
+      </div>
     </div>
 
     <div className="min-h-0 overflow-y-auto overscroll-contain">
@@ -194,7 +219,12 @@ export function AdminNotificationPanel({
         </div>
       ) : (
         notifications.map(notification => (
-          <NotificationRow key={notification.id} notification={notification} onOpen={onOpen} />
+          <NotificationRow
+            key={notification.id}
+            notification={notification}
+            onOpen={onOpen}
+            onDismiss={onDismiss}
+          />
         ))
       )}
     </div>
