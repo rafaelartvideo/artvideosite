@@ -107,3 +107,35 @@ export async function setPlatformAnnouncementActive(id: string, isActive: boolea
   });
   if (error) throw error;
 }
+
+
+export function subscribeToAdminHomeRefresh(onRefresh: (kind: string) => void) {
+  const channel = supabase
+    .channel("admin-home-refresh")
+    .on("broadcast", { event: "refresh" }, payload => {
+      const kind = typeof payload?.payload?.kind === "string" ? payload.payload.kind : "all";
+      onRefresh(kind);
+    })
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+export function broadcastAdminHomeRefresh(kind = "all") {
+  const channel = supabase.channel("admin-home-refresh");
+
+  channel.subscribe(status => {
+    if (status !== "SUBSCRIBED") return;
+    void channel
+      .send({
+        type: "broadcast",
+        event: "refresh",
+        payload: { kind },
+      })
+      .finally(() => {
+        void supabase.removeChannel(channel);
+      });
+  });
+}
