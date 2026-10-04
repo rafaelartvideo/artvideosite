@@ -38,7 +38,12 @@ export function PlatformCrmHub({
         ...item,
         description: mainDescriptions[item.id] || `Acesse o módulo ${item.label}.`,
       })),
-    ...operationItems.map(({ permissionKey: _permissionKey, ...item }) => item),
+    ...operationItems.map((item) => ({
+      id: item.id,
+      label: item.label,
+      icon: item.icon,
+      description: item.description,
+    })),
   ];
 
   return (
