@@ -170,6 +170,9 @@ export function OrderDetailsContent({
           <div className="grid sm:grid-cols-2 gap-3">
             <InfoRow label="Nº da OS" value={detail.os_number} />
             <InfoRow label="OS Externa" value={detail.external_os_number?.trim() || "Não informada"} />
+            {detail.queue_ticket_number && <InfoRow label="Origem" value="Fila Eletrônica" />}
+            {detail.queue_ticket_number && <InfoRow label="Senha da fila" value={detail.queue_ticket_number} />}
+            {detail.queue_override_reason && <InfoRow label="Contingência da fila" value={detail.queue_override_reason} />}
             <InfoRow label="Tipo de atendimento" value={(detail.service_type as any)?.title} />
             <InfoRow label="Serviço" value={(detail.general_service as any)?.name || (detail.service as any)?.title} />
             <InfoRow label="Responsável" value={getResponsibleName(detail as ServiceOrderWithRelations)} />
