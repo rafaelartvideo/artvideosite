@@ -19,6 +19,7 @@ export function OrderSolutionSummary({
   onViewImage,
   onOpenRecords,
   onUndo,
+  showActions = true,
 }: {
   detail: any;
   usedItems: any[];
@@ -32,6 +33,7 @@ export function OrderSolutionSummary({
   onViewImage: (image: OrderImage) => void;
   onOpenRecords: () => void;
   onUndo: () => void;
+  showActions?: boolean;
 }) {
   const detailUsedItems = usedItems;
   const detailSolutionImages = solutionImages;
@@ -41,10 +43,10 @@ export function OrderSolutionSummary({
 
   if (!hasCurrentContent && !hasHistory) return null;
 
-  const actions = <div className="flex flex-wrap items-center gap-2">
+  const actions = showActions ? <div className="flex flex-wrap items-center gap-2">
     {hasHistory && <AdminButton variant="secondary" size="sm" onClick={onOpenRecords} aria-label="Ver registros da solução" title="Registros" className="h-10 px-2 text-[11px] sm:h-8 sm:px-2.5"><History className="h-[18px] w-[18px] sm:h-[13px] sm:w-[13px]" /><span className="hidden sm:inline">Registros</span><span className="rounded-full bg-[#eaf2ff] px-1.5 py-0.5 text-[9px] font-black text-[#0057e7]">{solutionCount}</span></AdminButton>}
     {detail.is_solved && canUndo && <AdminButton variant="secondary" size="sm" onClick={onUndo} aria-label="Desfazer solução" title="Desfazer" className="h-10 w-10 border-[#0057e7]/30 bg-white !px-0 text-[11px] text-[#0057e7] hover:border-[#0057e7]/45 hover:bg-[#f0f6ff] hover:text-[#0057e7] sm:w-auto sm:px-2.5"><RotateCcw className="h-[18px] w-[18px] sm:h-[13px] sm:w-[13px]" /><span className="hidden sm:inline">Desfazer</span></AdminButton>}
-  </div>;
+  </div> : null;
 
   return <Section title="Solução da OS" actions={actions}>
     {!detail.is_solved && hasHistory && !detail.cannot_be_solved ? <div className="flex items-start gap-3 rounded-xl border border-border bg-muted p-3"><History size={17} className="mt-0.5 shrink-0 text-[#0057e7]" /><div><p className="text-sm font-bold text-[#0d1b2e]">Sem solução ativa</p><p className="mt-0.5 text-xs text-[#5a6a82]">Esta OS já foi solucionada {solutionCount} {solutionCount === 1 ? "vez" : "vezes"}. Consulte os registros para ver as soluções anteriores e os desfazimentos.</p></div></div> : <div className="space-y-4">
