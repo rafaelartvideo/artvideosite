@@ -478,7 +478,7 @@ export function AdminHeader({
           </div>
         </div>
 
-        <div className="relative flex h-16 items-center gap-1 px-3 pt-[env(safe-area-inset-top)] md:hidden">
+        <div className="grid h-16 grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-2 px-3 pt-[env(safe-area-inset-top)] md:hidden">
           <button
             type="button"
             onClick={onToggleSidebar}
@@ -489,15 +489,15 @@ export function AdminHeader({
             {sidebarOpen ? <X size={18} /> : <Menu size={19} />}
           </button>
 
-          <div className="pointer-events-none absolute inset-x-14 inset-y-0 flex items-center justify-center">
+          <div className="pointer-events-none flex min-w-0 items-center justify-center overflow-hidden">
             {companyLogoUrl ? (
-              <AutoFitLogo src={companyLogoUrl} alt={activeOrganizationName || "Logo da empresa"} className="h-8 w-full max-w-[130px] object-contain" />
+              <AutoFitLogo src={companyLogoUrl} alt={activeOrganizationName || "Logo da empresa"} className="h-8 w-full max-w-[clamp(72px,24vw,118px)] object-contain" />
             ) : (
-              <span className="max-w-[130px] truncate text-xs font-black text-[#0d1b2e]">{activeOrganizationName || "Empresa"}</span>
+              <span className="max-w-full truncate px-1 text-xs font-black text-[#0d1b2e]">{activeOrganizationName || "Empresa"}</span>
             )}
           </div>
 
-          <div className="ml-auto flex items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-0">
             <HeaderAction label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}>
               <Bell size={16} />
               <NotificationBadge count={notifications.unreadCount} />
