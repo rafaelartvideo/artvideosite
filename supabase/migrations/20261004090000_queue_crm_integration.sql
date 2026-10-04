@@ -47,6 +47,10 @@ revoke all on public.queue_integration_settings from public, anon;
 grant select, insert, update on public.queue_integration_settings to authenticated;
 grant select, insert, update, delete on public.queue_integration_settings to service_role;
 
+create index if not exists queue_integration_settings_updated_by_idx
+  on public.queue_integration_settings(updated_by)
+  where updated_by is not null;
+
 create or replace function private.touch_queue_integration_settings()
 returns trigger
 language plpgsql
@@ -122,6 +126,10 @@ alter table public.service_orders
 create unique index if not exists service_orders_queue_reservation_uidx
   on public.service_orders(queue_reservation_id)
   where queue_reservation_id is not null;
+
+create index if not exists service_orders_queue_override_by_idx
+  on public.service_orders(queue_override_by)
+  where queue_override_by is not null;
 
 do $$
 begin
