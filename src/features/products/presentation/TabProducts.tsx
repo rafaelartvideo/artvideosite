@@ -10,7 +10,6 @@ import {
   List,
   Package,
   Plus,
-  Search,
   ShoppingBag,
   Star,
   Truck,
@@ -363,7 +362,10 @@ export function TabProducts({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
-  const [search, setSearch] = useState("");
+  const [nameSearch, setNameSearch] = useState("");
+  const [gtinSearch, setGtinSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -761,26 +763,29 @@ export function TabProducts({
   };
 
   const filtered = products.filter((product: any) => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    if (!term) return true;
     const inventory = product.inventory || {};
-    return String(product.name || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(product.sku || inventory.sku || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(product.barcode || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(product.model || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(product.manufacturer_code || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(product.product_categories?.name || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(product.brands?.name || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(inventory.storage_shelf || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(inventory.storage_level || "").toLocaleLowerCase("pt-BR").includes(term)
-      || String(inventory.storage_compartment || "").toLocaleLowerCase("pt-BR").includes(term);
+    const normalizedName = nameSearch.trim().toLocaleLowerCase("pt-BR");
+    const normalizedGtin = gtinSearch.trim().toLocaleLowerCase("pt-BR");
+    const normalizedLocation = locationSearch.trim().toLocaleLowerCase("pt-BR");
+
+    const matchesName = !normalizedName
+      || String(product.name || "").toLocaleLowerCase("pt-BR").includes(normalizedName);
+    const matchesGtin = !normalizedGtin
+      || String(product.barcode || product.tax_barcode || "").toLocaleLowerCase("pt-BR").includes(normalizedGtin);
+    const matchesCategory = !categoryFilter || String(product.category_id || "") === categoryFilter;
+    const matchesLocation = !normalizedLocation
+      || [inventory.storage_shelf, inventory.storage_level, inventory.storage_compartment]
+        .some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(normalizedLocation));
+
+    return matchesName && matchesGtin && matchesCategory && matchesLocation;
   });
 
+  const hasInventoryFilters = Boolean(nameSearch.trim() || gtinSearch.trim() || categoryFilter || locationSearch.trim());
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedProducts = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  useEffect(() => { setPage(1); }, [search, activeOrganizationId]);
+  useEffect(() => { setPage(1); }, [nameSearch, gtinSearch, categoryFilter, locationSearch, activeOrganizationId]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const inventory = editItem?.inventory ?? null;
@@ -800,22 +805,58 @@ export function TabProducts({
       />
 
       {canViewTable && <AdminSearchPanel title="Buscar no estoque">
-        <div className="relative max-w-xl">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-          <input
-            value={search}
-            onChange={event => { setSearch(event.target.value); setPage(1); }}
-            placeholder="Nome, SKU, GTIN, marca, modelo, categoria ou localização"
-            className={cn(INPUT, "h-[42px] w-full pl-9 text-sm md:h-9 md:py-1.5 md:text-xs")}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <FInput
+            label="Nome"
+            value={nameSearch}
+            onChange={(event: any) => { setNameSearch(event.target.value); setPage(1); }}
+            placeholder="Nome do item"
+          />
+          <FInput
+            label="GTIN"
+            value={gtinSearch}
+            onChange={(event: any) => { setGtinSearch(event.target.value); setPage(1); }}
+            placeholder="EAN, UPC ou GTIN"
+          />
+          <FSelect
+            label="Categoria"
+            value={categoryFilter}
+            onChange={(event: any) => { setCategoryFilter(event.target.value); setPage(1); }}
+            options={[
+              { value: "", label: "Todas as categorias" },
+              ...categories.map((item: any) => ({ value: item.id, label: item.name })),
+            ]}
+          />
+          <FInput
+            label="Localização"
+            value={locationSearch}
+            onChange={(event: any) => { setLocationSearch(event.target.value); setPage(1); }}
+            placeholder="Estante, nível ou compartimento"
           />
         </div>
+        {hasInventoryFilters && <div className="mt-3 flex justify-end">
+          <AdminButton
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              setNameSearch("");
+              setGtinSearch("");
+              setCategoryFilter("");
+              setLocationSearch("");
+              setPage(1);
+            }}
+            className="bg-card text-red-600 hover:bg-red-50"
+          >
+            Limpar filtros
+          </AdminButton>
+        </div>}
       </AdminSearchPanel>}
 
       {canViewTable && <AdminCard>
         {loading ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState
             icon={Package}
-            title={search ? "Nenhum resultado" : "Nenhum item cadastrado"}
+            title={hasInventoryFilters ? "Nenhum resultado" : "Nenhum item cadastrado"}
             message="Cadastre o item uma única vez para estoque, vendas, PDV, dados fiscais e catálogo quando aplicável."
             onAdd={canCreate ? openNewPage : undefined}
             addLabel="Novo item"
