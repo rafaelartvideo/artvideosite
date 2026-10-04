@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Clock3, RotateCcw, WalletCards } from "lucide-react";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import type {
   FinancialAccount,
@@ -99,6 +99,6 @@ export function FinanceSettlementPanel({
 
     <FinanceSettlementDialog open={dialogOpen} detail={detail} accounts={accounts} paymentMethods={paymentMethods} saving={settlementPending} onClose={() => { if (!settlementPending) setDialogOpen(false); }} onSave={onRegister} />
 
-    {reverseId && <div className="fixed inset-0 z-[125] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"><div className="border-b px-5 py-4"><h2 className="text-lg font-black text-[#0d1b2e]">Estornar baixa</h2><p className="mt-1 text-xs text-[#5a6a82]">O lançamento original será preservado e movimentos inversos serão criados.</p></div><div className="p-5"><FTextarea label="Motivo do estorno" required error={reverseReasonError} value={reverseReason} onChange={(event: any) => { setReverseReasonError(""); setReverseReason(event.target.value); }} /></div><div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!reversePending) { setReverseId(null); setReverseReason(""); setReverseReasonError(""); } }}>Cancelar</AdminButton><AdminButton variant="danger" onClick={reverse} loading={reversePending} loadingText="Estornando...">Confirmar estorno</AdminButton></div></div></div>}
+    {reverseId && <AdminDialog open onClose={() => { if (!reversePending) { setReverseId(null); setReverseReason(""); setReverseReasonError(""); } }} title="Estornar baixa" description="O lançamento original será preservado e movimentos inversos serão criados." className="max-w-lg" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!reversePending) { setReverseId(null); setReverseReason(""); setReverseReasonError(""); } }}>Cancelar</AdminButton><AdminButton variant="danger" onClick={reverse} loading={reversePending} loadingText="Estornando...">Confirmar estorno</AdminButton></div>}><FTextarea label="Motivo do estorno" required error={reverseReasonError} value={reverseReason} onChange={(event: any) => { setReverseReasonError(""); setReverseReason(event.target.value); }} /></AdminDialog>}
   </>;
 }
