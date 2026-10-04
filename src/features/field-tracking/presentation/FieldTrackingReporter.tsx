@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { updateMyFieldLocation } from "../infrastructure/field-tracking.repository";
 
 export const FIELD_TRACKING_PREFERENCE_EVENT = "field-tracking-preference-changed";
@@ -243,54 +243,50 @@ export function FieldTrackingReporter() {
 
   if (!showRequiredGate) return null;
 
-  return <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
-    <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
-      <div className="border-b border-border px-5 py-5">
-        <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-            <MapPin size={21} />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-lg font-black text-foreground">Localização obrigatória</h2>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              O compartilhamento da localização é obrigatório para este usuário enquanto estiver usando o sistema.
-            </p>
-          </div>
-        </div>
+  return <AdminDialog
+    open
+    onClose={() => undefined}
+    title="Localização obrigatória"
+    description="O compartilhamento da localização é obrigatório para este usuário enquanto estiver usando o sistema."
+    minimizable={false}
+    className="max-w-lg"
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <AdminButton variant="secondary" disabled={activationBusy} onClick={() => void signOut()}>
+        Sair
+      </AdminButton>
+      <AdminButton
+        loading={activationBusy}
+        loadingText="Ativando..."
+        onClick={() => void activateBrowserTracking()}
+      >
+        Ativar localização
+      </AdminButton>
+    </div>}
+  >
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 rounded-xl border border-primary/15 bg-primary-soft/50 p-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+          <MapPin size={20} />
+        </span>
+        <p className="text-sm font-bold text-foreground">Ative a localização do navegador para continuar.</p>
       </div>
 
-      <div className="space-y-4 p-5">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-          <p className="text-sm font-black">Ative a localização do navegador para continuar.</p>
-          <p className="mt-1 text-xs leading-5">
-            Esta exigência está ativada para o seu usuário. Se você recusar a permissão, a sessão será encerrada imediatamente. Se não ativar em até 1 minuto, o sistema fará logout automaticamente.
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
-          <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tempo restante</span>
-          <strong className="font-mono text-lg font-black text-foreground">
-            00:{String(secondsLeft).padStart(2, "0")}
-          </strong>
-        </div>
-
-        {gateError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
-          {gateError}
-        </div>}
-
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <AdminButton variant="secondary" disabled={activationBusy} onClick={() => void signOut()}>
-            Sair
-          </AdminButton>
-          <AdminButton
-            loading={activationBusy}
-            loadingText="Ativando..."
-            onClick={() => void activateBrowserTracking()}
-          >
-            Ativar localização
-          </AdminButton>
-        </div>
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+        <p className="text-xs leading-5">
+          Esta exigência está ativada para o seu usuário. Se você recusar a permissão, a sessão será encerrada imediatamente. Se não ativar em até 1 minuto, o sistema fará logout automaticamente.
+        </p>
       </div>
+
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
+        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tempo restante</span>
+        <strong className="font-mono text-lg font-black text-foreground">
+          00:{String(secondsLeft).padStart(2, "0")}
+        </strong>
+      </div>
+
+      {gateError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+        {gateError}
+      </div>}
     </div>
-  </div>;
+  </AdminDialog>;
 }
