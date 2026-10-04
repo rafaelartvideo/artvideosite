@@ -275,7 +275,7 @@ export function OrderCompletionModal({
         loading={saving}
         loadingText="Concluindo..."
       >
-        Confirmar conclusão
+        Concluir
       </BtnPrimary>
     </div>}
   >
