@@ -6,6 +6,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { listInventoryItems, listInventoryMovementsPage } from "@/features/inventory/infrastructure/inventory.repository";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -56,6 +57,7 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
   const [nameSearch, setNameSearch] = useState("");
   const [skuSearch, setSkuSearch] = useState("");
   const [addressSearch, setAddressSearch] = useState("");
+  const [mobileSearchField, setMobileSearchField] = useState<"name" | "sku" | "address">("name");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [detailItem, setDetailItem] = useState<any>(null);
@@ -146,7 +148,16 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
     <PageHeader title="Estoque" subtitle={`${items.length} item${items.length !== 1 ? "s" : ""} cadastrado${items.length !== 1 ? "s" : ""}`} />
 
     <AdminSearchPanel title="Buscar estoque">
-      <div className="grid gap-3 md:grid-cols-3 md:gap-2">
+      <AdminMobileSearchSwitch
+        value={mobileSearchField}
+        options={[{ value: "name", label: "Nome" }, { value: "sku", label: "SKU" }, { value: "address", label: "Endereço" }]}
+        onChange={setMobileSearchField}
+      >
+        {mobileSearchField === "name" ? <FInput value={nameSearch} onChange={(e: any) => setNameSearch(e.target.value)} placeholder="Digite o nome da peça" />
+          : mobileSearchField === "sku" ? <FInput value={skuSearch} onChange={(e: any) => setSkuSearch(e.target.value)} placeholder="Digite o SKU" />
+            : <FInput value={addressSearch} onChange={(e: any) => setAddressSearch(e.target.value)} placeholder="Estante, prateleira ou compartimento" />}
+      </AdminMobileSearchSwitch>
+      <div className="hidden gap-3 md:grid md:grid-cols-3 md:gap-2">
         <FInput label="Nome" className="md:h-9 md:py-1.5" value={nameSearch} onChange={(e: any) => setNameSearch(e.target.value)} placeholder="Digite o nome da peça" />
         <FInput label="SKU" className="md:h-9 md:py-1.5" value={skuSearch} onChange={(e: any) => setSkuSearch(e.target.value)} placeholder="Digite o SKU" />
         <FInput label="Endereço" className="md:h-9 md:py-1.5" value={addressSearch} onChange={(e: any) => setAddressSearch(e.target.value)} placeholder="Estante, prateleira ou compartimento" />
