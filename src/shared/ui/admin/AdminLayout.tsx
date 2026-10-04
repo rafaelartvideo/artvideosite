@@ -274,9 +274,9 @@ export function AdminDialog({
       showClose={false}
       overlayClassName="admin-dialog-overlay"
       data-admin-dialog-content="true"
-      className={cn("admin-crm z-[150] max-h-[90vh] max-w-lg gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl", className)}
+      className={cn("admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl", className)}
     >
-      {(title || description || onClose) && <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
+      {(title || description || onClose) && <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0 flex-1">
           {title ? <DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
           {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
@@ -286,8 +286,8 @@ export function AdminDialog({
           <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>
         </div>
       </div>}
-      <div className="max-h-[calc(90vh-140px)] min-w-0 overflow-y-auto p-5">{children}</div>
-      {footer && <div className="border-t border-border bg-muted/60 px-5 py-4">{footer}</div>}
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5">{children}</div>
+      {footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 py-4">{footer}</div>}
     </DialogContent>
   </Dialog>;
 }
