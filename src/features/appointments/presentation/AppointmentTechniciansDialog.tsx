@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { X } from "lucide-react";
-import { AdminIconButton, BtnPrimary } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, BtnPrimary } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 
 type Technician = { id: string; full_name: string };
 
@@ -23,21 +21,22 @@ export function AppointmentTechniciansDialog({ technicians, selectedIds, onSelec
     onSelectedIdsChange(selectedIds.includes(id) ? selectedIds.filter(item => item !== id) : [...selectedIds, id]);
   };
 
-  return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent showClose={false} minimizedTitle="Selecionar técnicos" className="admin-crm max-w-lg gap-0 rounded-xl bg-white p-5 shadow-2xl">
-      <DialogTitle className="sr-only">Selecionar técnicos</DialogTitle>
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-black text-[#0d1b2e]">Selecionar Técnicos</h3>
-        <AdminIconButton ariaLabel="Fechar técnicos" onClick={onClose} variant="ghost"><X size={17} /></AdminIconButton>
-      </div>
-      <FInput label="Buscar" value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome do técnico" />
-      <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">
-        {filteredTechnicians.map(technician => <label key={technician.id} className="flex items-center gap-2 rounded-lg p-2 text-sm hover:bg-[#f8fafc]">
-          <Checkbox checked={selectedIds.includes(technician.id)} onCheckedChange={() => toggleTechnician(technician.id)} />
-          {technician.full_name}
-        </label>)}
-      </div>
-      <div className="mt-4 flex justify-end"><BtnPrimary onClick={onClose}>Confirmar</BtnPrimary></div>
-    </DialogContent>
-  </Dialog>;
+  return <AdminDialog
+    open
+    onClose={onClose}
+    title="Selecionar técnicos"
+    description="Escolha os técnicos responsáveis pelo atendimento."
+    minimizedDescription={selectedIds.length ? `${selectedIds.length} técnico${selectedIds.length === 1 ? "" : "s"} selecionado${selectedIds.length === 1 ? "" : "s"}` : "Nenhum técnico selecionado"}
+    className="max-w-lg"
+    footer={<div className="flex justify-end"><BtnPrimary onClick={onClose}>Confirmar</BtnPrimary></div>}
+  >
+    <FInput label="Buscar" value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome do técnico" />
+    <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">
+      {filteredTechnicians.map(technician => <label key={technician.id} className="flex items-center gap-2 rounded-lg p-2 text-sm hover:bg-[#f8fafc]">
+        <Checkbox checked={selectedIds.includes(technician.id)} onCheckedChange={() => toggleTechnician(technician.id)} />
+        {technician.full_name}
+      </label>)}
+    </div>
+
+  </AdminDialog>;
 }
