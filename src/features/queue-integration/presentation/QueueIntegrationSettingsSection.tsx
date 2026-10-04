@@ -11,12 +11,12 @@ import {
 } from "@/shared/ui/primitives/select";
 import {
   defaultQueueIntegrationSettings,
-  getQueueIntegrationSettings,
   saveQueueIntegrationSettings,
   type QueueIntegrationSettings,
   type QueueOutagePolicy,
 } from "../infrastructure/queue-integration.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { useQueueIntegrationSettings } from "../application/useQueueIntegrationSettings";
 
 export function QueueIntegrationSettingsSection({
   organizationId,
@@ -25,21 +25,18 @@ export function QueueIntegrationSettingsSection({
   organizationId: string;
   canUpdate: boolean;
 }) {
+  const settingsQuery = useQueueIntegrationSettings(organizationId);
   const [settings, setSettings] = useState<QueueIntegrationSettings>(() => defaultQueueIntegrationSettings(organizationId));
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const loading = settingsQuery.isLoading;
 
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setMessage(null);
-    void getQueueIntegrationSettings(organizationId)
-      .then((next) => { if (active) setSettings(next); })
-      .catch((error) => { if (active) setMessage({ text: systemErrorMessage(error, "Não foi possível carregar a integração da fila."), error: true }); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [organizationId]);
+    setSettings(settingsQuery.data || defaultQueueIntegrationSettings(organizationId));
+    if (settingsQuery.error) {
+      setMessage({ text: systemErrorMessage(settingsQuery.error, "Não foi possível carregar a integração da fila."), error: true });
+    }
+  }, [organizationId, settingsQuery.data, settingsQuery.error]);
 
   const update = <K extends keyof QueueIntegrationSettings>(key: K, value: QueueIntegrationSettings[K]) => {
     if (!canUpdate || saving) return;
