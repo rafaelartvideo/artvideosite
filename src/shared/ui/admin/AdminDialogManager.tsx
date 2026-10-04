@@ -138,13 +138,14 @@ function AdminMinimizedDialogDock({
   if (!minimized.length) return null;
 
   return <div
-    className="pointer-events-none fixed left-3 right-3 z-[240] flex max-h-[52dvh] flex-col-reverse items-stretch gap-2 overflow-y-auto sm:left-auto sm:right-4 sm:w-[calc(100vw-2rem)] sm:flex-row-reverse sm:flex-wrap-reverse sm:content-end sm:items-end sm:overflow-visible"
+    className="pointer-events-none fixed left-3 right-3 z-[240] flex h-fit max-h-[52dvh] flex-col-reverse items-stretch gap-2 overflow-y-auto sm:left-auto sm:right-4 sm:w-[calc(100vw-2rem)] sm:flex-row-reverse sm:flex-wrap-reverse sm:content-end sm:items-end sm:overflow-visible"
     style={{ bottom: `calc(0.75rem + env(safe-area-inset-bottom, 0px) + ${browserBottomInset}px)` }}
     aria-label="Modais minimizados"
   >
     {minimized.map(task => <div
       key={task.id}
-      className="admin-crm pointer-events-auto flex w-full min-w-0 shrink-0 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-card-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out motion-reduce:animate-none sm:w-[360px]"
+      className="admin-crm pointer-events-auto flex !h-auto max-h-[76px] !min-h-0 w-full min-w-0 shrink-0 items-center gap-3 overflow-hidden rounded-xl border border-border bg-card px-4 py-3 text-card-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out motion-reduce:animate-none sm:w-[360px]"
+      style={{ height: "auto", minHeight: 0, maxHeight: "76px" }}
     >
       <button
         type="button"
