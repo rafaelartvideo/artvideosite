@@ -328,7 +328,7 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "general_services", keys: [queryKeys.generalServices.all, queryKeys.orders.workspace(), queryKeys.orders.lists()] },
   { table: "service_types", keys: [queryKeys.serviceTypes.all, queryKeys.orders.workspace(), queryKeys.orders.lists()] },
   { table: "service_type_situations", keys: [queryKeys.serviceTypes.all, queryKeys.orders.workspace()] },
-  { table: "service_type_monitoring", keys: [queryKeys.serviceTypes.all] },
+  { table: "service_type_monitoring", keys: [queryKeys.serviceTypes.all, queryKeys.admin.dashboards()] },
   { table: "os_situations", keys: [queryKeys.orderSituations.all, queryKeys.orders.workspace(), queryKeys.orders.lists(), queryKeys.checklists.all, queryKeys.admin.dashboards()] },
   { table: "financial_accounts", keys: [["finance", "foundation"], queryKeys.pdv.all] },
   { table: "financial_categories", keys: [["finance", "foundation"]] },
