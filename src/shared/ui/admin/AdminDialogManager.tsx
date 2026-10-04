@@ -8,6 +8,7 @@ type AdminDialogTask = {
   id: string;
   ownerKey: string;
   title: string;
+  description?: React.ReactNode;
   minimized: boolean;
   order: number;
   onClose: () => void;
@@ -17,6 +18,7 @@ type PinDialogInput = {
   id: string;
   ownerKey: string;
   title: string;
+  description?: React.ReactNode;
   onClose: () => void;
 };
 
@@ -64,7 +66,7 @@ export function AdminDialogManagerProvider({ children }: { children: React.React
       const existing = current.find(item => item.id === input.id);
       if (existing) {
         return current.map(item => item.id === input.id
-          ? { ...item, ownerKey: input.ownerKey, title: input.title, minimized: true, onClose: input.onClose }
+          ? { ...item, ownerKey: input.ownerKey, title: input.title, description: input.description, minimized: true, onClose: input.onClose }
           : item);
       }
       orderRef.current += 1;
@@ -118,15 +120,16 @@ function AdminMinimizedDialogDock({
   >
     {minimized.map(task => <div
       key={task.id}
-      className="admin-crm pointer-events-auto flex w-[min(320px,calc(100vw-2rem))] min-w-0 items-center gap-2 rounded-xl border border-border bg-card p-2.5 text-card-foreground shadow-2xl"
+      className="admin-crm pointer-events-auto flex w-[min(360px,calc(100vw-2rem))] min-w-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-card-foreground shadow-2xl"
     >
       <button
         type="button"
         onClick={() => setMinimized(task.id, false)}
-        className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-xs font-black transition-colors hover:bg-muted"
+        className="min-w-0 flex-1 rounded-lg px-2 py-1 text-left transition-colors hover:bg-muted"
         title={task.title}
       >
-        {task.title}
+        <span className="block truncate text-sm font-bold text-foreground">{task.title}</span>
+        {task.description ? <span className="mt-0.5 block truncate text-xs text-muted-foreground">{task.description}</span> : null}
       </button>
       <button
         type="button"
