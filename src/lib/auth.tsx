@@ -78,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signedInUserRef = useRef<string | null>(null);
   const activeOrganizationIdRef = useRef<string | null>(null);
   const deferredAccessTimerRef = useRef<number | null>(null);
-  const sessionValidationRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -239,39 +238,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (inactivityTimer !== null) window.clearTimeout(inactivityTimer);
       activityEvents.forEach(eventName => window.removeEventListener(eventName, recordActivity));
       document.removeEventListener("visibilitychange", checkAfterVisibilityChange);
-    };
-  }, [session?.user.id]);
-
-  useEffect(() => {
-    if (!session?.user) return;
-
-    const validateVisibleSession = async () => {
-      if (document.visibilityState !== "visible" || sessionValidationRef.current) return;
-      sessionValidationRef.current = true;
-      try {
-        const validation = await validateCurrentSessionIp();
-
-        if (validation === "ip_not_allowed") {
-          await signOut();
-          return;
-        }
-
-        if (validation === "session_invalid") {
-          // Pode acontecer durante a troca automática do access token.
-          // Solicita refresh, mas não força logout por erro temporário:
-          // o próprio Supabase emitirá SIGNED_OUT se a sessão for realmente inválida.
-          await supabase.auth.refreshSession();
-        }
-      } finally {
-        sessionValidationRef.current = false;
-      }
-    };
-
-    document.addEventListener("visibilitychange", validateVisibleSession);
-    const interval = window.setInterval(validateVisibleSession, 5 * 60 * 1000);
-    return () => {
-      document.removeEventListener("visibilitychange", validateVisibleSession);
-      window.clearInterval(interval);
     };
   }, [session?.user.id]);
 
