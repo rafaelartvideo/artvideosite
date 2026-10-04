@@ -138,7 +138,7 @@ export function useOrderResolution({
   const openSolveOrder = async (order: any) => {
     if (!hasPermission("orders.solve")) {
       showToast({
-        msg: "Você não possui permissão para resolver a OS.",
+        msg: "Você não possui permissão para solucionar a OS.",
         type: "error",
       });
       return;
@@ -284,7 +284,7 @@ export function useOrderResolution({
   const saveOrderSolution = async (orderId: string) => {
     if (!hasPermission("orders.solve")) {
       showToast({
-        msg: "Você não possui permissão para resolver ordens de serviço.",
+        msg: "Você não possui permissão para solucionar ordens de serviço.",
         type: "error",
       });
       return;
