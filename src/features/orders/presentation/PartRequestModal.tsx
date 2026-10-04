@@ -75,19 +75,19 @@ export function PartRequestModal({
     if (inventoryPage > totalInventoryPages) setInventoryPage(totalInventoryPages);
   }, [inventoryPage, totalInventoryPages]);
 
-  return <CenteredModal onClose={() => { if (!submitting) onClose(); }} className="max-w-4xl sm:max-w-4xl" title="Pedir peças">
-    <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-6">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-lg font-black text-[#0d1b2e]">Pedir peças</h3>
-          <span className="rounded-full bg-[#f0f6ff] px-2.5 py-1 text-[10px] font-black text-[#0057e7]">OS {orderNumber || "—"}</span>
-        </div>
-        <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">Escolha a finalidade e adicione as peças necessárias.</p>
-      </div>
-      <AdminIconButton ariaLabel="Fechar" onClick={onClose} disabled={submitting} variant="ghost" className="h-10 w-10 shrink-0"><X size={18} /></AdminIconButton>
-    </div>
-
-    <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 py-5 sm:px-6">
+  return <CenteredModal
+    onClose={() => { if (!submitting) onClose(); }}
+    className="max-w-4xl"
+    title="Pedir peças"
+    description={`OS ${orderNumber || "—"} · Escolha a finalidade e adicione as peças necessárias.`}
+    minimizedDescription={`OS ${orderNumber || "—"} · ${selectedItems.length} peça${selectedItems.length === 1 ? "" : "s"} selecionada${selectedItems.length === 1 ? "" : "s"}`}
+    minimizable={!submitting}
+    footer={<div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+      <BtnSecondary onClick={onClose} disabled={submitting} className="w-full sm:w-auto">Cancelar</BtnSecondary>
+      <BtnPrimary onClick={onSubmit} disabled={selectedItems.length === 0} loading={submitting} loadingText="Enviando..." className="w-full sm:w-auto">Enviar solicitação{selectedItems.length ? ` (${selectedItems.length})` : ""}</BtnPrimary>
+    </div>}
+  >
+    <div className="space-y-6">
       <div className="space-y-6">
         <section>
           <div className="mb-3">
@@ -209,11 +209,6 @@ export function PartRequestModal({
           <FTextarea label="Observações" value={notes} disabled={submitting} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder="Informações importantes para a análise do pedido." />
         </div>
       </div>
-    </div>
-
-    <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-[#0d1b2e]/8 bg-white px-4 py-3 sm:flex sm:justify-end sm:px-6 sm:py-4">
-      <BtnSecondary onClick={onClose} disabled={submitting} className="w-full sm:w-auto">Cancelar</BtnSecondary>
-      <BtnPrimary onClick={onSubmit} disabled={selectedItems.length === 0} loading={submitting} loadingText="Enviando..." className="w-full sm:w-auto">Enviar solicitação{selectedItems.length ? ` (${selectedItems.length})` : ""}</BtnPrimary>
     </div>
   </CenteredModal>;
 }
