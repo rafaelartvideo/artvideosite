@@ -3,6 +3,7 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Camera, CheckCircle2, Hash, ImagePlus, Loader2, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
 import { useLocation, useParams } from "react-router";
 import { MobileEntryChecklist } from "./MobileEntryChecklist";
+import { subscribeMobileSessionRealtime } from "@/features/device-capture/infrastructure/mobile-session-realtime";
 import {
   connectDeviceCaptureByCode,
   connectDeviceCaptureSession,
@@ -169,7 +170,7 @@ export function MobileDeviceCapturePage() {
     if (!pairing) return;
     let cancelled = false;
 
-    const heartbeat = async () => {
+    const connect = async () => {
       try {
         const result = await connectDeviceCaptureSession(pairing.sessionId, pairing.token);
         if (cancelled) return;
@@ -187,13 +188,33 @@ export function MobileDeviceCapturePage() {
     };
 
     setConnectionState("checking");
-    void heartbeat();
-    const timer = window.setInterval(() => void heartbeat(), 20_000);
+    const unsubscribe = subscribeMobileSessionRealtime({
+      sessionId: pairing.sessionId,
+      presenceRole: "mobile",
+    });
+    void connect();
+
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      unsubscribe();
     };
   }, [pairing?.sessionId, pairing?.token]);
+
+  useEffect(() => {
+    if (!pairing || !expiresAt || connectionState === "expired") return;
+    const expiresAtMs = Date.parse(expiresAt);
+    if (!Number.isFinite(expiresAtMs)) return;
+    const remaining = expiresAtMs - Date.now();
+    if (remaining <= 0) {
+      setConnectionState("expired");
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setConnectionState("expired");
+      setNotice({ text: "A conexão expirou. Gere ou informe um novo código.", type: "error" });
+    }, remaining + 250);
+    return () => window.clearTimeout(timer);
+  }, [pairing?.sessionId, expiresAt, connectionState]);
 
   const connectByCode = async () => {
     const code = pairingCodeDigits(pairingCode);
