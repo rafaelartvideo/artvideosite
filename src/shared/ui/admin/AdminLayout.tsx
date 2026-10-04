@@ -261,6 +261,7 @@ export function AdminDialog({
   headerActions,
   className,
   minimizable = true,
+  minimizedDescription,
 }: {
   open: boolean;
   onClose: () => void;
@@ -271,6 +272,7 @@ export function AdminDialog({
   headerActions?: React.ReactNode;
   className?: string;
   minimizable?: boolean;
+  minimizedDescription?: React.ReactNode;
 }) {
   const minimizedTitle = typeof title === "string" ? title : "Janela administrativa";
 
@@ -280,6 +282,7 @@ export function AdminDialog({
       showMinimizeControl={false}
       minimizable={minimizable}
       minimizedTitle={minimizedTitle}
+      minimizedDescription={minimizedDescription}
       overlayClassName="admin-dialog-overlay"
       data-admin-dialog-content="true"
       className={cn(
@@ -294,7 +297,7 @@ export function AdminDialog({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {headerActions}
-          {minimizable && <DialogMinimizeButton title={minimizedTitle} />}
+          {minimizable && <DialogMinimizeButton title={minimizedTitle} description={minimizedDescription} />}
           <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>
         </div>
       </div>}
