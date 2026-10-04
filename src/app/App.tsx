@@ -5,6 +5,7 @@ import type { PublicPage as Page } from "@/features/public-shell/domain/navigati
 import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
+import { AdminDialogManagerProvider } from "@/shared/ui/admin/AdminDialogManager";
 
 declare const __APP_TARGET__: "site" | "crm" | "combined";
 declare const __PUBLIC_SITE_URL__: string;
@@ -264,10 +265,12 @@ function AdminEntry() {
 
   return (
     <Suspense fallback={<AdminFallback progress={99} status="Finalizando painel" />}>
-      <AdminDashboard
-        onBackToSite={handleBackToSite}
-        pendingTerms={pendingTerms}
-      />
+      <AdminDialogManagerProvider>
+        <AdminDashboard
+          onBackToSite={handleBackToSite}
+          pendingTerms={pendingTerms}
+        />
+      </AdminDialogManagerProvider>
     </Suspense>
   );
 }
