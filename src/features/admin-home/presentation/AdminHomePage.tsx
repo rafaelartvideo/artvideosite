@@ -7,7 +7,6 @@ import {
   CalendarDays,
   ClipboardList,
   FileText,
-  Keyboard,
   Landmark,
   LayoutDashboard,
   MapPinned,
@@ -30,6 +29,7 @@ import {
   type HomeAnnouncementPriority,
 } from "@/features/home/infrastructure/home.repository";
 import { loadAdminNotifications } from "@/features/notifications/infrastructure/notifications.repository";
+import { adminNotificationsKey } from "@/features/notifications/application/useAdminNotifications";
 import { notificationTime } from "@/features/notifications/presentation/AdminNotifications";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
@@ -157,14 +157,15 @@ export function AdminHomePage({
     queryKey: ["admin-home", "announcements", activeOrganizationId],
     enabled: Boolean(activeOrganizationId),
     queryFn: () => loadHomeAnnouncements(activeOrganizationId!),
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: "always",
   });
 
   const activityQuery = useQuery({
-    queryKey: ["admin-home", "activity", activeOrganizationId],
-    enabled: Boolean(activeOrganizationId),
-    queryFn: () => loadAdminNotifications(activeOrganizationId!, 6),
-    refetchInterval: 60_000,
+    queryKey: adminNotificationsKey(activeOrganizationId || null, user?.id || null),
+    enabled: Boolean(activeOrganizationId && user?.id),
+    queryFn: () => loadAdminNotifications(activeOrganizationId!, 50),
+    staleTime: 5 * 60_000,
   });
 
   const acknowledgeMutation = useMutation({
@@ -191,7 +192,7 @@ export function AdminHomePage({
 
   const announcements = announcementsQuery.data || [];
   const pendingAcknowledgments = announcements.filter(item => item.requires_acknowledgment && !item.acknowledged_at).length;
-  const activity = activityQuery.data?.items || [];
+  const activity = (activityQuery.data?.items || []).slice(0, 6);
   const unreadCount = activityQuery.data?.unreadCount || 0;
   const userName = profile?.full_name || user?.email?.split("@")[0] || "usuário";
 
@@ -246,14 +247,6 @@ export function AdminHomePage({
       <div>
         <h2 className="text-sm font-black text-foreground">Ações rápidas</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">Clique no módulo ou use a tecla indicada. Os atalhos funcionam enquanto você estiver na Home.</p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-muted/40 px-3 py-2 text-[10px] font-bold text-muted-foreground">
-        <span className="flex items-center gap-1.5 text-foreground"><Keyboard size={13} /> Atalhos</span>
-        {shortcuts.map(item => <span key={item.key} className="flex items-center gap-1">
-          <kbd className="rounded border border-border bg-card px-1.5 py-0.5 text-[9px] font-black text-foreground">{item.key}</kbd>
-          {item.label}
-        </span>)}
       </div>
 
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
