@@ -88,7 +88,6 @@ export function QueueOsCodeDialog({
       <label className="block space-y-1.5">
         <span className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Código</span>
         <input
-          autoFocus
           inputMode="numeric"
           autoComplete="one-time-code"
           value={code}
