@@ -71,21 +71,12 @@ function fromRow(row: any, organizationSettings?: any): CompanySettings {
 
 export async function getCompanySettings(organizationId?: string | null): Promise<CompanySettings> {
   const resolvedOrganizationId = organizationId || await getActiveOrganizationId();
-  const [companyResult, organizationResult] = await Promise.all([
-    (supabase as any)
-      .from("organization_company_settings")
-      .select("organization_id,name,legal_name,document,phone,email,zip_code,street,number,complement,neighborhood,city,state,logo_media_id,menu_logo_media_id,updated_at")
-      .eq("organization_id", resolvedOrganizationId)
-      .maybeSingle(),
-    (supabase as any)
-      .from("organizations")
-      .select("settings")
-      .eq("id", resolvedOrganizationId)
-      .maybeSingle(),
-  ]);
-  if (companyResult.error) throw companyResult.error;
-  if (organizationResult.error) throw organizationResult.error;
-  return fromRow(companyResult.data, organizationResult.data?.settings);
+  const { data, error } = await supabase.rpc("load_company_settings_v1", {
+    p_organization_id: resolvedOrganizationId,
+  });
+  if (error) throw error;
+  const bootstrap = (data || {}) as Record<string, unknown>;
+  return fromRow(bootstrap.company, bootstrap.organization_settings);
 }
 
 export async function saveCompanySettings(
