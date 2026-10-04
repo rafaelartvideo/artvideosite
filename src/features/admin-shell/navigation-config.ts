@@ -64,6 +64,7 @@ export const utilityItems: AdminNavigationItem[] = [];
 
 export const permissionForTab: Record<AdminTab, string> = {
   dashboard: "dashboard.view",
+  crm: "dashboard.view",
   quotes: "quotes.view",
   orders: "orders.view",
   customers: "customers.view",
@@ -97,6 +98,7 @@ export const permissionForTab: Record<AdminTab, string> = {
 
 export const moduleForTab: Record<AdminTab, string | null> = {
   dashboard: "dashboard",
+  crm: null,
   quotes: "quotes",
   orders: "orders",
   customers: "customers",
@@ -155,6 +157,7 @@ export function isAdminModuleEnabled(
   tab: AdminTab,
   hasModule: (moduleKey: string) => boolean,
 ) {
+  if (tab === "crm") return true;
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
   if (tab === "tools") return true;
