@@ -124,7 +124,6 @@ export function PartRequestModal({
           onSearchChange={onSearchChange}
           searchPlaceholder="Buscar por nome ou SKU"
           searchDisabled={submitting}
-          searchAutoFocus
           loading={inventoryLoading}
           loadingText="Carregando peças do estoque..."
           error={inventoryError || undefined}
