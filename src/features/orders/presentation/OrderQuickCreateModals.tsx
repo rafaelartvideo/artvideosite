@@ -454,7 +454,7 @@ export function QuickEquipmentModal({
     description="Pesquise antes de cadastrar e evite duplicidades no catálogo."
     minimizedDescription={[typeName, brandName, modelName].map(value => String(value || "").trim()).filter(Boolean).join(" · ") || (mode === "model" ? "Novo modelo" : "Cadastro em andamento")}
     minimizable={!saving}
-    className="max-w-6xl"
+    className="max-w-4xl"
     footer={<div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
       <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
       {hasPermission("equipment.create") && (
