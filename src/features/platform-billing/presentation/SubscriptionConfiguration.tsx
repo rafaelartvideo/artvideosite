@@ -15,8 +15,10 @@ import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminF
 import { loadOrganizationPlanUsage } from "@/features/subscriptions/infrastructure/subscription-usage.repository";
 import type { PlatformBillingPlan, PlatformSubscription, UnionPlatformFinanceData } from "../infrastructure/platform-billing.repository";
 import {
-  loadUnionOrganizationDatabaseUsage,\n  loadUnionSubscriptionConfiguration,
-  refreshUnionOrganizationDatabaseUsage,\n  saveUnionBillingAddon,
+  loadUnionOrganizationDatabaseUsage,
+  loadUnionSubscriptionConfiguration,
+  refreshUnionOrganizationDatabaseUsage,
+  saveUnionBillingAddon,
   saveUnionPlanConfiguration,
   saveUnionSubscriptionConfiguration,
   type BillingAddon,
