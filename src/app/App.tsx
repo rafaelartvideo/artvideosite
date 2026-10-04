@@ -5,7 +5,6 @@ import type { PublicPage as Page } from "@/features/public-shell/domain/navigati
 import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
-import { getPendingOrganizationTerms, type PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
 
 declare const __APP_TARGET__: "site" | "crm" | "combined";
 declare const __PUBLIC_SITE_URL__: string;
@@ -188,25 +187,13 @@ function AdminEntry() {
     activeOrganization,
     organizations,
     accessError,
+    pendingTerms,
     refreshAccess,
     signOut,
     setActiveOrganization,
   } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [termsRevision, setTermsRevision] = useState(0);
-  const [termsBootstrap, setTermsBootstrap] = useState<{
-    organizationId: string | null;
-    status: "idle" | "loading" | "ready" | "error";
-    pending: PendingOrganizationTerm[];
-    error: string | null;
-  }>({
-    organizationId: null,
-    status: "idle",
-    pending: [],
-    error: null,
-  });
-
   const requestedOrganizationId = new URLSearchParams(location.search).get("org");
   const canOpenRequestedOrganization = Boolean(
     requestedOrganizationId
@@ -227,49 +214,6 @@ function AdminEntry() {
     if (!shouldSwitchOrganization || !requestedOrganizationId) return;
     void setActiveOrganization(requestedOrganizationId);
   }, [shouldSwitchOrganization, requestedOrganizationId, setActiveOrganization]);
-
-  useEffect(() => {
-    if (!session?.user.id || loading || accessError || shouldSwitchOrganization || !activeOrganizationId) return;
-
-    let cancelled = false;
-    setTermsBootstrap({
-      organizationId: activeOrganizationId,
-      status: "loading",
-      pending: [],
-      error: null,
-    });
-
-    void getPendingOrganizationTerms(activeOrganizationId)
-      .then(pending => {
-        if (cancelled) return;
-        setTermsBootstrap({
-          organizationId: activeOrganizationId,
-          status: "ready",
-          pending,
-          error: null,
-        });
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTermsBootstrap({
-          organizationId: activeOrganizationId,
-          status: "error",
-          pending: [],
-          error: "Não foi possível verificar os termos obrigatórios desta empresa. Tente novamente.",
-        });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    session?.user.id,
-    loading,
-    accessError,
-    shouldSwitchOrganization,
-    activeOrganizationId,
-    termsRevision,
-  ]);
 
   if (loading || shouldSwitchOrganization) {
     return (
@@ -320,29 +264,11 @@ function AdminEntry() {
     );
   }
 
-  const termsStateMatchesOrganization = termsBootstrap.organizationId === activeOrganizationId;
-
-  if (!termsStateMatchesOrganization || termsBootstrap.status === "idle" || termsBootstrap.status === "loading") {
-    return <AdminFallback progress={95} status="Preparando painel" />;
-  }
-
-  if (termsBootstrap.status === "error") {
-    return (
-      <AdminAccessMessage
-        title="Não foi possível concluir o carregamento"
-        message={termsBootstrap.error || "Não foi possível verificar os termos obrigatórios."}
-        userEmail={session.user.email}
-        onRetry={() => setTermsRevision(current => current + 1)}
-        onSignOut={signOut}
-      />
-    );
-  }
-
   return (
     <Suspense fallback={<AdminFallback progress={99} status="Finalizando painel" />}>
       <AdminDashboard
         onBackToSite={handleBackToSite}
-        pendingTerms={termsBootstrap.pending}
+        pendingTerms={pendingTerms}
       />
     </Suspense>
   );
