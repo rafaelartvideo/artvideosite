@@ -8,14 +8,12 @@ import {
   FileText,
   Image as ImageIcon,
   Paperclip,
-  Plus,
   Upload,
   X,
 } from "lucide-react";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
 import { cn } from "@/shared/domain/formatters";
 import {
-  AdminButton,
   AdminCard,
   AdminCardHeader,
   AdminPage,
@@ -282,9 +280,12 @@ export function OrderDocumentsPage({
 }) {
   const [activeTab, setActiveTab] = useState<DocumentsTab>("attachments");
   const [newAttachmentOpen, setNewAttachmentOpen] = useState(false);
+  const [signatureSendRequestNonce, setSignatureSendRequestNonce] = useState(0);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [browserBottomInset, setBrowserBottomInset] = useState(0);
   const canViewSignatures = hasPermission("documents.signatures.view");
+  const canSendSignature = !readOnly && hasPermission("documents.signatures.send");
+  const hasOnlineSignatureTemplate = signatureTemplates.some(template => template.is_active !== false && template.allow_online_signature === true);
 
   useEffect(() => {
     if (!open) { setBrowserBottomInset(0); return; }
@@ -366,7 +367,6 @@ export function OrderDocumentsPage({
             })
           ) : activeTab === "solution" ? (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
-              <div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Solução</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Imagens registradas no momento da resolução da OS.</p></div>
               {solutionImages.length === 0 ? (
                 <div className="max-w-full rounded-xl border border-dashed border-border px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhuma imagem da solução registrada nesta OS.</div>
               ) : (
@@ -386,10 +386,11 @@ export function OrderDocumentsPage({
               history={signatureContext.history}
               printedBy={signatureContext.printedBy}
               hasPermission={hasPermission}
+              sendRequestNonce={signatureSendRequestNonce}
+              onSendRequestHandled={() => setSignatureSendRequestNonce(0)}
             />
           ) : (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-black text-[#0d1b2e]">Anexos da OS</h2><p className="mt-0.5 text-xs text-[#5a6a82]">Documentos classificados por tipo e vinculados à OS.</p></div>{!readOnly && controller.canUploadAttachment && <AdminButton onClick={() => setNewAttachmentOpen(true)} size="sm" aria-label="Novo anexo" title="Novo anexo" className="h-11 w-11 !px-0 sm:h-9 sm:w-auto sm:!px-3"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="hidden sm:inline">Novo anexo</span></AdminButton>}</div>
               {typedAttachments.length === 0 ? (
                 <div className="max-w-full rounded-xl border border-dashed border-border px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
               ) : (
@@ -400,7 +401,13 @@ export function OrderDocumentsPage({
         </div>
 
         <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
-        <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}><div className="mx-auto w-full max-w-6xl"><BtnSecondary onClick={onClose} className="w-full justify-center md:w-auto">Voltar para a OS</BtnSecondary></div></AdminStickyToolbar>
+        <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
+          <div className="mx-auto flex w-full max-w-6xl items-center gap-2">
+            <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
+            {activeTab === "attachments" && !readOnly && controller.canUploadAttachment && <BtnPrimary onClick={() => setNewAttachmentOpen(true)}>Novo</BtnPrimary>}
+            {activeTab === "signatures" && canSendSignature && <BtnPrimary disabled={!hasOnlineSignatureTemplate} onClick={() => setSignatureSendRequestNonce(current => current + 1)}>Enviar</BtnPrimary>}
+          </div>
+        </AdminStickyToolbar>
       </AdminPage>
 
       {!readOnly && newAttachmentOpen && <NewAttachmentModal controller={controller} onClose={() => setNewAttachmentOpen(false)} onSuccess={text => setMessage({ text, type: "success" })} />}
