@@ -32,6 +32,7 @@ export function useOrderHistory({
   const notesQuery = useQuery({
     queryKey: ["orders", "history-notes", orderId || ""],
     enabled: Boolean(orderId),
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await listServiceOrderHistoryNotes(orderId!);
       if (error) throw error;
