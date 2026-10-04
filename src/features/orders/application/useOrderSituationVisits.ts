@@ -1,38 +1,37 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   listServiceOrderSituationVisits,
   type ServiceOrderSituationVisit,
 } from "../infrastructure/order-situation-visits.repository";
 
-export function useOrderSituationVisits(orderId?: string | null, situationId?: string | null, situationStartedAt?: string | null) {
-  const [visits, setVisits] = useState<ServiceOrderSituationVisit[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+export function useOrderSituationVisits(
+  orderId?: string | null,
+  situationId?: string | null,
+  situationStartedAt?: string | null,
+) {
+  const query = useQuery({
+    queryKey: ["orders", orderId || "", "situation-visits"],
+    enabled: Boolean(orderId),
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await listServiceOrderSituationVisits(orderId!);
+      if (error) throw error;
+      return (data || []) as ServiceOrderSituationVisit[];
+    },
+  });
 
-  useEffect(() => {
-    if (!orderId) {
-      setVisits([]);
-      setLoading(false);
-      setError("");
-      return;
-    }
+  // Mantém situação/entrada como dependências sem provocar fetch enquanto o
+  // bootstrap ainda está fresco; invalidações Realtime cuidam das mudanças.
+  void situationId;
+  void situationStartedAt;
 
-    let active = true;
-    setLoading(true);
-    setError("");
-    listServiceOrderSituationVisits(orderId).then(({ data, error: loadError }) => {
-      if (!active) return;
-      if (loadError) {
-        setVisits([]);
-        setError(loadError.message || "Não foi possível carregar os registros de SLA da OS.");
-      } else {
-        setVisits((data || []) as ServiceOrderSituationVisit[]);
-      }
-      setLoading(false);
-    });
-
-    return () => { active = false; };
-  }, [orderId, situationId, situationStartedAt]);
-
-  return { visits, loading, error };
+  return {
+    visits: query.data || [],
+    loading: query.isLoading,
+    error: query.error instanceof Error
+      ? query.error.message
+      : query.error
+        ? "Não foi possível carregar os registros de SLA da OS."
+        : "",
+  };
 }
