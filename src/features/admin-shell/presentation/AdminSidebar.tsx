@@ -38,6 +38,7 @@ export function AdminSidebar({
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "crm") return isPlatformOperatorOrganization;
+    if (tab === "settings" && isPlatformOperatorOrganization) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (isPlatformOperatorOrganization && ["quotes", "inventory", "pdv", "finance"].includes(tab)) return false;
     if (tab === "partnerCompanies" && !isPlatformOperatorOrganization) return false;
     if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
@@ -50,7 +51,9 @@ export function AdminSidebar({
     return hasPermission(permission) && isAdminModuleEnabled(tab, hasModule);
   };
 
-  const selectedTab = activeTab === "fieldTracking" ? "tools" : (parentAdminTab(activeTab) || activeTab);
+  const selectedTab = isPlatformOperatorOrganization && activeTab === "settings"
+    ? "settings"
+    : activeTab === "fieldTracking" ? "tools" : (parentAdminTab(activeTab) || activeTab);
   const canAccessSite = hasPermission("site.view") && siteItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
@@ -58,6 +61,7 @@ export function AdminSidebar({
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
   const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization || canAccessTab("fieldTracking");
+  const canAccessPlatformSettings = isPlatformOperatorOrganization && canAccessTab("settings");
   const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));
   const dashboardItems = visibleMainItems.filter(item => item.id === "dashboard");
   const serviceItems = visibleMainItems.filter(item =>
@@ -204,6 +208,18 @@ export function AdminSidebar({
                   onClick={() => onNavigate("tools")}
                 />
               )}
+            </div>
+          )}
+
+          {canAccessPlatformSettings && (
+            <div className="space-y-1">
+              {sectionHeader("Configuração")}
+              <SidebarItem
+                item={{ id: "settings", label: "Dados da empresa", icon: Settings }}
+                active={selectedTab === "settings"}
+                collapsed={collapsed}
+                onClick={() => onNavigate("settings")}
+              />
             </div>
           )}
 
