@@ -83,7 +83,7 @@ export function QueueOsCodeDialog({
   };
 
   return <Dialog open={open} onOpenChange={(next) => { if (!next && !busy) onCancel(); }}>
-    <DialogContent className="admin-crm max-w-md" showClose={!busy}>
+    <DialogContent className="admin-crm max-w-md" showClose={!busy} minimizedTitle="Código da Fila">
       <DialogHeader>
         <DialogTitle>Código da Fila</DialogTitle>
         <DialogDescription>
