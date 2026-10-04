@@ -20,7 +20,7 @@ import {
   FPhoneInput,
 } from "@/shared/ui/admin/AdminFormControls";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
-import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
+import { ensureCpfAvailable, lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
 import { isValidCnpj, isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
 import {
   createQuickCustomer,
@@ -99,6 +99,15 @@ export function QuickCustomerModal({ onClose, onSaved }: {
     const validationErrors = validateCustomerFormFields(form);
     setFieldErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
+
+    if (form.customerType === "PF") {
+      try {
+        await ensureCpfAvailable(form.document, activeOrganizationId);
+      } catch (error) {
+        setFieldError("document", quickCustomerErrorMessage(error, "Não foi possível verificar o CPF."));
+        return;
+      }
+    }
 
     setSaving(true);
     let savePhase: "customer" | "address" = "customer";

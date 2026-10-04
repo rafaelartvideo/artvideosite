@@ -106,6 +106,21 @@ export async function getPartnerCompany(id: string) {
     : result;
 }
 
+export async function findPartnerCompanyByDocument(document: string, excludeCompanyId?: string | null) {
+  const normalized = String(document || "").trim();
+  if (!normalized) return { data: null, error: null };
+  let query = supabase
+    .from("organizations")
+    .select("id,name,document")
+    .eq("document", normalized)
+    .or("organization_type.eq.partner,settings->>is_artvideo_tenant.eq.true");
+  if (excludeCompanyId) query = query.neq("id", excludeCompanyId);
+  const result = await query.limit(1).maybeSingle();
+  return result.error
+    ? { ...result, error: toPartnerCompanyError(result.error, "Não foi possível verificar se o CPF/CNPJ já está cadastrado.") }
+    : result;
+}
+
 export async function createPartnerCompany(
   payload: PartnerCompanyInput,
   monitoredTypes: PartnerMonitoredServiceTypeDraft[] = [],

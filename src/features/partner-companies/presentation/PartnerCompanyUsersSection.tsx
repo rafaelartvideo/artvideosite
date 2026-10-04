@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Users } from "lucide-react";
 import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
-import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
+import { ensureCpfAvailable, lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
 import { isPastOrTodayIsoDate, isValidBrazilianPhone, isValidCpf, isValidEmail, normalizeDigits, todayDateOnly } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -99,6 +99,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      await ensureCpfAvailable(form.cpf, organizationId, editing?.entity_id || null);
       const payload = {
         organization_id: organizationId,
         full_name: form.full_name.trim(),
@@ -131,7 +132,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
       const code = String(error?.code || "");
       const message = systemErrorMessage(error, "Não foi possível salvar o usuário.");
       let fieldError = true;
-      if (code === "cpf_already_exists" || code === "invalid_cpf") {
+      if (code === "cpf_already_exists" || code === "invalid_cpf" || /cpf já cadastrado/i.test(message)) {
         setErrors(current => ({ ...current, cpf: message }));
       } else if (code === "username_already_exists" || code === "invalid_username") {
         setErrors(current => ({ ...current, username: message }));
@@ -165,7 +166,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
     setCpfLoading(true);
     setErrors(current => ({ ...current, cpf: undefined }));
     try {
-      const result = await lookupCpf(requestedCpf, organizationId);
+      const result = await lookupCpf(requestedCpf, organizationId, editing?.entity_id || null);
       setForm(current => {
         if (normalizeDigits(current.cpf) !== requestedCpf) return current;
         return {
@@ -176,11 +177,9 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
       });
       setErrors(current => ({ ...current, full_name: undefined, birth_date: undefined }));
       setToast({
-        msg: result.source === "local"
-          ? "CPF encontrado no cadastro da empresa. Nome e nascimento foram reaproveitados."
-          : result.birthDate
-            ? "Nome e data de nascimento preenchidos pela consulta de CPF."
-            : "Nome preenchido pela consulta de CPF.",
+        msg: result.birthDate
+          ? "Nome e data de nascimento preenchidos pela consulta de CPF."
+          : "Nome preenchido pela consulta de CPF.",
         type: "success",
       });
     } catch (error) {

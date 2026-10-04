@@ -1,32 +1,37 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeCpfLookupPayload } from "./cpf-lookup.mjs";
+import { cpfAlreadyRegisteredMessage, normalizeCpfLookupPayload } from "./cpf-lookup.mjs";
 
-test("normalizes a local CPF result with name and birth date", () => {
-  assert.deepEqual(normalizeCpfLookupPayload({
-    success: true,
-    source: "local",
-    registration_id: "abc",
-    name: "Maria da Silva",
-    birth_date: "1990-05-12",
-  }), {
-    name: "Maria da Silva",
-    birthDate: "1990-05-12",
-    source: "local",
-    registrationId: "abc",
-  });
+test("blocks CPF lookup when the CPF is already registered locally", () => {
+  assert.throws(
+    () => normalizeCpfLookupPayload({
+      success: true,
+      source: "local",
+      registration_id: "abc",
+      name: "Maria da Silva",
+      birth_date: "1990-05-12",
+    }),
+    /CPF já cadastrado nesta empresa para Maria da Silva/i,
+  );
 });
 
-test("normalizes an external CPF result and ignores a non-ISO birth date", () => {
+test("normalizes an external CPF result", () => {
   assert.deepEqual(normalizeCpfLookupPayload({
     success: true,
     source: "external",
     name: "Joao Souza",
-    birth_date: "12/05/1990",
+    birth_date: "1990-05-12",
   }), {
     name: "Joao Souza",
-    birthDate: null,
+    birthDate: "1990-05-12",
     source: "external",
     registrationId: null,
   });
+});
+
+test("formats a generic duplicate CPF message when the name is unavailable", () => {
+  assert.equal(
+    cpfAlreadyRegisteredMessage(""),
+    "CPF já cadastrado nesta empresa. Abra o cadastro existente.",
+  );
 });

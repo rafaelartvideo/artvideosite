@@ -15,7 +15,7 @@ import {
   createCustomerAddress,
   fetchCnpjData,
 } from "../infrastructure/customers.repository";
-import { lookupCpf } from "../infrastructure/cpf.gateway";
+import { ensureCpfAvailable, lookupCpf } from "../infrastructure/cpf.gateway";
 
 type Options = {
   organizationId: string | null;
@@ -74,7 +74,9 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
       });
       onToast(result.birthDate ? "Nome e data de nascimento preenchidos pela consulta de CPF." : "Nome preenchido pela consulta de CPF.", "success");
     } catch (error) {
-      onToast(systemErrorMessage(error, "Não foi possível consultar o CPF."), "error");
+      const message = systemErrorMessage(error, "Não foi possível consultar o CPF.");
+      if (/cpf já cadastrado/i.test(message)) setCpfError(message);
+      onToast(message, "error");
     } finally {
       setCpfLoading(false);
     }
@@ -120,6 +122,17 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
     setFieldErrors(validationErrors);
     if (validationErrors.document) setCpfError(validationErrors.document);
     if (Object.keys(validationErrors).length) return false;
+
+    if (form.customerType === "PF") {
+      try {
+        await ensureCpfAvailable(form.document, organizationId);
+      } catch (error) {
+        const message = systemErrorMessage(error, "Não foi possível verificar o CPF.");
+        setCpfError(message);
+        onToast(message, "error");
+        return false;
+      }
+    }
 
     setSaving(true);
     let customer;

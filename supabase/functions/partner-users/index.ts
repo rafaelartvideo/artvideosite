@@ -263,17 +263,20 @@ async function syncPartnerUserRegistrationIdentity(input: {
   if (!entity) {
     const result = await adminClient
       .from("entities")
-      .select("id,legacy_employee_id")
+      .select("id,name,legacy_employee_id")
       .eq("organization_id", organizationId)
       .eq("document", cpf)
       .order("created_at", { ascending: true })
       .limit(1);
     if (result.error) throw result.error;
-    entity = result.data?.[0] ?? null;
-  }
-
-  if (entity?.legacy_employee_id && entity.legacy_employee_id !== employeeId) {
-    throw new Error("Este CPF já está vinculado a outro funcionário nesta empresa.");
+    const conflictingEntity = result.data?.[0] ?? null;
+    if (conflictingEntity) {
+      throw new Error(
+        conflictingEntity.name
+          ? `CPF já cadastrado nesta empresa para ${conflictingEntity.name}. Abra o cadastro existente.`
+          : "CPF já cadastrado nesta empresa. Abra o cadastro existente."
+      );
+    }
   }
 
   if (!entity) {
@@ -508,6 +511,26 @@ Deno.serve(async (request) => {
         return fail(request, "Este usuário já está em uso. Escolha outro usuário.", 409, "username_already_exists");
       }
 
+      const { data: existingCpfEntityRows, error: existingCpfEntityError } = await adminClient
+        .from("entities")
+        .select("id,name")
+        .eq("organization_id", organizationId)
+        .eq("document", cpf)
+        .limit(1);
+      if (existingCpfEntityError) throw existingCpfEntityError;
+      const existingCpfEntity = existingCpfEntityRows?.[0] ?? null;
+      if (existingCpfEntity) {
+        return fail(
+          request,
+          existingCpfEntity.name
+            ? `CPF já cadastrado nesta empresa para ${existingCpfEntity.name}. Abra o cadastro existente.`
+            : "CPF já cadastrado nesta empresa. Abra o cadastro existente.",
+          409,
+          "cpf_already_exists",
+          { entity_id: existingCpfEntity.id },
+        );
+      }
+
       const { data: existingCpfEmployee, error: existingCpfError } = await adminClient
         .from("employees")
         .select("id,full_name,profile_id,is_active")
@@ -633,6 +656,34 @@ Deno.serve(async (request) => {
     if (membershipError) throw membershipError;
     if (!membership) return fail(request, "Usuário não pertence à empresa selecionada.", 404, "user_not_in_organization");
 
+    const { data: employee, error: employeeLookupError } = await adminClient
+      .from("employees")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("profile_id", userId)
+      .maybeSingle();
+    if (employeeLookupError) throw employeeLookupError;
+
+    const { data: matchingEntities, error: matchingEntitiesError } = await adminClient
+      .from("entities")
+      .select("id,name,legacy_employee_id")
+      .eq("organization_id", organizationId)
+      .eq("document", cpf)
+      .limit(5);
+    if (matchingEntitiesError) throw matchingEntitiesError;
+    const conflictingEntity = (matchingEntities ?? []).find((row: any) => row.legacy_employee_id !== employee?.id);
+    if (conflictingEntity) {
+      return fail(
+        request,
+        conflictingEntity.name
+          ? `CPF já cadastrado nesta empresa para ${conflictingEntity.name}. Abra o cadastro existente.`
+          : "CPF já cadastrado nesta empresa. Abra o cadastro existente.",
+        409,
+        "cpf_already_exists",
+        { entity_id: conflictingEntity.id },
+      );
+    }
+
     const { data: conflictingCpfEmployee, error: conflictingCpfError } = await adminClient
       .from("employees")
       .select("id,full_name,profile_id")
@@ -684,13 +735,6 @@ Deno.serve(async (request) => {
       role_id: roleId,
       is_active: isActive,
     };
-    const { data: employee, error: employeeLookupError } = await adminClient
-      .from("employees")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .eq("profile_id", userId)
-      .maybeSingle();
-    if (employeeLookupError) throw employeeLookupError;
 
     let savedEmployeeId = employee?.id ?? null;
     if (employee) {

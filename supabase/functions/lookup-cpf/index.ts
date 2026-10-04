@@ -45,10 +45,6 @@ Deno.serve(async (request) => {
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
       return json({ success: false, error: "Supabase não configurado para a consulta de CPF." });
     }
-    if (!apiKey) {
-      return json({ success: false, error: "Consulta de CPF ainda não configurada no servidor." });
-    }
-
     const client = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authorization } },
       auth: { persistSession: false },
@@ -100,28 +96,43 @@ Deno.serve(async (request) => {
       return json({ success: false, error: "Cadastro de exclusão inválido." }, 400);
     }
 
-    let localQuery = adminClient
-      .from("entities")
-      .select("id,name,birth_date")
-      .eq("organization_id", organizationId)
-      .eq("document", cpf)
-      .order("updated_at", { ascending: false })
-      .limit(1);
-    if (excludeRegistrationId) localQuery = localQuery.neq("id", excludeRegistrationId);
-    const { data: localRows, error: localError } = await localQuery;
-    if (localError) {
-      console.error("[CPF LOOKUP] local registration lookup failed", localError);
-      return json({ success: false, error: "Não foi possível verificar os cadastros internos antes da consulta de CPF." });
+    const checkExisting = body?.check_existing !== false;
+    const checkOnly = body?.check_only === true;
+
+    if (checkExisting || checkOnly) {
+      let localQuery = adminClient
+        .from("entities")
+        .select("id,name,birth_date")
+        .eq("organization_id", organizationId)
+        .eq("document", cpf)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (excludeRegistrationId) localQuery = localQuery.neq("id", excludeRegistrationId);
+      const { data: localRows, error: localError } = await localQuery;
+      if (localError) {
+        console.error("[CPF LOOKUP] local registration lookup failed", localError);
+        return json({ success: false, error: "Não foi possível verificar os cadastros internos antes da consulta de CPF." });
+      }
+      const local = Array.isArray(localRows) ? localRows[0] : null;
+      if (local) {
+        const localName = String(local.name || "").trim();
+        return json({
+          success: false,
+          code: "cpf_already_exists",
+          registration_id: local.id,
+          error: localName
+            ? `CPF já cadastrado nesta empresa para ${localName}. Abra o cadastro existente.`
+            : "CPF já cadastrado nesta empresa. Abra o cadastro existente.",
+        });
+      }
     }
-    const local = Array.isArray(localRows) ? localRows[0] : null;
-    if (local) {
-      return json({
-        success: true,
-        source: "local",
-        registration_id: local.id,
-        name: String(local.name || "").trim(),
-        birth_date: normalizeBirthDate(local.birth_date) || null,
-      });
+
+    if (checkOnly) {
+      return json({ success: true, available: true });
+    }
+
+    if (!apiKey) {
+      return json({ success: false, error: "Consulta de CPF ainda não configurada no servidor." });
     }
 
     const response = await fetch(`https://apicpf.com/api/consulta?cpf=${encodeURIComponent(cpf)}`, {
