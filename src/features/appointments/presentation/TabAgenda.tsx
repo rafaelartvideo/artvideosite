@@ -3,7 +3,6 @@ import { useAuth } from "@/lib/auth";
 import type { AppointmentWithRelations } from "../application/agenda-calendar";
 import { useAgendaCalendar } from "../application/useAgendaCalendar";
 import { useNewAppointment } from "../application/useNewAppointment";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AgendaToolbar } from "./AgendaToolbar";
 import { AgendaCalendarView } from "./AgendaCalendarView";
@@ -46,7 +45,16 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   return <>
     <div className="space-y-4">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      <PageHeader title="Agenda" actions={toolbar} />
+      <header className="min-w-0 border-b border-border pb-4">
+        <div className="flex min-w-0 flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+          <div className="shrink-0">
+            <h1 className="text-2xl font-black leading-tight text-foreground">Agenda</h1>
+          </div>
+          <div className="min-w-0 flex-1 2xl:flex-initial">
+            {toolbar}
+          </div>
+        </div>
+      </header>
       {canViewCurrent && <AgendaCalendarView loading={agenda.loading} view={agenda.view} cursor={agenda.cursor} events={agenda.calendarEvents} draggedEventId={canReschedule ? draggedEventId : null} onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined} onOpenOrder={safeOpenOrder} onOpenAppointment={appointment => { if (canViewDetails) setSelectedAppointment(appointment); }} onDropEvent={canReschedule ? agenda.dropEvent : () => undefined} />}
     </div>
     {canCreate && <NewAppointmentDialog controller={newAppointment} />}
