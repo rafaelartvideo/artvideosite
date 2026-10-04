@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { List, MapPinned, MessageSquare, Phone } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -14,6 +14,7 @@ import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-s
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
+import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
 import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
 
@@ -62,6 +63,41 @@ const ACCESS_FALLBACK_TABS: AdminTab[] = [
   "home", "dashboard", "crm", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "terms", "contact",
 ];
 
+function RetainedAdminWorkspace({
+  ownerKey,
+  children,
+}: {
+  ownerKey: string;
+  children: ReactNode;
+}) {
+  const { retainedOwnerKeys } = useAdminDialogManager();
+  const cacheRef = useRef(new Map<string, ReactNode>());
+
+  cacheRef.current.set(ownerKey, children);
+
+  useEffect(() => {
+    for (const key of cacheRef.current.keys()) {
+      if (key !== ownerKey && !retainedOwnerKeys.has(key)) cacheRef.current.delete(key);
+    }
+  }, [ownerKey, retainedOwnerKeys]);
+
+  const visibleKeys = Array.from(new Set([ownerKey, ...retainedOwnerKeys]))
+    .filter(key => cacheRef.current.has(key));
+
+  return <>
+    {visibleKeys.map(key => <div
+      key={key}
+      className={key === ownerKey ? "contents" : "hidden"}
+      aria-hidden={key === ownerKey ? undefined : true}
+      data-retained-admin-workspace={key === ownerKey ? "active" : "background"}
+    >
+      <AdminDialogOwnerProvider ownerKey={key}>
+        {cacheRef.current.get(key)}
+      </AdminDialogOwnerProvider>
+    </div>)}
+  </>;
+}
+
 function NoEnabledModules() {
   return <div className="flex min-h-[55vh] items-center justify-center px-4"><div className="w-full max-w-lg rounded-2xl border border-[#d9e1ec] bg-white p-6 text-center shadow-sm sm:p-8"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#e8eef8] text-xl font-black text-[#0057e7]">!</div><h2 className="mt-4 text-xl font-black text-[#0d1b2e]">Nenhum módulo disponível</h2><p className="mt-2 text-sm leading-6 text-[#5a6a82]">Esta empresa não possui módulos liberados para o seu acesso. Troque a empresa ativa ou fale com o administrador.</p></div></div>;
 }
@@ -90,6 +126,14 @@ export function AdminDashboard({
   const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
   const crmMode = isPlatformOperatorOrganization && requestedCrmMode;
   const activeMenuTab: AdminTab = crmMode ? "crm" : (locationState?.menuTab || activeTab);
+  const activeWorkspaceKey = `${activeOrganizationId || "none"}:${crmMode ? "crm" : "tenant"}:${activeTab}`;
+  const routeLocationSnapshot = {
+    pathname: location.pathname,
+    search: location.search,
+    hash: location.hash,
+    state: location.state,
+    key: location.key,
+  };
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "home") return true;
@@ -239,7 +283,8 @@ export function AdminDashboard({
       onToggleSidebar={() => setSidebarOpen(current => !current)}
     />}>
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
-        {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes key={activeTab}>
+        <RetainedAdminWorkspace ownerKey={activeWorkspaceKey}>
+        {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes location={routeLocationSnapshot}>
             <Route index element={<AdminHomePage
               onNavigate={tab => navigateAdmin(tab, null, null, { crmMode: false })}
               canAccessTab={canAccessTab}
@@ -284,6 +329,7 @@ export function AdminDashboard({
             <Route path="contact/*" element={<TabContact />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>}
+        </RetainedAdminWorkspace>
         {showCrmBackToolbar && <AdminStickyToolbar className="mt-5">
           <BtnSecondary onClick={() => navigateAdmin("crm", null, null, { crmMode: true })}>Voltar para CRM</BtnSecondary>
         </AdminStickyToolbar>}
