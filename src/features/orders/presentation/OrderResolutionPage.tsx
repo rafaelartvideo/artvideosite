@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Camera, CheckCircle, Upload } from "lucide-react";
+import { Camera, Upload } from "lucide-react";
 import {
   AdminButton,
   AdminPage,
@@ -52,7 +52,7 @@ export function OrderResolutionPage({
   const looseParts = String(solveDraft.looseParts || "");
 
   return (
-<AdminPage open={true} onClose={onClose} breadcrumb="Ordens de Serviço" title="Resolver OS" subtitle="Diagnóstico, solução e produtos utilizados" maxW="max-w-2xl">
+<AdminPage open={true} onClose={onClose} breadcrumb="Ordens de Serviço" title="Solucionar OS" subtitle="Diagnóstico, solução e produtos utilizados" maxW="max-w-2xl">
         <div className="p-5 space-y-5">
           <Section title="Informações da OS">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -161,7 +161,7 @@ export function OrderResolutionPage({
         </div>
         <AdminStickyToolbar className="justify-end">
           <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-          <BtnPrimary onClick={onSubmit} loading={saving} loadingText="Concluindo..."><CheckCircle size={14} /> Concluir solução</BtnPrimary>
+          <BtnPrimary onClick={onSubmit} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>
         </AdminStickyToolbar>
       </AdminPage>
   );
