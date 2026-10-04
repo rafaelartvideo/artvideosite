@@ -190,6 +190,10 @@ export function ProductLookupDialog({
     description={selected
       ? "Confira os dados encontrados antes de aplicar ao cadastro."
       : "Pesquise por nome, GTIN, EAN, UPC ou código de barras universal."}
+    minimizedDescription={selected
+      ? [name || selected.name, gtin || selected.gtin, salePrice ? `R$ ${salePrice}` : null].filter(Boolean).join(" · ")
+      : query.trim() ? `Busca: ${query.trim()}` : "Aguardando busca"}
+    minimizable={!applying && !loading}
     className="max-w-4xl"
     footer={selected ? <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
       <AdminButton variant="secondary" disabled={applying} onClick={() => setSelected(null)}>
