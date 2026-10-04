@@ -113,6 +113,7 @@ function ThemeToggle({
   compact?: boolean;
 }) {
   const dark = theme === "dark";
+  const circleSize = compact ? "h-6 w-6" : "h-7 w-7";
   return <button
     type="button"
     role="switch"
@@ -121,28 +122,36 @@ function ThemeToggle({
     title={dark ? "Tema escuro" : "Tema claro"}
     onClick={() => onChange(dark ? "light" : "dark")}
     className={cn(
-      "relative inline-flex shrink-0 items-center rounded-full border border-border bg-muted/80 p-1 shadow-inner transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+      "relative inline-flex shrink-0 items-center rounded-full border border-border bg-muted/80 shadow-inner transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
       compact ? "h-8 w-[62px]" : "h-9 w-[68px]",
     )}
   >
     <span
       aria-hidden="true"
       className={cn(
-        "absolute left-1 top-1 rounded-full border border-border/70 bg-card shadow-sm transition-transform duration-200 ease-out",
-        compact ? "h-6 w-6" : "h-7 w-7",
-        dark && (compact ? "translate-x-[30px]" : "translate-x-8"),
+        "absolute top-1 rounded-full border border-border/70 bg-card shadow-sm transition-all duration-200 ease-out",
+        circleSize,
+        dark ? "right-1" : "left-1",
       )}
     />
-    <span className={cn(
-      "relative z-10 flex flex-1 items-center justify-center transition-colors",
-      !dark ? "text-primary" : "text-muted-foreground",
-    )}>
+    <span
+      aria-hidden="true"
+      className={cn(
+        "absolute left-1 top-1 z-10 flex items-center justify-center transition-colors",
+        circleSize,
+        !dark ? "text-primary" : "text-muted-foreground",
+      )}
+    >
       <Sun size={compact ? 14 : 15} strokeWidth={2.1} />
     </span>
-    <span className={cn(
-      "relative z-10 flex flex-1 items-center justify-center transition-colors",
-      dark ? "text-primary" : "text-muted-foreground",
-    )}>
+    <span
+      aria-hidden="true"
+      className={cn(
+        "absolute right-1 top-1 z-10 flex items-center justify-center transition-colors",
+        circleSize,
+        dark ? "text-primary" : "text-muted-foreground",
+      )}
+    >
       <Moon size={compact ? 14 : 15} strokeWidth={2.1} />
     </span>
   </button>;
