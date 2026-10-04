@@ -357,7 +357,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
   };
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 lg:h-full">
+    <div className="min-w-0 space-y-4 pb-2">
       <PageHeader title="Dashboard" subtitle="Indicadores objetivos por área, respeitando as permissões do seu perfil." actions={
         <div className="w-32">
           <AdminSelect
@@ -372,7 +372,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
 
       <DashboardModuleNav items={modules} value={activeModule} onChange={setActiveModule} />
 
-      <div className="min-h-0 flex-1 lg:overflow-hidden">
+      <div className="min-w-0">
         {dashboardQuery.isPending ? <LoadingState text="Carregando indicadores..." /> : dashboardQuery.error ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
@@ -387,9 +387,9 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
 
 function DashboardArea({ metrics, left, right }: { metrics: Metric[]; left: ReactNode; right: ReactNode }) {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="min-w-0 space-y-3">
       <MetricGrid metrics={metrics} />
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)] [&>*]:min-h-[280px] lg:[&>*]:min-h-0">{left}{right}</div>
+      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)] [&>*]:min-h-[280px]">{left}{right}</div>
     </div>
   );
 }
