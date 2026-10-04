@@ -6,7 +6,7 @@ import { MessageCircle, Plus } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialCollectionChannel, FinancialEntryDetail } from "../domain/finance.types";
 import { listFinancialCollectionLogs, registerFinancialCollectionLog } from "../infrastructure/finance-collections.repository";
 
@@ -124,11 +124,11 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
       </div>)}
     </AdminCardContent>
 
-    {open && <div className="fixed inset-0 z-[135] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl"><div className="border-b px-5 py-4"><h2 className="text-lg font-black text-[#0d1b2e]">Novo contato de cobrança</h2></div><div className="space-y-4 p-5">
+    {open && <AdminDialog open onClose={() => { if (!mutation.isPending) setOpen(false); }} title="Novo contato de cobrança" className="max-w-xl" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!mutation.isPending) setOpen(false); }} disabled={mutation.isPending}>Cancelar</AdminButton><AdminButton onClick={() => void submit()} loading={mutation.isPending} loadingText="Salvando...">Registrar contato</AdminButton></div>}><div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2"><FSelect label="Canal" value={channel} options={CHANNEL_OPTIONS} onChange={(event: any) => setChannel(event.target.value as FinancialCollectionChannel)} /><FSelect label="Parcela (opcional)" value={installmentId} options={[{ value: "", label: "Título geral" }, ...detail.installments.map(item => ({ value: item.id, label: `Parcela ${item.installment_number}/${item.total_installments}` }))]} onChange={(event: any) => setInstallmentId(event.target.value)} /></div>
       <div className="grid gap-4 sm:grid-cols-2"><FInput type="datetime-local" label="Data/hora do contato" error={fieldErrors.contactedAt} value={contactedAt} onChange={(event: any) => { setFieldErrors(current => ({ ...current, contactedAt: undefined })); setContactedAt(event.target.value); }} /><FInput type="datetime-local" label="Próximo retorno" error={fieldErrors.followUpAt} value={followUpAt} onChange={(event: any) => { setFieldErrors(current => ({ ...current, followUpAt: undefined })); setFollowUpAt(event.target.value); }} /></div>
       <FTextarea label="Observação" required error={fieldErrors.note} value={note} onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }} rows={4} />
       
-    </div><div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!mutation.isPending) setOpen(false); }} disabled={mutation.isPending}>Cancelar</AdminButton><AdminButton onClick={() => void submit()} loading={mutation.isPending} loadingText="Salvando...">Registrar contato</AdminButton></div></div></div>}
+    </div></AdminDialog>}
   </AdminCard>;
 }
