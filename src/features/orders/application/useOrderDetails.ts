@@ -2,13 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../../infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
-import {
-  getServiceOrderDetail,
-  listServiceOrderMedia,
-  listServiceOrderStatusHistory,
-  listServiceOrderUsedItems,
-  listServiceOrderTechnicalValues,
-} from "../infrastructure/orders.repository";
+import { getServiceOrderWorkspace } from "../infrastructure/orders.repository";
 import { orderImageKindFromSortOrder, type OrderImage } from "../domain/order-image";
 
 export function useOrderDetails({
@@ -42,23 +36,11 @@ export function useOrderDetails({
       organizationId || "none",
     ],
     enabled: selectedOrderBelongsToOrganization,
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
     queryFn: async () => {
-      const [
-        { data: currentOrder },
-        { data: history },
-        { data: mediaLinks },
-        { data: usedItems },
-        { data: technicalValues },
-      ] = await Promise.all([
-        getServiceOrderDetail(selectedOrder.id),
-        listServiceOrderStatusHistory(selectedOrder.id),
-        listServiceOrderMedia(selectedOrder.id),
-        listServiceOrderUsedItems(selectedOrder.id),
-        listServiceOrderTechnicalValues(selectedOrder.id),
-      ]);
-
-      const orderImages = (mediaLinks || [])
+      const workspace = await getServiceOrderWorkspace(organizationId!, selectedOrder.id);
+      const mediaLinks = workspace.media || [];
+      const orderImages = mediaLinks
         .filter((item: any) => Number(item.sort_order ?? 0) < 1000)
         .map((item: any) => ({
           key: item.id,
@@ -66,7 +48,7 @@ export function useOrderDetails({
           name: item.media?.file_name || "Imagem da OS",
           kind: orderImageKindFromSortOrder(item.sort_order),
         }));
-      const solutionImages = (mediaLinks || [])
+      const solutionImages = mediaLinks
         .filter((item: any) => Number(item.sort_order ?? 0) >= 1000)
         .map((item: any) => ({
           key: item.id,
@@ -75,7 +57,34 @@ export function useOrderDetails({
           kind: "solution" as const,
         }));
 
-      return { currentOrder, history, usedItems, technicalValues: technicalValues || [], orderImages, solutionImages };
+      const partRequests = (workspace.part_requests || []).map((request: any) => ({
+        ...request,
+        requester: request.requested_by_profile || null,
+        items: (request.items || []).map((item: any) => ({
+          ...item,
+          request_status: request.status,
+          inventory_item: item.inventory_item ? {
+            ...item.inventory_item,
+            package_unit: item.inventory_item.unit || "un",
+            unit: "un",
+            conversion_factor: Math.max(1, Number(item.inventory_item.conversion_factor ?? 1) || 1),
+            quantity: Number(item.inventory_item.quantity ?? 0),
+          } : null,
+        })),
+      }));
+
+      return {
+        currentOrder: workspace.current_order || {},
+        history: workspace.history || [],
+        historyNotes: workspace.history_notes || [],
+        usedItems: workspace.used_items || [],
+        technicalValues: workspace.technical_values || [],
+        orderImages,
+        solutionImages,
+        partRequests,
+        situationDocuments: workspace.situation_documents || [],
+        situationVisits: workspace.situation_visits || [],
+      };
     },
   });
 
@@ -91,7 +100,27 @@ export function useOrderDetails({
 
   useEffect(() => {
     if (!detailQuery.data || !selectedOrderBelongsToOrganization || !selectedOrder) return;
-    const { currentOrder, history, usedItems, technicalValues, orderImages, solutionImages } = detailQuery.data;
+    const {
+      currentOrder,
+      history,
+      historyNotes,
+      usedItems,
+      technicalValues,
+      orderImages,
+      solutionImages,
+      partRequests,
+      situationDocuments,
+      situationVisits,
+    } = detailQuery.data;
+
+    queryClient.setQueryData(queryKeys.orders.partRequests(selectedOrder.id), partRequests);
+    queryClient.setQueryData(["orders", "history-notes", selectedOrder.id], historyNotes);
+    queryClient.setQueryData(
+      ["orders", organizationId || "none", selectedOrder.id, "situation-documents"],
+      situationDocuments,
+    );
+    queryClient.setQueryData(["orders", selectedOrder.id, "situation-visits"], situationVisits);
+
     setDetailHistory(history || []);
     setDetailUsedItems(usedItems || []);
     setDetailSolutionImages(solutionImages);
