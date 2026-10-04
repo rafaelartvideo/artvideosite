@@ -14,10 +14,9 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { AutoFitLogo } from "@/shared/ui/media/AutoFitLogo";
-import { getCompanySettings } from "@/features/settings/infrastructure/company-settings.repository";
+import { useCompanySettingsQuery } from "@/features/settings/presentation/useCompanySettingsQuery";
 import { changeAdminPassword } from "@/features/auth/infrastructure/auth.repository";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
@@ -240,11 +239,7 @@ export function AdminHeader({
   const [switchingOrganization, setSwitchingOrganization] = useState(false);
 
   const parentBreadcrumb = page ? normalizeBreadcrumb(page.breadcrumb, page.title) : "";
-  const brandingQuery = useQuery({
-    queryKey: ["company-settings", activeOrganizationId || "none"],
-    enabled: Boolean(activeOrganizationId),
-    queryFn: () => getCompanySettings(activeOrganizationId),
-  });
+  const brandingQuery = useCompanySettingsQuery(activeOrganizationId);
   const companyLogoMediaId = brandingQuery.data?.company_menu_logo_media_id
     || brandingQuery.data?.company_logo_media_id
     || null;
