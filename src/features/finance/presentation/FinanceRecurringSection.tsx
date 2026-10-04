@@ -1,12 +1,12 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useMemo, useState } from "react";
-import { CalendarClock, Pencil, Plus, RefreshCw, X } from "lucide-react";
+import { CalendarClock, Pencil, Plus, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FIntegerInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminIconButton, AdminStickyToolbar, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardToolbar, AdminDialog, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { validateAllocationTotal } from "../domain/finance-entry.mjs";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
@@ -205,13 +205,18 @@ export function FinanceRecurringSection() {
       </div>}
     </Section>
 
-    {open && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
-      <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-5 py-4">
-          <div><h2 className="text-lg font-black text-[#0d1b2e]">{form.id ? "Editar recorrência" : "Nova recorrência"}</h2><p className="mt-1 text-xs text-[#5a6a82]">Cada ocorrência gera um título financeiro independente.</p></div>
-          <button type="button" onClick={close} disabled={pending} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button>
-        </div>
-        <div className="space-y-5 p-5">
+    {open && <AdminDialog
+      open
+      onClose={close}
+      title={form.id ? "Editar recorrência" : "Nova recorrência"}
+      description="Cada ocorrência gera um título financeiro independente."
+      className="max-w-4xl"
+      footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <AdminButton variant="secondary" onClick={close} disabled={pending}>Cancelar</AdminButton>
+        <AdminButton onClick={() => void save()} loading={pending} loadingText="Salvando...">Salvar recorrência</AdminButton>
+      </div>}
+    >
+      <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <FSelect label="Tipo" value={form.entry_type} options={[{ value: "payable", label: "Conta a pagar" }, { value: "receivable", label: "Conta a receber" }]} onChange={(event: any) => setForm(current => ({ ...current, entry_type: event.target.value as FinancialEntryType, allocations: emptyAllocations() }))} />
             <FCurrencyInput label="Valor" error={fieldErrors.amount} value={form.original_amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setForm(current => ({ ...current, original_amount: event.target.value })); }} />
@@ -235,12 +240,8 @@ export function FinanceRecurringSection() {
           <FinanceAllocationEditor entryType={form.entry_type} total={amount} categories={categories} costCenters={costCenters} value={form.allocations} onChange={allocations => { setFieldErrors(current => ({ ...current, allocations: undefined })); setForm(current => ({ ...current, allocations })); }} />{fieldErrors.allocations && <p className="mt-1 text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.allocations}</p>}
           <FTextarea label="Observações" value={form.notes} onChange={(event: any) => setForm(current => ({ ...current, notes: event.target.value }))} rows={3} />
           
-        </div>
-        <AdminStickyToolbar className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <AdminButton variant="secondary" onClick={close} disabled={pending}>Cancelar</AdminButton>
-          <AdminButton onClick={() => void save()} loading={pending} loadingText="Salvando...">Salvar recorrência</AdminButton>
-        </AdminStickyToolbar>
       </div>
-    </div>}
+
+    </AdminDialog>}
   </div>;
 }
