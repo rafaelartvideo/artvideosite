@@ -18,7 +18,7 @@ export type OrganizationPlanUsageData = {
     billing_day?: number | null;
   };
   limits: Record<string, number>;
-  usage: Record<string, number>;
+  usage: Record<string, number>;\n  usage_sources: Record<string, "measured" | "configured" | "manual" | "not_tracked">;\n  usage_measured_at?: string | null;
   features: Record<string, boolean>;
   modules: Array<{ key: string; name: string; source: "plan" | "addon" }>;
   addons: Array<{
@@ -44,7 +44,7 @@ function numericRecord(value: unknown): Record<string, number> {
 }
 
 export async function loadOrganizationPlanUsage(organizationId: string): Promise<OrganizationPlanUsageData> {
-  const { data, error } = await supabase.rpc("load_organization_plan_usage_v2", {
+  const { data, error } = await supabase.rpc("load_organization_plan_usage_v3", {
     p_organization_id: organizationId,
   });
   if (error) throw error;
@@ -66,6 +66,10 @@ export async function loadOrganizationPlanUsage(organizationId: string): Promise
     subscription,
     limits: numericRecord(raw.limits),
     usage: numericRecord(raw.usage),
+    usage_sources: raw.usage_sources && typeof raw.usage_sources === "object" && !Array.isArray(raw.usage_sources)
+      ? raw.usage_sources
+      : {},
+    usage_measured_at: raw.usage_measured_at ? String(raw.usage_measured_at) : null,
     features: raw.features && typeof raw.features === "object" && !Array.isArray(raw.features)
       ? Object.fromEntries(Object.entries(raw.features).map(([key, value]) => [key, Boolean(value)]))
       : {},

@@ -37,6 +37,19 @@ const billingTypeOptions = [
   { value: "usage", label: "Por consumo" },
 ];
 
+function formatUsageBytes(value: number) {
+  const bytes = Math.max(0, Number(value || 0));
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let current = bytes / 1024;
+  let unitIndex = 0;
+  while (current >= 1024 && unitIndex < units.length - 1) {
+    current /= 1024;
+    unitIndex += 1;
+  }
+  return `${current.toFixed(current >= 10 ? 0 : 1).replace(".", ",")} ${units[unitIndex]}`;
+}
+
 function displayLimitValue(definition: BillingLimitDefinition, value: number) {
   if (definition.unit === "bytes") return value / (1024 ** 3);
   return value;
@@ -608,13 +621,13 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
       <div className="space-y-6">
         {usageQuery.data && <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            ["Usuários atuais", usageQuery.data.usage.users || 0, usageQuery.data.limits.users || 0],
-            ["PDVs", usageQuery.data.usage.pdv_terminals || 0, usageQuery.data.limits.pdv_terminals || 0],
-            ["Dispositivos", usageQuery.data.usage.field_devices || 0, usageQuery.data.limits.field_devices || 0],
-            ["Ramais", usageQuery.data.usage.pbx_extensions || 0, usageQuery.data.limits.pbx_extensions || 0],
+            ["Usuários atuais", String(usageQuery.data.usage.users || 0), String(usageQuery.data.limits.users || 0)],
+            ["Storage real", formatUsageBytes(usageQuery.data.usage.storage_bytes || 0), formatUsageBytes(usageQuery.data.limits.storage_bytes || 0)],
+            ["Dispositivos de campo", String(usageQuery.data.usage.field_devices || 0), String(usageQuery.data.limits.field_devices || 0)],
+            ["Maior OS em fotos", String(usageQuery.data.usage.max_os_photos || 0), String(usageQuery.data.limits.os_photos_per_order || 0)],
           ].map(([label, used, limit]) => <div key={String(label)} className="border border-border p-3">
             <p className="text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
-            <p className="mt-1 text-base font-black text-foreground">{Number(used).toLocaleString("pt-BR")} <span className="text-xs font-semibold text-muted-foreground">/ {Number(limit).toLocaleString("pt-BR")}</span></p>
+            <p className="mt-1 text-base font-black text-foreground">{used} <span className="text-xs font-semibold text-muted-foreground">/ {limit}</span></p>
           </div>)}
         </div>}
 
