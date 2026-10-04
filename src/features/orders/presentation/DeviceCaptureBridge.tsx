@@ -168,7 +168,6 @@ export function DeviceCaptureBridge({
           ]);
           if (cancelled) return;
 
-          setConnected(captureResult.connected);
           if (captureResult.status !== "active") {
             setExpired(true);
             setConnected(false);
@@ -235,6 +234,16 @@ export function DeviceCaptureBridge({
       onReady: () => void refresh(),
     });
 
+    const expiresAtMs = Date.parse(session.expiresAt);
+    const expiryTimer = Number.isFinite(expiresAtMs)
+      ? window.setTimeout(() => {
+          if (!cancelled) {
+            setExpired(true);
+            setConnected(false);
+          }
+        }, Math.max(0, expiresAtMs - Date.now()) + 250)
+      : null;
+
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") void refresh();
     };
@@ -243,6 +252,7 @@ export function DeviceCaptureBridge({
     return () => {
       cancelled = true;
       refreshQueuedRef.current = false;
+      if (expiryTimer !== null) window.clearTimeout(expiryTimer);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       unsubscribe();
     };
