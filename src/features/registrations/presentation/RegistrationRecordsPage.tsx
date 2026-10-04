@@ -277,7 +277,7 @@ export function RegistrationRecordsPage({
       className="max-w-xl"
       footer={<div className="flex w-full gap-2 sm:justify-end sm:gap-3"><BtnSecondary onClick={() => { resetComposer(); setModalOpen(false); }} disabled={saving} className="min-w-0 flex-1 sm:flex-none">Cancelar</BtnSecondary><BtnPrimary onClick={() => void submit()} disabled={!text.trim() || saving} loading={saving} loadingText="Registrando..." className="min-w-0 flex-1 sm:flex-none">Registrar</BtnPrimary></div>}
     >
-      <textarea autoFocus value={text} onChange={event => setText(event.target.value)} maxLength={2000} rows={6} placeholder="Escreva o que precisa ficar registrado neste cadastro..." className={cn(INPUT, "h-auto min-w-0 resize-y text-sm")} />
+      <textarea value={text} onChange={event => setText(event.target.value)} maxLength={2000} rows={6} placeholder="Escreva o que precisa ficar registrado neste cadastro..." className={cn(INPUT, "h-auto min-w-0 resize-y text-sm")} />
       <div className="mt-2 flex justify-between gap-3 text-[10px] text-[#5a6a82]"><span>O registro não poderá ser editado ou excluído.</span><span className="shrink-0">{text.length}/2000</span></div>
 
       <div className="mt-4 rounded-xl border border-border bg-muted p-3">
