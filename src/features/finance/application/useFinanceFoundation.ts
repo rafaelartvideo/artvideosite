@@ -1,12 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { useAuth } from "@/lib/auth";
 import {
-  getFinancialSettings,
-  listFinancialAccounts,
-  listFinancialCategories,
-  listFinancialCostCenters,
-  listFinancialPaymentMethods,
+  loadFinanceFoundation,
   saveFinancialAccount,
   saveFinancialCategory,
   saveFinancialCostCenter,
@@ -28,7 +25,9 @@ export function useFinanceFoundation() {
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
-  const canReadAccounts = hasPermission("finance.accounts.view") || hasPermission("finance.accounts.manage") || hasPermission("finance.reports.cash_flow");
+  const canReadAccounts = hasPermission("finance.accounts.view")
+    || hasPermission("finance.accounts.manage")
+    || hasPermission("finance.reports.cash_flow");
 
   const invalidate = async (queryKey: readonly unknown[]) => {
     await Promise.all([
@@ -37,35 +36,29 @@ export function useFinanceFoundation() {
     ]);
   };
 
-  const accountsQuery = useQuery({
-    queryKey: queryKeys.finance.accounts(organizationKey),
-    enabled: Boolean(activeOrganizationId) && canReadAccounts,
-    queryFn: () => listFinancialAccounts(organizationId),
+  const foundationQuery = useQuery({
+    queryKey: queryKeys.finance.foundation(organizationKey),
+    enabled: Boolean(activeOrganizationId),
+    queryFn: () => loadFinanceFoundation(organizationId),
+    staleTime: REFERENCE_DATA_CACHE_TIME,
+    gcTime: REFERENCE_DATA_CACHE_TIME,
   });
 
-  const categoriesQuery = useQuery({
-    queryKey: queryKeys.finance.categories(organizationKey),
-    enabled: Boolean(activeOrganizationId),
-    queryFn: () => listFinancialCategories(organizationId),
+  const derivedQuery = <T,>(data: T) => ({
+    data,
+    error: foundationQuery.error,
+    isLoading: foundationQuery.isLoading,
+    isPending: foundationQuery.isPending,
+    refetch: foundationQuery.refetch,
   });
 
-  const costCentersQuery = useQuery({
-    queryKey: queryKeys.finance.costCenters(organizationKey),
-    enabled: Boolean(activeOrganizationId),
-    queryFn: () => listFinancialCostCenters(organizationId),
-  });
-
-  const paymentMethodsQuery = useQuery({
-    queryKey: queryKeys.finance.paymentMethods(organizationKey),
-    enabled: Boolean(activeOrganizationId),
-    queryFn: () => listFinancialPaymentMethods(organizationId),
-  });
-
-  const settingsQuery = useQuery({
-    queryKey: queryKeys.finance.settings(organizationKey),
-    enabled: Boolean(activeOrganizationId),
-    queryFn: () => getFinancialSettings(organizationId),
-  });
+  const accountsQuery = derivedQuery(
+    canReadAccounts ? (foundationQuery.data?.accounts || []) : [],
+  );
+  const categoriesQuery = derivedQuery(foundationQuery.data?.categories || []);
+  const costCentersQuery = derivedQuery(foundationQuery.data?.costCenters || []);
+  const paymentMethodsQuery = derivedQuery(foundationQuery.data?.paymentMethods || []);
+  const settingsQuery = derivedQuery(foundationQuery.data?.settings);
 
   const saveAccount = useMutation({
     mutationFn: (input: FinancialAccountInput) => saveFinancialAccount(organizationId, input),
