@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { ElementType, ReactNode } from "react";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -51,7 +52,7 @@ function MetricCard({
 
 export function UnionPlatformDashboard({ onNavigate }: Props) {
   const query = useQuery({
-    queryKey: ["union-platform-dashboard"],
+    queryKey: [...queryKeys.admin.dashboards(), "union-platform"],
     queryFn: loadUnionPlatformDashboard,
   });
 
