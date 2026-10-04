@@ -1,10 +1,10 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useEffect, useState } from "react";
-import { Edit2, FileText, Tag, Trash2, X } from "lucide-react";
+import { Edit2, FileText, Tag, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
-import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -180,12 +180,14 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     {editorRouteActive && !editorOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
     {editorOpen && canViewDetails && <AdminPage open onClose={closeDocumentEditor} breadcrumb="Documentos > Impressão" title={editorValue.id ? "Configurar modelo" : "Novo modelo"} subtitle="Configure os dados e a apresentação do modelo de impressão" maxW="max-w-[1600px]" fullPage><PrintTemplateEditor key={editorValue.id || "new-document"} initialValue={editorValue} onCancel={closeDocumentEditor} onSave={saveDocument} saving={saving} saveError={errorMessage} /></AdminPage>}
 
-    {typeModalOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-5 py-4"><h2 className="text-lg font-black">{editingType ? "Editar tipo" : "Novo tipo"}</h2><button type="button" disabled={savingAttachmentType} onClick={closeTypeModal} className="cursor-default disabled:opacity-40"><X size={18} /></button></div>
-        <div className="p-5"><FInput label="Nome do tipo" required autoFocus disabled={savingAttachmentType} error={typeNameError} value={typeName} onChange={(event: any) => { setTypeNameError(""); setTypeName(event.target.value); }} placeholder="Nome do tipo" /></div>
-        <div className="flex justify-end gap-2 border-t bg-[#f8fafc] px-5 py-4"><BtnSecondary onClick={closeTypeModal} disabled={savingAttachmentType}>Cancelar</BtnSecondary><BtnPrimary onClick={submitType} loading={savingAttachmentType} loadingText="Salvando...">Salvar</BtnPrimary></div>
-      </div>
-    </div>}
+    {typeModalOpen && <AdminDialog
+      open
+      onClose={closeTypeModal}
+      title={editingType ? "Editar tipo" : "Novo tipo"}
+      className="max-w-md"
+      footer={<div className="flex justify-end gap-2"><BtnSecondary onClick={closeTypeModal} disabled={savingAttachmentType}>Cancelar</BtnSecondary><BtnPrimary onClick={submitType} loading={savingAttachmentType} loadingText="Salvando...">Salvar</BtnPrimary></div>}
+    >
+      <FInput label="Nome do tipo" required autoFocus disabled={savingAttachmentType} error={typeNameError} value={typeName} onChange={(event: any) => { setTypeNameError(""); setTypeName(event.target.value); }} placeholder="Nome do tipo" />
+    </AdminDialog>}
   </div>;
 }
