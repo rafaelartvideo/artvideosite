@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, FolderTree, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { deleteCategory, listCategories, saveCategory, setCategoryActive } from "../infrastructure/categories.repository";
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -25,7 +26,7 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
   const showStatus = hasPermission("categories.table.status");
   const showActions = hasPermission("categories.table.actions");
   const queryClient = useQueryClient();
-  const categoriesQuery = useQuery({ queryKey: queryKeys.catalog.categories(), queryFn: listCategories, enabled: canViewTable || canViewDetails || canCreate || canEdit });
+  const categoriesQuery = useQuery({ queryKey: queryKeys.catalog.categories(), queryFn: listCategories, enabled: canViewTable || canViewDetails || canCreate || canEdit, staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const cats = categoriesQuery.data ?? [];
   const loading = categoriesQuery.isPending;
   const [drawerOpen, setDrawerOpen] = useState(false);
