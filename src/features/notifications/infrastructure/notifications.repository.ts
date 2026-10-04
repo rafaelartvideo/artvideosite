@@ -22,6 +22,28 @@ export type AdminNotification = {
 
 type NotificationRow = Omit<AdminNotification, "read_at">;
 
+export type AdminNotificationsBootstrap = {
+  items: AdminNotification[];
+  unreadCount: number;
+};
+
+export async function loadAdminNotifications(
+  organizationId: string,
+  limit = 50,
+): Promise<AdminNotificationsBootstrap> {
+  const { data, error } = await supabase.rpc("load_admin_notifications_v1", {
+    p_organization_id: organizationId,
+    p_limit: limit,
+  });
+  if (error) throw error;
+
+  const bootstrap = (data || {}) as Record<string, unknown>;
+  return {
+    items: Array.isArray(bootstrap.items) ? bootstrap.items as AdminNotification[] : [],
+    unreadCount: Number(bootstrap.unreadCount || 0),
+  };
+}
+
 export async function listAdminNotifications(
   organizationId: string,
   userId: string,
