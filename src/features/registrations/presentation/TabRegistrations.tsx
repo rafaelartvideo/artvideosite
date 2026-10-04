@@ -724,7 +724,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     />
     <AdminCard square className="overflow-hidden p-0">
       <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 md:h-11 admin-primary-bar px-4 text-white">
-        <div className="flex min-w-0 items-center gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10]"><Search size={14} className="shrink-0 text-white/90" /></span><span className="text-xs font-black uppercase tracking-[0.14em]">Buscar cadastro</span></div>
+        <div className="flex min-w-0 items-center gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10]"><Search size={14} className="shrink-0 text-white/90" /></span><span className="text-xs font-black uppercase tracking-[0.14em]">{platformUsersOnly ? "Buscar usuário" : "Buscar cadastro"}</span></div>
         <div className="ml-auto flex max-w-full items-center justify-end">
           {hasActiveFilters && <button type="button" onClick={clearFilters} aria-label="Limpar filtros" title="Limpar filtros" className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">Limpar filtros</button>}
         </div>
@@ -738,7 +738,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1">{renderMobileFilter()}</div>{sortMenu}</div>
         </div>
 
-        <div className="hidden gap-2 md:grid md:grid-cols-2 xl:grid-cols-4">
+        <div className={cn("hidden gap-2 md:grid md:grid-cols-2", platformUsersOnly ? "xl:grid-cols-3" : "xl:grid-cols-4")}>
           <div className="min-w-0">
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nome</label>
             <div className="relative">
