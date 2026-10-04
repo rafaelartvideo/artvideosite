@@ -34,10 +34,18 @@ function Dialog({
   const effectiveOpen = open ?? internalOpen;
   const minimized = Boolean(manager?.tasks.find(task => task.id === id)?.minimized);
 
-  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+  const commitOpenChange = React.useCallback((nextOpen: boolean) => {
     if (open === undefined) setInternalOpen(nextOpen);
     onOpenChange?.(nextOpen);
   }, [open, onOpenChange]);
+
+  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+    // Ao restaurar outra janela, o gerenciador transforma esta em minimizada.
+    // O Radix pode emitir um close quando o foco muda entre portais; esse close
+    // não deve destruir a janela estacionada no dock.
+    if (!nextOpen && minimized) return;
+    commitOpenChange(nextOpen);
+  }, [commitOpenChange, minimized]);
 
   React.useEffect(() => {
     if (!effectiveOpen) unregisterDialog?.(id);
@@ -51,8 +59,8 @@ function Dialog({
     id,
     ownerKey,
     minimized,
-    requestClose: () => handleOpenChange(false),
-  }), [id, ownerKey, minimized, handleOpenChange]);
+    requestClose: () => commitOpenChange(false),
+  }), [id, ownerKey, minimized, commitOpenChange]);
 
   return <DialogRuntimeContext.Provider value={runtime}>
     <DialogPrimitive.Root
