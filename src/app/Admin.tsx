@@ -248,7 +248,7 @@ export function AdminDashboard({
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode
-              ? <UnionOrderMonitor initialOrderId={route.resourceId} onOrderRouteChange={orderId => orderId ? navigateOrderRoute(orderId) : closeOrderRoute()} />
+              ? <UnionOrderMonitor initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={(orderId, subpage) => orderId ? navigateOrderRoute(orderId, subpage) : closeOrderRoute()} />
               : <TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={navigateOrderRoute} onOrderRouteClose={closeOrderRoute} />} />
             <Route path="agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
             <Route path="field-map/*" element={<TabFieldTracking />} />
