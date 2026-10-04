@@ -75,7 +75,13 @@ export function AdminDialogManagerProvider({ children }: { children: React.React
   }, []);
 
   const setMinimized = React.useCallback((id: string, minimized: boolean) => {
-    setTasks(current => current.map(item => item.id === id ? { ...item, minimized } : item));
+    setTasks(current => current.map(item => {
+      if (item.id === id) return { ...item, minimized };
+      // Só uma janela restaurada do dock fica ativa por vez. Ao restaurar
+      // outra, a que estava aberta volta automaticamente para o dock.
+      if (!minimized && !item.minimized) return { ...item, minimized: true };
+      return item;
+    }));
   }, []);
 
   const unregisterDialog = React.useCallback((id: string) => {
@@ -120,7 +126,7 @@ function AdminMinimizedDialogDock({
   >
     {minimized.map(task => <div
       key={task.id}
-      className="admin-crm pointer-events-auto flex w-[min(92vw,360px)] min-w-0 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-card-foreground shadow-2xl"
+      className="admin-crm pointer-events-auto flex w-[min(92vw,360px)] min-w-0 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-card-foreground shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 ease-out motion-reduce:animate-none"
     >
       <button
         type="button"
