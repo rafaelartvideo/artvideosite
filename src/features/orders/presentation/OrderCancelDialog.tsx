@@ -52,7 +52,6 @@ export function OrderCancelDialog({
       <label className="block">
         <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Justificativa</span>
         <textarea
-          autoFocus
           value={reason}
           onChange={event => setReason(event.target.value)}
           rows={5}
