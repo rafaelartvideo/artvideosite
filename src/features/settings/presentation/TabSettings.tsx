@@ -37,11 +37,14 @@ const EMPTY_COMPANY: CompanyForm = {
 const COMPANY_KEYS = Object.keys(EMPTY_COMPANY) as Array<keyof CompanyForm>;
 const settingText = (value: unknown) => typeof value === "string" || typeof value === "number" ? String(value) : "";
 
-export function TabSettings({ onBack }: {
+export function TabSettings({ onBack, identityOnly = false }: {
   onBack: () => void;
+  identityOnly?: boolean;
 }) {
   const { user, hasPermission, activeOrganizationId, activeOrganization } = useAuth();
-  const canView = hasPermission("settings.view") && hasPermission("settings.details.view");
+  const canView = identityOnly
+    ? hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update")
+    : hasPermission("settings.view") && hasPermission("settings.details.view");
   const canUpdate = hasPermission("settings.update");
   const query = useCompanySettingsQuery(activeOrganizationId);
   const saveSettings = useSaveCompanySettingsMutation();
@@ -68,6 +71,7 @@ export function TabSettings({ onBack }: {
 
   const update = (key: keyof CompanyForm, value: string) => {
     if (!canUpdate || busy) return;
+    if (identityOnly && key !== "company_logo_media_id" && key !== "company_menu_logo_media_id") return;
     if (
       isPartnerOrganization
       && key !== "company_phone"
@@ -82,15 +86,21 @@ export function TabSettings({ onBack }: {
   const save = async () => {
     if (!canUpdate || busy || !activeOrganizationId) return;
     const nextErrors: Partial<Record<keyof CompanyForm, string>> = {};
-    if (!form.company_name.trim()) nextErrors.company_name = "Informe o nome da empresa.";
-    if (form.company_cnpj && !isValidCnpj(form.company_cnpj)) nextErrors.company_cnpj = "CNPJ inválido. Verifique os números informados.";
-    if (form.company_phone && !isValidBrazilianPhone(form.company_phone)) nextErrors.company_phone = "Telefone inválido. Informe DDD e número válidos.";
-    if (form.company_email && !isValidEmail(form.company_email)) nextErrors.company_email = "E-mail inválido. Verifique o endereço informado.";
-    if (form.company_zip_code && form.company_zip_code.replace(/\D/g, "").length !== 8) nextErrors.company_zip_code = "CEP inválido. Informe os 8 dígitos.";
+    if (!identityOnly && !form.company_name.trim()) nextErrors.company_name = "Informe o nome da empresa.";
+    if (!identityOnly && form.company_cnpj && !isValidCnpj(form.company_cnpj)) nextErrors.company_cnpj = "CNPJ inválido. Verifique os números informados.";
+    if (!identityOnly && form.company_phone && !isValidBrazilianPhone(form.company_phone)) nextErrors.company_phone = "Telefone inválido. Informe DDD e número válidos.";
+    if (!identityOnly && form.company_email && !isValidEmail(form.company_email)) nextErrors.company_email = "E-mail inválido. Verifique o endereço informado.";
+    if (!identityOnly && form.company_zip_code && form.company_zip_code.replace(/\D/g, "").length !== 8) nextErrors.company_zip_code = "CEP inválido. Informe os 8 dígitos.";
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     try {
-      const settingsToSave = isPartnerOrganization && query.data
+      const settingsToSave = identityOnly && query.data
+        ? {
+            ...query.data,
+            company_logo_media_id: form.company_logo_media_id,
+            company_menu_logo_media_id: form.company_menu_logo_media_id,
+          }
+        : isPartnerOrganization && query.data
         ? {
             ...query.data,
             company_phone: form.company_phone,
@@ -100,7 +110,7 @@ export function TabSettings({ onBack }: {
           }
         : form;
       await saveSettings.mutateAsync({ organizationId: activeOrganizationId, settings: settingsToSave, updatedBy: user?.id ?? null });
-      setToast({ msg: "Dados da empresa salvos com sucesso.", type: "success" });
+      setToast({ msg: identityOnly ? "Identidade visual salva com sucesso." : "Dados da empresa salvos com sucesso.", type: "success" });
     } catch (error) {
       setToast({ msg: systemErrorMessage(error, "Não foi possível salvar os dados."), type: "error" });
     }
@@ -111,8 +121,9 @@ export function TabSettings({ onBack }: {
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Dados da empresa" subtitle="Informações oficiais utilizadas nos documentos e na identificação da empresa ativa." />
+    <PageHeader title="Dados da empresa" subtitle={identityOnly ? "Identidade visual utilizada no menu e nos documentos da Union World." : "Informações oficiais utilizadas nos documentos e na identificação da empresa ativa."} />
       <div className="min-w-0 space-y-5 p-4 sm:p-5">
+        {!identityOnly && <>
         {isPartnerOrganization && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-sm leading-6 text-[#35506f]">Estas informações são administradas pelo administrador da empresa.</div>}
         <Section title="Identificação"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div className="min-w-0 w-full"><FInput label="CNPJ" inputMode="numeric" maxLength={18} error={fieldErrors.company_cnpj} value={form.company_cnpj} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" /></div>
@@ -132,6 +143,7 @@ export function TabSettings({ onBack }: {
           <div className="min-w-0 w-full"><FInput label="Cidade" value={form.company_city} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_city", event.target.value)} /></div>
           <div className="min-w-0 w-full md:col-span-2"><FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_state", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2))} /></div>
         </div></Section>
+        </>}
         <Section title="Identidade visual"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo do menu" />
