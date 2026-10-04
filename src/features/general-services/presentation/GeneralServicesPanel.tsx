@@ -5,6 +5,7 @@ import { Edit2, Wrench } from "lucide-react";
 import type { GeneralService } from "@/lib/database.types";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { createGeneralService, listGeneralServices, setGeneralServiceActive, updateGeneralService } from "../infrastructure/general-services.repository";
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -38,7 +39,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   const showStatus = hasPermission("general_services.table.status");
   const showActions = hasPermission("general_services.table.actions");
   const queryClient = useQueryClient();
-  const itemsQuery = useQuery({ queryKey: queryKeys.generalServices.lists(), queryFn: listGeneralServices, enabled: canView && (canViewTable || canViewDetails || canCreate || canEdit) });
+  const itemsQuery = useQuery({ queryKey: queryKeys.generalServices.lists(), queryFn: listGeneralServices, enabled: canView && (canViewTable || canViewDetails || canCreate || canEdit), staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const items = itemsQuery.data ?? []; const loading = itemsQuery.isPending;
   const [formOpen, setFormOpen] = useState(false); const [editItem, setEditItem] = useState<GeneralService | null>(null); const [name, setName] = useState(""); const [price, setPrice] = useState(""); const [maxDiscountPercentage, setMaxDiscountPercentage] = useState(""); const [maxDiscountAmount, setMaxDiscountAmount] = useState(""); const [priceAtCompletion, setPriceAtCompletion] = useState(false); const [active, setActive] = useState(true); const [fieldErrors, setFieldErrors] = useState<{ name?: string; price?: string; maxDiscountPercentage?: string; maxDiscountAmount?: string }>({}); const [saving, setSaving] = useState(false); const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(5);
   useEffect(() => { if (itemsQuery.error) setToast({ msg: `Erro ao carregar serviços gerais: ${systemErrorMessage(itemsQuery.error)}`, type: "error" }); }, [itemsQuery.error]);
