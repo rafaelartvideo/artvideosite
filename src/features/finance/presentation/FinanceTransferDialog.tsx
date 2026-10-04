@@ -1,7 +1,7 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput, FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import type { FinancialAccount, FinancialTransferDraft } from "../domain/finance.types";
@@ -66,14 +66,14 @@ export function FinanceTransferDialog({
 
   const options = activeAccounts.map(item => ({ value: item.id, label: `${item.name} · ${Number(item.balance || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` }));
   return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
-    <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
-      <div className="flex items-center justify-between border-b px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Nova transferência</h2><p className="mt-1 text-xs text-[#5a6a82]">Movimenta saldo entre duas contas sem gerar receita ou despesa.</p></div><button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button></div>
-      <div className="space-y-4 p-5">
+    <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="flex shrink-0 items-center justify-between border-b px-5 py-4"><div><h2 className="text-lg font-black text-[#0d1b2e]">Nova transferência</h2><p className="mt-1 text-xs text-[#5a6a82]">Movimenta saldo entre duas contas sem gerar receita ou despesa.</p></div><button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button></div>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
         <div className="grid gap-4 sm:grid-cols-2"><FSelect label="Conta de origem" required error={fieldErrors.from} value={fromId} onChange={(event: any) => { setFieldErrors(current => ({ ...current, from: undefined })); setFromId(event.target.value); }} options={options} /><FSelect label="Conta de destino" required error={fieldErrors.to} value={toId} onChange={(event: any) => { setFieldErrors(current => ({ ...current, to: undefined })); setToId(event.target.value); }} options={options} /></div>
-        <div className="grid gap-4 sm:grid-cols-2"><FInput label="Valor" required error={fieldErrors.amount} type="number" min="0.01" step="0.01" value={amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }} /><FInput label="Data e hora" required error={fieldErrors.occurredAt} type="datetime-local" value={occurredAt} onChange={(event: any) => { setFieldErrors(current => ({ ...current, occurredAt: undefined })); setOccurredAt(event.target.value); }} /></div>
+        <div className="grid gap-4 sm:grid-cols-2"><FCurrencyInput label="Valor" required error={fieldErrors.amount} value={amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }} /><FInput label="Data e hora" required error={fieldErrors.occurredAt} type="datetime-local" value={occurredAt} onChange={(event: any) => { setFieldErrors(current => ({ ...current, occurredAt: undefined })); setOccurredAt(event.target.value); }} /></div>
         <FTextarea label="Observação" value={note} onChange={(event: any) => setNote(event.target.value)} placeholder="Opcional" />
       </div>
-      <div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton><AdminButton onClick={save} loading={saving} loadingText="Transferindo...">Transferir</AdminButton></div>
+      <div className="flex shrink-0 flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton><AdminButton onClick={save} loading={saving} loadingText="Transferindo...">Transferir</AdminButton></div>
     </div>
   </div>;
 }
