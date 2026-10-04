@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Camera, Upload, X } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
 import type { OrderImage } from "../domain/order-image";
 export type { OrderImage } from "../domain/order-image";
 
@@ -100,5 +100,16 @@ export function OrderImagesField({
 export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: () => void }) {
   const { url: mediaUrl } = useMediaUrl(image.mediaId);
   const url = image.url || mediaUrl;
-  return url ? <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0d1b2e]/80 p-5" onClick={onClose}><AdminIconButton ariaLabel="Fechar imagem" onClick={onClose} variant="ghost" className="absolute right-4 top-4 h-10 w-10 rounded-full bg-white/15 text-white hover:bg-white/25 hover:text-white"><X size={20} /></AdminIconButton><img src={url} alt={image.name} className="max-w-full max-h-full object-contain" onClick={event => event.stopPropagation()} /></div> : null;
+  return url ? <AdminDialog
+    open
+    onClose={onClose}
+    title={image.name || "Visualizar imagem"}
+    description="Imagem vinculada à ordem de serviço."
+    minimizedDescription={image.name || "Imagem da OS"}
+    className="max-w-6xl"
+  >
+    <div className="flex min-h-[45vh] items-center justify-center overflow-hidden rounded-xl bg-[#0d1b2e] p-2">
+      <img src={url} alt={image.name} className="max-h-[72vh] max-w-full object-contain" />
+    </div>
+  </AdminDialog> : null;
 }
