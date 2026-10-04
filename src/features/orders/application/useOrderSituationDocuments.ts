@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import {
   attachOrderSituationDocument,
   getServiceOrderOrganizationId,
@@ -54,7 +55,8 @@ export function useOrderSituationDocuments({
   const attachmentTypesQuery = useQuery({
     queryKey: ["documents", effectiveOrganizationId || "none", "attachment-types", "active"],
     enabled: Boolean(orderId && effectiveOrganizationId && hasPermission("orders.section.images")),
-    staleTime: 30 * 60_000,
+    staleTime: REFERENCE_DATA_CACHE_TIME,
+    gcTime: REFERENCE_DATA_CACHE_TIME,
     queryFn: async () => {
       const { data, error } = await listAttachmentTypes(true, effectiveOrganizationId);
       if (error) throw error;
