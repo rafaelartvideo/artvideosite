@@ -182,6 +182,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
           accessMode="read"
           detailOnly
           monitorView
+          monitorContact={contextQuery.data?.organization || null}
           onOrderRouteChange={(orderId, subpage) => {
             setSelectedOrderId(orderId);
             onOrderRouteChange?.(orderId, subpage);
