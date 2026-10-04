@@ -8,7 +8,16 @@ import {
   getFinancialDre,
 } from "../infrastructure/finance-reports.repository";
 
-export function useFinanceReports(filters: FinancialReportFilters) {
+type FinanceReportLoad = {
+  dashboard?: boolean;
+  dre?: boolean;
+  cashFlow?: boolean;
+};
+
+export function useFinanceReports(
+  filters: FinancialReportFilters,
+  load: FinanceReportLoad = {},
+) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
@@ -26,7 +35,7 @@ export function useFinanceReports(filters: FinancialReportFilters) {
 
   const dashboardQuery = useQuery({
     queryKey: queryKeys.finance.dashboard(organizationKey, filters.from, filters.to),
-    enabled: Boolean(activeOrganizationId) && canDashboard && hasPeriod,
+    enabled: Boolean(activeOrganizationId) && canDashboard && hasPeriod && load.dashboard !== false,
     queryFn: () => getFinancialDashboard(organizationId, filters.from, filters.to),
   });
 
@@ -39,7 +48,7 @@ export function useFinanceReports(filters: FinancialReportFilters) {
       costCenterId,
       originType,
     ),
-    enabled: Boolean(activeOrganizationId) && canDre && hasPeriod,
+    enabled: Boolean(activeOrganizationId) && canDre && hasPeriod && load.dre !== false,
     queryFn: () => getFinancialDre(organizationId, filters),
   });
 
@@ -54,7 +63,7 @@ export function useFinanceReports(filters: FinancialReportFilters) {
       originType,
       paymentMethodId,
     ),
-    enabled: Boolean(activeOrganizationId) && canCashFlow && hasPeriod,
+    enabled: Boolean(activeOrganizationId) && canCashFlow && hasPeriod && load.cashFlow !== false,
     queryFn: () => getFinancialCashFlow(organizationId, filters),
   });
 
