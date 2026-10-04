@@ -76,10 +76,10 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
       </AdminCard>
     ) : <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Empresas cadastradas" value={metrics.companies_total} hint={\`\${metrics.companies_active} ativas\`} icon={Building2} onClick={() => open("partnerCompanies")} />
+        <MetricCard label="Empresas cadastradas" value={metrics.companies_total} hint={`${metrics.companies_active} ativas`} icon={Building2} onClick={() => open("partnerCompanies")} />
         <MetricCard label="Empresas monitoradas" value={metrics.monitored_companies} hint="com tipos de atendimento monitorados" icon={Radio} onClick={() => open("orders")} />
-        <MetricCard label="OS monitoradas" value={metrics.monitored_orders_open} hint={\`\${metrics.monitored_orders_total} no histórico monitorado\`} icon={ClipboardList} onClick={() => open("orders")} />
-        <MetricCard label="Assinaturas ativas" value={metrics.subscriptions_active} hint={\`\${metrics.subscriptions_past_due} com pendência\`} icon={CreditCard} onClick={() => open("finance")} />
+        <MetricCard label="OS monitoradas" value={metrics.monitored_orders_open} hint={`${metrics.monitored_orders_total} no histórico monitorado`} icon={ClipboardList} onClick={() => open("orders")} />
+        <MetricCard label="Assinaturas ativas" value={metrics.subscriptions_active} hint={`${metrics.subscriptions_past_due} com pendência`} icon={CreditCard} onClick={() => open("finance")} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -132,7 +132,7 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
               <span className="min-w-0">
                 <strong className="block truncate font-mono text-sm text-primary">OS {order.os_number}</strong>
                 <span className="mt-0.5 block truncate text-[10px] font-semibold text-muted-foreground">
-                  {order.organization_name}{order.external_os_number ? \` · Externa \${order.external_os_number}\` : ""}
+                  {order.organization_name}{order.external_os_number ? ` · Externa ${order.external_os_number}` : ""}
                 </span>
               </span>
               <StatusBadge status={order.situation_name || "Sem situação"} color={order.situation_color} />
