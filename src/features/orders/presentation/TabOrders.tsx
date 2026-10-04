@@ -73,6 +73,7 @@ const READ_ONLY_PERMISSION_MARKERS = [
   ".change",
   ".manage",
   ".request",
+  ".resend",
   ".dispatch",
   ".confirm",
   ".register",
