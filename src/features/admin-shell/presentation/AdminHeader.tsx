@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import {
+  ArrowLeft,
   Bell,
   ChevronDown,
   CircleHelp,
@@ -515,20 +516,21 @@ export function AdminHeader({
 
       {page && (
         <header className="relative z-30 hidden min-w-0 shrink-0 border-b border-border bg-card px-6 py-3 md:block">
-          <div className="flex min-w-0 items-center gap-1.5 text-[10px] text-[#5a6a82]">
+          <div className="flex min-h-6 min-w-0 items-center gap-2 text-[#5a6a82]">
             {parentBreadcrumb && <>
               <button
                 type="button"
                 onClick={page.onBack}
-                className="min-w-0 max-w-[340px] truncate font-normal transition-colors hover:text-primary"
+                className="inline-flex min-w-0 max-w-[380px] items-center gap-1.5 text-[11px] font-medium leading-5 transition-colors hover:text-primary"
                 title={parentBreadcrumb}
               >
-                {parentBreadcrumb}
+                <ArrowLeft size={15} className="shrink-0" strokeWidth={2.1} />
+                <span className="truncate">{parentBreadcrumb}</span>
               </button>
-              <span aria-hidden="true" className="shrink-0">&gt;</span>
+              <span aria-hidden="true" className="shrink-0 text-[11px] leading-5">&gt;</span>
             </>}
             <span
-              className="min-w-0 truncate font-normal text-[#0d1b2e] underline decoration-current underline-offset-4"
+              className="min-w-0 truncate text-[13px] font-semibold leading-5 text-foreground underline decoration-current underline-offset-4"
               title={page.title}
             >
               {page.title}
