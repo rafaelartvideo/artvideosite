@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
@@ -208,8 +208,6 @@ function AdminEntry() {
     && canOpenRequestedOrganization
     && activeOrganization?.organization_id !== requestedOrganizationId,
   );
-  const activeOrganizationId = activeOrganization?.organization_id ?? null;
-
   useEffect(() => {
     if (!shouldSwitchOrganization || !requestedOrganizationId) return;
     void setActiveOrganization(requestedOrganizationId);
