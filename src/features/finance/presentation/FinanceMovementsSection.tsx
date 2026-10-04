@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardToolbar, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceMovements } from "../application/useFinanceMovements";
@@ -162,6 +162,6 @@ export function FinanceMovementsSection() {
 
     <FinanceTransferDialog open={transferOpen} accounts={accounts} saving={finance.transferMutation.isPending} onClose={() => { if (!finance.transferMutation.isPending) setTransferOpen(false); }} onSave={saveTransfer} />
 
-    {reverseTransferId && <div className="fixed inset-0 z-[125] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"><div className="border-b px-5 py-4"><h2 className="text-lg font-black text-[#0d1b2e]">Estornar transferência</h2><p className="mt-1 text-xs text-[#5a6a82]">Serão criados movimentos inversos nas duas contas.</p></div><div className="p-5"><FTextarea label="Motivo do estorno" required error={reverseReasonError} value={reverseReason} onChange={(event: any) => { setReverseReasonError(""); setReverseReason(event.target.value); }} /></div><div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!finance.reverseTransferMutation.isPending) { setReverseTransferId(null); setReverseReason(""); } }}>Cancelar</AdminButton><AdminButton variant="danger" onClick={reverseTransfer} loading={finance.reverseTransferMutation.isPending} loadingText="Estornando...">Confirmar estorno</AdminButton></div></div></div>}
+    {reverseTransferId && <AdminDialog open onClose={() => { if (!finance.reverseTransferMutation.isPending) { setReverseTransferId(null); setReverseReason(""); } }} title="Estornar transferência" description="Serão criados movimentos inversos nas duas contas." className="max-w-lg" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!finance.reverseTransferMutation.isPending) { setReverseTransferId(null); setReverseReason(""); } }}>Cancelar</AdminButton><AdminButton variant="danger" onClick={reverseTransfer} loading={finance.reverseTransferMutation.isPending} loadingText="Estornando...">Confirmar estorno</AdminButton></div>}><FTextarea label="Motivo do estorno" required error={reverseReasonError} value={reverseReason} onChange={(event: any) => { setReverseReasonError(""); setReverseReason(event.target.value); }} /></AdminDialog>}
   </div>;
 }
