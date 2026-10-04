@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { normalizeCpfLookupPayload } from "../domain/cpf-lookup.mjs";
+import { cpfAlreadyRegisteredMessage, normalizeCpfLookupPayload } from "../domain/cpf-lookup.mjs";
 
 export type CpfLookupResult = {
   name: string;
@@ -25,6 +25,34 @@ async function invokeCpfLookup(body: Record<string, unknown>, fallback: string) 
   return data;
 }
 
+async function assertAccessibleCpfIsAvailable(
+  cpf: string,
+  organizationId: string,
+  excludeRegistrationId?: string | null,
+) {
+  let query = supabase
+    .from("entities")
+    .select("id,name")
+    .eq("organization_id", organizationId)
+    .eq("document", cpf)
+    .limit(1);
+
+  if (excludeRegistrationId) query = query.neq("id", excludeRegistrationId);
+  const { data, error } = await query.maybeSingle();
+
+  // O servidor continua sendo a autoridade para escopos administrativos entre empresas.
+  // Quando o RLS permite leitura local, este atalho evita consulta externa e avisa na hora.
+  if (error) {
+    console.warn("[CPF LOOKUP] local duplicate preflight unavailable", error);
+    return;
+  }
+  if (!data) return;
+
+  const duplicate = new Error(cpfAlreadyRegisteredMessage(data.name)) as Error & { code?: string };
+  duplicate.code = "cpf_already_exists";
+  throw duplicate;
+}
+
 export async function lookupCpf(
   cpf: string,
   organizationId: string,
@@ -33,6 +61,10 @@ export async function lookupCpf(
 ): Promise<CpfLookupResult> {
   const digits = cpf.replace(/\D/g, "");
   if (!organizationId) throw new Error("Empresa ativa não informada para a consulta de CPF.");
+
+  if (options.checkExisting !== false) {
+    await assertAccessibleCpfIsAvailable(digits, organizationId, excludeRegistrationId);
+  }
 
   const data = await invokeCpfLookup({
     cpf: digits,
@@ -51,6 +83,8 @@ export async function ensureCpfAvailable(
 ) {
   const digits = cpf.replace(/\D/g, "");
   if (!organizationId) throw new Error("Empresa ativa não informada para validar o CPF.");
+
+  await assertAccessibleCpfIsAvailable(digits, organizationId, excludeRegistrationId);
 
   const data = await invokeCpfLookup({
     cpf: digits,
