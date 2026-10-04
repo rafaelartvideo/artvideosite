@@ -12,6 +12,7 @@ import { PlatformCrmHub } from "@/features/admin-shell/presentation/PlatformCrmH
 import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
 import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
@@ -106,6 +107,11 @@ export function AdminDashboard({
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
   const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
   const mobileLabelModule = operationModule || siteModule || activeTab === "inventory" || activeTab === "pdv" || activeTab === "partnerCompanies" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
+  const showCrmBackToolbar = crmMode
+    && activeTab !== "crm"
+    && !route.resourceId
+    && !route.subpage
+    && parentAdminTab(activeTab) === null;
 
   const navigateAdmin = (
     tab: AdminTab,
@@ -261,6 +267,9 @@ export function AdminDashboard({
             <Route path="contact/*" element={<TabContact />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>}
+        {showCrmBackToolbar && <AdminStickyToolbar className="mt-5">
+          <BtnSecondary onClick={() => navigateAdmin("crm", null, null, { crmMode: true })}>Voltar para CRM</BtnSecondary>
+        </AdminStickyToolbar>}
       </div>
       <FieldTrackingReporter />
       <TermsAcceptanceGate initialPending={pendingTerms} />
