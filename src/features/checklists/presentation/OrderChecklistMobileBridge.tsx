@@ -12,7 +12,6 @@ import {
 import {
   closeMobileOrderChecklistSession,
   createMobileOrderChecklistSession,
-  pollMobileOrderChecklistSession,
   type MobileOrderChecklistSession,
 } from "../infrastructure/order-mobile-checklist.gateway";
 
@@ -113,22 +112,6 @@ export function OrderChecklistMobileBridge({
       applyUpdatedAt(String(row.order_updated_at || ""));
     };
 
-    const loadInitialState = async () => {
-      try {
-        const result = await pollMobileOrderChecklistSession(session.id);
-        if (cancelled) return;
-        if (String(result.status || "active") !== "active") {
-          setExpired(true);
-          setConnected(false);
-        }
-        applyUpdatedAt(String(result.checklist_updated_at || ""));
-      } catch (pollError) {
-        if (!cancelled) {
-          setError(pollError instanceof Error ? pollError.message : "Falha ao acompanhar o checklist no celular.");
-        }
-      }
-    };
-
     const unsubscribe = subscribeMobileSessionRealtime({
       sessionId: session.id,
       presenceRole: "desktop",
@@ -136,7 +119,6 @@ export function OrderChecklistMobileBridge({
         if (!cancelled) setConnected(value);
       },
       onSessionChange: applySessionRow,
-      onReady: () => void loadInitialState(),
     });
 
     const expiresAtMs = Date.parse(session.expiresAt);
