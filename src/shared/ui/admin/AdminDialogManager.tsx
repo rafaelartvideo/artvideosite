@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Maximize2, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { setDialogMinimizedState } from "./admin-dialog-behavior.mjs";
+import { resolveAdminBrowserBottomInset, setDialogMinimizedState } from "./admin-dialog-behavior.mjs";
 
 type AdminDialogTask = {
   id: string;
@@ -113,18 +113,20 @@ function AdminMinimizedDialogDock({
 
   React.useEffect(() => {
     const viewport = window.visualViewport;
-    if (!viewport) return;
     const update = () => {
-      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-      setBrowserBottomInset(Math.min(140, Math.round(inset)));
+      const measuredInset = viewport
+        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+        : 0;
+      const isMobile = window.matchMedia("(max-width: 767px)").matches;
+      setBrowserBottomInset(resolveAdminBrowserBottomInset(measuredInset, isMobile));
     };
     update();
-    viewport.addEventListener("resize", update);
-    viewport.addEventListener("scroll", update);
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
     window.addEventListener("resize", update);
     return () => {
-      viewport.removeEventListener("resize", update);
-      viewport.removeEventListener("scroll", update);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };
   }, []);

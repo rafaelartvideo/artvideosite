@@ -1,5 +1,14 @@
 export function setDialogMinimizedState(tasks, id, minimized) {
-  return tasks.map(item => item.id === id ? { ...item, minimized } : item);
+  return tasks.map(item => {
+    if (item.id === id) return { ...item, minimized };
+    if (!minimized && !item.minimized) return { ...item, minimized: true };
+    return item;
+  });
+}
+
+export function resolveAdminBrowserBottomInset(measuredInset, isMobile) {
+  const normalized = Math.max(0, Math.round(Number(measuredInset) || 0));
+  return isMobile ? Math.max(64, normalized) : normalized;
 }
 
 export function resolveDialogModalMode(isManaged, requestedModal) {

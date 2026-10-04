@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { ArrowLeft, Pause, Play, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
-import { preventAdminDialogOutsideInteraction } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
+import { preventAdminDialogOutsideInteraction, resolveAdminBrowserBottomInset } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
 import {
   Dialog,
   DialogContent,
@@ -284,21 +284,20 @@ export function AdminDialog({
   React.useEffect(() => {
     if (!open) return;
     const viewport = window.visualViewport;
-    if (!viewport) {
-      setBrowserBottomInset(0);
-      return;
-    }
     const update = () => {
-      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-      setBrowserBottomInset(Math.min(140, Math.round(inset)));
+      const measuredInset = viewport
+        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+        : 0;
+      const isMobile = window.matchMedia("(max-width: 767px)").matches;
+      setBrowserBottomInset(resolveAdminBrowserBottomInset(measuredInset, isMobile));
     };
     update();
-    viewport.addEventListener("resize", update);
-    viewport.addEventListener("scroll", update);
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
     window.addEventListener("resize", update);
     return () => {
-      viewport.removeEventListener("resize", update);
-      viewport.removeEventListener("scroll", update);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };
   }, [open]);

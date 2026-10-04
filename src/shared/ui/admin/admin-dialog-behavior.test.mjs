@@ -3,23 +3,31 @@ import assert from "node:assert/strict";
 import {
   dialogSizingClass,
   preventAdminDialogOutsideInteraction,
+  resolveAdminBrowserBottomInset,
   resolveDialogModalMode,
   setDialogMinimizedState,
 } from "./admin-dialog-behavior.mjs";
 
-test("restoring one dialog does not minimize another restored dialog", () => {
+test("restoring one dialog returns any other restored dialog to the dock", () => {
   const tasks = [
     { id: "customer", minimized: false, order: 1 },
     { id: "equipment", minimized: true, order: 2 },
   ];
 
   assert.deepEqual(setDialogMinimizedState(tasks, "equipment", false), [
-    { id: "customer", minimized: false, order: 1 },
+    { id: "customer", minimized: true, order: 1 },
     { id: "equipment", minimized: false, order: 2 },
   ]);
 });
 
-test("managed dialogs are non-modal so multiple restored windows can coexist", () => {
+test("mobile bottom inset keeps a minimum browser-bar clearance when measurement is zero", () => {
+  assert.equal(resolveAdminBrowserBottomInset(0, true), 64);
+  assert.equal(resolveAdminBrowserBottomInset(28, true), 64);
+  assert.equal(resolveAdminBrowserBottomInset(92, true), 92);
+  assert.equal(resolveAdminBrowserBottomInset(28, false), 28);
+});
+
+test("managed dialogs are non-modal so a restored window does not dismiss on portal focus changes", () => {
   assert.equal(resolveDialogModalMode(true, true), false);
   assert.equal(resolveDialogModalMode(true, undefined), false);
   assert.equal(resolveDialogModalMode(false, true), true);
