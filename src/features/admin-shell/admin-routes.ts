@@ -9,6 +9,7 @@ export type AdminRouteParts = {
 
 export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   dashboard: "/admin",
+  crm: "/admin/crm",
   quotes: "/admin/quotes",
   orders: "/admin/orders",
   agenda: "/admin/agenda",
