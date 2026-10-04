@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, CheckCircle2, Clock3, Hash, ImagePlus, Loader2, LogOut, Save, Smartphone } from "lucide-react";
 import { useLocation } from "react-router";
 import { EmployeeMultiSelect } from "@/features/orders/presentation/OrderFormControls";
+import { subscribeMobileSessionRealtime } from "@/features/device-capture/infrastructure/mobile-session-realtime";
 import {
   getMobileOrderEditor,
-  getMobileOrderEditStatus,
   pairMobileOrderEditCode,
   saveMobileOrderEditor,
   uploadMobileOrderEditPhoto,
@@ -170,19 +170,27 @@ export function MobileOrderEditPage() {
 
   useEffect(() => {
     if (!pairing || state !== "connected") return;
-    let cancelled = false;
-    const heartbeat = async () => {
-      try {
-        await getMobileOrderEditStatus(pairing.id, pairing.token);
-      } catch (error) {
-        if (cancelled) return;
-        setState("expired");
-        setNotice({ type: "error", text: error instanceof Error ? error.message : "A conexão expirou." });
-      }
-    };
-    const timer = window.setInterval(() => void heartbeat(), 20_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [pairing?.id, pairing?.token, state]);
+    return subscribeMobileSessionRealtime({
+      sessionId: pairing.id,
+      presenceRole: "mobile",
+    });
+  }, [pairing?.id, state]);
+
+  useEffect(() => {
+    if (!pairing || state !== "connected" || !data?.expires_at) return;
+    const expiresAtMs = Date.parse(data.expires_at);
+    if (!Number.isFinite(expiresAtMs)) return;
+    const remaining = expiresAtMs - Date.now();
+    if (remaining <= 0) {
+      setState("expired");
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setState("expired");
+      setNotice({ type: "error", text: "A conexão expirou. Conecte novamente para continuar." });
+    }, remaining + 250);
+    return () => window.clearTimeout(timer);
+  }, [pairing?.id, state, data?.expires_at]);
 
   const connectByCode = async () => {
     const code = pairingCodeDigits(pairingCode);
