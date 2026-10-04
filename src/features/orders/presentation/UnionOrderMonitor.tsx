@@ -131,6 +131,16 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
 
   const rows = listQuery.data?.items ?? [];
   const total = listQuery.data?.total ?? 0;
+  const hasActiveFilters = Boolean(search || organizationId || serviceTypeId || statusId || situationId);
+
+  const clearFilters = () => {
+    setSearch("");
+    setOrganizationId("");
+    setServiceTypeId("");
+    setStatusId("");
+    setSituationId("");
+    setPage(1);
+  };
 
   const changeOrganization = (value: string) => {
     setOrganizationId(value);
@@ -167,71 +177,80 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
       subtitle="Acompanhamento em tempo real das ordens de serviço vinculadas aos tipos monitorados das empresas parceiras."
     />
 
-    <AdminCard>
-      <AdminCardContent>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div className="xl:col-span-2">
-            <FInput
-              label="Buscar"
-              placeholder="OS, cliente, documento, série ou modelo"
-              value={search}
-              onChange={(event: any) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <FSelect
-            label="Empresa"
-            value={organizationId}
-            onChange={(event: any) => changeOrganization(event.target.value)}
-            options={[
-              { value: "", label: "Todas as empresas" },
-              ...(options?.companies ?? []).map(item => ({ value: item.id, label: item.name })),
-            ]}
-          />
-          <FSelect
-            label="Tipo de atendimento"
-            value={serviceTypeId}
-            onChange={(event: any) => { setServiceTypeId(event.target.value); setPage(1); }}
-            options={[
-              { value: "", label: "Todos os tipos" },
-              ...serviceTypeOptions.map(item => ({
-                value: item.id,
-                label: organizationId ? item.title : `${item.organization_name} · ${item.title}`,
-              })),
-            ]}
-          />
-          <FSelect
-            label="Situação"
-            value={situationId}
-            onChange={(event: any) => { setSituationId(event.target.value); setPage(1); }}
-            options={[
-              { value: "", label: "Todas as situações" },
-              ...situationOptions.map(item => ({
-                value: item.id,
-                label: organizationId ? item.name : `${item.organization_name} · ${item.name}`,
-              })),
-            ]}
+    <AdminCard square className="overflow-hidden p-0">
+      <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 px-4 text-white md:h-11 admin-primary-bar">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10]">
+            <Search size={14} className="shrink-0 text-white/90" />
+          </span>
+          <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
+        </div>
+        {hasActiveFilters && <button
+          type="button"
+          onClick={clearFilters}
+          className="text-xs font-semibold text-white underline decoration-white/70 underline-offset-4 transition-opacity hover:opacity-80"
+        >
+          Limpar filtros
+        </button>}
+      </div>
+      <div className="grid gap-2 p-4 md:grid-cols-2 md:p-3 xl:grid-cols-6">
+        <div className="min-w-0 xl:col-span-2">
+          <FInput
+            label="OS, cliente, documento, série ou modelo"
+            placeholder="Digite para buscar"
+            value={search}
+            onChange={(event: any) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
           />
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div className="xl:col-start-5">
-            <FSelect
-              label="Status"
-              value={statusId}
-              onChange={(event: any) => { setStatusId(event.target.value); setPage(1); }}
-              options={[
-                { value: "", label: "Todos os status" },
-                ...statusOptions.map(item => ({
-                  value: item.id,
-                  label: organizationId ? item.name : `${item.organization_name} · ${item.name}`,
-                })),
-              ]}
-            />
-          </div>
-        </div>
-      </AdminCardContent>
+        <FSelect
+          label="Empresa"
+          value={organizationId}
+          onChange={(event: any) => changeOrganization(event.target.value)}
+          options={[
+            { value: "", label: "Todas as empresas" },
+            ...(options?.companies ?? []).map(item => ({ value: item.id, label: item.name })),
+          ]}
+        />
+        <FSelect
+          label="Tipo de atendimento"
+          value={serviceTypeId}
+          onChange={(event: any) => { setServiceTypeId(event.target.value); setPage(1); }}
+          options={[
+            { value: "", label: "Todos os tipos" },
+            ...serviceTypeOptions.map(item => ({
+              value: item.id,
+              label: organizationId ? item.title : `${item.organization_name} · ${item.title}`,
+            })),
+          ]}
+        />
+        <FSelect
+          label="Situação"
+          value={situationId}
+          onChange={(event: any) => { setSituationId(event.target.value); setPage(1); }}
+          options={[
+            { value: "", label: "Todas as situações" },
+            ...situationOptions.map(item => ({
+              value: item.id,
+              label: organizationId ? item.name : `${item.organization_name} · ${item.name}`,
+            })),
+          ]}
+        />
+        <FSelect
+          label="Status"
+          value={statusId}
+          onChange={(event: any) => { setStatusId(event.target.value); setPage(1); }}
+          options={[
+            { value: "", label: "Todos os status" },
+            ...statusOptions.map(item => ({
+              value: item.id,
+              label: organizationId ? item.name : `${item.organization_name} · ${item.name}`,
+            })),
+          ]}
+        />
+      </div>
     </AdminCard>
 
     {optionsQuery.isError || listQuery.isError ? (
@@ -249,9 +268,9 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
         message="Não há ordens correspondentes aos tipos de atendimento e filtros selecionados."
       />
     ) : (
-      <AdminCard>
+      <AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
         <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-[980px]">
+          <table className="min-w-[1120px]">
             <thead><tr>
               <th className="text-left">Empresa</th>
               <th className="text-left">OS</th>
@@ -263,8 +282,8 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
             </tr></thead>
             <tbody>{rows.map(row => <tr key={row.id} className="cursor-pointer" onClick={() => openOrder(row)}>
               <td><p className="font-bold text-[#0d1b2e]">{row.organization_name}</p></td>
-              <td><p className="font-black text-[#0057e7]">{row.os_number}</p>{row.external_os_number && <p className="text-xs text-[#5a6a82]">Ext. {row.external_os_number}</p>}</td>
-              <td><p className="max-w-[220px] truncate font-semibold text-[#0d1b2e]">{row.customer_name || "—"}</p></td>
+              <td><div className="flex items-center gap-2"><span className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.status_color || "#94a3b8" }} /><div><p className="font-mono text-base font-black text-foreground">{row.os_number}</p>{row.external_os_number && <p className="text-[11px] font-semibold text-muted-foreground">OS Externa {row.external_os_number}</p>}</div></div></td>
+              <td><p className="max-w-[240px] truncate text-sm font-semibold text-foreground">{row.customer_name || "—"}</p></td>
               <td className="text-sm text-[#5a6a82]">{row.service_type_title}</td>
               <td><ColorBadge name={row.situation_name} color={row.situation_color} /></td>
               <td><ColorBadge name={row.status_name} color={row.status_color} /></td>
