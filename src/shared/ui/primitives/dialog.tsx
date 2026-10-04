@@ -50,14 +50,15 @@ function DialogContent({
   className,
   children,
   showClose = true,
+  showOverlay = true,
   overlayClassName,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean; overlayClassName?: string }) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean; showOverlay?: boolean; overlayClassName?: string }) {
   const isAdminDialog = typeof className === "string" && className.includes("admin-crm");
 
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay className={cn(isAdminDialog && "admin-dialog-overlay z-[140]", overlayClassName)} />
+      {showOverlay && <DialogOverlay className={cn(isAdminDialog && "admin-dialog-overlay z-[140]", overlayClassName)} />}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-admin-dialog-content={isAdminDialog ? "true" : undefined}
