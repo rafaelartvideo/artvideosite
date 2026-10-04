@@ -365,6 +365,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(null);
       setPermissions([]);
       setActiveOrganizationState(null);
+      setPendingTerms([]);
       activeOrganizationIdRef.current = null;
       setLoadingProgress(100);
       setLoading(false);
