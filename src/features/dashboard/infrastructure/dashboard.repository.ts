@@ -2,12 +2,14 @@ import { supabase } from "@/lib/supabase";
 import type { DashboardAccess, DashboardOverview } from "../domain/dashboard";
 
 type DashboardQueryInput = {
+  organizationId: string;
   periodDays: number;
   access: DashboardAccess;
 };
 
-export async function loadDashboardOverview({ periodDays, access }: DashboardQueryInput): Promise<DashboardOverview> {
-  const { data, error } = await supabase.rpc("load_admin_dashboard_overview_v1", {
+export async function loadDashboardOverview({ organizationId, periodDays, access }: DashboardQueryInput): Promise<DashboardOverview> {
+  const { data, error } = await supabase.rpc("load_admin_dashboard_overview_v2", {
+    p_organization_id: organizationId,
     p_period_days: Math.max(1, Math.trunc(periodDays || 30)),
     p_orders: access.orders,
     p_registrations: access.registrations,
