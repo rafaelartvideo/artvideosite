@@ -2,7 +2,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, CheckCircle, PackagePlus, Pencil, Wrench, X } from "lucide-react";
+import { Ban, PackagePlus, Pencil, X } from "lucide-react";
 import { AdminButton, AdminIconButton, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -82,8 +82,8 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
         </div>
         {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel) && <div className="flex min-w-0 flex-wrap justify-end gap-1.5 md:gap-2">
           {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
-          {canResolve && <BtnPrimary onClick={onResolve} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><Wrench className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Solucionar</span></BtnPrimary>}
-          {canComplete && <BtnPrimary onClick={() => onComplete()} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><CheckCircle className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Concluir OS</span></BtnPrimary>}
+          {canResolve && <BtnPrimary onClick={onResolve} className="h-11 w-auto min-w-0 px-4 md:h-10">Solucionar</BtnPrimary>}
+          {canComplete && <BtnPrimary onClick={() => onComplete()} className="h-11 w-auto min-w-0 px-4 md:h-10">Concluir</BtnPrimary>}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><Pencil className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Editar OS</span></BtnPrimary>}
           {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-11 w-11 min-w-0 border-red-200 !px-0 text-red-600 hover:bg-red-50 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
         </div>}
