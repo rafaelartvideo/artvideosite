@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileSignature, X } from "lucide-react";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { buildOrderDocumentSignatureSnapshot } from "@/features/documents/domain/document-signature";
 import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
@@ -17,7 +16,7 @@ import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
 const signerOptions = [
@@ -211,14 +210,18 @@ export function OrderSignatureRequestDialog({
     }
   };
 
-  return <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true" aria-label="Enviar documento para assinatura">
-    <div className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-      <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-white px-5 py-4">
-        <div className="flex min-w-0 items-start gap-3"><span className="mt-0.5 rounded-xl bg-[#edf3ff] p-2 text-[#0057e7]"><FileSignature size={20} /></span><div className="min-w-0"><h2 className="text-lg font-black text-[#0d1b2e]">Enviar para assinatura</h2><p className="mt-0.5 text-xs text-[#5a6a82]">O mesmo documento de impressão será congelado em PDF no momento do envio.</p></div></div>
-        <button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-muted disabled:opacity-50" aria-label="Fechar"><X size={18} /></button>
-      </div>
-
-      <div className="space-y-5 p-5">
+  return <AdminDialog
+    open
+    onClose={onClose}
+    title="Enviar para assinatura"
+    description="O mesmo documento de impressão será congelado em PDF no momento do envio."
+    className="max-w-xl"
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+      <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Congelando e enviando PDF..." disabled={onlineTemplates.length === 0}>Criar e enviar</BtnPrimary>
+    </div>}
+  >
+    <div className="space-y-5">
         {onlineTemplates.length === 0 ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Nenhum modelo ativo está marcado com “Permitir assinatura online”.</div> : <>
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Modelo</label>
@@ -262,14 +265,9 @@ export function OrderSignatureRequestDialog({
           </div>}
         </>}
 
-      </div>
-
-      <AdminStickyToolbar className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-        <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Congelando e enviando PDF..." disabled={onlineTemplates.length === 0}>Criar e enviar</BtnPrimary>
-      </AdminStickyToolbar>
     </div>
-  </div>;
+
+  </AdminDialog>;
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
