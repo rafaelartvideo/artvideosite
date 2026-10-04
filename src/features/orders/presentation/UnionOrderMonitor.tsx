@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Search } from "lucide-react";
+import { Eye, MessageCircle, Phone, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
+  AdminButton,
   AdminCard,
   AdminCardContent,
   AdminCardHeader,
   AdminPage,
+  AdminStickyToolbar,
+  BtnSecondary,
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
@@ -19,6 +22,7 @@ import {
   listUnionMonitoredOrders,
   type UnionOrderMonitorRow,
 } from "../infrastructure/union-order-monitor.repository";
+import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 
 type UnionOrderMonitorProps = {
   initialOrderId?: string | null;
@@ -39,6 +43,12 @@ function formatMoney(value: unknown) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(number);
+}
+
+function partnerPhoneDigits(value: unknown) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.startsWith("55") && digits.length >= 12 ? digits : `55${digits}`;
 }
 
 function TextField({ label, value }: { label: string; value: unknown }) {
@@ -62,10 +72,10 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
   const [search, setSearch] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [serviceTypeId, setServiceTypeId] = useState("");
-  const [statusId, setStatusId] = useState("");
   const [situationId, setSituationId] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [productsRevision, setProductsRevision] = useState(0);
 
   useEffect(() => {
     setSelectedOrderId(initialOrderId || null);
@@ -81,22 +91,17 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
     () => (options?.serviceTypes ?? []).filter(item => !organizationId || item.organization_id === organizationId),
     [options?.serviceTypes, organizationId],
   );
-  const statusOptions = useMemo(
-    () => (options?.statuses ?? []).filter(item => !organizationId || item.organization_id === organizationId),
-    [options?.statuses, organizationId],
-  );
   const situationOptions = useMemo(
     () => (options?.situations ?? []).filter(item => !organizationId || item.organization_id === organizationId),
     [options?.situations, organizationId],
   );
 
   const listQuery = useQuery({
-    queryKey: ["union-order-monitor", "list", { search, organizationId, serviceTypeId, statusId, situationId, page, pageSize }],
+    queryKey: ["union-order-monitor", "list", { search, organizationId, serviceTypeId, situationId, page, pageSize }],
     queryFn: () => listUnionMonitoredOrders({
       search,
       organizationId,
       serviceTypeId,
-      statusId,
       situationId,
       page,
       pageSize,
@@ -112,6 +117,7 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
 
   useEffect(() => {
     const invalidate = () => {
+      setProductsRevision(current => current + 1);
       void queryClient.invalidateQueries({ queryKey: ["union-order-monitor"] });
     };
     const channel = supabase
@@ -119,6 +125,7 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
       .on("postgres_changes", { event: "*", schema: "public", table: "service_orders" }, invalidate)
       .on("postgres_changes", { event: "*", schema: "public", table: "service_order_status_history" }, invalidate)
       .on("postgres_changes", { event: "*", schema: "public", table: "service_order_used_items" }, invalidate)
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_order_items" }, invalidate)
       .on("postgres_changes", { event: "*", schema: "public", table: "service_order_technical_values" }, invalidate)
       .on("postgres_changes", { event: "*", schema: "public", table: "service_order_technicians" }, invalidate)
       .on("postgres_changes", { event: "*", schema: "public", table: "service_order_sellers" }, invalidate)
@@ -131,13 +138,12 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
 
   const rows = listQuery.data?.items ?? [];
   const total = listQuery.data?.total ?? 0;
-  const hasActiveFilters = Boolean(search || organizationId || serviceTypeId || statusId || situationId);
+  const hasActiveFilters = Boolean(search || organizationId || serviceTypeId || situationId);
 
   const clearFilters = () => {
     setSearch("");
     setOrganizationId("");
     setServiceTypeId("");
-    setStatusId("");
     setSituationId("");
     setPage(1);
   };
@@ -145,7 +151,6 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
   const changeOrganization = (value: string) => {
     setOrganizationId(value);
     setServiceTypeId("");
-    setStatusId("");
     setSituationId("");
     setPage(1);
   };
@@ -170,6 +175,7 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
   const technicians = Array.isArray(detail?.technicians) ? detail.technicians : [];
   const sellers = Array.isArray(detail?.sellers) ? detail.sellers : [];
   const statusHistory = Array.isArray(detail?.statusHistory) ? detail.statusHistory : [];
+  const phoneDigits = partnerPhoneDigits(organization.phone);
 
   return <div className="min-w-0 space-y-5">
     <PageHeader
@@ -193,11 +199,11 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
           Limpar filtros
         </button>}
       </div>
-      <div className="grid gap-2 p-4 md:grid-cols-2 md:p-3 xl:grid-cols-6">
+      <div className="grid gap-2 p-4 md:grid-cols-2 md:p-3 xl:grid-cols-5">
         <div className="min-w-0 xl:col-span-2">
           <FInput
-            label="OS, cliente, documento, série ou modelo"
-            placeholder="Digite para buscar"
+            label="OS / Externa"
+            placeholder="Digite o número da OS ou OS externa"
             value={search}
             onChange={(event: any) => {
               setSearch(event.target.value);
@@ -238,18 +244,6 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
             })),
           ]}
         />
-        <FSelect
-          label="Status"
-          value={statusId}
-          onChange={(event: any) => { setStatusId(event.target.value); setPage(1); }}
-          options={[
-            { value: "", label: "Todos os status" },
-            ...statusOptions.map(item => ({
-              value: item.id,
-              label: organizationId ? item.name : `${item.organization_name} · ${item.name}`,
-            })),
-          ]}
-        />
       </div>
     </AdminCard>
 
@@ -269,25 +263,28 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
       />
     ) : (
       <AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border px-4 py-3 text-[11px] text-muted-foreground">
+          <span className="font-black uppercase tracking-[0.12em] text-foreground">Legenda</span>
+          <span className="inline-flex items-center gap-2"><span className="h-5 w-1.5 rounded-full bg-muted-foreground" />A cor ao lado da OS acompanha a situação atual.</span>
+          <span><strong className="font-bold text-foreground">OS Externa</strong> é o número informado pela empresa parceira.</span>
+        </div>
         <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-[1120px]">
+          <table className="min-w-[980px]">
             <thead><tr>
-              <th className="text-left">Empresa</th>
               <th className="text-left">OS</th>
+              <th className="text-left">Empresa</th>
               <th className="text-left">Cliente</th>
               <th className="text-left">Tipo</th>
               <th className="text-left">Situação</th>
-              <th className="text-left">Status</th>
               <th className="text-left">Atualização</th>
             </tr></thead>
             <tbody>{rows.map(row => <tr key={row.id} className="cursor-pointer" onClick={() => openOrder(row)}>
-              <td><p className="font-bold text-[#0d1b2e]">{row.organization_name}</p></td>
-              <td><div className="flex items-center gap-2"><span className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.status_color || "#94a3b8" }} /><div><p className="font-mono text-base font-black text-foreground">{row.os_number}</p>{row.external_os_number && <p className="text-[11px] font-semibold text-muted-foreground">OS Externa {row.external_os_number}</p>}</div></div></td>
+              <td><div className="flex items-center gap-2"><span className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.situation_color || "#94a3b8" }} /><div><p className="font-mono text-base font-black text-primary">{row.os_number}</p>{row.external_os_number && <p className="text-[11px] font-semibold text-muted-foreground">OS Externa {row.external_os_number}</p>}</div></div></td>
+              <td><p className="font-bold text-foreground">{row.organization_name}</p></td>
               <td><p className="max-w-[240px] truncate text-sm font-semibold text-foreground">{row.customer_name || "—"}</p></td>
-              <td className="text-sm text-[#5a6a82]">{row.service_type_title}</td>
+              <td className="text-sm text-muted-foreground">{row.service_type_title}</td>
               <td><ColorBadge name={row.situation_name} color={row.situation_color} /></td>
-              <td><ColorBadge name={row.status_name} color={row.status_color} /></td>
-              <td className="whitespace-nowrap text-xs text-[#5a6a82]">{formatDateTime(row.updated_at)}</td>
+              <td className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(row.updated_at)}</td>
             </tr>)}</tbody>
           </table>
         </div>
@@ -296,8 +293,9 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
           {rows.map(row => <button key={row.id} type="button" onClick={() => openOrder(row)} className="w-full p-4 text-left">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-xs font-bold text-[#5a6a82]">{row.organization_name}</p>
-                <p className="mt-1 text-base font-black text-[#0057e7]">OS {row.os_number}</p>
+                <p className="text-base font-black text-primary">OS {row.os_number}</p>
+                {row.external_os_number && <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground">OS Externa {row.external_os_number}</p>}
+                <p className="mt-1 truncate text-xs font-bold text-muted-foreground">{row.organization_name}</p>
                 <p className="mt-1 truncate text-sm font-semibold text-[#0d1b2e]">{row.customer_name || "—"}</p>
               </div>
               <Eye size={16} className="mt-1 shrink-0 text-[#0057e7]" />
@@ -305,7 +303,6 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
             <p className="mt-2 text-xs text-[#5a6a82]">{row.service_type_title}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <ColorBadge name={row.situation_name} color={row.situation_color} />
-              <ColorBadge name={row.status_name} color={row.status_color} />
             </div>
             <p className="mt-3 text-[11px] text-[#5a6a82]">Atualizada em {formatDateTime(row.updated_at)}</p>
           </button>)}
@@ -407,6 +404,14 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
           </AdminCardContent>
         </AdminCard>
 
+        <OrderProductsServicesSection
+          key={`${order.id || selectedOrderId}:${productsRevision}`}
+          order={order}
+          canEdit={false}
+          formatCurrency={value => formatMoney(value)}
+          onPricingChange={() => undefined}
+        />
+
         <AdminCard>
           <AdminCardHeader><div><h3 className="text-sm font-black text-[#0d1b2e]">Endereço e valores</h3><p className="mt-0.5 text-xs text-[#5a6a82]">Dados adicionais vinculados ao atendimento.</p></div></AdminCardHeader>
           <AdminCardContent>
@@ -437,6 +442,15 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
           </div>
         </AdminCard>}
       </div>}
+      {detail && !detailQuery.isPending && !detailQuery.isError && <AdminStickyToolbar>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <BtnSecondary onClick={closeOrder}>Voltar</BtnSecondary>
+          {phoneDigits && <div className="flex flex-wrap items-center gap-2">
+            <AdminButton variant="secondary" onClick={() => { window.location.href = `tel:+${phoneDigits}`; }}><Phone size={15} /> Ligar</AdminButton>
+            <AdminButton variant="secondary" onClick={() => window.open(`https://wa.me/${phoneDigits}`, "_blank", "noopener,noreferrer")}><MessageCircle size={15} /> WhatsApp</AdminButton>
+          </div>}
+        </div>
+      </AdminStickyToolbar>}
     </AdminPage>
   </div>;
 }
