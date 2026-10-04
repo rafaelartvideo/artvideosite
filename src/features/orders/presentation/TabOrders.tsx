@@ -246,6 +246,7 @@ export function TabOrders({
   });
   const orderDocuments = useOrderSituationDocuments({
     orderId: detail?.id,
+    organizationId: detail?.organization_id,
     serviceTypeId: detail?.service_type_id,
     situations,
     serviceTypeSituations,
