@@ -5,6 +5,7 @@ import {
   Bell,
   ChevronDown,
   CircleHelp,
+  CreditCard,
   Eye,
   EyeOff,
   KeyRound,
@@ -42,6 +43,7 @@ type AdminHeaderProps = {
   userName: string;
   username: string;
   roleName: string;
+  canViewPlanUsage: boolean;
   onOrganizationChange: (organizationId: string) => void | Promise<void>;
   onSignOut: () => void | Promise<void>;
   onToggleSidebar: () => void;
@@ -230,6 +232,7 @@ export function AdminHeader({
   userName,
   username,
   roleName,
+  canViewPlanUsage,
   onOrganizationChange,
   onSignOut,
   onToggleSidebar,
@@ -347,6 +350,17 @@ export function AdminHeader({
   };
 
   const settingsMenu = <div className="p-2">
+    {canViewPlanUsage && <button
+      type="button"
+      onClick={() => {
+        setOpenMenu(null);
+        navigate("/admin/plan-usage");
+      }}
+      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-[#24354b] transition-colors hover:bg-[#f5f7fa]"
+    >
+      <CreditCard size={16} className="text-[#718096]" />
+      Plano e uso
+    </button>}
     <button
       type="button"
       onClick={() => {

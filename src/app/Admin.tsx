@@ -51,6 +51,7 @@ const TabSettings = lazy(() => import("@/features/settings/presentation/TabSetti
 const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabSiteSettings").then(({ TabSiteSettings }) => ({ default: TabSiteSettings })));
 const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
+const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
 
@@ -60,7 +61,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "home", "dashboard", "crm", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "terms", "contact",
+  "home", "dashboard", "crm", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
 ];
 
 function RetainedAdminWorkspace({
@@ -140,6 +141,7 @@ export function AdminDashboard({
     if (tab === "crm") return isPlatformOperatorOrganization;
     if (tab === "announcements") return isPlatformOperatorOrganization && !crmMode && hasPermission("platform.announcements.view");
     if (tab === "settings" && isPlatformOperatorOrganization && !crmMode) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
+    if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled(tab, hasModule);
@@ -278,6 +280,7 @@ export function AdminDashboard({
       userName={profile?.full_name || user?.email?.split("@")[0] || "Admin"}
       username={(profile as any)?.username || user?.email?.split("@")[0] || ""}
       roleName={roleName}
+      canViewPlanUsage={!isPlatformOperatorOrganization && hasPermission("settings.details.view")}
       onOrganizationChange={handleOrganizationChange}
       onSignOut={() => signOut()}
       onToggleSidebar={() => setSidebarOpen(current => !current)}
@@ -326,6 +329,7 @@ export function AdminDashboard({
             <Route path="pdv/*" element={<TabPdv routeResourceId={route.resourceId} onRouteChange={routeChange("pdv")} />} />
             <Route path="finance/*" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformFinance /> : <TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
             <Route path="settings/*" element={<Navigate to={adminPath("settings", route.resourceId, route.subpage)} replace />} />
+            <Route path="plan-usage" element={<PlanUsagePage />} />
             <Route path="contact/*" element={<TabContact />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>}

@@ -39,6 +39,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   roles: "/admin/operation/roles",
   siteSettings: "/admin/site/settings",
   settings: "/admin/operation/company",
+  planUsage: "/admin/plan-usage",
   terms: "/admin/operation/terms",
   contact: "/admin/contact",
 };
