@@ -18,6 +18,7 @@ import {
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FInput, FTextarea, FToggle, FCurrencyInput, FIntegerInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -552,7 +553,6 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const movementQuantity = Number(movementForm.quantity || 0);
   const movementInputUnit = movementForm.type === "adjust" ? (selectedItem?.unit === "cx" ? "cx" : "un") : movementForm.input_unit;
   const movementBaseQuantity = movementInputUnit === "cx" ? movementQuantity * conversionFactor(selectedItem) : movementQuantity;
-  const mobileFilterLabel = mobileFilter === "name" ? "Nome" : mobileFilter === "sku" ? "SKU" : "Endereço";
   const mobileValue = mobileFilter === "name" ? nameSearch : mobileFilter === "sku" ? skuSearch : addressSearch;
   const setMobileValue = (value: string) => mobileFilter === "name" ? setNameSearch(value) : mobileFilter === "sku" ? setSkuSearch(value) : setAddressSearch(value);
   const activeLinkedSuppliers = linkedSuppliers.filter(supplier => supplier.is_active !== false);
@@ -565,13 +565,14 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       <PageHeader title="Estoque" subtitle="Controle de itens, fornecedores, custos e movimentações do almoxarifado" actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton> : null} />
 
       {canViewTable && <AdminSearchPanel title="Buscar estoque">
-        <div className="space-y-3 md:hidden">
-          <div className="flex items-center gap-2">
-            <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm"><span className="truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} /></button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[220px]">{([['name','Nome'],['sku','SKU'],['address','Endereço']] as const).map(([value,label]) => <DropdownMenuItem key={value} onSelect={() => setMobileFilter(value)} className={cn("cursor-pointer", mobileFilter === value && "bg-[#eef5ff] font-bold text-[#0057e7]")}><Search size={14} /><span>{label}</span>{mobileFilter === value && <Check size={14} className="ml-auto" />}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
-            {hasFilters && <button type="button" onClick={clearFilters} aria-label="Limpar filtros" className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600"><Eraser size={15} /></button>}
-          </div>
+        <AdminMobileSearchSwitch
+          value={mobileFilter}
+          options={[{ value: "name", label: "Nome" }, { value: "sku", label: "SKU" }, { value: "address", label: "Endereço" }]}
+          onChange={setMobileFilter}
+          actions={hasFilters ? <button type="button" onClick={clearFilters} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"><Eraser size={15} /></button> : null}
+        >
           <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={mobileValue} onChange={event => setMobileValue(event.target.value)} placeholder={mobileFilter === "name" ? "Digite o nome da peça" : mobileFilter === "sku" ? "Digite o SKU" : "Estante, prateleira ou compartimento"} className={cn(INPUT, "h-[42px] w-full pl-9 text-sm")} /></div>
-        </div>
+        </AdminMobileSearchSwitch>
         <div className="hidden grid-cols-1 gap-2 md:grid md:grid-cols-3">
           <SearchField label="Nome" value={nameSearch} onChange={setNameSearch} placeholder="Digite o nome da peça" />
           <SearchField label="SKU" value={skuSearch} onChange={setSkuSearch} placeholder="Digite o SKU" />
