@@ -369,11 +369,11 @@ begin
   delete from public.platform_billing_plan_modules where plan_id = p_plan_id;
 
   insert into public.platform_billing_plan_modules (plan_id, module_key, is_included)
-  select p_plan_id, module_key, true
-  from unnest(coalesce(p_modules, array[]::text[])) module_key
+  select p_plan_id, selected.module_key, true
+  from unnest(coalesce(p_modules, array[]::text[])) as selected(module_key)
   where exists (
     select 1 from public.system_modules module
-    where module.key = module_key and module.is_active
+    where module.key = selected.module_key and module.is_active
   )
   on conflict (plan_id, module_key) do update set is_included = true;
 
