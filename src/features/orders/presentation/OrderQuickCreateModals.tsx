@@ -657,7 +657,7 @@ export function ServiceTypeModal({ onClose, onSaved }: { onClose: () => void; on
     </div>}
   >
     <div className="space-y-3">
-      <FInput label="Título" required autoFocus disabled={saving} error={fieldErrors.title} value={form.title} onChange={(event: any) => { setFieldErrors(current => ({ ...current, title: undefined })); setForm({ ...form, title: event.target.value }); }} />
+      <FInput label="Título" required disabled={saving} error={fieldErrors.title} value={form.title} onChange={(event: any) => { setFieldErrors(current => ({ ...current, title: undefined })); setForm({ ...form, title: event.target.value }); }} />
       <FTextarea label="Descrição" disabled={saving} value={form.description} onChange={(event: any) => setForm({ ...form, description: event.target.value })} rows={3} />
       <FIntegerInput label="Previsão em dias" disabled={saving} error={fieldErrors.forecast_days} value={form.forecast_days} onChange={(event: any) => { setFieldErrors(current => ({ ...current, forecast_days: undefined })); setForm({ ...form, forecast_days: event.target.value }); }} />
       <FToggle label="Tipo ativo" disabled={saving} checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} />
