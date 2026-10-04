@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import {
   loadProductCatalog,
   saveCompleteProduct,
@@ -350,6 +351,8 @@ export function TabProducts({
       loadBrands: canLoadBrands,
     }),
     enabled: Boolean(activeOrganizationId && (canViewTable || canViewDetails || canCreate || canEdit)),
+    staleTime: REFERENCE_DATA_CACHE_TIME,
+    gcTime: REFERENCE_DATA_CACHE_TIME,
   });
 
   const products = catalogQuery.data?.products ?? [];
