@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, PackagePlus, Settings2, SlidersHorizontal } from "lucide-react";
+import { Building2, Database, PackagePlus, Settings2, SlidersHorizontal } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency } from "@/shared/domain/formatters";
 import {
@@ -15,8 +15,8 @@ import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminF
 import { loadOrganizationPlanUsage } from "@/features/subscriptions/infrastructure/subscription-usage.repository";
 import type { PlatformBillingPlan, PlatformSubscription, UnionPlatformFinanceData } from "../infrastructure/platform-billing.repository";
 import {
-  loadUnionSubscriptionConfiguration,
-  saveUnionBillingAddon,
+  loadUnionOrganizationDatabaseUsage,\n  loadUnionSubscriptionConfiguration,
+  refreshUnionOrganizationDatabaseUsage,\n  saveUnionBillingAddon,
   saveUnionPlanConfiguration,
   saveUnionSubscriptionConfiguration,
   type BillingAddon,
@@ -257,10 +257,17 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
     queryFn: () => loadOrganizationPlanUsage(selectedSubscription?.organization_id || ""),
     enabled: companyOpen && Boolean(selectedSubscription?.organization_id),
   });
+  const databaseUsageQuery = useQuery({
+    queryKey: ["organization-database-usage", selectedSubscription?.organization_id],
+    queryFn: () => loadUnionOrganizationDatabaseUsage(selectedSubscription?.organization_id || ""),
+    enabled: companyOpen && Boolean(selectedSubscription?.organization_id),
+  });
 
   const refresh = async () => {
     await query.refetch();
-    if (selectedSubscription?.organization_id) await usageQuery.refetch();
+    if (selectedSubscription?.organization_id) {
+      await Promise.all([usageQuery.refetch(), databaseUsageQuery.refetch()]);
+    }
     await onChanged();
   };
 
@@ -370,6 +377,20 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
     }
     setCompanyFeatureOverrides(features);
     setCompanyOpen(true);
+  };
+
+  const measureDatabaseUsage = async () => {
+    if (!selectedSubscription || !canManage) return;
+    setSaving(true);
+    try {
+      await refreshUnionOrganizationDatabaseUsage(selectedSubscription.organization_id);
+      await databaseUsageQuery.refetch();
+      notifyAdmin("Medição do banco atualizada.");
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível medir o uso do banco."), "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const saveCompany = async () => {
@@ -630,6 +651,27 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
             <p className="mt-1 text-base font-black text-foreground">{used} <span className="text-xs font-semibold text-muted-foreground">/ {limit}</span></p>
           </div>)}
         </div>}
+
+        <section className="border border-border p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><Database size={17} /></span>
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-[0.11em] text-foreground">Uso estimado do PostgreSQL</h4>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
+                  Snapshot administrativo. A estimativa distribui tabelas, índices e TOAST proporcionalmente aos dados atribuíveis à empresa e não é usada para bloquear ou cobrar automaticamente.
+                </p>
+              </div>
+            </div>
+            {canManage && <AdminButton size="sm" variant="secondary" loading={saving} onClick={() => void measureDatabaseUsage()}>Atualizar medição</AdminButton>}
+          </div>
+          {databaseUsageQuery.isPending ? <p className="mt-4 text-xs text-muted-foreground">Carregando medição...</p> : databaseUsageQuery.data?.measured_at ? <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Estimativa alocada</p><p className="mt-1 text-base font-black text-foreground">{formatUsageBytes(databaseUsageQuery.data.allocated_bytes_estimate)}</p></div>
+            <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Payload das linhas</p><p className="mt-1 text-base font-black text-foreground">{formatUsageBytes(databaseUsageQuery.data.row_payload_bytes)}</p></div>
+            <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Linhas atribuídas</p><p className="mt-1 text-base font-black text-foreground">{databaseUsageQuery.data.row_count.toLocaleString("pt-BR")}</p></div>
+            <div className="border border-border p-3"><p className="text-[10px] font-black uppercase text-muted-foreground">Tabelas com dados</p><p className="mt-1 text-base font-black text-foreground">{databaseUsageQuery.data.tables_with_data.toLocaleString("pt-BR")}</p></div>
+          </div> : <p className="mt-4 text-xs text-muted-foreground">Ainda não há snapshot. Use “Atualizar medição” quando quiser calcular o consumo do banco desta empresa.</p>}
+        </section>
 
         <section>
           <h4 className="text-xs font-black uppercase tracking-[0.11em] text-foreground">Add-ons contratados</h4>

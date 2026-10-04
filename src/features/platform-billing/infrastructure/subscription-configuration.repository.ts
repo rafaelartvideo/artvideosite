@@ -176,3 +176,52 @@ export async function saveUnionSubscriptionConfiguration(input: {
   });
   if (error) throw error;
 }
+
+
+export type OrganizationDatabaseUsageSnapshot = {
+  organization_id: string;
+  row_count: number;
+  row_payload_bytes: number;
+  allocated_bytes_estimate: number;
+  tables_with_data: number;
+  details: Array<{
+    table_name: string;
+    rows: number;
+    row_payload_bytes: number;
+    allocated_bytes_estimate: number;
+  }>;
+  measured_at?: string | null;
+};
+
+function normalizeDatabaseUsage(data: any, organizationId: string): OrganizationDatabaseUsageSnapshot {
+  return {
+    organization_id: String(data?.organization_id || organizationId),
+    row_count: Number(data?.row_count || 0),
+    row_payload_bytes: Number(data?.row_payload_bytes || 0),
+    allocated_bytes_estimate: Number(data?.allocated_bytes_estimate || 0),
+    tables_with_data: Number(data?.tables_with_data || 0),
+    details: (Array.isArray(data?.details) ? data.details : []).map((item: any) => ({
+      table_name: String(item?.table_name || ""),
+      rows: Number(item?.rows || 0),
+      row_payload_bytes: Number(item?.row_payload_bytes || 0),
+      allocated_bytes_estimate: Number(item?.allocated_bytes_estimate || 0),
+    })),
+    measured_at: data?.measured_at ? String(data.measured_at) : null,
+  };
+}
+
+export async function loadUnionOrganizationDatabaseUsage(organizationId: string) {
+  const { data, error } = await supabase.rpc("load_union_organization_database_usage_v1", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+  return normalizeDatabaseUsage(data, organizationId);
+}
+
+export async function refreshUnionOrganizationDatabaseUsage(organizationId: string) {
+  const { data, error } = await supabase.rpc("refresh_union_organization_database_usage_v1", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+  return normalizeDatabaseUsage(data, organizationId);
+}
