@@ -1,6 +1,6 @@
 import React from "react";
 import { CheckCircle, PackagePlus, Search, X } from "lucide-react";
-import { AdminCard, AdminCardHeader, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardHeader, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSelect, FIntegerInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { normalizeSearchText } from "../application/order-search";
@@ -13,7 +13,6 @@ import type {
   SelectedPartRequestItem,
   TestResultRow,
 } from "../domain/part-request.types";
-import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/primitives/dialog";
 
 const packageHint = (item: { package_unit?: string | null; conversion_factor?: number | null }) =>
   item.package_unit === "cx" && Number(item.conversion_factor || 1) > 1
@@ -27,13 +26,37 @@ const clampInteger = (value: string, min: number, max: number) => {
   return String(Math.min(max, Math.max(min, Math.trunc(numeric))));
 };
 
-export function CenteredModal({ children, onClose, className, title = "Pedido de peças" }: { children: React.ReactNode; onClose: () => void; className?: string; title?: string }) {
-  return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent showClose={false} minimizedTitle={title} className={cn("admin-crm flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-[#0d1b2e]/10 bg-white p-0 shadow-2xl sm:w-full", className || "max-w-2xl")}>
-      <DialogTitle className="sr-only">{title}</DialogTitle>
-      {children}
-    </DialogContent>
-  </Dialog>;
+export function CenteredModal({
+  children,
+  onClose,
+  className,
+  title = "Pedido de peças",
+  description,
+  minimizedDescription,
+  footer,
+  minimizable = true,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+  className?: string;
+  title?: string;
+  description?: React.ReactNode;
+  minimizedDescription?: React.ReactNode;
+  footer?: React.ReactNode;
+  minimizable?: boolean;
+}) {
+  return <AdminDialog
+    open
+    onClose={onClose}
+    title={title}
+    description={description}
+    minimizedDescription={minimizedDescription}
+    minimizable={minimizable}
+    className={className || "max-w-2xl"}
+    footer={footer}
+  >
+    {children}
+  </AdminDialog>;
 }
 
 export function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading, inventoryError, selectedItems, search, notes, purpose, submitting, onPurposeChange, onSearchChange, onNotesChange, onSelect, onQuantityChange, onRemove, onClose, onSubmit }: {
@@ -44,13 +67,19 @@ export function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading
   const visibleItems = inventoryItems.filter(item => !query || normalizeSearchText(item.name).includes(query) || normalizeSearchText(item.sku).includes(query));
   const selectedIds = new Set(selectedItems.map(item => item.inventory_item_id));
 
-  return <CenteredModal onClose={onClose} className="max-w-4xl sm:max-w-4xl" title="Pedir peças">
-    <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#0d1b2e]/10 bg-white px-4 py-4 sm:px-6">
-      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-black text-[#0d1b2e]">Pedir peças</h3><span className="rounded-full bg-primary-soft px-2.5 py-1 text-[10px] font-black text-primary">OS {orderNumber || "—"}</span></div><p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">Selecione a finalidade, escolha as peças e informe quantidades inteiras em unidades.</p></div>
-      <AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost" className="h-10 w-10 shrink-0"><X size={18} /></AdminIconButton>
-    </div>
-
-    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6">
+  return <CenteredModal
+    onClose={onClose}
+    className="max-w-4xl"
+    title="Pedir peças"
+    description={`OS ${orderNumber || "—"} · Selecione a finalidade, as peças e as quantidades.`}
+    minimizedDescription={`OS ${orderNumber || "—"} · ${selectedItems.length} peça${selectedItems.length === 1 ? "" : "s"} selecionada${selectedItems.length === 1 ? "" : "s"}`}
+    minimizable={!submitting}
+    footer={<div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+      <BtnSecondary onClick={onClose} className="w-full sm:w-auto">Cancelar</BtnSecondary>
+      <BtnPrimary onClick={onSubmit} disabled={submitting || selectedItems.length === 0} className="w-full sm:w-auto">{submitting ? "Enviando..." : `Enviar solicitação${selectedItems.length ? ` (${selectedItems.length})` : ""}`}</BtnPrimary>
+    </div>}
+  >
+    <div className="space-y-5">
       <div className="space-y-5">
         <AdminCard className="p-4">
           <div className="mb-3"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Finalidade do pedido</p><p className="mt-1 text-xs text-[#5a6a82]">Defina como as peças serão utilizadas nesta OS.</p></div>
@@ -87,7 +116,6 @@ export function PartRequestModal({ orderNumber, inventoryItems, inventoryLoading
       </div>
     </div>
 
-    <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-[#0d1b2e]/8 bg-white px-4 py-3 sm:flex sm:justify-end sm:px-6 sm:py-4"><BtnSecondary onClick={onClose} className="w-full sm:w-auto">Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting || selectedItems.length === 0} className="w-full sm:w-auto">{submitting ? "Enviando..." : `Enviar solicitação${selectedItems.length ? ` (${selectedItems.length})` : ""}`}</BtnPrimary></div>
   </CenteredModal>;
 }
 
@@ -96,10 +124,15 @@ export function PartCustodyModal({ request, action, quantities, submitting, onQu
 }) {
   const config = action === "DISPATCH" ? { title: "Confirmar saída do estoque", message: "As peças serão retiradas do saldo em unidades e a movimentação de saída será registrada.", button: "Confirmar saída" } : action === "CONFIRM_DELIVERY" ? { title: "Confirmar entrega ao técnico", message: "Confirme que o técnico recebeu fisicamente as peças. Esta etapa não altera o estoque.", button: "Confirmar recebimento" } : action === "REGISTER_RETURN" ? { title: "Registrar devolução", message: "A devolução ficará aguardando o estoquista confirmar o recebimento. O saldo ainda não será alterado.", button: "Registrar devolução" } : { title: "Confirmar retorno ao estoque", message: "As unidades pendentes serão adicionadas novamente ao saldo e a movimentação de entrada será registrada.", button: "Confirmar recebimento" };
   const returnable = (item: PartRequestItemForReview) => Math.max(0, Number(item.technician_received_quantity ?? 0) - Number(item.returned_quantity ?? 0) - Number(item.return_pending_quantity ?? 0) - Number(item.damaged_quantity ?? 0));
-  return <CenteredModal onClose={onClose} title={config.title}>
-    <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">{config.title}</h3><p className="mt-0.5 text-xs text-[#5a6a82]">{request.requester?.full_name || "Solicitante não informado"}</p></div><AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost"><X size={17} /></AdminIconButton></div>
-    <div className="min-h-0 space-y-4 overflow-y-auto p-5"><div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">{config.message}</div><div className="space-y-2">{request.items.map(item => { const amount = action === "DISPATCH" ? Math.max(0, Number(item.approved_quantity ?? 0) - Number(item.delivered_quantity ?? 0)) : action === "CONFIRM_DELIVERY" ? Math.max(0, Number(item.delivered_quantity ?? 0) - Number(item.technician_received_quantity ?? 0)) : action === "RECEIVE_RETURN" ? Number(item.return_pending_quantity ?? 0) : returnable(item); if (amount <= 0 || action === "DISPATCH" && item.source_test_item_id) return null; return <AdminCard key={item.id} className="bg-[#f8fafc] p-3 shadow-none"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><span className="min-w-0 break-words text-sm font-semibold">{item.inventory_item?.name || "Peça"}</span>{action === "REGISTER_RETURN" ? <FIntegerInput value={quantities[item.id] ?? String(amount)} onChange={(event: any) => onQuantitiesChange({ ...quantities, [item.id]: clampInteger(event.target.value, 1, amount) })} className="w-full text-center text-sm sm:w-28" /> : <span className="text-xs font-bold">{amount} un</span>}</div>{action === "REGISTER_RETURN" && <p className="mt-1 text-[11px] text-[#5a6a82]">Disponível para devolução: {amount} un</p>}</AdminCard>; })}</div></div>
-    <div className="grid grid-cols-2 gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 sm:flex sm:justify-end"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Processando..." : config.button}</BtnPrimary></div>
+  return <CenteredModal
+    onClose={onClose}
+    title={config.title}
+    description={config.message}
+    minimizedDescription={request.requester?.full_name || "Solicitante não informado"}
+    minimizable={!submitting}
+    footer={<div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Processando..." : config.button}</BtnPrimary></div>}
+  >
+    <div className="space-y-4"><div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">{config.message}</div><div className="space-y-2">{request.items.map(item => { const amount = action === "DISPATCH" ? Math.max(0, Number(item.approved_quantity ?? 0) - Number(item.delivered_quantity ?? 0)) : action === "CONFIRM_DELIVERY" ? Math.max(0, Number(item.delivered_quantity ?? 0) - Number(item.technician_received_quantity ?? 0)) : action === "RECEIVE_RETURN" ? Number(item.return_pending_quantity ?? 0) : returnable(item); if (amount <= 0 || action === "DISPATCH" && item.source_test_item_id) return null; return <AdminCard key={item.id} className="bg-[#f8fafc] p-3 shadow-none"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><span className="min-w-0 break-words text-sm font-semibold">{item.inventory_item?.name || "Peça"}</span>{action === "REGISTER_RETURN" ? <FIntegerInput value={quantities[item.id] ?? String(amount)} onChange={(event: any) => onQuantitiesChange({ ...quantities, [item.id]: clampInteger(event.target.value, 1, amount) })} className="w-full text-center text-sm sm:w-28" /> : <span className="text-xs font-bold">{amount} un</span>}</div>{action === "REGISTER_RETURN" && <p className="mt-1 text-[11px] text-[#5a6a82]">Disponível para devolução: {amount} un</p>}</AdminCard>; })}</div></div>
   </CenteredModal>;
 }
 
@@ -107,14 +140,27 @@ export function TestResultModal({ request, rows, submitting, getPendingQuantity,
   request: PartRequestForReview; rows: TestResultRow[]; submitting: boolean; getPendingQuantity: (request: PartRequestForReview, item: PartRequestItemForReview) => number; onRowsChange: (rows: TestResultRow[]) => void; onClose: () => void; onSubmit: () => void;
 }) {
   const pendingItems = request.items.filter(item => getPendingQuantity(request, item) > 0);
-  return <CenteredModal onClose={onClose}>
-    <div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">Registrar resultado do teste</h3><p className="mt-0.5 text-xs text-[#5a6a82]">Defina o uso ou dano das peças em unidades. Devoluções são registradas separadamente.</p></div><AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost"><X size={17} /></AdminIconButton></div>
-    <div className="min-h-0 space-y-4 overflow-y-auto p-5">{pendingItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aguardando resultado.</p> : pendingItems.map(item => { const pending = getPendingQuantity(request, item); const used = rows.filter(row => row.requestItemId === item.id).reduce((sum, row) => sum + (Number(row.quantity) || 0), 0); return <AdminCard key={item.id} className="space-y-2 bg-[#f8fafc] p-3 shadow-none"><p className="text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"} <span className="text-xs font-normal text-[#5a6a82]">· Aguardando: {Math.max(0, pending - used)} un</span></p>{rows.filter(row => row.requestItemId === item.id).map(row => <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_6rem_1fr_auto]"><AdminSelect value={row.action} onValueChange={value => onRowsChange(rows.map(current => current.id === row.id ? { ...current, action: value as TestResultRow["action"] } : current))} options={[{ value: "USE_IN_RESOLUTION", label: "Usar na resolução" }, { value: "DAMAGED", label: "Danificada" }]} className="text-xs" ariaLabel="Destino da peça testada" /><FIntegerInput value={row.quantity} onChange={(event: any) => onRowsChange(rows.map(current => current.id === row.id ? { ...current, quantity: clampInteger(event.target.value, 1, pending) } : current))} className="text-xs" /><input value={row.notes} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, notes: event.target.value } : current))} placeholder={row.action === "DAMAGED" ? "Justificativa do dano" : "Observação (opcional)"} className={cn(INPUT, "text-xs")} /><button type="button" onClick={() => onRowsChange(rows.filter(current => current.id !== row.id))} className="p-2 text-red-600"><X size={14} /></button></div>)}<button type="button" disabled={used >= pending} onClick={() => onRowsChange([...rows, { id: crypto.randomUUID(), requestItemId: item.id, action: "USE_IN_RESOLUTION", quantity: "", notes: "" }])} className="text-xs font-bold text-primary disabled:cursor-not-allowed disabled:opacity-50">Adicionar destino</button></AdminCard>; })}</div>
-    <div className="grid grid-cols-2 gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4 sm:flex sm:justify-end"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Registrando..." : "Registrar resultado"}</BtnPrimary></div>
+  return <CenteredModal
+    onClose={onClose}
+    title="Registrar resultado do teste"
+    description="Defina o uso ou dano das peças em unidades. Devoluções são registradas separadamente."
+    minimizedDescription={`${pendingItems.length} peça${pendingItems.length === 1 ? "" : "s"} aguardando resultado`}
+    minimizable={!submitting}
+    footer={<div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? "Registrando..." : "Registrar resultado"}</BtnPrimary></div>}
+  >
+    <div className="space-y-4">{pendingItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aguardando resultado.</p> : pendingItems.map(item => { const pending = getPendingQuantity(request, item); const used = rows.filter(row => row.requestItemId === item.id).reduce((sum, row) => sum + (Number(row.quantity) || 0), 0); return <AdminCard key={item.id} className="space-y-2 bg-[#f8fafc] p-3 shadow-none"><p className="text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"} <span className="text-xs font-normal text-[#5a6a82]">· Aguardando: {Math.max(0, pending - used)} un</span></p>{rows.filter(row => row.requestItemId === item.id).map(row => <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_6rem_1fr_auto]"><AdminSelect value={row.action} onValueChange={value => onRowsChange(rows.map(current => current.id === row.id ? { ...current, action: value as TestResultRow["action"] } : current))} options={[{ value: "USE_IN_RESOLUTION", label: "Usar na resolução" }, { value: "DAMAGED", label: "Danificada" }]} className="text-xs" ariaLabel="Destino da peça testada" /><FIntegerInput value={row.quantity} onChange={(event: any) => onRowsChange(rows.map(current => current.id === row.id ? { ...current, quantity: clampInteger(event.target.value, 1, pending) } : current))} className="text-xs" /><input value={row.notes} onChange={event => onRowsChange(rows.map(current => current.id === row.id ? { ...current, notes: event.target.value } : current))} placeholder={row.action === "DAMAGED" ? "Justificativa do dano" : "Observação (opcional)"} className={cn(INPUT, "text-xs")} /><button type="button" onClick={() => onRowsChange(rows.filter(current => current.id !== row.id))} className="p-2 text-red-600"><X size={14} /></button></div>)}<button type="button" disabled={used >= pending} onClick={() => onRowsChange([...rows, { id: crypto.randomUUID(), requestItemId: item.id, action: "USE_IN_RESOLUTION", quantity: "", notes: "" }])} className="text-xs font-bold text-primary disabled:cursor-not-allowed disabled:opacity-50">Adicionar destino</button></AdminCard>; })}</div>
   </CenteredModal>;
 }
 
 export function ReviewPartRequestModal({ request, orderNumber, rejection, approvalQuantities, notes, submitting, onNotesChange, onQuantityChange, onClose, onSubmit }: { request: PartRequestForReview; orderNumber?: string | null; rejection: boolean; approvalQuantities: Record<string, string>; notes: string; submitting: boolean; onNotesChange: (value: string) => void; onQuantityChange: (id: string, value: string) => void; onClose: () => void; onSubmit: () => void }) {
   const subtitle = rejection ? "Revise as peças solicitadas e informe o motivo da rejeição" : `OS ${orderNumber || "—"} · ${request.requester?.full_name || "Solicitante não informado"}`;
-  return <CenteredModal onClose={onClose} className="max-w-2xl"><div className="flex items-center justify-between border-b border-[#0d1b2e]/10 px-5 py-4"><div><h3 className="text-base font-bold text-[#0d1b2e]">{rejection ? "Rejeitar pedido de peças" : "Aprovar pedido de peças"}</h3><p className="mt-0.5 text-xs text-[#5a6a82]">{subtitle}</p></div><AdminIconButton ariaLabel="Fechar" onClick={onClose} variant="ghost"><X size={17} /></AdminIconButton></div><div className="min-h-0 space-y-4 overflow-y-auto p-5"><AdminCard className="bg-[#f8fafc] p-3 text-xs text-[#5a6a82] shadow-none"><p><strong>OS:</strong> {orderNumber || "—"}</p><p><strong>Solicitante:</strong> {request.requester?.full_name || "Solicitante não informado"}</p><p><strong>Solicitado em:</strong> {fmtReviewDate(request.created_at)}</p>{request.notes && <p className="mt-1 whitespace-pre-line"><strong>Observações:</strong> {request.notes}</p>}</AdminCard><p className="text-sm font-bold text-[#0d1b2e]">Peças solicitadas</p>{request.items.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça encontrada nesta solicitação.</p> : <div className="space-y-2">{request.items.map(item => { const requested = Number(item.quantity); const available = Number(item.inventory_item?.quantity ?? 0); const isFromTest = Boolean(item.source_test_item_id); const effectiveLimit = isFromTest ? requested : Math.min(requested, available); return <AdminCard key={item.id} className="bg-[#f8fafc] p-3 shadow-none"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-xs text-[#5a6a82]">{item.inventory_item?.sku ? `SKU: ${item.inventory_item.sku} · ` : ""}Solicitado: {requested} un{isFromTest ? "" : ` · Disponível: ${available} un`}</p>{isFromTest && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">Origem: peça testada</span>}</div>{!rejection && <div><label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade aprovada (un)</label><FIntegerInput value={approvalQuantities[item.id] ?? String(item.quantity)} onChange={(event: any) => onQuantityChange(item.id, clampInteger(event.target.value, 0, effectiveLimit))} className="w-28 text-center text-sm" /></div>}</div></AdminCard>; })}</div>}<FTextarea label={rejection ? "Motivo da rejeição" : "Observação da análise"} required={rejection} value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder={rejection ? "Informe por que este pedido está sendo rejeitado." : undefined} /></div><div className="flex justify-end gap-2 border-t border-[#0d1b2e]/8 bg-white px-5 py-4"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? rejection ? "Rejeitando..." : "Aprovando..." : rejection ? "Confirmar rejeição" : "Confirmar aprovação"}</BtnPrimary></div></CenteredModal>;
+  return <CenteredModal
+    onClose={onClose}
+    className="max-w-2xl"
+    title={rejection ? "Rejeitar pedido de peças" : "Aprovar pedido de peças"}
+    description={subtitle}
+    minimizedDescription={`OS ${orderNumber || "—"} · ${request.requester?.full_name || "Solicitante não informado"}`}
+    minimizable={!submitting}
+    footer={<div className="flex justify-end gap-2"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary><BtnPrimary onClick={onSubmit} disabled={submitting}>{submitting ? rejection ? "Rejeitando..." : "Aprovando..." : rejection ? "Confirmar rejeição" : "Confirmar aprovação"}</BtnPrimary></div>}
+  ><div className="space-y-4"><AdminCard className="bg-[#f8fafc] p-3 text-xs text-[#5a6a82] shadow-none"><p><strong>OS:</strong> {orderNumber || "—"}</p><p><strong>Solicitante:</strong> {request.requester?.full_name || "Solicitante não informado"}</p><p><strong>Solicitado em:</strong> {fmtReviewDate(request.created_at)}</p>{request.notes && <p className="mt-1 whitespace-pre-line"><strong>Observações:</strong> {request.notes}</p>}</AdminCard><p className="text-sm font-bold text-[#0d1b2e]">Peças solicitadas</p>{request.items.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça encontrada nesta solicitação.</p> : <div className="space-y-2">{request.items.map(item => { const requested = Number(item.quantity); const available = Number(item.inventory_item?.quantity ?? 0); const isFromTest = Boolean(item.source_test_item_id); const effectiveLimit = isFromTest ? requested : Math.min(requested, available); return <AdminCard key={item.id} className="bg-[#f8fafc] p-3 shadow-none"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#0d1b2e]">{item.inventory_item?.name || "Peça"}</p><p className="text-xs text-[#5a6a82]">{item.inventory_item?.sku ? `SKU: ${item.inventory_item.sku} · ` : ""}Solicitado: {requested} un{isFromTest ? "" : ` · Disponível: ${available} un`}</p>{isFromTest && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">Origem: peça testada</span>}</div>{!rejection && <div><label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade aprovada (un)</label><FIntegerInput value={approvalQuantities[item.id] ?? String(item.quantity)} onChange={(event: any) => onQuantityChange(item.id, clampInteger(event.target.value, 0, effectiveLimit))} className="w-28 text-center text-sm" /></div>}</div></AdminCard>; })}</div>}<FTextarea label={rejection ? "Motivo da rejeição" : "Observação da análise"} required={rejection} value={notes} onChange={(event: any) => onNotesChange(event.target.value)} rows={3} placeholder={rejection ? "Informe por que este pedido está sendo rejeitado." : undefined} /></div></CenteredModal>;
 }
