@@ -55,6 +55,7 @@ type TabOrdersProps = {
   organizationIdOverride?: string | null;
   accessMode?: SharedAccessMode;
   detailOnly?: boolean;
+  monitorView?: boolean;
 };
 
 const READ_ONLY_PERMISSION_MARKERS = [
@@ -94,6 +95,7 @@ export function TabOrders({
   organizationIdOverride,
   accessMode = "default",
   detailOnly = false,
+  monitorView = false,
 }: TabOrdersProps) {
   const { user, profile, hasPermission } = useAuth();
   const scopedReadOnly = accessMode === "read";
@@ -700,6 +702,7 @@ export function TabOrders({
         getSla={getSlaForOrder}
         onEdit={openRoutedEdit}
         onClose={closeRoutedPage}
+        monitorView={monitorView}
       />
 
       {!scopedReadOnly && <OrderEditorPage
