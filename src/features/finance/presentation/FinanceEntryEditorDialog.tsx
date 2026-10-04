@@ -1,7 +1,7 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarRange, X } from "lucide-react";
+import { CalendarRange } from "lucide-react";
 import { buildMonthlyInstallments, validateAllocationTotal } from "../domain/finance-entry.mjs";
 import type {
   FinancialAllocationDraft,
@@ -14,7 +14,7 @@ import type {
 } from "../domain/finance.types";
 import type { FinancialCounterparty } from "../infrastructure/finance-entries.repository";
 import { FCurrencyInput, FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FinanceAllocationEditor } from "./FinanceAllocationEditor";
 
@@ -195,11 +195,18 @@ export function FinanceEntryEditorDialog({
     })),
   ];
 
-  return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#07111f]/65 p-2 sm:p-4" role="dialog" aria-modal="true">
-    <div className="flex max-h-[calc(100dvh-1rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-      <div className="z-10 flex shrink-0 items-center justify-between border-b bg-white px-4 py-4 sm:px-5"><div><h2 className="text-lg font-black text-[#0d1b2e]">{initial ? `Editar ${title.toLocaleLowerCase("pt-BR")}` : `Nova ${title.toLocaleLowerCase("pt-BR")}`}</h2><p className="text-xs text-[#5a6a82]">O lançamento será enviado para aprovação financeira.</p></div><button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-[#5a6a82] hover:bg-slate-100"><X size={18} /></button></div>
-
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 sm:p-5">
+  return <AdminDialog
+    open
+    onClose={onClose}
+    title={initial ? `Editar ${title.toLocaleLowerCase("pt-BR")}` : `Nova ${title.toLocaleLowerCase("pt-BR")}`}
+    description="O lançamento será enviado para aprovação financeira."
+    className="max-w-5xl"
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton>
+      <AdminButton onClick={save} loading={saving} loadingText="Salvando...">Salvar lançamento</AdminButton>
+    </div>}
+  >
+    <div className="space-y-6">
         <section className="space-y-3"><h3 className="text-sm font-black text-[#0d1b2e]">Informações</h3><div className="grid gap-4 sm:grid-cols-2"><FInput label="Descrição" required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Venda avulsa" : "Ex.: Compra de material"} /><FCurrencyInput label="Valor" required error={fieldErrors.amount} value={amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }} /><FInput label="Data de emissão" required error={fieldErrors.issueDate} type="date" value={issueDate} onChange={(event: any) => { setFieldErrors(current => ({ ...current, issueDate: undefined })); setIssueDate(event.target.value); }} /><FInput label="Competência" required error={fieldErrors.competenceDate} type="date" value={competenceDate} onChange={(event: any) => { setFieldErrors(current => ({ ...current, competenceDate: undefined })); setCompetenceDate(event.target.value); }} /></div><FTextarea label="Observações" value={notes} onChange={(event: any) => setNotes(event.target.value)} /></section>
 
         <section className="space-y-3"><h3 className="text-sm font-black text-[#0d1b2e]">{counterpartLabel}</h3><div className="grid gap-3 sm:grid-cols-2"><FInput label="Buscar cadastro" value={counterpartySearch} onChange={(event: any) => onCounterpartySearchChange(event.target.value)} placeholder="Nome, razão social, CPF ou CNPJ" /><FSelect label={counterpartyLoading ? "Cadastro vinculado · buscando..." : "Cadastro vinculado"} value={counterpartId} options={counterpartOptions} onChange={(event: any) => selectCounterpart(event.target.value)} /></div><p className="text-[10px] text-[#8a98aa]">Exibindo até 25 resultados. Digite para localizar outros cadastros sem carregar a base inteira.</p><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome no lançamento" value={counterpartName} disabled={Boolean(counterpartId)} onChange={(event: any) => setCounterpartName(event.target.value)} /><FInput label="CPF/CNPJ" value={counterpartDocument} disabled={Boolean(counterpartId)} onChange={(event: any) => setCounterpartDocument(event.target.value)} /></div></section>
@@ -211,9 +218,7 @@ export function FinanceEntryEditorDialog({
 
         <FinanceAllocationEditor entryType={entryType} total={numericAmount} categories={categories} costCenters={costCenters} value={allocations} onChange={setAllocations} />{fieldErrors.allocations && <p className="mt-1 text-[10px] font-semibold text-red-600">{fieldErrors.allocations}</p>}
         
-      </div>
-
-      <AdminStickyToolbar className="shrink-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton><AdminButton onClick={save} loading={saving} loadingText="Salvando...">Salvar lançamento</AdminButton></AdminStickyToolbar>
     </div>
-  </div>;
+
+  </AdminDialog>;
 }
