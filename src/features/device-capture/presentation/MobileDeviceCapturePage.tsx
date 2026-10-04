@@ -188,7 +188,7 @@ export function MobileDeviceCapturePage() {
 
     setConnectionState("checking");
     void heartbeat();
-    const timer = window.setInterval(() => void heartbeat(), 15_000);
+    const timer = window.setInterval(() => void heartbeat(), 20_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
