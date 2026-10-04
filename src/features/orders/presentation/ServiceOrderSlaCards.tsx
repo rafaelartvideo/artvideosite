@@ -109,10 +109,10 @@ export function ServiceOrderSlaCards({
             ? <span className="font-black text-red-700">Estourou: +{formatElapsedHours(exceededBy)}</span>
             : <span className={cn("font-bold", styles.title)}>{formatNumber(Math.max(0, 100 - usage * 100), { maximumFractionDigits: 0 }, "0")}% restante</span>}
         </div>
-        <div className="mt-2 h-3 overflow-hidden rounded-full border border-[#0d1b2e]/20 bg-white shadow-inner">
+        <div className="mt-2 h-3 overflow-hidden rounded-full border border-border bg-muted shadow-inner">
           <div className={cn("h-full rounded-full transition-all", styles.bar)} style={{ width: `${Math.min(100, Math.max(0, usage * 100))}%` }} />
         </div>
-      </> : <p className="mt-4 break-words rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600">Prazo de SLA não configurado.</p>}
+      </> : <p className="mt-4 break-words rounded-lg border border-border bg-muted px-3 py-2 text-[11px] font-semibold text-muted-foreground">Prazo de SLA não configurado.</p>}
     </AdminCard>
 
     <AdminCard className="border-primary/30 bg-gradient-to-br from-primary-soft to-primary-soft-strong p-4 sm:p-5">
