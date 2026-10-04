@@ -1,5 +1,30 @@
 import { supabase } from "@/lib/supabase";
 
+export type ServiceOrderWorkspaceBootstrap = {
+  current_order: Record<string, unknown>;
+  history: any[];
+  history_notes: any[];
+  media: any[];
+  used_items: any[];
+  technical_values: any[];
+  part_requests: any[];
+  situation_documents: any[];
+  situation_visits: any[];
+};
+
+export async function getServiceOrderWorkspace(
+  organizationId: string,
+  serviceOrderId: string,
+): Promise<ServiceOrderWorkspaceBootstrap> {
+  const { data, error } = await supabase.rpc("get_service_order_workspace_v1", {
+    p_organization_id: organizationId,
+    p_service_order_id: serviceOrderId,
+  });
+  if (error) throw error;
+  if (!data) throw new Error("OS não encontrada nesta empresa ou sem acesso.");
+  return data as unknown as ServiceOrderWorkspaceBootstrap;
+}
+
 export const getServiceOrderDetail = (serviceOrderId: string) =>
   supabase
     .from("service_orders")
