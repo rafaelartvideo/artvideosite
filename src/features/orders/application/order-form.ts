@@ -198,6 +198,10 @@ export function buildOrderPayload({
       serial_number: String(form.serial_number || "").trim() || null,
     } : {}),
     external_os_number: String(form.external_os_number || "").trim() || null,
+    ...(!editingOrder ? {
+      queue_reservation_id: String(form.queue_reservation_id || "").trim() || null,
+      queue_override_reason: String(form.queue_override_reason || "").trim() || null,
+    } : {}),
     accessories: form.accessories || null,
     equipment_condition: form.equipment_condition || null,
     priority: form.priority || "normal",
