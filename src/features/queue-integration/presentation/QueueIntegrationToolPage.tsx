@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/auth";
-import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { QueueIntegrationSettingsSection } from "./QueueIntegrationSettingsSection";
 
@@ -22,21 +22,13 @@ export function QueueIntegrationToolPage({ onBack }: { onBack: () => void }) {
         organizationId={activeOrganizationId}
         canUpdate={canUpdate}
       />
-
-      <Section title="Acessar o sistema">
-        <div className="flex flex-col items-start gap-3">
-          <p className="text-sm leading-6 text-[#5a6a82] dark:text-slate-400">
-            Abra o painel do Union Senhas para acompanhar e operar a fila de atendimento.
-          </p>
-          <BtnPrimary onClick={() => window.open(UNION_QUEUE_URL, "_blank", "noopener,noreferrer")}>
-            Abrir Union Senhas
-          </BtnPrimary>
-        </div>
-      </Section>
     </div>
 
     <AdminStickyToolbar>
       <BtnSecondary onClick={onBack}>Voltar para Ferramentas</BtnSecondary>
+      <BtnPrimary onClick={() => window.open(UNION_QUEUE_URL, "_blank", "noopener,noreferrer")}>
+        Abrir Union Senhas
+      </BtnPrimary>
     </AdminStickyToolbar>
   </div>;
 }
