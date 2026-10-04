@@ -7,7 +7,7 @@ import type {
   FinancialCostCenter,
   FinancialEntryType,
 } from "../domain/finance.types";
-import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput, FDecimalInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { formatCurrency } from "@/shared/domain/formatters";
 
@@ -75,7 +75,9 @@ export function FinanceAllocationEditor({
       <FSelect label="Categoria" value={row.category_id} options={categoryOptions} onChange={(event: any) => updateRow(index, { category_id: event.target.value })} />
       <FSelect label="Centro de custo" value={row.cost_center_id || ""} options={costCenterOptions} onChange={(event: any) => updateRow(index, { cost_center_id: event.target.value || null })} />
       <FSelect label="Modo" value={row.mode} options={[{ value: "percentage", label: "%" }, { value: "amount", label: "R$" }]} onChange={(event: any) => updateRow(index, { mode: event.target.value, value: 0 })} />
-      <FInput label={row.mode === "percentage" ? "Percentual" : "Valor"} type="number" min="0" step="0.01" value={row.value || ""} onChange={(event: any) => updateRow(index, { value: Number(event.target.value || 0) })} />
+      {row.mode === "percentage"
+        ? <FDecimalInput label="Percentual" value={row.value || ""} decimalPlaces={4} onChange={(event: any) => updateRow(index, { value: Number(event.target.value || 0) })} />
+        : <FCurrencyInput label="Valor" value={row.value || ""} onChange={(event: any) => updateRow(index, { value: Number(event.target.value || 0) })} />}
       <div className="flex items-center justify-between gap-2 sm:block"><span className="text-xs font-bold text-[#0057e7] sm:hidden">{formatCurrency(row.amount)}</span><AdminIconButton ariaLabel="Remover rateio" variant="danger" onClick={() => onChange(value.filter((_, rowIndex) => rowIndex !== index))}><Trash2 size={15} /></AdminIconButton></div>
       <div className="hidden text-right text-xs font-bold text-[#0057e7] sm:col-span-5 sm:block">Valor deste rateio: {formatCurrency(row.amount)}</div>
     </div>)}
