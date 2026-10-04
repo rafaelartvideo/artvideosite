@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Tag, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { deleteBrand, listBrands, saveBrand, setBrandActive } from "../infrastructure/brands.repository";
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -23,7 +24,7 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
   const canDelete = hasPermission("brands.delete");
   const canToggleActive = hasPermission("brands.toggle_active");
   const queryClient = useQueryClient();
-  const brandsQuery = useQuery({ queryKey: queryKeys.catalog.brands(), queryFn: listBrands, enabled: canViewTable || canViewDetails || canCreate || canEdit });
+  const brandsQuery = useQuery({ queryKey: queryKeys.catalog.brands(), queryFn: listBrands, enabled: canViewTable || canViewDetails || canCreate || canEdit, staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const brands = brandsQuery.data ?? [];
   const loading = brandsQuery.isPending;
   const [drawerOpen, setDrawerOpen] = useState(false);
