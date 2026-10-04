@@ -125,16 +125,10 @@ export function useOrderResolution({
   };
 
   useEffect(() => {
-    if (!detail?.id) {
-      setSolutionAttempts([]);
-      setSolutionHistoryError("");
-      setUndoOpen(false);
-      return;
-    }
-    const targetOrganizationId = targetOrganizationIdFor(detail);
-    if (!targetOrganizationId) return;
-    void loadSolutionAttempts(detail.id, targetOrganizationId);
-  }, [detail?.id, detail?.organization_id, organizationId]);
+    setSolutionAttempts([]);
+    setSolutionHistoryError("");
+    setUndoOpen(false);
+  }, [detail?.id]);
 
   const hasPendingTestParts = () => detailPartRequests.some(request =>
     (request.purpose || "RESOLUTION") === "TEST" &&
@@ -580,7 +574,12 @@ export function useOrderResolution({
     }
   };
 
-  const activeSolutionAttempt = solutionAttempts.find(attempt => !attempt.reverted_at) || null;
+  const bootstrappedSolutionCount = Math.max(0, Number(detail?.solution_attempt_count || 0));
+  const solutionCount = solutionAttempts.length || bootstrappedSolutionCount;
+  const activeSolutionAttempt =
+    solutionAttempts.find(attempt => !attempt.reverted_at)
+    || detail?.active_solution_attempt
+    || null;
 
   return {
     inventoryItems,
@@ -591,7 +590,7 @@ export function useOrderResolution({
     openSolveOrder,
     saveOrderSolution,
     solutionAttempts,
-    solutionCount: solutionAttempts.length,
+    solutionCount,
     activeSolutionAttempt,
     solutionHistoryLoading,
     solutionHistoryError,
