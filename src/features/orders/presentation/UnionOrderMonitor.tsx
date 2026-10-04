@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, MessageCircle, Phone, Search } from "lucide-react";
+import { Eye, FileText, MessageCircle, Package, Phone, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
@@ -76,10 +76,15 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [productsRevision, setProductsRevision] = useState(0);
+  const [detailSection, setDetailSection] = useState<"details" | "products-services">("details");
 
   useEffect(() => {
     setSelectedOrderId(initialOrderId || null);
   }, [initialOrderId]);
+
+  useEffect(() => {
+    setDetailSection("details");
+  }, [selectedOrderId]);
 
   const optionsQuery = useQuery({
     queryKey: ["union-order-monitor", "options"],
@@ -338,6 +343,20 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
           Esta visualização é somente leitura. Alterações feitas pela empresa parceira são atualizadas automaticamente pelo monitoramento em tempo real.
         </div>
 
+        <div className="border-b border-border">
+          <div className="flex min-w-0 gap-5 overflow-x-auto">
+            <button type="button" onClick={() => setDetailSection("details")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "details" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><FileText size={15} /> Detalhes da OS</button>
+            <button type="button" onClick={() => setDetailSection("products-services")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "products-services" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Package size={15} /> Produtos e Serviços</button>
+          </div>
+        </div>
+
+        {detailSection === "products-services" ? <OrderProductsServicesSection
+          key={`${order.id || selectedOrderId}:${productsRevision}`}
+          order={order}
+          canEdit={false}
+          formatCurrency={value => formatMoney(value)}
+          onPricingChange={() => undefined}
+        /> : <>
         <AdminCard>
           <AdminCardHeader>
             <div><h3 className="text-sm font-black text-[#0d1b2e]">Resumo</h3><p className="mt-0.5 text-xs text-[#5a6a82]">Identificação e estado atual da ordem.</p></div>
@@ -403,14 +422,6 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
           </AdminCardContent>
         </AdminCard>
 
-        <OrderProductsServicesSection
-          key={`${order.id || selectedOrderId}:${productsRevision}`}
-          order={order}
-          canEdit={false}
-          formatCurrency={value => formatMoney(value)}
-          onPricingChange={() => undefined}
-        />
-
         <AdminCard>
           <AdminCardHeader><div><h3 className="text-sm font-black text-[#0d1b2e]">Endereço e valores</h3><p className="mt-0.5 text-xs text-[#5a6a82]">Dados adicionais vinculados ao atendimento.</p></div></AdminCardHeader>
           <AdminCardContent>
@@ -440,6 +451,7 @@ export function UnionOrderMonitor({ initialOrderId, onOrderRouteChange }: UnionO
             </table>
           </div>
         </AdminCard>}
+        </>}
       </div>}
       {detail && !detailQuery.isPending && !detailQuery.isError && <AdminStickyToolbar>
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
