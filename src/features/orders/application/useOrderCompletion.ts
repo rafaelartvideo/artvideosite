@@ -1,4 +1,4 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { buildInstallments } from "@/features/finance/domain/finance-integration.mjs";
 import { completeServiceOrder } from "../infrastructure/orders.repository";
 import {
@@ -86,6 +86,19 @@ function splitInstallments(
     financial_account_id: template?.financial_account_id || "",
     received: index === 0 ? Boolean(template?.received) : false,
     received_at: index === 0 && template?.received_at ? template.received_at : todayIsoDate(),
+  }));
+}
+
+function rebalanceInstallmentAmounts(
+  current: OrderCompletionInstallmentDraft[],
+  total: number,
+): OrderCompletionInstallmentDraft[] {
+  if (total <= 0) return [];
+  if (!current.length) return current;
+  const split = buildInstallments(total, current.length, current[0]?.due_date || todayIsoDate());
+  return current.map((item, index) => ({
+    ...item,
+    amount: Number(split[index]?.amount || 0).toFixed(2),
   }));
 }
 
@@ -177,6 +190,19 @@ export function useOrderCompletion({
     [installments],
   );
   const openAmount = Math.max(0, Math.round((finalTotal - totalPaidNow) * 100) / 100);
+
+  useEffect(() => {
+    if (!open || !financeEnabled || finalTotal <= 0) return;
+    setInstallments(current => {
+      if (!current.length) return current;
+      const currentTotal = Math.round(current.reduce(
+        (total, item) => total + Math.max(0, Number(item.amount) || 0),
+        0,
+      ) * 100) / 100;
+      if (Math.abs(currentTotal - finalTotal) <= 0.009) return current;
+      return rebalanceInstallmentAmounts(current, finalTotal);
+    });
+  }, [finalTotal, financeEnabled, open]);
 
   const financeValidationMessage = useMemo(() => {
     if (financeOptionsError) return `Não foi possível carregar as opções financeiras: ${financeOptionsError}`;
@@ -305,7 +331,11 @@ export function useOrderCompletion({
   };
 
   const removeInstallment = (id: string) => {
-    setInstallments(current => current.length <= 1 ? current : current.filter(item => item.id !== id));
+    setInstallments(current => {
+      if (current.length <= 1) return current;
+      const remaining = current.filter(item => item.id !== id);
+      return rebalanceInstallmentAmounts(remaining, finalTotal);
+    });
   };
 
   const updateInstallment = (id: string, patch: Partial<OrderCompletionInstallmentDraft>) => {
