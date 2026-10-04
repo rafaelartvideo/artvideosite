@@ -4,7 +4,7 @@ import { Banknote, LockKeyhole, Minus, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useFinanceCash } from "../application/useFinanceCash";
 import type { FinancialAccount, FinancialCashSession } from "../domain/finance.types";
@@ -136,33 +136,33 @@ export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] 
       })}
     </AdminCardContent>
 
-    {dialog && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#07111f]/65 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
-        <div className="border-b px-5 py-4">
-          <h2 className="text-lg font-black text-[#0d1b2e]">{actionTitle(dialog.action)}</h2>
-          <p className="mt-1 text-xs text-[#5a6a82]">{dialog.account.name}</p>
-        </div>
-        <div className="space-y-4 p-5">
-          <FCurrencyInput
-            label={dialog.action === "open" || dialog.action === "close" ? "Valor contado no caixa" : "Valor"}
-            error={fieldErrors.amount}
-            value={amount}
-            onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }}
-          />
-          <FTextarea
-            label={dialog.action === "supply" || dialog.action === "withdraw" ? "Motivo *" : "Observação / justificativa"}
-            error={fieldErrors.note}
-            value={note}
-            onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }}
-            rows={3}
-            placeholder={dialog.action === "close" ? "Obrigatória apenas se houver diferença no fechamento" : undefined}
-          />
-        </div>
-        <div className="flex flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end">
-          <AdminButton variant="secondary" onClick={closeDialog} disabled={pending}>Cancelar</AdminButton>
-          <AdminButton onClick={() => void submit()} loading={pending} loadingText="Salvando...">Confirmar</AdminButton>
-        </div>
+    {dialog && <AdminDialog
+      open
+      onClose={closeDialog}
+      title={actionTitle(dialog.action)}
+      description={dialog.account.name}
+      className="max-w-lg"
+      footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <AdminButton variant="secondary" onClick={closeDialog} disabled={pending}>Cancelar</AdminButton>
+        <AdminButton onClick={() => void submit()} loading={pending} loadingText="Salvando...">Confirmar</AdminButton>
+      </div>}
+    >
+      <div className="space-y-4">
+        <FCurrencyInput
+          label={dialog.action === "open" || dialog.action === "close" ? "Valor contado no caixa" : "Valor"}
+          error={fieldErrors.amount}
+          value={amount}
+          onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }}
+        />
+        <FTextarea
+          label={dialog.action === "supply" || dialog.action === "withdraw" ? "Motivo *" : "Observação / justificativa"}
+          error={fieldErrors.note}
+          value={note}
+          onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }}
+          rows={3}
+          placeholder={dialog.action === "close" ? "Obrigatória apenas se houver diferença no fechamento" : undefined}
+        />
       </div>
-    </div>}
+    </AdminDialog>}
   </AdminCard>;
 }
