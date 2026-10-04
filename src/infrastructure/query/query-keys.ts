@@ -67,6 +67,10 @@ export const queryKeys = {
     active: () => ["inventory", "active"] as const,
     movements: (itemId: string) => ["inventory", "movements", itemId] as const,
   },
+  queueIntegration: {
+    all: ["queue-integration"] as const,
+    settings: (organizationId: string) => ["queue-integration", "settings", organizationId] as const,
+  },
   pdv: {
     all: ["pdv"] as const,
     bootstrap: (organizationId: string) => ["pdv", organizationId, "bootstrap"] as const,
