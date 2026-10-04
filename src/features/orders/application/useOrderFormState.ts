@@ -38,6 +38,9 @@ const createEmptyOrderForm = () => ({
   service_complement: "",
   service_customer_address_id: "",
   external_os_number: "",
+  queue_reservation_id: "",
+  queue_ticket_number: "",
+  queue_override_reason: "",
   technicalValues: {} as Record<string, string>,
   technicalHistory: [] as ServiceOrderTechnicalValue[],
 });
@@ -132,6 +135,9 @@ export function useOrderFormState() {
           ? order.service_customer_address_id || ""
           : "",
       external_os_number: order.external_os_number || "",
+      queue_reservation_id: order.queue_reservation_id || "",
+      queue_ticket_number: order.queue_ticket_number || "",
+      queue_override_reason: order.queue_override_reason || "",
       technicalValues: Object.fromEntries(technicalValues.map(value => [value.technical_field_id, value.field_type_snapshot === "number" ? String(value.value_number ?? "") : value.value_text || ""])),
       technicalHistory: technicalValues,
     });
