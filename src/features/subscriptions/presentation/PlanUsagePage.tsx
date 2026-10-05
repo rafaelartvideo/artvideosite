@@ -55,14 +55,29 @@ function UsageMetric({
   used,
   limit,
   icon: Icon,
+  warningPercent,
+  criticalPercent,
   formatter = value => String(Math.round(value)),
 }: {
   label: string;
   used: number;
   limit: number;
   icon: typeof Users;
+  warningPercent: number;
+  criticalPercent: number;
   formatter?: (value: number) => string;
 }) {
+  const percent = limit > 0 ? (used / limit) * 100 : 0;
+  const status = limit <= 0
+    ? { label: used > 0 ? "Uso sem franquia" : "Não contratado", className: "text-amber-700" }
+    : percent >= 100
+      ? { label: "Limite atingido", className: "text-rose-600" }
+      : percent >= criticalPercent
+        ? { label: "Crítico", className: "text-rose-600" }
+        : percent >= warningPercent
+          ? { label: "Atenção", className: "text-amber-700" }
+          : { label: "Normal", className: "text-emerald-600" };
+
   return <AdminCard square>
     <AdminCardContent className="p-4">
       <div className="flex items-start justify-between gap-3">
@@ -71,6 +86,7 @@ function UsageMetric({
           <p className="mt-2 text-lg font-black text-foreground">
             {formatter(used)} <span className="text-xs font-semibold text-muted-foreground">de {formatter(limit)}</span>
           </p>
+          <p className={"mt-1 text-[11px] font-black " + status.className}>{status.label}</p>
         </div>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
           <Icon size={17} />
@@ -153,10 +169,10 @@ export function PlanUsagePage() {
       </AdminCard>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <UsageMetric label="Usuários ativos" used={usage.users || 0} limit={limits.users || 0} icon={Users} />
-        <UsageMetric label="Armazenamento real" used={usage.storage_bytes || 0} limit={limits.storage_bytes || 0} icon={HardDrive} formatter={formatBytes} />
-        <UsageMetric label="Dispositivos de campo" used={usage.field_devices || 0} limit={limits.field_devices || 0} icon={MapPinned} />
-        <UsageMetric label="Maior OS em fotos" used={usage.max_os_photos || 0} limit={limits.os_photos_per_order || 0} icon={FileImage} />
+        <UsageMetric label="Usuários ativos" used={usage.users || 0} limit={limits.users || 0} icon={Users} warningPercent={data.monitoring.warning_percent} criticalPercent={data.monitoring.critical_percent} />
+        <UsageMetric label="Armazenamento real" used={usage.storage_bytes || 0} limit={limits.storage_bytes || 0} icon={HardDrive} warningPercent={data.monitoring.warning_percent} criticalPercent={data.monitoring.critical_percent} formatter={formatBytes} />
+        <UsageMetric label="Dispositivos de campo" used={usage.field_devices || 0} limit={limits.field_devices || 0} icon={MapPinned} warningPercent={data.monitoring.warning_percent} criticalPercent={data.monitoring.critical_percent} />
+        <UsageMetric label="Maior OS em fotos" used={usage.max_os_photos || 0} limit={limits.os_photos_per_order || 0} icon={FileImage} warningPercent={data.monitoring.warning_percent} criticalPercent={data.monitoring.critical_percent} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -201,11 +217,13 @@ export function PlanUsagePage() {
                 label={String(label)}
                 value={source === "measured"
                   ? "Medido automaticamente"
-                  : source === "manual"
-                    ? "Contador manual"
-                    : source === "configured"
-                      ? "Contratual"
-                      : "Ainda não mensurável"}
+                  : source === "integration"
+                    ? "Sincronizado por integração"
+                    : source === "manual"
+                      ? "Contador manual"
+                      : source === "configured"
+                        ? "Contratual"
+                        : "Ainda não mensurável"}
               />)}
             </div>
             <p className="mt-4 text-xs leading-5 text-muted-foreground">
