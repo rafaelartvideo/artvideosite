@@ -26,7 +26,10 @@ export type UnionSubscriptionUsageRow = {
   addons_count: number;
   addons_amount: number;
   contracted_monthly_amount: number;
+  files_bytes: number;
   database_bytes_estimate: number;
+  external_infrastructure_bytes: number;
+  infrastructure_total_bytes_estimate: number;
   database_measured_at?: string | null;
 };
 
@@ -64,7 +67,10 @@ export async function loadUnionSubscriptionUsageOverview(): Promise<UnionSubscri
     addons_count: Number(row.addons_count || 0),
     addons_amount: Number(row.addons_amount || 0),
     contracted_monthly_amount: Number(row.contracted_monthly_amount || 0),
+    files_bytes: Number(row.files_bytes || row.usage?.storage_bytes || 0),
     database_bytes_estimate: Number(row.database_bytes_estimate || 0),
+    external_infrastructure_bytes: Number(row.external_infrastructure_bytes || 0),
+    infrastructure_total_bytes_estimate: Number(row.infrastructure_total_bytes_estimate || 0),
     database_measured_at: row.database_measured_at ? String(row.database_measured_at) : null,
   }));
 }
