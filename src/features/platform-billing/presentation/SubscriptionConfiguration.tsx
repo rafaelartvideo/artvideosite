@@ -15,6 +15,7 @@ import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminF
 import { loadOrganizationPlanUsage } from "@/features/subscriptions/infrastructure/subscription-usage.repository";
 import type { PlatformBillingPlan, PlatformSubscription, UnionPlatformFinanceData } from "../infrastructure/platform-billing.repository";
 import {
+  loadUnionBillingSettings,
   loadUnionOrganizationDatabaseUsage,
   loadUnionSubscriptionConfiguration,
   refreshUnionOrganizationDatabaseUsage,
@@ -22,6 +23,7 @@ import {
   saveUnionPlanConfiguration,
   saveUnionSubscriptionConfiguration,
   saveUnionExternalUsage,
+  saveUnionBillingThresholds,
   syncUnionQueueUsage,
   type BillingAddon,
   type BillingLimitDefinition,
@@ -253,12 +255,18 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
   const [pbxRecordingGb, setPbxRecordingGb] = useState("");
   const [aiCreditsUsed, setAiCreditsUsed] = useState("");
   const [aiRequests30d, setAiRequests30d] = useState("");
+  const [warningPercent, setWarningPercent] = useState("80");
+  const [criticalPercent, setCriticalPercent] = useState("90");
 
   const query = useQuery({
     queryKey: ["union-subscription-configuration"],
     queryFn: loadUnionSubscriptionConfiguration,
   });
   const config = query.data;
+  const settingsQuery = useQuery({
+    queryKey: ["union-billing-settings"],
+    queryFn: loadUnionBillingSettings,
+  });
 
   const usageQuery = useQuery({
     queryKey: ["organization-plan-usage-admin", selectedSubscription?.organization_id],
@@ -270,6 +278,12 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
     queryFn: () => loadUnionOrganizationDatabaseUsage(selectedSubscription?.organization_id || ""),
     enabled: companyOpen && Boolean(selectedSubscription?.organization_id),
   });
+
+  useEffect(() => {
+    if (!settingsQuery.data) return;
+    setWarningPercent(String(settingsQuery.data.warning_percent));
+    setCriticalPercent(String(settingsQuery.data.critical_percent));
+  }, [settingsQuery.data]);
 
   useEffect(() => {
     if (!companyOpen || !usageQuery.data) return;
@@ -285,6 +299,26 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
       await Promise.all([usageQuery.refetch(), databaseUsageQuery.refetch()]);
     }
     await onChanged();
+  };
+
+  const saveMonitoringThresholds = async () => {
+    if (!canManage) return;
+    const warning = Number(warningPercent || 0);
+    const critical = Number(criticalPercent || 0);
+    if (!Number.isFinite(warning) || !Number.isFinite(critical) || warning < 0 || critical > 100 || warning > critical) {
+      notifyAdmin("Informe faixas válidas entre 0 e 100, com o alerta menor ou igual ao crítico.", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveUnionBillingThresholds(warning, critical);
+      await settingsQuery.refetch();
+      notifyAdmin("Faixas de monitoramento atualizadas.");
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível salvar as faixas de monitoramento."), "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openPlan = (plan: PlatformBillingPlan) => {
@@ -509,6 +543,24 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             Tudo abaixo define o contrato e prepara a cobrança. Nenhum limite, recurso ou módulo configurado aqui impede operações no CRM nesta fase.
           </p>
+        </div>
+      </AdminCardContent>
+    </AdminCard>
+
+    <AdminCard square>
+      <AdminCardContent className="p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-black text-foreground">Monitoramento de consumo</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Modo atual: <strong className="text-foreground">Monitorar — sem bloqueios</strong>. As faixas abaixo servem apenas para avisos visuais e análise comercial.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[140px_140px_auto] sm:items-end">
+            <FInput label="Aviso (%)" type="number" min={0} max={100} value={warningPercent} onChange={(event: any) => setWarningPercent(event.target.value)} />
+            <FInput label="Crítico (%)" type="number" min={0} max={100} value={criticalPercent} onChange={(event: any) => setCriticalPercent(event.target.value)} />
+            {canManage && <AdminButton variant="secondary" loading={saving} onClick={() => void saveMonitoringThresholds()}>Salvar faixas</AdminButton>}
+          </div>
         </div>
       </AdminCardContent>
     </AdminCard>
