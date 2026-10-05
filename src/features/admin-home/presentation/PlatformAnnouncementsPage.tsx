@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Megaphone, Pencil, Plus, Power, Users } from "lucide-react";
+import { CheckCircle2, Megaphone, Pencil, Pin, Plus, Power, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatDateTime } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -197,7 +197,12 @@ export function PlatformAnnouncementsPage() {
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={priorityLabels[announcement.priority]} />
               <StatusBadge status={announcement.is_active ? "Ativo" : "Encerrado"} />
-              {announcement.is_pinned && <span className="rounded-full border border-border bg-muted px-2 py-1 text-[9px] font-black uppercase text-foreground">Fixado</span>}
+              {announcement.is_pinned && <span
+                role="img"
+                aria-label="Aviso fixado"
+                title="Aviso fixado"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-muted text-foreground"
+              ><Pin size={12} className="shrink-0" /></span>}
               {announcement.requires_acknowledgment && <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2 py-1 text-[9px] font-black uppercase text-primary"><CheckCircle2 size={11} /> Confirmação</span>}
             </div>
             <h3 className="mt-2 text-sm font-black text-foreground">{announcement.title}</h3>
