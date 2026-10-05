@@ -181,7 +181,7 @@ export function OrderDetailsContent({
             <InfoRow label="Status" value={(detail.order_status as any)?.name} />
             <InfoRow label="Situação" value={(detail.situation as any)?.name} />
             <InfoRow label="Prioridade" value={getPriorityLabel(detail.priority) || undefined} />
-            <InfoRow label="Data de início" value={fmtDate(detail.created_at)} />
+            <InfoRow label="Data de início" value={fmtDate(detail.created_at, true)} />
             <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
             <InfoRow label="Concluída em" value={detail.completed_at ? fmtDate(detail.completed_at, true) : null} />
             {detail.completed_at && <InfoRow label="Concluída por" value={detail.completed_by_profile?.full_name || "Nome não informado"} />}
