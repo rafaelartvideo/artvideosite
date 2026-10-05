@@ -16,6 +16,7 @@ import {
 import { FCurrencyInput, FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { SubscriptionConfiguration } from "./SubscriptionConfiguration";
+import { UnionSubscriptionUsageOverview } from "./UnionSubscriptionUsageOverview";
 import {
   generatePlatformCharge,
   loadUnionPlatformFinance,
@@ -27,7 +28,7 @@ import {
   type PlatformSubscription,
 } from "../infrastructure/platform-billing.repository";
 
-type SectionId = "subscriptions" | "charges" | "plans" | "configuration";
+type SectionId = "subscriptions" | "usage" | "charges" | "plans" | "configuration";
 
 const subscriptionStatusOptions = [
   { value: "trial", label: "Teste" },
@@ -252,7 +253,7 @@ export function UnionPlatformFinance() {
     <PageHeader
       title="Financeiro"
       subtitle="Assinaturas e recebimentos da Union World. Os dados financeiros operacionais das empresas parceiras não entram neste módulo."
-      actions={canManage && section !== "configuration" ? <AdminButton onClick={section === "plans" ? openNewPlan : openNewSubscription}><Plus size={15} /> {section === "plans" ? "Novo plano" : "Nova assinatura"}</AdminButton> : undefined}
+      actions={canManage && (section === "subscriptions" || section === "plans") ? <AdminButton onClick={section === "plans" ? openNewPlan : openNewSubscription}><Plus size={15} /> {section === "plans" ? "Novo plano" : "Nova assinatura"}</AdminButton> : undefined}
     />
 
     {query.isPending ? <LoadingState text="Carregando financeiro da Union..." /> : query.isError || !data ? (
@@ -284,6 +285,7 @@ export function UnionPlatformFinance() {
         <div className="flex min-w-0 gap-5 overflow-x-auto">
           {[
             { id: "subscriptions" as const, label: "Assinaturas" },
+            { id: "usage" as const, label: "Consumo" },
             { id: "charges" as const, label: "Cobranças" },
             { id: "plans" as const, label: "Planos" },
             { id: "configuration" as const, label: "Configuração" },
@@ -318,6 +320,8 @@ export function UnionPlatformFinance() {
           </table>
         </div> : <AdminCardContent><p className="text-sm text-muted-foreground">Nenhuma assinatura cadastrada.</p></AdminCardContent>}
       </AdminCard>}
+
+      {section === "usage" && <UnionSubscriptionUsageOverview />}
 
       {section === "charges" && <AdminCard square>
         <AdminCardHeader>
