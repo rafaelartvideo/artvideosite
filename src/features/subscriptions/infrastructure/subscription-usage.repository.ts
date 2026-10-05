@@ -47,7 +47,7 @@ function numericRecord(value: unknown): Record<string, number> {
 }
 
 export async function loadOrganizationPlanUsage(organizationId: string): Promise<OrganizationPlanUsageData> {
-  const { data, error } = await supabase.rpc("load_organization_plan_usage_v7", {
+  const { data, error } = await supabase.rpc("load_organization_plan_usage_v8", {
     p_organization_id: organizationId,
   });
   if (error) throw error;
