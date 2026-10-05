@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Debounce rapid pushes
         if: github.event_name == 'push'
-        run: sleep 45
+        run: sleep 15
 
       - name: Check latest main commit
         id: latest
@@ -63,6 +63,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Detect deploy targets
+        id: targets
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "crm=true" >> "${GITHUB_OUTPUT}"
+            echo "site=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          mapfile -t changed_files < <(jq -r '.commits[]? | (.added[]?, .modified[]?, .removed[]?)' "${GITHUB_EVENT_PATH}" | sed '/^$/d' | sort -u)
+
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "crm=true" >> "${GITHUB_OUTPUT}"
+            echo "site=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          site_required=false
+          for file in "${changed_files[@]}"; do
+            if [[ ! "${file}" =~ ^src/features/(admin-home|admin-shell|audit|dashboard|finance|notifications|partner-companies|pdv|platform-billing|queue-integration|roles|subscriptions|telephony)/ ]]; then
+              site_required=true
+              break
+            fi
+          done
+
+          echo "crm=true" >> "${GITHUB_OUTPUT}"
+          echo "site=${site_required}" >> "${GITHUB_OUTPUT}"
+          echo "Arquivos alterados:"
+          printf ' - %s\n' "${changed_files[@]}"
+          echo "Build do site público: ${site_required}"
+
       - name: Restore previous CRM assets
         id: previous_crm_assets
         uses: actions/cache/restore@v4
@@ -73,6 +105,7 @@ jobs:
             crm-assets-
 
       - name: Restore previous public site assets
+        if: steps.targets.outputs.site == 'true'
         id: previous_site_assets
         uses: actions/cache/restore@v4
         with:
@@ -86,8 +119,16 @@ jobs:
         with:
           node-version: 24
 
+      - name: Restore npm download cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
       - name: Install dependencies
-        run: npm install
+        run: npm install --prefer-offline --no-audit --no-fund
 
       - name: Finance domain tests
         run: npm run test:finance
@@ -96,6 +137,7 @@ jobs:
         run: npm run test:regressions
 
       - name: Build public site
+        if: steps.targets.outputs.site == 'true'
         run: npm run build:site
 
       - name: Build CRM
@@ -123,11 +165,9 @@ jobs:
       - name: Keep current and previous release assets
         if: steps.current.outputs.deploy == 'true'
         run: |
-          rm -rf .current-crm-assets .current-site-assets
-          mkdir -p .current-crm-assets .current-site-assets
-
+          rm -rf .current-crm-assets
+          mkdir -p .current-crm-assets
           cp -a dist-crm/assets/. .current-crm-assets/
-          cp -a dist-site/assets/. .current-site-assets/
 
           if [ -d .previous-crm-assets ]; then
             echo "Mantendo os chunks da versão anterior do CRM como janela de compatibilidade."
@@ -136,11 +176,17 @@ jobs:
             echo "Nenhum cache anterior de assets do CRM disponível."
           fi
 
-          if [ -d .previous-site-assets ]; then
-            echo "Mantendo os chunks da versão anterior do site como janela de compatibilidade."
-            cp -an .previous-site-assets/. dist-site/assets/
-          else
-            echo "Nenhum cache anterior de assets do site disponível."
+          if [ "${{ steps.targets.outputs.site }}" = "true" ]; then
+            rm -rf .current-site-assets
+            mkdir -p .current-site-assets
+            cp -a dist-site/assets/. .current-site-assets/
+
+            if [ -d .previous-site-assets ]; then
+              echo "Mantendo os chunks da versão anterior do site como janela de compatibilidade."
+              cp -an .previous-site-assets/. dist-site/assets/
+            else
+              echo "Nenhum cache anterior de assets do site disponível."
+            fi
           fi
 
       - name: Deploy CRM to unionworld.com.br via FTPS
@@ -177,7 +223,7 @@ jobs:
           log-level: verbose
 
       - name: Deploy public site to eletronicaartvideo.com.br via FTPS
-        if: steps.current.outputs.deploy == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != ''
+        if: steps.current.outputs.deploy == 'true' && steps.targets.outputs.site == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != ''
         id: ftp_site_deploy
         continue-on-error: true
         timeout-minutes: 15
@@ -209,7 +255,7 @@ jobs:
             mail_accounts_deletion.log
 
       - name: Retry public site deploy after transient failure
-        if: steps.current.outputs.deploy == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != '' && steps.ftp_site_deploy.outcome == 'failure'
+        if: steps.current.outputs.deploy == 'true' && steps.targets.outputs.site == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != '' && steps.ftp_site_deploy.outcome == 'failure'
         id: ftp_site_retry
         timeout-minutes: 15
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
@@ -247,7 +293,7 @@ jobs:
           key: crm-assets-${{ github.sha }}
 
       - name: Save current public site assets for next deploy
-        if: steps.current.outputs.deploy == 'true' && (steps.ftp_site_deploy.outcome == 'success' || steps.ftp_site_retry.outcome == 'success')
+        if: steps.current.outputs.deploy == 'true' && steps.targets.outputs.site == 'true' && (steps.ftp_site_deploy.outcome == 'success' || steps.ftp_site_retry.outcome == 'success')
         uses: actions/cache/save@v4
         with:
           path: .current-site-assets
