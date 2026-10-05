@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eraser, MoreVertical, Search } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown, Eraser, MoreVertical, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { cn } from "@/shared/domain/formatters";
 import { AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect, FInput, FSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import {
@@ -27,6 +28,16 @@ type UnionOrderMonitorProps = {
   onOrderRouteChange?: (orderId: string | null, subpage?: string | null) => void;
 };
 
+type MobileFilterKey = "order" | "organization" | "serviceType" | "situation";
+type OrderSort = "" | "asc" | "desc";
+
+const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
+  { value: "order", label: "Número da OS / Externa" },
+  { value: "organization", label: "Empresa" },
+  { value: "serviceType", label: "Tipo de atendimento" },
+  { value: "situation", label: "Situação" },
+];
+
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -46,6 +57,8 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
   const [situationId, setSituationId] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [mobileFilter, setMobileFilter] = useState<MobileFilterKey>("order");
+  const [orderSort, setOrderSort] = useState<OrderSort>("");
 
   const orderActions = (row: UnionOrderMonitorRow) => <DropdownMenu>
     <DropdownMenuTrigger asChild>
@@ -124,8 +137,21 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
   }, [queryClient]);
 
   const rows = listQuery.data?.items ?? [];
+  const visibleRows = useMemo(() => {
+    if (!orderSort) return rows;
+    return [...rows].sort((left, right) => {
+      const comparison = String(left.os_number || "").localeCompare(String(right.os_number || ""), "pt-BR", {
+        numeric: true,
+        sensitivity: "base",
+      });
+      return orderSort === "asc" ? comparison : -comparison;
+    });
+  }, [rows, orderSort]);
   const total = listQuery.data?.total ?? 0;
-  const hasActiveFilters = Boolean(search || organizationId || serviceTypeId || situationId);
+  const hasActiveFilters = Boolean(search || organizationId || serviceTypeId || situationId || orderSort);
+  const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenar";
+  const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
+  const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS / Externa";
   const monitoredOrganizationId = contextQuery.data?.order?.organization_id
     || contextQuery.data?.organization?.id
     || null;
@@ -135,6 +161,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
     setOrganizationId("");
     setServiceTypeId("");
     setSituationId("");
+    setOrderSort("");
     setPage(1);
   };
 
@@ -153,6 +180,101 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
   const closeOrder = () => {
     setSelectedOrderId(null);
     onOrderRouteChange?.(null, null);
+  };
+
+  const sortMenu = () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Ordenação atual: ${orderLabel}`}
+          title={`Ordenação: ${orderLabel}`}
+          className={cn(
+            "inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40",
+            orderSort && "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]",
+          )}
+        >
+          <OrderSortIcon size={17} className="shrink-0 text-[#0057e7]" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[190px]">
+        {([["", "Ordenação padrão", ArrowUpDown], ["asc", "OS crescente", ArrowUpNarrowWide], ["desc", "OS decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => (
+          <DropdownMenuItem
+            key={value || "default"}
+            onSelect={() => {
+              setOrderSort(value);
+              setPage(1);
+            }}
+            className={cn(
+              "cursor-pointer",
+              orderSort === value && "bg-[#eef5ff] text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]",
+            )}
+          >
+            <Icon size={15} className={orderSort === value ? "text-[#0057e7]" : "text-[#5a6a82]"} />
+            <span>{label}</span>
+            {orderSort === value && <Check size={15} className="ml-auto text-[#0057e7]" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const renderMobileFilter = () => {
+    switch (mobileFilter) {
+      case "order":
+        return <div className="relative min-w-0 overflow-hidden rounded-lg">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
+          <input
+            aria-label="Buscar por número da OS ou externa"
+            value={search}
+            onChange={event => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+            placeholder="Digite o número da OS ou externa"
+            className={cn(INPUT, "h-[42px] min-w-0 w-full overflow-hidden text-ellipsis whitespace-nowrap py-2 pl-9 text-sm")}
+          />
+        </div>;
+      case "organization":
+        return <AdminSelect
+          value={organizationId}
+          onValueChange={changeOrganization}
+          options={[
+            { value: "", label: "Todas as empresas" },
+            ...(options?.companies ?? []).map(item => ({ value: item.id, label: item.name })),
+          ]}
+          className="h-[42px] text-xs"
+          ariaLabel="Filtrar por empresa"
+        />;
+      case "serviceType":
+        return <AdminSelect
+          value={serviceTypeId}
+          onValueChange={value => { setServiceTypeId(value); setPage(1); }}
+          options={[
+            { value: "", label: "Todos os tipos" },
+            ...serviceTypeOptions.map(item => ({
+              value: item.id,
+              label: organizationId ? item.title : `${item.organization_name} · ${item.title}`,
+            })),
+          ]}
+          className="h-[42px] text-xs"
+          ariaLabel="Filtrar por tipo de atendimento"
+        />;
+      case "situation":
+        return <AdminSelect
+          value={situationId}
+          onValueChange={value => { setSituationId(value); setPage(1); }}
+          options={[
+            { value: "", label: "Todas as situações" },
+            ...situationOptions.map(item => ({
+              value: item.id,
+              label: organizationId ? item.name : `${item.organization_name} · ${item.name}`,
+            })),
+          ]}
+          className="h-[42px] text-xs"
+          ariaLabel="Filtrar por situação"
+        />;
+    }
   };
 
   if (selectedOrderId) {
@@ -218,51 +340,89 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
         </button>}
       </div>
 
-      <div className="grid gap-2 p-4 md:grid-cols-2 md:p-3 xl:grid-cols-5">
-        <div className="min-w-0 xl:col-span-2">
-          <FInput
-            label="OS / Externa"
-            placeholder="Digite o número da OS ou OS externa"
-            value={search}
-            onChange={(event: any) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
+      <div className="p-4 md:p-3">
+        <div className="space-y-3 md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Buscar por: ${mobileFilterLabel}`}
+                className="flex h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"
+              >
+                <span className="min-w-0 truncate">
+                  <span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}
+                </span>
+                <ChevronDown size={15} className="shrink-0 text-[#5a6a82]" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[240px]">
+              {mobileFilterOptions.map(option => <DropdownMenuItem
+                key={option.value}
+                onSelect={() => setMobileFilter(option.value)}
+                className={cn(
+                  "cursor-pointer",
+                  mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]",
+                )}
+              >
+                <Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} />
+                <span>{option.label}</span>
+                {mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}
+              </DropdownMenuItem>)}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="flex min-w-0 items-start gap-2">
+            <div className="min-w-0 flex-1">{renderMobileFilter()}</div>
+            {sortMenu()}
+          </div>
+        </div>
+
+        <div className="hidden gap-2 md:grid md:grid-cols-2 xl:grid-cols-5">
+          <div className="min-w-0 xl:col-span-2">
+            <FInput
+              label="OS / Externa"
+              placeholder="Digite o número da OS ou OS externa"
+              value={search}
+              onChange={(event: any) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+          <FSelect
+            label="Empresa"
+            value={organizationId}
+            onChange={(event: any) => changeOrganization(event.target.value)}
+            options={[
+              { value: "", label: "Todas as empresas" },
+              ...(options?.companies ?? []).map(item => ({ value: item.id, label: item.name })),
+            ]}
+          />
+          <FSelect
+            label="Tipo de atendimento"
+            value={serviceTypeId}
+            onChange={(event: any) => { setServiceTypeId(event.target.value); setPage(1); }}
+            options={[
+              { value: "", label: "Todos os tipos" },
+              ...serviceTypeOptions.map(item => ({
+                value: item.id,
+                label: organizationId ? item.title : `${item.organization_name} · ${item.title}`,
+              })),
+            ]}
+          />
+          <FSelect
+            label="Situação"
+            value={situationId}
+            onChange={(event: any) => { setSituationId(event.target.value); setPage(1); }}
+            options={[
+              { value: "", label: "Todas as situações" },
+              ...situationOptions.map(item => ({
+                value: item.id,
+                label: organizationId ? item.name : `${item.organization_name} · ${item.name}`,
+              })),
+            ]}
           />
         </div>
-        <FSelect
-          label="Empresa"
-          value={organizationId}
-          onChange={(event: any) => changeOrganization(event.target.value)}
-          options={[
-            { value: "", label: "Todas as empresas" },
-            ...(options?.companies ?? []).map(item => ({ value: item.id, label: item.name })),
-          ]}
-        />
-        <FSelect
-          label="Tipo de atendimento"
-          value={serviceTypeId}
-          onChange={(event: any) => { setServiceTypeId(event.target.value); setPage(1); }}
-          options={[
-            { value: "", label: "Todos os tipos" },
-            ...serviceTypeOptions.map(item => ({
-              value: item.id,
-              label: organizationId ? item.title : `${item.organization_name} · ${item.title}`,
-            })),
-          ]}
-        />
-        <FSelect
-          label="Situação"
-          value={situationId}
-          onChange={(event: any) => { setSituationId(event.target.value); setPage(1); }}
-          options={[
-            { value: "", label: "Todas as situações" },
-            ...situationOptions.map(item => ({
-              value: item.id,
-              label: organizationId ? item.name : `${item.organization_name} · ${item.name}`,
-            })),
-          ]}
-        />
       </div>
     </AdminCard>
 
@@ -293,7 +453,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
               <th className="text-left">Atualização</th>
               <th className="w-16 text-right">Ações</th>
             </tr></thead>
-            <tbody>{rows.map(row => <tr key={row.id} className="cursor-pointer" onClick={() => openOrder(row)}>
+            <tbody>{visibleRows.map(row => <tr key={row.id} className="cursor-pointer" onClick={() => openOrder(row)}>
               <td><div className="flex items-center gap-2"><span aria-label={`Cor do status ${row.status_name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.status_color || "transparent" }} /><div><p className="font-mono text-base font-black text-primary">{row.os_number}</p>{row.external_os_number && <p className="text-[11px] font-semibold text-muted-foreground">OS Externa {row.external_os_number}</p>}</div></div></td>
               <td><p className="font-bold text-foreground">{row.organization_name}</p></td>
               <td><p className="max-w-[240px] truncate text-sm font-semibold text-foreground">{row.customer_name || "—"}</p></td>
@@ -306,7 +466,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
         </div>
 
         <div className="divide-y divide-border md:hidden">
-          {rows.map(row => <button key={row.id} type="button" onClick={() => openOrder(row)} className="w-full p-4 text-left">
+          {visibleRows.map(row => <button key={row.id} type="button" onClick={() => openOrder(row)} className="w-full p-4 text-left">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-base font-black text-primary">OS {row.os_number}</p>
