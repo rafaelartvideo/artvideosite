@@ -120,7 +120,9 @@ function MobileCompanyCard({ row }: { row: UnionSubscriptionUsageRow }) {
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <MetricBox icon={Users} label="Usuários" value={numberRatio(usage.users || 0, limits.users || 0)} />
-        <MetricBox icon={HardDrive} label="Storage" value={bytesRatio(usage.storage_bytes || 0, limits.storage_bytes || 0)} />
+        <MetricBox icon={HardDrive} label="Arquivos" value={bytesRatio(usage.storage_bytes || 0, limits.storage_bytes || 0)} />
+        <MetricBox icon={Database} label="Banco" value={formatBytes(row.database_bytes_estimate)} />
+        <MetricBox icon={TrendingUp} label="Infra total" value={formatBytes(row.infrastructure_total_bytes_estimate)} />
         <MetricBox icon={Monitor} label="PDVs" value={numberRatio(usage.pdv_terminals || 0, limits.pdv_terminals || 0)} />
         <MetricBox icon={MapPinned} label="Campo" value={numberRatio(usage.field_devices || 0, limits.field_devices || 0)} />
         <MetricBox icon={ListOrdered} label="Fila" value={numberRatio(usage.queue_units || 0, limits.queue_units || 0)} />
@@ -133,8 +135,8 @@ function MobileCompanyCard({ row }: { row: UnionSubscriptionUsageRow }) {
           <p className="mt-0.5 text-sm font-black text-foreground">{formatCurrency(row.contracted_monthly_amount)}</p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">Banco estimado</p>
-          <p className="mt-0.5 text-xs font-bold text-foreground">{formatBytes(row.database_bytes_estimate)}</p>
+          <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">Infra externa</p>
+          <p className="mt-0.5 text-xs font-bold text-foreground">{formatBytes(row.external_infrastructure_bytes)}</p>
         </div>
       </div>
     </AdminCardContent>
@@ -196,6 +198,7 @@ export function UnionSubscriptionUsageOverview() {
       warning: healths.filter(health => health === "warning").length,
       critical: healths.filter(health => health === "critical" || health === "reached").length,
       contracted: rows.reduce((total, row) => total + row.contracted_monthly_amount, 0),
+      infrastructure: rows.reduce((total, row) => total + row.infrastructure_total_bytes_estimate, 0),
     };
   }, [rows]);
 
@@ -219,12 +222,13 @@ export function UnionSubscriptionUsageOverview() {
   }
 
   return <div className="space-y-4">
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
       <SummaryCard label="Empresas monitoradas" value={metrics.companies} icon={Building2} />
       <SummaryCard label="Sem plano" value={metrics.withoutPlan} icon={CreditCard} />
       <SummaryCard label="Em atenção" value={metrics.warning} icon={AlertTriangle} />
       <SummaryCard label="Crítico / atingido" value={metrics.critical} icon={TrendingUp} />
       <SummaryCard label="Mensal contratado" value={formatCurrency(metrics.contracted)} icon={CreditCard} />
+      <SummaryCard label="Infra estimada" value={formatBytes(metrics.infrastructure)} icon={Database} />
     </div>
 
     <AdminCard square>
@@ -232,7 +236,7 @@ export function UnionSubscriptionUsageOverview() {
         <div>
           <h3 className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Consumo por empresa</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Visão consolidada da assinatura, consumo medido e situação comercial. Nenhum indicador abaixo bloqueia operações.
+            Visão consolidada da assinatura, consumo medido e situação comercial. Infra total soma arquivos, banco principal e infraestrutura externa mensurável. Nenhum indicador abaixo bloqueia operações.
           </p>
         </div>
         <AdminButton size="sm" variant="secondary" onClick={() => query.refetch()}><RotateCcw size={14} /> Atualizar painel</AdminButton>
@@ -254,7 +258,7 @@ export function UnionSubscriptionUsageOverview() {
         </div>
 
         <div className="hidden overflow-x-auto lg:block">
-          <table className="min-w-[1540px]">
+          <table className="min-w-[1660px]">
             <thead>
               <tr>
                 <th className="text-left">Empresa</th>
@@ -262,8 +266,9 @@ export function UnionSubscriptionUsageOverview() {
                 <th className="text-left">Situação</th>
                 <th className="text-left">Mensal</th>
                 <th className="text-left">Usuários</th>
-                <th className="text-left">Storage</th>
+                <th className="text-left">Arquivos</th>
                 <th className="text-left">Banco</th>
+                <th className="text-left">Infra total</th>
                 <th className="text-left">PDV</th>
                 <th className="text-left">Campo</th>
                 <th className="text-left">Fila</th>
@@ -290,6 +295,10 @@ export function UnionSubscriptionUsageOverview() {
                   <td className="text-xs font-bold text-foreground">{numberRatio(usage.users || 0, limits.users || 0)}</td>
                   <td className="text-xs font-bold text-foreground">{bytesRatio(usage.storage_bytes || 0, limits.storage_bytes || 0)}</td>
                   <td className="text-xs font-bold text-foreground">{formatBytes(row.database_bytes_estimate)}</td>
+                  <td>
+                    <span className="text-xs font-black text-foreground">{formatBytes(row.infrastructure_total_bytes_estimate)}</span>
+                    {row.external_infrastructure_bytes > 0 && <span className="mt-0.5 block text-[10px] text-muted-foreground">inclui {formatBytes(row.external_infrastructure_bytes)} externos</span>}
+                  </td>
                   <td className="text-xs font-bold text-foreground">{numberRatio(usage.pdv_terminals || 0, limits.pdv_terminals || 0)}</td>
                   <td className="text-xs font-bold text-foreground">{numberRatio(usage.field_devices || 0, limits.field_devices || 0)}</td>
                   <td>
