@@ -23,6 +23,7 @@ export type OrganizationPlanUsageData = {
   usage_measured_at?: string | null;
   features: Record<string, boolean>;
   modules: Array<{ key: string; name: string; source: "plan" | "addon" }>;
+  monitoring: { mode: "monitor" | "warn" | "enforce"; warning_percent: number; critical_percent: number };
   addons: Array<{
     id: string;
     code: string;
@@ -46,7 +47,7 @@ function numericRecord(value: unknown): Record<string, number> {
 }
 
 export async function loadOrganizationPlanUsage(organizationId: string): Promise<OrganizationPlanUsageData> {
-  const { data, error } = await supabase.rpc("load_organization_plan_usage_v6", {
+  const { data, error } = await supabase.rpc("load_organization_plan_usage_v7", {
     p_organization_id: organizationId,
   });
   if (error) throw error;
@@ -76,6 +77,11 @@ export async function loadOrganizationPlanUsage(organizationId: string): Promise
       ? Object.fromEntries(Object.entries(raw.features).map(([key, value]) => [key, Boolean(value)]))
       : {},
     modules: Array.isArray(raw.modules) ? raw.modules : [],
+    monitoring: {
+      mode: raw.monitoring?.mode || "monitor",
+      warning_percent: Number(raw.monitoring?.warning_percent || 80),
+      critical_percent: Number(raw.monitoring?.critical_percent || 90),
+    },
     addons: (Array.isArray(raw.addons) ? raw.addons : []).map((addon: any) => ({
       ...addon,
       quantity: Number(addon.quantity || 0),
