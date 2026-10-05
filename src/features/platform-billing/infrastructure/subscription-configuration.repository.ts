@@ -252,3 +252,29 @@ export async function saveUnionExternalUsage(input: {
   });
   if (error) throw error;
 }
+
+export type UnionBillingSettings = {
+  enforcement_mode: "monitor" | "warn" | "enforce";
+  warning_percent: number;
+  critical_percent: number;
+  updated_at?: string | null;
+};
+
+export async function loadUnionBillingSettings(): Promise<UnionBillingSettings> {
+  const { data, error } = await supabase.rpc("load_union_billing_settings_v1");
+  if (error) throw error;
+  return {
+    enforcement_mode: data?.enforcement_mode || "monitor",
+    warning_percent: Number(data?.warning_percent || 80),
+    critical_percent: Number(data?.critical_percent || 90),
+    updated_at: data?.updated_at ? String(data.updated_at) : null,
+  };
+}
+
+export async function saveUnionBillingThresholds(warningPercent: number, criticalPercent: number): Promise<void> {
+  const { error } = await supabase.rpc("save_union_billing_thresholds_v1", {
+    p_warning_percent: warningPercent,
+    p_critical_percent: criticalPercent,
+  });
+  if (error) throw error;
+}
