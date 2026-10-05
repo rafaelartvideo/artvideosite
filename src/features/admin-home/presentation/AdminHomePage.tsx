@@ -12,6 +12,7 @@ import {
   MapPinned,
   Megaphone,
   Package,
+  Pin,
   ShoppingCart,
   Users,
   Wrench,
@@ -108,7 +109,12 @@ function AnnouncementCard({
             <span className={cn("h-2 w-2 rounded-full", tone.dot)} />
             {tone.label}
           </span>
-          {announcement.is_pinned && <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[9px] font-black uppercase text-foreground">Fixado</span>}
+          {announcement.is_pinned && <span
+            role="img"
+            aria-label="Aviso fixado"
+            title="Aviso fixado"
+            className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border bg-card text-foreground"
+          ><Pin size={11} className="shrink-0" /></span>}
           {announcement.requires_acknowledgment && <span className={cn(
             "rounded-full px-2 py-0.5 text-[9px] font-black uppercase",
             acknowledged ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-card text-primary",
