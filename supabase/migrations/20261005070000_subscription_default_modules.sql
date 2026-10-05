@@ -21,7 +21,7 @@ with core_modules(module_key) as (
     ('dashboard'),('customers'),('orders'),('agenda'),('inventory'),('products'),
     ('equipment'),('checklists'),('services'),('service_types'),('order_situations'),
     ('order_statuses'),('documents'),('quotes'),('employees'),('company_settings'),
-    ('finance'),('pdv')
+    ('finance'),('pdv'),('marketplace')
 ),
 eligible_plans as (
   select p.id
