@@ -58,11 +58,12 @@ begin
       v_database_measured_at := null;
     end if;
 
-    v_files_bytes := coalesce((v_usage -> 'usage' ->> 'storage_bytes')::bigint, 0);
-    v_external_bytes :=
-        coalesce((v_usage -> 'usage' ->> 'queue_database_bytes')::bigint, 0)
-      + coalesce((v_usage -> 'usage' ->> 'queue_storage_bytes')::bigint, 0)
-      + coalesce((v_usage -> 'usage' ->> 'pbx_recording_bytes')::bigint, 0);
+    v_files_bytes := coalesce((v_usage -> 'usage' ->> 'storage_bytes')::numeric, 0)::bigint;
+    v_external_bytes := (
+        coalesce((v_usage -> 'usage' ->> 'queue_database_bytes')::numeric, 0)
+      + coalesce((v_usage -> 'usage' ->> 'queue_storage_bytes')::numeric, 0)
+      + coalesce((v_usage -> 'usage' ->> 'pbx_recording_bytes')::numeric, 0)
+    )::bigint;
     v_total_bytes := v_files_bytes + v_database_bytes + v_external_bytes;
 
     v_rows := v_rows || jsonb_build_array(jsonb_build_object(
