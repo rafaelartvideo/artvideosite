@@ -553,7 +553,7 @@ Deno.serve(async request => {
         .filter(item => item.id && item.name);
     };
 
-    const resolveMyOperatorBinding = async (autoMatch = true) => {
+    const resolveMyOperatorBinding = async () => {
       const { data: linked, error: linkedError } = await admin
         .from("sac_digital_operator_links")
         .select("external_operator_id,operator_name")
@@ -562,41 +562,11 @@ Deno.serve(async request => {
         .maybeSingle();
 
       if (linkedError) throw new Error("Não foi possível consultar o operador vinculado.");
-      if (linked?.external_operator_id) {
-        return {
-          id: String(linked.external_operator_id),
-          name: String(linked.operator_name || ""),
-          autoMatched: false,
-        };
-      }
-      if (!autoMatch) return null;
-
-      const { data: profile } = await admin
-        .from("profiles")
-        .select("email")
-        .eq("id", userData.user.id)
-        .maybeSingle();
-      const email = String(profile?.email || userData.user.email || "").trim().toLowerCase();
-      if (!email) return null;
-
-      const operators = await loadSacOperators();
-      const matches = operators.filter(operator => operator.email.toLowerCase() === email);
-      if (matches.length !== 1) return null;
-
-      const match = matches[0];
-      const now = new Date().toISOString();
-      const { error: upsertError } = await admin
-        .from("sac_digital_operator_links")
-        .upsert({
-          organization_id: organizationId,
-          user_id: userData.user.id,
-          external_operator_id: match.id,
-          operator_name: match.name,
-          updated_at: now,
-        }, { onConflict: "organization_id,user_id" });
-      if (upsertError) throw new Error("Não foi possível salvar o operador vinculado.");
-
-      return { id: match.id, name: match.name, autoMatched: true };
+      if (!linked?.external_operator_id) return null;
+      return {
+        id: String(linked.external_operator_id),
+        name: String(linked.operator_name || ""),
+      };
     };
 
     if (action === "test_connection") {
@@ -637,39 +607,156 @@ Deno.serve(async request => {
       if (!(await requirePermission("sac_digital.protocols.manage"))) {
         return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
       }
-      const binding = await resolveMyOperatorBinding(true);
+      const binding = await resolveMyOperatorBinding();
       return json({
         success: true,
         linked: Boolean(binding),
         operator: binding ? { id: binding.id, name: binding.name } : null,
-        auto_matched: binding?.autoMatched === true,
       });
     }
 
-    if (action === "set_my_operator_binding") {
-      if (!(await requirePermission("sac_digital.protocols.manage"))) {
-        return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
+    if (action === "operator_bindings_admin") {
+      if (!(await requirePermission("sac_digital.settings.manage"))) {
+        return json({ success: false, error: "Sem permissão para configurar operadores do SAC Digital." }, 403);
       }
 
-      const operatorId = String(body.operator_id || "").trim();
-      if (!operatorId || operatorId.length > 80) {
-        return json({ success: false, error: "Selecione um operador SAC válido." }, 400);
+      const operators = await loadSacOperators();
+
+      const { data: members, error: membersError } = await admin
+        .from("organization_members")
+        .select("user_id,is_owner,status")
+        .eq("organization_id", organizationId)
+        .eq("status", "active");
+      if (membersError) throw new Error("Não foi possível carregar os funcionários desta empresa.");
+
+      const userIds = (members || [])
+        .map(member => String(member.user_id || ""))
+        .filter(Boolean);
+
+      let profiles: Array<Record<string, unknown>> = [];
+      if (userIds.length) {
+        const { data: profileRows, error: profilesError } = await admin
+          .from("profiles")
+          .select("id,full_name,email,is_active")
+          .in("id", userIds)
+          .eq("is_active", true);
+        if (profilesError) throw new Error("Não foi possível carregar os funcionários desta empresa.");
+        profiles = (profileRows || []) as Array<Record<string, unknown>>;
       }
+
+      const { data: links, error: linksError } = await admin
+        .from("sac_digital_operator_links")
+        .select("user_id,external_operator_id,operator_name")
+        .eq("organization_id", organizationId);
+      if (linksError) throw new Error("Não foi possível carregar os vínculos de operadores.");
+
+      const memberByUser = new Map(
+        (members || []).map(member => [String(member.user_id || ""), member]),
+      );
+      const linkByUser = new Map(
+        (links || []).map(link => [String(link.user_id || ""), link]),
+      );
+
+      const employees = profiles
+        .map(profile => {
+          const userId = String(profile.id || "");
+          const member = memberByUser.get(userId);
+          const link = linkByUser.get(userId);
+          return {
+            user_id: userId,
+            full_name: String(profile.full_name || profile.email || "Usuário"),
+            email: String(profile.email || ""),
+            is_owner: member?.is_owner === true,
+            operator: link?.external_operator_id
+              ? {
+                  id: String(link.external_operator_id),
+                  name: String(link.operator_name || ""),
+                }
+              : null,
+          };
+        })
+        .sort((left, right) => left.full_name.localeCompare(right.full_name, "pt-BR"));
+
+      return json({
+        success: true,
+        employees,
+        operators: operators.map(operator => ({
+          id: operator.id,
+          name: operator.name,
+          online: operator.online,
+        })),
+      });
+    }
+
+    if (action === "set_operator_binding_admin") {
+      if (!(await requirePermission("sac_digital.settings.manage"))) {
+        return json({ success: false, error: "Sem permissão para configurar operadores do SAC Digital." }, 403);
+      }
+
+      const targetUserId = String(body.user_id || "").trim();
+      const operatorId = String(body.operator_id || "").trim();
+      if (!isUuid(targetUserId)) return json({ success: false, error: "Funcionário inválido." }, 400);
+
+      const { data: member, error: memberError } = await admin
+        .from("organization_members")
+        .select("user_id,status")
+        .eq("organization_id", organizationId)
+        .eq("user_id", targetUserId)
+        .eq("status", "active")
+        .maybeSingle();
+      if (memberError || !member) {
+        return json({ success: false, error: "O funcionário não pertence à empresa ativa." }, 400);
+      }
+
+      if (!operatorId) {
+        const { error: deleteError } = await admin
+          .from("sac_digital_operator_links")
+          .delete()
+          .eq("organization_id", organizationId)
+          .eq("user_id", targetUserId);
+        if (deleteError) throw new Error("Não foi possível remover o vínculo do operador.");
+        return json({ success: true, linked: false, operator: null });
+      }
+
+      if (operatorId.length > 80) return json({ success: false, error: "Operador SAC inválido." }, 400);
 
       const operators = await loadSacOperators();
       const operator = operators.find(item => item.id === operatorId);
       if (!operator) return json({ success: false, error: "Operador SAC não encontrado." }, 400);
 
+      const { data: usedByOther, error: usedError } = await admin
+        .from("sac_digital_operator_links")
+        .select("user_id")
+        .eq("organization_id", organizationId)
+        .eq("external_operator_id", operator.id)
+        .neq("user_id", targetUserId)
+        .maybeSingle();
+      if (usedError) throw new Error("Não foi possível validar o vínculo do operador.");
+      if (usedByOther?.user_id) {
+        return json({
+          success: false,
+          error: "Este operador SAC já está vinculado a outro funcionário da Union.",
+        });
+      }
+
       const { error: upsertError } = await admin
         .from("sac_digital_operator_links")
         .upsert({
           organization_id: organizationId,
-          user_id: userData.user.id,
+          user_id: targetUserId,
           external_operator_id: operator.id,
           operator_name: operator.name,
           updated_at: new Date().toISOString(),
         }, { onConflict: "organization_id,user_id" });
-      if (upsertError) throw new Error("Não foi possível salvar o operador vinculado.");
+      if (upsertError) {
+        if (upsertError.code === "23505") {
+          return json({
+            success: false,
+            error: "Este operador SAC já está vinculado a outro funcionário da Union.",
+          });
+        }
+        throw new Error("Não foi possível salvar o vínculo do operador.");
+      }
 
       return json({
         success: true,
@@ -686,11 +773,11 @@ Deno.serve(async request => {
       const protocol = String(body.protocol || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
 
-      const binding = await resolveMyOperatorBinding(true);
+      const binding = await resolveMyOperatorBinding();
       if (!binding) {
         return json({
           success: false,
-          error: "Vincule seu usuário da Union a um operador da SAC Digital antes de assumir.",
+          error: "Seu usuário ainda não está vinculado a um operador SAC. Peça ao gestor para configurar em Operação > Integrações > SAC Digital.",
           needs_operator_binding: true,
         });
       }
