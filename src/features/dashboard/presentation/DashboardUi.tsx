@@ -241,12 +241,14 @@ export function DashboardDonutChart({
   selectedKey,
   onSelect,
   minHeight = 210,
+  innerRadius = "54%",
 }: {
   data: DashboardChartPoint[];
   colors?: string[];
   selectedKey?: string | null;
   onSelect?: (point: DashboardChartPoint) => void;
   minHeight?: number;
+  innerRadius?: number | string;
 }) {
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
   const pointKey = (point: DashboardChartPoint) => point.key || point.name;
@@ -259,7 +261,7 @@ export function DashboardDonutChart({
     >
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={data} dataKey="value" nameKey="name" innerRadius="54%" outerRadius="78%" paddingAngle={3}>
+          <Pie data={data} dataKey="value" nameKey="name" innerRadius={innerRadius} outerRadius="78%" paddingAngle={3}>
             {data.map((point, index) => (
               <Cell
                 key={pointKey(point)}
