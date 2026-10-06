@@ -12,7 +12,7 @@ export type PermissionModuleGroup = { name: string; sections: PermissionSectionG
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço",
-  customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", pdv: "PDV", finance: "Financeiro", tools: "Ferramentas", categories: "Categorias",
+  customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", pdv: "PDV", finance: "Financeiro", tools: "Ferramentas", queue: "Union Fila", pbx: "PABX Union", marketplace: "Marketplace Union", ai: "Union IA", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", checklists: "Checklists", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
   situations: "Situações da OS", terms: "Termos/Garantia", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos", organizations: "Empresas Parceiras",
@@ -144,7 +144,7 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
 }
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
-  "tools.union_queue.use": ["tools.view"],
+  "queue.view": ["tools.view"],
   "tools.sac_digital.use": ["tools.view"],
   "tools.uniq.use": ["tools.view"],
   "orders.view_all": ["orders.view"], "orders.table.view": ["orders.view"], "orders.kanban.view": ["orders.view"], "orders.details.view": ["orders.view"],
