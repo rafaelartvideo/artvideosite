@@ -613,6 +613,32 @@ Deno.serve(async request => {
         .getPublicUrl(storagePath);
       const publicUrl = String(publicUrlData.publicUrl || "");
 
+      try {
+        const mediaCheck = await fetch(publicUrl, { method: "HEAD" });
+        const mediaContentType = mediaCheck.headers.get("content-type") || "";
+        const mediaContentLength = mediaCheck.headers.get("content-length") || "";
+        console.log("[SAC DIGITAL API] media preflight", {
+          organization_id: organizationId,
+          protocol,
+          type: mediaType,
+          status: mediaCheck.status,
+          content_type: mediaContentType,
+          content_length: mediaContentLength,
+        });
+        if (!mediaCheck.ok) {
+          await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
+          return json({ success: false, error: "A imagem foi preparada, mas a URL temporária não ficou acessível." });
+        }
+        if (mediaType === "image" && !mediaContentType.toLowerCase().startsWith("image/")) {
+          await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
+          return json({ success: false, error: "A imagem foi enviada com um formato que a SAC Digital não reconhece." });
+        }
+      } catch (error) {
+        await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
+        console.error("[SAC DIGITAL API] media preflight failed", error instanceof Error ? error.message : error);
+        return json({ success: false, error: "Não foi possível validar a URL temporária do anexo." });
+      }
+
       const apiPayload: Record<string, unknown> = {
         protocol,
         type: mediaType,
