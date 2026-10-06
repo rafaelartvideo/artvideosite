@@ -228,6 +228,8 @@ export function AdminDashboard({
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const canAccessQueueTool = (isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue"))
     && hasPermission("queue.view");
+  const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
+  const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
     ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule) ? [
       { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
@@ -239,7 +241,15 @@ export function AdminDashboard({
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
     ] : []),
     ...(canAccessQueueTool ? [
-      { id: "union-senhas", label: "Union Senhas", icon: List, description: "Configure e acesse o sistema Union de fila e senhas.", href: null },
+      {
+        id: "union-senhas",
+        label: "Union Senhas",
+        icon: List,
+        description: canManageQueueTool
+          ? "Configure e acesse o sistema Union de fila e senhas."
+          : "Acesse o sistema Union de fila e senhas.",
+        href: canManageQueueTool ? null : unionQueueUrl,
+      },
     ] : []),
   ];
   const toolsHub = <AdminHubPage
@@ -253,7 +263,7 @@ export function AdminDashboard({
         navigateAdmin("fieldTracking", null, null, { menuTab: "tools" });
         return;
       }
-      if (id === "union-senhas") {
+      if (id === "union-senhas" && canManageQueueTool) {
         navigateAdmin("tools", "union-senhas");
         return;
       }
@@ -262,7 +272,7 @@ export function AdminDashboard({
     }}
   />;
   const toolsContent = route.resourceId === "union-senhas"
-    ? canAccessQueueTool
+    ? canManageQueueTool
       ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
       : <Navigate to={adminPath("tools")} replace />
     : toolsHub;
