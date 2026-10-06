@@ -227,11 +227,18 @@ Deno.serve(async request => {
     const { data: userData, error: userError } = await userClient.auth.getUser();
     if (userError || !userData.user) return json({ success: false, error: "Sessão inválida ou expirada." }, 401);
 
-    if (action === "test_connection") {
-      const { error: permissionError } = await userClient.rpc("get_sac_digital_integration_settings", {
+    const requirePermission = async (permissionKey: string) => {
+      const { data: allowed, error } = await userClient.rpc("has_sac_digital_permission", {
         p_organization_id: organizationId,
+        p_permission_key: permissionKey,
       });
-      if (permissionError) return json({ success: false, error: "Sem permissão para gerenciar a integração SAC Digital." }, 403);
+      return !error && allowed === true;
+    };
+
+    if (action === "test_connection") {
+      if (!(await requirePermission("sac_digital.settings.manage"))) {
+        return json({ success: false, error: "Sem permissão para gerenciar a integração SAC Digital." }, 403);
+      }
 
       const credentials = await loadCredentials(organizationId);
       const session = await login(organizationId, credentials, true);
@@ -243,10 +250,9 @@ Deno.serve(async request => {
     }
 
     if (action === "refresh_protocol") {
-      const { error: permissionError } = await userClient.rpc("get_sac_digital_integration_status", {
-        p_organization_id: organizationId,
-      });
-      if (permissionError) return json({ success: false, error: "Sem permissão para acessar o SAC Digital." }, 403);
+      if (!(await requirePermission("sac_digital.messages.view"))) {
+        return json({ success: false, error: "Sem permissão para visualizar conversas do SAC Digital." }, 403);
+      }
       const protocol = String(body.protocol || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       const applied = await enrichProtocol(organizationId, protocol);
@@ -255,6 +261,113 @@ Deno.serve(async request => {
         protocol,
         contact_found: applied.contact_found === true,
         customer_linked: applied.customer_linked === true,
+      });
+    }
+
+    if (action === "send_message") {
+      if (!(await requirePermission("sac_digital.messages.send"))) {
+        return json({ success: false, error: "Sem permissão para enviar mensagens pelo SAC Digital." }, 403);
+      }
+
+      const protocol = String(body.protocol || "").trim();
+      const text = String(body.text || "").trim();
+      if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+      if (!text) return json({ success: false, error: "Digite uma mensagem para enviar." }, 400);
+      if (text.length > 5000) return json({ success: false, error: "A mensagem é muito longa." }, 400);
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      const { response, body: apiBody } = await apiRequest(
+        organizationId,
+        credentials,
+        "/protocol/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            protocol,
+            type: "text",
+            text,
+          }),
+        },
+      );
+
+      if (!response.ok || apiBody.status === false || apiBody.success === false) {
+        console.error("[SAC DIGITAL API] send message failed", {
+          organization_id: organizationId,
+          protocol,
+          status: response.status,
+          request_id: apiBody.request_id,
+        });
+        return json({
+          success: false,
+          error: "A SAC Digital não conseguiu enviar a mensagem.",
+        }, response.status >= 400 && response.status < 600 ? response.status : 502);
+      }
+
+      const { data: protocolRow, error: protocolError } = await admin
+        .from("sac_digital_protocols")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("external_protocol_id", protocol)
+        .maybeSingle();
+
+      if (protocolError || !protocolRow?.id) {
+        console.error("[SAC DIGITAL API] local protocol not found after send", {
+          organization_id: organizationId,
+          protocol,
+          code: protocolError?.code,
+        });
+      } else {
+        const sentAt = new Date().toISOString();
+        const externalMessageIdCandidate = apiBody.id ?? apiBody.message_id ?? apiBody.message;
+        const externalMessageId = typeof externalMessageIdCandidate === "string"
+          || typeof externalMessageIdCandidate === "number"
+          ? String(externalMessageIdCandidate)
+          : null;
+
+        const { data: profile } = await admin
+          .from("profiles")
+          .select("full_name")
+          .eq("id", userData.user.id)
+          .maybeSingle();
+
+        const { error: messageError } = await admin
+          .from("sac_digital_messages")
+          .insert({
+            organization_id: organizationId,
+            protocol_id: protocolRow.id,
+            external_message_id: externalMessageId,
+            direction: "outgoing",
+            message_type: "text",
+            body_text: text,
+            sender_id: userData.user.id,
+            sender_name: profile?.full_name || null,
+            sent_at: sentAt,
+            raw_metadata: {
+              sent_via_union: true,
+              api_response: apiBody,
+            },
+          });
+
+        if (messageError) {
+          console.error("[SAC DIGITAL API] local sent message insert failed", {
+            organization_id: organizationId,
+            protocol,
+            code: messageError.code,
+          });
+        } else {
+          await admin
+            .from("sac_digital_protocols")
+            .update({ last_message_at: sentAt, updated_at: sentAt })
+            .eq("id", protocolRow.id);
+        }
+      }
+
+      return json({
+        success: true,
+        protocol,
+        request_id: typeof apiBody.request_id === "string" ? apiBody.request_id : null,
       });
     }
 
