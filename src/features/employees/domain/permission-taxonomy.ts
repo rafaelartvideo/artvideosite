@@ -146,6 +146,7 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "queue.view": ["tools.view"],
+  "queue.manage": ["queue.view"],
   "tools.sac_digital.use": ["tools.view"],
   "tools.uniq.use": ["tools.view"],
   "orders.view_all": ["orders.view"], "orders.table.view": ["orders.view"], "orders.kanban.view": ["orders.view"], "orders.details.view": ["orders.view"],
