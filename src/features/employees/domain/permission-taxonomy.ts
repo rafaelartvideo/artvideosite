@@ -48,6 +48,7 @@ const HIDDEN_LEGACY_PERMISSIONS = new Set([
 export function permissionModuleName(permission: PermissionRecord) {
   const key = String(permission.key || "");
   if (key === "organizations.audit.view") return "Auditoria";
+  if (key.startsWith("orders.monitor.")) return "Monitoramento de OS";
   if (key.startsWith("platform.announcements.")) return "Avisos";
   if (key.startsWith("platform.billing.")) return "Financeiro";
   const prefix = key.split(".")[0];
