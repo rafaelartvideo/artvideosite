@@ -447,6 +447,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             <DashboardDonutChart
               data={data}
               minHeight={180}
+              innerRadius={0}
               selectedKey={selectedKey}
               onSelect={selectDistribution(kind)}
             />
