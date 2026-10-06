@@ -49,7 +49,8 @@ export function SacDigitalToolPage({ onBack }: { onBack: () => void }) {
     enabled: false,
     workspace_name: "",
     api_base_url: "",
-    api_key: "",
+    client_id: "",
+    client_secret: "",
   });
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
 
@@ -71,7 +72,8 @@ export function SacDigitalToolPage({ onBack }: { onBack: () => void }) {
           enabled: next.enabled,
           workspace_name: next.workspace_name || "",
           api_base_url: next.api_base_url || "",
-          api_key: "",
+          client_id: next.client_id || "",
+          client_secret: "",
         });
       } else {
         const next = await getSacDigitalIntegrationStatus(activeOrganizationId);
@@ -100,10 +102,10 @@ export function SacDigitalToolPage({ onBack }: { onBack: () => void }) {
       const next = await saveSacDigitalIntegrationSettings(activeOrganizationId, form);
       setSettings(next);
       setStatus(next);
-      setForm(current => ({ ...current, api_key: "" }));
+      setForm(current => ({ ...current, client_secret: "" }));
       setMessage({
-        text: form.api_key.trim()
-          ? "Configuração salva e credencial protegida no Vault."
+        text: form.client_secret.trim()
+          ? "Configuração salva e Client Secret protegido no Vault."
           : "Configuração do SAC Digital salva.",
       });
     } catch (error) {
@@ -199,7 +201,7 @@ export function SacDigitalToolPage({ onBack }: { onBack: () => void }) {
     {canManage && settings && (
       <Section
         title="Configuração da integração"
-        description="A API key nunca é carregada de volta para o navegador. Ao salvar uma nova chave, ela substitui a anterior dentro do Supabase Vault."
+        description="O Client ID identifica a aplicação. O Client Secret nunca é carregado de volta para o navegador e fica protegido no Supabase Vault."
       >
         <div className="space-y-5">
           <FToggle
@@ -228,18 +230,29 @@ export function SacDigitalToolPage({ onBack }: { onBack: () => void }) {
             />
           </div>
 
-          <FInput
-            label="Credencial / API key"
-            type="password"
-            autoComplete="new-password"
-            value={form.api_key}
-            disabled={saving}
-            placeholder={settings.credential_configured ? "Deixe em branco para manter a credencial atual" : "Cole a credencial gerada no painel da SAC"}
-            hint={settings.credential_configured
-              ? "Já existe uma credencial protegida. Ela nunca é exibida novamente."
-              : "A chave será enviada somente para o banco e armazenada criptografada no Vault."}
-            onChange={(event: any) => setForm(current => ({ ...current, api_key: event.target.value }))}
-          />
+          <div className="grid gap-4 md:grid-cols-2">
+            <FInput
+              label="Client ID"
+              value={form.client_id}
+              disabled={saving}
+              autoComplete="off"
+              placeholder="Cole o client_id gerado pela SAC Digital"
+              hint="Identifica a aplicação Artvideo - Union World CRM."
+              onChange={(event: any) => setForm(current => ({ ...current, client_id: event.target.value }))}
+            />
+            <FInput
+              label="Client Secret"
+              type="password"
+              autoComplete="new-password"
+              value={form.client_secret}
+              disabled={saving}
+              placeholder={settings.credential_configured ? "Deixe em branco para manter o secret atual" : "Cole o client_secret gerado pela SAC Digital"}
+              hint={settings.credential_configured
+                ? "Já existe um Client Secret protegido. Ele nunca é exibido novamente."
+                : "O Client Secret será armazenado criptografado no Supabase Vault."}
+              onChange={(event: any) => setForm(current => ({ ...current, client_secret: event.target.value }))}
+            />
+          </div>
 
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Webhook da Union</label>
