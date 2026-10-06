@@ -140,5 +140,5 @@ Deno.serve(async request => {
     console.error("[SAC DIGITAL WEBHOOK] status update failed", updateError.code);
   }
 
-  return json({ success: true });
+  return json({ status: true });
 });
