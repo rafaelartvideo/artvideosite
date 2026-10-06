@@ -293,7 +293,7 @@ export function AdminDashboard({
               canAccessTab={canAccessTab}
               isPlatformOperatorOrganization={isPlatformOperatorOrganization}
             />} />
-            <Route path="dashboard" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} />} />
+            <Route path="dashboard" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} onOpenOrder={orderId => navigateAdmin("orders", orderId, null, { menuTab: "dashboard", origin: { tab: "dashboard", resourceId: null, subpage: null } })} />} />
             <Route path="announcements" element={<PlatformAnnouncementsPage />} />
             <Route path="crm" element={crmHub} />
             <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("home")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />

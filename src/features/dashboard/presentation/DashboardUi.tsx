@@ -18,7 +18,7 @@ import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import type { DashboardModule } from "../domain/dashboard";
 
-export type DashboardChartPoint = { name: string; value: number; color?: string | null; key?: string };
+export type DashboardChartPoint = { id?: string | null; name: string; value: number; color?: string | null; key?: string };
 export type DashboardMetricTone = "blue" | "green" | "amber" | "red" | "purple" | "slate";
 
 export function DashboardModuleNav({
@@ -97,6 +97,7 @@ export function DashboardPanel({
   subtitle,
   icon: Icon,
   onOpen,
+  headerAside,
   children,
   className,
 }: {
@@ -104,6 +105,7 @@ export function DashboardPanel({
   subtitle?: string;
   icon?: ElementType;
   onOpen?: () => void;
+  headerAside?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
@@ -117,10 +119,15 @@ export function DashboardPanel({
             {subtitle && <p className="truncate text-[10px] font-semibold text-[#7a879a]">{subtitle}</p>}
           </div>
         </div>
-        {onOpen && (
-          <button type="button" onClick={onOpen} className="inline-flex shrink-0 cursor-default items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-[#0057e7] hover:bg-[#0057e7]/5">
-            Abrir <ArrowUpRight size={13} />
-          </button>
+        {(headerAside || onOpen) && (
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {headerAside}
+            {onOpen && (
+              <button type="button" onClick={onOpen} className="inline-flex shrink-0 cursor-default items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-[#0057e7] hover:bg-[#0057e7]/5">
+                Abrir <ArrowUpRight size={13} />
+              </button>
+            )}
+          </div>
         )}
       </AdminCardHeader>
       <div className="min-h-0 flex-1 p-3 sm:p-4">{children}</div>
@@ -181,6 +188,7 @@ export function DashboardBarChart({
           <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(0,87,231,.04)" }} />
           <Bar
             dataKey="value"
+            name="Total"
             fill={color}
             radius={vertical ? [0, 6, 6, 0] : [6, 6, 0, 0]}
             maxBarSize={vertical ? 22 : 42}

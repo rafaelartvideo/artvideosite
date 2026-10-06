@@ -1,5 +1,10 @@
 import { supabase } from "@/lib/supabase";
-import type { DashboardAccess, DashboardOverview } from "../domain/dashboard";
+import type {
+  DashboardAccess,
+  DashboardOrderGroupItem,
+  DashboardOrdersSummary,
+  DashboardOverview,
+} from "../domain/dashboard";
 
 type DashboardQueryInput = {
   organizationId: string;
@@ -28,4 +33,54 @@ export async function loadDashboardOverview({ organizationId, periodDays, access
     appointments: (Array.isArray(overview.appointments) ? overview.appointments : []) as DashboardOverview["appointments"],
     quotes: (Array.isArray(overview.quotes) ? overview.quotes : []) as DashboardOverview["quotes"],
   };
+}
+
+
+export async function loadDashboardOrdersSummary({
+  organizationId,
+  periodDays,
+}: {
+  organizationId: string;
+  periodDays: number;
+}): Promise<DashboardOrdersSummary> {
+  const { data, error } = await supabase.rpc("load_dashboard_orders_summary_v1", {
+    p_organization_id: organizationId,
+    p_period_days: Math.max(1, Math.trunc(periodDays || 30)),
+  });
+  if (error) throw error;
+
+  const summary = (data || {}) as Partial<DashboardOrdersSummary>;
+  return {
+    total_orders: Number(summary.total_orders || 0),
+    orders_in_period: Number(summary.orders_in_period || 0),
+    active_orders: Number(summary.active_orders || 0),
+    waiting_orders: Number(summary.waiting_orders || 0),
+    completed_in_period: Number(summary.completed_in_period || 0),
+    situations: Array.isArray(summary.situations) ? summary.situations : [],
+    statuses: Array.isArray(summary.statuses) ? summary.statuses : [],
+  };
+}
+
+export async function loadDashboardOrderGroupPage({
+  organizationId,
+  kind,
+  groupId,
+  page,
+  pageSize = 10,
+}: {
+  organizationId: string;
+  kind: "situation" | "status";
+  groupId: string | null;
+  page: number;
+  pageSize?: number;
+}): Promise<DashboardOrderGroupItem[]> {
+  const { data, error } = await supabase.rpc("load_dashboard_order_group_page_v1", {
+    p_organization_id: organizationId,
+    p_kind: kind,
+    p_group_id: groupId,
+    p_page: Math.max(1, Math.trunc(page || 1)),
+    p_page_size: Math.min(50, Math.max(1, Math.trunc(pageSize || 10))),
+  });
+  if (error) throw error;
+  return (Array.isArray(data) ? data : []) as DashboardOrderGroupItem[];
 }

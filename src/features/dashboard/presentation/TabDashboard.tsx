@@ -1,5 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -24,6 +24,7 @@ import { cn, formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { listInventoryPurchaseAnalytics } from "@/features/inventory/infrastructure/inventory-analytics.repository";
@@ -32,10 +33,16 @@ import type {
   DashboardAppointment,
   DashboardModule,
   DashboardOrder,
+  type DashboardOrderDistributionItem,
+  type DashboardOrderGroupItem,
   DashboardQuote,
   DashboardRegistration,
 } from "../domain/dashboard";
-import { loadDashboardOverview } from "../infrastructure/dashboard.repository";
+import {
+  loadDashboardOrderGroupPage,
+  loadDashboardOrdersSummary,
+  loadDashboardOverview,
+} from "../infrastructure/dashboard.repository";
 import {
   DashboardBarChart,
   DashboardDonutChart,
@@ -48,10 +55,15 @@ import {
   type DashboardMetricTone,
 } from "./DashboardUi";
 
-type TabDashboardProps = { onNavigate?: (tab: AdminTab) => void };
+type TabDashboardProps = {
+  onNavigate?: (tab: AdminTab) => void;
+  onOpenOrder?: (orderId: string) => void;
+};
 type Metric = { label: string; value: ReactNode; icon: ElementType; tone?: DashboardMetricTone; hint?: string };
 
 const DAY_MS = 86_400_000;
+const DASHBOARD_ORDER_PAGE_SIZE = 10;
+const DASHBOARD_RETURN_STATE_KEY = "union-dashboard-return-state-v1";
 const periodOptions = [
   { value: 7, label: "7 dias" },
   { value: 30, label: "30 dias" },
@@ -109,22 +121,49 @@ function groupByLabel<T>(items: T[], getLabel: (item: T) => string): DashboardCh
 }
 
 type OrderDistributionKind = "situation" | "status";
-type OrderDistributionSelection = { kind: OrderDistributionKind; name: string };
+type OrderDistributionSelection = {
+  kind: OrderDistributionKind;
+  id: string | null;
+  name: string;
+  total: number;
+};
 
-function buildOrderDistribution(orders: DashboardOrder[], kind: OrderDistributionKind): DashboardChartPoint[] {
-  const grouped = new Map<string, { value: number; color: string | null }>();
-  orders.forEach(order => {
-    const relation = kind === "situation" ? order.situation : order.order_status;
-    const name = relationLabel(relation, kind === "situation" ? "Sem situação" : "Sem status");
-    const current = grouped.get(name);
-    grouped.set(name, {
-      value: (current?.value || 0) + 1,
-      color: current?.color || relation?.color || "#64748b",
-    });
-  });
-  return [...grouped.entries()]
-    .map(([name, item]) => ({ name, value: item.value, color: item.color, key: `${kind}:${name}` }))
-    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, "pt-BR"));
+type DashboardReturnState = {
+  organizationId: string | null;
+  activeModule: DashboardModule;
+  periodDays: number;
+  orderDistributionSelection: OrderDistributionSelection | null;
+  orderDistributionPage: number;
+};
+
+function distributionPoints(items: DashboardOrderDistributionItem[], kind: OrderDistributionKind): DashboardChartPoint[] {
+  return items.map(item => ({
+    id: item.id,
+    name: item.name,
+    value: item.total,
+    color: item.color || "#64748b",
+    key: `${kind}:${item.id || "none"}`,
+  }));
+}
+
+function consumeDashboardReturnState(organizationId?: string | null): DashboardReturnState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(DASHBOARD_RETURN_STATE_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as DashboardReturnState;
+    if (organizationId && saved.organizationId && saved.organizationId !== organizationId) return null;
+    window.sessionStorage.removeItem(DASHBOARD_RETURN_STATE_KEY);
+    return saved;
+  } catch {
+    window.sessionStorage.removeItem(DASHBOARD_RETURN_STATE_KEY);
+    return null;
+  }
+}
+
+function saveDashboardReturnState(state: DashboardReturnState) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(DASHBOARD_RETURN_STATE_KEY, JSON.stringify(state));
 }
 
 function buildTrend<T>(items: T[], days: number, dateOf: (item: T) => string | null | undefined, valueOf: (item: T) => number = () => 1): DashboardChartPoint[] {
@@ -190,11 +229,14 @@ function CompactRow({ title, subtitle, aside, onClick }: { title: string; subtit
   return onClick ? <button type="button" onClick={onClick} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 hover:bg-[#f8fafc]">{content}</button> : <div className="flex items-center gap-3 px-1 py-2.5">{content}</div>;
 }
 
-export function TabDashboard({ onNavigate }: TabDashboardProps) {
+export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const { activeOrganizationId, hasPermission } = useAuth();
-  const [activeModule, setActiveModule] = useState<DashboardModule>("overview");
-  const [periodDays, setPeriodDays] = useState(30);
-  const [orderDistributionSelection, setOrderDistributionSelection] = useState<OrderDistributionSelection | null>(null);
+  const [returnState] = useState(() => consumeDashboardReturnState(activeOrganizationId));
+  const [activeModule, setActiveModule] = useState<DashboardModule>(returnState?.activeModule || "overview");
+  const [periodDays, setPeriodDays] = useState(returnState?.periodDays || 30);
+  const [orderDistributionSelection, setOrderDistributionSelection] = useState<OrderDistributionSelection | null>(returnState?.orderDistributionSelection || null);
+  const [orderDistributionPage, setOrderDistributionPage] = useState(Math.max(1, returnState?.orderDistributionPage || 1));
+  const organizationRef = useRef(activeOrganizationId);
   const canViewInventoryMovements = hasPermission("inventory.movements.view");
   const access = useMemo<DashboardAccess>(() => ({
     orders: hasPermission("orders.view"),
@@ -204,7 +246,6 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
     agenda: hasPermission("agenda.view"),
     quotes: hasPermission("quotes.view"),
   }), [hasPermission]);
-  const accessScope = Object.values(access).map(Boolean).map(Number).join("");
   const modules = useMemo(() => [
     { id: "overview" as const, label: "Visão geral", icon: LayoutDashboard, visible: true },
     { id: "orders" as const, label: "Ordens de serviço", icon: ClipboardList, visible: access.orders },
@@ -215,18 +256,62 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
     { id: "finance" as const, label: "Financeiro", icon: Banknote, visible: access.orders },
   ].filter(item => item.visible), [access]);
 
+  const dashboardAccess = useMemo<DashboardAccess>(() => ({
+    orders: access.orders && (activeModule === "overview" || activeModule === "finance" || activeModule === "quotes"),
+    registrations: access.registrations && (activeModule === "overview" || activeModule === "registrations"),
+    inventory: access.inventory && (activeModule === "overview" || activeModule === "inventory"),
+    inventoryCosts: access.inventoryCosts && (activeModule === "overview" || activeModule === "inventory"),
+    agenda: access.agenda && (activeModule === "overview" || activeModule === "agenda"),
+    quotes: access.quotes && (activeModule === "overview" || activeModule === "quotes"),
+  }), [access, activeModule]);
+  const accessScope = Object.values(dashboardAccess).map(Boolean).map(Number).join("");
+
   useEffect(() => {
     if (!modules.some(module => module.id === activeModule)) setActiveModule("overview");
   }, [activeModule, modules]);
 
   useEffect(() => {
+    if (organizationRef.current === activeOrganizationId) return;
+    organizationRef.current = activeOrganizationId;
     setOrderDistributionSelection(null);
+    setOrderDistributionPage(1);
   }, [activeOrganizationId]);
 
   const dashboardQuery = useQuery({
     queryKey: queryKeys.admin.dashboard(activeOrganizationId || "no-organization", periodDays, accessScope),
-    queryFn: () => loadDashboardOverview({ organizationId: activeOrganizationId!, periodDays, access }),
-    enabled: Boolean(activeOrganizationId),
+    queryFn: () => loadDashboardOverview({ organizationId: activeOrganizationId!, periodDays, access: dashboardAccess }),
+    enabled: Boolean(activeOrganizationId && activeModule !== "orders"),
+  });
+
+  const ordersSummaryQuery = useQuery({
+    queryKey: ["dashboard", "orders-summary", activeOrganizationId, periodDays],
+    queryFn: () => loadDashboardOrdersSummary({
+      organizationId: activeOrganizationId!,
+      periodDays,
+    }),
+    enabled: Boolean(activeOrganizationId && activeModule === "orders"),
+    staleTime: 60_000,
+  });
+
+  const orderGroupPageQuery = useQuery({
+    queryKey: [
+      "dashboard",
+      "orders-group-page",
+      activeOrganizationId,
+      orderDistributionSelection?.kind || "none",
+      orderDistributionSelection?.id || "none",
+      orderDistributionPage,
+      DASHBOARD_ORDER_PAGE_SIZE,
+    ],
+    queryFn: () => loadDashboardOrderGroupPage({
+      organizationId: activeOrganizationId!,
+      kind: orderDistributionSelection!.kind,
+      groupId: orderDistributionSelection!.id,
+      page: orderDistributionPage,
+      pageSize: DASHBOARD_ORDER_PAGE_SIZE,
+    }),
+    enabled: Boolean(activeOrganizationId && activeModule === "orders" && orderDistributionSelection),
+    staleTime: 30_000,
   });
   const inventoryPurchasesQuery = useQuery({
     queryKey: ["dashboard", "inventory-purchases", activeOrganizationId, periodDays],
@@ -273,69 +358,106 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
   const convertedQuoteIds = new Set(data.orders.map(order => order.quote_request_id).filter(Boolean));
   const fmtDate = (value?: string | null) => formatDateOnly(value, "—");
   const open = (tab: AdminTab) => onNavigate?.(tab);
+  const selectedSummaryGroup = orderDistributionSelection && ordersSummaryQuery.data
+    ? (orderDistributionSelection.kind === "situation" ? ordersSummaryQuery.data.situations : ordersSummaryQuery.data.statuses)
+        .find(item => item.id === orderDistributionSelection.id)
+    : null;
+  const selectedOrderTotal = selectedSummaryGroup?.total ?? orderDistributionSelection?.total ?? 0;
+  const selectedOrderTotalPages = Math.max(1, Math.ceil(selectedOrderTotal / DASHBOARD_ORDER_PAGE_SIZE));
+  const safeOrderDistributionPage = Math.min(orderDistributionPage, selectedOrderTotalPages);
+
+  useEffect(() => {
+    if (orderDistributionPage > selectedOrderTotalPages) setOrderDistributionPage(selectedOrderTotalPages);
+  }, [orderDistributionPage, selectedOrderTotalPages]);
+
+  const openOrderFromDashboard = (orderId: string) => {
+    saveDashboardReturnState({
+      organizationId: activeOrganizationId || null,
+      activeModule,
+      periodDays,
+      orderDistributionSelection: orderDistributionSelection
+        ? {
+            ...orderDistributionSelection,
+            name: selectedSummaryGroup?.name || orderDistributionSelection.name,
+            total: selectedOrderTotal,
+          }
+        : null,
+      orderDistributionPage: safeOrderDistributionPage,
+    });
+    if (onOpenOrder) onOpenOrder(orderId);
+    else open("orders");
+  };
 
   const moduleContent = () => {
     if (activeModule === "orders") {
+      const summary = ordersSummaryQuery.data!;
       const metrics: Metric[] = [
-        { label: `OS em ${periodDays} dias`, value: ordersInPeriod.length, icon: ClipboardList, tone: "blue", hint: "abertas no período" },
-        { label: "Em andamento", value: activeOrders.length, icon: Activity, tone: "purple", hint: "ainda não concluídas" },
-        { label: "Aguardando", value: waitingOrders.length, icon: Clock3, tone: waitingOrders.length ? "amber" : "green", hint: "cliente ou pendência" },
-        { label: "Concluídas", value: completedInPeriod.length, icon: CheckCircle2, tone: "green", hint: `nos últimos ${periodDays} dias` },
+        { label: `OS em ${periodDays} dias`, value: summary.orders_in_period, icon: ClipboardList, tone: "blue", hint: "abertas no período" },
+        { label: "Em andamento", value: summary.active_orders, icon: Activity, tone: "purple", hint: "ainda não concluídas" },
+        { label: "Aguardando", value: summary.waiting_orders, icon: Clock3, tone: summary.waiting_orders ? "amber" : "green", hint: "cliente ou pendência" },
+        { label: "Concluídas", value: summary.completed_in_period, icon: CheckCircle2, tone: "green", hint: `nos últimos ${periodDays} dias` },
       ];
-      const situationData = buildOrderDistribution(data.orders, "situation");
-      const statusData = buildOrderDistribution(data.orders, "status");
-      const selectedOrders = orderDistributionSelection
-        ? data.orders.filter(order => {
-            const relation = orderDistributionSelection.kind === "situation" ? order.situation : order.order_status;
-            return relationLabel(
-              relation,
-              orderDistributionSelection.kind === "situation" ? "Sem situação" : "Sem status",
-            ) === orderDistributionSelection.name;
-          })
-        : [];
+      const situationData = distributionPoints(summary.situations, "situation");
+      const statusData = distributionPoints(summary.statuses, "status");
+      const selectedName = selectedSummaryGroup?.name || orderDistributionSelection?.name || "";
       const selectedTitle = orderDistributionSelection
-        ? `OS em ${orderDistributionSelection.name}`
+        ? `OS em ${selectedName}`
         : "Ordens por seleção";
       const selectedSubtitle = orderDistributionSelection
-        ? `${selectedOrders.length} ${selectedOrders.length === 1 ? "ordem" : "ordens"} · ${orderDistributionSelection.kind === "situation" ? "Situação" : "Status"}`
+        ? `${selectedOrderTotal} ${selectedOrderTotal === 1 ? "ordem" : "ordens"} · ${orderDistributionSelection.kind === "situation" ? "Situação" : "Status"}`
         : "Clique em uma barra para visualizar as OS";
 
       const distributions = (
-        <DashboardPanel title="Distribuição das OS" subtitle="Situações e status atuais de todas as ordens visíveis" icon={Activity}>
+        <DashboardPanel
+          title="Distribuição das OS"
+          subtitle="Situações e status atuais de todas as ordens visíveis"
+          icon={Activity}
+          headerAside={<span className="whitespace-nowrap text-[10px] font-bold text-[#5a6a82]">Total <strong className="text-xs text-[#0d1b2e]">{summary.total_orders}</strong></span>}
+        >
           <div className="space-y-5">
             <section>
-              <div className="mb-1 flex items-center justify-between gap-3">
-                <div>
-                  <h4 className="text-xs font-black text-[#0d1b2e]">Situações</h4>
-                  <p className="text-[10px] font-semibold text-[#7a879a]">Clique em uma barra para filtrar</p>
-                </div>
-                <span className="text-[10px] font-black text-[#5a6a82]">{data.orders.length} OS</span>
+              <div className="mb-1">
+                <h4 className="text-xs font-black text-[#0d1b2e]">Situações</h4>
+                <p className="text-[10px] font-semibold text-[#7a879a]">Clique em uma barra para filtrar</p>
               </div>
               <DashboardBarChart
                 data={situationData}
                 layout="vertical"
                 minHeight={150}
-                selectedKey={orderDistributionSelection?.kind === "situation" ? `situation:${orderDistributionSelection.name}` : null}
-                onSelect={point => setOrderDistributionSelection({ kind: "situation", name: point.name })}
+                selectedKey={orderDistributionSelection?.kind === "situation" ? `situation:${orderDistributionSelection.id || "none"}` : null}
+                onSelect={point => {
+                  setOrderDistributionSelection({
+                    kind: "situation",
+                    id: point.id || null,
+                    name: point.name,
+                    total: point.value,
+                  });
+                  setOrderDistributionPage(1);
+                }}
               />
             </section>
 
             <div className="border-t border-[#0d1b2e]/8" />
 
             <section>
-              <div className="mb-1 flex items-center justify-between gap-3">
-                <div>
-                  <h4 className="text-xs font-black text-[#0d1b2e]">Status</h4>
-                  <p className="text-[10px] font-semibold text-[#7a879a]">Clique em uma barra para filtrar</p>
-                </div>
-                <span className="text-[10px] font-black text-[#5a6a82]">{data.orders.length} OS</span>
+              <div className="mb-1">
+                <h4 className="text-xs font-black text-[#0d1b2e]">Status</h4>
+                <p className="text-[10px] font-semibold text-[#7a879a]">Clique em uma barra para filtrar</p>
               </div>
               <DashboardBarChart
                 data={statusData}
                 layout="vertical"
                 minHeight={150}
-                selectedKey={orderDistributionSelection?.kind === "status" ? `status:${orderDistributionSelection.name}` : null}
-                onSelect={point => setOrderDistributionSelection({ kind: "status", name: point.name })}
+                selectedKey={orderDistributionSelection?.kind === "status" ? `status:${orderDistributionSelection.id || "none"}` : null}
+                onSelect={point => {
+                  setOrderDistributionSelection({
+                    kind: "status",
+                    id: point.id || null,
+                    name: point.name,
+                    total: point.value,
+                  });
+                  setOrderDistributionPage(1);
+                }}
               />
             </section>
           </div>
@@ -344,14 +466,31 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
 
       const filteredOrders = (
         <DashboardPanel title={selectedTitle} subtitle={selectedSubtitle} icon={ClipboardList} onOpen={() => open("orders")}>
-          {orderDistributionSelection ? (
-            <OrdersList
-              orders={selectedOrders}
-              onOpen={() => open("orders")}
-              badge={orderDistributionSelection.kind === "situation" ? "status" : "situation"}
-            />
+          {!orderDistributionSelection ? (
+            <DashboardEmpty text="Selecione uma situação ou um status no gráfico para ver as OS desse grupo." />
+          ) : orderGroupPageQuery.isPending ? (
+            <LoadingState text="Carregando OS..." />
+          ) : orderGroupPageQuery.isError ? (
+            <DashboardEmpty text={systemErrorMessage(orderGroupPageQuery.error)} />
           ) : (
-            <DashboardEmpty text="Selecione uma situação ou um status no gráfico para ver todas as OS desse grupo." />
+            <div className="-m-3 sm:-m-4">
+              <div className="p-3 sm:p-4">
+                <OrdersList
+                  orders={orderGroupPageQuery.data || []}
+                  onOpen={openOrderFromDashboard}
+                  badge={orderDistributionSelection.kind === "situation" ? "status" : "situation"}
+                />
+              </div>
+              <PaginationBar
+                page={safeOrderDistributionPage}
+                pageSize={DASHBOARD_ORDER_PAGE_SIZE}
+                totalItems={selectedOrderTotal}
+                defaultPageSize={DASHBOARD_ORDER_PAGE_SIZE}
+                showPageSizeSelector={false}
+                onPageChange={nextPage => setOrderDistributionPage(Math.max(1, Math.min(nextPage, selectedOrderTotalPages)))}
+                onPageSizeChange={() => undefined}
+              />
+            </div>
           )}
         </DashboardPanel>
       );
@@ -432,7 +571,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
         { label: "Descontos", value: formatCurrency(discounts), icon: Activity, tone: "amber", hint: "total concedido" },
       ];
       const financeTrend = buildTrend(completedInPeriod, periodDays, order => order.completed_at, order => Number(order.final_total || 0));
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Faturamento por período" subtitle="Valores das OS concluídas" icon={TrendingUp}><DashboardLineChart data={financeTrend} money color="#16a34a" /></DashboardPanel>} right={<DashboardPanel title="Conclusões recentes" subtitle="Últimas OS faturadas" icon={Banknote} onOpen={() => open("orders")}><OrdersList orders={completedInPeriod.slice(0, 8)} onOpen={() => open("orders")} showValue /></DashboardPanel>} />;
+      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Faturamento por período" subtitle="Valores das OS concluídas" icon={TrendingUp}><DashboardLineChart data={financeTrend} money color="#16a34a" /></DashboardPanel>} right={<DashboardPanel title="Conclusões recentes" subtitle="Últimas OS faturadas" icon={Banknote} onOpen={() => open("orders")}><OrdersList orders={completedInPeriod.slice(0, 8)} onOpen={openOrderFromDashboard} showValue /></DashboardPanel>} />;
     }
 
     const overviewMetrics: Metric[] = [
@@ -472,11 +611,11 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
       <DashboardModuleNav items={modules} value={activeModule} onChange={setActiveModule} />
 
       <div className="min-w-0">
-        {dashboardQuery.isPending ? <LoadingState text="Carregando indicadores..." /> : dashboardQuery.error ? (
+        {(activeModule === "orders" ? ordersSummaryQuery.isPending : dashboardQuery.isPending) ? <LoadingState text="Carregando indicadores..." /> : (activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
-            <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage(dashboardQuery.error)}</p></div>
-            <AdminButton size="sm" onClick={() => dashboardQuery.refetch()}>Tentar novamente</AdminButton>
+            <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error)!)}</p></div>
+            <AdminButton size="sm" onClick={() => activeModule === "orders" ? ordersSummaryQuery.refetch() : dashboardQuery.refetch()}>Tentar novamente</AdminButton>
           </AdminCard>
         ) : moduleContent()}
       </div>
@@ -493,14 +632,18 @@ function DashboardArea({ metrics, left, right }: { metrics: Metric[]; left: Reac
   );
 }
 
+type DashboardOrderListRow = Pick<DashboardOrder, "id" | "os_number" | "created_at" | "updated_at" | "completed_at" | "customer" | "order_status" | "situation"> & {
+  final_total?: number | null;
+};
+
 function OrdersList({
   orders,
   onOpen,
   showValue = false,
   badge = "status",
 }: {
-  orders: DashboardOrder[];
-  onOpen: () => void;
+  orders: DashboardOrderListRow[] | DashboardOrderGroupItem[];
+  onOpen: (orderId: string) => void;
   showValue?: boolean;
   badge?: "status" | "situation";
 }) {
@@ -513,9 +656,9 @@ function OrdersList({
         title={`OS ${order.os_number || order.id.slice(0, 8)}`}
         subtitle={`${relationLabel(order.customer, "Cliente não informado")} · ${fmtListDate(order.completed_at || order.updated_at)}`}
         aside={showValue
-          ? <strong className="text-xs text-emerald-700">{formatCurrency(Number(order.final_total || 0))}</strong>
+          ? <strong className="text-xs text-emerald-700">{formatCurrency(Number(("final_total" in order ? order.final_total : 0) || 0))}</strong>
           : <StatusBadge status={relationLabel(badgeRelation, badge === "situation" ? "Sem situação" : "Em andamento")} color={badgeRelation?.color} />}
-        onClick={onOpen}
+        onClick={() => onOpen(order.id)}
       />
     );
   })}</CompactList>;
