@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileText,
   Image as ImageIcon,
@@ -26,6 +26,7 @@ import {
   listSacDigitalMessages,
   listSacDigitalProtocols,
   refreshSacDigitalProtocol,
+  sacDigitalMediaUrl,
   sendSacDigitalTextMessage,
   type SacDigitalIntegrationStatus,
   type SacDigitalMessage,
@@ -111,6 +112,8 @@ export function SacDigitalToolPage({
   const [messages, setMessages] = useState<SacDigitalMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const syncedProtocolsRef = useRef(new Set<string>());
 
   const selectedProtocol = useMemo(
     () => protocols.find(protocol => protocol.id === selectedProtocolId) || null,
@@ -188,8 +191,51 @@ export function SacDigitalToolPage({
   }, [loadProtocols, loadStatus]);
 
   useEffect(() => {
-    void loadMessages(selectedProtocolId, true);
-  }, [loadMessages, selectedProtocolId]);
+    let cancelled = false;
+
+    const openConversation = async () => {
+      await loadMessages(selectedProtocolId, true);
+      if (
+        cancelled
+        || !activeOrganizationId
+        || !selectedProtocolId
+        || !selectedProtocol?.external_protocol_id
+      ) return;
+
+      const syncKey = `${activeOrganizationId}:${selectedProtocol.external_protocol_id}`;
+      if (syncedProtocolsRef.current.has(syncKey)) return;
+      syncedProtocolsRef.current.add(syncKey);
+
+      try {
+        await refreshSacDigitalProtocol(
+          activeOrganizationId,
+          selectedProtocol.external_protocol_id,
+        );
+        if (cancelled) return;
+        await Promise.all([
+          loadMessages(selectedProtocolId, false),
+          loadProtocols(false),
+        ]);
+      } catch {
+        syncedProtocolsRef.current.delete(syncKey);
+      }
+    };
+
+    void openConversation();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeOrganizationId,
+    loadMessages,
+    loadProtocols,
+    selectedProtocol?.external_protocol_id,
+    selectedProtocolId,
+  ]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages.length, selectedProtocolId]);
 
   useEffect(() => {
     if (!activeOrganizationId || !canViewMessages) return;
@@ -431,14 +477,59 @@ export function SacDigitalToolPage({
                           <div className={`max-w-[86%] rounded-xl border px-3 py-2.5 shadow-sm sm:max-w-[72%] ${outgoing
                             ? "border-primary/30 bg-primary text-primary-foreground"
                             : "border-border bg-card text-foreground"}`}>
-                            {item.body_text ? (
-                              <p className="whitespace-pre-wrap break-words text-sm leading-5">{item.body_text}</p>
-                            ) : (
-                              <div className="flex items-center gap-2 text-sm font-semibold">
-                                <KindIcon size={16} className="shrink-0" />
-                                <span>{kind.label}</span>
-                              </div>
-                            )}
+                            {(() => {
+                              const mediaUrl = sacDigitalMediaUrl(item.media_url);
+                              return <div className="space-y-2">
+                                {mediaUrl && item.message_type === "image" && (
+                                  <a href={mediaUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg">
+                                    <img
+                                      src={mediaUrl}
+                                      alt="Imagem recebida no SAC Digital"
+                                      loading="lazy"
+                                      className="max-h-80 w-auto max-w-full rounded-lg object-contain"
+                                    />
+                                  </a>
+                                )}
+                                {mediaUrl && item.message_type === "video" && (
+                                  <video
+                                    src={mediaUrl}
+                                    controls
+                                    preload="metadata"
+                                    className="max-h-80 w-full rounded-lg"
+                                  />
+                                )}
+                                {mediaUrl && item.message_type === "audio" && (
+                                  <audio
+                                    src={mediaUrl}
+                                    controls
+                                    preload="metadata"
+                                    className="w-full min-w-[240px] max-w-full"
+                                  />
+                                )}
+                                {mediaUrl && item.message_type === "file" && (
+                                  <a
+                                    href={mediaUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold underline-offset-2 hover:underline ${outgoing
+                                      ? "border-primary-foreground/25 text-primary-foreground"
+                                      : "border-border text-foreground"}`}
+                                  >
+                                    <FileText size={16} className="shrink-0" />
+                                    Abrir arquivo
+                                  </a>
+                                )}
+                                {item.body_text && (
+                                  <p className="whitespace-pre-wrap break-words text-sm leading-5">{item.body_text}</p>
+                                )}
+                                {!item.body_text && !mediaUrl && (
+                                  <div className="flex items-center gap-2 text-sm font-semibold">
+                                    <KindIcon size={16} className="shrink-0" />
+                                    <span>{kind.label}</span>
+                                  </div>
+                                )}
+                              </div>;
+                            })()}
                             <div className={`mt-1.5 flex items-center justify-end gap-2 text-[9px] ${outgoing
                               ? "text-primary-foreground/70"
                               : "text-muted-foreground"}`}>
@@ -450,6 +541,7 @@ export function SacDigitalToolPage({
                       })}
                     </div>
                   )}
+                  <div ref={messagesEndRef} aria-hidden="true" />
                 </div>
 
                 <div className="border-t border-border bg-card p-3">
