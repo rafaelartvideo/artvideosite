@@ -12,6 +12,9 @@ import {
   Clock3,
   FileText,
   LayoutDashboard,
+  PieChart,
+  BarChart3,
+  AlignLeft,
   Package,
   RefreshCw,
   ShoppingCart,
@@ -446,7 +449,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
           return (
             <DashboardDonutChart
               data={data}
-              minHeight={180}
+              minHeight={230}
               innerRadius={0}
               selectedKey={selectedKey}
               onSelect={selectDistribution(kind)}
@@ -458,7 +461,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
           <DashboardBarChart
             data={data}
             layout={orderDistributionChartMode === "horizontal" ? "vertical" : "horizontal"}
-            minHeight={orderDistributionChartMode === "horizontal" ? 150 : 220}
+            minHeight={orderDistributionChartMode === "horizontal" ? 190 : 270}
             selectedKey={selectedKey}
             onSelect={selectDistribution(kind)}
           />
@@ -474,10 +477,10 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             <div className="flex items-center gap-2">
               <div className="inline-flex shrink-0 rounded-lg border border-border bg-muted/50 p-0.5">
                 {([
-                  ["pie", "Pizza", "Gráfico de pizza"],
-                  ["vertical", "Vert.", "Barras verticais"],
-                  ["horizontal", "Horiz.", "Barras horizontais"],
-                ] as const).map(([mode, label, title]) => (
+                  ["pie", PieChart, "Gráfico de pizza"],
+                  ["vertical", BarChart3, "Barras verticais"],
+                  ["horizontal", AlignLeft, "Barras horizontais"],
+                ] as const).map(([mode, Icon, title]) => (
                   <button
                     key={mode}
                     type="button"
@@ -486,13 +489,13 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
                     aria-pressed={orderDistributionChartMode === mode}
                     onClick={() => setChartMode(mode)}
                     className={cn(
-                      "rounded-md px-2 py-1 text-[9px] font-black transition-colors",
+                      "inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors",
                       orderDistributionChartMode === mode
                         ? "bg-card text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
+                        : "text-muted-foreground hover:bg-card/70 hover:text-foreground",
                     )}
                   >
-                    {label}
+                    <Icon size={16} strokeWidth={2.2} />
                   </button>
                 ))}
               </div>
@@ -505,8 +508,8 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
           <div className="space-y-5">
             <section>
               <div className="mb-1">
-                <h4 className="text-xs font-black text-[#0d1b2e]">Situações</h4>
-                <p className="text-[10px] font-semibold text-[#7a879a]">{chartInteractionHint}</p>
+                <h4 className="text-sm font-black text-foreground">Situações</h4>
+                <p className="text-[11px] font-semibold text-muted-foreground">{chartInteractionHint}</p>
               </div>
               {renderDistributionChart(situationData, "situation")}
             </section>
@@ -515,8 +518,8 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
 
             <section>
               <div className="mb-1">
-                <h4 className="text-xs font-black text-[#0d1b2e]">Status</h4>
-                <p className="text-[10px] font-semibold text-[#7a879a]">{chartInteractionHint}</p>
+                <h4 className="text-sm font-black text-foreground">Status</h4>
+                <p className="text-[11px] font-semibold text-muted-foreground">{chartInteractionHint}</p>
               </div>
               {renderDistributionChart(statusData, "status")}
             </section>
