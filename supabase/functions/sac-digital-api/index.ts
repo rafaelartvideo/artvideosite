@@ -2,6 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const SAC_API_BASE_URL = "https://api.sac.digital/v2/client";
 const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", "inbox", "send"];
+const SAC_OUTBOX_BUCKET = "sac-digital-outbox";
+const SAC_OUTBOX_MAX_BYTES = 25 * 1024 * 1024;
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
 const corsHeaders = {
@@ -64,6 +66,40 @@ Deno.serve(async request => {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  const ensureOutboxBucket = async () => {
+    const existing = await admin.storage.getBucket(SAC_OUTBOX_BUCKET);
+    if (!existing.error && existing.data) return;
+    const created = await admin.storage.createBucket(SAC_OUTBOX_BUCKET, {
+      public: false,
+      fileSizeLimit: SAC_OUTBOX_MAX_BYTES,
+    });
+    if (created.error && !/already exists/i.test(created.error.message || "")) {
+      throw new Error("Não foi possível preparar o envio de anexos.");
+    }
+  };
+
+  const cleanupOutbox = async (organizationId: string) => {
+    try {
+      const { data } = await admin.storage
+        .from(SAC_OUTBOX_BUCKET)
+        .list(organizationId, {
+          limit: 100,
+          sortBy: { column: "created_at", order: "asc" },
+        });
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      const stale = (data || [])
+        .filter(item => {
+          const value = String((item as any).created_at || (item as any).updated_at || "");
+          const time = new Date(value).getTime();
+          return Number.isFinite(time) && time < cutoff;
+        })
+        .map(item => `${organizationId}/${item.name}`);
+      if (stale.length) await admin.storage.from(SAC_OUTBOX_BUCKET).remove(stale);
+    } catch (error) {
+      console.warn("[SAC DIGITAL API] outbox cleanup skipped", error instanceof Error ? error.message : error);
+    }
+  };
 
   const loadCredentials = async (organizationId: string) => {
     const { data, error } = await admin.rpc("sac_digital_service_credentials", {
@@ -320,29 +356,52 @@ Deno.serve(async request => {
       }
 
       const targetTime = new Date(sentAt).getTime();
-      const candidate = localMessages.find(row => {
-        const localTime = new Date(String(row.sent_at || "")).getTime();
-        if (!Number.isFinite(localTime) || Math.abs(localTime - targetTime) > 180_000) return false;
-        const sameText = String(row.body_text || "").trim() === String(shape.text || "").trim();
-        const sameMedia = String(row.media_url || "").trim() === String(shape.mediaUrl || "").trim();
-        if (shape.mediaUrl) return sameMedia && sameText;
-        return sameText && !row.media_url;
-      });
+      const candidate = localMessages
+        .map(row => {
+          const localTime = new Date(String(row.sent_at || "")).getTime();
+          return { row, diff: Number.isFinite(localTime) ? Math.abs(localTime - targetTime) : Number.POSITIVE_INFINITY };
+        })
+        .filter(({ row, diff }) => {
+          if (diff > 180_000) return false;
+          const sameText = String(row.body_text || "").trim() === String(shape.text || "").trim();
+          if (!sameText) return false;
+          if (shape.mediaUrl) {
+            return String(row.message_type || "") === shape.messageType || Boolean(row.media_url);
+          }
+          return !row.media_url;
+        })
+        .sort((left, right) => left.diff - right.diff)[0]?.row;
 
       if (candidate) {
-        const nextMetadata = {
-          ...(candidate.raw_metadata && typeof candidate.raw_metadata === "object" ? candidate.raw_metadata : {}),
+        const previousMetadata = candidate.raw_metadata && typeof candidate.raw_metadata === "object"
+          ? candidate.raw_metadata
+          : {};
+        const nextMetadata: Record<string, unknown> = {
+          ...previousMetadata,
           sac_history: entry,
           history_synced: true,
         };
         const patch: Record<string, unknown> = { raw_metadata: nextMetadata };
         if (!candidate.external_message_id) patch.external_message_id = historyId;
+        if (shape.mediaUrl) {
+          patch.media_url = shape.mediaUrl;
+          patch.message_type = shape.messageType;
+          const tempPath = String((previousMetadata as any).temp_storage_path || "");
+          if (tempPath) {
+            const removed = await admin.storage.from(SAC_OUTBOX_BUCKET).remove([tempPath]);
+            if (!removed.error) nextMetadata.temp_storage_removed_at = new Date().toISOString();
+          }
+        }
         const { error: updateError } = await admin
           .from("sac_digital_messages")
           .update(patch)
           .eq("id", candidate.id);
         if (!updateError) {
           if (!candidate.external_message_id) candidate.external_message_id = historyId;
+          if (shape.mediaUrl) {
+            candidate.media_url = shape.mediaUrl;
+            candidate.message_type = shape.messageType;
+          }
           candidate.raw_metadata = nextMetadata;
           matched += 1;
         }
@@ -400,7 +459,22 @@ Deno.serve(async request => {
   };
 
   try {
-    const body = await request.json().catch(() => ({} as Record<string, unknown>));
+    let uploadFile: File | null = null;
+    let body: Record<string, unknown> = {};
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType.includes("multipart/form-data")) {
+      const form = await request.formData();
+      body = {
+        action: form.get("action"),
+        organization_id: form.get("organization_id"),
+        protocol: form.get("protocol"),
+        text: form.get("text"),
+      };
+      const candidate = form.get("file");
+      uploadFile = candidate instanceof File ? candidate : null;
+    } else {
+      body = await request.json().catch(() => ({} as Record<string, unknown>));
+    }
     const action = String(body.action || "").trim();
     const organizationId = String(body.organization_id || "").trim();
     if (!isUuid(organizationId)) return json({ success: false, error: "Empresa inválida." }, 400);
@@ -472,6 +546,162 @@ Deno.serve(async request => {
         history_total: history.total,
         history_imported: history.imported,
         history_matched: history.matched,
+      });
+    }
+
+    if (action === "send_media") {
+      if (!(await requirePermission("sac_digital.messages.send"))) {
+        return json({ success: false, error: "Sem permissão para enviar anexos pelo SAC Digital." }, 403);
+      }
+
+      const protocol = String(body.protocol || "").trim();
+      const text = String(body.text || "").trim();
+      if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+      if (!uploadFile || uploadFile.size <= 0) return json({ success: false, error: "Selecione um arquivo para enviar." }, 400);
+      if (uploadFile.size > SAC_OUTBOX_MAX_BYTES) return json({ success: false, error: "O anexo deve ter no máximo 25 MB." }, 400);
+      if (text.length > 5000) return json({ success: false, error: "A legenda é muito longa." }, 400);
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      const mediaType = uploadFile.type.startsWith("image/") ? "image"
+        : uploadFile.type.startsWith("video/") ? "video"
+        : uploadFile.type.startsWith("audio/") ? "audio"
+        : "file";
+
+      await ensureOutboxBucket();
+      EdgeRuntime.waitUntil(cleanupOutbox(organizationId));
+
+      const safeName = (uploadFile.name || "arquivo")
+        .normalize("NFKD")
+        .replace(/[^A-Za-z0-9._-]+/g, "-")
+        .replace(/-+/g, "-")
+        .slice(-120) || "arquivo";
+      const storagePath = `${organizationId}/${crypto.randomUUID()}-${safeName}`;
+
+      const uploaded = await admin.storage
+        .from(SAC_OUTBOX_BUCKET)
+        .upload(storagePath, uploadFile, {
+          contentType: uploadFile.type || "application/octet-stream",
+          cacheControl: "3600",
+          upsert: false,
+        });
+      if (uploaded.error) {
+        console.error("[SAC DIGITAL API] media upload failed", {
+          organization_id: organizationId,
+          code: (uploaded.error as any).statusCode,
+        });
+        return json({ success: false, error: "Não foi possível preparar o anexo para envio." }, 502);
+      }
+
+      const signed = await admin.storage
+        .from(SAC_OUTBOX_BUCKET)
+        .createSignedUrl(storagePath, 3600);
+      if (signed.error || !signed.data?.signedUrl) {
+        await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
+        return json({ success: false, error: "Não foi possível gerar a URL temporária do anexo." }, 502);
+      }
+
+      const apiPayload: Record<string, unknown> = {
+        protocol,
+        type: mediaType,
+        url: signed.data.signedUrl,
+      };
+      if (text) apiPayload.text = text;
+
+      const { response, body: apiBody } = await apiRequest(
+        organizationId,
+        credentials,
+        "/protocol/send",
+        {
+          method: "POST",
+          body: JSON.stringify(apiPayload),
+        },
+      );
+
+      if (!response.ok || apiBody.status === false || apiBody.success === false) {
+        await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
+        console.error("[SAC DIGITAL API] send media failed", {
+          organization_id: organizationId,
+          protocol,
+          status: response.status,
+          request_id: apiBody.request_id,
+        });
+        return json({ success: false, error: "A SAC Digital não conseguiu enviar o anexo." }, 502);
+      }
+
+      const { data: protocolRow } = await admin
+        .from("sac_digital_protocols")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("external_protocol_id", protocol)
+        .maybeSingle();
+
+      if (protocolRow?.id) {
+        const sentAt = new Date().toISOString();
+        const externalIdValue = apiBody.id ?? apiBody.message_id ?? apiBody.request_id;
+        const externalMessageId = typeof externalIdValue === "string" || typeof externalIdValue === "number"
+          ? `sac:${String(externalIdValue)}`
+          : null;
+        const { data: profile } = await admin
+          .from("profiles")
+          .select("full_name")
+          .eq("id", userData.user.id)
+          .maybeSingle();
+
+        const localMessage = {
+          organization_id: organizationId,
+          protocol_id: protocolRow.id,
+          external_message_id: externalMessageId,
+          direction: "outgoing",
+          message_type: mediaType,
+          body_text: text || null,
+          media_url: signed.data.signedUrl,
+          sender_id: userData.user.id,
+          sender_name: profile?.full_name || null,
+          sent_at: sentAt,
+          raw_metadata: {
+            sent_via_union: true,
+            temp_storage_bucket: SAC_OUTBOX_BUCKET,
+            temp_storage_path: storagePath,
+            api_response: apiBody,
+          },
+        };
+
+        let inserted = await admin.from("sac_digital_messages").insert(localMessage);
+        if (inserted.error?.code === "23505") {
+          inserted = await admin.from("sac_digital_messages").insert({
+            ...localMessage,
+            external_message_id: null,
+            raw_metadata: {
+              ...localMessage.raw_metadata,
+              external_id_conflict: true,
+            },
+          });
+        }
+
+        if (!inserted.error) {
+          await admin
+            .from("sac_digital_protocols")
+            .update({ last_message_at: sentAt, updated_at: sentAt })
+            .eq("id", protocolRow.id);
+        }
+      }
+
+      EdgeRuntime.waitUntil((async () => {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        try {
+          await syncProtocolHistory(organizationId, protocol);
+        } catch (error) {
+          console.warn("[SAC DIGITAL API] post-send history sync skipped", error instanceof Error ? error.message : error);
+        }
+      })());
+
+      return json({
+        success: true,
+        protocol,
+        type: mediaType,
+        request_id: typeof apiBody.request_id === "string" ? apiBody.request_id : null,
       });
     }
 
