@@ -7,7 +7,7 @@ const UNION_QUEUE_URL = "https://fila.unionworld.com.br";
 
 export function QueueIntegrationToolPage({ onBack }: { onBack: () => void }) {
   const { activeOrganizationId, hasPermission } = useAuth();
-  const canUpdate = hasPermission("settings.update");
+  const canUpdate = hasPermission("queue.manage");
 
   if (!activeOrganizationId) return <LoadingState text="Carregando empresa ativa..." />;
 
