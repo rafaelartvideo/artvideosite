@@ -464,6 +464,7 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
   const url = image.url || mediaUrl;
   const [busyFormat, setBusyFormat] = useState<OrderImageDownloadFormat | null>(null);
   const [downloadError, setDownloadError] = useState("");
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
 
   const download = async (format: OrderImageDownloadFormat) => {
     if (busyFormat) return;
@@ -487,33 +488,55 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     minimizedDescription={image.name || "Imagem da OS"}
     className="max-w-6xl"
     headerActions={
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            disabled={Boolean(busyFormat)}
-            aria-label="Baixar imagem"
-            title={busyFormat ? "Preparando download..." : "Baixar imagem"}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary disabled:cursor-wait disabled:opacity-60"
+      <div
+        className="relative"
+        onBlur={event => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setDownloadMenuOpen(false);
+          }
+        }}
+      >
+        <button
+          type="button"
+          disabled={Boolean(busyFormat)}
+          aria-label="Baixar imagem"
+          aria-haspopup="menu"
+          aria-expanded={downloadMenuOpen}
+          title={busyFormat ? "Preparando download..." : "Baixar imagem"}
+          onClick={() => setDownloadMenuOpen(open => !open)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary disabled:cursor-wait disabled:opacity-60"
+        >
+          <Download size={15} />
+        </button>
+        {downloadMenuOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 top-[calc(100%+0.35rem)] z-[230] w-52 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-xl"
           >
-            <Download size={15} />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="z-[220] min-w-52">
-          <DropdownMenuItem disabled={Boolean(busyFormat)} onSelect={() => void download("original")} className="cursor-pointer gap-2">
-            <Download size={14} /> Baixar original
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={Boolean(busyFormat)} onSelect={() => void download("png")} className="cursor-pointer gap-2">
-            <Download size={14} /> Baixar em PNG
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={Boolean(busyFormat)} onSelect={() => void download("jpeg")} className="cursor-pointer gap-2">
-            <Download size={14} /> Baixar em JPEG
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={Boolean(busyFormat)} onSelect={() => void download("pdf")} className="cursor-pointer gap-2">
-            <Download size={14} /> Baixar em PDF
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            {([
+              ["original", "Baixar original"],
+              ["png", "Baixar em PNG"],
+              ["jpeg", "Baixar em JPEG"],
+              ["pdf", "Baixar em PDF"],
+            ] as Array<[OrderImageDownloadFormat, string]>).map(([format, label]) => (
+              <button
+                key={format}
+                type="button"
+                role="menuitem"
+                disabled={Boolean(busyFormat)}
+                onClick={() => {
+                  setDownloadMenuOpen(false);
+                  void download(format);
+                }}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-primary-soft hover:text-primary focus:bg-primary-soft focus:text-primary disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Download size={14} className="shrink-0" />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     }
   >
     {downloadError && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{downloadError}</div>}
