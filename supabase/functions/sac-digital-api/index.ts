@@ -525,6 +525,80 @@ Deno.serve(async request => {
       return !error && allowed === true;
     };
 
+
+    const loadSacOperators = async () => {
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) throw new Error("Integração SAC Digital está desativada.");
+      const result = await apiRequest(
+        organizationId,
+        credentials,
+        "/operator/all?p=1",
+        { method: "GET" },
+      );
+      if (!result.response.ok || result.body.status === false) {
+        throw new Error("Não foi possível carregar os operadores da SAC Digital.");
+      }
+      const list = Array.isArray(result.body.list) ? result.body.list : [];
+      return list
+        .filter(item => item && typeof item === "object" && !Array.isArray(item))
+        .map(item => {
+          const row = item as Record<string, unknown>;
+          return {
+            id: String(row.id || "").trim(),
+            name: String(row.name || "").trim(),
+            email: String(row.email || "").trim(),
+            online: row.online === true,
+          };
+        })
+        .filter(item => item.id && item.name);
+    };
+
+    const resolveMyOperatorBinding = async (autoMatch = true) => {
+      const { data: linked, error: linkedError } = await admin
+        .from("sac_digital_operator_links")
+        .select("external_operator_id,operator_name")
+        .eq("organization_id", organizationId)
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+
+      if (linkedError) throw new Error("Não foi possível consultar o operador vinculado.");
+      if (linked?.external_operator_id) {
+        return {
+          id: String(linked.external_operator_id),
+          name: String(linked.operator_name || ""),
+          autoMatched: false,
+        };
+      }
+      if (!autoMatch) return null;
+
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("email")
+        .eq("id", userData.user.id)
+        .maybeSingle();
+      const email = String(profile?.email || userData.user.email || "").trim().toLowerCase();
+      if (!email) return null;
+
+      const operators = await loadSacOperators();
+      const matches = operators.filter(operator => operator.email.toLowerCase() === email);
+      if (matches.length !== 1) return null;
+
+      const match = matches[0];
+      const now = new Date().toISOString();
+      const { error: upsertError } = await admin
+        .from("sac_digital_operator_links")
+        .upsert({
+          organization_id: organizationId,
+          user_id: userData.user.id,
+          external_operator_id: match.id,
+          operator_name: match.name,
+          updated_at: now,
+        }, { onConflict: "organization_id,user_id" });
+      if (upsertError) throw new Error("Não foi possível salvar o operador vinculado.");
+
+      return { id: match.id, name: match.name, autoMatched: true };
+    };
+
     if (action === "test_connection") {
       if (!(await requirePermission("sac_digital.settings.manage"))) {
         return json({ success: false, error: "Sem permissão para gerenciar a integração SAC Digital." }, 403);
@@ -556,6 +630,127 @@ Deno.serve(async request => {
         history_total: history.total,
         history_imported: history.imported,
         history_matched: history.matched,
+      });
+    }
+
+    if (action === "my_operator_binding") {
+      if (!(await requirePermission("sac_digital.protocols.manage"))) {
+        return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
+      }
+      const binding = await resolveMyOperatorBinding(true);
+      return json({
+        success: true,
+        linked: Boolean(binding),
+        operator: binding ? { id: binding.id, name: binding.name } : null,
+        auto_matched: binding?.autoMatched === true,
+      });
+    }
+
+    if (action === "set_my_operator_binding") {
+      if (!(await requirePermission("sac_digital.protocols.manage"))) {
+        return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
+      }
+
+      const operatorId = String(body.operator_id || "").trim();
+      if (!operatorId || operatorId.length > 80) {
+        return json({ success: false, error: "Selecione um operador SAC válido." }, 400);
+      }
+
+      const operators = await loadSacOperators();
+      const operator = operators.find(item => item.id === operatorId);
+      if (!operator) return json({ success: false, error: "Operador SAC não encontrado." }, 400);
+
+      const { error: upsertError } = await admin
+        .from("sac_digital_operator_links")
+        .upsert({
+          organization_id: organizationId,
+          user_id: userData.user.id,
+          external_operator_id: operator.id,
+          operator_name: operator.name,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "organization_id,user_id" });
+      if (upsertError) throw new Error("Não foi possível salvar o operador vinculado.");
+
+      return json({
+        success: true,
+        linked: true,
+        operator: { id: operator.id, name: operator.name },
+      });
+    }
+
+    if (action === "assume_protocol") {
+      if (!(await requirePermission("sac_digital.protocols.manage"))) {
+        return json({ success: false, error: "Sem permissão para assumir atendimentos do SAC Digital." }, 403);
+      }
+
+      const protocol = String(body.protocol || "").trim();
+      if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+
+      const binding = await resolveMyOperatorBinding(true);
+      if (!binding) {
+        return json({
+          success: false,
+          error: "Vincule seu usuário da Union a um operador da SAC Digital antes de assumir.",
+          needs_operator_binding: true,
+        });
+      }
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      const { data: protocolRow, error: protocolError } = await admin
+        .from("sac_digital_protocols")
+        .select("contact_id")
+        .eq("organization_id", organizationId)
+        .eq("external_protocol_id", protocol)
+        .maybeSingle();
+      if (protocolError || !protocolRow?.contact_id) {
+        return json({ success: false, error: "O protocolo ainda não possui um contato SAC vinculado." }, 400);
+      }
+
+      const { data: contactRow, error: contactError } = await admin
+        .from("sac_digital_contacts")
+        .select("external_contact_id")
+        .eq("organization_id", organizationId)
+        .eq("id", protocolRow.contact_id)
+        .maybeSingle();
+      const externalContactId = String(contactRow?.external_contact_id || "").trim();
+      if (contactError || !externalContactId) {
+        return json({ success: false, error: "Não foi possível identificar o contato na SAC Digital." }, 400);
+      }
+
+      const result = await apiRequest(
+        organizationId,
+        credentials,
+        "/contact/forward",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            id: externalContactId,
+            operator: binding.id,
+          }),
+        },
+      );
+
+      if (!result.response.ok || result.body.status === false || result.body.success === false) {
+        return json({
+          success: false,
+          error: typeof result.body.message === "string" && result.body.message.trim()
+            ? `SAC Digital: ${result.body.message.trim()}`
+            : "Não foi possível assumir o atendimento.",
+        });
+      }
+
+      try {
+        await enrichProtocol(organizationId, protocol);
+      } catch {
+        // O webhook/realtime concluirá a atualização caso a SAC ainda não reflita a troca.
+      }
+
+      return json({
+        success: true,
+        protocol,
+        operator: { id: binding.id, name: binding.name },
       });
     }
 
