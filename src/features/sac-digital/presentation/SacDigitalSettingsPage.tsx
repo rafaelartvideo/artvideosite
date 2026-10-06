@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clipboard, RefreshCw, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Clipboard, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -14,11 +14,14 @@ import {
 import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import {
   getSacDigitalIntegrationSettings,
+  getSacDigitalOperatorBindingsAdmin,
   rotateSacDigitalWebhookToken,
   sacDigitalWebhookUrl,
   saveSacDigitalIntegrationSettings,
+  setSacDigitalOperatorBindingAdmin,
   testSacDigitalConnection,
   type SacDigitalIntegrationSettings,
+  type SacDigitalOperatorAdminData,
 } from "../infrastructure/sac-digital.repository";
 
 const SAC_API_BASE_URL = "https://api.sac.digital/v2/client";
@@ -43,6 +46,9 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
   const [saving, setSaving] = useState(false);
   const [rotating, setRotating] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [operatorLoading, setOperatorLoading] = useState(false);
+  const [bindingSavingUserId, setBindingSavingUserId] = useState<string | null>(null);
+  const [operatorData, setOperatorData] = useState<SacDigitalOperatorAdminData | null>(null);
   const [settings, setSettings] = useState<SacDigitalIntegrationSettings | null>(null);
   const [form, setForm] = useState({
     enabled: false,
@@ -85,6 +91,65 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     void load();
   }, [activeOrganizationId, canManage]);
+
+  const loadOperatorBindings = async () => {
+    if (
+      !activeOrganizationId
+      || !canManage
+      || !settings?.enabled
+      || !settings?.credential_configured
+    ) {
+      setOperatorData(null);
+      return;
+    }
+
+    setOperatorLoading(true);
+    try {
+      const data = await getSacDigitalOperatorBindingsAdmin(activeOrganizationId);
+      setOperatorData(data);
+    } catch (error) {
+      setOperatorData(null);
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível carregar os vínculos de operadores do SAC Digital."),
+        error: true,
+      });
+    } finally {
+      setOperatorLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadOperatorBindings();
+  }, [
+    activeOrganizationId,
+    canManage,
+    settings?.credential_configured,
+    settings?.enabled,
+  ]);
+
+  const saveOperatorBinding = async (userId: string, operatorId: string) => {
+    if (!activeOrganizationId || !canManage || bindingSavingUserId) return;
+    setBindingSavingUserId(userId);
+    setMessage(null);
+    try {
+      await setSacDigitalOperatorBindingAdmin(activeOrganizationId, userId, operatorId);
+      const data = await getSacDigitalOperatorBindingsAdmin(activeOrganizationId);
+      setOperatorData(data);
+      setMessage({
+        text: operatorId
+          ? "Operador SAC vinculado ao funcionário."
+          : "Vínculo do operador SAC removido.",
+      });
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível alterar o vínculo do operador SAC."),
+        error: true,
+      });
+    } finally {
+      setBindingSavingUserId(null);
+    }
+  };
+
 
   const save = async () => {
     if (!activeOrganizationId || !canManage || saving) return;
@@ -313,6 +378,104 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
           </div>
         )}
       </div>
+    </Section>
+
+    <Section
+      title="Operadores e funcionários"
+      description="O gestor define qual operador da SAC Digital corresponde a cada usuário da Union."
+      actions={
+        settings?.enabled && settings?.credential_configured ? (
+          <AdminButton
+            variant="secondary"
+            onClick={() => void loadOperatorBindings()}
+            loading={operatorLoading}
+            title="Recarregar operadores"
+            aria-label="Recarregar operadores"
+          >
+            <RefreshCw size={15} />
+            Recarregar
+          </AdminButton>
+        ) : undefined
+      }
+    >
+      {!settings?.enabled || !settings?.credential_configured ? (
+        <div className="rounded-lg border border-border bg-muted/25 px-4 py-3 text-sm text-muted-foreground">
+          Ative a integração e configure as credenciais para vincular funcionários aos operadores da SAC Digital.
+        </div>
+      ) : operatorLoading && !operatorData ? (
+        <LoadingState text="Carregando operadores e funcionários..." />
+      ) : !operatorData?.employees.length ? (
+        <div className="rounded-lg border border-border bg-muted/25 px-4 py-3 text-sm text-muted-foreground">
+          Nenhum funcionário ativo foi encontrado nesta empresa.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-border">
+          <div className="hidden grid-cols-[minmax(0,1fr)_minmax(260px,0.9fr)] gap-4 border-b border-border bg-muted/35 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground md:grid">
+            <span>Funcionário Union</span>
+            <span>Operador SAC Digital</span>
+          </div>
+          <div className="divide-y divide-border">
+            {operatorData.employees.map(employee => {
+              const selectedOperatorId = employee.operator?.id || "";
+              const usedByOther = new Map(
+                operatorData.employees
+                  .filter(item => item.user_id !== employee.user_id && item.operator?.id)
+                  .map(item => [item.operator!.id, item.full_name]),
+              );
+
+              return (
+                <div
+                  key={employee.user_id}
+                  className="grid gap-3 bg-card px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,0.9fr)] md:items-center md:gap-4"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+                      <UsersRound size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-foreground">
+                        {employee.full_name}
+                        {employee.is_owner ? " · Proprietário" : ""}
+                      </p>
+                      {employee.email && (
+                        <p className="truncate text-[10px] text-muted-foreground">{employee.email}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <select
+                    value={selectedOperatorId}
+                    disabled={bindingSavingUserId === employee.user_id}
+                    onChange={event => void saveOperatorBinding(employee.user_id, event.target.value)}
+                    className="admin-input h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
+                    aria-label={`Operador SAC de ${employee.full_name}`}
+                  >
+                    <option value="">Não vinculado</option>
+                    {operatorData.operators.map(operator => {
+                      const usedBy = usedByOther.get(operator.id);
+                      return (
+                        <option
+                          key={operator.id}
+                          value={operator.id}
+                          disabled={Boolean(usedBy)}
+                        >
+                          {operator.name}
+                          {operator.online ? " — online" : ""}
+                          {usedBy ? ` — vinculado a ${usedBy}` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+        O botão “Assumir” usa este vínculo. Um operador SAC só pode ficar associado a um funcionário da Union por empresa.
+      </p>
     </Section>
 
     <AdminStickyToolbar>
