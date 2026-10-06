@@ -258,6 +258,11 @@ export function AdminDashboard({
     : toolsHub;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("home", null, null, { replace: true, crmMode: false }); };
 
+  const openAuthenticatedAdminTab = (targetPath: string) => {
+    const newTab = window.open(targetPath, "_blank");
+    if (newTab) newTab.opener = null;
+  };
+
   const sidebar = <AdminSidebar
     activeTab={activeMenuTab}
     organizations={organizations}
@@ -293,7 +298,7 @@ export function AdminDashboard({
               canAccessTab={canAccessTab}
               isPlatformOperatorOrganization={isPlatformOperatorOrganization}
             />} />
-            <Route path="dashboard" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} onOpenOrder={orderId => window.open(adminPath("orders", orderId), "_blank", "noopener,noreferrer")} />} />
+            <Route path="dashboard" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} onOpenOrder={orderId => openAuthenticatedAdminTab(adminPath("orders", orderId))} />} />
             <Route path="announcements" element={<PlatformAnnouncementsPage />} />
             <Route path="crm" element={crmHub} />
             <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("home")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
