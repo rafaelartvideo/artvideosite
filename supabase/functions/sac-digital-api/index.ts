@@ -332,23 +332,39 @@ Deno.serve(async request => {
           .eq("id", userData.user.id)
           .maybeSingle();
 
-        const { error: messageError } = await admin
+        const localMessage = {
+          organization_id: organizationId,
+          protocol_id: protocolRow.id,
+          external_message_id: externalMessageId,
+          direction: "outgoing",
+          message_type: "text",
+          body_text: text,
+          sender_id: userData.user.id,
+          sender_name: profile?.full_name || null,
+          sent_at: sentAt,
+          raw_metadata: {
+            sent_via_union: true,
+            api_response: apiBody,
+          },
+        };
+
+        let { error: messageError } = await admin
           .from("sac_digital_messages")
-          .insert({
-            organization_id: organizationId,
-            protocol_id: protocolRow.id,
-            external_message_id: externalMessageId,
-            direction: "outgoing",
-            message_type: "text",
-            body_text: text,
-            sender_id: userData.user.id,
-            sender_name: profile?.full_name || null,
-            sent_at: sentAt,
-            raw_metadata: {
-              sent_via_union: true,
-              api_response: apiBody,
-            },
-          });
+          .insert(localMessage);
+
+        if (messageError?.code === "23505") {
+          const fallback = await admin
+            .from("sac_digital_messages")
+            .insert({
+              ...localMessage,
+              external_message_id: null,
+              raw_metadata: {
+                ...localMessage.raw_metadata,
+                external_id_conflict: true,
+              },
+            });
+          messageError = fallback.error;
+        }
 
         if (messageError) {
           console.error("[SAC DIGITAL API] local sent message insert failed", {
