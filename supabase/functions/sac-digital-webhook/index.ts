@@ -154,6 +154,51 @@ Deno.serve(async request => {
     }
   }
 
+  const protocol = typeof payload.protocol === "string" ? payload.protocol.trim() : "";
+  let shouldEnrich = Boolean(protocol) && [
+    "protocol_opened",
+    "protocol_in_att",
+    "protocol_forward",
+  ].includes(type);
+
+  if (protocol && !shouldEnrich && ["protocol_new_message", "protocol_new_inbox"].includes(type)) {
+    const { data: projectedProtocol } = await admin
+      .from("sac_digital_protocols")
+      .select("contact_id")
+      .eq("organization_id", integration.organization_id)
+      .eq("external_protocol_id", protocol)
+      .maybeSingle();
+    shouldEnrich = !projectedProtocol?.contact_id;
+  }
+
+  if (protocol && shouldEnrich) {
+    const enrichment = fetch(`${supabaseUrl}/functions/v1/sac-digital-api`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "enrich_protocol",
+        organization_id: integration.organization_id,
+        protocol,
+      }),
+    }).then(async response => {
+      if (!response.ok) {
+        console.error("[SAC DIGITAL WEBHOOK] background enrichment failed", {
+          protocol,
+          status: response.status,
+        });
+      }
+    }).catch(error => {
+      console.error("[SAC DIGITAL WEBHOOK] background enrichment error", {
+        protocol,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+    EdgeRuntime.waitUntil(enrichment);
+  }
+
   const now = new Date().toISOString();
   const { error: updateError } = await admin
     .from("sac_digital_integrations")
