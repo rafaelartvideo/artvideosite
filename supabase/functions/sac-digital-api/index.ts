@@ -579,7 +579,8 @@ Deno.serve(async request => {
         .replace(/[^A-Za-z0-9._-]+/g, "-")
         .replace(/-+/g, "-")
         .slice(-120) || "arquivo";
-      const storagePath = `${organizationId}/${crypto.randomUUID()}-${safeName}`;
+      const publicFileName = `${crypto.randomUUID()}-${safeName}`;
+      const storagePath = `${organizationId}/${publicFileName}`;
 
       const uploaded = await admin.storage
         .from(SAC_OUTBOX_BUCKET)
@@ -593,21 +594,15 @@ Deno.serve(async request => {
           organization_id: organizationId,
           code: (uploaded.error as any).statusCode,
         });
-        return json({ success: false, error: "Não foi possível preparar o anexo para envio." }, 502);
+        return json({ success: false, error: "Não foi possível preparar o anexo para envio." });
       }
 
-      const signed = await admin.storage
-        .from(SAC_OUTBOX_BUCKET)
-        .createSignedUrl(storagePath, 3600);
-      if (signed.error || !signed.data?.signedUrl) {
-        await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
-        return json({ success: false, error: "Não foi possível gerar a URL temporária do anexo." }, 502);
-      }
+      const proxyUrl = `${supabaseUrl}/functions/v1/sac-digital-media/${organizationId}/${encodeURIComponent(publicFileName)}`;
 
       const apiPayload: Record<string, unknown> = {
         protocol,
         type: mediaType,
-        url: signed.data.signedUrl,
+        url: proxyUrl,
       };
       if (text) apiPayload.text = text;
 
@@ -629,7 +624,18 @@ Deno.serve(async request => {
           status: response.status,
           request_id: apiBody.request_id,
         });
-        return json({ success: false, error: "A SAC Digital não conseguiu enviar o anexo." }, 502);
+        console.error("[SAC DIGITAL API] SAC media response", {
+          organization_id: organizationId,
+          protocol,
+          status: response.status,
+          response: apiBody,
+        });
+        return json({
+          success: false,
+          error: typeof apiBody.message === "string" && apiBody.message.trim()
+            ? `SAC Digital: ${apiBody.message.trim()}`
+            : "A SAC Digital não conseguiu enviar o anexo.",
+        });
       }
 
       const { data: protocolRow } = await admin
@@ -658,7 +664,7 @@ Deno.serve(async request => {
           direction: "outgoing",
           message_type: mediaType,
           body_text: text || null,
-          media_url: signed.data.signedUrl,
+          media_url: proxyUrl,
           sender_id: userData.user.id,
           sender_name: profile?.full_name || null,
           sent_at: sentAt,
