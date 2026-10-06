@@ -63,7 +63,7 @@ export function AdminSidebar({
   const canAccessOperation = !isPlatformOperatorOrganization && operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
-  const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization || canAccessTab("fieldTracking");
+  const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue") || canAccessTab("fieldTracking");
   const canAccessPlatformSettings = isPlatformOperatorOrganization && canAccessTab("settings");
   const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));
   const dashboardItems = visibleMainItems.filter(item => ["home", "dashboard"].includes(item.id));
