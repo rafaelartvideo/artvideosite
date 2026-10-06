@@ -207,28 +207,66 @@ export function sendSacDigitalTextMessage(
   });
 }
 
-export async function sendSacDigitalMediaMessage(
-  organizationId: string,
-  protocol: string,
-  file: File,
-  text = "",
-) {
-  const form = new FormData();
-  form.append("action", "send_media");
-  form.append("organization_id", organizationId);
-  form.append("protocol", protocol);
-  form.append("text", text);
-  form.append("file", file, file.name);
 
-  const { data, error } = await supabase.functions.invoke("sac-digital-api", {
-    body: form,
+export type SacDigitalRoutingOptions = {
+  operators: Array<{
+    id: string;
+    name: string;
+    online: boolean;
+  }>;
+  departments: Array<{
+    id: string;
+    name: string;
+    active: boolean;
+  }>;
+};
+
+export async function getSacDigitalRoutingOptions(organizationId: string) {
+  const data = await invokeSacDigitalApi({
+    action: "routing_options",
+    organization_id: organizationId,
   });
-  if (error) throw error;
-  if (!data?.success) throw new Error(String(data?.error || "A SAC Digital não conseguiu enviar o anexo."));
-  return data as Record<string, unknown>;
+  return {
+    operators: Array.isArray(data.operators) ? data.operators : [],
+    departments: Array.isArray(data.departments) ? data.departments : [],
+  } as SacDigitalRoutingOptions;
 }
 
+export function forwardSacDigitalProtocol(
+  organizationId: string,
+  protocol: string,
+  input: { departmentId?: string; operatorId?: string },
+) {
+  return invokeSacDigitalApi({
+    action: "forward_protocol",
+    organization_id: organizationId,
+    protocol,
+    department_id: input.departmentId || "",
+    operator_id: input.operatorId || "",
+  });
+}
 
+export function returnSacDigitalProtocolToInbox(
+  organizationId: string,
+  protocol: string,
+) {
+  return invokeSacDigitalApi({
+    action: "return_to_inbox",
+    organization_id: organizationId,
+    protocol,
+  });
+}
+
+export function finishSacDigitalProtocol(
+  organizationId: string,
+  protocol: string,
+) {
+  return invokeSacDigitalApi({
+    action: "finish_protocol",
+    organization_id: organizationId,
+    protocol,
+  });
+}
 
 const SAC_DIGITAL_MEDIA_ORIGIN = "https://relacionamento.gabinete.online";
 
