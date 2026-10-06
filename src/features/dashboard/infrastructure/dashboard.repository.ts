@@ -43,7 +43,7 @@ export async function loadDashboardOrdersSummary({
   organizationId: string;
   periodDays: number;
 }): Promise<DashboardOrdersSummary> {
-  const { data, error } = await supabase.rpc("load_dashboard_orders_summary_v1", {
+  const { data, error } = await supabase.rpc("load_dashboard_orders_summary_v2", {
     p_organization_id: organizationId,
     p_period_days: Math.max(1, Math.trunc(periodDays || 30)),
   });
@@ -65,19 +65,22 @@ export async function loadDashboardOrderGroupPage({
   organizationId,
   kind,
   groupId,
+  slaState = null,
   page,
   pageSize = 10,
 }: {
   organizationId: string;
   kind: "situation" | "status";
   groupId: string | null;
+  slaState?: "success" | "warning" | "danger" | "neutral" | null;
   page: number;
   pageSize?: number;
 }): Promise<DashboardOrderGroupItem[]> {
-  const { data, error } = await supabase.rpc("load_dashboard_order_group_page_v1", {
+  const { data, error } = await supabase.rpc("load_dashboard_order_group_page_v2", {
     p_organization_id: organizationId,
     p_kind: kind,
     p_group_id: groupId,
+    p_sla_state: kind === "situation" ? slaState : null,
     p_page: Math.max(1, Math.trunc(page || 1)),
     p_page_size: Math.min(50, Math.max(1, Math.trunc(pageSize || 10))),
   });
