@@ -111,6 +111,7 @@ export type SacDigitalMessage = {
   media_url: string | null;
   sender_name: string | null;
   sent_at: string;
+  raw_metadata: Record<string, any> | null;
 };
 
 function normalizeRelation<T>(value: T | T[] | null | undefined): T | null {
@@ -162,7 +163,7 @@ export async function listSacDigitalProtocols(organizationId: string) {
 export async function listSacDigitalMessages(organizationId: string, protocolId: string) {
   const { data, error } = await supabase
     .from("sac_digital_messages")
-    .select("id,protocol_id,direction,message_type,body_text,media_url,sender_name,sent_at")
+    .select("id,protocol_id,direction,message_type,body_text,media_url,sender_name,sent_at,raw_metadata")
     .eq("organization_id", organizationId)
     .eq("protocol_id", protocolId)
     .order("sent_at", { ascending: true });
