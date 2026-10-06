@@ -174,6 +174,45 @@ export async function listSacDigitalMessages(organizationId: string, protocolId:
   return (data || []) as SacDigitalMessage[];
 }
 
+
+export async function getSacDigitalUnreadCounts(organizationId: string) {
+  const { data, error } = await supabase.rpc("get_sac_digital_unread_counts", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+
+  const counts: Record<string, number> = {};
+  for (const row of data || []) {
+    const protocolId = String((row as any).protocol_id || "");
+    if (!protocolId) continue;
+    counts[protocolId] = Number((row as any).unread_count || 0);
+  }
+  return counts;
+}
+
+export async function markSacDigitalProtocolRead(
+  organizationId: string,
+  protocolId: string,
+) {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) throw userError || new Error("Usuário não autenticado.");
+
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("sac_digital_protocol_reads")
+    .upsert({
+      organization_id: organizationId,
+      user_id: userData.user.id,
+      protocol_id: protocolId,
+      last_read_at: now,
+      updated_at: now,
+    }, {
+      onConflict: "organization_id,user_id,protocol_id",
+    });
+
+  if (error) throw error;
+}
+
 async function invokeSacDigitalApi(body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke("sac-digital-api", { body });
   if (error) throw error;
