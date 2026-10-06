@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { Camera, Download, MoreVertical, Upload, X } from "lucide-react";
-import html2pdf from "html2pdf.js";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getMediaById, resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
@@ -97,93 +96,156 @@ function triggerImageDownload(blob: Blob, fileName: string) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
 }
 
-async function buildImagesPdf(images: OrderImage[], fileName: string) {
-  const prepared: Array<{ url: string; name: string }> = [];
-  const root = document.createElement("div");
-  root.style.width = "210mm";
-  root.style.background = "#ffffff";
-  root.style.color = "#0d1b2e";
+type PreparedPdfImage = {
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+};
 
+function concatBytes(parts: Uint8Array[]) {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const output = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    output.set(part, offset);
+    offset += part.length;
+  }
+  return output;
+}
+
+async function preparePdfImage(image: OrderImage): Promise<PreparedPdfImage> {
+  const source = await loadOrderImageBlob(image);
+  const bitmap = await createImageBitmap(source.blob);
   try {
-    for (let index = 0; index < images.length; index += 1) {
-      const source = await loadOrderImageBlob(images[index]);
-      const objectUrl = URL.createObjectURL(source.blob);
-      prepared.push({
-        url: objectUrl,
-        name: safeFileBaseName(source.fileName || images[index].name, `imagem-${index + 1}`),
-      });
-    }
+    const maxDimension = 2400;
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
 
-    prepared.forEach((item, index) => {
-      const page = document.createElement("div");
-      page.style.width = "210mm";
-      page.style.height = "297mm";
-      page.style.boxSizing = "border-box";
-      page.style.padding = "14mm";
-      page.style.display = "flex";
-      page.style.flexDirection = "column";
-      page.style.alignItems = "center";
-      page.style.justifyContent = "center";
-      page.style.background = "#ffffff";
-      page.style.pageBreakAfter = index < prepared.length - 1 ? "always" : "auto";
-      page.style.breakAfter = index < prepared.length - 1 ? "page" : "auto";
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Não foi possível preparar a imagem para PDF.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(bitmap, 0, 0, width, height);
 
-      const imageElement = document.createElement("img");
-      imageElement.src = item.url;
-      imageElement.alt = item.name;
-      imageElement.style.display = "block";
-      imageElement.style.maxWidth = "182mm";
-      imageElement.style.maxHeight = "255mm";
-      imageElement.style.objectFit = "contain";
+    const jpegBlob = await new Promise<Blob | null>(resolve =>
+      canvas.toBlob(resolve, "image/jpeg", 0.94),
+    );
+    if (!jpegBlob) throw new Error("Não foi possível converter a imagem para PDF.");
 
-      page.appendChild(imageElement);
-      root.appendChild(page);
-    });
-
-    root.style.position = "fixed";
-    root.style.left = "-100000px";
-    root.style.top = "0";
-    root.style.zIndex = "-1";
-    document.body.appendChild(root);
-
-    await Promise.all(Array.from(root.querySelectorAll("img")).map(imageElement => {
-      if (imageElement.complete) return imageElement.decode?.().catch(() => undefined);
-      return new Promise<void>(resolve => {
-        imageElement.addEventListener("load", () => resolve(), { once: true });
-        imageElement.addEventListener("error", () => resolve(), { once: true });
-      });
-    }));
-
-    const worker: any = (html2pdf as any)()
-      .set({
-        margin: 0,
-        filename: fileName,
-        image: { type: "jpeg", quality: 0.96 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: "#ffffff",
-          logging: false,
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait", compress: true },
-        pagebreak: { mode: ["css", "legacy"] },
-      })
-      .from(root)
-      .toCanvas()
-      .toPdf();
-
-    const pdfBlob = await worker.outputPdf("blob");
-    if (!(pdfBlob instanceof Blob) || pdfBlob.size < 5) {
-      throw new Error("Não foi possível gerar o PDF.");
-    }
-    triggerImageDownload(pdfBlob, fileName);
+    return {
+      bytes: new Uint8Array(await jpegBlob.arrayBuffer()),
+      width,
+      height,
+    };
   } finally {
-    root.remove();
-    prepared.forEach(item => URL.revokeObjectURL(item.url));
+    bitmap.close();
   }
 }
 
+async function createImagesPdfBlob(images: OrderImage[]) {
+  if (!images.length) throw new Error("Nenhuma imagem disponível para gerar o PDF.");
+
+  const prepared: PreparedPdfImage[] = [];
+  for (const image of images) prepared.push(await preparePdfImage(image));
+
+  const encoder = new TextEncoder();
+  const textBytes = (value: string) => encoder.encode(value);
+  const objectCount = 2 + prepared.length * 3;
+  const objects: Uint8Array[] = new Array(objectCount + 1);
+
+  objects[1] = textBytes("<< /Type /Catalog /Pages 2 0 R >>");
+
+  const pageRefs: string[] = [];
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const margin = 36;
+
+  prepared.forEach((image, index) => {
+    const pageObject = 3 + index * 3;
+    const contentObject = pageObject + 1;
+    const imageObject = pageObject + 2;
+    const imageName = `Im${index + 1}`;
+    pageRefs.push(`${pageObject} 0 R`);
+
+    const fitScale = Math.min(
+      (pageWidth - margin * 2) / image.width,
+      (pageHeight - margin * 2) / image.height,
+    );
+    const renderWidth = image.width * fitScale;
+    const renderHeight = image.height * fitScale;
+    const x = (pageWidth - renderWidth) / 2;
+    const y = (pageHeight - renderHeight) / 2;
+    const content = [
+      "q",
+      `${renderWidth.toFixed(3)} 0 0 ${renderHeight.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm`,
+      `/${imageName} Do`,
+      "Q",
+      "",
+    ].join("\n");
+    const contentBytes = textBytes(content);
+
+    objects[pageObject] = textBytes(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /${imageName} ${imageObject} 0 R >> >> /Contents ${contentObject} 0 R >>`,
+    );
+    objects[contentObject] = concatBytes([
+      textBytes(`<< /Length ${contentBytes.length} >>\nstream\n`),
+      contentBytes,
+      textBytes("endstream"),
+    ]);
+    objects[imageObject] = concatBytes([
+      textBytes(`<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`),
+      image.bytes,
+      textBytes("\nendstream"),
+    ]);
+  });
+
+  objects[2] = textBytes(
+    `<< /Type /Pages /Count ${prepared.length} /Kids [${pageRefs.join(" ")}] >>`,
+  );
+
+  const chunks: Uint8Array[] = [textBytes("%PDF-1.4\n")];
+  const offsets = new Array<number>(objectCount + 1).fill(0);
+  let byteOffset = chunks[0].length;
+
+  for (let objectNumber = 1; objectNumber <= objectCount; objectNumber += 1) {
+    offsets[objectNumber] = byteOffset;
+    const objectChunk = concatBytes([
+      textBytes(`${objectNumber} 0 obj\n`),
+      objects[objectNumber],
+      textBytes("\nendobj\n"),
+    ]);
+    chunks.push(objectChunk);
+    byteOffset += objectChunk.length;
+  }
+
+  const xrefOffset = byteOffset;
+  const xrefLines = [
+    "xref",
+    `0 ${objectCount + 1}`,
+    "0000000000 65535 f ",
+    ...offsets.slice(1).map(offset => `${String(offset).padStart(10, "0")} 00000 n `),
+    "trailer",
+    `<< /Size ${objectCount + 1} /Root 1 0 R >>`,
+    "startxref",
+    String(xrefOffset),
+    "%%EOF",
+    "",
+  ].join("\n");
+  chunks.push(textBytes(xrefLines));
+
+  const pdfBytes = concatBytes(chunks);
+  if (pdfBytes.length < 100) throw new Error("Não foi possível gerar o PDF.");
+  return new Blob([pdfBytes], { type: "application/pdf" });
+}
+
+async function buildImagesPdf(images: OrderImage[], fileName: string) {
+  const pdfBlob = await createImagesPdfBlob(images);
+  triggerImageDownload(pdfBlob, fileName);
+}
 async function downloadOrderImage(image: OrderImage, format: OrderImageDownloadFormat, index: number) {
   if (format === "pdf") {
     const baseName = safeFileBaseName(image.name, `imagem-${index + 1}`);
@@ -425,7 +487,7 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     minimizedDescription={image.name || "Imagem da OS"}
     className="max-w-6xl"
     headerActions={
-      <DropdownMenu>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
@@ -437,7 +499,7 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
             <Download size={15} />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-52">
+        <DropdownMenuContent align="end" className="z-[220] min-w-52">
           <DropdownMenuItem disabled={Boolean(busyFormat)} onSelect={() => void download("original")} className="cursor-pointer gap-2">
             <Download size={14} /> Baixar original
           </DropdownMenuItem>
