@@ -77,6 +77,12 @@ const PARTNER_MODULE_GROUPS = [
     moduleKeys: ["queue"],
   },
   {
+    key: "sac_digital",
+    label: "SAC Digital",
+    description: "Atendimento integrado por WhatsApp e outros canais usando a conta SAC Digital da própria empresa.",
+    moduleKeys: ["sac_digital"],
+  },
+  {
     key: "pbx",
     label: "PABX Union",
     description: "Telefonia, ramais e recursos do PABX Union.",
