@@ -22,6 +22,7 @@ const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_req
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
 const ACTION_SUFFIXES = [".create", ".edit", ".update", ".delete", ".toggle_active", ".toggle_featured", ".status.change", ".refresh", ".convert_to_order", ".lookup_cnpj"];
 const HIDDEN_LEGACY_PERMISSIONS = new Set([
+  "tools.sac_digital.use",
   "employees.delete",
   "employees.details.view",
   "employees.table.view",
