@@ -26,8 +26,10 @@ import {
   getMySacDigitalOperatorBinding,
   getSacDigitalIntegrationStatus,
   getSacDigitalRoutingOptions,
+  getSacDigitalUnreadCounts,
   listSacDigitalMessages,
   listSacDigitalProtocols,
+  markSacDigitalProtocolRead,
   refreshSacDigitalProtocol,
   returnSacDigitalProtocolToInbox,
   sacDigitalMediaUrl,
@@ -151,6 +153,9 @@ export function SacDigitalToolPage({
   const [messages, setMessages] = useState<SacDigitalMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [operatorFilter, setOperatorFilter] = useState("all");
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const syncedProtocolsRef = useRef(new Set<string>());
@@ -160,20 +165,42 @@ export function SacDigitalToolPage({
     [protocols, selectedProtocolId],
   );
 
+  const operatorFilterOptions = useMemo(
+    () => Array.from(new Set(
+      protocols
+        .map(protocol => protocol.operator_name?.trim() || "")
+        .filter(Boolean),
+    )).sort((left, right) => left.localeCompare(right, "pt-BR")),
+    [protocols],
+  );
+
+  const unreadConversationCount = useMemo(
+    () => protocols.filter(protocol => Number(unreadCounts[protocol.id] || 0) > 0).length,
+    [protocols, unreadCounts],
+  );
+
   const filteredProtocols = useMemo(() => {
     const query = conversationSearch.trim().toLocaleLowerCase("pt-BR");
-    if (!query) return protocols;
     return protocols.filter(protocol => {
-      const haystack = [
+      const matchesSearch = !query || [
         protocolDisplayName(protocol),
         protocol.contact?.phone || "",
         protocol.external_protocol_id,
         protocol.department_name || "",
         protocol.operator_name || "",
-      ].join(" ").toLocaleLowerCase("pt-BR");
-      return haystack.includes(query);
+      ].join(" ").toLocaleLowerCase("pt-BR").includes(query);
+
+      const matchesStatus = statusFilter === "all"
+        || (statusFilter === "unread" && Number(unreadCounts[protocol.id] || 0) > 0)
+        || protocol.status === statusFilter;
+
+      const matchesOperator = operatorFilter === "all"
+        || (operatorFilter === "unassigned" && !protocol.operator_name)
+        || protocol.operator_name === operatorFilter;
+
+      return matchesSearch && matchesStatus && matchesOperator;
     });
-  }, [conversationSearch, protocols]);
+  }, [conversationSearch, operatorFilter, protocols, statusFilter, unreadCounts]);
 
   const loadStatus = useCallback(async () => {
     if (!activeOrganizationId) return;
@@ -232,18 +259,32 @@ export function SacDigitalToolPage({
     }
   }, [activeOrganizationId, canViewMessages]);
 
+
+  const loadUnreadCounts = useCallback(async () => {
+    if (!activeOrganizationId || !canViewMessages) {
+      setUnreadCounts({});
+      return;
+    }
+    try {
+      const counts = await getSacDigitalUnreadCounts(activeOrganizationId);
+      setUnreadCounts(counts);
+    } catch {
+      // A conversa continua funcional mesmo se o contador falhar temporariamente.
+    }
+  }, [activeOrganizationId, canViewMessages]);
+
   useEffect(() => {
     let alive = true;
     const start = async () => {
       setLoading(true);
-      await Promise.all([loadStatus(), loadProtocols(true)]);
+      await Promise.all([loadStatus(), loadProtocols(true), loadUnreadCounts()]);
       if (alive) setLoading(false);
     };
     void start();
     return () => {
       alive = false;
     };
-  }, [loadProtocols, loadStatus]);
+  }, [loadProtocols, loadStatus, loadUnreadCounts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,6 +320,13 @@ export function SacDigitalToolPage({
         || !selectedProtocol?.external_protocol_id
       ) return;
 
+      try {
+        await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId);
+        if (!cancelled) await loadUnreadCounts();
+      } catch {
+        // Não bloqueia a abertura da conversa.
+      }
+
       const syncKey = `${activeOrganizationId}:${selectedProtocol.external_protocol_id}`;
       if (syncedProtocolsRef.current.has(syncKey)) return;
       syncedProtocolsRef.current.add(syncKey);
@@ -293,6 +341,8 @@ export function SacDigitalToolPage({
           loadMessages(selectedProtocolId, false),
           loadProtocols(false),
         ]);
+        await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId);
+        if (!cancelled) await loadUnreadCounts();
       } catch {
         syncedProtocolsRef.current.delete(syncKey);
       }
@@ -306,6 +356,7 @@ export function SacDigitalToolPage({
     activeOrganizationId,
     loadMessages,
     loadProtocols,
+    loadUnreadCounts,
     selectedProtocol?.external_protocol_id,
     selectedProtocolId,
   ]);
@@ -347,7 +398,19 @@ export function SacDigitalToolPage({
           void loadProtocols(false);
           const changedProtocolId = String((payload.new as any)?.protocol_id || (payload.old as any)?.protocol_id || "");
           if (selectedProtocolId && (!changedProtocolId || changedProtocolId === selectedProtocolId)) {
-            void loadMessages(selectedProtocolId, false);
+            void (async () => {
+              await loadMessages(selectedProtocolId, false);
+              if (activeOrganizationId) {
+                try {
+                  await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId);
+                } catch {
+                  // Mantém o realtime da conversa mesmo se o marcador de leitura falhar.
+                }
+              }
+              await loadUnreadCounts();
+            })();
+          } else {
+            void loadUnreadCounts();
           }
         },
       )
@@ -356,7 +419,7 @@ export function SacDigitalToolPage({
     return () => {
       void supabase.removeChannel(realtime);
     };
-  }, [activeOrganizationId, canViewMessages, loadMessages, loadProtocols, selectedProtocolId]);
+  }, [activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts, selectedProtocolId]);
 
   const sendMessage = async () => {
     if (!activeOrganizationId || !selectedProtocol || !canSendMessages || sending) return;
@@ -652,7 +715,9 @@ export function SacDigitalToolPage({
             <div className="border-b border-border bg-muted/35 p-3">
               <div className="min-w-0">
                 <p className="text-base font-black text-foreground">Conversas</p>
-                <p className="text-[10px] text-muted-foreground">{protocols.length} atendimento(s) · atualizações em tempo real</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {protocols.length} atendimento(s) · {unreadConversationCount > 0 ? `${unreadConversationCount} não lida(s)` : "tempo real"}
+                </p>
               </div>
               <div className="relative mt-3">
                 <Search
@@ -666,6 +731,33 @@ export function SacDigitalToolPage({
                   className="admin-input h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
               </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <select
+                  value={statusFilter}
+                  onChange={event => setStatusFilter(event.target.value)}
+                  className="admin-input h-9 min-w-0 rounded-lg border border-border bg-card px-2 text-xs text-foreground"
+                  aria-label="Filtrar por situação"
+                >
+                  <option value="all">Todas</option>
+                  <option value="unread">Não lidas</option>
+                  <option value="open">Abertas</option>
+                  <option value="in_att">Em atendimento</option>
+                  <option value="inbox">Caixa de entrada</option>
+                  <option value="finished">Finalizadas</option>
+                </select>
+                <select
+                  value={operatorFilter}
+                  onChange={event => setOperatorFilter(event.target.value)}
+                  className="admin-input h-9 min-w-0 rounded-lg border border-border bg-card px-2 text-xs text-foreground"
+                  aria-label="Filtrar por atendente"
+                >
+                  <option value="all">Todos atendentes</option>
+                  <option value="unassigned">Sem atendente</option>
+                  {operatorFilterOptions.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -675,6 +767,7 @@ export function SacDigitalToolPage({
                 </div>
               ) : filteredProtocols.map(protocol => {
                 const selected = protocol.id === selectedProtocolId;
+                const unread = Number(unreadCounts[protocol.id] || 0);
                 return <button
                   key={protocol.id}
                   type="button"
@@ -707,6 +800,11 @@ export function SacDigitalToolPage({
                       {protocol.contact?.customer_id && (
                         <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-bold text-emerald-700 dark:text-emerald-300">
                           CRM
+                        </span>
+                      )}
+                      {unread > 0 && (
+                        <span className="ml-auto flex min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white">
+                          {unread > 99 ? "99+" : unread}
                         </span>
                       )}
                     </div>
