@@ -79,3 +79,130 @@ export function sacDigitalWebhookUrl(token?: string | null) {
   if (!token) return "";
   return `${supabaseUrl}/functions/v1/sac-digital-webhook?token=${encodeURIComponent(token)}`;
 }
+
+export type SacDigitalProtocolListItem = {
+  id: string;
+  external_protocol_id: string;
+  status: string;
+  operator_name: string | null;
+  department_name: string | null;
+  channel_number: string | null;
+  opened_at: string | null;
+  closed_at: string | null;
+  last_message_at: string | null;
+  contact: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    customer_id: string | null;
+    customer: {
+      id: string;
+      full_name: string | null;
+    } | null;
+  } | null;
+};
+
+export type SacDigitalMessage = {
+  id: string;
+  protocol_id: string;
+  direction: "incoming" | "outgoing";
+  message_type: string;
+  body_text: string | null;
+  media_url: string | null;
+  sender_name: string | null;
+  sent_at: string;
+};
+
+function normalizeRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+export async function listSacDigitalProtocols(organizationId: string) {
+  const { data, error } = await supabase
+    .from("sac_digital_protocols")
+    .select(`
+      id,
+      external_protocol_id,
+      status,
+      operator_name,
+      department_name,
+      channel_number,
+      opened_at,
+      closed_at,
+      last_message_at,
+      contact:sac_digital_contacts(
+        id,
+        name,
+        phone,
+        customer_id,
+        customer:customers(id,full_name)
+      )
+    `)
+    .eq("organization_id", organizationId)
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => {
+    const contact = normalizeRelation<any>(row.contact);
+    return {
+      ...row,
+      contact: contact
+        ? {
+            ...contact,
+            customer: normalizeRelation<any>(contact.customer),
+          }
+        : null,
+    };
+  }) as SacDigitalProtocolListItem[];
+}
+
+export async function listSacDigitalMessages(organizationId: string, protocolId: string) {
+  const { data, error } = await supabase
+    .from("sac_digital_messages")
+    .select("id,protocol_id,direction,message_type,body_text,media_url,sender_name,sent_at")
+    .eq("organization_id", organizationId)
+    .eq("protocol_id", protocolId)
+    .order("sent_at", { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as SacDigitalMessage[];
+}
+
+async function invokeSacDigitalApi(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke("sac-digital-api", { body });
+  if (error) throw error;
+  if (!data?.success) throw new Error(String(data?.error || "A SAC Digital não conseguiu concluir a operação."));
+  return data as Record<string, unknown>;
+}
+
+export function testSacDigitalConnection(organizationId: string) {
+  return invokeSacDigitalApi({
+    action: "test_connection",
+    organization_id: organizationId,
+  });
+}
+
+export function refreshSacDigitalProtocol(organizationId: string, protocol: string) {
+  return invokeSacDigitalApi({
+    action: "refresh_protocol",
+    organization_id: organizationId,
+    protocol,
+  });
+}
+
+export function sendSacDigitalTextMessage(
+  organizationId: string,
+  protocol: string,
+  text: string,
+) {
+  return invokeSacDigitalApi({
+    action: "send_message",
+    organization_id: organizationId,
+    protocol,
+    text,
+  });
+}
+
