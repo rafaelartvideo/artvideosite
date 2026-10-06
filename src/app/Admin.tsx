@@ -52,6 +52,7 @@ const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabS
 const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
+const SacDigitalSettingsPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalSettingsPage").then(({ SacDigitalSettingsPage }) => ({ default: SacDigitalSettingsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
@@ -238,7 +239,7 @@ export function AdminDashboard({
       { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
     ] : []),
     ...(canAccessSacDigitalTool ? [
-      { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Atenda clientes e configure a integração SAC Digital desta empresa.", href: null },
+      { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Atenda clientes e responda mensagens sem sair da Union.", href: null },
     ] : []),
     ...(isArtVideoOrganization && hasPermission("tools.uniq.use") ? [
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
@@ -284,7 +285,10 @@ export function AdminDashboard({
       : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "sac-digital"
       ? canAccessSacDigitalTool
-        ? <SacDigitalToolPage onBack={() => navigateAdmin("tools")} />
+        ? <SacDigitalToolPage
+          onBack={() => navigateAdmin("tools")}
+          onOpenSettings={hasPermission("sac_digital.settings.manage") ? () => navigateAdmin("integrations") : undefined}
+        />
         : <Navigate to={adminPath("tools")} replace />
       : toolsHub;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("home", null, null, { replace: true, crmMode: false }); };
@@ -352,6 +356,7 @@ export function AdminDashboard({
             <Route path="operation/employees/*" element={<Navigate to="/admin/operation/roles" replace />} />
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
             <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization && !crmMode} onBack={() => crmMode ? navigateAdmin("crm", null, null, { crmMode: true }) : isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
+            <Route path="operation/integrations/*" element={<SacDigitalSettingsPage onBack={() => backToParent("integrations")} />} />
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode
