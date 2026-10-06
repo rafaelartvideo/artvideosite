@@ -206,3 +206,18 @@ export function sendSacDigitalTextMessage(
   });
 }
 
+
+
+const SAC_DIGITAL_MEDIA_ORIGIN = "https://relacionamento.gabinete.online";
+
+export function sacDigitalMediaUrl(value?: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("/")) return `${SAC_DIGITAL_MEDIA_ORIGIN}${raw}`;
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "https:" ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
+}
