@@ -1,6 +1,6 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
@@ -311,6 +311,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       pageSize: DASHBOARD_ORDER_PAGE_SIZE,
     }),
     enabled: Boolean(activeOrganizationId && activeModule === "orders" && orderDistributionSelection),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
   const inventoryPurchasesQuery = useQuery({
@@ -468,18 +469,25 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         <DashboardPanel title={selectedTitle} subtitle={selectedSubtitle} icon={ClipboardList} onOpen={() => open("orders")}>
           {!orderDistributionSelection ? (
             <DashboardEmpty text="Selecione uma situação ou um status no gráfico para ver as OS desse grupo." />
-          ) : orderGroupPageQuery.isPending ? (
-            <LoadingState text="Carregando OS..." />
           ) : orderGroupPageQuery.isError ? (
             <DashboardEmpty text={systemErrorMessage(orderGroupPageQuery.error)} />
           ) : (
             <div className="-m-3 sm:-m-4">
-              <div className="p-3 sm:p-4">
-                <OrdersList
-                  orders={orderGroupPageQuery.data || []}
-                  onOpen={openOrderFromDashboard}
-                  badge={orderDistributionSelection.kind === "situation" ? "status" : "situation"}
-                />
+              <div className="relative min-h-[480px] p-3 sm:p-4">
+                <div className={cn("transition-opacity duration-150", orderGroupPageQuery.isFetching && "pointer-events-none opacity-55")}>
+                  <OrdersList
+                    orders={orderGroupPageQuery.data || []}
+                    onOpen={openOrderFromDashboard}
+                    badge={orderDistributionSelection.kind === "situation" ? "status" : "situation"}
+                  />
+                </div>
+                {orderGroupPageQuery.isFetching && (
+                  <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-end sm:inset-x-4 sm:top-4">
+                    <span className="rounded-md border border-[#d9e1ec] bg-white/95 px-2.5 py-1 text-[10px] font-bold text-[#5a6a82] shadow-sm">
+                      Carregando...
+                    </span>
+                  </div>
+                )}
               </div>
               <PaginationBar
                 page={safeOrderDistributionPage}
