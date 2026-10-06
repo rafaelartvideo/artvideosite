@@ -64,6 +64,7 @@ type Metric = { label: string; value: ReactNode; icon: ElementType; tone?: Dashb
 const DAY_MS = 86_400_000;
 const DASHBOARD_ORDER_PAGE_SIZE = 10;
 const DASHBOARD_RETURN_STATE_KEY = "union-dashboard-return-state-v1";
+const DASHBOARD_ORDER_CHART_MODE_KEY = "union-dashboard-order-chart-mode-v1";
 const periodOptions = [
   { value: 7, label: "7 dias" },
   { value: 30, label: "30 dias" },
@@ -121,6 +122,7 @@ function groupByLabel<T>(items: T[], getLabel: (item: T) => string): DashboardCh
 }
 
 type OrderDistributionKind = "situation" | "status";
+type OrderDistributionChartMode = "pie" | "vertical" | "horizontal";
 type OrderDistributionSelection = {
   kind: OrderDistributionKind;
   id: string | null;
@@ -164,6 +166,12 @@ function consumeDashboardReturnState(organizationId?: string | null): DashboardR
 function saveDashboardReturnState(state: DashboardReturnState) {
   if (typeof window === "undefined") return;
   window.sessionStorage.setItem(DASHBOARD_RETURN_STATE_KEY, JSON.stringify(state));
+}
+
+function readOrderChartMode(): OrderDistributionChartMode {
+  if (typeof window === "undefined") return "horizontal";
+  const saved = window.localStorage.getItem(DASHBOARD_ORDER_CHART_MODE_KEY);
+  return saved === "pie" || saved === "vertical" || saved === "horizontal" ? saved : "horizontal";
 }
 
 function buildTrend<T>(items: T[], days: number, dateOf: (item: T) => string | null | undefined, valueOf: (item: T) => number = () => 1): DashboardChartPoint[] {
@@ -236,6 +244,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const [periodDays, setPeriodDays] = useState(returnState?.periodDays || 30);
   const [orderDistributionSelection, setOrderDistributionSelection] = useState<OrderDistributionSelection | null>(returnState?.orderDistributionSelection || null);
   const [orderDistributionPage, setOrderDistributionPage] = useState(Math.max(1, returnState?.orderDistributionPage || 1));
+  const [orderDistributionChartMode, setOrderDistributionChartMode] = useState<OrderDistributionChartMode>(readOrderChartMode);
   const organizationRef = useRef(activeOrganizationId);
   const canViewInventoryMovements = hasPermission("inventory.movements.view");
   const access = useMemo<DashboardAccess>(() => ({
@@ -372,6 +381,11 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   }, [orderDistributionPage, selectedOrderTotalPages]);
 
   const openOrderFromDashboard = (orderId: string) => {
+    if (onOpenOrder) {
+      onOpenOrder(orderId);
+      return;
+    }
+
     saveDashboardReturnState({
       organizationId: activeOrganizationId || null,
       activeModule,
@@ -385,8 +399,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         : null,
       orderDistributionPage: safeOrderDistributionPage,
     });
-    if (onOpenOrder) onOpenOrder(orderId);
-    else open("orders");
+    open("orders");
   };
 
   const moduleContent = () => {
@@ -406,36 +419,95 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         : "Ordens por seleção";
       const selectedSubtitle = orderDistributionSelection
         ? `${selectedOrderTotal} ${selectedOrderTotal === 1 ? "ordem" : "ordens"} · ${orderDistributionSelection.kind === "situation" ? "Situação" : "Status"}`
-        : "Clique em uma barra para visualizar as OS";
+        : "Clique em um item do gráfico para visualizar as OS";
+
+      const chartInteractionHint = orderDistributionChartMode === "pie"
+        ? "Clique em uma fatia para filtrar"
+        : "Clique em uma barra para filtrar";
+      const setChartMode = (mode: OrderDistributionChartMode) => {
+        setOrderDistributionChartMode(mode);
+        if (typeof window !== "undefined") window.localStorage.setItem(DASHBOARD_ORDER_CHART_MODE_KEY, mode);
+      };
+      const selectDistribution = (kind: OrderDistributionKind) => (point: DashboardChartPoint) => {
+        setOrderDistributionSelection({
+          kind,
+          id: point.id || null,
+          name: point.name,
+          total: point.value,
+        });
+        setOrderDistributionPage(1);
+      };
+      const renderDistributionChart = (data: DashboardChartPoint[], kind: OrderDistributionKind) => {
+        const selectedKey = orderDistributionSelection?.kind === kind
+          ? `${kind}:${orderDistributionSelection.id || "none"}`
+          : null;
+
+        if (orderDistributionChartMode === "pie") {
+          return (
+            <DashboardDonutChart
+              data={data}
+              minHeight={180}
+              selectedKey={selectedKey}
+              onSelect={selectDistribution(kind)}
+            />
+          );
+        }
+
+        return (
+          <DashboardBarChart
+            data={data}
+            layout={orderDistributionChartMode === "horizontal" ? "vertical" : "horizontal"}
+            minHeight={orderDistributionChartMode === "horizontal" ? 150 : 220}
+            selectedKey={selectedKey}
+            onSelect={selectDistribution(kind)}
+          />
+        );
+      };
 
       const distributions = (
         <DashboardPanel
           title="Distribuição das OS"
           subtitle="Situações e status atuais de todas as ordens visíveis"
           icon={Activity}
-          headerAside={<span className="whitespace-nowrap text-[10px] font-bold text-[#5a6a82]">Total <strong className="text-xs text-[#0d1b2e]">{summary.total_orders}</strong></span>}
+          headerAside={
+            <div className="flex items-center gap-2">
+              <div className="inline-flex shrink-0 rounded-lg border border-border bg-muted/50 p-0.5">
+                {([
+                  ["pie", "Pizza", "Gráfico de pizza"],
+                  ["vertical", "Vert.", "Barras verticais"],
+                  ["horizontal", "Horiz.", "Barras horizontais"],
+                ] as const).map(([mode, label, title]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    title={title}
+                    aria-label={title}
+                    aria-pressed={orderDistributionChartMode === mode}
+                    onClick={() => setChartMode(mode)}
+                    className={cn(
+                      "rounded-md px-2 py-1 text-[9px] font-black transition-colors",
+                      orderDistributionChartMode === mode
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <span className="whitespace-nowrap text-[10px] font-bold text-muted-foreground">
+                Total <strong className="text-xs text-foreground">{summary.total_orders}</strong>
+              </span>
+            </div>
+          }
         >
           <div className="space-y-5">
             <section>
               <div className="mb-1">
                 <h4 className="text-xs font-black text-[#0d1b2e]">Situações</h4>
-                <p className="text-[10px] font-semibold text-[#7a879a]">Clique em uma barra para filtrar</p>
+                <p className="text-[10px] font-semibold text-[#7a879a]">{chartInteractionHint}</p>
               </div>
-              <DashboardBarChart
-                data={situationData}
-                layout="vertical"
-                minHeight={150}
-                selectedKey={orderDistributionSelection?.kind === "situation" ? `situation:${orderDistributionSelection.id || "none"}` : null}
-                onSelect={point => {
-                  setOrderDistributionSelection({
-                    kind: "situation",
-                    id: point.id || null,
-                    name: point.name,
-                    total: point.value,
-                  });
-                  setOrderDistributionPage(1);
-                }}
-              />
+              {renderDistributionChart(situationData, "situation")}
             </section>
 
             <div className="border-t border-[#0d1b2e]/8" />
@@ -443,23 +515,9 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             <section>
               <div className="mb-1">
                 <h4 className="text-xs font-black text-[#0d1b2e]">Status</h4>
-                <p className="text-[10px] font-semibold text-[#7a879a]">Clique em uma barra para filtrar</p>
+                <p className="text-[10px] font-semibold text-[#7a879a]">{chartInteractionHint}</p>
               </div>
-              <DashboardBarChart
-                data={statusData}
-                layout="vertical"
-                minHeight={150}
-                selectedKey={orderDistributionSelection?.kind === "status" ? `status:${orderDistributionSelection.id || "none"}` : null}
-                onSelect={point => {
-                  setOrderDistributionSelection({
-                    kind: "status",
-                    id: point.id || null,
-                    name: point.name,
-                    total: point.value,
-                  });
-                  setOrderDistributionPage(1);
-                }}
-              />
+              {renderDistributionChart(statusData, "status")}
             </section>
           </div>
         </DashboardPanel>
