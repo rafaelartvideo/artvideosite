@@ -295,21 +295,48 @@ export async function getMySacDigitalOperatorBinding(organizationId: string) {
   } as SacDigitalOperatorBinding;
 }
 
-export async function setMySacDigitalOperatorBinding(
+
+export type SacDigitalOperatorAdminData = {
+  employees: Array<{
+    user_id: string;
+    full_name: string;
+    email: string;
+    is_owner: boolean;
+    operator: {
+      id: string;
+      name: string;
+    } | null;
+  }>;
+  operators: Array<{
+    id: string;
+    name: string;
+    online: boolean;
+  }>;
+};
+
+export async function getSacDigitalOperatorBindingsAdmin(organizationId: string) {
+  const data = await invokeSacDigitalApi({
+    action: "operator_bindings_admin",
+    organization_id: organizationId,
+  });
+
+  return {
+    employees: Array.isArray(data.employees) ? data.employees : [],
+    operators: Array.isArray(data.operators) ? data.operators : [],
+  } as SacDigitalOperatorAdminData;
+}
+
+export async function setSacDigitalOperatorBindingAdmin(
   organizationId: string,
+  userId: string,
   operatorId: string,
 ) {
-  const data = await invokeSacDigitalApi({
-    action: "set_my_operator_binding",
+  return invokeSacDigitalApi({
+    action: "set_operator_binding_admin",
     organization_id: organizationId,
+    user_id: userId,
     operator_id: operatorId,
   });
-  return {
-    linked: data.linked === true,
-    operator: data.operator && typeof data.operator === "object"
-      ? data.operator as { id: string; name: string }
-      : null,
-  } as SacDigitalOperatorBinding;
 }
 
 export function assumeSacDigitalProtocol(
