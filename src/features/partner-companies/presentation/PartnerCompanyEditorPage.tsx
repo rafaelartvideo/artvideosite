@@ -371,7 +371,11 @@ export function PartnerCompanyEditorPage({
       }
     }
 
+    const existingSettings = editing && company?.settings && typeof company.settings === "object"
+      ? company.settings
+      : {};
     const settings: PartnerCompanySettings = {
+      ...existingSettings,
       person_type: form.personType,
       phone: form.phone.trim(),
       whatsapp: form.whatsapp.trim(),
