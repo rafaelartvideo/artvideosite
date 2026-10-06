@@ -253,7 +253,9 @@ export async function setOrganizationModuleEnabled(organizationId: string, modul
 
   const moduleKeys = moduleKey === "inventory" || moduleKey === "products"
     ? ["inventory", "products"]
-    : [moduleKey];
+    : moduleKey === "customers" || moduleKey === "employees"
+      ? ["customers", "employees"]
+      : [moduleKey];
   const now = new Date().toISOString();
 
   return supabase
