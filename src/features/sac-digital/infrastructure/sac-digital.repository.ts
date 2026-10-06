@@ -84,6 +84,7 @@ export type SacDigitalProtocolListItem = {
   id: string;
   external_protocol_id: string;
   status: string;
+  operator_id: string | null;
   operator_name: string | null;
   department_name: string | null;
   channel_number: string | null;
@@ -126,6 +127,7 @@ export async function listSacDigitalProtocols(organizationId: string) {
       id,
       external_protocol_id,
       status,
+      operator_id,
       operator_name,
       department_name,
       channel_number,
@@ -230,6 +232,56 @@ export async function getSacDigitalRoutingOptions(organizationId: string) {
     operators: Array.isArray(data.operators) ? data.operators : [],
     departments: Array.isArray(data.departments) ? data.departments : [],
   } as SacDigitalRoutingOptions;
+}
+
+
+export type SacDigitalOperatorBinding = {
+  linked: boolean;
+  operator: {
+    id: string;
+    name: string;
+  } | null;
+};
+
+export async function getMySacDigitalOperatorBinding(organizationId: string) {
+  const data = await invokeSacDigitalApi({
+    action: "my_operator_binding",
+    organization_id: organizationId,
+  });
+  return {
+    linked: data.linked === true,
+    operator: data.operator && typeof data.operator === "object"
+      ? data.operator as { id: string; name: string }
+      : null,
+  } as SacDigitalOperatorBinding;
+}
+
+export async function setMySacDigitalOperatorBinding(
+  organizationId: string,
+  operatorId: string,
+) {
+  const data = await invokeSacDigitalApi({
+    action: "set_my_operator_binding",
+    organization_id: organizationId,
+    operator_id: operatorId,
+  });
+  return {
+    linked: data.linked === true,
+    operator: data.operator && typeof data.operator === "object"
+      ? data.operator as { id: string; name: string }
+      : null,
+  } as SacDigitalOperatorBinding;
+}
+
+export function assumeSacDigitalProtocol(
+  organizationId: string,
+  protocol: string,
+) {
+  return invokeSacDigitalApi({
+    action: "assume_protocol",
+    organization_id: organizationId,
+    protocol,
+  });
 }
 
 export function forwardSacDigitalProtocol(
