@@ -149,7 +149,7 @@ export function AdminDashboard({
     if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "operation") return operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
-    if (tab === "tools") return isArtVideoOrganization || isPlatformOperatorOrganization;
+    if (tab === "tools") return isArtVideoOrganization || isPlatformOperatorOrganization || ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule));
     return hasPermission(permissionForTab[tab]) && isAdminModuleEnabled(tab, hasModule);
   };
 
