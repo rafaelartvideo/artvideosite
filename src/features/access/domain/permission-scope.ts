@@ -50,6 +50,19 @@ export function isPlatformSharedPermissionKey(key: string) {
     || PLATFORM_SHARED_PREFIXES.some(prefix => key.startsWith(prefix));
 }
 
+export function isArtvideoOnlyPermissionKey(key: string) {
+  return key.startsWith("products.")
+    || key.startsWith("categories.")
+    || key.startsWith("brands.")
+    || key.startsWith("services.")
+    || key.startsWith("filters.")
+    || key.startsWith("site.")
+    || key.startsWith("site_settings.")
+    || key.startsWith("contact.")
+    || key === "tools.sac_digital.use"
+    || key === "tools.uniq.use";
+}
+
 function requiredModuleKeys(key: string): readonly string[] | null {
   if (key === "organizations.audit.view") return null;
 
@@ -99,10 +112,7 @@ export function isPermissionVisibleForOrganization(
   }
 
   if (isPlatformOnlyPermissionKey(key)) return false;
-
-  if (key === "tools.sac_digital.use" || key === "tools.uniq.use") {
-    return context.isArtvideoTenant;
-  }
+  if (isArtvideoOnlyPermissionKey(key) && !context.isArtvideoTenant) return false;
 
   const requiredModules = requiredModuleKeys(key);
   if (requiredModules === null) return true;
