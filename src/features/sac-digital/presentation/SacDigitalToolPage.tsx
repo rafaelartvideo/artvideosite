@@ -395,6 +395,7 @@ export function SacDigitalToolPage({
         error: true,
       });
     } finally {
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
       setSendingMedia(false);
     }
   };
