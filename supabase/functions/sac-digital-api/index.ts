@@ -488,6 +488,7 @@ Deno.serve(async request => {
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       const applied = await enrichProtocol(organizationId, protocol);
       const history = await syncProtocolHistory(organizationId, protocol);
+      EdgeRuntime.waitUntil(cleanupOutbox(organizationId));
       return json({
         success: true,
         protocol,
@@ -538,6 +539,7 @@ Deno.serve(async request => {
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       const applied = await enrichProtocol(organizationId, protocol);
       const history = await syncProtocolHistory(organizationId, protocol);
+      EdgeRuntime.waitUntil(cleanupOutbox(organizationId));
       return json({
         success: true,
         protocol,
