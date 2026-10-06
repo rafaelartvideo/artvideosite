@@ -15,6 +15,7 @@ export type SacDigitalIntegrationStatus = {
 export type SacDigitalIntegrationSettings = SacDigitalIntegrationStatus & {
   workspace_name: string;
   api_base_url: string;
+  client_id: string;
   credential_updated_at?: string | null;
   webhook_token: string | null;
 };
@@ -23,7 +24,8 @@ export type SacDigitalIntegrationInput = {
   enabled: boolean;
   workspace_name: string;
   api_base_url: string;
-  api_key?: string;
+  client_id: string;
+  client_secret?: string;
 };
 
 function normalizeRpcData<T>(data: unknown): T {
@@ -58,7 +60,8 @@ export async function saveSacDigitalIntegrationSettings(
     p_enabled: input.enabled,
     p_workspace_name: input.workspace_name || null,
     p_api_base_url: input.api_base_url || null,
-    p_api_key: input.api_key?.trim() || null,
+    p_client_id: input.client_id?.trim() || null,
+    p_client_secret: input.client_secret?.trim() || null,
   });
   if (error) throw error;
   return normalizeRpcData<SacDigitalIntegrationSettings>(data);
