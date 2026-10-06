@@ -196,6 +196,209 @@ Deno.serve(async request => {
     return applied && typeof applied === "object" ? applied as Record<string, unknown> : {};
   };
 
+
+  const sha256 = async (value: string) => {
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+    return Array.from(new Uint8Array(hash))
+      .map(byte => byte.toString(16).padStart(2, "0"))
+      .join("");
+  };
+
+  const sacDateIso = (value: unknown) => {
+    const text = String(value || "").trim();
+    if (!text) return new Date().toISOString();
+    const normalized = text.includes("T") ? text : text.replace(" ", "T");
+    const withZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
+      ? normalized
+      : `${normalized}-03:00`;
+    const date = new Date(withZone);
+    return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+  };
+
+  const historyMessageShape = (entry: Record<string, unknown>) => {
+    const text = String(entry.text || "").trim();
+    const image = String(entry.image || "").trim();
+    const video = String(entry.video || "").trim();
+    const audio = String(entry.audio || "").trim();
+    const file = String(entry.file || "").trim();
+    const place = String(entry.place || "").trim();
+    const lat = entry.lat == null ? "" : String(entry.lat);
+    const lon = entry.lon == null ? "" : String(entry.lon);
+    const vcardName = String(entry.vcard_name || entry.v_name || "").trim();
+    const vcardPhone = String(entry.vcard_phone || entry.v_number || "").trim();
+
+    const messageType = image ? "image"
+      : video ? "video"
+      : audio ? "audio"
+      : file ? "file"
+      : place || lat || lon ? "location"
+      : vcardName || vcardPhone ? "vcard"
+      : text ? "text"
+      : "unknown";
+
+    const mediaUrl = image || video || audio || file || null;
+    return { text: text || null, image, video, audio, file, place, lat, lon, vcardName, vcardPhone, messageType, mediaUrl };
+  };
+
+  const syncProtocolHistory = async (organizationId: string, protocol: string) => {
+    const credentials = await loadCredentials(organizationId);
+    if (!credentials.enabled) throw new Error("Integração SAC Digital está desativada.");
+
+    const { response, body } = await apiRequest(
+      organizationId,
+      credentials,
+      `/protocol/messages?protocol=${encodeURIComponent(protocol)}`,
+      { method: "GET" },
+    );
+
+    const history = Array.isArray(body.historic)
+      ? body.historic.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+      : [];
+
+    if (!response.ok || body.status === false || !Array.isArray(body.historic)) {
+      console.error("[SAC DIGITAL API] protocol history failed", {
+        organization_id: organizationId,
+        protocol,
+        status: response.status,
+        request_id: body.request_id,
+      });
+      throw new Error("Não foi possível sincronizar o histórico da conversa.");
+    }
+
+    const { data: protocolRow, error: protocolError } = await admin
+      .from("sac_digital_protocols")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("external_protocol_id", protocol)
+      .maybeSingle();
+
+    if (protocolError || !protocolRow?.id) {
+      throw new Error("Protocolo não encontrado na Union.");
+    }
+
+    const { data: localRows, error: localError } = await admin
+      .from("sac_digital_messages")
+      .select("id,direction,message_type,body_text,media_url,sent_at,external_message_id,raw_metadata")
+      .eq("organization_id", organizationId)
+      .eq("protocol_id", protocolRow.id)
+      .order("sent_at", { ascending: true });
+
+    if (localError) throw new Error("Não foi possível comparar o histórico local.");
+
+    const localMessages = [...(localRows || [])] as Array<Record<string, any>>;
+    let imported = 0;
+    let matched = 0;
+    let latestAt: string | null = null;
+
+    for (const entry of history) {
+      const shape = historyMessageShape(entry);
+      const sentAt = sacDateIso(entry.created_at || (entry.status as Record<string, unknown> | undefined)?.sended_at);
+      if (!latestAt || new Date(sentAt).getTime() > new Date(latestAt).getTime()) latestAt = sentAt;
+
+      const fingerprint = await sha256(JSON.stringify({
+        protocol,
+        created_at: String(entry.created_at || ""),
+        by: String(entry.by || ""),
+        operator: String(entry.operator || ""),
+        text: shape.text || "",
+        image: shape.image,
+        video: shape.video,
+        audio: shape.audio,
+        file: shape.file,
+        place: shape.place,
+        lat: shape.lat,
+        lon: shape.lon,
+        vcard_name: shape.vcardName,
+        vcard_phone: shape.vcardPhone,
+      }));
+      const historyId = `sac-history:${fingerprint}`;
+
+      const alreadyIndexed = localMessages.find(row => row.external_message_id === historyId);
+      if (alreadyIndexed) {
+        matched += 1;
+        continue;
+      }
+
+      const targetTime = new Date(sentAt).getTime();
+      const candidate = localMessages.find(row => {
+        const localTime = new Date(String(row.sent_at || "")).getTime();
+        if (!Number.isFinite(localTime) || Math.abs(localTime - targetTime) > 180_000) return false;
+        const sameText = String(row.body_text || "").trim() === String(shape.text || "").trim();
+        const sameMedia = String(row.media_url || "").trim() === String(shape.mediaUrl || "").trim();
+        if (shape.mediaUrl) return sameMedia && sameText;
+        return sameText && !row.media_url;
+      });
+
+      if (candidate) {
+        const nextMetadata = {
+          ...(candidate.raw_metadata && typeof candidate.raw_metadata === "object" ? candidate.raw_metadata : {}),
+          sac_history: entry,
+          history_synced: true,
+        };
+        const patch: Record<string, unknown> = { raw_metadata: nextMetadata };
+        if (!candidate.external_message_id) patch.external_message_id = historyId;
+        const { error: updateError } = await admin
+          .from("sac_digital_messages")
+          .update(patch)
+          .eq("id", candidate.id);
+        if (!updateError) {
+          if (!candidate.external_message_id) candidate.external_message_id = historyId;
+          candidate.raw_metadata = nextMetadata;
+          matched += 1;
+        }
+        continue;
+      }
+
+      const direction = String(entry.by || "").toLowerCase() === "operator" ? "outgoing" : "incoming";
+      const row = {
+        organization_id: organizationId,
+        protocol_id: protocolRow.id,
+        external_message_id: historyId,
+        direction,
+        message_type: shape.messageType,
+        body_text: shape.text,
+        media_url: shape.mediaUrl,
+        sender_id: null,
+        sender_name: null,
+        sent_at: sentAt,
+        raw_metadata: {
+          history_synced: true,
+          sac_history: entry,
+        },
+      };
+
+      const { data: inserted, error: insertError } = await admin
+        .from("sac_digital_messages")
+        .insert(row)
+        .select("id,direction,message_type,body_text,media_url,sent_at,external_message_id,raw_metadata")
+        .maybeSingle();
+
+      if (!insertError && inserted) {
+        localMessages.push(inserted);
+        imported += 1;
+      } else if (insertError?.code !== "23505") {
+        console.error("[SAC DIGITAL API] history insert failed", {
+          organization_id: organizationId,
+          protocol,
+          code: insertError?.code,
+        });
+      }
+    }
+
+    if (latestAt) {
+      await admin
+        .from("sac_digital_protocols")
+        .update({ last_message_at: latestAt, updated_at: new Date().toISOString() })
+        .eq("id", protocolRow.id);
+    }
+
+    return {
+      total: history.length,
+      imported,
+      matched,
+    };
+  };
+
   try {
     const body = await request.json().catch(() => ({} as Record<string, unknown>));
     const action = String(body.action || "").trim();
@@ -210,11 +413,15 @@ Deno.serve(async request => {
       const protocol = String(body.protocol || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       const applied = await enrichProtocol(organizationId, protocol);
+      const history = await syncProtocolHistory(organizationId, protocol);
       return json({
         success: true,
         protocol,
         contact_found: applied.contact_found === true,
         customer_linked: applied.customer_linked === true,
+        history_total: history.total,
+        history_imported: history.imported,
+        history_matched: history.matched,
       });
     }
 
