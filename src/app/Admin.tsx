@@ -149,7 +149,7 @@ export function AdminDashboard({
     if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "operation") return operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
-    if (tab === "tools") return isArtVideoOrganization || isPlatformOperatorOrganization || ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule));
+    if (tab === "tools") return isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue") || ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule));
     return hasPermission(permissionForTab[tab]) && isAdminModuleEnabled(tab, hasModule);
   };
 
@@ -222,6 +222,7 @@ export function AdminDashboard({
   const crmHub = <PlatformCrmHub onSelect={tab => navigateAdmin(tab, null, null, { crmMode: true })} />;
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
+  const canAccessQueueTool = isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue");
   const toolItems = [
     ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule) ? [
       { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
@@ -230,7 +231,7 @@ export function AdminDashboard({
       { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Acesse o monitor e atendimento do SAC Digital.", href: "https://monitor.sac.digital/login" },
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
     ] : []),
-    ...((isArtVideoOrganization || isPlatformOperatorOrganization) ? [
+    ...(canAccessQueueTool ? [
       { id: "union-senhas", label: "Union Senhas", icon: List, description: "Configure e acesse o sistema Union de fila e senhas.", href: null },
     ] : []),
   ];
@@ -254,7 +255,9 @@ export function AdminDashboard({
     }}
   />;
   const toolsContent = route.resourceId === "union-senhas"
-    ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
+    ? canAccessQueueTool
+      ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
+      : <Navigate to={adminPath("tools")} replace />
     : toolsHub;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("home", null, null, { replace: true, crmMode: false }); };
 
