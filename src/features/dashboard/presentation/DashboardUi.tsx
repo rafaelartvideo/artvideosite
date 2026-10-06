@@ -1,4 +1,4 @@
-import type { ElementType, ReactNode } from "react";
+import { useState, type ElementType, type ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import {
   Bar,
@@ -140,7 +140,7 @@ const tooltipStyle = {
   border: "1px solid var(--border)",
   backgroundColor: "var(--popover)",
   color: "var(--popover-foreground)",
-  fontSize: 11,
+  fontSize: 12,
   boxShadow: "0 10px 30px rgba(0,0,0,.16)",
 };
 const tooltipLabelStyle = { color: "var(--popover-foreground)", fontWeight: 700 };
@@ -163,8 +163,9 @@ export function DashboardBarChart({
 }) {
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
   const vertical = layout === "vertical";
-  const chartHeight = vertical ? Math.max(minHeight, data.length * 34 + 32) : minHeight;
+  const chartHeight = vertical ? Math.max(minHeight, data.length * 40 + 38) : minHeight;
   const pointKey = (point: DashboardChartPoint) => point.key || point.name;
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   return (
     <div className="w-full" style={{ height: chartHeight, minHeight: chartHeight }}>
@@ -172,26 +173,26 @@ export function DashboardBarChart({
         <BarChart
           data={data}
           layout={vertical ? "vertical" : "horizontal"}
-          margin={vertical ? { top: 4, right: 12, left: 4, bottom: 0 } : { top: 8, right: 4, left: -22, bottom: 0 }}
+          margin={vertical ? { top: 6, right: 16, left: 8, bottom: 2 } : { top: 10, right: 8, left: -18, bottom: 4 }}
         >
           <CartesianGrid strokeDasharray="3 3" horizontal={!vertical} vertical={vertical} stroke="#e8edf4" />
           {vertical ? (
             <>
-              <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} />
+              <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }} />
               <YAxis
                 type="category"
                 dataKey="name"
-                width={118}
+                width={132}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 10, fill: "#718096" }}
-                tickFormatter={value => String(value).length > 19 ? `${String(value).slice(0, 17)}…` : String(value)}
+                tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }}
+                tickFormatter={value => String(value).length > 21 ? `${String(value).slice(0, 19)}…` : String(value)}
               />
             </>
           ) : (
             <>
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} interval={0} />
-              <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }} interval={0} />
+              <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }} />
             </>
           )}
           <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} cursor={{ fill: "rgba(0,87,231,.04)" }} />
@@ -199,18 +200,26 @@ export function DashboardBarChart({
             dataKey="value"
             name="Total"
             fill={color}
-            radius={vertical ? [0, 6, 6, 0] : [6, 6, 0, 0]}
-            maxBarSize={vertical ? 22 : 42}
+            radius={vertical ? [0, 7, 7, 0] : [7, 7, 0, 0]}
+            maxBarSize={vertical ? 28 : 50}
           >
-            {data.map(point => (
-              <Cell
-                key={pointKey(point)}
-                fill={point.color || color}
-                opacity={selectedKey && selectedKey !== pointKey(point) ? 0.4 : 1}
-                onClick={() => onSelect?.(point)}
-                style={{ cursor: onSelect ? "pointer" : "default" }}
-              />
-            ))}
+            {data.map(point => {
+              const key = pointKey(point);
+              const hovered = hoveredKey === key;
+              return (
+                <Cell
+                  key={key}
+                  fill={point.color || color}
+                  stroke={hovered ? "var(--foreground)" : "transparent"}
+                  strokeWidth={hovered ? 2.5 : 0}
+                  opacity={selectedKey && selectedKey !== key ? 0.4 : 1}
+                  onMouseEnter={() => setHoveredKey(key)}
+                  onMouseLeave={() => setHoveredKey(null)}
+                  onClick={() => onSelect?.(point)}
+                  style={{ cursor: onSelect ? "pointer" : "default" }}
+                />
+              );
+            })}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -252,47 +261,62 @@ export function DashboardDonutChart({
 }) {
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
   const pointKey = (point: DashboardChartPoint) => point.key || point.name;
-  const chartHeight = Math.max(minHeight, data.length * 28 + 48);
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const chartHeight = Math.max(minHeight, data.length * 32 + 58);
 
   return (
     <div
-      className="grid w-full grid-cols-[minmax(0,1fr)_minmax(120px,.85fr)] items-center gap-3"
+      className="grid w-full grid-cols-[minmax(0,1.12fr)_minmax(135px,.88fr)] items-center gap-4"
       style={{ height: chartHeight, minHeight: chartHeight }}
     >
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={data} dataKey="value" nameKey="name" innerRadius={innerRadius} outerRadius="78%" paddingAngle={3}>
-            {data.map((point, index) => (
-              <Cell
-                key={pointKey(point)}
-                fill={point.color || colors[index % colors.length]}
-                opacity={selectedKey && selectedKey !== pointKey(point) ? 0.4 : 1}
-                onClick={() => onSelect?.(point)}
-                style={{ cursor: onSelect ? "pointer" : "default" }}
-              />
-            ))}
+          <Pie data={data} dataKey="value" nameKey="name" innerRadius={innerRadius} outerRadius="84%" paddingAngle={3}>
+            {data.map((point, index) => {
+              const key = pointKey(point);
+              const hovered = hoveredKey === key;
+              return (
+                <Cell
+                  key={key}
+                  fill={point.color || colors[index % colors.length]}
+                  stroke={hovered ? "var(--foreground)" : "transparent"}
+                  strokeWidth={hovered ? 3 : 0}
+                  opacity={selectedKey && selectedKey !== key ? 0.4 : 1}
+                  onMouseEnter={() => setHoveredKey(key)}
+                  onMouseLeave={() => setHoveredKey(null)}
+                  onClick={() => onSelect?.(point)}
+                  style={{ cursor: onSelect ? "pointer" : "default" }}
+                />
+              );
+            })}
           </Pie>
           <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="max-h-full space-y-1.5 overflow-y-auto pr-1">
-        {data.map((point, index) => (
-          <button
-            key={pointKey(point)}
-            type="button"
-            onClick={() => onSelect?.(point)}
-            disabled={!onSelect}
-            className={cn(
-              "flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-[10px] transition-opacity",
-              onSelect ? "cursor-pointer hover:bg-muted" : "cursor-default",
-              selectedKey && selectedKey !== pointKey(point) && "opacity-45",
-            )}
-          >
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: point.color || colors[index % colors.length] }} />
-            <span className="min-w-0 flex-1 truncate text-left font-semibold text-muted-foreground">{point.name}</span>
-            <strong className="text-foreground">{point.value}</strong>
-          </button>
-        ))}
+      <div className="max-h-full space-y-2 overflow-y-auto pr-1">
+        {data.map((point, index) => {
+          const key = pointKey(point);
+          return (
+            <button
+              key={key}
+              type="button"
+              onMouseEnter={() => setHoveredKey(key)}
+              onMouseLeave={() => setHoveredKey(null)}
+              onClick={() => onSelect?.(point)}
+              disabled={!onSelect}
+              className={cn(
+                "flex w-full min-w-0 items-center gap-2.5 rounded-lg border px-2 py-1.5 text-[11px] transition-all",
+                onSelect ? "cursor-pointer hover:bg-muted" : "cursor-default",
+                hoveredKey === key ? "border-foreground/35 bg-muted/70" : "border-transparent",
+                selectedKey && selectedKey !== key && "opacity-45",
+              )}
+            >
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: point.color || colors[index % colors.length] }} />
+              <span className="min-w-0 flex-1 truncate text-left font-semibold text-muted-foreground">{point.name}</span>
+              <strong className="text-foreground">{point.value}</strong>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
