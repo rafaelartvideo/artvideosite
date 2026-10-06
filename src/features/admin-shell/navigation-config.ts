@@ -100,7 +100,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   contact: "contact.view",
   site: "site.view",
   operation: "operation.view",
-  tools: "dashboard.view",
+  tools: "tools.view",
 };
 
 export const moduleForTab: Record<AdminTab, string | null> = {
