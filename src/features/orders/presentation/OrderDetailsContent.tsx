@@ -8,7 +8,7 @@ import {
   getResponsibleName,
   type ServiceOrderWithRelations,
 } from "./OrderFormControls";
-import { OrderImageThumb, type OrderImage } from "./OrderImages";
+import { OrderImageDownloadMenu, OrderImageThumb, type OrderImage } from "./OrderImages";
 
 export function InfoRow({
   label,
@@ -153,11 +153,17 @@ export function OrderDetailsContent({
           {hasPermission("orders.section.images") && (
             <div className="mt-4 space-y-4 border-t border-[#0d1b2e]/8 pt-4">
               <div>
-                <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#0057e7]">Etiqueta</p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#0057e7]">Foto da etiqueta</p>
+                  <OrderImageDownloadMenu images={labelImages} label="foto da etiqueta" />
+                </div>
                 {labelImages.length > 0 ? <div className="flex flex-wrap gap-3">{labelImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#7c899c]">Nenhuma foto da etiqueta cadastrada.</p>}
               </div>
               <div>
-                <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Fotos do equipamento</p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Fotos do equipamento</p>
+                  <OrderImageDownloadMenu images={equipmentImages} label="fotos do equipamento" />
+                </div>
                 {equipmentImages.length > 0 ? <div className="flex flex-wrap gap-3">{equipmentImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#7c899c]">Nenhuma foto do equipamento cadastrada.</p>}
               </div>
             </div>
