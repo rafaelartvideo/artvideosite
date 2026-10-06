@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const SAC_API_BASE_URL = "https://api.sac.digital/v2/client";
-const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", "inbox", "send"];
+const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", "inbox", "send", "write", "remove"];
 const SAC_OUTBOX_BUCKET = "sac-digital-outbox";
 const SAC_OUTBOX_MAX_BYTES = 25 * 1024 * 1024;
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
