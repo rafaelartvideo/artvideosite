@@ -98,7 +98,7 @@ Deno.serve(async request => {
   const type = eventType(payload);
   const payloadHash = await sha256(raw);
 
-  const { error: eventError } = await admin
+  const { data: insertedEvent, error: eventError } = await admin
     .from("sac_digital_webhook_events")
     .upsert({
       organization_id: integration.organization_id,
@@ -109,7 +109,9 @@ Deno.serve(async request => {
     }, {
       onConflict: "organization_id,payload_hash",
       ignoreDuplicates: true,
-    });
+    })
+    .select("id")
+    .maybeSingle();
 
   if (eventError) {
     console.error("[SAC DIGITAL WEBHOOK] event insert failed", eventError.code);
@@ -121,7 +123,35 @@ Deno.serve(async request => {
         updated_at: new Date().toISOString(),
       })
       .eq("organization_id", integration.organization_id);
-    return json({ success: false, error: "Não foi possível registrar o evento." }, 500);
+    return json({ status: false, error: "Não foi possível registrar o evento." }, 500);
+  }
+
+  let eventId = insertedEvent?.id ?? null;
+  if (!eventId) {
+    const { data: existingEvent, error: existingEventError } = await admin
+      .from("sac_digital_webhook_events")
+      .select("id")
+      .eq("organization_id", integration.organization_id)
+      .eq("payload_hash", payloadHash)
+      .maybeSingle();
+
+    if (existingEventError) {
+      console.error("[SAC DIGITAL WEBHOOK] duplicate lookup failed", existingEventError.code);
+    } else {
+      eventId = existingEvent?.id ?? null;
+    }
+  }
+
+  if (eventId) {
+    const { error: projectionError } = await admin.rpc("project_sac_digital_webhook_event", {
+      p_event_id: eventId,
+    });
+    if (projectionError) {
+      console.error("[SAC DIGITAL WEBHOOK] projection failed", {
+        event_id: eventId,
+        code: projectionError.code,
+      });
+    }
   }
 
   const now = new Date().toISOString();
