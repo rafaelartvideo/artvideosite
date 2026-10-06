@@ -152,7 +152,7 @@ export function AdminDashboard({
     if (tab === "tools") return hasPermission("tools.view") && (
       ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule))
       || (isArtVideoOrganization && (hasPermission("tools.sac_digital.use") || hasPermission("tools.uniq.use")))
-      || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("tools.union_queue.use"))
+      || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
     );
     return hasPermission(permissionForTab[tab]) && isAdminModuleEnabled(tab, hasModule);
   };
@@ -227,7 +227,7 @@ export function AdminDashboard({
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const canAccessQueueTool = (isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue"))
-    && hasPermission("tools.union_queue.use");
+    && hasPermission("queue.view");
   const toolItems = [
     ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule) ? [
       { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
