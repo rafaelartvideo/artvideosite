@@ -4,7 +4,6 @@ import {
   Image as ImageIcon,
   MapPin,
   MessageCircle,
-  Paperclip,
   RefreshCw,
   Send,
   Settings,
@@ -23,16 +22,20 @@ import {
   Section,
 } from "@/shared/ui/admin/AdminLayout";
 import {
+  finishSacDigitalProtocol,
+  forwardSacDigitalProtocol,
   getSacDigitalIntegrationStatus,
+  getSacDigitalRoutingOptions,
   listSacDigitalMessages,
   listSacDigitalProtocols,
   refreshSacDigitalProtocol,
+  returnSacDigitalProtocolToInbox,
   sacDigitalMediaUrl,
-  sendSacDigitalMediaMessage,
   sendSacDigitalTextMessage,
   type SacDigitalIntegrationStatus,
   type SacDigitalMessage,
   type SacDigitalProtocolListItem,
+  type SacDigitalRoutingOptions,
 } from "../infrastructure/sac-digital.repository";
 
 const protocolStatusLabel: Record<string, string> = {
@@ -114,6 +117,7 @@ export function SacDigitalToolPage({
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canManage = hasPermission("sac_digital.settings.manage");
+  const canManageProtocols = hasPermission("sac_digital.protocols.manage");
   const canViewMessages = hasPermission("sac_digital.messages.view");
   const canSendMessages = hasPermission("sac_digital.messages.send");
 
@@ -122,7 +126,12 @@ export function SacDigitalToolPage({
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [refreshingProtocol, setRefreshingProtocol] = useState(false);
   const [sending, setSending] = useState(false);
-  const [sendingMedia, setSendingMedia] = useState(false);
+  const [protocolAction, setProtocolAction] = useState<"routing" | "forward" | "inbox" | "finish" | null>(null);
+  const [routingOpen, setRoutingOpen] = useState(false);
+  const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
+  const [routingOptions, setRoutingOptions] = useState<SacDigitalRoutingOptions | null>(null);
+  const [departmentId, setDepartmentId] = useState("");
+  const [operatorId, setOperatorId] = useState("");
 
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
   const [protocols, setProtocols] = useState<SacDigitalProtocolListItem[]>([]);
@@ -131,7 +140,6 @@ export function SacDigitalToolPage({
   const [draft, setDraft] = useState("");
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
-  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const syncedProtocolsRef = useRef(new Set<string>());
 
   const selectedProtocol = useMemo(
@@ -361,44 +369,119 @@ export function SacDigitalToolPage({
     }
   };
 
-  const sendAttachment = async (file: File | null) => {
-    if (!file || !activeOrganizationId || !selectedProtocol || !canSendMessages || sendingMedia) return;
-    if (file.type.startsWith("image/") && file.size > 1024 * 1024) {
-      setMessage({ text: "A SAC Digital aceita imagens de no máximo 1 MB.", error: true });
-      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
-      return;
-    }
-    if (file.size > 25 * 1024 * 1024) {
-      setMessage({ text: "O anexo deve ter no máximo 25 MB.", error: true });
-      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
-      return;
-    }
+  const reloadSelectedProtocol = async () => {
+    if (!selectedProtocol) return;
+    await Promise.all([
+      loadProtocols(false),
+      loadMessages(selectedProtocol.id, false),
+    ]);
+  };
 
-    setSendingMedia(true);
+  const openRouting = async () => {
+    if (!activeOrganizationId || !canManageProtocols) return;
+    setRoutingOpen(true);
+    setFinishConfirmOpen(false);
+    if (routingOptions || protocolAction === "routing") return;
+    setProtocolAction("routing");
     setMessage(null);
     try {
-      await sendSacDigitalMediaMessage(
-        activeOrganizationId,
-        selectedProtocol.external_protocol_id,
-        file,
-        draft.trim(),
-      );
-      setDraft("");
-      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
-      await Promise.all([
-        loadMessages(selectedProtocol.id, false),
-        loadProtocols(false),
-      ]);
+      const options = await getSacDigitalRoutingOptions(activeOrganizationId);
+      setRoutingOptions(options);
     } catch (error) {
+      setRoutingOpen(false);
       setMessage({
-        text: systemErrorMessage(error, "Não foi possível enviar o anexo pela SAC Digital."),
+        text: systemErrorMessage(error, "Não foi possível carregar os destinos de encaminhamento."),
         error: true,
       });
     } finally {
-      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
-      setSendingMedia(false);
+      setProtocolAction(null);
     }
   };
+
+  const forwardProtocol = async () => {
+    if (
+      !activeOrganizationId
+      || !selectedProtocol
+      || !canManageProtocols
+      || protocolAction
+      || (!departmentId && !operatorId)
+    ) return;
+
+    setProtocolAction("forward");
+    setMessage(null);
+    try {
+      await forwardSacDigitalProtocol(
+        activeOrganizationId,
+        selectedProtocol.external_protocol_id,
+        { departmentId, operatorId },
+      );
+      setRoutingOpen(false);
+      setDepartmentId("");
+      setOperatorId("");
+      setMessage({ text: "Atendimento encaminhado com sucesso." });
+      await reloadSelectedProtocol();
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível encaminhar o atendimento."),
+        error: true,
+      });
+    } finally {
+      setProtocolAction(null);
+    }
+  };
+
+  const returnToInbox = async () => {
+    if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction) return;
+    setProtocolAction("inbox");
+    setMessage(null);
+    try {
+      await returnSacDigitalProtocolToInbox(
+        activeOrganizationId,
+        selectedProtocol.external_protocol_id,
+      );
+      setRoutingOpen(false);
+      setFinishConfirmOpen(false);
+      setMessage({ text: "Atendimento devolvido para a caixa de entrada da SAC Digital." });
+      await reloadSelectedProtocol();
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível devolver o atendimento para a caixa de entrada."),
+        error: true,
+      });
+    } finally {
+      setProtocolAction(null);
+    }
+  };
+
+  const finishProtocol = async () => {
+    if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction) return;
+    setProtocolAction("finish");
+    setMessage(null);
+    try {
+      await finishSacDigitalProtocol(
+        activeOrganizationId,
+        selectedProtocol.external_protocol_id,
+      );
+      setFinishConfirmOpen(false);
+      setRoutingOpen(false);
+      setMessage({ text: "Atendimento finalizado com sucesso." });
+      await reloadSelectedProtocol();
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível finalizar o atendimento."),
+        error: true,
+      });
+    } finally {
+      setProtocolAction(null);
+    }
+  };
+
+  useEffect(() => {
+    setRoutingOpen(false);
+    setFinishConfirmOpen(false);
+    setDepartmentId("");
+    setOperatorId("");
+  }, [selectedProtocolId]);
 
   if (!activeOrganizationId || loading) return <LoadingState text="Carregando SAC Digital..." />;
 
@@ -512,17 +595,127 @@ export function SacDigitalToolPage({
                       {selectedProtocol.operator_name && <span>{selectedProtocol.operator_name}</span>}
                     </div>
                   </div>
-                  <AdminButton
-                    variant="secondary"
-                    onClick={refreshProtocol}
-                    loading={refreshingProtocol}
-                    title="Atualizar dados do atendimento"
-                    aria-label="Atualizar dados do atendimento"
-                  >
-                    <RefreshCw size={15} />
-                    <span className="hidden sm:inline">Atualizar</span>
-                  </AdminButton>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    {canManageProtocols && selectedProtocol.status !== "finished" && (
+                      <>
+                        <AdminButton
+                          variant="secondary"
+                          onClick={() => void openRouting()}
+                          loading={protocolAction === "routing"}
+                          disabled={Boolean(protocolAction && protocolAction !== "routing")}
+                        >
+                          Encaminhar
+                        </AdminButton>
+                        {selectedProtocol.status !== "inbox" && (
+                          <AdminButton
+                            variant="secondary"
+                            onClick={() => void returnToInbox()}
+                            loading={protocolAction === "inbox"}
+                            disabled={Boolean(protocolAction && protocolAction !== "inbox")}
+                          >
+                            Caixa de entrada
+                          </AdminButton>
+                        )}
+                        <AdminButton
+                          variant="secondary"
+                          onClick={() => {
+                            setRoutingOpen(false);
+                            setFinishConfirmOpen(true);
+                          }}
+                          disabled={Boolean(protocolAction)}
+                        >
+                          Finalizar
+                        </AdminButton>
+                      </>
+                    )}
+                    <AdminButton
+                      variant="secondary"
+                      onClick={refreshProtocol}
+                      loading={refreshingProtocol}
+                      title="Atualizar dados do atendimento"
+                      aria-label="Atualizar dados do atendimento"
+                    >
+                      <RefreshCw size={15} />
+                      <span className="hidden sm:inline">Atualizar</span>
+                    </AdminButton>
+                  </div>
                 </div>
+
+                {routingOpen && canManageProtocols && (
+                  <div className="border-b border-border bg-muted/30 px-4 py-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <select
+                        value={departmentId}
+                        onChange={event => setDepartmentId(event.target.value)}
+                        disabled={protocolAction === "routing" || protocolAction === "forward"}
+                        className="admin-input h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
+                      >
+                        <option value="">Departamento (opcional)</option>
+                        {(routingOptions?.departments || [])
+                          .filter(item => item.active)
+                          .map(item => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                      </select>
+                      <select
+                        value={operatorId}
+                        onChange={event => setOperatorId(event.target.value)}
+                        disabled={protocolAction === "routing" || protocolAction === "forward"}
+                        className="admin-input h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
+                      >
+                        <option value="">Operador (opcional)</option>
+                        {(routingOptions?.operators || []).map(item => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}{item.online ? " — online" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mt-2 flex justify-end gap-2">
+                      <AdminButton
+                        variant="secondary"
+                        onClick={() => {
+                          setRoutingOpen(false);
+                          setDepartmentId("");
+                          setOperatorId("");
+                        }}
+                        disabled={protocolAction === "forward"}
+                      >
+                        Cancelar
+                      </AdminButton>
+                      <AdminButton
+                        onClick={() => void forwardProtocol()}
+                        loading={protocolAction === "forward"}
+                        disabled={!departmentId && !operatorId}
+                      >
+                        Encaminhar
+                      </AdminButton>
+                    </div>
+                  </div>
+                )}
+
+                {finishConfirmOpen && canManageProtocols && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-amber-50 px-4 py-3 text-amber-900 dark:bg-amber-950/25 dark:text-amber-200">
+                    <p className="text-xs font-semibold">
+                      Finalizar este atendimento na SAC Digital? Esta ação encerra o protocolo.
+                    </p>
+                    <div className="flex gap-2">
+                      <AdminButton
+                        variant="secondary"
+                        onClick={() => setFinishConfirmOpen(false)}
+                        disabled={protocolAction === "finish"}
+                      >
+                        Cancelar
+                      </AdminButton>
+                      <AdminButton
+                        onClick={() => void finishProtocol()}
+                        loading={protocolAction === "finish"}
+                      >
+                        Finalizar
+                      </AdminButton>
+                    </div>
+                  </div>
+                )}
 
                 <div ref={messagesScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/20 px-4 py-4">
                   {messagesLoading ? <LoadingState text="Carregando mensagens..." /> : messages.length === 0 ? (
@@ -618,29 +811,10 @@ export function SacDigitalToolPage({
                         void sendMessage();
                       }}
                     >
-                      <input
-                        ref={attachmentInputRef}
-                        type="file"
-                        className="hidden"
-                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip,.rar"
-                        onChange={event => void sendAttachment(event.target.files?.[0] || null)}
-                      />
-                      <AdminButton
-                        type="button"
-                        variant="secondary"
-                        disabled={sending || sendingMedia || !status?.enabled}
-                        loading={sendingMedia}
-                        onClick={() => attachmentInputRef.current?.click()}
-                        aria-label="Anexar arquivo"
-                        title="Anexar arquivo"
-                        className="h-[44px] shrink-0 px-3"
-                      >
-                        <Paperclip size={16} />
-                      </AdminButton>
                       <textarea
                         rows={2}
                         value={draft}
-                        disabled={sending || sendingMedia || !status?.enabled}
+                        disabled={sending || !status?.enabled}
                         placeholder={status?.enabled ? "Digite uma mensagem..." : "Integração desativada"}
                         onChange={event => setDraft(event.target.value)}
                         onKeyDown={event => {
@@ -653,7 +827,7 @@ export function SacDigitalToolPage({
                       />
                       <AdminButton
                         type="submit"
-                        disabled={!draft.trim() || sendingMedia || !status?.enabled}
+                        disabled={!draft.trim() || !status?.enabled}
                         loading={sending}
                         aria-label="Enviar mensagem"
                         title="Enviar mensagem"
