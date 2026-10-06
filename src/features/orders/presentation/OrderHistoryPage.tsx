@@ -1,4 +1,4 @@
-import { FilterX, Plus } from "lucide-react";
+import { FilterX, Plus, SortAsc, SortDesc } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -24,15 +24,15 @@ export function OrderHistoryPage({
   return <>
     <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Histórico`} title="Histórico da OS" subtitle="Linha do tempo de alterações e registros da equipe" maxW="max-w-2xl">
       <div className="space-y-4 p-4 sm:p-5">
-        <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="min-w-0">
-              <label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Usuário</label>
+        <AdminCard className="bg-muted/35 p-3 shadow-none">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
+            <div className="min-w-0 w-full">
+              <label className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">Usuário</label>
               <AdminSelect
                 value={history.userFilter}
                 onValueChange={history.setUserFilter}
                 ariaLabel="Usuário"
-                className="min-w-0 text-xs font-medium normal-case"
+                className="w-full min-w-0 text-xs font-medium normal-case"
                 options={[
                   { value: "", label: "Todos os usuários" },
                   ...history.authorOptions.map(author => ({ value: author.id, label: author.name })),
@@ -40,23 +40,42 @@ export function OrderHistoryPage({
                 ]}
               />
             </div>
-            <label className="min-w-0 text-[10px] font-bold uppercase text-[#5a6a82]">Data
-              <input type="date" value={history.dateFilter} onChange={(event) => history.setDateFilter(event.target.value)} className={cn(INPUT, "mt-1 min-w-0 text-xs font-medium normal-case")} />
-            </label>
-            <div className="min-w-0">
-              <label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Ordenação</label>
-              <AdminSelect
-                value={history.sort}
-                onValueChange={value => history.setSort(value as "desc" | "asc")}
-                ariaLabel="Ordenação"
-                className="min-w-0 text-xs font-medium normal-case"
-                options={[
-                  { value: "desc", label: "Mais recentes primeiro" },
-                  { value: "asc", label: "Mais antigos primeiro" },
-                ]}
+
+            <label className="min-w-0 w-full text-[10px] font-bold uppercase text-muted-foreground">
+              Data
+              <input
+                type="date"
+                value={history.dateFilter}
+                onChange={(event) => history.setDateFilter(event.target.value)}
+                className={cn(INPUT, "mt-1 w-full min-w-0 text-xs font-medium normal-case")}
               />
+            </label>
+
+            <div className="flex min-w-0 items-end">
+              <button
+                type="button"
+                onClick={() => history.setSort(history.sort === "desc" ? "asc" : "desc")}
+                aria-label={history.sort === "desc" ? "Ordenar mais antigos primeiro" : "Ordenar mais recentes primeiro"}
+                title={history.sort === "desc" ? "Mais recentes primeiro" : "Mais antigos primeiro"}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                {history.sort === "desc" ? <SortDesc className="h-[18px] w-[18px]" /> : <SortAsc className="h-[18px] w-[18px]" />}
+              </button>
             </div>
-            {(history.userFilter || history.dateFilter) && <button type="button" onClick={history.clearFilters} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-11 w-11 self-end items-center justify-center gap-1.5 rounded-lg border border-red-200 px-0 text-xs font-bold text-red-600 hover:bg-red-50 sm:w-auto sm:px-3"><FilterX className="h-5 w-5 sm:h-[15px] sm:w-[15px]" /><span className="hidden sm:inline">Limpar</span></button>}
+
+            {(history.userFilter || history.dateFilter) && (
+              <div className="flex min-w-0 items-end">
+                <button
+                  type="button"
+                  onClick={history.clearFilters}
+                  aria-label="Limpar filtros"
+                  title="Limpar filtros"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-red-200 text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/70 dark:hover:bg-red-950/30"
+                >
+                  <FilterX className="h-[18px] w-[18px]" />
+                </button>
+              </div>
+            )}
           </div>
         </AdminCard>
         {history.loading ? <LoadingState text="Carregando histórico..." /> : history.entries.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/15 p-8 text-center text-sm text-[#5a6a82]">Nenhum registro encontrado.</div> : <div className="space-y-3">{history.entries.map((item) => <AdminCard key={item.id} className={cn("min-w-0 p-4 shadow-none", item.type === "note" ? "border-[#0057e7]/15" : "bg-[#f8fafc]")}>
@@ -66,7 +85,7 @@ export function OrderHistoryPage({
       </div>
       <AdminStickyToolbar className="gap-2 px-3 py-3 sm:justify-between sm:px-5 sm:py-4">
         <BtnSecondary onClick={onClose} className="min-w-0 flex-1 sm:flex-none">Voltar para a OS</BtnSecondary>
-        {canCreate && <BtnPrimary onClick={() => { history.setText(""); history.setModalOpen(true); }} className="h-11 w-11 min-w-0 flex-none !px-0 sm:h-auto sm:w-auto sm:!px-4"><Plus className="h-5 w-5 sm:h-[14px] sm:w-[14px]" /><span className="sr-only sm:not-sr-only">Novo registro</span></BtnPrimary>}
+        {canCreate && <BtnPrimary onClick={() => { history.setText(""); history.setModalOpen(true); }} className="h-11 w-11 min-w-0 flex-none !px-0 sm:h-auto sm:w-auto sm:!px-4"><Plus className="h-5 w-5 sm:hidden" /><span className="sr-only sm:not-sr-only">Novo</span></BtnPrimary>}
       </AdminStickyToolbar>
     </AdminPage>
     {history.modalOpen && canCreate && <AdminDialog open={history.modalOpen} onClose={() => { if (!history.saving) history.setModalOpen(false); }} title="Novo registro" description="Adicione uma observação permanente ao histórico" className="max-w-lg" footer={<div className="flex w-full gap-2 sm:justify-end sm:gap-3"><BtnSecondary onClick={() => history.setModalOpen(false)} className="min-w-0 flex-1 sm:flex-none">Cancelar</BtnSecondary><BtnPrimary onClick={history.submit} disabled={!history.text.trim() || history.saving} className="min-w-0 flex-1 sm:flex-none">{history.saving ? "Registrando..." : "Registrar no histórico"}</BtnPrimary></div>}>
