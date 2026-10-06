@@ -92,13 +92,12 @@ export function useOrderHistory({
   }, [statusHistory, notesQuery.data, profiles, userFilter, dateFilter, sort]);
 
   const authorOptions = useMemo(() => {
-    const ids = new Set<string>();
-    [...statusHistory, ...(notesQuery.data || [])].forEach((item: any) => {
-      const id = item.author_id || item.created_by || item.changed_by;
-      if (id) ids.add(id);
-    });
-    return [...ids].map((id) => ({ id, name: profiles.find((profile) => profile.id === id)?.full_name || "Usuário não informado" }));
-  }, [statusHistory, notesQuery.data, profiles]);
+    const seen = new Set<string>();
+    return profiles
+      .filter((profile) => Boolean(profile.id) && !seen.has(profile.id) && seen.add(profile.id))
+      .map((profile) => ({ id: profile.id, name: profile.full_name?.trim() || "Usuário não informado" }))
+      .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+  }, [profiles]);
 
   const resetPageState = () => {
     setModalOpen(false);
