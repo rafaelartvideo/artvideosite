@@ -320,10 +320,10 @@ Deno.serve(async request => {
         });
       } else {
         const sentAt = new Date().toISOString();
-        const externalMessageIdCandidate = apiBody.id ?? apiBody.message_id ?? apiBody.message;
+        const externalMessageIdCandidate = apiBody.id ?? apiBody.message_id ?? apiBody.request_id;
         const externalMessageId = typeof externalMessageIdCandidate === "string"
           || typeof externalMessageIdCandidate === "number"
-          ? String(externalMessageIdCandidate)
+          ? `sac:${String(externalMessageIdCandidate)}`
           : null;
 
         const { data: profile } = await admin
