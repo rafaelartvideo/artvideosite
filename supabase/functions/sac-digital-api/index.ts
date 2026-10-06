@@ -69,9 +69,17 @@ Deno.serve(async request => {
 
   const ensureOutboxBucket = async () => {
     const existing = await admin.storage.getBucket(SAC_OUTBOX_BUCKET);
-    if (!existing.error && existing.data) return;
+    if (!existing.error && existing.data) {
+      if (!existing.data.public) {
+        await admin.storage.updateBucket(SAC_OUTBOX_BUCKET, {
+          public: true,
+          fileSizeLimit: SAC_OUTBOX_MAX_BYTES,
+        });
+      }
+      return;
+    }
     const created = await admin.storage.createBucket(SAC_OUTBOX_BUCKET, {
-      public: false,
+      public: true,
       fileSizeLimit: SAC_OUTBOX_MAX_BYTES,
     });
     if (created.error && !/already exists/i.test(created.error.message || "")) {
@@ -560,6 +568,9 @@ Deno.serve(async request => {
       const text = String(body.text || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       if (!uploadFile || uploadFile.size <= 0) return json({ success: false, error: "Selecione um arquivo para enviar." }, 400);
+      if (uploadFile.type.startsWith("image/") && uploadFile.size > 1024 * 1024) {
+        return json({ success: false, error: "A SAC Digital aceita imagens de no máximo 1 MB." }, 400);
+      }
       if (uploadFile.size > SAC_OUTBOX_MAX_BYTES) return json({ success: false, error: "O anexo deve ter no máximo 25 MB." }, 400);
       if (text.length > 5000) return json({ success: false, error: "A legenda é muito longa." }, 400);
 
@@ -597,12 +608,15 @@ Deno.serve(async request => {
         return json({ success: false, error: "Não foi possível preparar o anexo para envio." });
       }
 
-      const proxyUrl = `${supabaseUrl}/functions/v1/sac-digital-media/${organizationId}/${encodeURIComponent(publicFileName)}`;
+      const { data: publicUrlData } = admin.storage
+        .from(SAC_OUTBOX_BUCKET)
+        .getPublicUrl(storagePath);
+      const publicUrl = String(publicUrlData.publicUrl || "");
 
       const apiPayload: Record<string, unknown> = {
         protocol,
         type: mediaType,
-        url: proxyUrl,
+        url: publicUrl,
       };
       if (text) apiPayload.text = text;
 
@@ -664,7 +678,7 @@ Deno.serve(async request => {
           direction: "outgoing",
           message_type: mediaType,
           body_text: text || null,
-          media_url: proxyUrl,
+          media_url: publicUrl,
           sender_id: userData.user.id,
           sender_name: profile?.full_name || null,
           sent_at: sentAt,
