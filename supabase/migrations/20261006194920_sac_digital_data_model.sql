@@ -1,0 +1,3 @@
+-- Marcador da migração aplicada no ambiente principal.
+-- A estrutura é repetida de forma idempotente nas migrações SAC Digital seguintes,
+-- divididas em blocos menores para manter o versionamento do repositório estável.
