@@ -63,7 +63,12 @@ export function AdminSidebar({
   const canAccessOperation = !isPlatformOperatorOrganization && operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
-  const canAccessTools = isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue") || canAccessTab("fieldTracking");
+  const canAccessTools = hasPermission("tools.view")
+    && (
+      canAccessTab("fieldTracking")
+      || (isArtVideoOrganization && (hasPermission("tools.sac_digital.use") || hasPermission("tools.uniq.use")))
+      || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("tools.union_queue.use"))
+    );
   const canAccessPlatformSettings = isPlatformOperatorOrganization && canAccessTab("settings");
   const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));
   const dashboardItems = visibleMainItems.filter(item => ["home", "dashboard"].includes(item.id));
