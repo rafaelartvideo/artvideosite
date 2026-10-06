@@ -33,8 +33,8 @@ import type {
   DashboardAppointment,
   DashboardModule,
   DashboardOrder,
-  type DashboardOrderDistributionItem,
-  type DashboardOrderGroupItem,
+  DashboardOrderDistributionItem,
+  DashboardOrderGroupItem,
   DashboardQuote,
   DashboardRegistration,
 } from "../domain/dashboard";
