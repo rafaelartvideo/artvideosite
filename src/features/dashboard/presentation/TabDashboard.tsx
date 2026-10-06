@@ -37,6 +37,7 @@ import type {
 } from "../domain/dashboard";
 import { loadDashboardOverview } from "../infrastructure/dashboard.repository";
 import {
+  DashboardBarChart,
   DashboardDonutChart,
   DashboardEmpty,
   DashboardLineChart,
@@ -107,6 +108,25 @@ function groupByLabel<T>(items: T[], getLabel: (item: T) => string): DashboardCh
     .slice(0, 7);
 }
 
+type OrderDistributionKind = "situation" | "status";
+type OrderDistributionSelection = { kind: OrderDistributionKind; name: string };
+
+function buildOrderDistribution(orders: DashboardOrder[], kind: OrderDistributionKind): DashboardChartPoint[] {
+  const grouped = new Map<string, { value: number; color: string | null }>();
+  orders.forEach(order => {
+    const relation = kind === "situation" ? order.situation : order.order_status;
+    const name = relationLabel(relation, kind === "situation" ? "Sem situação" : "Sem status");
+    const current = grouped.get(name);
+    grouped.set(name, {
+      value: (current?.value || 0) + 1,
+      color: current?.color || relation?.color || "#64748b",
+    });
+  });
+  return [...grouped.entries()]
+    .map(([name, item]) => ({ name, value: item.value, color: item.color, key: `${kind}:${name}` }))
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, "pt-BR"));
+}
+
 function buildTrend<T>(items: T[], days: number, dateOf: (item: T) => string | null | undefined, valueOf: (item: T) => number = () => 1): DashboardChartPoint[] {
   const bucketCount = days <= 7 ? 7 : days <= 30 ? 10 : days <= 90 ? 9 : 12;
   const bucketDays = Math.max(1, Math.ceil(days / bucketCount));
@@ -174,6 +194,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const [activeModule, setActiveModule] = useState<DashboardModule>("overview");
   const [periodDays, setPeriodDays] = useState(30);
+  const [orderDistributionSelection, setOrderDistributionSelection] = useState<OrderDistributionSelection | null>(null);
   const canViewInventoryMovements = hasPermission("inventory.movements.view");
   const access = useMemo<DashboardAccess>(() => ({
     orders: hasPermission("orders.view"),
@@ -197,6 +218,10 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
   useEffect(() => {
     if (!modules.some(module => module.id === activeModule)) setActiveModule("overview");
   }, [activeModule, modules]);
+
+  useEffect(() => {
+    setOrderDistributionSelection(null);
+  }, [activeOrganizationId]);
 
   const dashboardQuery = useQuery({
     queryKey: queryKeys.admin.dashboard(activeOrganizationId || "no-organization", periodDays, accessScope),
@@ -257,7 +282,81 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
         { label: "Aguardando", value: waitingOrders.length, icon: Clock3, tone: waitingOrders.length ? "amber" : "green", hint: "cliente ou pendência" },
         { label: "Concluídas", value: completedInPeriod.length, icon: CheckCircle2, tone: "green", hint: `nos últimos ${periodDays} dias` },
       ];
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="OS por status" subtitle="Distribuição das ordens visíveis" icon={Activity}><DashboardDonutChart data={groupByLabel(activeOrders, order => relationLabel(order.order_status, "Sem status"))} /></DashboardPanel>} right={<DashboardPanel title="Ordens recentes" subtitle="Últimas atualizações" icon={ClipboardList} onOpen={() => open("orders")}><OrdersList orders={data.orders.slice(0, 8)} onOpen={() => open("orders")} /></DashboardPanel>} />;
+      const situationData = buildOrderDistribution(data.orders, "situation");
+      const statusData = buildOrderDistribution(data.orders, "status");
+      const selectedOrders = orderDistributionSelection
+        ? data.orders.filter(order => {
+            const relation = orderDistributionSelection.kind === "situation" ? order.situation : order.order_status;
+            return relationLabel(
+              relation,
+              orderDistributionSelection.kind === "situation" ? "Sem situação" : "Sem status",
+            ) === orderDistributionSelection.name;
+          })
+        : [];
+      const selectedTitle = orderDistributionSelection
+        ? `OS em ${orderDistributionSelection.name}`
+        : "Ordens por seleção";
+      const selectedSubtitle = orderDistributionSelection
+        ? `${selectedOrders.length} ordem${selectedOrders.length === 1 ? "" : "ens"} · ${orderDistributionSelection.kind === "situation" ? "Situação" : "Status"}`
+        : "Clique em uma barra para visualizar as OS";
+
+      const distributions = (
+        <DashboardPanel title="Distribuição das OS" subtitle="Situações e status atuais de todas as ordens visíveis" icon={Activity}>
+          <div className="space-y-5">
+            <section>
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xs font-black text-[#0d1b2e]">Situações</h4>
+                  <p className="text-[10px] font-semibold text-[#7a879a]">Clique em uma barra para filtrar</p>
+                </div>
+                <span className="text-[10px] font-black text-[#5a6a82]">{data.orders.length} OS</span>
+              </div>
+              <DashboardBarChart
+                data={situationData}
+                layout="vertical"
+                minHeight={150}
+                selectedKey={orderDistributionSelection?.kind === "situation" ? `situation:${orderDistributionSelection.name}` : null}
+                onSelect={point => setOrderDistributionSelection({ kind: "situation", name: point.name })}
+              />
+            </section>
+
+            <div className="border-t border-[#0d1b2e]/8" />
+
+            <section>
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xs font-black text-[#0d1b2e]">Status</h4>
+                  <p className="text-[10px] font-semibold text-[#7a879a]">Clique em uma barra para filtrar</p>
+                </div>
+                <span className="text-[10px] font-black text-[#5a6a82]">{data.orders.length} OS</span>
+              </div>
+              <DashboardBarChart
+                data={statusData}
+                layout="vertical"
+                minHeight={150}
+                selectedKey={orderDistributionSelection?.kind === "status" ? `status:${orderDistributionSelection.name}` : null}
+                onSelect={point => setOrderDistributionSelection({ kind: "status", name: point.name })}
+              />
+            </section>
+          </div>
+        </DashboardPanel>
+      );
+
+      const filteredOrders = (
+        <DashboardPanel title={selectedTitle} subtitle={selectedSubtitle} icon={ClipboardList} onOpen={() => open("orders")}>
+          {orderDistributionSelection ? (
+            <OrdersList
+              orders={selectedOrders}
+              onOpen={() => open("orders")}
+              badge={orderDistributionSelection.kind === "situation" ? "status" : "situation"}
+            />
+          ) : (
+            <DashboardEmpty text="Selecione uma situação ou um status no gráfico para ver todas as OS desse grupo." />
+          )}
+        </DashboardPanel>
+      );
+
+      return <DashboardArea metrics={metrics} left={distributions} right={filteredOrders} />;
     }
 
     if (activeModule === "registrations") {
@@ -394,9 +493,32 @@ function DashboardArea({ metrics, left, right }: { metrics: Metric[]; left: Reac
   );
 }
 
-function OrdersList({ orders, onOpen, showValue = false }: { orders: DashboardOrder[]; onOpen: () => void; showValue?: boolean }) {
+function OrdersList({
+  orders,
+  onOpen,
+  showValue = false,
+  badge = "status",
+}: {
+  orders: DashboardOrder[];
+  onOpen: () => void;
+  showValue?: boolean;
+  badge?: "status" | "situation";
+}) {
   if (!orders.length) return <DashboardEmpty text="Nenhuma ordem encontrada." />;
-  return <CompactList>{orders.map(order => <CompactRow key={order.id} title={`OS ${order.os_number || order.id.slice(0, 8)}`} subtitle={`${relationLabel(order.customer, "Cliente não informado")} · ${fmtListDate(order.completed_at || order.updated_at)}`} aside={showValue ? <strong className="text-xs text-emerald-700">{formatCurrency(Number(order.final_total || 0))}</strong> : <StatusBadge status={relationLabel(order.order_status, "Em andamento")} color={order.order_status?.color} />} onClick={onOpen} />)}</CompactList>;
+  return <CompactList>{orders.map(order => {
+    const badgeRelation = badge === "situation" ? order.situation : order.order_status;
+    return (
+      <CompactRow
+        key={order.id}
+        title={`OS ${order.os_number || order.id.slice(0, 8)}`}
+        subtitle={`${relationLabel(order.customer, "Cliente não informado")} · ${fmtListDate(order.completed_at || order.updated_at)}`}
+        aside={showValue
+          ? <strong className="text-xs text-emerald-700">{formatCurrency(Number(order.final_total || 0))}</strong>
+          : <StatusBadge status={relationLabel(badgeRelation, badge === "situation" ? "Sem situação" : "Em andamento")} color={badgeRelation?.color} />}
+        onClick={onOpen}
+      />
+    );
+  })}</CompactList>;
 }
 
 function QuotesList({ quotes, onOpen }: { quotes: DashboardQuote[]; onOpen: () => void }) {

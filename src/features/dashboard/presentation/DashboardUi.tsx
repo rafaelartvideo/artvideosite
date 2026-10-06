@@ -18,7 +18,7 @@ import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import type { DashboardModule } from "../domain/dashboard";
 
-export type DashboardChartPoint = { name: string; value: number };
+export type DashboardChartPoint = { name: string; value: number; color?: string | null; key?: string };
 export type DashboardMetricTone = "blue" | "green" | "amber" | "red" | "purple" | "slate";
 
 export function DashboardModuleNav({
@@ -130,17 +130,71 @@ export function DashboardPanel({
 
 const tooltipStyle = { borderRadius: 10, border: "1px solid rgba(13,27,46,.1)", fontSize: 11, boxShadow: "0 10px 30px rgba(13,27,46,.08)" };
 
-export function DashboardBarChart({ data, color = "#0057e7" }: { data: DashboardChartPoint[]; color?: string }) {
+export function DashboardBarChart({
+  data,
+  color = "#0057e7",
+  layout = "horizontal",
+  selectedKey,
+  onSelect,
+  minHeight = 210,
+}: {
+  data: DashboardChartPoint[];
+  color?: string;
+  layout?: "horizontal" | "vertical";
+  selectedKey?: string | null;
+  onSelect?: (point: DashboardChartPoint) => void;
+  minHeight?: number;
+}) {
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
+  const vertical = layout === "vertical";
+  const chartHeight = vertical ? Math.max(minHeight, data.length * 34 + 32) : minHeight;
+  const pointKey = (point: DashboardChartPoint) => point.key || point.name;
+
   return (
-    <div className="h-full min-h-[210px] w-full">
+    <div className="w-full" style={{ height: chartHeight, minHeight: chartHeight }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 4, left: -22, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf4" />
-          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} interval={0} />
-          <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} />
+        <BarChart
+          data={data}
+          layout={vertical ? "vertical" : "horizontal"}
+          margin={vertical ? { top: 4, right: 12, left: 4, bottom: 0 } : { top: 8, right: 4, left: -22, bottom: 0 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" horizontal={!vertical} vertical={vertical} stroke="#e8edf4" />
+          {vertical ? (
+            <>
+              <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={118}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, fill: "#718096" }}
+                tickFormatter={value => String(value).length > 19 ? `${String(value).slice(0, 17)}…` : String(value)}
+              />
+            </>
+          ) : (
+            <>
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} interval={0} />
+              <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} />
+            </>
+          )}
           <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(0,87,231,.04)" }} />
-          <Bar dataKey="value" fill={color} radius={[6, 6, 0, 0]} maxBarSize={42} />
+          <Bar
+            dataKey="value"
+            fill={color}
+            radius={vertical ? [0, 6, 6, 0] : [6, 6, 0, 0]}
+            maxBarSize={vertical ? 22 : 42}
+          >
+            {data.map(point => (
+              <Cell
+                key={pointKey(point)}
+                fill={point.color || color}
+                opacity={selectedKey && selectedKey !== pointKey(point) ? 0.4 : 1}
+                onClick={() => onSelect?.(point)}
+                style={{ cursor: onSelect ? "pointer" : "default" }}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
