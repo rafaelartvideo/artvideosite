@@ -3,7 +3,7 @@ import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shar
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { QueueIntegrationSettingsSection } from "./QueueIntegrationSettingsSection";
 
-const UNION_QUEUE_URL = "https://testeteste.com.br/painel";
+const UNION_QUEUE_URL = "https://fila.unionworld.com.br";
 
 export function QueueIntegrationToolPage({ onBack }: { onBack: () => void }) {
   const { activeOrganizationId, hasPermission } = useAuth();
