@@ -646,7 +646,8 @@ Deno.serve(async request => {
       };
       if (text) apiPayload.text = text;
 
-      const { response, body: apiBody } = await apiRequest(
+      let mediaTransport = "url";
+      let apiResult = await apiRequest(
         organizationId,
         credentials,
         "/protocol/send",
@@ -655,6 +656,46 @@ Deno.serve(async request => {
           body: JSON.stringify(apiPayload),
         },
       );
+      let response = apiResult.response;
+      let apiBody = apiResult.body;
+
+      const firstErrorMessage = typeof apiBody.message === "string" ? apiBody.message.trim() : "";
+      const shouldTryDataUrl = mediaType === "image"
+        && (!response.ok || apiBody.status === false || apiBody.success === false)
+        && apiBody.type === "invalid_param"
+        && /imagem válida/i.test(firstErrorMessage);
+
+      if (shouldTryDataUrl) {
+        const bytes = new Uint8Array(await uploadFile.arrayBuffer());
+        let binary = "";
+        const chunkSize = 0x8000;
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+        }
+        const dataUrl = `data:${uploadFile.type || "image/jpeg"};base64,${btoa(binary)}`;
+        mediaTransport = "data_url";
+        apiResult = await apiRequest(
+          organizationId,
+          credentials,
+          "/protocol/send",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              ...apiPayload,
+              url: dataUrl,
+            }),
+          },
+        );
+        response = apiResult.response;
+        apiBody = apiResult.body;
+        console.log("[SAC DIGITAL API] image data-url fallback", {
+          organization_id: organizationId,
+          protocol,
+          status: response.status,
+          request_id: apiBody.request_id,
+          accepted: response.ok && apiBody.status !== false && apiBody.success !== false,
+        });
+      }
 
       if (!response.ok || apiBody.status === false || apiBody.success === false) {
         await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
@@ -663,12 +704,7 @@ Deno.serve(async request => {
           protocol,
           status: response.status,
           request_id: apiBody.request_id,
-        });
-        console.error("[SAC DIGITAL API] SAC media response", {
-          organization_id: organizationId,
-          protocol,
-          status: response.status,
-          response: apiBody,
+          transport: mediaTransport,
         });
         return json({
           success: false,
@@ -712,6 +748,7 @@ Deno.serve(async request => {
             sent_via_union: true,
             temp_storage_bucket: SAC_OUTBOX_BUCKET,
             temp_storage_path: storagePath,
+            send_transport: mediaTransport,
             api_response: apiBody,
           },
         };
