@@ -9,6 +9,7 @@ import {
   getArtVideoOrganizationId,
   getPlatformOperatorOrganizationId,
 } from "@/lib/organization-identity";
+import { filterPermissionsForOrganization } from "@/features/access/domain/permission-scope";
 import {
   authEmailForUsername,
   isValidUsername,
@@ -174,29 +175,13 @@ export type PermissionAccess = {
   individualPermissionIds: string[];
 };
 
-const platformOnlyPermissionPrefixes = [
-  "organizations.",
-  "integrations.",
-  "audit.",
-];
-
-const artvideoSiteOnlyPermissionPrefixes = [
-  "products.",
-  "categories.",
-  "brands.",
-  "services.",
-  "filters.",
-  "site.",
-  "site_settings.",
-  "contact.",
-];
-
 export async function getUserPermissionAccess(organizationId: string, userId: string): Promise<PermissionAccess> {
   const [
     { data: membership, error: membershipError },
     { data: permissions, error: permissionsError },
     { data: overrides, error: overridesError },
     { data: situations, error: situationsError },
+    { data: modules, error: modulesError },
   ] = await Promise.all([
     supabase
       .from("organization_members")
@@ -218,9 +203,14 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
       .from("os_situations")
       .select("id")
       .eq("organization_id", organizationId),
+    supabase
+      .from("organization_modules")
+      .select("module_key,is_enabled")
+      .eq("organization_id", organizationId)
+      .eq("is_enabled", true),
   ]);
 
-  const error = membershipError || permissionsError || overridesError || situationsError;
+  const error = membershipError || permissionsError || overridesError || situationsError || modulesError;
   if (error) throw error;
 
   const [platformOperatorId, artvideoOrganizationId] = await Promise.all([
@@ -228,23 +218,15 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
     getArtVideoOrganizationId(),
   ]);
 
+  const enabledModules = new Set((modules || []).map((item: any) => String(item.module_key)));
   const situationIds = new Set((situations || []).map((item: any) => String(item.id)));
-  const visiblePermissions = (permissions || []).filter((permission: any) => {
+  const scopedPermissions = filterPermissionsForOrganization(permissions || [], {
+    isPlatformOperator: organizationId === platformOperatorId,
+    isArtvideoTenant: organizationId === artvideoOrganizationId,
+    enabledModules,
+  });
+  const visiblePermissions = scopedPermissions.filter((permission: any) => {
     const key = String(permission.key || "");
-    if (
-      organizationId !== platformOperatorId
-      && key !== "organizations.audit.view"
-      && platformOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
-    ) {
-      return false;
-    }
-    if (
-      organizationId !== artvideoOrganizationId
-      && artvideoSiteOnlyPermissionPrefixes.some(prefix => key.startsWith(prefix))
-    ) {
-      return false;
-    }
-
     const situationMatch = key.match(/^orders\.images\.situation\.([0-9a-f-]{36})\.upload$/i);
     return !situationMatch || situationIds.has(situationMatch[1]);
   }) as PermissionAccess["permissions"];
