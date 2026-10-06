@@ -33,7 +33,7 @@ const OPERATION_MODULES = [
   "finance",
   "pdv",
 ] as const;
-const TOOL_MODULES = ["field_tracking", "queue", "pbx", "marketplace", "ai"] as const;
+const TOOL_MODULES = ["field_tracking", "queue", "pbx", "marketplace", "ai", "sac_digital"] as const;
 
 export function isPlatformOnlyPermissionKey(key: string) {
   return (
@@ -96,6 +96,7 @@ function requiredModuleKeys(key: string): readonly string[] | null {
   if (key.startsWith("pbx.")) return ["pbx"];
   if (key.startsWith("marketplace.")) return ["marketplace"];
   if (key.startsWith("ai.")) return ["ai"];
+  if (key.startsWith("sac_digital.")) return ["sac_digital"];
 
   if (key.startsWith("operation.")) return OPERATION_MODULES;
 
