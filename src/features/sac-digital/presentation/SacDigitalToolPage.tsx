@@ -5,6 +5,7 @@ import {
   MapPin,
   MessageCircle,
   RefreshCw,
+  Search,
   Send,
   Settings,
   UserRound,
@@ -16,10 +17,8 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
   AdminButton,
-  AdminStickyToolbar,
   BtnSecondary,
   PageHeader,
-  Section,
 } from "@/shared/ui/admin/AdminLayout";
 import {
   finishSacDigitalProtocol,
@@ -72,6 +71,14 @@ function protocolDisplayName(protocol: SacDigitalProtocolListItem) {
     || protocol.contact?.name
     || formatPhone(protocol.contact?.phone)
     || `Protocolo ${protocol.external_protocol_id}`;
+}
+
+function protocolInitials(protocol: SacDigitalProtocolListItem) {
+  const name = protocolDisplayName(protocol).trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
 }
 
 function deliveryStatus(message: SacDigitalMessage) {
@@ -138,6 +145,7 @@ export function SacDigitalToolPage({
   const [selectedProtocolId, setSelectedProtocolId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SacDigitalMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [conversationSearch, setConversationSearch] = useState("");
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const syncedProtocolsRef = useRef(new Set<string>());
@@ -146,6 +154,21 @@ export function SacDigitalToolPage({
     () => protocols.find(protocol => protocol.id === selectedProtocolId) || null,
     [protocols, selectedProtocolId],
   );
+
+  const filteredProtocols = useMemo(() => {
+    const query = conversationSearch.trim().toLocaleLowerCase("pt-BR");
+    if (!query) return protocols;
+    return protocols.filter(protocol => {
+      const haystack = [
+        protocolDisplayName(protocol),
+        protocol.contact?.phone || "",
+        protocol.external_protocol_id,
+        protocol.department_name || "",
+        protocol.operator_name || "",
+      ].join(" ").toLocaleLowerCase("pt-BR");
+      return haystack.includes(query);
+    });
+  }, [conversationSearch, protocols]);
 
   const loadStatus = useCallback(async () => {
     if (!activeOrganizationId) return;
@@ -485,10 +508,21 @@ export function SacDigitalToolPage({
 
   if (!activeOrganizationId || loading) return <LoadingState text="Carregando SAC Digital..." />;
 
-  return <div className="min-w-0 space-y-5">
+  return <div className="min-w-0 space-y-3">
     <PageHeader
       title="SAC Digital"
-      subtitle="Atenda e responda as conversas da empresa ativa sem sair da Union."
+      subtitle="Atendimento integrado à SAC Digital."
+      actions={
+        <>
+          <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
+          {canManage && onOpenSettings && (
+            <AdminButton variant="secondary" onClick={onOpenSettings}>
+              <Settings size={15} />
+              Configurações
+            </AdminButton>
+          )}
+        </>
+      }
     />
 
     {message && (
@@ -505,141 +539,168 @@ export function SacDigitalToolPage({
       </div>
     )}
 
-    <Section
-      title="Caixa de entrada"
-      description="Protocolos e mensagens recebidos pela conta SAC Digital desta empresa."
-      actions={canViewMessages ? (
-        <AdminButton
-          variant="secondary"
-          onClick={() => loadProtocols(true)}
-          loading={inboxLoading}
-          title="Atualizar conversas"
-          aria-label="Atualizar conversas"
-        >
-          <RefreshCw size={15} />
-          Atualizar
-        </AdminButton>
-      ) : undefined}
-      flush
-    >
+    <div className="h-[calc(100dvh-12rem)] min-h-[600px] overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       {!canViewMessages ? (
-        <div className="p-5 text-sm text-muted-foreground">
+        <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
           Sua função não possui permissão para visualizar conversas do SAC Digital.
         </div>
       ) : inboxLoading && protocols.length === 0 ? (
-        <div className="p-5"><LoadingState text="Carregando conversas..." /></div>
+        <div className="flex h-full items-center justify-center p-6">
+          <LoadingState text="Carregando conversas..." />
+        </div>
       ) : protocols.length === 0 ? (
-        <div className="flex min-h-44 flex-col items-center justify-center gap-2 p-6 text-center">
-          <MessageCircle size={28} className="text-muted-foreground" />
+        <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+          <MessageCircle size={32} className="text-muted-foreground" />
           <p className="text-sm font-black text-foreground">Nenhum atendimento recebido</p>
           <p className="max-w-md text-xs leading-5 text-muted-foreground">
             Quando a SAC Digital enviar um protocolo pelo webhook, ele aparecerá aqui em tempo real.
           </p>
         </div>
       ) : (
-        <div className="grid h-[680px] min-h-0 grid-rows-[220px_minmax(0,1fr)] overflow-hidden md:h-[560px] md:grid-cols-[300px_minmax(0,1fr)] md:grid-rows-1">
-          <div className="min-h-0 min-w-0 overflow-hidden border-b border-border md:border-b-0 md:border-r">
-            <div className="h-full min-h-0 overflow-y-auto overscroll-contain">
-              {protocols.map(protocol => {
+        <div className="grid h-full min-h-0 grid-rows-[230px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
+          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
+            <div className="border-b border-border bg-muted/35 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-base font-black text-foreground">Conversas</p>
+                  <p className="text-[10px] text-muted-foreground">{protocols.length} atendimento(s)</p>
+                </div>
+                <AdminButton
+                  variant="secondary"
+                  onClick={() => loadProtocols(true)}
+                  loading={inboxLoading}
+                  title="Atualizar conversas"
+                  aria-label="Atualizar conversas"
+                  className="h-9 w-9 shrink-0 px-0"
+                >
+                  <RefreshCw size={15} />
+                </AdminButton>
+              </div>
+              <div className="relative mt-3">
+                <Search
+                  size={15}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <input
+                  value={conversationSearch}
+                  onChange={event => setConversationSearch(event.target.value)}
+                  placeholder="Buscar conversa"
+                  className="admin-input h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              {filteredProtocols.length === 0 ? (
+                <div className="p-5 text-center text-xs text-muted-foreground">
+                  Nenhuma conversa encontrada.
+                </div>
+              ) : filteredProtocols.map(protocol => {
                 const selected = protocol.id === selectedProtocolId;
                 return <button
                   key={protocol.id}
                   type="button"
                   onClick={() => setSelectedProtocolId(protocol.id)}
-                  className={`block w-full border-b border-border px-4 py-3 text-left transition-colors last:border-b-0 ${selected
+                  className={`flex w-full items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected
                     ? "bg-primary-soft"
-                    : "bg-card hover:bg-muted/60"}`}
+                    : "bg-card hover:bg-muted/55"}`}
                 >
-                  <div className="flex min-w-0 items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-black text-foreground">{protocolDisplayName(protocol)}</p>
-                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                        {protocol.contact?.phone
-                          ? formatPhone(protocol.contact.phone)
-                          : `Protocolo ${protocol.external_protocol_id}`}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                      {formatCompactDate(protocol.last_message_at)}
-                    </span>
+                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black ${selected
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"}`}>
+                    {protocolInitials(protocol)}
                   </div>
-                  <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
-                    <span className="rounded-md border border-border bg-card px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">
-                      {protocolStatusLabel[protocol.status] || protocol.status}
-                    </span>
-                    {protocol.contact?.customer_id ? (
-                      <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
-                        Cliente CRM
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <p className="truncate text-sm font-black text-foreground">{protocolDisplayName(protocol)}</p>
+                      <span className="shrink-0 text-[9px] text-muted-foreground">
+                        {formatCompactDate(protocol.last_message_at)}
                       </span>
-                    ) : protocol.contact ? (
-                      <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300">
-                        Contato SAC
+                    </div>
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {protocol.contact?.phone
+                        ? formatPhone(protocol.contact.phone)
+                        : `Protocolo ${protocol.external_protocol_id}`}
+                    </p>
+                    <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-[9px] font-bold text-muted-foreground">
+                        {protocolStatusLabel[protocol.status] || protocol.status}
                       </span>
-                    ) : null}
+                      {protocol.contact?.customer_id && (
+                        <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-bold text-emerald-700 dark:text-emerald-300">
+                          CRM
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </button>;
               })}
             </div>
-          </div>
+          </aside>
 
-          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <main className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15">
             {selectedProtocol ? (
               <>
-                <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border px-4 py-3.5">
+                <div className="flex min-w-0 items-center gap-3 border-b border-border bg-card px-4 py-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-black text-primary">
+                    {protocolInitials(selectedProtocol)}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-black text-foreground">{protocolDisplayName(selectedProtocol)}</p>
-                    <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
-                      <span>Protocolo {selectedProtocol.external_protocol_id}</span>
+                    <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
                       {selectedProtocol.contact?.phone && <span>{formatPhone(selectedProtocol.contact.phone)}</span>}
+                      <span>Protocolo {selectedProtocol.external_protocol_id}</span>
                       {selectedProtocol.department_name && <span>{selectedProtocol.department_name}</span>}
                       {selectedProtocol.operator_name && <span>{selectedProtocol.operator_name}</span>}
                     </div>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    {canManageProtocols && selectedProtocol.status !== "finished" && (
-                      <>
-                        <AdminButton
-                          variant="secondary"
-                          onClick={() => void openRouting()}
-                          loading={protocolAction === "routing"}
-                          disabled={Boolean(protocolAction && protocolAction !== "routing")}
-                        >
-                          Encaminhar
-                        </AdminButton>
-                        {selectedProtocol.status !== "inbox" && (
-                          <AdminButton
-                            variant="secondary"
-                            onClick={() => void returnToInbox()}
-                            loading={protocolAction === "inbox"}
-                            disabled={Boolean(protocolAction && protocolAction !== "inbox")}
-                          >
-                            Caixa de entrada
-                          </AdminButton>
-                        )}
-                        <AdminButton
-                          variant="secondary"
-                          onClick={() => {
-                            setRoutingOpen(false);
-                            setFinishConfirmOpen(true);
-                          }}
-                          disabled={Boolean(protocolAction)}
-                        >
-                          Finalizar
-                        </AdminButton>
-                      </>
+                  <AdminButton
+                    variant="secondary"
+                    onClick={refreshProtocol}
+                    loading={refreshingProtocol}
+                    title="Atualizar atendimento"
+                    aria-label="Atualizar atendimento"
+                    className="h-9 w-9 shrink-0 px-0"
+                  >
+                    <RefreshCw size={15} />
+                  </AdminButton>
+                </div>
+
+                {canManageProtocols && selectedProtocol.status !== "finished" && (
+                  <div className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border bg-card px-4 py-2.5">
+                    <AdminButton
+                      variant="secondary"
+                      onClick={() => void openRouting()}
+                      loading={protocolAction === "routing"}
+                      disabled={Boolean(protocolAction && protocolAction !== "routing")}
+                      className="shrink-0"
+                    >
+                      Encaminhar
+                    </AdminButton>
+                    {selectedProtocol.status !== "inbox" && (
+                      <AdminButton
+                        variant="secondary"
+                        onClick={() => void returnToInbox()}
+                        loading={protocolAction === "inbox"}
+                        disabled={Boolean(protocolAction && protocolAction !== "inbox")}
+                        className="shrink-0"
+                      >
+                        Caixa de entrada
+                      </AdminButton>
                     )}
                     <AdminButton
                       variant="secondary"
-                      onClick={refreshProtocol}
-                      loading={refreshingProtocol}
-                      title="Atualizar dados do atendimento"
-                      aria-label="Atualizar dados do atendimento"
+                      onClick={() => {
+                        setRoutingOpen(false);
+                        setFinishConfirmOpen(true);
+                      }}
+                      disabled={Boolean(protocolAction)}
+                      className="shrink-0"
                     >
-                      <RefreshCw size={15} />
-                      <span className="hidden sm:inline">Atualizar</span>
+                      Finalizar
                     </AdminButton>
                   </div>
-                </div>
+                )}
 
                 {routingOpen && canManageProtocols && (
                   <div className="border-b border-border bg-muted/30 px-4 py-3">
@@ -717,13 +778,16 @@ export function SacDigitalToolPage({
                   </div>
                 )}
 
-                <div ref={messagesScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/20 px-4 py-4">
+                <div
+                  ref={messagesScrollRef}
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 sm:px-5"
+                >
                   {messagesLoading ? <LoadingState text="Carregando mensagens..." /> : messages.length === 0 ? (
                     <div className="flex min-h-64 items-center justify-center text-center text-xs text-muted-foreground">
                       Nenhuma mensagem registrada neste protocolo.
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="mx-auto max-w-4xl space-y-2">
                       {messages.map(item => {
                         const outgoing = item.direction === "outgoing";
                         const kind = messageKind(item);
@@ -732,19 +796,19 @@ export function SacDigitalToolPage({
                           key={item.id}
                           className={`flex ${outgoing ? "justify-end" : "justify-start"}`}
                         >
-                          <div className={`max-w-[86%] rounded-xl border px-3 py-2.5 shadow-sm sm:max-w-[72%] ${outgoing
-                            ? "border-primary/30 bg-primary text-primary-foreground"
-                            : "border-border bg-card text-foreground"}`}>
+                          <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${outgoing
+                            ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50"
+                            : "border border-border bg-card text-foreground"}`}>
                             {(() => {
                               const mediaUrl = sacDigitalMediaUrl(item.media_url);
                               return <div className="space-y-2">
                                 {mediaUrl && item.message_type === "image" && (
-                                  <a href={mediaUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg">
+                                  <a href={mediaUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md">
                                     <img
                                       src={mediaUrl}
                                       alt="Imagem recebida no SAC Digital"
                                       loading="lazy"
-                                      className="max-h-80 w-auto max-w-full rounded-lg object-contain"
+                                      className="max-h-80 w-auto max-w-full rounded-md object-contain"
                                     />
                                   </a>
                                 )}
@@ -753,7 +817,7 @@ export function SacDigitalToolPage({
                                     src={mediaUrl}
                                     controls
                                     preload="metadata"
-                                    className="max-h-80 w-full rounded-lg"
+                                    className="max-h-80 w-full rounded-md"
                                   />
                                 )}
                                 {mediaUrl && item.message_type === "audio" && (
@@ -769,9 +833,7 @@ export function SacDigitalToolPage({
                                     href={mediaUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold underline-offset-2 hover:underline ${outgoing
-                                      ? "border-primary-foreground/25 text-primary-foreground"
-                                      : "border-border text-foreground"}`}
+                                    className="flex items-center gap-2 rounded-md border border-border/70 px-3 py-2 text-xs font-bold underline-offset-2 hover:underline"
                                   >
                                     <FileText size={16} className="shrink-0" />
                                     Abrir arquivo
@@ -788,9 +850,7 @@ export function SacDigitalToolPage({
                                 )}
                               </div>;
                             })()}
-                            <div className={`mt-1.5 flex items-center justify-end gap-2 text-[9px] ${outgoing
-                              ? "text-primary-foreground/70"
-                              : "text-muted-foreground"}`}>
+                            <div className="mt-1 flex items-center justify-end gap-2 text-[9px] opacity-60">
                               {outgoing && item.sender_name && <span>{item.sender_name}</span>}
                               {outgoing && deliveryStatus(item) && <span>{deliveryStatus(item)}</span>}
                               <span>{formatCompactDate(item.sent_at)}</span>
@@ -805,17 +865,17 @@ export function SacDigitalToolPage({
                 <div className="border-t border-border bg-card p-3">
                   {canSendMessages ? (
                     <form
-                      className="flex min-w-0 items-end gap-2"
+                      className="mx-auto flex max-w-4xl min-w-0 items-end gap-2"
                       onSubmit={event => {
                         event.preventDefault();
                         void sendMessage();
                       }}
                     >
                       <textarea
-                        rows={2}
+                        rows={1}
                         value={draft}
                         disabled={sending || !status?.enabled}
-                        placeholder={status?.enabled ? "Digite uma mensagem..." : "Integração desativada"}
+                        placeholder={status?.enabled ? "Digite uma mensagem" : "Integração desativada"}
                         onChange={event => setDraft(event.target.value)}
                         onKeyDown={event => {
                           if (event.key === "Enter" && !event.shiftKey) {
@@ -823,7 +883,7 @@ export function SacDigitalToolPage({
                             void sendMessage();
                           }
                         }}
-                        className="admin-input min-h-[44px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted/55 px-3 py-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/65 focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/25"
+                        className="admin-input min-h-[44px] min-w-0 flex-1 resize-none rounded-full border border-border bg-muted/55 px-4 py-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/65 focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/20"
                       />
                       <AdminButton
                         type="submit"
@@ -831,10 +891,9 @@ export function SacDigitalToolPage({
                         loading={sending}
                         aria-label="Enviar mensagem"
                         title="Enviar mensagem"
-                        className="h-[44px] shrink-0 px-3"
+                        className="h-11 w-11 shrink-0 rounded-full px-0"
                       >
-                        <Send size={16} />
-                        <span className="hidden sm:inline">Enviar</span>
+                        <Send size={17} />
                       </AdminButton>
                     </form>
                   ) : (
@@ -849,19 +908,9 @@ export function SacDigitalToolPage({
                 Selecione um atendimento para visualizar as mensagens.
               </div>
             )}
-          </div>
+          </main>
         </div>
       )}
-    </Section>
-
-    <AdminStickyToolbar>
-      <BtnSecondary onClick={onBack}>Voltar para Ferramentas</BtnSecondary>
-      {canManage && onOpenSettings && (
-        <AdminButton variant="secondary" onClick={onOpenSettings}>
-          <Settings size={15} />
-          Configurações
-        </AdminButton>
-      )}
-    </AdminStickyToolbar>
+    </div>
   </div>;
 }
