@@ -161,11 +161,11 @@ export function DashboardBarChart({
   onSelect?: (point: DashboardChartPoint) => void;
   minHeight?: number;
 }) {
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
   const vertical = layout === "vertical";
   const chartHeight = vertical ? Math.max(minHeight, data.length * 40 + 38) : minHeight;
   const pointKey = (point: DashboardChartPoint) => point.key || point.name;
-  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   return (
     <div className="w-full" style={{ height: chartHeight, minHeight: chartHeight }}>
@@ -259,9 +259,9 @@ export function DashboardDonutChart({
   minHeight?: number;
   innerRadius?: number | string;
 }) {
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
   const pointKey = (point: DashboardChartPoint) => point.key || point.name;
-  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const chartHeight = Math.max(minHeight, data.length * 32 + 58);
 
   return (
