@@ -569,7 +569,7 @@ Deno.serve(async request => {
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       if (!uploadFile || uploadFile.size <= 0) return json({ success: false, error: "Selecione um arquivo para enviar." }, 400);
       if (uploadFile.type.startsWith("image/") && uploadFile.size > 1024 * 1024) {
-        return json({ success: false, error: "A SAC Digital aceita imagens de no máximo 1 MB." }, 400);
+        return json({ success: false, error: "A SAC Digital aceita imagens de no máximo 1 MB." });
       }
       if (uploadFile.size > SAC_OUTBOX_MAX_BYTES) return json({ success: false, error: "O anexo deve ter no máximo 25 MB." }, 400);
       if (text.length > 5000) return json({ success: false, error: "A legenda é muito longa." }, 400);
