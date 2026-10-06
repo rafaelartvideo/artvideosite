@@ -127,7 +127,7 @@ export function SacDigitalToolPage({
   const [messages, setMessages] = useState<SacDigitalMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const syncedProtocolsRef = useRef(new Set<string>());
 
   const selectedProtocol = useMemo(
@@ -249,7 +249,11 @@ export function SacDigitalToolPage({
   ]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: "end" });
+    const frame = window.requestAnimationFrame(() => {
+      const container = messagesScrollRef.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [messages.length, selectedProtocolId]);
 
   useEffect(() => {
@@ -477,7 +481,7 @@ export function SacDigitalToolPage({
                   </AdminButton>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/20 px-4 py-4">
+                <div ref={messagesScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/20 px-4 py-4">
                   {messagesLoading ? <LoadingState text="Carregando mensagens..." /> : messages.length === 0 ? (
                     <div className="flex min-h-64 items-center justify-center text-center text-xs text-muted-foreground">
                       Nenhuma mensagem registrada neste protocolo.
@@ -560,7 +564,6 @@ export function SacDigitalToolPage({
                       })}
                     </div>
                   )}
-                  <div ref={messagesEndRef} aria-hidden="true" />
                 </div>
 
                 <div className="border-t border-border bg-card p-3">
