@@ -654,6 +654,14 @@ export function TabOrders({
   const formatCurrency = formatOrderCurrency;
   const detailUsedItemsTotal = usedItemsTotal(detailUsedItems);
   const editingRouteActive = routeSubpage === "edit" && Boolean(initialOrderId && initialOrderId !== "new");
+  const routedDetailLoading = Boolean(
+    initialOrderId
+    && initialOrderId !== "new"
+    && !detail
+    && !formOpen
+    && !solveOpen
+    && !editingRouteActive
+  );
 
   return (
     <div className="space-y-5">
@@ -669,10 +677,10 @@ export function TabOrders({
         onCancel={cancelQueueGate}
       />}
 
-      {detailOnly && Boolean(initialOrderId) && !detail && !formOpen && !solveOpen && !editingRouteActive && <LoadingState text="Carregando OS..." />}
+      {routedDetailLoading && <LoadingState text="Carregando OS..." />}
 
       <OrdersListWorkspace
-        visible={!detailOnly && !editingRouteActive && !detail && !formOpen && !solveOpen}
+        visible={!detailOnly && !initialOrderId && !editingRouteActive && !detail && !formOpen && !solveOpen}
         displayMode={displayMode}
         workspace={workspace}
         filters={filters}
