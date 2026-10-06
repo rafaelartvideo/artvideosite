@@ -559,6 +559,193 @@ Deno.serve(async request => {
       });
     }
 
+    if (action === "routing_options") {
+      if (!(await requirePermission("sac_digital.protocols.manage"))) {
+        return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
+      }
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      const [operatorsResult, departmentsResult] = await Promise.all([
+        apiRequest(organizationId, credentials, "/operator/all?p=1", { method: "GET" }),
+        apiRequest(organizationId, credentials, "/department/all", { method: "GET" }),
+      ]);
+
+      if (!operatorsResult.response.ok || operatorsResult.body.status === false) {
+        return json({ success: false, error: "Não foi possível carregar os operadores da SAC Digital." });
+      }
+      if (!departmentsResult.response.ok || departmentsResult.body.status === false) {
+        return json({ success: false, error: "Não foi possível carregar os departamentos da SAC Digital." });
+      }
+
+      const operators = Array.isArray(operatorsResult.body.list)
+        ? operatorsResult.body.list
+            .filter(item => item && typeof item === "object" && !Array.isArray(item))
+            .map(item => ({
+              id: String((item as Record<string, unknown>).id || ""),
+              name: String((item as Record<string, unknown>).name || ""),
+              online: (item as Record<string, unknown>).online === true,
+            }))
+            .filter(item => item.id && item.name)
+        : [];
+
+      const departments = Array.isArray(departmentsResult.body.list)
+        ? departmentsResult.body.list
+            .filter(item => item && typeof item === "object" && !Array.isArray(item))
+            .map(item => ({
+              id: String((item as Record<string, unknown>).id || ""),
+              name: String((item as Record<string, unknown>).name || ""),
+              active: (item as Record<string, unknown>).active !== false,
+            }))
+            .filter(item => item.id && item.name)
+        : [];
+
+      return json({ success: true, operators, departments });
+    }
+
+    if (action === "forward_protocol") {
+      if (!(await requirePermission("sac_digital.protocols.manage"))) {
+        return json({ success: false, error: "Sem permissão para encaminhar atendimentos do SAC Digital." }, 403);
+      }
+
+      const protocol = String(body.protocol || "").trim();
+      const departmentId = String(body.department_id || "").trim();
+      const operatorId = String(body.operator_id || "").trim();
+      if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+      if (!departmentId && !operatorId) return json({ success: false, error: "Escolha um departamento ou operador." }, 400);
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      const { data: protocolRow, error: protocolError } = await admin
+        .from("sac_digital_protocols")
+        .select("contact_id")
+        .eq("organization_id", organizationId)
+        .eq("external_protocol_id", protocol)
+        .maybeSingle();
+      if (protocolError || !protocolRow?.contact_id) {
+        return json({ success: false, error: "O protocolo ainda não possui um contato SAC vinculado." }, 400);
+      }
+
+      const { data: contactRow, error: contactError } = await admin
+        .from("sac_digital_contacts")
+        .select("external_contact_id")
+        .eq("organization_id", organizationId)
+        .eq("id", protocolRow.contact_id)
+        .maybeSingle();
+      const externalContactId = String(contactRow?.external_contact_id || "").trim();
+      if (contactError || !externalContactId) {
+        return json({ success: false, error: "Não foi possível identificar o contato na SAC Digital." }, 400);
+      }
+
+      const forwardBody: Record<string, unknown> = { id: externalContactId };
+      if (departmentId) forwardBody.department = departmentId;
+      if (operatorId) forwardBody.operator = operatorId;
+
+      const result = await apiRequest(
+        organizationId,
+        credentials,
+        "/contact/forward",
+        { method: "POST", body: JSON.stringify(forwardBody) },
+      );
+
+      if (!result.response.ok || result.body.status === false || result.body.success === false) {
+        return json({
+          success: false,
+          error: typeof result.body.message === "string" && result.body.message.trim()
+            ? `SAC Digital: ${result.body.message.trim()}`
+            : "Não foi possível encaminhar o atendimento.",
+        });
+      }
+
+      try {
+        await enrichProtocol(organizationId, protocol);
+      } catch {
+        // Webhook/realtime também atualizará o protocolo; não invalida a ação externa.
+      }
+
+      return json({ success: true, protocol });
+    }
+
+    if (action === "return_to_inbox") {
+      if (!(await requirePermission("sac_digital.protocols.manage"))) {
+        return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
+      }
+
+      const protocol = String(body.protocol || "").trim();
+      if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      const result = await apiRequest(
+        organizationId,
+        credentials,
+        `/protocol/to_inbox?protocol=${encodeURIComponent(protocol)}`,
+        { method: "PUT" },
+      );
+
+      if (!result.response.ok || result.body.status === false || result.body.success === false) {
+        return json({
+          success: false,
+          error: typeof result.body.message === "string" && result.body.message.trim()
+            ? `SAC Digital: ${result.body.message.trim()}`
+            : "Não foi possível devolver o atendimento para a caixa de entrada.",
+        });
+      }
+
+      try {
+        await enrichProtocol(organizationId, protocol);
+      } catch {
+        // O webhook atualizará o estado caso a consulta imediata ainda não reflita a mudança.
+      }
+
+      return json({ success: true, protocol });
+    }
+
+    if (action === "finish_protocol") {
+      if (!(await requirePermission("sac_digital.protocols.manage"))) {
+        return json({ success: false, error: "Sem permissão para finalizar atendimentos do SAC Digital." }, 403);
+      }
+
+      const protocol = String(body.protocol || "").trim();
+      if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      const result = await apiRequest(
+        organizationId,
+        credentials,
+        "/protocol/finish",
+        {
+          method: "DELETE",
+          body: JSON.stringify({
+            protocol,
+            notify_contact: false,
+          }),
+        },
+      );
+
+      if (!result.response.ok || result.body.status === false || result.body.success === false) {
+        return json({
+          success: false,
+          error: typeof result.body.message === "string" && result.body.message.trim()
+            ? `SAC Digital: ${result.body.message.trim()}`
+            : "Não foi possível finalizar o atendimento.",
+        });
+      }
+
+      try {
+        await enrichProtocol(organizationId, protocol);
+      } catch {
+        // O webhook de finalização mantém o CRM em sincronia mesmo se a consulta imediata falhar.
+      }
+
+      return json({ success: true, protocol });
+    }
+
     if (action === "send_media") {
       if (!(await requirePermission("sac_digital.messages.send"))) {
         return json({ success: false, error: "Sem permissão para enviar anexos pelo SAC Digital." }, 403);
