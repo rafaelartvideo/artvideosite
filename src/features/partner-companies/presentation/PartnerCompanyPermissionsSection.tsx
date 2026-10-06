@@ -15,28 +15,6 @@ import {
   type PartnerShareConfigLevel,
 } from "../infrastructure/partner-companies.repository";
 
-const SAFE_PARTNER_MODULES = new Set([
-  "dashboard",
-  "customers",
-  "employees",
-  "orders",
-  "equipment",
-  "services",
-  "service_types",
-  "order_situations",
-  "order_statuses",
-  "documents",
-  "checklists",
-  "agenda",
-  "inventory",
-  "products",
-  "quotes",
-  "pdv",
-  "finance",
-  "field_tracking",
-  "company_settings",
-]);
-
 const PARTNER_MODULE_GROUPS = [
   {
     key: "dashboard",
@@ -46,15 +24,9 @@ const PARTNER_MODULE_GROUPS = [
   },
   {
     key: "registrations",
-    label: "Cadastro",
-    description: "Cadastros, contatos e gestão de clientes.",
-    moduleKeys: ["customers"],
-  },
-  {
-    key: "employees",
-    label: "Funcionários",
-    description: "Usuários, equipes, funções e permissões.",
-    moduleKeys: ["employees"],
+    label: "Cadastros",
+    description: "Clientes, funcionários, usuários, equipes, funções e permissões.",
+    moduleKeys: ["customers", "employees"],
   },
   {
     key: "orders",
@@ -97,6 +69,30 @@ const PARTNER_MODULE_GROUPS = [
     label: "Mapa de Campo",
     description: "Rastreamento operacional de técnicos, dispositivos e veículos.",
     moduleKeys: ["field_tracking"],
+  },
+  {
+    key: "queue",
+    label: "Union Senhas",
+    description: "Fila eletrônica integrada. Ao ativar, a ferramenta Union Senhas fica disponível para a empresa.",
+    moduleKeys: ["queue"],
+  },
+  {
+    key: "pbx",
+    label: "PABX Union",
+    description: "Telefonia, ramais e recursos do PABX Union.",
+    moduleKeys: ["pbx"],
+  },
+  {
+    key: "marketplace",
+    label: "Marketplace Union",
+    description: "Catálogo e participação da empresa no marketplace do ecossistema Union.",
+    moduleKeys: ["marketplace"],
+  },
+  {
+    key: "ai",
+    label: "Union IA",
+    description: "Recursos e créditos de inteligência artificial do ecossistema Union.",
+    moduleKeys: ["ai"],
   },
   {
     key: "company_settings",
@@ -144,7 +140,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       ]);
       if (systemError || organizationError) throw systemError || organizationError;
       return {
-        systemModules: (systemModules || []).filter((module: any) => SAFE_PARTNER_MODULES.has(module.key)),
+        systemModules: systemModules || [],
         organizationModules: organizationModules || [],
       };
     },
@@ -169,20 +165,44 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     [modulesQuery.data?.systemModules],
   );
 
-  const visibleGroups = useMemo(
-    () => PARTNER_MODULE_GROUPS
+  const visibleGroups = useMemo(() => {
+    const configuredKeys = new Set(PARTNER_MODULE_GROUPS.flatMap(group => [...group.moduleKeys]));
+    const configuredGroups = PARTNER_MODULE_GROUPS
       .map(group => ({
         ...group,
         moduleKeys: group.moduleKeys.filter(key => systemModuleKeys.has(key)),
       }))
-      .filter(group => group.moduleKeys.length > 0),
-    [systemModuleKeys],
-  );
+      .filter(group => group.moduleKeys.length > 0);
+
+    const dynamicGroups = (modulesQuery.data?.systemModules || [])
+      .filter((module: any) => !configuredKeys.has(String(module.key)))
+      .map((module: any) => ({
+        key: String(module.key),
+        label: String(module.name || module.key),
+        description: String(module.description || "Módulo disponível para esta empresa."),
+        moduleKeys: [String(module.key)],
+      }));
+
+    return [...configuredGroups, ...dynamicGroups];
+  }, [modulesQuery.data?.systemModules, systemModuleKeys]);
 
   const groupedModuleKeys = useMemo(
     () => Array.from(new Set(visibleGroups.flatMap(group => group.moduleKeys))),
     [visibleGroups],
   );
+
+  const normalizeModuleToggleKeys = (keys: readonly string[]) => {
+    const normalized = new Set(keys);
+    if (normalized.has("customers") || normalized.has("employees")) {
+      normalized.delete("employees");
+      normalized.add("customers");
+    }
+    if (normalized.has("inventory") || normalized.has("products")) {
+      normalized.delete("products");
+      normalized.add("inventory");
+    }
+    return Array.from(normalized);
+  };
 
   const moduleColumns = useMemo(() => {
     const splitAt = Math.ceil(visibleGroups.length / 2);
@@ -199,8 +219,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
 
   const toggleGroupMutation = useMutation({
     mutationFn: async ({ keys, enabled }: { keys: readonly string[]; enabled: boolean }) => {
-      for (const key of keys) {
-        if ((enabledByKey.get(key) === true) === enabled) continue;
+      for (const key of normalizeModuleToggleKeys(keys)) {
         const { error } = await setOrganizationModuleEnabled(organizationId, key, enabled, user?.id);
         if (error) throw error;
       }
@@ -221,8 +240,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
 
   const bulkModulesMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
-      for (const key of groupedModuleKeys) {
-        if ((enabledByKey.get(key) === true) === enabled) continue;
+      for (const key of normalizeModuleToggleKeys(groupedModuleKeys)) {
         const { error } = await setOrganizationModuleEnabled(organizationId, key, enabled, user?.id);
         if (error) throw error;
       }
@@ -256,8 +274,8 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     <AdminCard>
       <AdminCardHeader>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-black text-[#0d1b2e]">Módulos disponíveis</h3>
-          <p className="mt-0.5 text-xs text-[#5a6a82]">Ative apenas as áreas que esta empresa poderá utilizar. Ordens de Serviço controla todo o conjunto necessário ao fluxo da OS.</p>
+          <h3 className="text-sm font-black text-[#0d1b2e]">Módulos e ferramentas disponíveis</h3>
+          <p className="mt-0.5 text-xs text-[#5a6a82]">Ative apenas as áreas e ferramentas que esta empresa poderá utilizar. Novos módulos ativos do sistema entram aqui automaticamente.</p>
         </div>
         {!modulesQuery.isPending && !modulesQuery.isError && visibleGroups.length > 0 && (
           <button
