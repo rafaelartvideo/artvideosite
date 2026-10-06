@@ -297,7 +297,7 @@ export function TabDashboard({ onNavigate }: TabDashboardProps) {
         ? `OS em ${orderDistributionSelection.name}`
         : "Ordens por seleção";
       const selectedSubtitle = orderDistributionSelection
-        ? `${selectedOrders.length} ordem${selectedOrders.length === 1 ? "" : "ens"} · ${orderDistributionSelection.kind === "situation" ? "Situação" : "Status"}`
+        ? `${selectedOrders.length} ${selectedOrders.length === 1 ? "ordem" : "ordens"} · ${orderDistributionSelection.kind === "situation" ? "Situação" : "Status"}`
         : "Clique em uma barra para visualizar as OS";
 
       const distributions = (
