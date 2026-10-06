@@ -34,7 +34,6 @@ import {
   returnSacDigitalProtocolToInbox,
   sacDigitalMediaUrl,
   sendSacDigitalTextMessage,
-  setMySacDigitalOperatorBinding,
   type SacDigitalIntegrationStatus,
   type SacDigitalMessage,
   type SacDigitalOperatorBinding,
@@ -137,14 +136,12 @@ export function SacDigitalToolPage({
   const [inboxLoading, setInboxLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [protocolAction, setProtocolAction] = useState<"routing" | "forward" | "binding" | "assume" | "inbox" | "finish" | null>(null);
+  const [protocolAction, setProtocolAction] = useState<"routing" | "forward" | "assume" | "inbox" | "finish" | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
-  const [operatorBindingOpen, setOperatorBindingOpen] = useState(false);
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
   const [routingOptions, setRoutingOptions] = useState<SacDigitalRoutingOptions | null>(null);
   const [departmentId, setDepartmentId] = useState("");
   const [operatorId, setOperatorId] = useState("");
-  const [bindingOperatorId, setBindingOperatorId] = useState("");
   const [operatorBinding, setOperatorBinding] = useState<SacDigitalOperatorBinding | null>(null);
 
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
@@ -468,33 +465,19 @@ export function SacDigitalToolPage({
   const assumeProtocol = async () => {
     if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction) return;
 
-    if (!operatorBinding?.linked || !operatorBinding.operator?.id) {
-      setRoutingOpen(false);
-      setFinishConfirmOpen(false);
-      setOperatorBindingOpen(true);
-      setProtocolAction("binding");
-      setMessage(null);
-      try {
-        await loadRoutingOptionsIfNeeded();
-      } catch (error) {
-        setOperatorBindingOpen(false);
-        setMessage({
-          text: systemErrorMessage(error, "Não foi possível carregar os operadores da SAC Digital."),
-          error: true,
-        });
-      } finally {
-        setProtocolAction(null);
-      }
-      return;
-    }
-
     setProtocolAction("assume");
     setMessage(null);
     try {
-      await assumeSacDigitalProtocol(
+      const result = await assumeSacDigitalProtocol(
         activeOrganizationId,
         selectedProtocol.external_protocol_id,
       );
+      const operator = result.operator && typeof result.operator === "object"
+        ? result.operator as { id: string; name: string }
+        : null;
+      if (operator) {
+        setOperatorBinding({ linked: true, operator });
+      }
       setMessage({ text: "Atendimento assumido por você." });
       await reloadSelectedProtocol();
     } catch (error) {
@@ -507,48 +490,9 @@ export function SacDigitalToolPage({
     }
   };
 
-  const bindOperatorAndAssume = async () => {
-    if (
-      !activeOrganizationId
-      || !selectedProtocol
-      || !bindingOperatorId
-      || !canManageProtocols
-      || protocolAction
-    ) return;
-
-    setProtocolAction("binding");
-    setMessage(null);
-    try {
-      const binding = await setMySacDigitalOperatorBinding(
-        activeOrganizationId,
-        bindingOperatorId,
-      );
-      setOperatorBinding(binding);
-
-      setProtocolAction("assume");
-      await assumeSacDigitalProtocol(
-        activeOrganizationId,
-        selectedProtocol.external_protocol_id,
-      );
-
-      setOperatorBindingOpen(false);
-      setBindingOperatorId("");
-      setMessage({ text: "Operador vinculado e atendimento assumido por você." });
-      await reloadSelectedProtocol();
-    } catch (error) {
-      setMessage({
-        text: systemErrorMessage(error, "Não foi possível vincular o operador e assumir o atendimento."),
-        error: true,
-      });
-    } finally {
-      setProtocolAction(null);
-    }
-  };
-
   const openRouting = async () => {
     if (!activeOrganizationId || !canManageProtocols) return;
     setRoutingOpen(true);
-    setOperatorBindingOpen(false);
     setFinishConfirmOpen(false);
     if (routingOptions || protocolAction === "routing") return;
     setProtocolAction("routing");
@@ -646,11 +590,9 @@ export function SacDigitalToolPage({
 
   useEffect(() => {
     setRoutingOpen(false);
-    setOperatorBindingOpen(false);
     setFinishConfirmOpen(false);
     setDepartmentId("");
     setOperatorId("");
-    setBindingOperatorId("");
   }, [selectedProtocolId]);
 
   const isMyProtocol = Boolean(
@@ -836,8 +778,8 @@ export function SacDigitalToolPage({
                   <div className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border bg-card px-4 py-2.5">
                     <AdminButton
                       onClick={() => void assumeProtocol()}
-                      loading={protocolAction === "assume" || protocolAction === "binding"}
-                      disabled={isMyProtocol || Boolean(protocolAction && protocolAction !== "assume" && protocolAction !== "binding")}
+                      loading={protocolAction === "assume"}
+                      disabled={isMyProtocol || Boolean(protocolAction && protocolAction !== "assume")}
                       className="shrink-0"
                     >
                       {isMyProtocol ? "Assumido por você" : "Assumir"}
@@ -866,7 +808,6 @@ export function SacDigitalToolPage({
                       variant="secondary"
                       onClick={() => {
                         setRoutingOpen(false);
-                        setOperatorBindingOpen(false);
                         setFinishConfirmOpen(true);
                       }}
                       disabled={Boolean(protocolAction)}
@@ -874,49 +815,6 @@ export function SacDigitalToolPage({
                     >
                       Finalizar
                     </AdminButton>
-                  </div>
-                )}
-
-                {operatorBindingOpen && canManageProtocols && (
-                  <div className="border-b border-border bg-muted/30 px-4 py-3">
-                    <p className="text-xs font-bold text-foreground">Vincule seu usuário ao operador correspondente da SAC Digital.</p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
-                      Essa escolha é salva para esta empresa e só precisa ser feita uma vez.
-                    </p>
-                    <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row">
-                      <select
-                        value={bindingOperatorId}
-                        onChange={event => setBindingOperatorId(event.target.value)}
-                        disabled={protocolAction === "binding" || protocolAction === "assume"}
-                        className="admin-input h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm text-foreground"
-                      >
-                        <option value="">Selecione seu operador SAC</option>
-                        {(routingOptions?.operators || []).map(item => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}{item.online ? " — online" : ""}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="flex shrink-0 gap-2">
-                        <AdminButton
-                          variant="secondary"
-                          onClick={() => {
-                            setOperatorBindingOpen(false);
-                            setBindingOperatorId("");
-                          }}
-                          disabled={protocolAction === "binding" || protocolAction === "assume"}
-                        >
-                          Cancelar
-                        </AdminButton>
-                        <AdminButton
-                          onClick={() => void bindOperatorAndAssume()}
-                          loading={protocolAction === "binding" || protocolAction === "assume"}
-                          disabled={!bindingOperatorId}
-                        >
-                          Vincular e assumir
-                        </AdminButton>
-                      </div>
-                    </div>
                   </div>
                 )}
 
