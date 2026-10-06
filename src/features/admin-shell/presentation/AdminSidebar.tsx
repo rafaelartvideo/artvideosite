@@ -67,7 +67,7 @@ export function AdminSidebar({
     && (
       canAccessTab("fieldTracking")
       || (isArtVideoOrganization && (hasPermission("tools.sac_digital.use") || hasPermission("tools.uniq.use")))
-      || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("tools.union_queue.use"))
+      || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
     );
   const canAccessPlatformSettings = isPlatformOperatorOrganization && canAccessTab("settings");
   const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));
