@@ -69,6 +69,21 @@ function protocolDisplayName(protocol: SacDigitalProtocolListItem) {
     || `Protocolo ${protocol.external_protocol_id}`;
 }
 
+function deliveryStatus(message: SacDigitalMessage) {
+  if (message.direction !== "outgoing") return "";
+  const raw = message.raw_metadata || {};
+  const historyStatus = String(raw?.sac_history?.status?.status || "").toLowerCase();
+  const labels: Record<string, string> = {
+    read: "Lida",
+    delivered: "Entregue",
+    sent: "Enviada",
+    failed: "Falhou",
+    deleted: "Excluída",
+  };
+  if (labels[historyStatus]) return labels[historyStatus];
+  return raw?.sent_via_union || raw?.recovered_from_sac_history ? "Enviada" : "";
+}
+
 function messageKind(message: SacDigitalMessage) {
   switch (message.message_type) {
     case "audio":
@@ -290,12 +305,15 @@ export function SacDigitalToolPage({
         loadProtocols(false),
         loadMessages(selectedProtocol.id, false),
       ]);
+      const imported = Number(result.history_imported || 0);
       setMessage({
-        text: result.customer_linked === true
-          ? "Atendimento atualizado e vinculado ao cliente cadastrado na Union."
-          : result.contact_found === true
-            ? "Atendimento atualizado. O contato foi localizado na SAC, mas ainda não corresponde a um cliente cadastrado na Union."
-            : "Atendimento atualizado.",
+        text: imported > 0
+          ? `Atendimento sincronizado. ${imported} mensagem(ns) do histórico foram adicionadas à Union.`
+          : result.customer_linked === true
+            ? "Atendimento sincronizado e vinculado ao cliente cadastrado na Union."
+            : result.contact_found === true
+              ? "Atendimento sincronizado. O contato foi localizado na SAC, mas ainda não corresponde a um cliente cadastrado na Union."
+              : "Atendimento sincronizado com a SAC Digital.",
       });
     } catch (error) {
       setMessage({
@@ -534,6 +552,7 @@ export function SacDigitalToolPage({
                               ? "text-primary-foreground/70"
                               : "text-muted-foreground"}`}>
                               {outgoing && item.sender_name && <span>{item.sender_name}</span>}
+                              {outgoing && deliveryStatus(item) && <span>{deliveryStatus(item)}</span>}
                               <span>{formatCompactDate(item.sent_at)}</span>
                             </div>
                           </div>
