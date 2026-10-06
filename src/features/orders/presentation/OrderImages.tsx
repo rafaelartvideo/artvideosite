@@ -23,7 +23,12 @@ function extensionForMimeType(mimeType: string) {
   if (mimeType.includes("webp")) return "webp";
   if (mimeType.includes("gif")) return "gif";
   if (mimeType.includes("jpeg") || mimeType.includes("jpg")) return "jpg";
-  return "jpg";
+  return "";
+}
+
+function extensionFromFileName(fileName: string) {
+  const match = String(fileName || "").match(/\.([a-z0-9]{2,5})$/i);
+  return match?.[1]?.toLowerCase() || "";
 }
 
 async function loadOrderImageBlob(image: OrderImage) {
@@ -96,13 +101,15 @@ async function downloadOrderImage(image: OrderImage, format: OrderImageDownloadF
   const baseName = safeFileBaseName(source.fileName || image.name, `imagem-${index + 1}`);
 
   if (format === "original") {
-    const originalExtension = extensionForMimeType(source.blob.type);
+    const originalExtension = extensionFromFileName(source.fileName)
+      || extensionForMimeType(source.blob.type)
+      || "jpg";
     triggerImageDownload(source.blob, `${baseName}.${originalExtension}`);
     return;
   }
 
   const converted = await convertImageBlob(source.blob, format);
-  triggerImageDownload(converted, `${baseName}.${format === "png" ? "png" : "jpg"}`);
+  triggerImageDownload(converted, `${baseName}.${format === "png" ? "png" : "jpeg"}`);
 }
 
 export function OrderImageDownloadMenu({
