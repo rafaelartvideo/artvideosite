@@ -363,6 +363,11 @@ export function SacDigitalToolPage({
 
   const sendAttachment = async (file: File | null) => {
     if (!file || !activeOrganizationId || !selectedProtocol || !canSendMessages || sendingMedia) return;
+    if (file.type.startsWith("image/") && file.size > 1024 * 1024) {
+      setMessage({ text: "A SAC Digital aceita imagens de no máximo 1 MB.", error: true });
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+      return;
+    }
     if (file.size > 25 * 1024 * 1024) {
       setMessage({ text: "O anexo deve ter no máximo 25 MB.", error: true });
       if (attachmentInputRef.current) attachmentInputRef.current.value = "";
