@@ -43,11 +43,14 @@ export type DashboardOrder = {
   technician_links: Array<{ employee_id: string; employee: DashboardRelation | null }>;
 };
 
+export type DashboardSlaState = "success" | "warning" | "danger" | "neutral";
+
 export type DashboardOrderDistributionItem = {
   id: string | null;
   name: string;
   color: string | null;
   total: number;
+  sla?: Record<DashboardSlaState, number>;
 };
 
 export type DashboardOrdersSummary = {
@@ -69,6 +72,7 @@ export type DashboardOrderGroupItem = {
   customer: DashboardRelation | null;
   order_status: DashboardRelation | null;
   situation: DashboardRelation | null;
+  sla_state?: DashboardSlaState | null;
 };
 
 export type DashboardRegistration = {
