@@ -235,25 +235,61 @@ export function DashboardLineChart({ data, color = "#0057e7", money = false }: {
   );
 }
 
-export function DashboardDonutChart({ data, colors = ["#0057e7", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed"] }: { data: DashboardChartPoint[]; colors?: string[] }) {
+export function DashboardDonutChart({
+  data,
+  colors = ["#0057e7", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed"],
+  selectedKey,
+  onSelect,
+  minHeight = 210,
+}: {
+  data: DashboardChartPoint[];
+  colors?: string[];
+  selectedKey?: string | null;
+  onSelect?: (point: DashboardChartPoint) => void;
+  minHeight?: number;
+}) {
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
+  const pointKey = (point: DashboardChartPoint) => point.key || point.name;
+  const chartHeight = Math.max(minHeight, data.length * 28 + 48);
+
   return (
-    <div className="grid h-full min-h-[210px] grid-cols-[minmax(0,1fr)_minmax(120px,.75fr)] items-center gap-2">
+    <div
+      className="grid w-full grid-cols-[minmax(0,1fr)_minmax(120px,.85fr)] items-center gap-3"
+      style={{ height: chartHeight, minHeight: chartHeight }}
+    >
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie data={data} dataKey="value" nameKey="name" innerRadius="54%" outerRadius="78%" paddingAngle={3}>
-            {data.map((point, index) => <Cell key={point.name} fill={colors[index % colors.length]} />)}
+            {data.map((point, index) => (
+              <Cell
+                key={pointKey(point)}
+                fill={point.color || colors[index % colors.length]}
+                opacity={selectedKey && selectedKey !== pointKey(point) ? 0.4 : 1}
+                onClick={() => onSelect?.(point)}
+                style={{ cursor: onSelect ? "pointer" : "default" }}
+              />
+            ))}
           </Pie>
           <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="space-y-2 overflow-hidden">
-        {data.slice(0, 6).map((point, index) => (
-          <div key={point.name} className="flex min-w-0 items-center gap-2 text-[10px]">
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />
-            <span className="min-w-0 flex-1 truncate font-semibold text-[#5a6a82]">{point.name}</span>
-            <strong className="text-[#0d1b2e]">{point.value}</strong>
-          </div>
+      <div className="max-h-full space-y-1.5 overflow-y-auto pr-1">
+        {data.map((point, index) => (
+          <button
+            key={pointKey(point)}
+            type="button"
+            onClick={() => onSelect?.(point)}
+            disabled={!onSelect}
+            className={cn(
+              "flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-[10px] transition-opacity",
+              onSelect ? "cursor-pointer hover:bg-muted" : "cursor-default",
+              selectedKey && selectedKey !== pointKey(point) && "opacity-45",
+            )}
+          >
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: point.color || colors[index % colors.length] }} />
+            <span className="min-w-0 flex-1 truncate text-left font-semibold text-muted-foreground">{point.name}</span>
+            <strong className="text-foreground">{point.value}</strong>
+          </button>
         ))}
       </div>
     </div>
