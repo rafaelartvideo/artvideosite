@@ -4,7 +4,6 @@ import {
   Image as ImageIcon,
   MapPin,
   MessageCircle,
-  RefreshCw,
   Search,
   Send,
   Settings,
@@ -131,7 +130,6 @@ export function SacDigitalToolPage({
   const [loading, setLoading] = useState(true);
   const [inboxLoading, setInboxLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
-  const [refreshingProtocol, setRefreshingProtocol] = useState(false);
   const [sending, setSending] = useState(false);
   const [protocolAction, setProtocolAction] = useState<"routing" | "forward" | "inbox" | "finish" | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
@@ -331,39 +329,6 @@ export function SacDigitalToolPage({
     };
   }, [activeOrganizationId, canViewMessages, loadMessages, loadProtocols, selectedProtocolId]);
 
-  const refreshProtocol = async () => {
-    if (!activeOrganizationId || !selectedProtocol || refreshingProtocol) return;
-    setRefreshingProtocol(true);
-    setMessage(null);
-    try {
-      const result = await refreshSacDigitalProtocol(
-        activeOrganizationId,
-        selectedProtocol.external_protocol_id,
-      );
-      await Promise.all([
-        loadProtocols(false),
-        loadMessages(selectedProtocol.id, false),
-      ]);
-      const imported = Number(result.history_imported || 0);
-      setMessage({
-        text: imported > 0
-          ? `Atendimento sincronizado. ${imported} mensagem(ns) do histórico foram adicionadas à Union.`
-          : result.customer_linked === true
-            ? "Atendimento sincronizado e vinculado ao cliente cadastrado na Union."
-            : result.contact_found === true
-              ? "Atendimento sincronizado. O contato foi localizado na SAC, mas ainda não corresponde a um cliente cadastrado na Union."
-              : "Atendimento sincronizado com a SAC Digital.",
-      });
-    } catch (error) {
-      setMessage({
-        text: systemErrorMessage(error, "Não foi possível atualizar os dados deste atendimento."),
-        error: true,
-      });
-    } finally {
-      setRefreshingProtocol(false);
-    }
-  };
-
   const sendMessage = async () => {
     if (!activeOrganizationId || !selectedProtocol || !canSendMessages || sending) return;
     const text = draft.trim();
@@ -560,21 +525,9 @@ export function SacDigitalToolPage({
         <div className="grid h-full min-h-0 grid-rows-[230px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
           <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
             <div className="border-b border-border bg-muted/35 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-base font-black text-foreground">Conversas</p>
-                  <p className="text-[10px] text-muted-foreground">{protocols.length} atendimento(s)</p>
-                </div>
-                <AdminButton
-                  variant="secondary"
-                  onClick={() => loadProtocols(true)}
-                  loading={inboxLoading}
-                  title="Atualizar conversas"
-                  aria-label="Atualizar conversas"
-                  className="h-9 w-9 shrink-0 px-0"
-                >
-                  <RefreshCw size={15} />
-                </AdminButton>
+              <div className="min-w-0">
+                <p className="text-base font-black text-foreground">Conversas</p>
+                <p className="text-[10px] text-muted-foreground">{protocols.length} atendimento(s) · atualizações em tempo real</p>
               </div>
               <div className="relative mt-3">
                 <Search
@@ -654,16 +607,6 @@ export function SacDigitalToolPage({
                       {selectedProtocol.operator_name && <span>{selectedProtocol.operator_name}</span>}
                     </div>
                   </div>
-                  <AdminButton
-                    variant="secondary"
-                    onClick={refreshProtocol}
-                    loading={refreshingProtocol}
-                    title="Atualizar atendimento"
-                    aria-label="Atualizar atendimento"
-                    className="h-9 w-9 shrink-0 px-0"
-                  >
-                    <RefreshCw size={15} />
-                  </AdminButton>
                 </div>
 
                 {canManageProtocols && selectedProtocol.status !== "finished" && (
