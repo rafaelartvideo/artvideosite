@@ -40,6 +40,7 @@ import type {
   DashboardOrderGroupItem,
   DashboardQuote,
   DashboardRegistration,
+  DashboardSlaState,
 } from "../domain/dashboard";
 import {
   loadDashboardOrderGroupPage,
@@ -54,8 +55,10 @@ import {
   DashboardMetricCard,
   DashboardModuleNav,
   DashboardPanel,
+  DashboardSlaDistributionChart,
   type DashboardChartPoint,
   type DashboardMetricTone,
+  type DashboardSlaChartPoint,
 } from "./DashboardUi";
 
 type TabDashboardProps = {
@@ -131,6 +134,14 @@ type OrderDistributionSelection = {
   id: string | null;
   name: string;
   total: number;
+  slaState?: DashboardSlaState | null;
+};
+
+const SLA_STATE_LABELS: Record<DashboardSlaState, string> = {
+  success: "Dentro do prazo",
+  warning: "Próxima de estourar",
+  danger: "Prazo estourado",
+  neutral: "Sem SLA",
 };
 
 type DashboardReturnState = {
@@ -312,6 +323,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       activeOrganizationId,
       orderDistributionSelection?.kind || "none",
       orderDistributionSelection?.id || "none",
+      orderDistributionSelection?.slaState || "all",
       orderDistributionPage,
       DASHBOARD_ORDER_PAGE_SIZE,
     ],
@@ -319,6 +331,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       organizationId: activeOrganizationId!,
       kind: orderDistributionSelection!.kind,
       groupId: orderDistributionSelection!.id,
+      slaState: orderDistributionSelection!.kind === "situation" ? orderDistributionSelection!.slaState || null : null,
       page: orderDistributionPage,
       pageSize: DASHBOARD_ORDER_PAGE_SIZE,
     }),
@@ -375,7 +388,11 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     ? (orderDistributionSelection.kind === "situation" ? ordersSummaryQuery.data.situations : ordersSummaryQuery.data.statuses)
         .find(item => item.id === orderDistributionSelection.id)
     : null;
-  const selectedOrderTotal = selectedSummaryGroup?.total ?? orderDistributionSelection?.total ?? 0;
+  const selectedOrderTotal = orderDistributionSelection?.kind === "situation"
+    && orderDistributionSelection.slaState
+    && selectedSummaryGroup?.sla
+      ? Number(selectedSummaryGroup.sla[orderDistributionSelection.slaState] || 0)
+      : selectedSummaryGroup?.total ?? orderDistributionSelection?.total ?? 0;
   const selectedOrderTotalPages = Math.max(1, Math.ceil(selectedOrderTotal / DASHBOARD_ORDER_PAGE_SIZE));
   const safeOrderDistributionPage = Math.min(orderDistributionPage, selectedOrderTotalPages);
 
@@ -414,19 +431,37 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         { label: "Aguardando", value: summary.waiting_orders, icon: Clock3, tone: summary.waiting_orders ? "amber" : "green", hint: "cliente ou pendência" },
         { label: "Concluídas", value: summary.completed_in_period, icon: CheckCircle2, tone: "green", hint: `nos últimos ${periodDays} dias` },
       ];
-      const situationData = distributionPoints(summary.situations, "situation");
+      const situationData: DashboardSlaChartPoint[] = summary.situations.map(item => ({
+        id: item.id,
+        name: item.name,
+        total: item.total,
+        key: `situation:${item.id || "none"}`,
+        sla: {
+          success: Number(item.sla?.success || 0),
+          warning: Number(item.sla?.warning || 0),
+          danger: Number(item.sla?.danger || 0),
+          neutral: Number(item.sla?.neutral || 0),
+        },
+      }));
       const statusData = distributionPoints(summary.statuses, "status");
       const selectedName = selectedSummaryGroup?.name || orderDistributionSelection?.name || "";
       const selectedTitle = orderDistributionSelection
         ? `OS em ${selectedName}`
         : "Ordens por seleção";
       const selectedSubtitle = orderDistributionSelection
-        ? `${selectedOrderTotal} ${selectedOrderTotal === 1 ? "ordem" : "ordens"} · ${orderDistributionSelection.kind === "situation" ? "Situação" : "Status"}`
+        ? [
+            `${selectedOrderTotal} ${selectedOrderTotal === 1 ? "ordem" : "ordens"}`,
+            orderDistributionSelection.kind === "situation" ? "Situação" : "Status",
+            orderDistributionSelection.slaState ? SLA_STATE_LABELS[orderDistributionSelection.slaState] : null,
+          ].filter(Boolean).join(" · ")
         : "Clique em um item do gráfico para visualizar as OS";
 
       const chartInteractionHint = orderDistributionChartMode === "pie"
         ? "Clique em uma fatia para filtrar"
         : "Clique em uma barra para filtrar";
+      const situationInteractionHint = orderDistributionChartMode === "pie"
+        ? "Cada fatia mostra o SLA da situação; clique para filtrar"
+        : "Cada barra é dividida pelo SLA; clique em uma cor para filtrar";
       const setChartMode = (mode: OrderDistributionChartMode) => {
         setOrderDistributionChartMode(mode);
         if (typeof window !== "undefined") window.localStorage.setItem(DASHBOARD_ORDER_CHART_MODE_KEY, mode);
@@ -437,12 +472,23 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
           id: point.id || null,
           name: point.name,
           total: point.value,
+          slaState: null,
         });
         setOrderDistributionPage(1);
       };
-      const renderDistributionChart = (data: DashboardChartPoint[], kind: OrderDistributionKind) => {
-        const selectedKey = orderDistributionSelection?.kind === kind
-          ? `${kind}:${orderDistributionSelection.id || "none"}`
+      const selectSituationSla = (point: DashboardSlaChartPoint, slaState: DashboardSlaState, value: number) => {
+        setOrderDistributionSelection({
+          kind: "situation",
+          id: point.id,
+          name: point.name,
+          total: value,
+          slaState,
+        });
+        setOrderDistributionPage(1);
+      };
+      const renderStatusChart = (data: DashboardChartPoint[]) => {
+        const selectedKey = orderDistributionSelection?.kind === "status"
+          ? `status:${orderDistributionSelection.id || "none"}`
           : null;
 
         if (orderDistributionChartMode === "pie") {
@@ -452,7 +498,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
               minHeight={230}
               innerRadius={0}
               selectedKey={selectedKey}
-              onSelect={selectDistribution(kind)}
+              onSelect={selectDistribution("status")}
             />
           );
         }
@@ -463,7 +509,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             layout={orderDistributionChartMode === "horizontal" ? "vertical" : "horizontal"}
             minHeight={orderDistributionChartMode === "horizontal" ? 190 : 270}
             selectedKey={selectedKey}
-            onSelect={selectDistribution(kind)}
+            onSelect={selectDistribution("status")}
           />
         );
       };
@@ -509,9 +555,16 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             <section>
               <div className="mb-1">
                 <h4 className="text-sm font-black text-foreground">Situações</h4>
-                <p className="text-[11px] font-semibold text-muted-foreground">{chartInteractionHint}</p>
+                <p className="text-[11px] font-semibold text-muted-foreground">{situationInteractionHint}</p>
               </div>
-              {renderDistributionChart(situationData, "situation")}
+              <DashboardSlaDistributionChart
+                data={situationData}
+                mode={orderDistributionChartMode}
+                minHeight={orderDistributionChartMode === "horizontal" ? 220 : orderDistributionChartMode === "vertical" ? 300 : 260}
+                selectedKey={orderDistributionSelection?.kind === "situation" ? `situation:${orderDistributionSelection.id || "none"}` : null}
+                selectedState={orderDistributionSelection?.kind === "situation" ? orderDistributionSelection.slaState || null : null}
+                onSelect={selectSituationSla}
+              />
             </section>
 
             <div className="border-t border-[#0d1b2e]/8" />
@@ -521,7 +574,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
                 <h4 className="text-sm font-black text-foreground">Status</h4>
                 <p className="text-[11px] font-semibold text-muted-foreground">{chartInteractionHint}</p>
               </div>
-              {renderDistributionChart(statusData, "status")}
+              {renderStatusChart(statusData)}
             </section>
           </div>
         </DashboardPanel>
