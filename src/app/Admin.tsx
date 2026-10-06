@@ -51,6 +51,7 @@ const TabSettings = lazy(() => import("@/features/settings/presentation/TabSetti
 const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabSiteSettings").then(({ TabSiteSettings }) => ({ default: TabSiteSettings })));
 const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
+const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
@@ -151,7 +152,8 @@ export function AdminDashboard({
     if (tab === "operation") return operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "tools") return hasPermission("tools.view") && (
       ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule))
-      || (isArtVideoOrganization && (hasPermission("tools.sac_digital.use") || hasPermission("tools.uniq.use")))
+      || (hasModule("sac_digital") && hasPermission("sac_digital.view"))
+      || (isArtVideoOrganization && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
     );
     return hasPermission(permissionForTab[tab]) && isAdminModuleEnabled(tab, hasModule);
@@ -229,13 +231,14 @@ export function AdminDashboard({
   const canAccessQueueTool = (isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue"))
     && hasPermission("queue.view");
   const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
+  const canAccessSacDigitalTool = hasModule("sac_digital") && hasPermission("sac_digital.view");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
     ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule) ? [
       { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
     ] : []),
-    ...(isArtVideoOrganization && hasPermission("tools.sac_digital.use") ? [
-      { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Acesse o monitor e atendimento do SAC Digital.", href: "https://monitor.sac.digital/login" },
+    ...(canAccessSacDigitalTool ? [
+      { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Atenda clientes e configure a integração SAC Digital desta empresa.", href: null },
     ] : []),
     ...(isArtVideoOrganization && hasPermission("tools.uniq.use") ? [
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
@@ -267,6 +270,10 @@ export function AdminDashboard({
         navigateAdmin("tools", "union-senhas");
         return;
       }
+      if (id === "sac-digital" && canAccessSacDigitalTool) {
+        navigateAdmin("tools", "sac-digital");
+        return;
+      }
       const tool = toolItems.find(item => item.id === id);
       if (tool?.href) window.open(tool.href, "_blank", "noopener,noreferrer");
     }}
@@ -275,7 +282,11 @@ export function AdminDashboard({
     ? canManageQueueTool
       ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
       : <Navigate to={adminPath("tools")} replace />
-    : toolsHub;
+    : route.resourceId === "sac-digital"
+      ? canAccessSacDigitalTool
+        ? <SacDigitalToolPage onBack={() => navigateAdmin("tools")} />
+        : <Navigate to={adminPath("tools")} replace />
+      : toolsHub;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("home", null, null, { replace: true, crmMode: false }); };
 
   const openAuthenticatedAdminTab = (targetPath: string) => {
