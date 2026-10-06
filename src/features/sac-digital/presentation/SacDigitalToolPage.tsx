@@ -4,6 +4,7 @@ import {
   Image as ImageIcon,
   MapPin,
   MessageCircle,
+  Paperclip,
   RefreshCw,
   Send,
   Settings,
@@ -27,6 +28,7 @@ import {
   listSacDigitalProtocols,
   refreshSacDigitalProtocol,
   sacDigitalMediaUrl,
+  sendSacDigitalMediaMessage,
   sendSacDigitalTextMessage,
   type SacDigitalIntegrationStatus,
   type SacDigitalMessage,
@@ -120,6 +122,7 @@ export function SacDigitalToolPage({
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [refreshingProtocol, setRefreshingProtocol] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendingMedia, setSendingMedia] = useState(false);
 
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
   const [protocols, setProtocols] = useState<SacDigitalProtocolListItem[]>([]);
@@ -128,6 +131,7 @@ export function SacDigitalToolPage({
   const [draft, setDraft] = useState("");
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const syncedProtocolsRef = useRef(new Set<string>());
 
   const selectedProtocol = useMemo(
@@ -357,6 +361,39 @@ export function SacDigitalToolPage({
     }
   };
 
+  const sendAttachment = async (file: File | null) => {
+    if (!file || !activeOrganizationId || !selectedProtocol || !canSendMessages || sendingMedia) return;
+    if (file.size > 25 * 1024 * 1024) {
+      setMessage({ text: "O anexo deve ter no máximo 25 MB.", error: true });
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+      return;
+    }
+
+    setSendingMedia(true);
+    setMessage(null);
+    try {
+      await sendSacDigitalMediaMessage(
+        activeOrganizationId,
+        selectedProtocol.external_protocol_id,
+        file,
+        draft.trim(),
+      );
+      setDraft("");
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+      await Promise.all([
+        loadMessages(selectedProtocol.id, false),
+        loadProtocols(false),
+      ]);
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível enviar o anexo pela SAC Digital."),
+        error: true,
+      });
+    } finally {
+      setSendingMedia(false);
+    }
+  };
+
   if (!activeOrganizationId || loading) return <LoadingState text="Carregando SAC Digital..." />;
 
   return <div className="min-w-0 space-y-5">
@@ -575,10 +612,29 @@ export function SacDigitalToolPage({
                         void sendMessage();
                       }}
                     >
+                      <input
+                        ref={attachmentInputRef}
+                        type="file"
+                        className="hidden"
+                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip,.rar"
+                        onChange={event => void sendAttachment(event.target.files?.[0] || null)}
+                      />
+                      <AdminButton
+                        type="button"
+                        variant="secondary"
+                        disabled={sending || sendingMedia || !status?.enabled}
+                        loading={sendingMedia}
+                        onClick={() => attachmentInputRef.current?.click()}
+                        aria-label="Anexar arquivo"
+                        title="Anexar arquivo"
+                        className="h-[44px] shrink-0 px-3"
+                      >
+                        <Paperclip size={16} />
+                      </AdminButton>
                       <textarea
                         rows={2}
                         value={draft}
-                        disabled={sending || !status?.enabled}
+                        disabled={sending || sendingMedia || !status?.enabled}
                         placeholder={status?.enabled ? "Digite uma mensagem..." : "Integração desativada"}
                         onChange={event => setDraft(event.target.value)}
                         onKeyDown={event => {
@@ -591,7 +647,7 @@ export function SacDigitalToolPage({
                       />
                       <AdminButton
                         type="submit"
-                        disabled={!draft.trim() || !status?.enabled}
+                        disabled={!draft.trim() || sendingMedia || !status?.enabled}
                         loading={sending}
                         aria-label="Enviar mensagem"
                         title="Enviar mensagem"
