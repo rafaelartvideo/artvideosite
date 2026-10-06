@@ -135,7 +135,16 @@ export function DashboardPanel({
   );
 }
 
-const tooltipStyle = { borderRadius: 10, border: "1px solid rgba(13,27,46,.1)", fontSize: 11, boxShadow: "0 10px 30px rgba(13,27,46,.08)" };
+const tooltipStyle = {
+  borderRadius: 10,
+  border: "1px solid var(--border)",
+  backgroundColor: "var(--popover)",
+  color: "var(--popover-foreground)",
+  fontSize: 11,
+  boxShadow: "0 10px 30px rgba(0,0,0,.16)",
+};
+const tooltipLabelStyle = { color: "var(--popover-foreground)", fontWeight: 700 };
+const tooltipItemStyle = { color: "var(--popover-foreground)" };
 
 export function DashboardBarChart({
   data,
@@ -185,7 +194,7 @@ export function DashboardBarChart({
               <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} />
             </>
           )}
-          <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(0,87,231,.04)" }} />
+          <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} cursor={{ fill: "rgba(0,87,231,.04)" }} />
           <Bar
             dataKey="value"
             name="Total"
@@ -218,7 +227,7 @@ export function DashboardLineChart({ data, color = "#0057e7", money = false }: {
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf4" />
           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} minTickGap={18} />
           <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} tickFormatter={value => money ? `R$ ${Number(value) / 1000 >= 1 ? `${(Number(value) / 1000).toFixed(0)}k` : value}` : String(value)} />
-          <Tooltip contentStyle={tooltipStyle} formatter={value => money ? Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : value} />
+          <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} formatter={value => money ? Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : value} />
           <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2.5} dot={{ r: 2.5, fill: color, strokeWidth: 0 }} activeDot={{ r: 4 }} />
         </LineChart>
       </ResponsiveContainer>
@@ -235,7 +244,7 @@ export function DashboardDonutChart({ data, colors = ["#0057e7", "#16a34a", "#f5
           <Pie data={data} dataKey="value" nameKey="name" innerRadius="54%" outerRadius="78%" paddingAngle={3}>
             {data.map((point, index) => <Cell key={point.name} fill={colors[index % colors.length]} />)}
           </Pie>
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
         </PieChart>
       </ResponsiveContainer>
       <div className="space-y-2 overflow-hidden">
