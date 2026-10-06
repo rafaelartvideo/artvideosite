@@ -343,9 +343,9 @@ export function SacDigitalToolPage({
           </p>
         </div>
       ) : (
-        <div className="grid min-h-[560px] md:grid-cols-[300px_minmax(0,1fr)]">
-          <div className="min-w-0 border-b border-border md:border-b-0 md:border-r">
-            <div className="max-h-[560px] overflow-y-auto">
+        <div className="grid h-[680px] min-h-0 grid-rows-[220px_minmax(0,1fr)] overflow-hidden md:h-[560px] md:grid-cols-[300px_minmax(0,1fr)] md:grid-rows-1">
+          <div className="min-h-0 min-w-0 overflow-hidden border-b border-border md:border-b-0 md:border-r">
+            <div className="h-full min-h-0 overflow-y-auto overscroll-contain">
               {protocols.map(protocol => {
                 const selected = protocol.id === selectedProtocolId;
                 return <button
@@ -388,7 +388,7 @@ export function SacDigitalToolPage({
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
             {selectedProtocol ? (
               <>
                 <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border px-4 py-3.5">
@@ -413,7 +413,7 @@ export function SacDigitalToolPage({
                   </AdminButton>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto bg-muted/20 px-4 py-4">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/20 px-4 py-4">
                   {messagesLoading ? <LoadingState text="Carregando mensagens..." /> : messages.length === 0 ? (
                     <div className="flex min-h-64 items-center justify-center text-center text-xs text-muted-foreground">
                       Nenhuma mensagem registrada neste protocolo.
@@ -495,7 +495,7 @@ export function SacDigitalToolPage({
                 </div>
               </>
             ) : (
-              <div className="flex min-h-[560px] items-center justify-center p-6 text-center text-sm text-muted-foreground">
+              <div className="flex h-full min-h-0 items-center justify-center p-6 text-center text-sm text-muted-foreground">
                 Selecione um atendimento para visualizar as mensagens.
               </div>
             )}
