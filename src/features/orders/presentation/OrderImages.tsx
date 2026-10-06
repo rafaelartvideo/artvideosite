@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Camera, Download, MoreVertical, Upload, X } from "lucide-react";
+import html2pdf from "html2pdf.js";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getMediaById, resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
@@ -8,7 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { OrderImage } from "../domain/order-image";
 export type { OrderImage } from "../domain/order-image";
 
-type OrderImageDownloadFormat = "original" | "png" | "jpeg";
+type OrderImageDownloadFormat = "original" | "png" | "jpeg" | "pdf";
 
 function safeFileBaseName(value: string, fallback: string) {
   const normalized = String(value || "")
@@ -96,7 +97,100 @@ function triggerImageDownload(blob: Blob, fileName: string) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
 }
 
+async function buildImagesPdf(images: OrderImage[], fileName: string) {
+  const prepared: Array<{ url: string; name: string }> = [];
+  const root = document.createElement("div");
+  root.style.width = "210mm";
+  root.style.background = "#ffffff";
+  root.style.color = "#0d1b2e";
+
+  try {
+    for (let index = 0; index < images.length; index += 1) {
+      const source = await loadOrderImageBlob(images[index]);
+      const objectUrl = URL.createObjectURL(source.blob);
+      prepared.push({
+        url: objectUrl,
+        name: safeFileBaseName(source.fileName || images[index].name, `imagem-${index + 1}`),
+      });
+    }
+
+    prepared.forEach((item, index) => {
+      const page = document.createElement("div");
+      page.style.width = "210mm";
+      page.style.height = "297mm";
+      page.style.boxSizing = "border-box";
+      page.style.padding = "14mm";
+      page.style.display = "flex";
+      page.style.flexDirection = "column";
+      page.style.alignItems = "center";
+      page.style.justifyContent = "center";
+      page.style.background = "#ffffff";
+      page.style.pageBreakAfter = index < prepared.length - 1 ? "always" : "auto";
+      page.style.breakAfter = index < prepared.length - 1 ? "page" : "auto";
+
+      const imageElement = document.createElement("img");
+      imageElement.src = item.url;
+      imageElement.alt = item.name;
+      imageElement.style.display = "block";
+      imageElement.style.maxWidth = "182mm";
+      imageElement.style.maxHeight = "255mm";
+      imageElement.style.objectFit = "contain";
+
+      page.appendChild(imageElement);
+      root.appendChild(page);
+    });
+
+    root.style.position = "fixed";
+    root.style.left = "-100000px";
+    root.style.top = "0";
+    root.style.zIndex = "-1";
+    document.body.appendChild(root);
+
+    await Promise.all(Array.from(root.querySelectorAll("img")).map(imageElement => {
+      if (imageElement.complete) return imageElement.decode?.().catch(() => undefined);
+      return new Promise<void>(resolve => {
+        imageElement.addEventListener("load", () => resolve(), { once: true });
+        imageElement.addEventListener("error", () => resolve(), { once: true });
+      });
+    }));
+
+    const worker: any = (html2pdf as any)()
+      .set({
+        margin: 0,
+        filename: fileName,
+        image: { type: "jpeg", quality: 0.96 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: "#ffffff",
+          logging: false,
+        },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait", compress: true },
+        pagebreak: { mode: ["css", "legacy"] },
+      })
+      .from(root)
+      .toCanvas()
+      .toPdf();
+
+    const pdfBlob = await worker.outputPdf("blob");
+    if (!(pdfBlob instanceof Blob) || pdfBlob.size < 5) {
+      throw new Error("Não foi possível gerar o PDF.");
+    }
+    triggerImageDownload(pdfBlob, fileName);
+  } finally {
+    root.remove();
+    prepared.forEach(item => URL.revokeObjectURL(item.url));
+  }
+}
+
 async function downloadOrderImage(image: OrderImage, format: OrderImageDownloadFormat, index: number) {
+  if (format === "pdf") {
+    const baseName = safeFileBaseName(image.name, `imagem-${index + 1}`);
+    await buildImagesPdf([image], `${baseName}.pdf`);
+    return;
+  }
+
   const source = await loadOrderImageBlob(image);
   const baseName = safeFileBaseName(source.fileName || image.name, `imagem-${index + 1}`);
 
@@ -129,22 +223,33 @@ export function OrderImageDownloadMenu({
     setBusyFormat(format);
     setError("");
 
-    let failed = 0;
-    for (let index = 0; index < images.length; index += 1) {
-      try {
-        await downloadOrderImage(images[index], format, index);
-      } catch (downloadError) {
-        console.error("[ORDER_IMAGES] download failed", downloadError);
-        failed += 1;
+    try {
+      if (format === "pdf") {
+        await buildImagesPdf(images, `${safeFileBaseName(label, "imagens")}.pdf`);
+        return;
       }
-    }
 
-    if (failed > 0) {
-      setError(failed === images.length
-        ? "Não foi possível baixar as imagens."
-        : `${failed} imagem(ns) não puderam ser baixadas.`);
+      let failed = 0;
+      for (let index = 0; index < images.length; index += 1) {
+        try {
+          await downloadOrderImage(images[index], format, index);
+        } catch (downloadError) {
+          console.error("[ORDER_IMAGES] download failed", downloadError);
+          failed += 1;
+        }
+      }
+
+      if (failed > 0) {
+        setError(failed === images.length
+          ? "Não foi possível baixar as imagens."
+          : `${failed} imagem(ns) não puderam ser baixadas.`);
+      }
+    } catch (downloadError) {
+      console.error("[ORDER_IMAGES] batch download failed", downloadError);
+      setError("Não foi possível baixar as imagens.");
+    } finally {
+      setBusyFormat(null);
     }
-    setBusyFormat(null);
   };
 
   return (
@@ -186,6 +291,14 @@ export function OrderImageDownloadMenu({
           >
             <Download size={14} />
             Baixar todas em JPEG
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={Boolean(busyFormat)}
+            onSelect={() => void downloadAll("pdf")}
+            className="cursor-pointer gap-2"
+          >
+            <Download size={14} />
+            Baixar todas em PDF
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -287,6 +400,23 @@ export function OrderImagesField({
 export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: () => void }) {
   const { url: mediaUrl } = useMediaUrl(image.mediaId);
   const url = image.url || mediaUrl;
+  const [busyFormat, setBusyFormat] = useState<OrderImageDownloadFormat | null>(null);
+  const [downloadError, setDownloadError] = useState("");
+
+  const download = async (format: OrderImageDownloadFormat) => {
+    if (busyFormat) return;
+    setBusyFormat(format);
+    setDownloadError("");
+    try {
+      await downloadOrderImage(image, format, 0);
+    } catch (error) {
+      console.error("[ORDER_IMAGES] individual download failed", error);
+      setDownloadError("Não foi possível baixar esta imagem.");
+    } finally {
+      setBusyFormat(null);
+    }
+  };
+
   return url ? <AdminDialog
     open
     onClose={onClose}
@@ -294,7 +424,37 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     description="Imagem vinculada à ordem de serviço."
     minimizedDescription={image.name || "Imagem da OS"}
     className="max-w-6xl"
+    headerActions={
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={Boolean(busyFormat)}
+            aria-label="Baixar imagem"
+            title={busyFormat ? "Preparando download..." : "Baixar imagem"}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary disabled:cursor-wait disabled:opacity-60"
+          >
+            <Download size={15} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-52">
+          <DropdownMenuItem disabled={Boolean(busyFormat)} onSelect={() => void download("original")} className="cursor-pointer gap-2">
+            <Download size={14} /> Baixar original
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={Boolean(busyFormat)} onSelect={() => void download("png")} className="cursor-pointer gap-2">
+            <Download size={14} /> Baixar em PNG
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={Boolean(busyFormat)} onSelect={() => void download("jpeg")} className="cursor-pointer gap-2">
+            <Download size={14} /> Baixar em JPEG
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={Boolean(busyFormat)} onSelect={() => void download("pdf")} className="cursor-pointer gap-2">
+            <Download size={14} /> Baixar em PDF
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    }
   >
+    {downloadError && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{downloadError}</div>}
     <div className="flex min-h-[45vh] items-center justify-center overflow-hidden rounded-xl bg-[#0d1b2e] p-2">
       <img src={url} alt={image.name} className="max-h-[72vh] max-w-full object-contain" />
     </div>
