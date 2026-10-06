@@ -80,6 +80,7 @@ export function permissionSectionName(permission: PermissionRecord) {
     if (key.startsWith("registrations.records.")) return "Registros";
   }
   if (module === "employees") return key === "employees.view" ? "Acesso" : "Ações";
+  if (module === "queue") return key === "queue.view" ? "Acesso" : "Configurações";
   if (module === "tools") return key === "tools.view" ? "Acesso" : "Uso";
   if (module === "checklists") return key === "checklists.view" ? "Acesso" : "Ações";
   if (module === "documents") {
