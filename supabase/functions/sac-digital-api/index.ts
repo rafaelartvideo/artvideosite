@@ -463,11 +463,15 @@ Deno.serve(async request => {
       const protocol = String(body.protocol || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       const applied = await enrichProtocol(organizationId, protocol);
+      const history = await syncProtocolHistory(organizationId, protocol);
       return json({
         success: true,
         protocol,
         contact_found: applied.contact_found === true,
         customer_linked: applied.customer_linked === true,
+        history_total: history.total,
+        history_imported: history.imported,
+        history_matched: history.matched,
       });
     }
 
