@@ -105,10 +105,17 @@ export async function executeSacOperation(operation, dependencies) {
     if (attempt) await dependencies.record(attempt.id,envelope.outcome,result.body);
     return envelope;
   } catch (error) {
-    const authentication = error?.code === 'operator_auth_contract_unverified';
+    const errorCode=String(error?.code || '');
+    const authentication=['operator_auth_contract_unverified','operator_profile_incompatible','operator_scope_missing'].includes(errorCode);
     const state = mutation && !authentication ? 'unknown' : 'rejected';
-    if(attempt) await dependencies.record(attempt.id,state,{});
-    return fail(authentication ? error.code : 'external_transport_failed', authentication ? 'O contrato de autenticação operacional foi recusado. Confirme o contrato com a SAC Digital.' : 'Não foi possível confirmar o resultado externo. Reconcilie antes de repetir.',state);
+    if(attempt) await dependencies.record(attempt.id,state,{type:errorCode || undefined});
+    return fail(
+      authentication ? errorCode : 'external_transport_failed',
+      authentication
+        ? String(error?.message || 'A autenticação operacional da SAC Digital foi recusada.')
+        : 'Não foi possível confirmar o resultado externo. Reconcilie antes de repetir.',
+      state,
+    );
   } finally {if(leased) await dependencies.release();}
 }
 
