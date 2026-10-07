@@ -1209,11 +1209,31 @@ Deno.serve(async request => {
         const list = Array.isArray(result.body.list)
           ? result.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
           : [];
-        return list.find(item =>
-          item.is_open === true
-          || item.is_att === true
-          || (!item.closed_at && Boolean(item.protocol))
-        ) || null;
+        for (const item of list) {
+          if (item.is_open !== true || Boolean(item.closed_at)) continue;
+          const protocolId = String(item.protocol || "").trim();
+          if (!validProtocol(protocolId)) continue;
+          const check = await apiRequest(
+            organizationId,
+            credentials,
+            `/protocol/info?protocol=${encodeURIComponent(protocolId)}`,
+            { method: "GET" },
+          );
+          if (!check.response.ok || check.body.status === false) continue;
+          const info = check.body.info && typeof check.body.info === "object"
+            && !Array.isArray(check.body.info)
+            ? check.body.info as Record<string, unknown>
+            : null;
+          if (info?.is_open === true && !String(info.closed_at || "").trim()) return item;
+          if (info && (info.is_open === false || Boolean(info.closed_at))) {
+            try {
+              await enrichProtocol(organizationId, protocolId);
+            } catch {
+              // O protocolo fechado nunca deve receber mensagem nova.
+            }
+          }
+        }
+        return null;
       };
 
       let openProtocol = await findOpenProtocol();
