@@ -220,6 +220,7 @@ export function SacDigitalToolPage({
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const sendingRef = useRef(false);
+  const lastResumeRefreshRef = useRef(0);
   const activePendingContactIdRef = useRef<string | null>(null);
 
   const selectedProtocol = useMemo(
@@ -440,6 +441,41 @@ export function SacDigitalToolPage({
     selectedProtocol?.is_pending,
     selectedProtocolId,
   ]);
+
+  useEffect(() => {
+    if (!activeOrganizationId || !canViewMessages) return;
+    let updating = false;
+    let cancelled = false;
+
+    const refreshWhenActive = async () => {
+      if (document.visibilityState === "hidden" || updating) return;
+      const now = Date.now();
+      // Sem polling: atualizar ao voltar para a aba, no maximo a cada 60s.
+      if (now - lastResumeRefreshRef.current < 60_000) return;
+      lastResumeRefreshRef.current = now;
+      updating = true;
+      try {
+        if (status?.enabled && selectedProtocol?.external_protocol_id && !selectedProtocol.is_pending) {
+          await refreshSacDigitalProtocol(activeOrganizationId, selectedProtocol.external_protocol_id);
+          if (!cancelled) await loadMessages(selectedProtocol.id, false);
+        }
+        if (!cancelled) await Promise.all([loadProtocols(false), loadUnreadCounts()]);
+      } catch {
+        // O historico local segue acessivel quando nao ha conexao com a SAC.
+      } finally {
+        updating = false;
+      }
+    };
+
+    window.addEventListener("focus", refreshWhenActive);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", refreshWhenActive);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+    };
+  }, [activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts,
+    selectedProtocol?.external_protocol_id, selectedProtocol?.id, selectedProtocol?.is_pending, status?.enabled]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1106,8 +1142,15 @@ export function SacDigitalToolPage({
                     <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
                       {selectedProtocol.contact?.phone && <span>{formatPhone(selectedProtocol.contact.phone)}</span>}
                       <span>Protocolo {selectedProtocol.external_protocol_id}</span>
-                      {selectedProtocol.department_name && <span>{selectedProtocol.department_name}</span>}
-                      {selectedProtocol.operator_name && <span>{selectedProtocol.operator_name}</span>}
+                      <span className={`rounded px-1.5 py-0.5 font-semibold ${selectedProtocol.status === "finished"
+                        ? "bg-muted text-muted-foreground"
+                        : selectedProtocol.status === "in_att"
+                          ? "bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                          : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"}`}>
+                        {protocolStatusLabel[selectedProtocol.status] || selectedProtocol.status}
+                      </span>
+                      <span>Atendente: {selectedProtocol.operator_name || "não atribuído"}</span>
+                      <span>Departamento: {selectedProtocol.department_name || "não atribuído"}</span>
                     </div>
                   </div>
                 </div>
