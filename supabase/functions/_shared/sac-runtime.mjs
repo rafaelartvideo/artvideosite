@@ -11,7 +11,7 @@ const actions = new Set([
  'sync_protocol_history','enrich_protocol','media_urls','refresh_protocol',
  'link_customer','new_conversation_search','prepare_new_conversation_contact',
  'start_new_conversation','my_operator_binding','assume_protocol','routing_options',
- 'forward_protocol','return_to_inbox','finish_protocol','send_media','send_order_message','send_message',
+ 'forward_protocol','return_to_inbox','finish_protocol','send_media','send_order_message','send_signature_invite','send_message',
 ]);
 const events = new Set(['protocol_opened','protocol_finished','protocol_in_att','protocol_forward','protocol_new_message','protocol_new_inbox','contact_new']);
 export function resourceEnabled(id) { return LEGACY_SAC_ENABLED || resources.has(Number(id)); }
