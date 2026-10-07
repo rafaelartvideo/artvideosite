@@ -1903,6 +1903,7 @@ Deno.serve(async request => {
       }
 
       const externalContactId = String(body.external_contact_id || "").trim();
+      const selectedChannelId = String(body.channel || "").trim();
       const text = String(body.text || "").trim();
       if (!externalContactId || externalContactId.length > 120) {
         return json({ success: false, error: "Contato SAC inválido." }, 400);
@@ -2138,6 +2139,7 @@ Deno.serve(async request => {
           method: "POST",
           body: JSON.stringify({
             contact: externalContactId,
+            ...(selectedChannelId ? { channel: selectedChannelId } : {}),
             type: "text",
             text,
           }),
