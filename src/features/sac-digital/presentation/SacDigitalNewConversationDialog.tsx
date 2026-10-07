@@ -183,7 +183,9 @@ export function SacDigitalNewConversationDialog({
 
   const manualPhoneReady = isUsablePhone(query);
   const selectedContact = prepared?.contact || null;
-  const canCompose = Boolean(prepared?.prepared && prepared.whatsapp_available && selectedContact && !selectedContact.blocked);
+  // Um contato recém-importado pode ainda não ter canal confirmado na consulta.
+  // Deixar a SAC decidir no envio, sem bloquear apenas por ausência no índice.
+  const canCompose = Boolean(prepared?.prepared && selectedContact?.external_contact_id && !selectedContact.blocked);
 
   return (
     <AdminDialog
@@ -242,6 +244,8 @@ export function SacDigitalNewConversationDialog({
                   onChange={event => {
                     setQuery(event.target.value);
                     setPrepared(null);
+                    setContacts([]);
+                    setCustomers([]);
                     setError("");
                   }}
                   placeholder="Nome ou número com DDD"
@@ -307,7 +311,7 @@ export function SacDigitalNewConversationDialog({
               <div className="rounded-lg border border-border bg-muted/25 p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-black text-foreground">Número não cadastrado</p>
+                    <p className="text-xs font-black text-foreground">Número novo — iniciar conversa</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{formatPhone(query)}</p>
                     <label className="mt-3 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Nome do contato
@@ -324,11 +328,11 @@ export function SacDigitalNewConversationDialog({
                     loading={preparingKey === "manual"}
                     disabled={Boolean(preparingKey && preparingKey !== "manual")}
                   >
-                    Verificar número
+                    Criar contato e continuar
                   </AdminButton>
                 </div>
                 <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-                  A Union consulta a SAC Digital e, se necessário, prepara o contato antes de liberar a primeira mensagem.
+                  Não precisa estar na base da SAC. Ao continuar, a Union cadastra o contato se necessário e libera a primeira mensagem quando a importação for aceita.
                 </p>
               </div>
             )}
