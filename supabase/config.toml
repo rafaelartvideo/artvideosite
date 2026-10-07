@@ -31,3 +31,16 @@ verify_jwt = false
 # O usuário do CRM precisa estar autenticado; as credenciais do segundo projeto ficam apenas no servidor.
 [functions.queue-integration]
 verify_jwt = true
+
+# SAC API validates Supabase JWT manually; reverse callbacks validate scoped integration tokens.
+[functions.sac-digital-api]
+verify_jwt = false
+[functions.sac-digital-webhook]
+verify_jwt = false
+[functions.sac-digital-media]
+verify_jwt = false
+[functions.sac-digital-menu]
+verify_jwt = false
+# Worker accepts service role or its private scheduler header, validated server-side.
+[functions.sac-digital-worker]
+verify_jwt = false

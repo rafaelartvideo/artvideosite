@@ -136,6 +136,9 @@ jobs:
       - name: Error and service-type regression tests
         run: npm run test:regressions
 
+      - name: SAC Digital contract and event tests
+        run: npm run test:sac
+
       - name: Build public site
         if: steps.targets.outputs.site == 'true'
         run: npm run build:site

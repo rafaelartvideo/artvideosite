@@ -1,3 +1,7 @@
+import { SacDigitalDeliveryHistory } from './SacDigitalDeliveryHistory';
+import { syncSacDigitalResources } from '../infrastructure/sac-digital.repository';
+import { SacDigitalResources } from './SacDigitalResources';
+import { mediaMaximum, deliveryLabel } from '../domain/resource-ui.mjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import {
@@ -173,7 +177,7 @@ function deliveryStatus(message: SacDigitalMessage) {
     deleted: "Excluída",
   };
   if (labels[historyStatus]) return labels[historyStatus];
-  return raw?.sent_via_union || raw?.recovered_from_sac_history ? "Enviada" : "";
+  return deliveryLabel(raw);
 }
 
 function messageKind(message: SacDigitalMessage) {
@@ -286,6 +290,21 @@ export function SacDigitalToolPage({
   const canViewOrders = hasPermission("orders.view");
   const canCreateOrders = hasPermission("orders.create");
 
+  useEffect(() => {
+    if (!activeOrganizationId || !canViewMessages) return;
+    let cancelled = false;
+    let running = false;
+    const reconcile = async () => {
+      if (cancelled || running || document.visibilityState === 'hidden') return;
+      running = true;
+      try { await syncSacDigitalResources(activeOrganizationId); } catch { /* Local state remains readable; the next bounded reconciliation resumes. */ }
+      finally { running = false; }
+    };
+    void reconcile();
+    const interval = window.setInterval(() => void reconcile(), 120_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [activeOrganizationId, canViewMessages]);
+  const [resourcesOpen, setResourcesOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [inboxLoading, setInboxLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -294,6 +313,7 @@ export function SacDigitalToolPage({
   const [protocolAction, setProtocolAction] = useState<"routing" | "forward" | "assume" | "inbox" | "finish" | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
+  const [finishVote, setFinishVote] = useState("");
   const [routingOptions, setRoutingOptions] = useState<SacDigitalRoutingOptions | null>(null);
   const [departmentId, setDepartmentId] = useState("");
   const [operatorId, setOperatorId] = useState("");
@@ -662,10 +682,13 @@ export function SacDigitalToolPage({
       }
     };
 
+    const reconcileTimer = window.setInterval(() => void refreshWhenActive(), 60_000);
+    void refreshWhenActive();
     window.addEventListener("focus", refreshWhenActive);
     document.addEventListener("visibilitychange", refreshWhenActive);
     return () => {
       cancelled = true;
+      window.clearInterval(reconcileTimer);
       window.removeEventListener("focus", refreshWhenActive);
       document.removeEventListener("visibilitychange", refreshWhenActive);
     };
@@ -802,7 +825,7 @@ export function SacDigitalToolPage({
         loadProtocols(false),
       ]);
     } catch {
-      setMessage({ text: "Mensagem enviada pela SAC Digital. A atualização do histórico será retomada na próxima abertura." });
+      setMessage({ text: "Mensagem aceita pela SAC Digital. A confirmação e a atualização do histórico será retomada na próxima abertura." });
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -837,8 +860,8 @@ export function SacDigitalToolPage({
       }
       setMessage({
         text: result.pending_start_id
-          ? "Mensagem inicial enviada. A conversa está na lista como aguardando protocolo."
-          : "Mensagem enviada pela SAC Digital, mas o registro pendente ainda não está disponível na Union. O protocolo aparecerá quando a SAC o criar.",
+          ? "Mensagem inicial aceita pela SAC. A conversa está na lista como aguardando protocolo."
+          : "Mensagem aceita pela SAC Digital; a confirmação de entrega e o registro pendente ainda não está disponível na Union. O protocolo aparecerá quando a SAC o criar.",
       });
       return;
     }
@@ -1093,15 +1116,17 @@ export function SacDigitalToolPage({
   };
 
   const finishProtocol = async () => {
-    if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction) return;
+    if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction || !finishVote) return;
     setProtocolAction("finish");
     setMessage(null);
     try {
       await finishSacDigitalProtocol(
         activeOrganizationId,
         selectedProtocol.external_protocol_id,
+        Number(finishVote),
       );
       setFinishConfirmOpen(false);
+      setFinishVote("");
       setRoutingOpen(false);
       setMessage({ text: "Atendimento finalizado com sucesso." });
       await reloadSelectedProtocol();
@@ -1164,6 +1189,7 @@ export function SacDigitalToolPage({
               Nova conversa
             </AdminButton>
           )}
+          <BtnSecondary onClick={() => setResourcesOpen(value => !value)}>{resourcesOpen ? "Fechar recursos" : "Recursos SAC"}</BtnSecondary>
           <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
           {canManage && onOpenSettings && (
             <AdminButton variant="secondary" onClick={onOpenSettings}>
@@ -1174,6 +1200,8 @@ export function SacDigitalToolPage({
         </>
       }
     />
+
+    {resourcesOpen && <><SacDigitalResources organizationId={activeOrganizationId} hasPermission={hasPermission} protocol={selectedProtocol?.external_protocol_id} onInsertAnswer={text => { setDraft(text); setResourcesOpen(false); }} /><SacDigitalDeliveryHistory organizationId={activeOrganizationId} /></>}
 
     {message && (
       <div className={`rounded-lg border px-3 py-2 text-sm font-semibold ${message.error
@@ -1355,7 +1383,7 @@ export function SacDigitalToolPage({
                           {selectedProtocol.pending_message}
                         </p>
                         <p className="mt-1 text-right text-[9px] opacity-60">
-                          Enviada à SAC · {formatCompactDate(selectedProtocol.last_message_at)}
+                          {deliveryLabel({status: selectedProtocol.delivery_state})} · {formatCompactDate(selectedProtocol.last_message_at)}
                         </p>
                       </div>
                     </div>
@@ -1733,6 +1761,7 @@ export function SacDigitalToolPage({
                     <p className="text-xs font-semibold">
                       Finalizar este atendimento na SAC Digital? Esta ação encerra o protocolo.
                     </p>
+                    <label className="text-xs font-semibold">Avaliação do atendimento<select aria-label="Avaliação do atendimento" className="admin-input ml-2 rounded border border-border p-2" value={finishVote} onChange={event => setFinishVote(event.target.value)}><option value="">Selecionar avaliação</option>{[0,1,2,3,4,5].map(vote => <option key={vote} value={vote}>{vote}</option>)}</select></label>
                     <div className="flex gap-2">
                       <AdminButton
                         variant="secondary"
@@ -1743,6 +1772,7 @@ export function SacDigitalToolPage({
                       </AdminButton>
                       <AdminButton
                         onClick={() => void finishProtocol()}
+                        disabled={!finishVote}
                         loading={protocolAction === "finish"}
                       >
                         Finalizar
@@ -1918,8 +1948,8 @@ export function SacDigitalToolPage({
                           onChange={event => {
                             const file = event.target.files?.[0] || null;
                             if (!file) return;
-                            if (file.size > 25 * 1024 * 1024) {
-                              setMessage({ text: "O arquivo deve ter no máximo 25 MB.", error: true });
+                            if (file.size > mediaMaximum(file.type)) {
+                              setMessage({ text: `O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`, error: true });
                               event.target.value = "";
                               return;
                             }
@@ -1938,7 +1968,7 @@ export function SacDigitalToolPage({
                           disabled={sending || !status?.enabled}
                           onClick={() => mediaInputRef.current?.click()}
                           aria-label="Anexar imagem, áudio, vídeo ou arquivo"
-                          title="Anexar arquivo (até 25 MB; imagens até 1 MB)"
+                          title="Anexar arquivo (imagens 1 MB; áudio 3 MB; vídeo/arquivos 5 MB)"
                           className="h-11 w-11 shrink-0 rounded-full px-0"
                         >
                           <Paperclip size={17} />

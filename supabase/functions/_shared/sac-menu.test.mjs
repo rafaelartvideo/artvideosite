@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {validateMenuSettings,menuResponse,resolveMenuCustomer} from './sac-menu.mjs';
+test('menu rejects duplicate choices instead of ambiguous routing',()=>assert.throws(()=>validateMenuSettings({enabled:true,text:'Escolha',source:'static',choices:[{tag:'a',text:'A'},{tag:'a',text:'B'}]}),/repetidas/));
+test('callback exposes only allowed order summary',()=>assert.deepEqual(menuResponse({enabled:true,text:'Consulta',source:'service_order_status',choices:[{tag:'voltar',text:'Voltar'}]},[{os_number:'10',status:'Aberta',customer_id:'private'}]),{sucesso:true,retorno:{texto:'Consulta\nOS 10: Aberta',menus:[{tag:'voltar',menu:'Voltar'}]}}));
+
+test('truncated same-customer rows cannot hide another identity',()=>{assert.equal(resolveMenuCustomer([{customer_id:'a'},{customer_id:'a'}],3),null);assert.equal(resolveMenuCustomer([{customer_id:'a'},{customer_id:'a'}],2),'a');assert.equal(resolveMenuCustomer([{customer_id:'a'},{customer_id:'b'}],2),null);});

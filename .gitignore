@@ -1,1 +1,6 @@
 node_modules
+
+# Local implementation coordination
+.superpowers/
+
+/dist-crm/

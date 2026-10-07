@@ -1,10 +1,15 @@
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
+import { SAC_ENDPOINTS, buildSacRequest, mediaLimit } from "../_shared/sac-contracts.mjs";
+import { executeSacOperation, operationPermission, parsePagination, operatorScopes, importPhoneCandidates, mayTryImportVariant, routeProtocolOperation, channelCapabilityError, responseEnvelope, ownMediaStoragePath, chooseImportChannel } from "../_shared/sac-gateway.ts";
+
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const SAC_API_BASE_URL = "https://api.sac.digital/v2/client";
 const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", "inbox", "send", "write", "import", "remove", "notification", "manager"];
-const SAC_OUTBOX_BUCKET = "sac-digital-outbox";
-const SAC_OUTBOX_MAX_BYTES = 25 * 1024 * 1024;
+const SAC_OUTBOX_BUCKET = "sac-digital-attachments";
+const SAC_OUTBOX_MAX_BYTES = 5 * 1024 * 1024;
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+const operatorSessionCache = new Map<string,{token:string;expiresAt:number}>();
 const operatorNameCache = new Map<string, { names: Map<string, string>; expiresAt: number }>();
 
 const corsHeaders = {
@@ -14,7 +19,8 @@ const corsHeaders = {
 };
 
 function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), {
+  const envelope={data:null,outcome:body.success === true ? 'accepted' : 'rejected',has_more:false,next_page:null,...body};
+  return new Response(JSON.stringify(envelope), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
   });
@@ -73,11 +79,7 @@ function sacWhatsAppValidationInconclusive(message: unknown, type?: unknown) {
 
 function sacImportPhoneVariants(value: unknown) {
   const normalized = normalizeSacPhone(value);
-  const countryVariants = sacPhoneVariants(normalized);
-  const localVariants = countryVariants
-    .filter(phone => phone.startsWith("55") && phone.length > 2)
-    .map(phone => phone.slice(2));
-  return [...new Set([...countryVariants, ...localVariants].filter(Boolean))];
+  return importPhoneCandidates(normalized);
 }
 
 function sacContactImportError(message: unknown, fallback: string) {
@@ -103,8 +105,9 @@ async function fetchJson(url: string, init: RequestInit, timeoutMs = 15000) {
       try {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) body = parsed;
+        else throw new Error('Resposta JSON deve ser um objeto.');
       } catch {
-        body = {};
+        throw new Error("Resposta JSON inválida da SAC Digital.");
       }
     }
     return { response, body, raw };
@@ -131,42 +134,15 @@ Deno.serve(async request => {
   const ensureOutboxBucket = async () => {
     const existing = await admin.storage.getBucket(SAC_OUTBOX_BUCKET);
     if (!existing.error && existing.data) {
-      if (!existing.data.public) {
-        await admin.storage.updateBucket(SAC_OUTBOX_BUCKET, {
-          public: true,
-          fileSizeLimit: SAC_OUTBOX_MAX_BYTES,
-        });
-      }
+      if(existing.data.public) throw new Error("O bucket de anexos deve ser privado. Verifique a configuração de armazenamento.");
       return;
     }
     const created = await admin.storage.createBucket(SAC_OUTBOX_BUCKET, {
-      public: true,
+      public: false,
       fileSizeLimit: SAC_OUTBOX_MAX_BYTES,
     });
     if (created.error && !/already exists/i.test(created.error.message || "")) {
       throw new Error("Não foi possível preparar o envio de anexos.");
-    }
-  };
-
-  const cleanupOutbox = async (organizationId: string) => {
-    try {
-      const { data } = await admin.storage
-        .from(SAC_OUTBOX_BUCKET)
-        .list(organizationId, {
-          limit: 100,
-          sortBy: { column: "created_at", order: "asc" },
-        });
-      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-      const stale = (data || [])
-        .filter(item => {
-          const value = String((item as any).created_at || (item as any).updated_at || "");
-          const time = new Date(value).getTime();
-          return Number.isFinite(time) && time < cutoff;
-        })
-        .map(item => `${organizationId}/${item.name}`);
-      if (stale.length) await admin.storage.from(SAC_OUTBOX_BUCKET).remove(stale);
-    } catch (error) {
-      console.warn("[SAC DIGITAL API] outbox cleanup skipped", error instanceof Error ? error.message : error);
     }
   };
 
@@ -193,6 +169,7 @@ Deno.serve(async request => {
     organizationId: string,
     credentials: { clientId: string; clientSecret: string },
     force = false,
+    scopes = SAC_SCOPES,
   ) => {
     const cached = tokenCache.get(organizationId);
     if (!force && cached && cached.expiresAt > Date.now() + 60_000) return cached;
@@ -205,7 +182,7 @@ Deno.serve(async request => {
         body: JSON.stringify({
           client: credentials.clientId,
           password: credentials.clientSecret,
-          scopes: SAC_SCOPES,
+          scopes,
         }),
       },
     );
@@ -232,12 +209,14 @@ Deno.serve(async request => {
     return session;
   };
 
+  let resourceDispatch: ((path:string,init:RequestInit)=>Promise<any>) | null = null;
   const apiRequest = async (
     organizationId: string,
     credentials: { clientId: string; clientSecret: string },
     path: string,
     init: RequestInit = {},
   ) => {
+    if(resourceDispatch && String(init.method || "GET").toUpperCase() !== "GET") return resourceDispatch(path,init);
     let session = await login(organizationId, credentials);
     const execute = (token: string) => fetchJson(
       `${SAC_API_BASE_URL}${path}`,
@@ -253,7 +232,7 @@ Deno.serve(async request => {
     );
 
     let result = await execute(session.token);
-    if (result.response.status === 401) {
+    if (result.response.status === 401 && String(init.method || "GET").toUpperCase() === "GET") {
       tokenCache.delete(organizationId);
       session = await login(organizationId, credentials, true);
       result = await execute(session.token);
@@ -308,70 +287,15 @@ Deno.serve(async request => {
   ) => {
     const channelId = String(primaryChannel?.id || "").trim();
 
+    if (!channelId) throw new Error("Selecione um canal ativo antes de importar o contato.");
     for (const candidatePhone of sacImportPhoneVariants(phone)) {
-      // O endpoint legado da SAC pode aceitar formatos diferentes na importação
-      // do formato devolvido pela consulta. Testamos E.164 e DDD+número, sempre
-      // preservando o telefone normalizado internamente.
-      const baseAttempt = await apiRequest(
-        organizationId,
-        credentials,
-        "/contact/import",
-        { method: "POST", body: JSON.stringify({ number: candidatePhone, name }) },
-      );
-
-      if (baseAttempt.response.ok && baseAttempt.body.status !== false && baseAttempt.body.success !== false) {
-        return {
-          result: baseAttempt,
-          phone: normalizeSacPhone(candidatePhone),
-          channelId: null,
-          failure: null,
-        };
-      }
-
-      const validationInconclusive = sacWhatsAppValidationInconclusive(
-        baseAttempt.body.message,
-        baseAttempt.body.type,
-      );
-      if (validationInconclusive) continue;
-
-      // Alguns workspaces exigem o canal já na criação. Só fazemos essa segunda
-      // chamada quando o erro não é a validação de WhatsApp, evitando duplicar
-      // chamadas inúteis em error_valid_wpp.
-      if (channelId) {
-        const channelAttempt = await apiRequest(
-          organizationId,
-          credentials,
-          "/contact/import",
-          {
-            method: "POST",
-            body: JSON.stringify({ number: candidatePhone, name, channel: channelId }),
-          },
-        );
-        if (channelAttempt.response.ok && channelAttempt.body.status !== false && channelAttempt.body.success !== false) {
-          return {
-            result: channelAttempt,
-            phone: normalizeSacPhone(candidatePhone),
-            channelId,
-            failure: null,
-          };
-        }
-        if (sacWhatsAppValidationInconclusive(channelAttempt.body.message, channelAttempt.body.type)) {
-          continue;
-        }
-        return {
-          result: null,
-          phone: normalizeSacPhone(candidatePhone),
-          channelId,
-          failure: channelAttempt,
-        };
-      }
-
-      return {
-        result: null,
-        phone: normalizeSacPhone(candidatePhone),
-        channelId: null,
-        failure: baseAttempt,
-      };
+      const attempt = await apiRequest(organizationId, credentials, "/contact/import", {
+        method: "POST", body: JSON.stringify({number:candidatePhone,name,channel:channelId}),
+      });
+      if(attempt.response.ok && attempt.body.status !== false && attempt.body.success !== false)
+        return {result:attempt,phone:normalizeSacPhone(candidatePhone),channelId,failure:null};
+      if(mayTryImportVariant(attempt.body,attempt.response.status)) continue;
+      return {result:null,phone:normalizeSacPhone(candidatePhone),channelId,failure:attempt};
     }
 
     return {
@@ -382,6 +306,18 @@ Deno.serve(async request => {
     };
   };
 
+  const paginatedSacList = async (organizationId:string,credentials:any,path:string) => {
+    const list:any[]=[];
+    for(let page=1;page<=100;page++) {
+      const result = await apiRequest(organizationId,credentials,`${path}?p=${page}`,{method:'GET'});
+      if(!result.response.ok || result.body.status === false || !Array.isArray(result.body.list)) throw new Error('Não foi possível carregar o catálogo SAC paginado.');
+      list.push(...result.body.list);
+      const pagination=parsePagination(result.body,page);
+      if(!pagination.has_more) return list;
+      if(pagination.next_page !== page+1) throw new Error("Paginação SAC não sequencial; sincronize pelo cursor de recurso.");
+    }
+    throw new Error('Catálogo SAC excedeu o limite de páginas; retome a sincronização.');
+  };
   const loadSacOperatorNames = async (
     organizationId: string,
     credentials: { clientId: string; clientSecret: string },
@@ -389,12 +325,7 @@ Deno.serve(async request => {
     const cached = operatorNameCache.get(organizationId);
     if (cached && cached.expiresAt > Date.now()) return cached.names;
 
-    const result = await apiRequest(
-      organizationId,
-      credentials,
-      "/operator/all?p=1",
-      { method: "GET" },
-    );
+    const result = {response:new Response('{}'),body:{list:await paginatedSacList(organizationId,credentials,'/operator/all'),status:true}};
     if (!result.response.ok || result.body.status === false || !Array.isArray(result.body.list)) {
       return new Map<string, string>();
     }
@@ -647,7 +578,22 @@ Deno.serve(async request => {
         vcard_name: shape.vcardName,
         vcard_phone: shape.vcardPhone,
       }));
-      const historyId = `sac-history:${fingerprint}`;
+      const realHistoryId = entry.message_id ?? entry.id;
+      const historyId = typeof realHistoryId === 'string' || typeof realHistoryId === 'number' ? `sac:${String(realHistoryId)}` : `sac-history:${fingerprint}`;
+      if(realHistoryId != null) {
+        const status:any=entry.status || {};
+        const state=status.readed_at || status.read_at ? 'read' : status.delivered_at ? 'delivered' : status.sended_at || status.sent_at ? 'sent' : null;
+        if(state) {
+          const rank:any={unknown:0,accepted:0,queued:1,sent:2,delivered:3,read:4};
+          const attempts=await admin.from('sac_digital_delivery_attempts').select('id,state').eq('organization_id',organizationId).eq('message_id',String(realHistoryId));
+          if(attempts.error) throw attempts.error;
+          for(const attempt of attempts.data || []) if(rank[state] >= (rank[attempt.state] ?? 0)) {
+            const updated=await admin.from('sac_digital_delivery_attempts').update({state,checked_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',attempt.id);
+            if(updated.error) throw updated.error;
+          }
+        }
+      }
+
 
       const historyBy = String(entry.by || "").toLowerCase();
       const operatorId = String(entry.operator || "").trim();
@@ -664,12 +610,16 @@ Deno.serve(async request => {
           : null;
       const targetTime = new Date(sentAt).getTime();
 
-      const alreadyIndexed = localMessages.find(row => row.external_message_id === historyId);
+      const alreadyIndexed = localMessages.find(row => row.external_message_id === historyId || row.external_message_id === `sac-history:${fingerprint}`);
       if (alreadyIndexed) {
         const previousMetadata = alreadyIndexed.raw_metadata && typeof alreadyIndexed.raw_metadata === "object"
           ? alreadyIndexed.raw_metadata : {};
         const sentViaUnion = previousMetadata.sent_via_union === true;
-        const indexedPatch: Record<string, unknown> = {};
+        const previousStatus:any = previousMetadata.sac_history?.status || {};
+        const incomingStatus:any = entry.status || {};
+        const mergedStatus = {...previousStatus,...incomingStatus};
+        for(const key of ['sended_at','delivered_at','readed_at']) if(previousStatus[key] && (!incomingStatus[key] || new Date(previousStatus[key]).getTime()>new Date(incomingStatus[key]).getTime())) mergedStatus[key]=previousStatus[key];
+        const indexedPatch: Record<string, unknown> = {raw_metadata:{...previousMetadata,sac_history:{...entry,status:mergedStatus},history_synced:true},...(realHistoryId != null ? {external_message_id:historyId}:{})};
         if (!sentViaUnion && alreadyIndexed.direction !== direction) indexedPatch.direction = direction;
         if (!sentViaUnion && direction === "outgoing" && operatorName && !alreadyIndexed.sender_name) {
           indexedPatch.sender_name = operatorName;
@@ -758,11 +708,7 @@ Deno.serve(async request => {
         if (shape.mediaUrl) {
           patch.media_url = shape.mediaUrl;
           patch.message_type = shape.messageType;
-          const tempPath = String((previousMetadata as any).temp_storage_path || "");
-          if (tempPath) {
-            const removed = await admin.storage.from(SAC_OUTBOX_BUCKET).remove([tempPath]);
-            if (!removed.error) nextMetadata.temp_storage_removed_at = new Date().toISOString();
-          }
+
         }
         const { error: updateError } = await admin
           .from("sac_digital_messages")
@@ -851,7 +797,8 @@ Deno.serve(async request => {
       const candidate = form.get("file");
       uploadFile = candidate instanceof File ? candidate : null;
     } else {
-      body = await request.json().catch(() => ({} as Record<string, unknown>));
+      try { body = await request.json(); } catch { return json({success:false,error:"JSON inválido."},400); }
+      if (!body || typeof body !== "object" || Array.isArray(body)) return json({success:false,error:"Objeto JSON obrigatório."},400);
     }
     const action = String(body.action || "").trim();
     const organizationId = String(body.organization_id || "").trim();
@@ -880,7 +827,6 @@ Deno.serve(async request => {
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       const applied = await enrichProtocol(organizationId, protocol);
       const history = await syncProtocolHistory(organizationId, protocol);
-      EdgeRuntime.waitUntil(cleanupOutbox(organizationId));
       return json({
         success: true,
         protocol,
@@ -992,12 +938,7 @@ Deno.serve(async request => {
     const loadSacOperators = async () => {
       const credentials = await loadCredentials(organizationId);
       if (!credentials.enabled) throw new Error("Integração SAC Digital está desativada.");
-      const result = await apiRequest(
-        organizationId,
-        credentials,
-        "/operator/all?p=1",
-        { method: "GET" },
-      );
+      const result = {response:new Response('{}'),body:{list:await paginatedSacList(organizationId,credentials,'/operator/all'),status:true}};
       if (!result.response.ok || result.body.status === false) {
         throw new Error("Não foi possível carregar os operadores da SAC Digital.");
       }
@@ -1019,7 +960,7 @@ Deno.serve(async request => {
     const resolveMyOperatorBinding = async () => {
       const { data: linked, error: linkedError } = await admin
         .from("sac_digital_operator_links")
-        .select("external_operator_id,operator_name")
+        .select("external_operator_id,operator_name,updated_at")
         .eq("organization_id", organizationId)
         .eq("user_id", userData.user.id)
         .maybeSingle();
@@ -1029,9 +970,237 @@ Deno.serve(async request => {
       return {
         id: String(linked.external_operator_id),
         name: String(linked.operator_name || ""),
+        version: String(linked.updated_at || ""),
       };
     };
 
+    const runResourceOperation = async (endpointId: number, values: Record<string, unknown>, intentKey?: string) => {
+      const requested=SAC_ENDPOINTS.find(item=>item.id===endpointId);
+      if(!requested) return {success:false,data:null,has_more:false,next_page:null,outcome:'rejected',type:'invalid_contract',error:'Operação desconhecida.'};
+      const permission=operationPermission(requested);
+      if(!(await requirePermission(permission)) && !(permission==='sac_digital.messages.view' && await requirePermission('sac_digital.view'))) return {success:false,data:null,has_more:false,next_page:null,outcome:'rejected',type:'permission_denied',error:'Sem permissão para esta operação.'};
+      if([1,61].includes(endpointId)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'private_authentication',error:'A autenticação é privada e resolvida pelo servidor.'};
+      let operation: any;
+      const credentials = await loadCredentials(organizationId);
+      if(!credentials.enabled) throw new Error('Integração SAC Digital está desativada.');
+      if([36,37,38].includes(endpointId)) {
+        const permission=endpointId === 36 ? 'sac_digital.messages.send' : 'sac_digital.protocols.manage';
+        if(!await requirePermission(permission)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'permission_denied',error:'Sem permissão para esta operação.'};
+        if(!validProtocol(values.protocol)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'invalid_contract',error:'Protocolo inválido.'};
+        const check=await apiRequest(organizationId,credentials,`/protocol/info?protocol=${encodeURIComponent(String(values.protocol))}`,{method:'GET'});
+        if(!check.response.ok || check.body.status === false || !check.body.info || typeof check.body.info !== 'object' || Array.isArray(check.body.info)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_state_unverified',error:'Não foi possível confirmar o estado externo do protocolo.'};
+        try { const routed=routeProtocolOperation(endpointId,values,check.body.info);endpointId=routed.endpointId;values=routed.values; }
+        catch(error) {return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_state_conflict',error:error instanceof Error ? error.message : 'Estado incompatível.'};}
+      }
+      try { operation = buildSacRequest(endpointId, values); }
+      catch(error) { return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'invalid_contract',error:error instanceof Error ? error.message : 'Contrato inválido.'}; }
+      if([10,40].includes(endpointId)) {
+        const channels=await apiRequest(organizationId,credentials,'/channel/all',{method:'GET'});
+        if(!channels.response.ok || channels.body.status === false || !Array.isArray(channels.body.list)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'channel_unavailable',error:'Não foi possível confirmar o canal.'};
+        const channel:any=channels.body.list.find((item:any)=>String(item.id) === String(values.channel));
+        const capabilityError=channelCapabilityError(channel,values);
+        if(capabilityError) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'channel_capability_unverified',error:capabilityError};
+      }
+      const binding = operation.mode === 'operator' ? await resolveMyOperatorBinding() : null;
+      const ownerId = crypto.randomUUID();
+      let operatorToken = '';
+      const result: Awaited<ReturnType<typeof executeSacOperation>> & { pending_start_id?: string; mode?: string } = await executeSacOperation({...operation, protocol: values.protocol}, {
+        authorize: async (permission:string) => await requirePermission(permission) || (permission === 'sac_digital.messages.view' && await requirePermission('sac_digital.view')),
+        operator: binding ? async () => {
+          const requestedScopes=operatorScopes(operation.scopes,Boolean(values.protocol));
+          const cacheKey = `${organizationId}:${userData.user.id}:${binding.id}:${binding.version}:${requestedScopes.join(',')}`;
+          const cached = operatorSessionCache.get(cacheKey);
+          if(cached && cached.expiresAt > Date.now()+60000) {operatorToken=cached.token;return;}
+          // Login is a separate authentication handshake; no manager-token fallback.
+          const auth = await fetchJson('https://api.sac.digital/v2/operator/auth2/login', {
+            method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
+            body:JSON.stringify({client:credentials.clientId,password:credentials.clientSecret,operator_id:binding.id,scopes:requestedScopes}),
+          });
+          operatorToken = typeof auth.body.token === 'string' ? auth.body.token : '';
+          if(!auth.response.ok || auth.body.success === false || !operatorToken) {
+            const error:any = new Error('Operator authentication contract refused'); error.code='operator_auth_contract_unverified';throw error;
+          }
+          const profile=await fetchJson('https://api.sac.digital/v2/operator/perfil/info',{method:'GET',headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json'}});
+          if(!responseEnvelope(profile.body,profile.response.status).success) {const error:any=new Error('Operator token verification failed');error.code='operator_auth_contract_unverified';throw error;}
+          operatorSessionCache.set(cacheKey,{token:operatorToken,expiresAt:Date.now()+Math.min(3600,Math.max(120,Number(auth.body.expires_in)||3600))*1000});
+        } : null,
+        lease: async () => {
+          const {data,error} = await admin.rpc('sac_digital_acquire_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});
+          if(error) throw new Error('Não foi possível reservar a sessão operacional.');return data === true;
+        },
+        release: async () => {await admin.rpc('sac_digital_release_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});},
+        begin: async () => {
+          const key = intentKey || crypto.randomUUID();
+          const {data,error} = await admin.from('sac_digital_delivery_attempts').insert({organization_id:organizationId,user_id:userData.user.id,intent_key:key,endpoint_path:operation.path.split('?')[0],protocol:values.protocol || null,mode:operation.mode}).select('id,state').single();
+          if(error?.code === '23505') {
+            const previous = await admin.from('sac_digital_delivery_attempts').select('id,state').eq('organization_id',organizationId).eq('intent_key',key).single();
+            if(previous.error) throw previous.error;return {...previous.data,created:false};
+          }
+          if(error) throw error;return {...data,created:true};
+        },
+        record: async (id: string,state: string,response: Record<string,unknown>) => {
+          const {error} = await admin.from('sac_digital_delivery_attempts').update({state,message_id:response.message_id || (!operation.path.includes('/notification/') ? response.id : null) || null,notification_id:response.notification_id || null,request_id:response.request_id || null,error_type:response.type || null,updated_at:new Date().toISOString()}).eq('id',id);
+          if(error) throw error;
+        },
+        transport: async (op: any) => {
+          if(op.mode === 'client') {
+            // Scope-specific cache isolation prevents a broader cached session replacing minimum scopes.
+            const scopeKey = `${organizationId}:scopes:${[...(op.scopes || [])].sort().join(',')}`;
+            const session = await login(scopeKey,credentials,false,op.scopes || []);
+            return fetchJson(`https://api.sac.digital/v2${op.path}`,{method:op.method,headers:{Authorization:`Bearer ${session.token}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})});
+          }
+          return fetchJson(`https://api.sac.digital/v2${op.path}`,{method:op.method,headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})});
+        },
+      });
+      if(operation.method === 'GET') Object.assign(result,parsePagination(result.data || {},Number(values.p)||1));
+      if([39,40].includes(endpointId) && (result.success || result.outcome === 'unknown')) {
+        const phone=normalizeSacPhone(values.number);
+        const externalId=String(result.data?.contact_id || values.contact || `pending:${phone}`);
+        let localContact:any;
+        const lookup=await admin.from('sac_digital_contacts').select('id').eq('organization_id',organizationId).eq('external_contact_id',externalId).maybeSingle();
+        localContact=lookup.data;
+        if(!localContact && phone) {
+          const inserted=await admin.from('sac_digital_contacts').upsert({organization_id:organizationId,external_contact_id:externalId,name:values.name || phone,phone,raw_metadata:{pending_notification:true}},{onConflict:'organization_id,external_contact_id'}).select('id').single();
+          if(inserted.error) throw new Error('O resultado externo foi registrado; o contato pendente não pôde ser exibido. Não repita o envio.');localContact=inserted.data;
+        }
+        if(localContact?.id) {
+          const pending=await admin.from('sac_digital_outbound_starts').upsert({organization_id:organizationId,contact_id:localContact.id,external_contact_id:externalId,message_text:String(values.text || `Template: ${values.template || ''}`).slice(0,5000),sender_id:userData.user.id,sent_at:new Date().toISOString(),updated_at:new Date().toISOString(),notification_id:result.data?.notification_id || null,delivery_state:result.outcome},{onConflict:'organization_id,external_contact_id'}).select('id').single();
+          if(!pending.error) result.pending_start_id=pending.data.id;
+        }
+        result.mode='notification';
+      }
+      return result;
+    };
+
+    resourceDispatch = async (path,init) => {
+      const parsed = new URL(`https://api.sac.digital/v2/client${path}`);
+      const values:any = {...Object.fromEntries(parsed.searchParams),...(init.body ? JSON.parse(String(init.body)) : {})};
+      let endpoint = SAC_ENDPOINTS.find((item:any)=>item.path.split('?')[0] === `/client${path.split('?')[0]}` && item.method === init.method);
+      if(values.protocol && ['/protocol/send','/protocol/finish','/protocol/to_inbox'].includes(path.split('?')[0])) {
+        const check = await apiRequest(organizationId,await loadCredentials(organizationId),`/protocol/info?protocol=${encodeURIComponent(values.protocol)}`,{method:'GET'});
+        if(!check.response.ok || check.body.status === false || !check.body.info) throw new Error('Não foi possível confirmar o estado externo do protocolo.');
+        const info:any = check.body.info;
+        if(info.is_closed || info.finished_at || info.closed_at) throw new Error('Protocolo encerrado. Inicie um novo atendimento.');
+        if(info.is_att === true) {
+          if(path.split('?')[0] === '/protocol/to_inbox') throw new Error('Atendimento operacional não pode ser devolvido pelo contrato de autoatendimento.');
+          endpoint = SAC_ENDPOINTS.find((item:any)=>item.id === (path.split('?')[0] === '/protocol/send' ? 78 : 92));
+          if(values.url && values.text) {values.caption=values.text;delete values.text;}
+          delete values.notify_contact;
+          if(endpoint?.id === 92 && values.vote == null) throw new Error('A finalização operacional requer votação conforme contrato da SAC Digital.');
+        }
+      }
+      if(path.split('?')[0] === '/contact/forward' && ['assume_protocol','forward_protocol'].includes(action) && validProtocol(body.protocol)) {
+        const check=await apiRequest(organizationId,await loadCredentials(organizationId),`/protocol/info?protocol=${encodeURIComponent(String(body.protocol))}`,{method:'GET'});
+        if(!check.response.ok || !check.body.info || check.body.status === false) throw new Error('Não foi possível confirmar o estado externo do protocolo.');
+        const info:any=check.body.info;
+        if(info.is_att === true) {
+          if(action === 'assume_protocol') {endpoint=SAC_ENDPOINTS.find((item:any)=>item.id === 73);for(const key of Object.keys(values)) delete values[key];values.protocol=String(body.protocol);}
+          else {endpoint=SAC_ENDPOINTS.find((item:any)=>item.id === 90);values.protocol=String(body.protocol);values.to=values.operator ? 'operator' : 'department';delete values.id;}
+        }
+      }
+      if(!endpoint) throw new Error('Contrato de operação não identificado.');
+      const result = await runResourceOperation(endpoint.id,values,typeof body.intent_key === 'string' ? `${userData.user.id}:${body.intent_key.slice(0,160)}` : undefined);
+      if(result.outcome === 'unknown') {const error:any=new Error(result.error);error.outcome='unknown';error.type=result.type;throw error;}
+      return {response:new Response(JSON.stringify(result.data || {}),{status:result.success ? 200 : 409}),body:result.success ? result.data : {status:false,success:false,message:result.error,type:result.type,outcome:result.outcome},raw:''};
+    };
+    if(action === 'media_urls') {
+      if(!(await requirePermission('sac_digital.messages.view'))) return json({success:false,error:'Sem permissão para visualizar mensagens.'},403);
+      const ids=body.message_ids;
+      if(!Array.isArray(ids) || ids.length>50 || ids.some(id=>!isUuid(id))) return json({success:false,error:'Informe até 50 identificadores válidos de mensagem.'},400);
+      if(!ids.length) return json({success:true,urls:{}});
+      const selected=await admin.from('sac_digital_messages').select('id,media_url,raw_metadata').eq('organization_id',organizationId).in('id',[...new Set(ids)]);
+      if(selected.error) throw new Error('Não foi possível consultar os anexos desta empresa.');
+      const urls:Record<string,string>={};
+      for(const message of selected.data || []) {
+        const path=ownMediaStoragePath(message,organizationId);
+        if(!path) continue;
+        const signed=await admin.storage.from(SAC_OUTBOX_BUCKET).createSignedUrl(path,3600);
+        if(signed.error || !signed.data?.signedUrl) continue;
+        urls[String(message.id)]=signed.data.signedUrl;
+      }
+      return json({success:true,urls});
+    }
+    if(action === 'delivery_history' || action === 'sms_replies') {
+      if(!(await requirePermission('sac_digital.messages.view'))) return json({success:false,error:'Sem permissão para visualizar registros.'},403);
+      const page=Number(body.page || 1);
+      if(!Number.isInteger(page)||page<1||page>100000) return json({success:false,error:'Página inválida.'},400);
+      const deliveries=action==='delivery_history';
+      const {data,error,count}=await admin.from(deliveries?'sac_digital_delivery_attempts':'sac_digital_sms_replies')
+        .select(deliveries?'id,protocol,mode,state,message_id,notification_id,error_type,created_at,updated_at':'source_event_hash,payload,received_at',{count:'exact'})
+        .eq('organization_id',organizationId).order(deliveries?'created_at':'received_at',{ascending:false}).range((page-1)*50,page*50-1);
+      if(error) throw error;
+      const more=(count || 0)>page*50;
+      return json({success:true,data:{list:data || []},outcome:'accepted',has_more:more,next_page:more?page+1:null});
+    }
+    if(action === 'health' || action === 'resource_health') {
+      if(!(await requirePermission('sac_digital.settings.manage'))) return json({success:false,error:'Sem permissão.'},403);
+      const {data,error}=await admin.rpc('sac_digital_jobs_health',{p_organization_id:organizationId});
+      if(error) throw error;return json({success:true,data,outcome:'accepted',has_more:false,next_page:null});
+    }
+    if(action === 'reconcile_outbound') {
+      if(!(await requirePermission('sac_digital.messages.view'))) return json({success:false,error:'Sem permissão.'},403);
+      const pending=await admin.from('sac_digital_delivery_attempts').select('id,notification_id,state,protocol').eq('organization_id',organizationId).in('state',['accepted','queued','unknown','sent','delivered']).order('checked_at',{nullsFirst:true}).limit(5);
+      if(pending.error) throw pending.error;
+      let reconciled=0;
+      for(const attempt of pending.data || []) {
+        await admin.from('sac_digital_delivery_attempts').update({checked_at:new Date().toISOString()}).eq('id',attempt.id);
+        if(attempt.notification_id) {
+          const status=await apiRequest(organizationId,await loadCredentials(organizationId),`/notification/status?id=${encodeURIComponent(attempt.notification_id)}`,{method:'GET'});
+          if(!status.response.ok || status.body.status === false || status.body.success === false) continue;
+          const evidence:any=status.body.info || status.body;
+          const next=evidence.readed_at || evidence.read_at ? 'read' : evidence.delivered_at ? 'delivered' : evidence.sended_at || evidence.sent_at ? 'sent' : evidence.failed_at ? 'rejected' : null;
+          const rank:any={unknown:0,accepted:0,queued:1,sent:2,delivered:3,read:4};
+          if(next && (next === 'rejected' ? rank[attempt.state]<3 : rank[next]>=rank[attempt.state])) {
+            await admin.from('sac_digital_delivery_attempts').update({state:next,updated_at:new Date().toISOString()}).eq('id',attempt.id);
+            await admin.from('sac_digital_outbound_starts').update({delivery_state:next,updated_at:new Date().toISOString()}).eq('organization_id',organizationId).eq('notification_id',attempt.notification_id);
+            reconciled++;
+          }
+        }
+        if(attempt.protocol) await syncProtocolHistory(organizationId,attempt.protocol);
+      }
+      return json({success:true,data:{reconciled},outcome:'accepted',has_more:(pending.data || []).length === 5,next_page:null});
+    }
+    if(action === 'process_jobs') {
+      if(!(await requirePermission('sac_digital.messages.view'))) return json({success:false,error:'Sem permissão.'},403);
+      const result=await fetchJson(`${supabaseUrl}/functions/v1/sac-digital-worker`,{method:'POST',headers:{Authorization:`Bearer ${serviceRoleKey}`,'Content-Type':'application/json'},body:JSON.stringify({organization_id:organizationId,limit:3})},20000);
+      return json({success:result.response.ok && result.body.success !== false,data:result.body,outcome:'accepted',has_more:false,next_page:null});
+    }
+    if(action === 'resource_operation') {
+      if([1,61].includes(Number(body.endpoint_id))) return json({success:false,error:'A autenticação é privada e resolvida pelo servidor.'},400);
+      if(!Number.isInteger(body.endpoint_id) || !body.values || typeof body.values !== 'object' || Array.isArray(body.values)) return json({success:false,error:'Recurso e campos inválidos.'},400);
+      return json(await runResourceOperation(Number(body.endpoint_id),body.values as Record<string,unknown>,typeof body.intent_key === 'string' ? `${userData.user.id}:${body.intent_key.slice(0,160)}` : undefined));
+    }
+    if(action === 'sync_resource' || action === 'bootstrap') {
+      if(!(await requirePermission('sac_digital.messages.view'))) return json({success:false,error:'Sem permissão para sincronizar.'},403);
+      const resources = action === 'bootstrap' ? SAC_ENDPOINTS.filter((item:any)=>item.method === 'GET' && /\/(contact|protocol)\/all(?:\?|$)/.test(item.path)) : SAC_ENDPOINTS.filter((item:any)=>item.id === Number(body.endpoint_id) && item.method === 'GET');
+      if(!resources.length) return json({success:false,error:'Recurso de sincronização inválido.'},400);
+      const pages=[];
+      for(const resource of resources.slice(0,2)) {
+        const cursor = await admin.from('sac_digital_sync_cursors').select('next_page,complete').eq('organization_id',organizationId).eq('resource',String(resource.id)).maybeSingle();
+        if(cursor.error) throw cursor.error;
+        const page = body.restart === true || cursor.data?.complete ? 1 : cursor.data?.next_page || 1;
+        const result = await runResourceOperation(resource.id,{p:page});
+        if(!result.success) return json(result);
+        const rows = Array.isArray(result.data?.list) ? result.data.list : [];
+        for(const row of rows) {
+          if(!row || typeof row !== 'object') continue;
+          if(resource.path.includes('/contact/all')) {
+            const id=String(row.id || '');if(!id) continue;
+            const {error}=await admin.from('sac_digital_contacts').upsert({organization_id:organizationId,external_contact_id:id,name:row.name || null,phone:normalizeSacPhone(row.number),raw_metadata:row,updated_at:new Date().toISOString()},{onConflict:'organization_id,external_contact_id'});if(error) throw error;
+          } else {
+            const protocol=String(row.protocol || row.id || '');if(!validProtocol(protocol)) continue;
+            const existing=await admin.from('sac_digital_protocols').select('status,closed_at').eq('organization_id',organizationId).eq('external_protocol_id',protocol).maybeSingle();
+            if(existing.error) throw existing.error;
+            if(existing.data?.status === 'finished' || existing.data?.closed_at) continue;
+            const {error}=await admin.rpc('apply_sac_digital_protocol_info',{p_organization_id:organizationId,p_protocol:protocol,p_payload:{info:row}});if(error) throw error;
+          }
+        }
+        const {error}=await admin.from('sac_digital_sync_cursors').upsert({organization_id:organizationId,resource:String(resource.id),next_page:result.has_more ? Number(result.next_page || page+1) : page,complete:!result.has_more,updated_at:new Date().toISOString()});
+        if(error) throw error;
+        pages.push({endpoint_id:resource.id,page,...result});
+      }
+      return json({success:true,data:pages,outcome:'accepted',has_more:pages.some(item=>item.has_more),next_page:null});
+    }
     if (action === "test_connection") {
       if (!(await requirePermission("sac_digital.settings.manage"))) {
         return json({ success: false, error: "Sem permissão para gerenciar a integração SAC Digital." }, 403);
@@ -1120,7 +1289,6 @@ Deno.serve(async request => {
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       const applied = await enrichProtocol(organizationId, protocol);
       const history = await syncProtocolHistory(organizationId, protocol);
-      EdgeRuntime.waitUntil(cleanupOutbox(organizationId));
       return json({
         success: true,
         protocol,
@@ -1259,7 +1427,7 @@ Deno.serve(async request => {
             .in("external_contact_id", externalIds)
         : { data: [] as Array<{ external_contact_id: string; customer_id: string | null }> };
 
-      const localContactByExternalId = new Map(
+      const localContactByExternalId = new Map<string, Record<string, any>>(
         (localContactRows || []).map(row => [String(row.external_contact_id || ""), row]),
       );
 
@@ -1389,7 +1557,7 @@ Deno.serve(async request => {
 
       const channels = await loadChannels();
       const activeChannels = channels.filter(channel => channel.actived !== false && String(channel.id || "").trim());
-      const primaryChannel = activeChannels.find(channel => channel.primary === true) || activeChannels[0] || null;
+      const primaryChannel = chooseImportChannel(activeChannels);
       const activeChannelIds = new Set(activeChannels.map(channel => String(channel.id || "").trim()));
 
       let contact: Record<string, unknown> | null = null;
@@ -1767,7 +1935,7 @@ Deno.serve(async request => {
 
         if (protocolRow?.id) {
           const sentAt = new Date().toISOString();
-          const externalCandidate = sendResult.body.id ?? sendResult.body.message_id ?? sendResult.body.request_id;
+          const externalCandidate = sendResult.body.id ?? sendResult.body.message_id;
           const externalMessageId = typeof externalCandidate === "string" || typeof externalCandidate === "number"
             ? `sac:${String(externalCandidate)}`
             : null;
@@ -1971,10 +2139,10 @@ Deno.serve(async request => {
         .eq("organization_id", organizationId);
       if (linksError) throw new Error("Não foi possível carregar os vínculos de operadores.");
 
-      const memberByUser = new Map(
+      const memberByUser = new Map<string, Record<string, any>>(
         (members || []).map(member => [String(member.user_id || ""), member]),
       );
-      const linkByUser = new Map(
+      const linkByUser = new Map<string, Record<string, any>>(
         (links || []).map(link => [String(link.user_id || ""), link]),
       );
 
@@ -2208,7 +2376,7 @@ Deno.serve(async request => {
       if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
 
       const [operatorsResult, departmentsResult] = await Promise.all([
-        apiRequest(organizationId, credentials, "/operator/all?p=1", { method: "GET" }),
+        paginatedSacList(organizationId, credentials, '/operator/all').then(list=>({response:new Response('{}'),body:{list,status:true}})),
         apiRequest(organizationId, credentials, "/department/all", { method: "GET" }),
       ]);
 
@@ -2386,6 +2554,7 @@ Deno.serve(async request => {
           body: JSON.stringify({
             protocol,
             notify_contact: false,
+            ...(body.vote !== undefined ? {vote:body.vote} : {}),
           }),
         },
       );
@@ -2441,7 +2610,7 @@ Deno.serve(async request => {
       if (uploadFile.type.startsWith("image/") && uploadFile.size > 1024 * 1024) {
         return json({ success: false, error: "A SAC Digital aceita imagens de no máximo 1 MB." });
       }
-      if (uploadFile.size > SAC_OUTBOX_MAX_BYTES) return json({ success: false, error: "O anexo deve ter no máximo 25 MB." }, 400);
+      if (uploadFile.size > mediaLimit(uploadFile.type.startsWith("audio/") ? "audio" : uploadFile.type.startsWith("image/") ? "image" : "file")) return json({success:false,error:"O anexo excede o limite deste tipo de mídia."},400);
       if (text.length > 5000) return json({ success: false, error: "A legenda é muito longa." }, 400);
 
       const credentials = await loadCredentials(organizationId);
@@ -2453,7 +2622,6 @@ Deno.serve(async request => {
         : "file";
 
       await ensureOutboxBucket();
-      EdgeRuntime.waitUntil(cleanupOutbox(organizationId));
 
       const safeName = (uploadFile.name || "arquivo")
         .normalize("NFKD")
@@ -2478,10 +2646,9 @@ Deno.serve(async request => {
         return json({ success: false, error: "Não foi possível preparar o anexo para envio." });
       }
 
-      const { data: publicUrlData } = admin.storage
-        .from(SAC_OUTBOX_BUCKET)
-        .getPublicUrl(storagePath);
-      const publicUrl = String(publicUrlData.publicUrl || "");
+      const {data: publicUrlData,error: signedError} = await admin.storage.from(SAC_OUTBOX_BUCKET).createSignedUrl(storagePath,7*24*3600);
+      if(signedError || !publicUrlData?.signedUrl) return json({success:false,error:"Não foi possível criar a URL temporária."},503);
+      const publicUrl = publicUrlData.signedUrl;
 
       try {
         const mediaCheck = await fetch(publicUrl, { method: "HEAD" });
@@ -2529,44 +2696,6 @@ Deno.serve(async request => {
       let response = apiResult.response;
       let apiBody = apiResult.body;
 
-      const firstErrorMessage = typeof apiBody.message === "string" ? apiBody.message.trim() : "";
-      const shouldTryDataUrl = mediaType === "image"
-        && (!response.ok || apiBody.status === false || apiBody.success === false)
-        && apiBody.type === "invalid_param"
-        && /imagem válida/i.test(firstErrorMessage);
-
-      if (shouldTryDataUrl) {
-        const bytes = new Uint8Array(await uploadFile.arrayBuffer());
-        let binary = "";
-        const chunkSize = 0x8000;
-        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-          binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
-        }
-        const dataUrl = `data:${uploadFile.type || "image/jpeg"};base64,${btoa(binary)}`;
-        mediaTransport = "data_url";
-        apiResult = await apiRequest(
-          organizationId,
-          credentials,
-          "/protocol/send",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              ...apiPayload,
-              url: dataUrl,
-            }),
-          },
-        );
-        response = apiResult.response;
-        apiBody = apiResult.body;
-        console.log("[SAC DIGITAL API] image data-url fallback", {
-          organization_id: organizationId,
-          protocol,
-          status: response.status,
-          request_id: apiBody.request_id,
-          accepted: response.ok && apiBody.status !== false && apiBody.success !== false,
-        });
-      }
-
       if (!response.ok || apiBody.status === false || apiBody.success === false) {
         await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
         console.error("[SAC DIGITAL API] send media failed", {
@@ -2593,7 +2722,7 @@ Deno.serve(async request => {
 
       if (protocolRow?.id) {
         const sentAt = new Date().toISOString();
-        const externalIdValue = apiBody.id ?? apiBody.message_id ?? apiBody.request_id;
+        const externalIdValue = apiBody.id ?? apiBody.message_id;
         const externalMessageId = typeof externalIdValue === "string" || typeof externalIdValue === "number"
           ? `sac:${String(externalIdValue)}`
           : null;
@@ -2775,9 +2904,7 @@ Deno.serve(async request => {
           const activeChannels = channels.filter(channel =>
             channel.actived !== false && String(channel.id || "").trim()
           );
-          const primaryChannel = activeChannels.find(channel => channel.primary === true)
-            || activeChannels[0]
-            || null;
+          const primaryChannel = chooseImportChannel(activeChannels);
 
           const customerName = String(
             customer.trade_name
@@ -2992,7 +3119,7 @@ Deno.serve(async request => {
 
         if (protocolRow?.id) {
           const sentAt = new Date().toISOString();
-          const externalCandidate = outgoing.body.id ?? outgoing.body.message_id ?? outgoing.body.request_id;
+          const externalCandidate = outgoing.body.id ?? outgoing.body.message_id;
           const externalMessageId = typeof externalCandidate === "string" || typeof externalCandidate === "number"
             ? `sac:${String(externalCandidate)}`
             : null;
@@ -3221,7 +3348,7 @@ Deno.serve(async request => {
         });
       } else {
         const sentAt = new Date().toISOString();
-        const externalMessageIdCandidate = apiBody.id ?? apiBody.message_id ?? apiBody.request_id;
+        const externalMessageIdCandidate = apiBody.id ?? apiBody.message_id;
         const externalMessageId = typeof externalMessageIdCandidate === "string"
           || typeof externalMessageIdCandidate === "number"
           ? `sac:${String(externalMessageIdCandidate)}`
@@ -3300,10 +3427,12 @@ Deno.serve(async request => {
 
     return json({ success: false, error: "Ação não suportada." }, 400);
   } catch (error) {
-    console.error("[SAC DIGITAL API] unexpected error", error instanceof Error ? error.message : error);
+    console.error("[SAC DIGITAL API] unexpected error", {type:(error as any)?.type || "integration_failure"});
     return json({
       success: false,
       error: error instanceof Error ? error.message : "Falha inesperada na integração SAC Digital.",
+      outcome: (error as any)?.outcome || "rejected",
+      type: (error as any)?.type || "integration_failure",
     }, 502);
   }
 });

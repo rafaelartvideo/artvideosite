@@ -1,3 +1,4 @@
+import { mediaMaximum } from '../domain/resource-ui.mjs';
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -206,7 +207,7 @@ export function OrderSacDigitalDialog({
               <div>
                 <p className="text-xs font-bold text-foreground">Documento / PDF</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Envie um arquivo do seu dispositivo pelo protocolo ativo (até 25 MB; imagens até 1 MB).
+                  Envie um arquivo do seu dispositivo pelo protocolo ativo (imagens 1 MB; áudio 3 MB; vídeo/arquivos 5 MB).
                 </p>
               </div>
               <BtnSecondary onClick={() => fileInputRef.current?.click()} disabled={sending}>
@@ -222,9 +223,9 @@ export function OrderSacDigitalDialog({
               onChange={event => {
                 const file = event.target.files?.[0] || null;
                 if (!file) return;
-                if (file.size > 25 * 1024 * 1024 || (file.type.startsWith("image/") && file.size > 1024 * 1024)) {
+                if (file.size > mediaMaximum(file.type)) {
                   setError(file.type.startsWith("image/")
-                    ? "Imagens devem ter no máximo 1 MB." : "O arquivo deve ter no máximo 25 MB.");
+                    ? "Imagens devem ter no máximo 1 MB." : `O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`);
                   event.target.value = "";
                   return;
                 }

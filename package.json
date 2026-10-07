@@ -11,7 +11,8 @@
     "dev:site": "vite --mode site",
     "dev:crm": "vite --mode crm",
     "test:finance": "node --test src/features/finance/domain/*.test.mjs",
-    "test:regressions": "node --test src/shared/domain/error-message.test.mjs src/features/service-types/domain/service-type-links.test.mjs src/shared/ui/admin/admin-dialog-behavior.test.mjs src/features/customers/domain/cpf-lookup.test.mjs"
+    "test:regressions": "node --test src/shared/domain/error-message.test.mjs src/features/service-types/domain/service-type-links.test.mjs src/shared/ui/admin/admin-dialog-behavior.test.mjs src/features/customers/domain/cpf-lookup.test.mjs",
+    "test:sac": "node --test supabase/functions/_shared/*.test.mjs src/features/sac-digital/domain/*.test.mjs"
   },
   "dependencies": {
     "@popperjs/core": "2.11.8",

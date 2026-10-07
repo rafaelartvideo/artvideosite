@@ -1,3 +1,4 @@
+import { SacDigitalMenuConfiguration } from './SacDigitalMenuSettings';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clipboard, MessageCircle, MessageSquare, Phone, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -598,6 +599,8 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
         </p>
       </div>
     </Section>
+
+    {canManage && activeOrganizationId && <SacDigitalMenuConfiguration organizationId={activeOrganizationId} token={settings?.webhook_token} />}
 
     <Section
       title="Operadores e funcionários"

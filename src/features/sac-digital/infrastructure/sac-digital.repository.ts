@@ -1,3 +1,4 @@
+import { mediaMaximum, apiDiagnostic, IntentLedger, privateMediaIds, hydrateMedia } from '../domain/resource-ui.mjs';
 import { supabase, supabaseUrl } from "@/lib/supabase";
 
 export type SacDigitalConnectionStatus = "not_configured" | "configured" | "receiving" | "error";
@@ -94,6 +95,8 @@ export type SacDigitalProtocolListItem = {
   last_message_at: string | null;
   is_pending?: boolean;
   pending_message?: string | null;
+  notification_id?: string | null;
+  delivery_state?: string | null;
   contact: {
     id: string;
     name: string | null;
@@ -176,6 +179,8 @@ export async function listSacDigitalProtocols(organizationId: string) {
       contact_id,
       external_contact_id,
       message_text,
+      notification_id,
+      delivery_state,
       sent_at,
       contact:sac_digital_contacts(
         id,
@@ -216,6 +221,8 @@ export async function listSacDigitalProtocols(organizationId: string) {
       last_message_at: row.sent_at,
       is_pending: true,
       pending_message: String(row.message_text || ""),
+      notification_id: row.notification_id || null,
+      delivery_state: row.delivery_state || "queued",
       contact: contact
         ? {
             ...contact,
@@ -240,7 +247,16 @@ export async function listSacDigitalMessages(organizationId: string, protocolId:
     .order("sent_at", { ascending: true });
 
   if (error) throw error;
-  return (data || []) as SacDigitalMessage[];
+  const messages = (data || []) as SacDigitalMessage[];
+  const messageIds = privateMediaIds(messages);
+  if (!messageIds.length) return messages;
+  try {
+    const signed = await invokeSacDigitalApi({action: "media_urls", organization_id: organizationId, message_ids: messageIds});
+    return hydrateMedia(messages, signed.urls as Record<string,string>);
+  } catch {
+    // Cached URLs and historic public attachments stay readable during outages.
+    return messages;
+  }
 }
 
 
@@ -282,7 +298,13 @@ export async function markSacDigitalProtocolRead(
   if (error) throw error;
 }
 
+const requestIntents = new IntentLedger(() => crypto.randomUUID(), typeof sessionStorage === "undefined" ? undefined : sessionStorage);
+
 async function invokeSacDigitalApi(body: Record<string, unknown> | FormData) {
+  const intentBody = body instanceof FormData ? Object.fromEntries([...body.entries()].filter(([key])=>key!=="intent_key").map(([key,value]) => [key,value instanceof File ? {name:value.name,size:value.size,lastModified:value.lastModified}:value])) : body;
+  const action = String(intentBody.action || "");
+  const mutation = /^(send_|start_new|finish_|forward_|return_to_|assume_|resource_operation)/.test(action);
+  if (mutation) { const intent = requestIntents.begin(intentBody); if (body instanceof FormData) body.set("intent_key",intent); else body={...body,intent_key:intent}; }
   const { data, error } = await supabase.functions.invoke("sac-digital-api", { body });
 
   if (error) {
@@ -292,7 +314,9 @@ async function invokeSacDigitalApi(body: Record<string, unknown> | FormData) {
       const response = context && typeof context.clone === "function" ? context.clone() : context;
       if (response && typeof response.json === "function") {
         const payload = await response.json();
-        apiMessage = String(payload?.error || payload?.message || "").trim();
+        apiMessage = apiDiagnostic(payload);
+        if(payload?.type && !apiMessage.includes(String(payload.type))) apiMessage = `${payload.type}: ${apiMessage}`;
+        if(mutation) requestIntents.finish(intentBody, payload?.outcome || "unknown");
       }
     } catch {
       // Mantém a mensagem padrão quando a resposta da função não puder ser lida.
@@ -305,8 +329,11 @@ async function invokeSacDigitalApi(body: Record<string, unknown> | FormData) {
     );
   }
 
+  if (mutation && !error) requestIntents.finish(intentBody, data?.outcome || (data?.success ? "accepted" : "rejected"));
   if (!data?.success) {
-    throw new Error(String(data?.error || "A SAC Digital não conseguiu concluir a operação."));
+    const rejection = new Error(apiDiagnostic(data));
+    Object.assign(rejection, { outcome: data?.outcome, type: data?.type });
+    throw rejection;
   }
   return data as Record<string, unknown>;
 }
@@ -355,7 +382,7 @@ export function sendSacDigitalMediaMessage(
   caption = "",
 ) {
   if (!file.size) throw new Error("O arquivo está vazio.");
-  if (file.size > 25 * 1024 * 1024) throw new Error("O arquivo deve ter no máximo 25 MB.");
+  if (file.size > mediaMaximum(file.type)) throw new Error(`O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`);
   if (file.type.startsWith("image/") && file.size > 1024 * 1024) {
     throw new Error("A SAC Digital aceita imagens de até 1 MB.");
   }
@@ -452,12 +479,14 @@ export async function startSacDigitalNewConversation(
   organizationId: string,
   externalContactId: string,
   text: string,
+  channel?: string,
 ) {
   const data = await invokeSacDigitalApi({
     action: "start_new_conversation",
     organization_id: organizationId,
     external_contact_id: externalContactId,
     text,
+    channel,
   });
   return data as {
     success: true;
@@ -650,11 +679,13 @@ export function returnSacDigitalProtocolToInbox(
 export function finishSacDigitalProtocol(
   organizationId: string,
   protocol: string,
+  vote: number,
 ) {
   return invokeSacDigitalApi({
     action: "finish_protocol",
     organization_id: organizationId,
     protocol,
+    vote,
   });
 }
 
@@ -671,3 +702,26 @@ export function sacDigitalMediaUrl(value?: string | null) {
     return "";
   }
 }
+
+export type SacDigitalResourceResult = { success: boolean; data: unknown; outcome?: string; has_more?: boolean; next_page?: number | string | null; error?: string; type?: string };
+export async function operateSacDigitalResource(organizationId: string, endpointId: number, values: Record<string, unknown>) {
+  return await invokeSacDigitalApi({ action: 'resource_operation', organization_id: organizationId, endpoint_id: endpointId, values }) as unknown as SacDigitalResourceResult;
+}
+export async function syncSacDigitalResources(organizationId: string) {
+  await invokeSacDigitalApi({ action: 'bootstrap', organization_id: organizationId });
+  await invokeSacDigitalApi({ action: 'process_jobs', organization_id: organizationId });
+  return invokeSacDigitalApi({ action: 'reconcile_outbound', organization_id: organizationId });
+}
+export function syncSacDigitalResource(organizationId: string, endpointId: number, cursor?: unknown) {
+  return invokeSacDigitalApi({ action: 'sync_resource', organization_id: organizationId, endpoint_id: endpointId, cursor });
+}
+
+export type SacDigitalMenuSettings = { enabled: boolean; text: string; choices: Array<{tag:string;text:string}>; source:'static'|'service_order_status' };
+export async function getSacDigitalMenuSettings(organizationId:string) {
+ const {data,error}=await supabase.rpc('get_sac_digital_menu_settings',{p_organization_id:organizationId}); if(error)throw error;return normalizeRpcData<SacDigitalMenuSettings>(data);
+}
+export async function configureSacDigitalMenu(organizationId:string,settings:SacDigitalMenuSettings) {
+ const {data,error}=await supabase.rpc('configure_sac_digital_menu',{p_organization_id:organizationId,p_enabled:settings.enabled,p_text:settings.text,p_choices:settings.choices,p_source:settings.source});if(error)throw error;return normalizeRpcData<SacDigitalMenuSettings>(data);
+}
+export function sacDigitalMenuUrl(token?:string|null){return token?`${supabaseUrl}/functions/v1/sac-digital-menu?token=${encodeURIComponent(token)}`:'';}
+export function getSacDigitalResourceHealth(organizationId:string){return invokeSacDigitalApi({action:'resource_health',organization_id:organizationId});}

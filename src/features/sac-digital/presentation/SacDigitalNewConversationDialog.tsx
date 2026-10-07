@@ -1,8 +1,11 @@
+import { resultItems, usableChannels, cloudChannel, approvedTemplates } from '../domain/resource-ui.mjs';
+import { StructuredEditor } from './SacDigitalResources';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, MessageCircle, Search, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
+  operateSacDigitalResource,
   prepareSacDigitalNewConversationContact,
   searchSacDigitalNewConversation,
   startSacDigitalNewConversation,
@@ -65,6 +68,22 @@ export function SacDigitalNewConversationDialog({
   const [customers, setCustomers] = useState<SacDigitalNewConversationCandidate[]>([]);
   const [prepared, setPrepared] = useState<SacDigitalPreparedContact | null>(null);
   const [draft, setDraft] = useState("");
+  const [direct, setDirect] = useState(false);
+  const [channel, setChannel] = useState("");
+  const [channels,setChannels] = useState<any[]>([]);
+  const [templates,setTemplates] = useState<any[]>([]);
+  const [channelLoading,setChannelLoading] = useState(false);
+  const [templateLoading,setTemplateLoading] = useState(false);
+  const [channelError,setChannelError] = useState('');
+  const [templateError,setTemplateError] = useState('');
+  const currentChannel = channels.find(item => String(item.id)===channel);
+  const cloud = cloudChannel(currentChannel);
+  const currentTemplate = templates.find(item => String(item.id??item.name)===template);
+  useEffect(()=>{if(!open)return;let cancelled=false;setChannelLoading(true);setChannelError('');operateSacDigitalResource(organizationId,14,{}).then(response=>{if(cancelled)return;const usable=usableChannels(resultItems(response.data));setChannels(usable);if(!usable.length)setChannelError('Nenhum canal ativo disponível para iniciar uma conversa. Confira a conexão e as permissões na SAC.');}).catch(caught=>{if(!cancelled)setChannelError(caught instanceof Error?caught.message:'Não foi possível carregar os canais.');}).finally(()=>{if(!cancelled)setChannelLoading(false);});return()=>{cancelled=true;};},[open,organizationId]);
+  useEffect(()=>{setTemplate('');setTemplates([]);setVariables({});if(!open||!channel)return;let cancelled=false;setTemplateLoading(true);setTemplateError('');if(cloud)setMessageType('template');operateSacDigitalResource(organizationId,15,{id:channel}).then(response=>{if(cancelled)return;const approved=approvedTemplates(resultItems(response.data));setTemplates(approved);if(!approved.length)setTemplateError('Nenhum template aprovado disponível neste canal.');}).catch(caught=>{if(!cancelled)setTemplateError(caught instanceof Error?caught.message:'Não foi possível carregar templates aprovados.');}).finally(()=>{if(!cancelled)setTemplateLoading(false);});return()=>{cancelled=true;};},[open,channel,organizationId,cloud]);
+  const [messageType, setMessageType] = useState("text");
+  const [template, setTemplate] = useState("");
+  const [variables, setVariables] = useState<Record<string, string[]>>({});
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const searchRequestRef = useRef(0);
@@ -103,6 +122,10 @@ export function SacDigitalNewConversationDialog({
   const reset = () => {
     searchRequestRef.current += 1;
     prepareRequestRef.current += 1;
+    setDirect(false);
+    setChannel("");
+    setTemplate("");
+    setVariables({});
     setQuery("");
     setManualName("");
     setContacts([]);
@@ -147,6 +170,13 @@ export function SacDigitalNewConversationDialog({
   };
 
   const prepare = async (candidate?: SacDigitalNewConversationCandidate) => {
+    if (!candidate?.external_contact_id) {
+      setDirect(true);
+      setPrepared({ prepared: true, imported: false, whatsapp_available: false, contact: { external_contact_id: "direct", customer_id: candidate?.customer_id || null, name: candidate?.name || manualName.trim() || query.trim(), phone: normalizePhone(candidate?.phone || query), channel_id: null, blocked: false } });
+      setDraft("Olá!");
+      return;
+    }
+    setDirect(false);
     const key = candidate ? candidateKey(candidate) : "manual";
     if (preparingKey) return;
 
@@ -192,16 +222,17 @@ export function SacDigitalNewConversationDialog({
   const startConversation = async () => {
     const contact = prepared?.contact;
     const message = draft.trim();
-    if (!contact?.external_contact_id || !message || sending || sendInFlightRef.current) return;
+    if (error.includes("Confirmação pendente") || !contact?.external_contact_id || (!message && messageType !== 'template') || (!currentChannel || (messageType === 'template' && !currentTemplate) || (cloud && messageType !== 'template')) || sending || sendInFlightRef.current) return;
 
     sendInFlightRef.current = true;
     setSending(true);
     setError("");
     try {
-      const result = await startSacDigitalNewConversation(
+      const result = direct || messageType === "template" ? await operateSacDigitalResource(organizationId, direct ? 40 : 39, { ...(direct ? {number: contact.phone, name: contact.name} : {contact: contact.external_contact_id}), channel: channel.trim(), type: messageType, ...(messageType === "template" ? {template: template.trim(), variables} : {text: message}) }) as unknown as Awaited<ReturnType<typeof startSacDigitalNewConversation>> : await startSacDigitalNewConversation(
         organizationId,
         contact.external_contact_id,
         message,
+        channel,
       );
       // O envio já foi confirmado pela SAC. Uma falha no refresh da tela
       // nunca pode ser tratada como falha de envio, evitando duplicação.
@@ -251,7 +282,7 @@ export function SacDigitalNewConversationDialog({
               onClick={() => void startConversation()}
               loading={sending}
               loadingText="Iniciando..."
-              disabled={!draft.trim()}
+              disabled={error.includes("Confirmação pendente") || !currentChannel || channelLoading || (messageType === "template" ? !currentTemplate || templateLoading : !draft.trim())}
             >
               Iniciar conversa
             </AdminButton>
@@ -377,7 +408,7 @@ export function SacDigitalNewConversationDialog({
                   </AdminButton>
                 </div>
                 <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-                  O número não precisa estar cadastrado na SAC nem no CRM. A Union prepara o contato na SAC somente quando necessário para iniciar o envio.
+                  O número não precisa estar cadastrado na SAC nem no CRM. O envio direto valida o número na SAC; selecione o canal e, se necessário, um template aprovado.
                 </p>
               </div>
             )}
@@ -410,12 +441,13 @@ export function SacDigitalNewConversationDialog({
 
             {canCompose ? (
               <div>
+                <div className="mb-3 space-y-2"><label className="block text-sm">Canal de atendimento<select value={channel} disabled={channelLoading} onChange={e=>setChannel(e.target.value)} className="admin-input w-full rounded border border-border p-2"><option value="">{channelLoading?'Carregando canais…':'Selecione um canal ativo'}</option>{channels.map(item=><option key={item.id} value={item.id}>{item.name||item.title||'Canal'}{item.number?` · ${formatPhone(String(item.number))}`:''}{item.primary===true?' · Principal':item.primary===false?' · Secundário':''}{cloudChannel(item)?' · WhatsApp Cloud':''}</option>)}</select></label>{channelError&&<p role="alert" className="text-xs text-red-600">{channelError}</p>}<label className="block text-sm">Tipo de mensagem<select value={messageType} disabled={cloud} onChange={e=>setMessageType(e.target.value)} className="admin-input w-full rounded border border-border p-2"><option value="text">Texto</option><option value="template">Template aprovado</option></select></label>{cloud&&<p className="text-xs text-muted-foreground">Este canal WhatsApp Cloud exige template aprovado para iniciar a conversa.</p>}{messageType==='template'&&<><label className="block text-sm">Template aprovado<select value={template} disabled={templateLoading||!channel} onChange={e=>setTemplate(e.target.value)} className="admin-input w-full rounded border border-border p-2"><option value="">{templateLoading?'Carregando templates…':'Selecione um template aprovado'}</option>{templates.map(item=><option key={item.id??item.name} value={item.id??item.name}>{item.name||item.title||'Template aprovado'}{item.language?` · ${typeof item.language==='object'?item.language.code:item.language}`:''}</option>)}</select></label>{templateError&&<p role="alert" className="text-xs text-red-600">{templateError}</p>}{currentTemplate&&<div className="rounded bg-muted p-3 text-sm"><p className="font-semibold">Prévia do template</p>{Array.isArray(currentTemplate.components)?currentTemplate.components.map((component:any,index:number)=><p key={index}><strong>{({HEADER:'Cabeçalho',BODY:'Corpo',FOOTER:'Rodapé',BUTTONS:'Botões'} as Record<string,string>)[component.type]||'Conteúdo'}: </strong>{component.text||component.buttons?.map((button:any)=>button.text).filter(Boolean).join(' · ')||'Conteúdo de mídia'}</p>):<p>{currentTemplate.text||currentTemplate.body||currentTemplate.content||'A prévia textual não foi fornecida pela SAC para este template.'}</p>}</div>}<StructuredEditor field={{name:'variables',label:'Variáveis',type:'variables'}} value={variables} onChange={setVariables}/></>}</div>
                 <p className="mb-3 text-[11px] text-muted-foreground">
                   {prepared.whatsapp_available
                     ? "O contato está associado a um canal SAC, mas o envio ainda depende da validação do WhatsApp pela SAC Digital."
                     : "O contato foi preparado, mas o canal ainda não está confirmado. Você pode tentar iniciar a conversa; se houver restrição, a SAC Digital informará o motivo."}
                 </p>
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {messageType === "text" && <><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Primeira mensagem
                 </label>
                 <textarea
@@ -426,7 +458,7 @@ export function SacDigitalNewConversationDialog({
                   placeholder="Digite a primeira mensagem"
                   className="admin-input min-h-32 w-full resize-y rounded-lg border border-border bg-card px-3 py-2.5 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
-                <p className="mt-1 text-right text-[9px] text-muted-foreground">{draft.length}/5000</p>
+                <p className="mt-1 text-right text-[9px] text-muted-foreground">{draft.length}/5000</p></>}
               </div>
             ) : (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
