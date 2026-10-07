@@ -570,7 +570,7 @@ export function SacDigitalToolPage({
     if (match) {
       setSelectedProtocolId(match.id);
       setConversationSearch("");
-      setStatusFilter("all");
+      setStatusFilter(match.status === "in_att" ? "in_att" : "waiting");
       setOperatorFilter("all");
       return;
     }
@@ -611,13 +611,13 @@ export function SacDigitalToolPage({
       if (byPhone.length === 1) {
         setSelectedProtocolId(byPhone[0].id);
         setConversationSearch("");
-        setStatusFilter("all");
+        setStatusFilter(byPhone[0].status === "in_att" ? "in_att" : "waiting");
         setOperatorFilter("all");
         return;
       }
       if (byPhone.length > 1) {
         setConversationSearch(phone.replace(/\D/g, "").slice(-8));
-        setStatusFilter("all");
+        setStatusFilter("waiting");
         setOperatorFilter("all");
         setMessage({
           text: "Encontramos mais de um atendimento com este telefone. Selecione a conversa correta na lista.",
@@ -905,7 +905,7 @@ export function SacDigitalToolPage({
 
     // A nova conversa deve ficar visivel mesmo com filtros anteriores ativos.
     setConversationSearch("");
-    setStatusFilter("all");
+    setStatusFilter("waiting");
     setOperatorFilter("all");
 
     const protocol = result.protocol;
@@ -1279,9 +1279,11 @@ export function SacDigitalToolPage({
         <span className="font-semibold">Nova mensagem recebida no SAC Digital.</span>
         <div className="flex items-center gap-2">
           <AdminButton size="sm" onClick={() => {
+            const target = protocols.find(protocol => protocol.id === incomingAlert.protocolId);
+            const targetStatus = target ? protocolOperationalStatus(target, waitingProtocolSet) : "waiting";
             setSelectedProtocolId(incomingAlert.protocolId);
             setConversationSearch("");
-            setStatusFilter("all");
+            setStatusFilter(targetStatus === "in_att" ? "in_att" : targetStatus === "finished" ? "finished" : "waiting");
             setOperatorFilter("all");
             setIncomingAlert(null);
           }}>Abrir conversa</AdminButton>
