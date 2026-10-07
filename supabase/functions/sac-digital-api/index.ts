@@ -247,6 +247,44 @@ Deno.serve(async request => {
       session = await login(organizationId, credentials, true);
       result = await execute(session.token);
     }
+
+    if (!result.response.ok || result.body.status === false || result.body.success === false) {
+      // Auditoria tecnica por empresa, sem corpo da resposta, mensagem,
+      // token, telefone, query string ou qualquer credencial sensivel.
+      const endpoint = path.split("?")[0].slice(0, 120);
+      const requestId = typeof result.body.request_id === "string"
+        ? result.body.request_id.slice(0, 120) : null;
+      const apiErrorType = typeof result.body.type === "string"
+        ? result.body.type.slice(0, 80) : null;
+      try {
+        const { error: auditError } = await admin.from("organization_audit_logs").insert({
+          organization_id: organizationId,
+          actor_user_id: null,
+          action: "sac_digital.api.error",
+          operation: "insert",
+          entity_type: "sac_digital_api_error",
+          entity_id: null,
+          module_key: "sac_digital",
+          source: "edge_function",
+          context_type: "integration",
+          metadata: {
+            endpoint,
+            method: String(init.method || "GET").toUpperCase().slice(0, 12),
+            http_status: result.response.status,
+            request_id: requestId,
+            api_error_type: apiErrorType,
+          },
+          changed_fields: {},
+          row_snapshot: null,
+        });
+        if (auditError) {
+          console.warn("[SAC DIGITAL API] API failure audit write skipped", auditError.code);
+        }
+      } catch (auditError) {
+        console.warn("[SAC DIGITAL API] API failure audit unavailable",
+          auditError instanceof Error ? auditError.message : auditError);
+      }
+    }
     return result;
   };
 
@@ -622,11 +660,17 @@ Deno.serve(async request => {
           auditActorName = String(profile?.full_name || "").trim() || null;
         }
 
-        await admin.from("organization_audit_logs").insert({
+        // O log geral aceita somente insert/update/delete no campo
+        // operation. A operação de negocio fica preservada no metadata.
+        const storedOperation = operation === "send" || operation === "start"
+          ? "insert"
+          : operation === "unlink" || operation === "remove" ? "delete"
+            : operation === "insert" || operation === "delete" ? operation : "update";
+        const { error: auditInsertError } = await admin.from("organization_audit_logs").insert({
           organization_id: organizationId,
           actor_user_id: userData.user.id,
           action,
-          operation,
+          operation: storedOperation,
           entity_type: entityType,
           entity_id: entityId || null,
           module_key: "sac_digital",
@@ -634,10 +678,19 @@ Deno.serve(async request => {
           context_id: contextId || null,
           actor_name_snapshot: auditActorName,
           source: "edge_function",
-          metadata,
+          metadata: {
+            ...metadata,
+            ...(storedOperation !== operation ? { sac_operation: operation } : {}),
+          },
           changed_fields: changedFields,
           row_snapshot: null,
         });
+        if (auditInsertError) {
+          console.warn("[SAC DIGITAL API] audit insert failed", {
+            code: auditInsertError.code,
+            action,
+          });
+        }
       } catch (auditError) {
         console.warn(
           "[SAC DIGITAL API] audit write skipped",
