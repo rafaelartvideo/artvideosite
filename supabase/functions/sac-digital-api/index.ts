@@ -1212,14 +1212,36 @@ Deno.serve(async request => {
         return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
       }
 
-      const infoResult = await apiRequest(
-        organizationId,
-        credentials,
-        `/contact/info?id=${encodeURIComponent(externalContactId)}`,
-        { method: "GET" },
-      );
-      if (!infoResult.response.ok || infoResult.body.status === false || !infoResult.body.info) {
-        return json({ success: false, error: "Contato não encontrado na SAC Digital." }, 404);
+      // Um contato importado agora pode não aparecer imediatamente em /contact/info.
+      // Validar pelo cadastro desta empresa e deixar o envio oficial da SAC decidir
+      // se o destino já está disponível, sem descartar uma importação aceita.
+      const { data: localContact, error: localError } = await admin
+        .from("sac_digital_contacts")
+        .select("id,external_contact_id,phone")
+        .eq("organization_id", organizationId)
+        .eq("external_contact_id", externalContactId)
+        .maybeSingle();
+      if (localError) throw new Error("Não foi possível validar o contato desta empresa.");
+
+      let foundInSac = false;
+      for (let attempt = 0; attempt < 3 && !foundInSac; attempt += 1) {
+        if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 350));
+        const infoResult = await apiRequest(
+          organizationId,
+          credentials,
+          `/contact/info?id=${encodeURIComponent(externalContactId)}`,
+          { method: "GET" },
+        );
+        foundInSac = infoResult.response.ok
+          && infoResult.body.status !== false
+          && Boolean(infoResult.body.info);
+      }
+
+      if (!foundInSac && !localContact?.id) {
+        return json({
+          success: false,
+          error: "A SAC Digital ainda não disponibilizou o contato. Verifique o número e tente novamente.",
+        }, 404);
       }
 
       const findOpenProtocol = async () => {
