@@ -125,7 +125,7 @@ export function PdfPreviewDialog({
   }, [open, source, previewUrl]);
 
   useEffect(() => {
-    if (!pdfDocument || !canvasRef.current || !availableWidth || !pageCount) return;
+    if (loading || !pdfDocument || !canvasRef.current || !availableWidth || !pageCount) return;
 
     let cancelled = false;
     let renderTask: any = null;
@@ -169,7 +169,7 @@ export function PdfPreviewDialog({
       cancelled = true;
       try { renderTask?.cancel?.(); } catch { /* ignore cleanup failures */ }
     };
-  }, [pdfDocument, pageNumber, pageCount, zoom, availableWidth]);
+  }, [loading, pdfDocument, pageNumber, pageCount, zoom, availableWidth]);
 
   useEffect(() => {
     if (!open) return;
@@ -295,18 +295,18 @@ export function PdfPreviewDialog({
       </div>
 
       <div ref={viewportRef} className="relative min-h-0 min-w-0 flex-1 overflow-auto bg-slate-200/70 p-4 dark:bg-slate-950/70">
-        {loading ? <div className="flex min-h-[360px] flex-col items-center justify-center gap-3">
-          <LoadingSpinner size="lg" />
-          <p className="text-sm font-semibold text-muted-foreground">Carregando PDF...</p>
-        </div> : loadError ? <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 text-center">
+        {loadError ? <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 text-center">
           <p className="max-w-md text-sm font-semibold text-muted-foreground">{loadError}</p>
           {previewUrl && <div className="h-[55vh] min-h-[320px] w-full overflow-hidden rounded-lg border border-border bg-white">
             <iframe title="PDF" src={previewUrl} className="h-full w-full border-0" />
           </div>}
         </div> : <div className="flex min-h-full min-w-max justify-center">
-          <div className="relative bg-white shadow-md">
-            <canvas ref={canvasRef} className="block bg-white" />
-            {rendering && <div className="absolute inset-0 flex items-center justify-center bg-white/45"><LoadingSpinner /></div>}
+          <div className="relative min-h-[360px] min-w-[280px] bg-white shadow-md">
+            <canvas ref={canvasRef} className={`block bg-white ${loading ? "invisible" : ""}`} />
+            {(loading || rendering) && <div className="absolute inset-0 flex min-h-[360px] flex-col items-center justify-center gap-3 bg-white/90">
+              <LoadingSpinner size={loading ? "lg" : "md"} />
+              {loading && <p className="text-sm font-semibold text-muted-foreground">Carregando PDF...</p>}
+            </div>}
           </div>
         </div>}
       </div>
