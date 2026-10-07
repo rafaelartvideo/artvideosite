@@ -1,6 +1,7 @@
 import { changedServiceTypeSituationLinks } from "../domain/service-type-links.mjs";
 import { supabase } from "@/lib/supabase";
 import { getActiveOrganizationId } from "@/lib/active-organization";
+import { listOrdersUsingServiceType } from "@/features/orders/infrastructure/linked-orders.repository";
 
 export type SelectedSituation = {
   situation_id: string;
@@ -146,6 +147,11 @@ export async function setServiceTypeActive(
 }
 
 export async function deleteServiceType(serviceTypeId: string): Promise<void> {
+  const linkedOrders = await listOrdersUsingServiceType(serviceTypeId);
+  if (linkedOrders.length > 0) {
+    throw new Error(`Este tipo de atendimento ainda está vinculado a ${linkedOrders.length} ${linkedOrders.length === 1 ? "OS" : "OS"}. Altere o tipo antes de excluir.`);
+  }
+
   const organizationId = await getActiveOrganizationId();
   const { error } = await supabase
     .from("service_types")
