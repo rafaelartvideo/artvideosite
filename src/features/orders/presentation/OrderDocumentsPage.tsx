@@ -24,6 +24,7 @@ import {
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { OrderImageThumb, type OrderImage } from "./OrderImages";
 import { OrderChecklistDocumentsSection } from "./OrderChecklistDocumentsSection";
@@ -62,19 +63,29 @@ function AttachmentCard({
   onRemove: (document: OrderSituationDocument) => void;
 }) {
   const { url, loading, error } = useMediaUrl(document.media_id);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const media = situationDocumentMedia(document);
   const type = situationDocumentType(document);
   const name = media?.file_name || "Arquivo anexado";
   const isImage = Boolean(media?.mime_type?.startsWith("image/"));
+  const isPdf = media?.mime_type === "application/pdf" || /\.pdf$/i.test(name);
   const classification = type?.name || (document.situation_id ? "Imagem da situação" : "Sem tipo");
 
   const openAttachment = () => {
     if (!url) return;
     if (isImage) onView({ key: document.id, mediaId: document.media_id, name });
+    else if (isPdf) setPdfPreviewOpen(true);
     else window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  return (
+  return (<>
+    <PdfPreviewDialog
+      open={pdfPreviewOpen}
+      source={pdfPreviewOpen ? url : null}
+      title={`Pré-visualização · ${name}`}
+      fileName={name}
+      onClose={() => setPdfPreviewOpen(false)}
+    />
     <AdminCard className="group relative min-w-0 max-w-full overflow-hidden p-0 transition-shadow hover:shadow-md">
       {isImage ? (
         <button
@@ -101,7 +112,7 @@ function AttachmentCard({
           className="flex min-h-28 w-full items-center justify-center gap-3 bg-muted px-4 py-5 text-left disabled:cursor-not-allowed"
         >
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#edf3ff] text-[#0057e7]"><File size={21} /></span>
-          <span className="min-w-0"><span className="block truncate text-xs font-black text-[#0d1b2e]">{name}</span><span className="mt-1 block text-[10px] text-[#7c899c]">{loading ? "Carregando..." : error ? "Arquivo indisponível" : "Clique para abrir"}</span></span>
+          <span className="min-w-0"><span className="block truncate text-xs font-black text-[#0d1b2e]">{name}</span><span className="mt-1 block text-[10px] text-[#7c899c]">{loading ? "Carregando..." : error ? "Arquivo indisponível" : isPdf ? "Clique para visualizar PDF" : "Clique para abrir"}</span></span>
         </button>
       )}
 
@@ -116,7 +127,7 @@ function AttachmentCard({
         </div>
       </div>
     </AdminCard>
-  );
+  </>);
 }
 
 function SelectedFilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
