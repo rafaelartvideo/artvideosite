@@ -186,7 +186,13 @@ export function OrderDetailsPage(props: Props) {
     const external = phoneContactLinks(customer?.whatsapp || customer?.phone);
     if (!external.whatsapp) return;
 
-    if (monitorView || !hasPermission("sac_digital.messages.send") || !detail.organization_id) {
+    // Ja verificamos o conector ao abrir a OS: evitar chamada repetida.
+    if (!monitorView && canSendSac && sacEnabled) {
+      setSacMessageOpen(true);
+      return;
+    }
+
+    if (monitorView || !canSendSac || !detail.organization_id) {
       window.open(external.whatsapp, "_blank", "noopener,noreferrer");
       return;
     }
@@ -314,7 +320,7 @@ export function OrderDetailsPage(props: Props) {
         open={sacMessageOpen}
         order={detail}
         onClose={() => setSacMessageOpen(false)}
-        onOpenChat={canViewSac ? openSacConversation : undefined}
+        onOpenChat={canViewSac && detail.customer_id ? openSacConversation : undefined}
       />
     )}
     {detail && labelUrl && <div aria-hidden="true" className="pointer-events-none absolute left-[-9999px] top-0 h-px w-px overflow-hidden opacity-0"><QRCodeCanvas ref={labelQrCanvasRef} value={labelUrl} size={256} level="M" marginSize={2} /></div>}
