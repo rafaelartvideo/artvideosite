@@ -55,6 +55,7 @@ export function useOrderFormState() {
   const [quickCustomer, setQuickCustomer] = useState(false);
   const [form, setForm] = useState(createEmptyOrderForm);
   const [needsScheduling, setNeedsScheduling] = useState(false);
+  const [hasAccessories, setHasAccessories] = useState(false);
 
   const updateField = (key: string, value: any) => {
     setForm(current => ({ ...current, [key]: value }));
@@ -67,6 +68,7 @@ export function useOrderFormState() {
     setPendingCreatedOrderId(null);
     setForm(createEmptyOrderForm());
     setNeedsScheduling(false);
+    setHasAccessories(false);
     setFormOpen(true);
   };
 
@@ -86,6 +88,7 @@ export function useOrderFormState() {
         .concat(order.seller_id ? [order.seller_id] : []),
     )));
     setNeedsScheduling(Boolean(order.scheduled_at));
+    setHasAccessories(Boolean(String(order.accessories || "").trim()));
     setForm({
       ...createEmptyOrderForm(),
       service_id: order.service_id || "",
@@ -168,6 +171,8 @@ export function useOrderFormState() {
     setForm,
     needsScheduling,
     setNeedsScheduling,
+    hasAccessories,
+    setHasAccessories,
     updateField,
     openNewForm,
     hydrateOrderForm,
