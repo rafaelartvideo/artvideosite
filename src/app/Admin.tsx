@@ -291,6 +291,12 @@ export function AdminDashboard({
           onOpenCustomer={hasPermission("customers.view")
             ? customerId => openAuthenticatedAdminTab(adminPath("customers", customerId, "customer"))
             : undefined}
+          onOpenOrder={hasPermission("orders.view")
+            ? orderId => openAuthenticatedAdminTab(adminPath("orders", orderId))
+            : undefined}
+          onCreateOrder={hasPermission("orders.create")
+            ? customerId => openAuthenticatedAdminTab(`${adminPath("orders", "new")}?customer=${encodeURIComponent(customerId)}`)
+            : undefined}
         />
         : <Navigate to={adminPath("tools")} replace />
       : toolsHub;
@@ -364,7 +370,16 @@ export function AdminDashboard({
             <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode
               ? <UnionOrderMonitor initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={(orderId, subpage) => orderId ? navigateOrderRoute(orderId, subpage) : closeOrderRoute()} />
-              : <TabOrders onNavigate={tab => navigateAdmin(tab)} initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={navigateOrderRoute} onOrderRouteClose={closeOrderRoute} />} />
+              : <TabOrders
+                onNavigate={tab => navigateAdmin(tab)}
+                initialOrderId={route.resourceId}
+                initialCustomerId={route.resourceId === "new"
+                  ? new URLSearchParams(location.search).get("customer")
+                  : null}
+                routeSubpage={route.subpage}
+                onOrderRouteChange={navigateOrderRoute}
+                onOrderRouteClose={closeOrderRoute}
+              />} />
             <Route path="agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
             <Route path="field-map/*" element={<TabFieldTracking />} />
             <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
