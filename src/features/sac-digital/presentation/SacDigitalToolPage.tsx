@@ -435,10 +435,12 @@ export function SacDigitalToolPage({
     [waitingProtocolIds],
   );
 
-  const visibleProtocols = useMemo(() => {
-    if (canManage) return protocols;
+  const isSacManager = operatorBinding?.linked && operatorBinding.access_mode === "manager";
 
-    const linkedOperatorId = operatorBinding?.linked
+  const visibleProtocols = useMemo(() => {
+    if (isSacManager) return protocols;
+
+    const linkedOperatorId = operatorBinding?.linked && operatorBinding.access_mode === "operator"
       ? operatorBinding.operator?.id || ""
       : "";
     if (!linkedOperatorId) return [];
@@ -448,7 +450,7 @@ export function SacDigitalToolPage({
       if (operationalStatus === "waiting" || operationalStatus === "pending") return true;
       return protocol.operator_id === linkedOperatorId;
     });
-  }, [canManage, operatorBinding, protocols, waitingProtocolSet]);
+  }, [isSacManager, operatorBinding, protocols, waitingProtocolSet]);
 
   const selectedProtocol = useMemo(
     () => visibleProtocols.find(protocol => protocol.id === selectedProtocolId) || null,
@@ -604,7 +606,7 @@ export function SacDigitalToolPage({
   }, [activeOrganizationId, canViewMessages]);
 
   const loadOperatorQueue = useCallback(async () => {
-    if (!activeOrganizationId || !canManageProtocols || !operatorBinding?.linked || !status?.enabled) {
+    if (!activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) {
       setWaitingProtocolIds([]);
       return;
     }
@@ -614,17 +616,17 @@ export function SacDigitalToolPage({
     } catch {
       // Mantém a última fila conhecida; os estados locais seguem como fallback.
     }
-  }, [activeOrganizationId, canManageProtocols, operatorBinding?.linked, status?.enabled]);
+  }, [activeOrganizationId, canManageProtocols, operatorBinding?.access_mode, operatorBinding?.operator?.id, status?.enabled]);
 
   useEffect(() => {
-    if (!activeOrganizationId || !canManageProtocols || !operatorBinding?.linked || !status?.enabled) {
+    if (!activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) {
       setWaitingProtocolIds([]);
       return;
     }
     void loadOperatorQueue();
     const timer = window.setInterval(() => void loadOperatorQueue(), 30_000);
     return () => window.clearInterval(timer);
-  }, [activeOrganizationId, canManageProtocols, loadOperatorQueue, operatorBinding?.linked, status?.enabled]);
+  }, [activeOrganizationId, canManageProtocols, loadOperatorQueue, operatorBinding?.access_mode, operatorBinding?.operator?.id, status?.enabled]);
 
   useEffect(() => {
     let alive = true;
@@ -1438,14 +1440,14 @@ export function SacDigitalToolPage({
         <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
           <MessageCircle size={32} className="text-muted-foreground" />
           <p className="text-sm font-black text-foreground">
-            {canManage ? "Nenhum atendimento recebido" : operatorBinding?.linked ? "Nenhuma conversa atribuída a você" : "Operador SAC não vinculado"}
+            {isSacManager ? "Nenhum atendimento recebido" : operatorBinding?.linked ? "Nenhuma conversa atribuída a você" : "Perfil SAC não vinculado"}
           </p>
           <p className="max-w-md text-xs leading-5 text-muted-foreground">
-            {canManage
-              ? "Quando a SAC Digital enviar um protocolo pelo webhook, ele aparecerá aqui em tempo real."
+            {isSacManager
+              ? "Como Gestor SAC, você acompanha todas as conversas da empresa."
               : operatorBinding?.linked
-                ? "Você verá a fila de atendimentos disponíveis e as conversas atribuídas ao seu Operador SAC."
-                : "Peça a um Gestor para vincular seu usuário a um Operador SAC em Configurações."}
+                ? "Como Operador SAC, você verá a fila disponível e somente as conversas atribuídas ao seu operador."
+                : "Peça a um administrador da Union para definir seu Perfil SAC Digital nas configurações."}
           </p>
         </div>
       ) : (
@@ -1458,8 +1460,8 @@ export function SacDigitalToolPage({
                   {statusCounts.self_service + statusCounts.waiting + statusCounts.in_att} ativa(s) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
                 </p>
               </div>
-              <div className={`mt-3 grid overflow-hidden rounded-lg border border-border bg-card ${canManage ? "grid-cols-4" : "grid-cols-3"}`}>
-                {(canManage
+              <div className={`mt-3 grid overflow-hidden rounded-lg border border-border bg-card ${isSacManager ? "grid-cols-4" : "grid-cols-3"}`}>
+                {(isSacManager
                   ? ([
                       ["self_service", "Auto", statusCounts.self_service],
                       ["waiting", "Aguardando", statusCounts.waiting],
@@ -1484,7 +1486,7 @@ export function SacDigitalToolPage({
                 ))}
               </div>
               <div className="mt-3"><FInput label="Buscar conversa" aria-label="Buscar conversa" value={conversationSearch} onChange={(event: any) => setConversationSearch(event.target.value)} placeholder="Nome, telefone ou protocolo" /></div>
-              {canManage && (
+              {isSacManager && (
                 <div className="mt-3">
                   <FSelect label="Atendente" value={operatorFilter} onChange={(event: any) => setOperatorFilter(event.target.value)} options={[
                     {value:'all',label:'Todos'}, {value:'unassigned',label:'Sem atendente'}, ...operatorFilterOptions.map(name=>({value:name,label:name})),
@@ -1725,11 +1727,9 @@ export function SacDigitalToolPage({
                         </AdminButton>
                       </>
                     )}
-                    {canManageProtocols && selectedOperationalStatus === "in_att" && !isMyProtocol && (
+                    {canManageProtocols && selectedOperationalStatus === "in_att" && !isMyProtocol && isSacManager && (
                       <span className="shrink-0 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-700 dark:text-sky-300">
-                        {operatorBinding?.linked && operatorBinding.operator
-                          ? `Atendimento de ${selectedProtocol.operator_name || "outro Operador"} · você está vinculado a ${operatorBinding.operator.name}`
-                          : "Supervisão · vincule um Operador SAC para atuar"}
+                        Gestor SAC · atendimento de {selectedProtocol.operator_name || "outro Operador"}
                       </span>
                     )}
                   </div>
@@ -2119,11 +2119,9 @@ export function SacDigitalToolPage({
                     <p className="py-2 text-center text-xs font-semibold text-amber-700 dark:text-amber-300">
                       Este atendimento está na fila. Um Operador SAC deve pegar o atendimento antes de responder.
                     </p>
-                  ) : selectedOperationalStatus === "in_att" && !isMyProtocol ? (
+                  ) : selectedOperationalStatus === "in_att" && !isMyProtocol && isSacManager ? (
                     <p className="py-2 text-center text-xs font-semibold text-sky-700 dark:text-sky-300">
-                      {operatorBinding?.linked && operatorBinding.operator
-                        ? `Este atendimento está com ${selectedProtocol.operator_name || "outro Operador SAC"}. Seu usuário está vinculado a ${operatorBinding.operator.name}; somente o operador responsável pode responder, encaminhar ou finalizar enquanto o atendimento estiver atribuído a ele.`
-                        : "Este atendimento pertence a um Operador SAC. Vincule seu usuário a um Operador para atuar em atendimentos atribuídos a ele."}
+                      Você está acompanhando este atendimento como Gestor SAC. O atendimento está atribuído a {selectedProtocol.operator_name || "outro Operador SAC"}.
                     </p>
                   ) : canSendMessages ? (
                     <div className="mx-auto max-w-4xl space-y-2">

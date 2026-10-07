@@ -538,6 +538,7 @@ export async function getSacDigitalRoutingOptions(organizationId: string) {
 
 export type SacDigitalOperatorBinding = {
   linked: boolean;
+  access_mode: "manager" | "operator" | null;
   operator: {
     id: string;
     name: string;
@@ -551,6 +552,9 @@ export async function getMySacDigitalOperatorBinding(organizationId: string) {
   });
   return {
     linked: data.linked === true,
+    access_mode: data.access_mode === "manager"
+      ? "manager"
+      : data.access_mode === "operator" ? "operator" : null,
     operator: data.operator && typeof data.operator === "object"
       ? data.operator as { id: string; name: string }
       : null,
@@ -564,6 +568,7 @@ export type SacDigitalOperatorAdminData = {
     full_name: string;
     email: string;
     is_owner: boolean;
+    access_mode: "manager" | "operator" | null;
     operator: {
       id: string;
       name: string;
@@ -591,12 +596,14 @@ export async function getSacDigitalOperatorBindingsAdmin(organizationId: string)
 export async function setSacDigitalOperatorBindingAdmin(
   organizationId: string,
   userId: string,
-  operatorId: string,
+  accessMode: "manager" | "operator" | null,
+  operatorId = "",
 ) {
   return invokeSacDigitalApi({
     action: "set_operator_binding_admin",
     organization_id: organizationId,
     user_id: userId,
+    access_mode: accessMode || "",
     operator_id: operatorId,
   });
 }

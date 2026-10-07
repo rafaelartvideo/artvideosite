@@ -961,21 +961,30 @@ Deno.serve(async request => {
         .filter(item => item.id && item.name);
     };
 
-    const resolveMyOperatorBinding = async () => {
+    const resolveMySacAccessBinding = async () => {
       const { data: linked, error: linkedError } = await admin
         .from("sac_digital_operator_links")
-        .select("external_operator_id,operator_name,updated_at")
+        .select("access_mode,external_operator_id,operator_name,updated_at")
         .eq("organization_id", organizationId)
         .eq("user_id", userData.user.id)
         .maybeSingle();
 
-      if (linkedError) throw new Error("Não foi possível consultar o operador vinculado.");
-      if (!linked?.external_operator_id) return null;
+      if (linkedError) throw new Error("Não foi possível consultar o perfil SAC vinculado.");
+      if (!linked) return null;
+
+      const accessMode = linked.access_mode === "manager" ? "manager" : "operator";
       return {
-        id: String(linked.external_operator_id),
-        name: String(linked.operator_name || ""),
+        accessMode,
+        id: accessMode === "operator" ? String(linked.external_operator_id || "") : "",
+        name: accessMode === "operator" ? String(linked.operator_name || "") : "Gestor SAC",
         version: String(linked.updated_at || ""),
       };
+    };
+
+    const resolveMyOperatorBinding = async () => {
+      const linked = await resolveMySacAccessBinding();
+      if (!linked || linked.accessMode !== "operator" || !linked.id) return null;
+      return linked;
     };
 
     const authenticateSacOperator = async (
@@ -2204,11 +2213,14 @@ Deno.serve(async request => {
       if (!(await requirePermission("sac_digital.messages.view"))) {
         return json({ success: false, error: "Sem permissão para visualizar atendimentos do SAC Digital." }, 403);
       }
-      const binding = await resolveMyOperatorBinding();
+      const binding = await resolveMySacAccessBinding();
       return json({
         success: true,
         linked: Boolean(binding),
-        operator: binding ? { id: binding.id, name: binding.name } : null,
+        access_mode: binding?.accessMode || null,
+        operator: binding?.accessMode === "operator"
+          ? { id: binding.id, name: binding.name }
+          : null,
       });
     }
 
@@ -2243,7 +2255,7 @@ Deno.serve(async request => {
 
       const { data: links, error: linksError } = await admin
         .from("sac_digital_operator_links")
-        .select("user_id,external_operator_id,operator_name")
+        .select("user_id,access_mode,external_operator_id,operator_name")
         .eq("organization_id", organizationId);
       if (linksError) throw new Error("Não foi possível carregar os vínculos de operadores.");
 
@@ -2264,7 +2276,10 @@ Deno.serve(async request => {
             full_name: String(profile.full_name || profile.email || "Usuário"),
             email: String(profile.email || ""),
             is_owner: member?.is_owner === true,
-            operator: link?.external_operator_id
+            access_mode: link?.access_mode === "manager"
+              ? "manager"
+              : link?.external_operator_id ? "operator" : null,
+            operator: link?.access_mode !== "manager" && link?.external_operator_id
               ? {
                   id: String(link.external_operator_id),
                   name: String(link.operator_name || ""),
@@ -2293,7 +2308,11 @@ Deno.serve(async request => {
 
       const targetUserId = String(body.user_id || "").trim();
       const operatorId = String(body.operator_id || "").trim();
+      const requestedAccessMode = String(body.access_mode || (operatorId ? "operator" : "")).trim().toLowerCase();
       if (!isUuid(targetUserId)) return json({ success: false, error: "Funcionário inválido." }, 400);
+      if (requestedAccessMode && !["manager","operator"].includes(requestedAccessMode)) {
+        return json({ success: false, error: "Perfil SAC Digital inválido." }, 400);
+      }
 
       const { data: member, error: memberError } = await admin
         .from("organization_members")
@@ -2306,13 +2325,13 @@ Deno.serve(async request => {
         return json({ success: false, error: "O funcionário não pertence à empresa ativa." }, 400);
       }
 
-      if (!operatorId) {
+      if (!requestedAccessMode) {
         const { error: deleteError } = await admin
           .from("sac_digital_operator_links")
           .delete()
           .eq("organization_id", organizationId)
           .eq("user_id", targetUserId);
-        if (deleteError) throw new Error("Não foi possível remover o vínculo do operador.");
+        if (deleteError) throw new Error("Não foi possível remover o perfil SAC Digital.");
         await writeSacAudit({
           action: "sac_digital.operator_binding.remove",
           operation: "unlink",
@@ -2322,10 +2341,44 @@ Deno.serve(async request => {
           contextId: targetUserId,
           metadata: { managed_by: "settings" },
         });
-        return json({ success: true, linked: false, operator: null });
+        return json({ success: true, linked: false, access_mode: null, operator: null });
       }
 
-      if (operatorId.length > 80) return json({ success: false, error: "Operador SAC inválido." }, 400);
+      if (requestedAccessMode === "manager") {
+        const { error: managerUpsertError } = await admin
+          .from("sac_digital_operator_links")
+          .upsert({
+            organization_id: organizationId,
+            user_id: targetUserId,
+            access_mode: "manager",
+            external_operator_id: null,
+            operator_name: null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "organization_id,user_id" });
+        if (managerUpsertError) throw new Error("Não foi possível salvar o perfil Gestor SAC.");
+
+        await writeSacAudit({
+          action: "sac_digital.operator_binding.set",
+          operation: "update",
+          entityType: "sac_digital_operator_binding",
+          entityId: targetUserId,
+          contextType: "user",
+          contextId: targetUserId,
+          metadata: { managed_by: "settings", access_mode: "manager" },
+          changedFields: { access_mode: "manager" },
+        });
+
+        return json({
+          success: true,
+          linked: true,
+          access_mode: "manager",
+          operator: null,
+        });
+      }
+
+      if (!operatorId || operatorId.length > 80) {
+        return json({ success: false, error: "Selecione um Operador SAC Digital." }, 400);
+      }
 
       const operators = await loadSacOperators();
       const operator = operators.find(item => item.id === operatorId);
@@ -2366,6 +2419,7 @@ Deno.serve(async request => {
         .upsert({
           organization_id: organizationId,
           user_id: targetUserId,
+          access_mode: "operator",
           external_operator_id: operator.id,
           operator_name: operator.name,
           updated_at: new Date().toISOString(),
@@ -2389,6 +2443,7 @@ Deno.serve(async request => {
         contextId: targetUserId,
         metadata: {
           managed_by: "settings",
+          access_mode: "operator",
           operator_id: operator.id,
           operator_name: operator.name,
         },
@@ -2398,6 +2453,7 @@ Deno.serve(async request => {
       return json({
         success: true,
         linked: true,
+        access_mode: "operator",
         operator: { id: operator.id, name: operator.name },
       });
     }
