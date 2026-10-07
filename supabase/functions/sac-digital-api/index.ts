@@ -2311,30 +2311,30 @@ Deno.serve(async request => {
         .find(Boolean) || "";
 
       if (!externalContactId) {
-        const searchResult = await apiRequest(
-          organizationId,
-          credentials,
-          `/contact/search?p=1&filter=1&search=${encodeURIComponent(phone)}`,
-          { method: "GET" },
-        );
-        if (!searchResult.response.ok || searchResult.body.status === false) {
-          return json({ success: false, error: "Não foi possível localizar o cliente na SAC Digital." });
+        let match: Record<string, unknown> | null = null;
+        let matchedPhone = phone;
+
+        // Procurar primeiro o telefone cadastrado e depois sua variante brasileira
+        // (com/sem nono dígito). Nunca escolher resultado não correspondente.
+        for (const candidatePhone of sacPhoneVariants(phone)) {
+          const searchResult = await apiRequest(
+            organizationId,
+            credentials,
+            `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidatePhone)}`,
+            { method: "GET" },
+          );
+          if (!searchResult.response.ok || searchResult.body.status === false) continue;
+          const list = Array.isArray(searchResult.body.list)
+            ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+            : [];
+          match = list.find(item => sacPhoneKey(item.number) === sacPhoneKey(candidatePhone)) || null;
+          if (match) {
+            matchedPhone = candidatePhone;
+            break;
+          }
         }
 
-        const normalizePhoneKey = (value: unknown) => {
-          const digits = String(value || "").replace(/\D/g, "");
-          return digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
-            ? digits.slice(2)
-            : digits;
-        };
-        const expectedPhone = normalizePhoneKey(phone);
-        const list = Array.isArray(searchResult.body.list)
-          ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
-          : [];
-        let match = list.find(item => normalizePhoneKey(item.number) === expectedPhone)
-          || (list.length === 1 ? list[0] : null);
-
-        if (!match?.id) {
+        if (!match) {
           const channelsResult = await apiRequest(
             organizationId,
             credentials,
@@ -2342,8 +2342,7 @@ Deno.serve(async request => {
             { method: "GET" },
           );
           const channels = Array.isArray(channelsResult.body.list)
-            ? channelsResult.body.list
-                .filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+            ? channelsResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
             : [];
           const activeChannels = channels.filter(channel =>
             channel.actived !== false && String(channel.id || "").trim()
@@ -2359,30 +2358,44 @@ Deno.serve(async request => {
             || `Contato ${phone.slice(-4)}`
           ).trim();
 
-          const importPayload: Record<string, unknown> = {
-            number: phone,
-            name: customerName,
-          };
-          if (primaryChannel?.id) importPayload.channel = String(primaryChannel.id);
+          let importResult: Awaited<ReturnType<typeof apiRequest>> | null = null;
+          for (const candidatePhone of sacPhoneVariants(phone)) {
+            const importPayload: Record<string, unknown> = {
+              number: candidatePhone,
+              name: customerName,
+            };
+            if (primaryChannel?.id) importPayload.channel = String(primaryChannel.id);
 
-          const importResult = await apiRequest(
-            organizationId,
-            credentials,
-            "/contact/import",
-            {
-              method: "POST",
-              body: JSON.stringify(importPayload),
-            },
-          );
+            const attempt = await apiRequest(
+              organizationId,
+              credentials,
+              "/contact/import",
+              { method: "POST", body: JSON.stringify(importPayload) },
+            );
 
-          if (!importResult.response.ok || importResult.body.status === false || importResult.body.success === false) {
+            if (attempt.response.ok && attempt.body.status !== false && attempt.body.success !== false) {
+              importResult = attempt;
+              matchedPhone = candidatePhone;
+              break;
+            }
+
+            // Só tentar sem/com 9 se a própria SAC não conseguiu validar WhatsApp.
+            // Outros erros (permissão, canal, parâmetros) não devem ser mascarados.
+            if (!sacWhatsAppValidationInconclusive(attempt.body.message)) {
+              return json({
+                success: false,
+                error: sacContactImportError(
+                  attempt.body.message,
+                  "A SAC Digital não conseguiu preparar este número para envio.",
+                ),
+              }, 400);
+            }
+          }
+
+          if (!importResult) {
             return json({
               success: false,
-              error: sacContactImportError(
-                importResult.body.message,
-                "A SAC Digital não conseguiu preparar este número para envio.",
-              ),
-              contact_not_found: true,
+              error: "A SAC Digital não conseguiu validar o WhatsApp com o número cadastrado nem com sua variante com/sem nono dígito. Confira o canal e tente novamente.",
             }, 400);
           }
 
@@ -2398,26 +2411,24 @@ Deno.serve(async request => {
             match = {
               id: importedId,
               name: customerName,
-              number: phone,
-              channel: primaryChannel
-                ? { id: String(primaryChannel.id || ""), number: String(primaryChannel.number || "") }
-                : null,
+              number: matchedPhone,
               imported: true,
             };
           } else {
             await new Promise(resolve => setTimeout(resolve, 250));
-            const retrySearch = await apiRequest(
-              organizationId,
-              credentials,
-              `/contact/search?p=1&filter=1&search=${encodeURIComponent(phone)}`,
-              { method: "GET" },
-            );
-            const retryList = Array.isArray(retrySearch.body.list)
-              ? retrySearch.body.list
-                  .filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
-              : [];
-            match = retryList.find(item => normalizePhoneKey(item.number) === expectedPhone)
-              || (retryList.length === 1 ? retryList[0] : null);
+            for (const candidatePhone of sacPhoneVariants(matchedPhone)) {
+              const retrySearch = await apiRequest(
+                organizationId,
+                credentials,
+                `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidatePhone)}`,
+                { method: "GET" },
+              );
+              const retryList = Array.isArray(retrySearch.body.list)
+                ? retrySearch.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+                : [];
+              match = retryList.find(item => sacPhoneKey(item.number) === sacPhoneKey(candidatePhone)) || null;
+              if (match) break;
+            }
           }
 
           if (!match?.id) {
@@ -2438,6 +2449,7 @@ Deno.serve(async request => {
             metadata: {
               source: "service_order",
               channel_id: primaryChannel?.id ? String(primaryChannel.id) : null,
+              variant_used: matchedPhone === phone ? "registered" : "alternate",
             },
           });
         }
@@ -2451,7 +2463,7 @@ Deno.serve(async request => {
             external_contact_id: externalContactId,
             customer_id: customerId,
             name: String(match.name || customer.full_name || customer.trade_name || customer.legal_name || ""),
-            phone: String(match.number || phone),
+            phone: String(match.number || matchedPhone),
             avatar_url: String(match.avatar || "") || null,
             raw_metadata: match,
             updated_at: now,
