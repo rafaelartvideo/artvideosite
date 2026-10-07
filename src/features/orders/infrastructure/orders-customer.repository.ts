@@ -60,3 +60,12 @@ export const searchOrderCustomers = (organizationId: string, query: string) =>
     .eq("organization_id", organizationId)
     .or(`full_name.ilike.%${query}%,trade_name.ilike.%${query}%,document.ilike.%${query}%,cnpj.ilike.%${query}%,whatsapp.ilike.%${query}%,phone.ilike.%${query}%`)
     .limit(8);
+
+
+export const getOrderCustomerById = (organizationId: string, customerId: string) =>
+  supabase
+    .from("customers")
+    .select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,addresses:customer_addresses(*)")
+    .eq("organization_id", organizationId)
+    .eq("id", customerId)
+    .maybeSingle();
