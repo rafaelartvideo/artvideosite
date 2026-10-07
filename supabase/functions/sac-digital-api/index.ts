@@ -3222,6 +3222,222 @@ Deno.serve(async request => {
       });
     }
 
+    if (action === "send_signature_invite") {
+      if (!(await requirePermission("sac_digital.messages.send"))) {
+        return json({ success: false, error: "Sem permissão para enviar mensagens pelo SAC Digital." }, 403);
+      }
+      if (!(await hasOrganizationPermission("documents.signatures.send"))) {
+        return json({ success: false, error: "Sem permissão para enviar documentos para assinatura." }, 403);
+      }
+
+      const requestId = String(body.request_id || "").trim();
+      const orderId = String(body.order_id || "").trim();
+      const link = String(body.link || "").trim();
+      if (!isUuid(requestId)) return json({ success: false, error: "Solicitação de assinatura inválida." }, 400);
+      if (!isUuid(orderId)) return json({ success: false, error: "OS inválida." }, 400);
+
+      let linkUrl: URL;
+      try { linkUrl = new URL(link); }
+      catch { return json({ success: false, error: "Link de assinatura inválido." }, 400); }
+      if (linkUrl.protocol !== "https:" || !/\/assinatura\//.test(linkUrl.pathname)) {
+        return json({ success: false, error: "Link de assinatura inválido." }, 400);
+      }
+      const configuredSignatureBase = String(
+        Deno.env.get("SIGNATURE_PUBLIC_BASE_URL")
+        || Deno.env.get("SITE_URL")
+        || Deno.env.get("APP_URL")
+        || "",
+      ).trim().replace(/\/+$/, "");
+      if (configuredSignatureBase) {
+        let configuredOrigin = "";
+        try { configuredOrigin = new URL(configuredSignatureBase).origin; } catch { /* validated by signature service */ }
+        if (configuredOrigin && linkUrl.origin !== configuredOrigin) {
+          return json({ success: false, error: "O link de assinatura não pertence a esta instalação." }, 400);
+        }
+      }
+
+      const { data: signatureRequest, error: signatureRequestError } = await admin
+        .from("document_signature_requests")
+        .select("id,service_order_id,status,require_external_signature,external_signer_name,external_signer_phone,template_name_snapshot,expires_at")
+        .eq("organization_id", organizationId)
+        .eq("id", requestId)
+        .eq("service_order_id", orderId)
+        .maybeSingle();
+      if (signatureRequestError || !signatureRequest?.id) {
+        return json({ success: false, error: "Solicitação de assinatura não encontrada nesta empresa." }, 404);
+      }
+      if (!["pending", "viewed"].includes(String(signatureRequest.status || ""))) {
+        return json({ success: false, error: "Esta solicitação de assinatura não está mais ativa." }, 409);
+      }
+      if (signatureRequest.require_external_signature !== true) {
+        return json({ success: false, error: "Esta solicitação não possui assinante externo." }, 409);
+      }
+
+      const phone = normalizeSacPhone(signatureRequest.external_signer_phone);
+      if (!phone) {
+        return json({ success: false, error: "O assinante não possui WhatsApp/telefone informado." }, 400);
+      }
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) {
+        return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+      }
+
+      let externalContactId = "";
+      let matchedPhone = phone;
+      let matchedContact: Record<string, unknown> | null = null;
+
+      for (const candidatePhone of sacPhoneVariants(phone)) {
+        const searchResult = await apiRequest(
+          organizationId,
+          credentials,
+          `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidatePhone)}`,
+          { method: "GET" },
+        );
+        if (!searchResult.response.ok || searchResult.body.status === false) continue;
+        const rows = Array.isArray(searchResult.body.list)
+          ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+          : [];
+        matchedContact = rows.find(item => sacPhoneKey(item.number) === sacPhoneKey(candidatePhone)) || null;
+        if (matchedContact) {
+          matchedPhone = candidatePhone;
+          externalContactId = String(matchedContact.id || "").trim();
+          if (externalContactId) break;
+        }
+      }
+
+      if (!externalContactId) {
+        const channelsResult = await apiRequest(
+          organizationId,
+          credentials,
+          "/channel/all",
+          { method: "GET" },
+        );
+        const channels = Array.isArray(channelsResult.body.list)
+          ? channelsResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+          : [];
+        const activeChannels = channels.filter(channel =>
+          channel.actived !== false && String(channel.id || "").trim()
+        );
+        const primaryChannel = chooseImportChannel(activeChannels);
+        const signerName = String(signatureRequest.external_signer_name || `Assinante ${phone.slice(-4)}`).trim();
+
+        const importAttempt = await importSacContact(
+          organizationId,
+          credentials,
+          phone,
+          signerName,
+          primaryChannel,
+        );
+        if (!importAttempt.result) {
+          return json({
+            success: false,
+            error: importAttempt.failure
+              ? sacContactImportError(importAttempt.failure.body.message, "A SAC Digital não conseguiu preparar o WhatsApp do assinante.")
+              : "A SAC Digital não conseguiu preparar o WhatsApp do assinante.",
+          }, 400);
+        }
+        matchedPhone = importAttempt.phone;
+        externalContactId = String(
+          importAttempt.result.body.id
+          || (importAttempt.result.body.contact && typeof importAttempt.result.body.contact === "object"
+            ? (importAttempt.result.body.contact as Record<string, unknown>).id
+            : "")
+          || "",
+        ).trim();
+
+        if (!externalContactId) {
+          await new Promise(resolve => setTimeout(resolve, 250));
+          for (const candidatePhone of sacPhoneVariants(matchedPhone)) {
+            const retrySearch = await apiRequest(
+              organizationId,
+              credentials,
+              `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidatePhone)}`,
+              { method: "GET" },
+            );
+            const retryRows = Array.isArray(retrySearch.body.list)
+              ? retrySearch.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+              : [];
+            const match = retryRows.find(item => sacPhoneKey(item.number) === sacPhoneKey(candidatePhone));
+            if (match?.id) {
+              externalContactId = String(match.id);
+              break;
+            }
+          }
+        }
+      }
+
+      if (!externalContactId) {
+        return json({
+          success: false,
+          error: "A SAC Digital preparou o número, mas ainda não retornou o contato. Tente novamente em alguns segundos.",
+        }, 409);
+      }
+
+      const { data: company } = await admin
+        .from("organization_company_settings")
+        .select("name")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const signerFirstName = String(signatureRequest.external_signer_name || "").trim().split(/\s+/)[0] || "cliente";
+      const companyName = String(company?.name || "Empresa").trim();
+      const documentName = String(signatureRequest.template_name_snapshot || "Documento").trim();
+      const expiresAt = signatureRequest.expires_at
+        ? new Date(signatureRequest.expires_at).toLocaleString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            dateStyle: "short",
+            timeStyle: "short",
+          })
+        : "";
+      const inviteText = [
+        `Olá, ${signerFirstName}! ${companyName} enviou o documento “${documentName}” para sua assinatura eletrônica.`,
+        expiresAt ? `O link é válido até ${expiresAt}.` : "",
+        `Acesse para revisar e assinar: ${link}`,
+      ].filter(Boolean).join("\n\n");
+
+      const notification = await apiRequest(
+        organizationId,
+        credentials,
+        "/notification/contact",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            contact: externalContactId,
+            type: "text",
+            text: inviteText,
+          }),
+        },
+      );
+      if (!notification.response.ok || notification.body.status === false || notification.body.success === false) {
+        return json({
+          success: false,
+          error: typeof notification.body.message === "string" && notification.body.message.trim()
+            ? `SAC Digital: ${notification.body.message.trim()}`
+            : "A SAC Digital não conseguiu enviar o link de assinatura pelo WhatsApp.",
+        }, 409);
+      }
+
+      await writeSacAudit({
+        action: "sac_digital.signature.send_invite",
+        operation: "send",
+        entityType: "document_signature_request",
+        entityId: requestId,
+        contextType: "service_order",
+        contextId: orderId,
+        metadata: {
+          transport: "notification_contact",
+          external_contact_id: externalContactId,
+          variant_used: matchedPhone === phone ? "registered" : "alternate",
+        },
+      });
+
+      return json({
+        success: true,
+        request_id: requestId,
+        notification_id: notification.body.notification_id || notification.body.id || null,
+      });
+    }
+
     if (action === "send_order_message") {
       if (!(await requirePermission("sac_digital.messages.send"))) {
         return json({ success: false, error: "Sem permissão para enviar mensagens pelo SAC Digital." }, 403);
