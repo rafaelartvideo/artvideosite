@@ -20,6 +20,9 @@ import { OrderUndoSolutionDialog } from "./OrderUndoSolutionDialog";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
+import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
+import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
+import { phoneContactLinks } from "../domain/order-contact-actions";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { createServiceOrderLabelDataUrl, renderServiceOrderLabel } from "../domain/order-label-print";
@@ -96,6 +99,8 @@ export function OrderDetailsPage(props: Props) {
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
+  const [sacMessageOpen, setSacMessageOpen] = useState(false);
+  const [checkingSac, setCheckingSac] = useState(false);
   const { statuses, situations } = workspace;
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
   const effectiveRouteSubpage = routeSubpage;
@@ -150,8 +155,36 @@ export function OrderDetailsPage(props: Props) {
 
   useEffect(() => {
     setSolutionRecordsOpen(false);
+    setSacMessageOpen(false);
     setDetailSection(initialSection);
   }, [detail?.id, initialSection]);
+
+  const openCustomerWhatsApp = async () => {
+    if (!detail || checkingSac) return;
+    const customer = detail.customer as any;
+    const external = phoneContactLinks(customer?.whatsapp || customer?.phone);
+    if (!external.whatsapp) return;
+
+    if (monitorView || !hasPermission("sac_digital.messages.send") || !detail.organization_id) {
+      window.open(external.whatsapp, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setCheckingSac(true);
+    try {
+      const integration = await getSacDigitalIntegrationStatus(detail.organization_id);
+      if (integration.enabled) {
+        setSacMessageOpen(true);
+        return;
+      }
+    } catch {
+      // Se a integração não puder ser consultada, preserva o WhatsApp externo como contingência.
+    } finally {
+      setCheckingSac(false);
+    }
+
+    window.open(external.whatsapp, "_blank", "noopener,noreferrer");
+  };
 
   const openSolutionRecords = () => {
     if (detail?.id) void loadSolutionAttempts(detail.id, detail.organization_id);
@@ -254,6 +287,13 @@ export function OrderDetailsPage(props: Props) {
   }
 
   return <>
+    {detail && (
+      <OrderSacDigitalDialog
+        open={sacMessageOpen}
+        order={detail}
+        onClose={() => setSacMessageOpen(false)}
+      />
+    )}
     {detail && labelUrl && <div aria-hidden="true" className="pointer-events-none absolute left-[-9999px] top-0 h-px w-px overflow-hidden opacity-0"><QRCodeCanvas ref={labelQrCanvasRef} value={labelUrl} size={256} level="M" marginSize={2} /></div>}
     <OrderDocumentsPage
       open={documentsPageOpen}
@@ -301,7 +341,18 @@ export function OrderDetailsPage(props: Props) {
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
         /> : <>
           {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} visits={slaVisits.visits} onOpenRecords={() => onOpenSubpage("sla-records")} />}
-          <OrderDetailsContent detail={detail} formatDate={fmtDate} formatState={stateLabel} getSla={getSlaForOrder} hasPermission={hasPermission} orderImages={orderImages} onViewImage={setViewImage} />
+          <OrderDetailsContent
+            detail={detail}
+            formatDate={fmtDate}
+            formatState={stateLabel}
+            getSla={getSlaForOrder}
+            hasPermission={hasPermission}
+            orderImages={orderImages}
+            onViewImage={setViewImage}
+            onWhatsApp={!monitorView && hasPermission("sac_digital.messages.send")
+              ? () => void openCustomerWhatsApp()
+              : undefined}
+          />
           <OrderFinancialSummary detail={detail} formatCurrency={formatCurrency} />
           <OrderSolutionSummary detail={detail} usedItems={detailUsedItems} solutionImages={detailSolutionImages} usedItemsTotal={detailUsedItemsTotal} solutionCount={solutionCount} activeAttempt={activeSolutionAttempt} canUndo={!monitorView && hasPermission("orders.solve") && !detail.completed_at} formatSolvedAt={formatSolvedAt} formatCurrency={formatCurrency} onViewImage={setViewImage} onOpenRecords={openSolutionRecords} onUndo={openUndoSolution} />
         </>}
