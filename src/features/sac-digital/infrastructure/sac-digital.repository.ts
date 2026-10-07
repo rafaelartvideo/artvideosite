@@ -249,6 +249,20 @@ export function sendSacDigitalTextMessage(
 }
 
 
+export function sendSacDigitalOrderMessage(
+  organizationId: string,
+  orderId: string,
+  text: string,
+) {
+  return invokeSacDigitalApi({
+    action: "send_order_message",
+    organization_id: organizationId,
+    order_id: orderId,
+    text,
+  });
+}
+
+
 export type SacDigitalRoutingOptions = {
   operators: Array<{
     id: string;
