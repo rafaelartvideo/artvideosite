@@ -25,21 +25,39 @@ function initialOrderMessage(order: any) {
     : `${greeting} Estamos entrando em contato sobre seu atendimento.`;
 }
 
+function orderMessageFor(order: any, purpose: "initial" | "estimate" | "completion") {
+  if (purpose === "initial") return initialOrderMessage(order);
+  const name = orderCustomerName(order).split(/\s+/).filter(Boolean)[0] || "";
+  const greeting = name ? `Olá, ${name}!` : "Olá!";
+  const os = String(order?.os_number || order?.external_os_number || "").trim();
+  const reference = os ? `a OS ${os}` : "seu atendimento";
+  if (purpose === "estimate") {
+    return `${greeting} Gostaríamos de falar com você sobre o orçamento referente ${reference}. Podemos esclarecer os valores e as próximas etapas por aqui.`;
+  }
+  return order?.completed_at
+    ? `${greeting} Informamos que ${reference} foi concluída. Podemos combinar os próximos passos por aqui.`
+    : `${greeting} Temos uma atualização sobre ${reference} e gostaríamos de confirmar os próximos passos com você.`;
+}
+
 export function OrderSacDigitalDialog({
   open,
   order,
   onClose,
+  onOpenChat,
 }: {
   open: boolean;
   order: any;
   onClose: () => void;
+  onOpenChat?: () => void;
 }) {
   const [text, setText] = useState("");
+  const [purpose, setPurpose] = useState<"initial" | "estimate" | "completion">("initial");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
+    setPurpose("initial");
     setText(initialOrderMessage(order));
     setError("");
   }, [open, order?.id]);
@@ -76,14 +94,19 @@ export function OrderSacDigitalDialog({
       onClose={() => {
         if (!sending) onClose();
       }}
-      title="WhatsApp pelo SAC Digital"
-      description="Envie a mensagem pela conta SAC Digital da empresa sem sair da OS."
+      title="Conversar pelo SAC Digital"
+      description="Abra o atendimento existente ou envie uma mensagem sobre a OS pela conta SAC desta empresa."
       className="max-w-xl"
       footer={
-        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div className="flex w-full flex-col-reverse flex-wrap gap-2 sm:flex-row sm:justify-end">
           <BtnSecondary onClick={onClose} disabled={sending}>
             Cancelar
           </BtnSecondary>
+          {onOpenChat && (
+            <AdminButton variant="secondary" onClick={onOpenChat} disabled={sending}>
+              Abrir conversa
+            </AdminButton>
+          )}
           <AdminButton
             onClick={() => void send()}
             loading={sending}
@@ -111,6 +134,23 @@ export function OrderSacDigitalDialog({
 
         <div>
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Tipo de mensagem
+          </label>
+          <select
+            value={purpose}
+            disabled={sending}
+            onChange={event => {
+              const next = event.target.value as "initial" | "estimate" | "completion";
+              setPurpose(next);
+              setText(orderMessageFor(order, next));
+            }}
+            className="admin-input mb-3 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
+          >
+            <option value="initial">Contato sobre a OS</option>
+            <option value="estimate">Orçamento</option>
+            <option value="completion">Confirmação / conclusão</option>
+          </select>
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             Mensagem
           </label>
           <textarea
@@ -122,9 +162,10 @@ export function OrderSacDigitalDialog({
             placeholder="Digite a mensagem para o cliente"
             className="admin-input min-h-32 w-full resize-y rounded-lg border border-border bg-card px-3 py-2.5 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
-          <p className="mt-1 text-right text-[9px] text-muted-foreground">
-            {text.length}/5000
-          </p>
+          <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+            <span>Revise o texto antes de enviar. Documentos e PDFs podem ser anexados na conversa.</span>
+            <span className="shrink-0">{text.length}/5000</span>
+          </div>
         </div>
 
         {error && (
