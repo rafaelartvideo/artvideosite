@@ -1073,11 +1073,17 @@ Deno.serve(async request => {
           && !Array.isArray(importedObject.data)
           ? importedObject.data as Record<string, unknown>
           : null;
+        const nestedDataContact = importedData?.contact && typeof importedData.contact === "object"
+          && !Array.isArray(importedData.contact)
+          ? importedData.contact as Record<string, unknown>
+          : null;
         const importedId = String(
           importedContact?.id
           || importedInfo?.id
+          || nestedDataContact?.id
           || importedData?.id
           || importedObject.id
+          || importedObject.contact_id
           || "",
         ).trim();
 
@@ -1107,19 +1113,23 @@ Deno.serve(async request => {
         }
 
         if (!contact) {
-          await new Promise(resolve => setTimeout(resolve, 400));
-          for (const candidatePhone of sacPhoneVariants(importedPhone)) {
-            const searchResult = await apiRequest(
-              organizationId,
-              credentials,
-              `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidatePhone)}`,
-              { method: "GET" },
-            );
-            const list = Array.isArray(searchResult.body.list)
-              ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
-              : [];
-            contact = list.find(item => sacPhoneKey(item.number) === sacPhoneKey(candidatePhone)) || null;
-            if (contact) break;
+          // A SAC pode confirmar a importação antes de indexar o contato na busca.
+          // Reconciliar somente por leitura e não repetir importação/mensagem.
+          for (let retry = 0; retry < 4 && !contact; retry += 1) {
+            await new Promise(resolve => setTimeout(resolve, 300 * (retry + 1)));
+            for (const candidatePhone of sacPhoneVariants(importedPhone)) {
+              const searchResult = await apiRequest(
+                organizationId,
+                credentials,
+                `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidatePhone)}`,
+                { method: "GET" },
+              );
+              const list = Array.isArray(searchResult.body.list)
+                ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+                : [];
+              contact = list.find(item => sacPhoneKey(item.number) === sacPhoneKey(candidatePhone)) || null;
+              if (contact) break;
+            }
           }
         }
       }
