@@ -373,11 +373,11 @@ export function SacDigitalNewConversationDialog({
                     loading={preparingKey === "manual"}
                     disabled={Boolean(preparingKey && preparingKey !== "manual")}
                   >
-                    Criar contato e continuar
+                    Continuar
                   </AdminButton>
                 </div>
                 <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-                  Não precisa estar na base da SAC. Ao continuar, a Union cadastra o contato se necessário e libera a primeira mensagem quando a importação for aceita.
+                  O número não precisa estar cadastrado na SAC nem no CRM. A Union prepara o contato na SAC somente quando necessário para iniciar o envio.
                 </p>
               </div>
             )}
