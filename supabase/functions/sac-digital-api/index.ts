@@ -3858,46 +3858,6 @@ Deno.serve(async request => {
       const openProtocol = await findSacOpenProtocol();
 
       if (openProtocol) {
-          const ownership = conversationOwnership({
-            accessMode: accessBinding.accessMode,
-            boundOperatorId: accessBinding.id,
-            assignedOperatorId: openProtocol.operatorId,
-            assignedOperatorName: openProtocol.operatorName,
-          });
-          if (!ownership.allowed && ownership.reason === "owned_by_other_operator") {
-            return orderConflictResponse(openProtocol);
-          }
-          if (ownership.needsAssignment) {
-            const assigned = await assignOrderConversation();
-            if (assigned?.operatorId && assigned.operatorId !== accessBinding.id) {
-              return orderConflictResponse(assigned);
-            }
-            if (!assigned || assigned.operatorId !== accessBinding.id) {
-              return json({
-                success: false,
-                type: "operator_assignment_pending",
-                error: `A SAC Digital ainda não confirmou o atendimento para ${accessBinding.name || "seu Operador SAC"}. Aguarde alguns segundos e tente novamente.`,
-              }, 409);
-            }
-            openProtocol = assigned;
-          }
-        } else {
-          const assigned = await assignOrderConversation();
-          if (assigned?.operatorId && assigned.operatorId !== accessBinding.id) {
-            return orderConflictResponse(assigned);
-          }
-          if (!assigned || assigned.operatorId !== accessBinding.id) {
-            return json({
-              success: false,
-              type: "operator_assignment_pending",
-              error: `A SAC Digital ainda não criou/atribuiu o atendimento a ${accessBinding.name || "seu Operador SAC"}. Aguarde alguns segundos e tente novamente.`,
-            }, 409);
-          }
-          openProtocol = assigned;
-        }
-      }
-
-      if (openProtocol) {
         const openedProtocol = openProtocol.protocol;
         try {
           await enrichProtocol(organizationId, openedProtocol);
