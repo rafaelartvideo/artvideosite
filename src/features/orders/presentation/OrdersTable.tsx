@@ -6,6 +6,7 @@ import { formatPhone } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/ui/primitives/dropdown-menu";
 import { filteredRowNumber } from "../domain/order-list-display.mjs";
-import { printServiceOrderA4 } from "../application/printServiceOrderA4";
+import { prepareServiceOrderA4Pdf } from "../application/printServiceOrderA4";
 import {
   getServiceOrderSituationHistory,
   type ServiceOrderSituationHistoryEntry,
@@ -41,6 +42,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 }) {
   const { profile } = useAuth();
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<{ blob: Blob; title: string; fileName: string } | null>(null);
   const [historyOrder, setHistoryOrder] = useState<any | null>(null);
   const [historyEntries, setHistoryEntries] = useState<ServiceOrderSituationHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -69,10 +71,15 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
     if (!canPrint || printingOrderId) return;
     setPrintingOrderId(order.id);
     try {
-      await printServiceOrderA4({
+      const prepared = await prepareServiceOrderA4Pdf({
         order,
         printedBy: profile?.full_name,
         canPrintChecklists: hasPermission("orders.section.checklists"),
+      });
+      setPdfPreview({
+        blob: prepared.blob,
+        title: `Pré-visualização · ${prepared.title}`,
+        fileName: prepared.fileName,
       });
     } catch (error) {
       setActionToast({ msg: systemErrorMessage(error, "Não foi possível imprimir a OS."), type: "error" });
@@ -189,6 +196,14 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
   return <>
     {actionToast && <Toast message={actionToast.msg} type={actionToast.type} onClose={() => setActionToast(null)} />}
+
+    <PdfPreviewDialog
+      open={Boolean(pdfPreview)}
+      source={pdfPreview?.blob ?? null}
+      title={pdfPreview?.title}
+      fileName={pdfPreview?.fileName}
+      onClose={() => setPdfPreview(null)}
+    />
 
     <AdminDialog
       open={Boolean(historyOrder)}

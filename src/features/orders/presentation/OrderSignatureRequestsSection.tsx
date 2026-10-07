@@ -32,6 +32,7 @@ import { getCompanyPrintContext } from "@/features/settings/infrastructure/compa
 import { formatDateTime } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard, AdminDialog, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
 
 type PermissionCheck = (permission: string) => boolean;
@@ -100,6 +101,7 @@ export function OrderSignatureRequestsSection({
   const [auditRequest, setAuditRequest] = useState<DocumentSignatureRequestSummary | null>(null);
   const [auditEvents, setAuditEvents] = useState<DocumentSignatureAuditEvent[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [pdfPreview, setPdfPreview] = useState<{ source: string; title: string; fileName: string } | null>(null);
 
   const canView = hasPermission("documents.signatures.view");
   const canSend = hasPermission("documents.signatures.send");
@@ -172,7 +174,13 @@ export function OrderSignatureRequestsSection({
 
   const openSignedPdf = (request: DocumentSignatureRequestSummary) => withBusy(request.id, async () => {
     const result = await getSignedSignatureDocument(order.organization_id, request.id);
-    window.open(result.download_url, "_blank", "noopener,noreferrer");
+    const safeTemplateName = String(request.template_name_snapshot || "documento").replace(/[^a-z0-9._-]+/gi, "-");
+    const safeOrderNumber = String(request.order_number_snapshot || "OS").replace(/[^a-z0-9._-]+/gi, "-");
+    setPdfPreview({
+      source: result.download_url,
+      title: `PDF assinado · ${request.template_name_snapshot || "Documento"}`,
+      fileName: `${safeTemplateName}-${safeOrderNumber}.pdf`,
+    });
   });
 
   const downloadSignedPdf = (request: DocumentSignatureRequestSummary) => withBusy(request.id, async () => {
@@ -211,6 +219,14 @@ export function OrderSignatureRequestsSection({
   };
 
   return <>
+    <PdfPreviewDialog
+      open={Boolean(pdfPreview)}
+      source={pdfPreview?.source ?? null}
+      title={pdfPreview?.title}
+      fileName={pdfPreview?.fileName}
+      onClose={() => setPdfPreview(null)}
+    />
+
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="text-sm font-black text-[#0d1b2e]">Assinaturas eletrônicas</h2><p className="mt-1 text-xs text-[#5a6a82]">Solicitações enviadas a partir dos modelos habilitados para assinatura online.</p></div>

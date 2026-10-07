@@ -4,6 +4,7 @@ import { getOrderChecklist } from "@/features/checklists/infrastructure/checklis
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, FileText, Mail, MessageCircle, Package, PackagePlus, Phone, Printer, Tag } from "lucide-react";
 import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { OrderChecklistsPage } from "@/features/checklists/presentation/OrderChecklistsPage";
@@ -25,7 +26,8 @@ import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastru
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { phoneContactLinks } from "../domain/order-contact-actions";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
-import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
+import { buildOrderPrintDocumentHtml, openPrintWindow } from "@/features/documents/domain/order-print-document";
+import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
 import { createServiceOrderLabelDataUrl, renderServiceOrderLabel } from "../domain/order-label-print";
 import { QRCodeCanvas } from "qrcode.react";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
@@ -94,6 +96,7 @@ export function OrderDetailsPage(props: Props) {
     onEdit: openEdit, onClose, monitorView = false, monitorContact = null,
   } = props;
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<{ source: Blob | string; title: string; fileName: string } | null>(null);
   const labelQrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [printError, setPrintError] = useState("");
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
@@ -160,6 +163,7 @@ export function OrderDetailsPage(props: Props) {
   useEffect(() => {
     setSolutionRecordsOpen(false);
     setSacMessageOpen(false);
+    setPdfPreview(null);
     setDetailSection(initialSection);
   }, [detail?.id, initialSection]);
 
@@ -221,8 +225,6 @@ export function OrderDetailsPage(props: Props) {
 
   const printTemplate = async (template: PrintTemplate) => {
     setPrintError("");
-    const popup = openPrintWindow();
-    if (!popup) { setPrintError("O navegador bloqueou a janela de impressão. Permita pop-ups para este site."); return; }
     setPrintingTemplateId(template.id);
     try {
       if (!detail?.organization_id) throw new Error("A OS não possui empresa definida.");
@@ -239,7 +241,7 @@ export function OrderDetailsPage(props: Props) {
           await resolveMediaStorageUrl(link.media!.bucket_id, link.media!.storage_path),
         ] as const),
       ));
-      renderOrderPrintDocument(popup, configuredTemplate, {
+      const frozen = await freezeOrderPrintPdf(configuredTemplate, {
         order: detail,
         checklist,
         checklistPhotoUrls,
@@ -249,7 +251,14 @@ export function OrderDetailsPage(props: Props) {
         printedBy: profileName,
         company,
       });
-    } catch (error) { popup.close(); setPrintError(systemErrorMessage(error, "Não foi possível preparar o documento.")); }
+      const safeTemplateName = String(template.name || "documento").replace(/[^a-z0-9._-]+/gi, "-");
+      const safeOrderNumber = String(detail.os_number || "OS").replace(/[^a-z0-9._-]+/gi, "-");
+      setPdfPreview({
+        source: frozen.blob,
+        title: `Pré-visualização · ${template.name}`,
+        fileName: `${safeTemplateName}-${safeOrderNumber}.pdf`,
+      });
+    } catch (error) { setPrintError(systemErrorMessage(error, "Não foi possível preparar o documento.")); }
     finally { setPrintingTemplateId(null); }
   };
 
@@ -315,6 +324,13 @@ export function OrderDetailsPage(props: Props) {
   }
 
   return <>
+    <PdfPreviewDialog
+      open={Boolean(pdfPreview)}
+      source={pdfPreview?.source ?? null}
+      title={pdfPreview?.title}
+      fileName={pdfPreview?.fileName}
+      onClose={() => setPdfPreview(null)}
+    />
     {detail && (
       <OrderSacDigitalDialog
         open={sacMessageOpen}
