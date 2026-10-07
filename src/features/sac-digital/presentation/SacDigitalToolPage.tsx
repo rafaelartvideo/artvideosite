@@ -14,6 +14,8 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { listCustomers } from "@/features/customers/infrastructure/customers.repository";
+import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import {
   AdminButton,
   BtnSecondary,
@@ -27,6 +29,7 @@ import {
   getSacDigitalIntegrationStatus,
   getSacDigitalRoutingOptions,
   getSacDigitalUnreadCounts,
+  linkSacDigitalCustomer,
   listSacDigitalMessages,
   listSacDigitalProtocols,
   markSacDigitalProtocolRead,
@@ -122,15 +125,19 @@ function messageKind(message: SacDigitalMessage) {
 export function SacDigitalToolPage({
   onBack,
   onOpenSettings,
+  onOpenCustomer,
 }: {
   onBack: () => void;
   onOpenSettings?: () => void;
+  onOpenCustomer?: (customerId: string) => void;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canManage = hasPermission("sac_digital.settings.manage");
   const canManageProtocols = hasPermission("sac_digital.protocols.manage");
   const canViewMessages = hasPermission("sac_digital.messages.view");
   const canSendMessages = hasPermission("sac_digital.messages.send");
+  const canViewCustomers = hasPermission("customers.view");
+  const canCreateCustomers = hasPermission("customers.create");
 
   const [loading, setLoading] = useState(true);
   const [inboxLoading, setInboxLoading] = useState(false);
@@ -143,6 +150,12 @@ export function SacDigitalToolPage({
   const [departmentId, setDepartmentId] = useState("");
   const [operatorId, setOperatorId] = useState("");
   const [operatorBinding, setOperatorBinding] = useState<SacDigitalOperatorBinding | null>(null);
+  const [customerLinkOpen, setCustomerLinkOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerResults, setCustomerResults] = useState<any[]>([]);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [customerLinkingId, setCustomerLinkingId] = useState<string | null>(null);
+  const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
 
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
   const [protocols, setProtocols] = useState<SacDigitalProtocolListItem[]>([]);
@@ -454,6 +467,83 @@ export function SacDigitalToolPage({
     ]);
   };
 
+  const customerDisplayName = (customer: any) =>
+    String(customer?.trade_name || customer?.full_name || customer?.legal_name || "Cliente").trim();
+
+  const searchCustomerCandidates = async () => {
+    if (!activeOrganizationId || !canViewCustomers || customerSearchLoading) return;
+    const query = customerSearch.trim();
+    if (!query) {
+      setCustomerResults([]);
+      return;
+    }
+
+    setCustomerSearchLoading(true);
+    setMessage(null);
+    try {
+      const digits = query.replace(/\D/g, "");
+      const page = await listCustomers({
+        organizationId: activeOrganizationId,
+        page: 1,
+        pageSize: 20,
+        ...(digits.length >= 6 ? { documentSearch: query } : { nameSearch: query }),
+      });
+      setCustomerResults(page.items || []);
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível buscar clientes."),
+        error: true,
+      });
+    } finally {
+      setCustomerSearchLoading(false);
+    }
+  };
+
+  const openCustomerLink = () => {
+    if (!canViewCustomers || !selectedProtocol?.contact) return;
+    setRoutingOpen(false);
+    setFinishConfirmOpen(false);
+    setCustomerLinkOpen(true);
+    setCustomerResults([]);
+    setCustomerSearch(selectedProtocol.contact.name || "");
+  };
+
+  const linkCustomer = async (customerId: string) => {
+    if (
+      !activeOrganizationId
+      || !selectedProtocol?.contact?.id
+      || !canViewCustomers
+      || customerLinkingId
+    ) return;
+
+    setCustomerLinkingId(customerId);
+    setMessage(null);
+    try {
+      await linkSacDigitalCustomer(
+        activeOrganizationId,
+        selectedProtocol.contact.id,
+        customerId,
+      );
+      setCustomerLinkOpen(false);
+      setCustomerResults([]);
+      setCustomerSearch("");
+      setMessage({ text: "Cliente vinculado ao atendimento SAC." });
+      await loadProtocols(false);
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível vincular o cliente ao atendimento."),
+        error: true,
+      });
+    } finally {
+      setCustomerLinkingId(null);
+    }
+  };
+
+  const handleQuickCustomerSaved = async (customer: any) => {
+    if (!customer?.id) return;
+    await linkCustomer(String(customer.id));
+  };
+
   const loadRoutingOptionsIfNeeded = async () => {
     if (routingOptions) return routingOptions;
     if (!activeOrganizationId) return null;
@@ -493,6 +583,7 @@ export function SacDigitalToolPage({
   const openRouting = async () => {
     if (!activeOrganizationId || !canManageProtocols) return;
     setRoutingOpen(true);
+    setCustomerLinkOpen(false);
     setFinishConfirmOpen(false);
     if (routingOptions || protocolAction === "routing") return;
     setProtocolAction("routing");
@@ -590,9 +681,13 @@ export function SacDigitalToolPage({
 
   useEffect(() => {
     setRoutingOpen(false);
+    setCustomerLinkOpen(false);
+    setQuickCustomerOpen(false);
     setFinishConfirmOpen(false);
     setDepartmentId("");
     setOperatorId("");
+    setCustomerSearch("");
+    setCustomerResults([]);
   }, [selectedProtocolId]);
 
   const isMyProtocol = Boolean(
@@ -784,9 +879,37 @@ export function SacDigitalToolPage({
                     >
                       {isMyProtocol ? "Assumido por você" : "Assumir"}
                     </AdminButton>
+                    {canViewCustomers && selectedProtocol.contact?.customer_id ? (
+                      <>
+                        {onOpenCustomer && (
+                          <AdminButton
+                            variant="secondary"
+                            onClick={() => onOpenCustomer(selectedProtocol.contact!.customer_id!)}
+                            className="shrink-0"
+                          >
+                            Abrir cliente
+                          </AdminButton>
+                        )}
+                        <AdminButton
+                          variant="secondary"
+                          onClick={openCustomerLink}
+                          className="shrink-0"
+                        >
+                          Trocar vínculo
+                        </AdminButton>
+                      </>
+                    ) : canViewCustomers && selectedProtocol.contact ? (
+                      <AdminButton
+                        variant="secondary"
+                        onClick={openCustomerLink}
+                        className="shrink-0"
+                      >
+                        Vincular cliente
+                      </AdminButton>
+                    ) : null}
                     <AdminButton
                       variant="secondary"
-                      onClick={() => void openRouting()}
+                      onClick={() => void openRouting()
                       loading={protocolAction === "routing"}
                       disabled={Boolean(protocolAction && protocolAction !== "routing")}
                       className="shrink-0"
@@ -808,6 +931,7 @@ export function SacDigitalToolPage({
                       variant="secondary"
                       onClick={() => {
                         setRoutingOpen(false);
+                        setCustomerLinkOpen(false);
                         setFinishConfirmOpen(true);
                       }}
                       disabled={Boolean(protocolAction)}
@@ -815,6 +939,94 @@ export function SacDigitalToolPage({
                     >
                       Finalizar
                     </AdminButton>
+                  </div>
+                )}
+
+                {customerLinkOpen && canViewCustomers && selectedProtocol.contact && (
+                  <div className="border-b border-border bg-muted/30 px-4 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black text-foreground">
+                          {selectedProtocol.contact.customer_id ? "Trocar cliente vinculado" : "Vincular cliente do CRM"}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          Busque por nome, CPF ou CNPJ.
+                        </p>
+                      </div>
+                      {canCreateCustomers && (
+                        <AdminButton
+                          variant="secondary"
+                          onClick={() => setQuickCustomerOpen(true)}
+                        >
+                          Novo cliente
+                        </AdminButton>
+                      )}
+                    </div>
+
+                    <form
+                      className="mt-3 flex min-w-0 gap-2"
+                      onSubmit={event => {
+                        event.preventDefault();
+                        void searchCustomerCandidates();
+                      }}
+                    >
+                      <input
+                        value={customerSearch}
+                        onChange={event => setCustomerSearch(event.target.value)}
+                        placeholder="Nome, CPF ou CNPJ"
+                        className="admin-input h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      />
+                      <AdminButton
+                        type="submit"
+                        loading={customerSearchLoading}
+                        disabled={!customerSearch.trim()}
+                      >
+                        Buscar
+                      </AdminButton>
+                      <AdminButton
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setCustomerLinkOpen(false);
+                          setCustomerResults([]);
+                          setCustomerSearch("");
+                        }}
+                      >
+                        Fechar
+                      </AdminButton>
+                    </form>
+
+                    {customerResults.length > 0 && (
+                      <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-border bg-card">
+                        {customerResults.map(customer => {
+                          const document = customer.customer_type === "PJ"
+                            ? String(customer.cnpj || "")
+                            : String(customer.document || "");
+                          const phone = String(customer.whatsapp || customer.phone || "");
+                          return (
+                            <div
+                              key={customer.id}
+                              className="flex min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-black text-foreground">{customerDisplayName(customer)}</p>
+                                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                                  {[document, phone ? formatPhone(phone) : ""].filter(Boolean).join(" · ") || "Sem documento/telefone"}
+                                </p>
+                              </div>
+                              <AdminButton
+                                size="sm"
+                                onClick={() => void linkCustomer(String(customer.id))}
+                                loading={customerLinkingId === customer.id}
+                                disabled={Boolean(customerLinkingId && customerLinkingId !== customer.id)}
+                              >
+                                Vincular
+                              </AdminButton>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1028,5 +1240,19 @@ export function SacDigitalToolPage({
         </div>
       )}
     </div>
+
+    {quickCustomerOpen && selectedProtocol?.contact && (
+      <QuickCustomerModal
+        onClose={() => setQuickCustomerOpen(false)}
+        onSaved={customer => void handleQuickCustomerSaved(customer)}
+        initialValues={{
+          customerType: "PF",
+          full_name: selectedProtocol.contact.name || "",
+          phone: selectedProtocol.contact.phone || "",
+          whatsapp: selectedProtocol.contact.phone || "",
+        }}
+        description="Cadastre o cliente sem sair do atendimento SAC Digital."
+      />
+    )}
   </div>;
 }
