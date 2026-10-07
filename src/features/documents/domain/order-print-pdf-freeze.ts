@@ -187,6 +187,16 @@ export async function freezeOrderPrintPdf(
           windowHeight: Math.ceil(doc.body.scrollHeight + 64),
           scrollX: 0,
           scrollY: 0,
+          onclone: (clonedDocument: Document) => {
+            // A captura já recebeu os estilos calculados do documento de
+            // impressão inline. Remover as folhas do CRM evita que Tailwind/
+            // shadcn reintroduza OKLCH no documento clonado do html2canvas.
+            clonedDocument.querySelectorAll("style,link[rel='stylesheet']").forEach(node => node.remove());
+            clonedDocument.documentElement.style.setProperty("color", "#172536", "important");
+            clonedDocument.documentElement.style.setProperty("background", "#ffffff", "important");
+            clonedDocument.body.style.setProperty("color", "#172536", "important");
+            clonedDocument.body.style.setProperty("background", "#ffffff", "important");
+          },
         },
         jsPDF: { unit: "mm", format: "a4", orientation, compress: true },
         pagebreak: { mode: ["css", "legacy"] },
@@ -199,6 +209,13 @@ export async function freezeOrderPrintPdf(
     const container = await worker.get("container");
     if (!(container instanceof HTMLElement)) throw new Error("Não foi possível paginar o documento para assinatura.");
     unlockCaptureRoot(container);
+    // O html2pdf injeta o clone no documento principal da aplicação. Como o
+    // tema do CRM usa OKLCH, o wrapper podia herdar essa cor e travar o
+    // html2canvas. Fixamos uma base neutra antes da captura.
+    container.style.setProperty("color", "#172536", "important");
+    container.style.setProperty("background-color", "#ffffff", "important");
+    container.style.setProperty("border-color", "transparent", "important");
+    container.style.setProperty("outline-color", "transparent", "important");
     void container.offsetHeight;
     const signatureSlots = collectSignatureSlots(container, template, pageWidthMm, pageHeightMm);
 
