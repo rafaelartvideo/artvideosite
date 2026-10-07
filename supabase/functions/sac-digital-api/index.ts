@@ -2689,6 +2689,47 @@ Deno.serve(async request => {
         });
       }
 
+      // A SAC pode aceitar a mensagem da OS sem abrir um protocolo.
+      // Guardar o envio confirmado para aparecer na caixa de entrada como
+      // "Aguardando protocolo", sem inventar atendimento nem repetir envio.
+      let pendingStartId: string | null = null;
+      const { data: pendingContact, error: pendingContactError } = await admin
+        .from("sac_digital_contacts")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("external_contact_id", externalContactId)
+        .maybeSingle();
+      if (pendingContactError) {
+        console.warn("[SAC DIGITAL API] order pending contact lookup failed", {
+          organization_id: organizationId,
+          code: pendingContactError.code,
+        });
+      }
+      if (pendingContact?.id) {
+        const sentAt = new Date().toISOString();
+        const { data: pendingStart, error: pendingError } = await admin
+          .from("sac_digital_outbound_starts")
+          .upsert({
+            organization_id: organizationId,
+            contact_id: pendingContact.id,
+            external_contact_id: externalContactId,
+            message_text: text,
+            sender_id: userData.user.id,
+            sent_at: sentAt,
+            updated_at: sentAt,
+          }, { onConflict: "organization_id,external_contact_id" })
+          .select("id")
+          .maybeSingle();
+        if (pendingError) {
+          console.warn("[SAC DIGITAL API] order pending start insert failed", {
+            organization_id: organizationId,
+            code: pendingError.code,
+          });
+        } else {
+          pendingStartId = String(pendingStart?.id || "") || null;
+        }
+      }
+
       await writeSacAudit({
         action: "sac_digital.order.send_message",
         operation: "send",
@@ -2698,6 +2739,7 @@ Deno.serve(async request => {
         contextId: orderId,
         metadata: {
           transport: "notification",
+          pending_start_id: pendingStartId,
           message_length: text.length,
         },
       });
@@ -2705,6 +2747,7 @@ Deno.serve(async request => {
       return json({
         success: true,
         mode: "notification",
+        pending_start_id: pendingStartId,
         request_id: typeof notification.body.request_id === "string" ? notification.body.request_id : null,
       });
     }
