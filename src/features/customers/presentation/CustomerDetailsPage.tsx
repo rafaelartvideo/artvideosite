@@ -39,8 +39,8 @@ export function CustomerDetailsPage(props: Props) {
   const whatsappPhone = normalizeContactPhone(detail?.whatsapp || detail?.phone);
   const callPhone = normalizeContactPhone(detail?.phone || detail?.whatsapp);
   const contactActions = whatsappPhone || callPhone ? <div className="flex flex-wrap items-center justify-end gap-2">
-    {whatsappPhone && <a href={`https://wa.me/${whatsappPhone}`} target="_blank" rel="noreferrer" className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-50" aria-label="Abrir WhatsApp do cliente"><MessageCircle size={14} /> WhatsApp</a>}
-    {callPhone && <a href={`tel:+${callPhone}`} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-2.5 py-1.5 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#0057e7]/5" aria-label="Ligar para o cliente"><Phone size={14} /> Ligar</a>}
+    {whatsappPhone && <a href={`https://wa.me/${whatsappPhone}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 py-0 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-50" aria-label="Abrir WhatsApp do cliente"><MessageCircle size={14} /> WhatsApp</a>}
+    {callPhone && <a href={`tel:+${callPhone}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-2.5 py-0 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#0057e7]/5" aria-label="Ligar para o cliente"><Phone size={14} /> Ligar</a>}
   </div> : undefined;
 
   return <>{detail && <AdminPage open={true} onClose={onClose} breadcrumb="Clientes" title={detail.full_name} subtitle={detail.customer_type === "PJ" ? (detail.cnpj ? formatCnpj(detail.cnpj) : "Pessoa Jurídica") : (detail.document ? formatCpf(detail.document) : "Pessoa Física")} maxW="max-w-5xl">
