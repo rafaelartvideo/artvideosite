@@ -53,7 +53,7 @@ export function SacDigitalNewConversationDialog({
   open: boolean;
   organizationId: string;
   onClose: () => void;
-  onStarted: (protocol: string | null) => Promise<void> | void;
+  onStarted: (result: Awaited<ReturnType<typeof startSacDigitalNewConversation>>) => Promise<void> | void;
 }) {
   const [query, setQuery] = useState("");
   const [manualName, setManualName] = useState("");
@@ -190,7 +190,7 @@ export function SacDigitalNewConversationDialog({
       reset();
       onClose();
       try {
-        await onStarted(result.protocol);
+        await onStarted(result);
       } catch {
         // O realtime/webhook fará a conciliação após a entrega confirmada.
       }
