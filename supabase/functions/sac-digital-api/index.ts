@@ -979,6 +979,7 @@ Deno.serve(async request => {
 
       let contact: Record<string, unknown> | null = null;
       let imported = false;
+      let importedPhone = phone;
 
       if (requestedExternalId) {
         const infoResult = await apiRequest(
@@ -994,17 +995,19 @@ Deno.serve(async request => {
       }
 
       if (!contact && phone) {
-        const searchResult = await apiRequest(
-          organizationId,
-          credentials,
-          `/contact/search?p=1&filter=1&search=${encodeURIComponent(phone)}`,
-          { method: "GET" },
-        );
-        const list = Array.isArray(searchResult.body.list)
-          ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
-          : [];
-        const key = sacPhoneKey(phone);
-        contact = list.find(item => sacPhoneKey(item.number) === key) || null;
+        for (const candidatePhone of sacPhoneVariants(phone)) {
+          const searchResult = await apiRequest(
+            organizationId,
+            credentials,
+            `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidatePhone)}`,
+            { method: "GET" },
+          );
+          const list = Array.isArray(searchResult.body.list)
+            ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+            : [];
+          contact = list.find(item => sacPhoneKey(item.number) === sacPhoneKey(candidatePhone)) || null;
+          if (contact) break;
+        }
       }
 
       if (!contact) {
@@ -1018,35 +1021,47 @@ Deno.serve(async request => {
         }
 
         const fallbackName = name || `Contato ${phone.slice(-4)}`;
-        const importPayload: Record<string, unknown> = {
-          number: phone,
-          name: fallbackName,
-        };
-        if (primaryChannel?.id) importPayload.channel = String(primaryChannel.id);
+        let importResult: Awaited<ReturnType<typeof apiRequest>> | null = null;
+        for (const candidatePhone of sacPhoneVariants(phone)) {
+          const importPayload: Record<string, unknown> = {
+            number: candidatePhone,
+            name: fallbackName,
+          };
+          if (primaryChannel?.id) importPayload.channel = String(primaryChannel.id);
 
-        const importResult = await apiRequest(
-          organizationId,
-          credentials,
-          "/contact/import",
-          {
-            method: "POST",
-            body: JSON.stringify(importPayload),
-          },
-        );
+          const attempt = await apiRequest(
+            organizationId,
+            credentials,
+            "/contact/import",
+            { method: "POST", body: JSON.stringify(importPayload) },
+          );
 
-        if (!importResult.response.ok || importResult.body.status === false || importResult.body.success === false) {
+          if (attempt.response.ok && attempt.body.status !== false && attempt.body.success !== false) {
+            imported = true;
+            importedPhone = candidatePhone;
+            importResult = attempt;
+            break;
+          }
+
+          if (!sacWhatsAppValidationInconclusive(attempt.body.message)) {
+            return json({
+              success: true,
+              prepared: false,
+              whatsapp_available: false,
+              error: sacContactImportError(attempt.body.message, "A SAC Digital não aceitou este número como contato."),
+            });
+          }
+        }
+
+        if (!importResult) {
           return json({
             success: true,
             prepared: false,
             whatsapp_available: false,
-            error: sacContactImportError(
-              importResult.body.message,
-              "A SAC Digital não conseguiu preparar o contato. Confira o número e o canal e tente novamente.",
-            ),
+            error: "A SAC Digital não conseguiu validar o WhatsApp com nenhuma das duas variantes do número (com ou sem nono dígito). Confira o canal e tente novamente.",
           });
         }
 
-        imported = true;
         const importedId = String(
           importResult.body.id
           || (importResult.body.contact && typeof importResult.body.contact === "object"
@@ -1070,22 +1085,24 @@ Deno.serve(async request => {
 
         if (!contact) {
           await new Promise(resolve => setTimeout(resolve, 250));
-          const searchResult = await apiRequest(
-            organizationId,
-            credentials,
-            `/contact/search?p=1&filter=1&search=${encodeURIComponent(phone)}`,
-            { method: "GET" },
-          );
-          const list = Array.isArray(searchResult.body.list)
-            ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
-            : [];
-          const key = sacPhoneKey(phone);
-          contact = list.find(item => sacPhoneKey(item.number) === key) || null;
+          for (const candidatePhone of sacPhoneVariants(importedPhone)) {
+            const searchResult = await apiRequest(
+              organizationId,
+              credentials,
+              `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidatePhone)}`,
+              { method: "GET" },
+            );
+            const list = Array.isArray(searchResult.body.list)
+              ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+              : [];
+            contact = list.find(item => sacPhoneKey(item.number) === sacPhoneKey(candidatePhone)) || null;
+            if (contact) break;
+          }
         }
       }
 
       const externalContactId = String(contact?.id || "").trim();
-      const resolvedPhone = normalizeSacPhone(contact?.number || phone);
+      const resolvedPhone = normalizeSacPhone(contact?.number || importedPhone || phone);
       const resolvedName = String(contact?.name || name || `Contato ${resolvedPhone.slice(-4)}`).trim();
       const channel = contact?.channel && typeof contact.channel === "object" && !Array.isArray(contact.channel)
         ? contact.channel as Record<string, unknown>
