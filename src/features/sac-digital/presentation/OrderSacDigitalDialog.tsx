@@ -100,6 +100,7 @@ export function OrderSacDigitalDialog({
           available[0].external_protocol_id,
           attachment,
           message,
+          order.id,
         );
         notifyAdmin("Documento enviado pelo atendimento SAC Digital.", "success");
       } else {
