@@ -1,4 +1,5 @@
 import { mediaMaximum } from '../domain/resource-ui.mjs';
+import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -51,16 +52,21 @@ export function OrderSacDigitalDialog({
   order,
   onClose,
   onOpenChat,
+  documentTemplates = [],
+  onBuildDocument,
 }: {
   open: boolean;
   order: any;
   onClose: () => void;
   onOpenChat?: () => void;
+  documentTemplates?: PrintTemplate[];
+  onBuildDocument?: (templateId: string) => Promise<File>;
 }) {
   const [text, setText] = useState("");
   const [purpose, setPurpose] = useState<"initial" | "estimate" | "completion">("initial");
   const [sending, setSending] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [documentTemplateId, setDocumentTemplateId] = useState("");
   const sendInFlightRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState("");
@@ -70,18 +76,19 @@ export function OrderSacDigitalDialog({
     setPurpose("initial");
     setText(initialOrderMessage(order));
     setAttachment(null);
+    setDocumentTemplateId("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setError("");
   }, [open, order?.id]);
 
   const send = async () => {
     const message = text.trim();
-    if ((!message && !attachment) || !order?.id || !order?.organization_id || sendInFlightRef.current) return;
+    if ((!message && !attachment && !documentTemplateId) || !order?.id || !order?.organization_id || sendInFlightRef.current) return;
     sendInFlightRef.current = true;
     setSending(true);
     setError("");
     try {
-      if (attachment) {
+      if (attachment || documentTemplateId) {
         const customerId = String(order.customer_id || "");
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId)) {
           throw new Error("A OS precisa estar vinculada a um cliente válido antes de enviar documentos.");
@@ -95,10 +102,18 @@ export function OrderSacDigitalDialog({
             ? "Ainda não existe um protocolo ativo para enviar o arquivo. Use Abrir conversa para iniciar o atendimento e anexe o documento no chat."
             : "Este cliente possui mais de um atendimento ativo. Abra a conversa e escolha o protocolo correto antes de enviar o arquivo.");
         }
+
+        let fileToSend = attachment;
+        if (!fileToSend && documentTemplateId) {
+          if (!onBuildDocument) throw new Error("Não foi possível gerar este documento da OS.");
+          fileToSend = await onBuildDocument(documentTemplateId);
+        }
+        if (!fileToSend) throw new Error("Selecione um documento para enviar.");
+
         await sendSacDigitalMediaMessage(
           order.organization_id,
           available[0].external_protocol_id,
-          attachment,
+          fileToSend,
           message,
           order.id,
         );
@@ -148,7 +163,7 @@ export function OrderSacDigitalDialog({
             onClick={() => void send()}
             loading={sending}
             loadingText="Enviando..."
-            disabled={(!text.trim() && !attachment) || sending}
+            disabled={(!text.trim() && !attachment && !documentTemplateId) || sending}
           >
             <MessageCircle size={15} />
             Enviar
@@ -182,10 +197,38 @@ export function OrderSacDigitalDialog({
             <span className="shrink-0">{text.length}/5000</span>
           </div>
 
+          {documentTemplates.length > 0 && onBuildDocument && (
+            <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/25 p-3">
+              <FSelect
+                label="Documento da OS"
+                value={documentTemplateId}
+                disabled={sending}
+                onChange={(event: any) => {
+                  setDocumentTemplateId(event.target.value);
+                  if (event.target.value) {
+                    setAttachment(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }
+                  setError("");
+                }}
+                options={[
+                  { value: "", label: "Sem documento gerado" },
+                  ...documentTemplates.map(template => ({
+                    value: template.id,
+                    label: `${template.name} · ${PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}`,
+                  })),
+                ]}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                São os mesmos modelos ativos disponíveis em Imprimir. O PDF será gerado com os dados atuais da OS e enviado ao cliente.
+              </p>
+            </div>
+          )}
+
           <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/25 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-bold text-foreground">Documento / PDF</p>
+                <p className="text-xs font-bold text-foreground">Arquivo do dispositivo</p>
                 <p className="text-[10px] text-muted-foreground">
                   Envie um arquivo do seu dispositivo pelo protocolo ativo (imagens 1 MB; áudio 3 MB; vídeo/arquivos 5 MB).
                 </p>
@@ -210,6 +253,7 @@ export function OrderSacDigitalDialog({
                   return;
                 }
                 setError("");
+                setDocumentTemplateId("");
                 setAttachment(file);
               }}
             />
