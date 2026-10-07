@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { listCustomers } from "@/features/customers/infrastructure/customers.repository";
+import { listCustomerEquipments, listCustomers } from "@/features/customers/infrastructure/customers.repository";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import { SacDigitalNewConversationDialog } from "./SacDigitalNewConversationDialog";
 import {
@@ -205,6 +205,13 @@ export function SacDigitalToolPage({
   const [ordersPanelOpen, setOrdersPanelOpen] = useState(false);
   const [customerOrdersLoading, setCustomerOrdersLoading] = useState(false);
   const [customerOrders, setCustomerOrders] = useState<SacDigitalCustomerOrder[]>([]);
+  const [customerEquipments, setCustomerEquipments] = useState<Array<{
+    id: string;
+    equipment_type_name: string | null;
+    equipment_brand_name: string | null;
+    equipment_model_name: string | null;
+    serial_number: string | null;
+  }>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
 
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
@@ -734,6 +741,7 @@ export function SacDigitalToolPage({
       setCustomerLinkOpen(false);
       setOrdersPanelOpen(false);
       setCustomerOrders([]);
+      setCustomerEquipments([]);
       setCustomerResults([]);
       setCustomerSearch("");
       setMessage({ text: "Cliente vinculado ao atendimento SAC." });
@@ -755,7 +763,7 @@ export function SacDigitalToolPage({
 
   const openCustomerOrders = async () => {
     const customerId = selectedProtocol?.contact?.customer_id;
-    if (!activeOrganizationId || !customerId || !canViewOrders) return;
+    if (!activeOrganizationId || !customerId || (!canViewOrders && !canViewCustomers)) return;
 
     if (ordersPanelOpen) {
       setOrdersPanelOpen(false);
@@ -769,11 +777,15 @@ export function SacDigitalToolPage({
     setCustomerOrdersLoading(true);
     setMessage(null);
     try {
-      const rows = await listSacDigitalCustomerOrders(activeOrganizationId, customerId);
-      setCustomerOrders(rows);
+      const [orders, equipments] = await Promise.all([
+        canViewOrders ? listSacDigitalCustomerOrders(activeOrganizationId, customerId) : Promise.resolve([]),
+        canViewCustomers ? listCustomerEquipments(activeOrganizationId, customerId) : Promise.resolve([]),
+      ]);
+      setCustomerOrders(orders);
+      setCustomerEquipments(equipments);
     } catch (error) {
       setMessage({
-        text: systemErrorMessage(error, "Não foi possível carregar as OS deste cliente."),
+        text: systemErrorMessage(error, "Não foi possível carregar o resumo deste cliente."),
         error: true,
       });
     } finally {
@@ -925,6 +937,7 @@ export function SacDigitalToolPage({
     setQuickCustomerOpen(false);
     setOrdersPanelOpen(false);
     setCustomerOrders([]);
+    setCustomerEquipments([]);
     setFinishConfirmOpen(false);
     setDepartmentId("");
     setOperatorId("");
@@ -1230,14 +1243,14 @@ export function SacDigitalToolPage({
                       </AdminButton>
                     ) : null}
 
-                    {selectedProtocol.contact?.customer_id && canViewOrders && (
+                    {selectedProtocol.contact?.customer_id && (canViewOrders || canViewCustomers) && (
                       <AdminButton
                         variant="secondary"
                         onClick={() => void openCustomerOrders()}
                         loading={customerOrdersLoading}
                         className="shrink-0"
                       >
-                        OS do cliente
+                        Dados do cliente
                       </AdminButton>
                     )}
 
@@ -1379,74 +1392,91 @@ export function SacDigitalToolPage({
                   </div>
                 )}
 
-                {ordersPanelOpen && canViewOrders && selectedProtocol.contact?.customer_id && (
+                {ordersPanelOpen && (canViewOrders || canViewCustomers) && selectedProtocol.contact?.customer_id && (
                   <div className="border-b border-border bg-muted/30 px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-black text-foreground">Ordens de Serviço do cliente</p>
-                        <p className="mt-0.5 text-[10px] text-muted-foreground">Últimas OS vinculadas a este cadastro.</p>
+                        <p className="text-xs font-black text-foreground">Dados do cliente</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {protocolDisplayName(selectedProtocol)} · {formatPhone(selectedProtocol.contact.phone)}
+                        </p>
                       </div>
-                      <AdminButton
-                        variant="secondary"
-                        onClick={() => setOrdersPanelOpen(false)}
-                      >
-                        Fechar
-                      </AdminButton>
+                      <div className="flex gap-2">
+                        {canViewCustomers && onOpenCustomer && (
+                          <AdminButton size="sm" variant="secondary"
+                            onClick={() => onOpenCustomer(selectedProtocol.contact!.customer_id!)}>
+                            Abrir cadastro
+                          </AdminButton>
+                        )}
+                        <AdminButton size="sm" variant="secondary"
+                          onClick={() => setOrdersPanelOpen(false)}>
+                          Fechar
+                        </AdminButton>
+                      </div>
                     </div>
-
                     {customerOrdersLoading ? (
-                      <div className="py-4">
-                        <LoadingState text="Carregando OS..." />
-                      </div>
-                    ) : customerOrders.length === 0 ? (
-                      <div className="mt-3 rounded-lg border border-border bg-card px-3 py-3 text-xs text-muted-foreground">
-                        Este cliente ainda não possui OS cadastrada.
-                      </div>
+                      <LoadingState text="Carregando dados do cliente..." />
                     ) : (
-                      <div className="mt-3 max-h-56 overflow-y-auto rounded-lg border border-border bg-card">
-                        {customerOrders.map(order => (
-                          <div
-                            key={order.id}
-                            className="flex min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex min-w-0 items-center gap-2">
-                                <p className="truncate text-xs font-black text-foreground">
-                                  OS {order.os_number || order.id.slice(0, 8)}
-                                </p>
-                                {order.is_solved && (
-                                  <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-bold text-emerald-700 dark:text-emerald-300">
-                                    Resolvida
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                                {[
-                                  order.order_status?.name || "",
-                                  order.situation?.name || "",
-                                  formatCompactDate(order.created_at),
-                                ].filter(Boolean).join(" · ")}
-                              </p>
+                      <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2">
+                        {canViewOrders && (
+                          <section className="min-w-0">
+                            <p className="mb-2 text-xs font-black text-foreground">
+                              Últimas OS · {customerOrders.filter(order => !order.is_solved).length} não resolvida(s)
+                            </p>
+                            <div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-card">
+                              {customerOrders.length === 0 ? (
+                                <p className="p-3 text-xs text-muted-foreground">Nenhuma OS vinculada.</p>
+                              ) : customerOrders.map(order => (
+                                <div key={order.id}
+                                  className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 last:border-b-0">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-xs font-semibold">
+                                      OS {order.os_number || order.external_os_number || order.id.slice(0, 8)}
+                                      {order.is_solved ? " · Resolvida" : ""}
+                                    </p>
+                                    <p className="truncate text-[10px] text-muted-foreground">
+                                      {[order.order_status?.name, order.situation?.name, formatCompactDate(order.created_at)]
+                                        .filter(Boolean).join(" · ")}
+                                    </p>
+                                  </div>
+                                  {onOpenOrder && (
+                                    <AdminButton size="sm" variant="secondary"
+                                      onClick={() => onOpenOrder(order.id)}>Abrir</AdminButton>
+                                  )}
+                                </div>
+                              ))}
                             </div>
-                            {onOpenOrder && (
-                              <AdminButton
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => onOpenOrder(order.id)}
-                              >
-                                Abrir
-                              </AdminButton>
-                            )}
-                          </div>
-                        ))}
+                          </section>
+                        )}
+                        {canViewCustomers && (
+                          <section className="min-w-0">
+                            <p className="mb-2 text-xs font-black text-foreground">
+                              Equipamentos · {customerEquipments.length}
+                            </p>
+                            <div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-card">
+                              {customerEquipments.length === 0 ? (
+                                <p className="p-3 text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>
+                              ) : customerEquipments.slice(0, 10).map(equipment => (
+                                <div key={equipment.id} className="border-b border-border px-3 py-2 last:border-b-0">
+                                  <p className="truncate text-xs font-semibold text-foreground">
+                                    {[equipment.equipment_type_name, equipment.equipment_brand_name,
+                                      equipment.equipment_model_name].filter(Boolean).join(" · ") || "Equipamento"}
+                                  </p>
+                                  {equipment.serial_number && (
+                                    <p className="text-[10px] text-muted-foreground">
+                                      Série: {equipment.serial_number}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        )}
                       </div>
                     )}
-
                     {canCreateOrders && onCreateOrder && (
                       <div className="mt-3 flex justify-end">
-                        <AdminButton
-                          onClick={() => onCreateOrder(selectedProtocol.contact!.customer_id!)}
-                        >
+                        <AdminButton onClick={() => onCreateOrder(selectedProtocol.contact!.customer_id!)}>
                           Nova OS
                         </AdminButton>
                       </div>
