@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, History, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -722,7 +722,7 @@ export function TabAuditLog() {
         )}
       </AdminSearchPanel>
 
-      <>
+      <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
         {logsQuery.isPending ? (
           <LoadingState text="Carregando auditoria..." />
         ) : logsQuery.error ? (
@@ -800,7 +800,7 @@ export function TabAuditLog() {
             />
           </>
         )}
-      </>
+      </AdminCard>
 
       <AuditDetailsDialog
         entry={detailQuery.data || null}
