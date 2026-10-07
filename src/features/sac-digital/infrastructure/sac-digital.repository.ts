@@ -279,7 +279,7 @@ export async function markSacDigitalProtocolRead(
   if (error) throw error;
 }
 
-async function invokeSacDigitalApi(body: Record<string, unknown>) {
+async function invokeSacDigitalApi(body: Record<string, unknown> | FormData) {
   const { data, error } = await supabase.functions.invoke("sac-digital-api", { body });
 
   if (error) {
@@ -336,6 +336,26 @@ export function sendSacDigitalTextMessage(
   });
 }
 
+
+export function sendSacDigitalMediaMessage(
+  organizationId: string,
+  protocol: string,
+  file: File,
+  caption = "",
+) {
+  if (!file.size) throw new Error("O arquivo está vazio.");
+  if (file.size > 25 * 1024 * 1024) throw new Error("O arquivo deve ter no máximo 25 MB.");
+  if (file.type.startsWith("image/") && file.size > 1024 * 1024) {
+    throw new Error("A SAC Digital aceita imagens de até 1 MB.");
+  }
+  const form = new FormData();
+  form.set("action", "send_media");
+  form.set("organization_id", organizationId);
+  form.set("protocol", protocol);
+  form.set("text", caption);
+  form.set("file", file, file.name);
+  return invokeSacDigitalApi(form);
+}
 
 export function sendSacDigitalOrderMessage(
   organizationId: string,
