@@ -2191,120 +2191,9 @@ Deno.serve(async request => {
       if (contactsError) throw new Error("Não foi possível localizar o contato SAC do cliente.");
 
       const contactRows = (localContacts || []) as Array<Record<string, unknown>>;
-      const contactIds = contactRows.map(row => String(row.id || "")).filter(Boolean);
-
-      if (contactIds.length) {
-        const { data: activeProtocol, error: protocolError } = await admin
-          .from("sac_digital_protocols")
-          .select("id,external_protocol_id,status,last_message_at")
-          .eq("organization_id", organizationId)
-          .in("contact_id", contactIds)
-          .neq("status", "finished")
-          .order("last_message_at", { ascending: false, nullsFirst: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (protocolError) throw new Error("Não foi possível consultar o atendimento ativo do cliente.");
-
-        if (activeProtocol?.external_protocol_id) {
-          const protocol = String(activeProtocol.external_protocol_id);
-          const { response, body: apiBody } = await apiRequest(
-            organizationId,
-            credentials,
-            "/protocol/send",
-            {
-              method: "POST",
-              body: JSON.stringify({ protocol, type: "text", text }),
-            },
-          );
-
-          if (!response.ok || apiBody.status === false || apiBody.success === false) {
-            return json({
-              success: false,
-              error: typeof apiBody.message === "string" && apiBody.message.trim()
-                ? `SAC Digital: ${apiBody.message.trim()}`
-                : "A SAC Digital não conseguiu enviar a mensagem.",
-            });
-          }
-
-          const sentAt = new Date().toISOString();
-          const externalCandidate = apiBody.id ?? apiBody.message_id ?? apiBody.request_id;
-          const externalMessageId = typeof externalCandidate === "string" || typeof externalCandidate === "number"
-            ? `sac:${String(externalCandidate)}`
-            : null;
-          const { data: profile } = await admin
-            .from("profiles")
-            .select("full_name")
-            .eq("id", userData.user.id)
-            .maybeSingle();
-
-          const localMessage = {
-            organization_id: organizationId,
-            protocol_id: activeProtocol.id,
-            external_message_id: externalMessageId,
-            direction: "outgoing",
-            message_type: "text",
-            body_text: text,
-            sender_id: userData.user.id,
-            sender_name: profile?.full_name || null,
-            sent_at: sentAt,
-            raw_metadata: {
-              sent_via_union: true,
-              sent_from_service_order: orderId,
-              api_response: apiBody,
-            },
-          };
-
-          let inserted = await admin.from("sac_digital_messages").insert(localMessage);
-          if (inserted.error?.code === "23505") {
-            inserted = await admin.from("sac_digital_messages").insert({
-              ...localMessage,
-              external_message_id: null,
-              raw_metadata: {
-                ...localMessage.raw_metadata,
-                external_id_conflict: true,
-              },
-            });
-          }
-
-          if (!inserted.error) {
-            await admin
-              .from("sac_digital_protocols")
-              .update({ last_message_at: sentAt, updated_at: sentAt })
-              .eq("id", activeProtocol.id);
-          }
-
-          EdgeRuntime.waitUntil((async () => {
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            try {
-              await syncProtocolHistory(organizationId, protocol);
-            } catch {
-              // A mensagem local já foi persistida; a reconciliação pode ocorrer no próximo webhook/refresh.
-            }
-          })());
-
-          await writeSacAudit({
-            action: "sac_digital.order.send_message",
-            operation: "send",
-            entityType: "service_order",
-            entityId: orderId,
-            contextType: "service_order",
-            contextId: orderId,
-            metadata: {
-              transport: "protocol",
-              protocol,
-              message_length: text.length,
-            },
-          });
-
-          return json({
-            success: true,
-            mode: "protocol",
-            protocol,
-            request_id: typeof apiBody.request_id === "string" ? apiBody.request_id : null,
-          });
-        }
-      }
+      // A lista local pode estar defasada após a finalização do atendimento.
+      // Nunca enviar diretamente com base apenas em status salvo no CRM.
+      // O protocolo será consultado na SAC Digital antes de qualquer envio.
 
       let externalContactId = contactRows
         .map(row => String(row.external_contact_id || "").trim())
@@ -2490,9 +2379,35 @@ Deno.serve(async request => {
         const rows = Array.isArray(lookup.body.list)
           ? lookup.body.list.filter(row => row && typeof row === "object" && !Array.isArray(row)) as Record<string, unknown>[]
           : [];
-        const active = rows.find(row => row.is_open === true || row.is_att === true);
-        const value = String(active?.protocol || "").trim();
-        return value && validProtocol(value) ? value : null;
+        for (const row of rows) {
+          if (row.is_open !== true || Boolean(row.closed_at)) continue;
+          const candidate = String(row.protocol || "").trim();
+          if (!validProtocol(candidate)) continue;
+
+          // A listagem pode estar em cache: conferir o estado oficial antes de enviar.
+          const detail = await apiRequest(
+            organizationId,
+            credentials,
+            `/protocol/info?protocol=${encodeURIComponent(candidate)}`,
+            { method: "GET" },
+          );
+          if (!detail.response.ok || detail.body.status === false) continue;
+          const info = detail.body.info && typeof detail.body.info === "object"
+            && !Array.isArray(detail.body.info)
+            ? detail.body.info as Record<string, unknown>
+            : null;
+          if (info?.is_open === true && !String(info.closed_at || "").trim()) return candidate;
+
+          // Atualizar o estado local se a SAC já finalizou este protocolo.
+          if (info && (info.is_open === false || Boolean(info.closed_at))) {
+            try {
+              await enrichProtocol(organizationId, candidate);
+            } catch {
+              // A ausência de projeção local não autoriza enviar em protocolo fechado.
+            }
+          }
+        }
+        return null;
       };
 
       let newProtocol: string | null = await findSacOpenProtocol();
