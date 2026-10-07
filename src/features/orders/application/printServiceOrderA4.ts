@@ -1,6 +1,6 @@
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
-import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
+import { openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { listPrintTemplates, loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
 import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
@@ -17,7 +17,7 @@ function selectA4OrderTemplate(templates: PrintTemplate[]) {
   return active.find(template => template.document_type === "OS") || active[0] || null;
 }
 
-export async function prepareServiceOrderA4Pdf({
+export async function printServiceOrderA4({
   order,
   printedBy,
   canPrintChecklists,
@@ -26,7 +26,11 @@ export async function prepareServiceOrderA4Pdf({
   printedBy?: string | null;
   canPrintChecklists: boolean;
 }) {
-  if (!order?.id || !order?.organization_id) throw new Error("A OS não possui empresa definida.");
+  const popup = openPrintWindow();
+  if (!popup) throw new Error("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
+
+  try {
+    if (!order?.id || !order?.organization_id) throw new Error("A OS não possui empresa definida.");
 
     const templateResult = await listPrintTemplates();
     if (templateResult.error) throw templateResult.error;
@@ -73,7 +77,7 @@ export async function prepareServiceOrderA4Pdf({
       ] as const),
     ));
 
-    const frozen = await freezeOrderPrintPdf(configuredTemplate, {
+    renderOrderPrintDocument(popup, configuredTemplate, {
       order: {
         ...order,
         ...(fullOrderResult.data || {}),
@@ -87,12 +91,8 @@ export async function prepareServiceOrderA4Pdf({
       printedBy,
       company,
     });
-
-    const orderLabel = String(order.os_number || "OS").replace(/[^a-z0-9._-]+/gi, "-");
-    return {
-      blob: frozen.blob,
-      fileName: `${orderLabel}.pdf`,
-      title: `OS ${order.os_number || ""}`.trim(),
-      pageCount: frozen.page_count,
-    };
+  } catch (error) {
+    popup.close();
+    throw error;
+  }
 }
