@@ -169,7 +169,6 @@ export function SacDigitalNewConversationDialog({
   };
 
   const prepare = async (candidate?: SacDigitalNewConversationCandidate) => {
-    setDirect(false);
     const key = candidate ? candidateKey(candidate) : "manual";
     if (preparingKey) return;
 
