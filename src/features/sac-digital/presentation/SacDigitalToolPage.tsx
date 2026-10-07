@@ -129,6 +129,38 @@ function messageKind(message: SacDigitalMessage) {
   }
 }
 
+function sacMessagePayload(message: SacDigitalMessage): Record<string, any> {
+  const raw = message.raw_metadata || {};
+  if (raw.sac_history && typeof raw.sac_history === "object") return raw.sac_history;
+  if (raw.message && typeof raw.message === "object") return raw.message;
+  if (raw.data?.message && typeof raw.data.message === "object") return raw.data.message;
+  return raw;
+}
+
+function messageLocation(message: SacDigitalMessage) {
+  const payload = sacMessagePayload(message);
+  const place = String(payload.place || payload.address || "").trim();
+  const latitude = payload.lat ?? payload.latitude;
+  const longitude = payload.lon ?? payload.lng ?? payload.longitude;
+  if (latitude == null || longitude == null || latitude === "" || longitude === "") {
+    return { place, url: "" };
+  }
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    return { place, url: "" };
+  }
+  return { place: place || `${lat}, ${lon}`, url: `https://www.google.com/maps?q=${lat},${lon}` };
+}
+
+function messageContact(message: SacDigitalMessage) {
+  const payload = sacMessagePayload(message);
+  const name = String(payload.vcard_name || payload.v_name || "").trim();
+  const phone = String(payload.vcard_phone || payload.v_number || "").trim();
+  const digits = phone.replace(/[^\d+]/g, "");
+  return { name, phone, phoneUrl: digits.replace(/\D/g, "").length >= 8 ? `tel:${digits}` : "" };
+}
+
 export function SacDigitalToolPage({
   onBack,
   onOpenSettings,
@@ -1477,20 +1509,46 @@ export function SacDigitalToolPage({
                                   />
                                 )}
                                 {mediaUrl && item.message_type === "file" && (
-                                  <a
-                                    href={mediaUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-2 rounded-md border border-border/70 px-3 py-2 text-xs font-bold underline-offset-2 hover:underline"
-                                  >
+                                  <div className="flex flex-wrap items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs font-bold">
                                     <FileText size={16} className="shrink-0" />
-                                    Abrir arquivo
-                                  </a>
+                                    <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
+                                      className="underline-offset-2 hover:underline">Abrir arquivo</a>
+                                    <a href={mediaUrl} download target="_blank" rel="noopener noreferrer"
+                                      className="underline-offset-2 hover:underline">Baixar</a>
+                                  </div>
                                 )}
+                                {item.message_type === "location" && (() => {
+                                  const location = messageLocation(item);
+                                  return <div className="flex items-center gap-2 text-sm">
+                                    <MapPin size={17} className="shrink-0" />
+                                    {location.url ? (
+                                      <a href={location.url} target="_blank" rel="noopener noreferrer"
+                                        className="break-words font-semibold underline-offset-2 hover:underline">
+                                        {location.place || "Ver localização no mapa"}
+                                      </a>
+                                    ) : (
+                                      <span className="break-words">{location.place || "Localização recebida"}</span>
+                                    )}
+                                  </div>;
+                                })()}
+                                {item.message_type === "vcard" && (() => {
+                                  const contact = messageContact(item);
+                                  return <div className="flex items-start gap-2 text-sm">
+                                    <UserRound size={17} className="mt-0.5 shrink-0" />
+                                    <div className="min-w-0">
+                                      <p className="font-semibold">{contact.name || "Contato compartilhado"}</p>
+                                      {contact.phone && (contact.phoneUrl ? (
+                                        <a href={contact.phoneUrl} className="underline-offset-2 hover:underline">
+                                          {contact.phone}
+                                        </a>
+                                      ) : <p>{contact.phone}</p>)}
+                                    </div>
+                                  </div>;
+                                })()}
                                 {item.body_text && (
                                   <p className="whitespace-pre-wrap break-words text-sm leading-5">{item.body_text}</p>
                                 )}
-                                {!item.body_text && !mediaUrl && (
+                                {!item.body_text && !mediaUrl && item.message_type !== "location" && item.message_type !== "vcard" && (
                                   <div className="flex items-center gap-2 text-sm font-semibold">
                                     <KindIcon size={16} className="shrink-0" />
                                     <span>{kind.label}</span>
