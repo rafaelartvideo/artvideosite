@@ -32,7 +32,7 @@ test('busy operator finalizes attempt without invoking transport',async()=>{
  const recorded=[];const result=await executeSacOperation({method:'POST',path:'/operator/att/send/P',mode:'operator'},{authorize:async()=>true,begin:async()=>({id:'a',state:'prepared',created:true}),operator:async()=>{},lease:async()=>false,record:async(...args)=>recorded.push(args)});
  assert.equal(result.type,'operator_busy');assert.equal(recorded[0][1],'rejected');
 });
-test('scope handshake includes profile and edit when selecting',()=>{assert.deepEqual(operatorScopes(['send','protocol'],true),['edit','profile','protocol','send']);});
+test('scope handshake requests only documented operation scopes plus selection edit',()=>{assert.deepEqual(operatorScopes(['send','protocol'],true),['edit','protocol','send']);assert.deepEqual(operatorScopes(['protocol'],false),['protocol']);});
 test('duplicate prepared attempt never executes',async()=>{
  let called=false;const value=await executeSacOperation({method:'POST',path:'/client/protocol/send',mode:'client'},{authorize:async()=>true,begin:async()=>({id:'a',state:'prepared',created:false}),transport:async()=>{called=true}});assert.equal(called,false);assert.equal(value.outcome,'unknown');
 });

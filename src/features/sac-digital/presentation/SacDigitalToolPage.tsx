@@ -47,7 +47,7 @@ import {
   listSacDigitalProtocols,
   markSacDigitalProtocolRead,
   refreshSacDigitalProtocol,
-  returnSacDigitalProtocolToInbox,
+  returnSacDigitalProtocolToQueue,
   sacDigitalMediaUrl,
   sendSacDigitalTextMessage,
   sendSacDigitalMediaMessage,
@@ -1227,9 +1227,10 @@ export function SacDigitalToolPage({
     setProtocolAction("inbox");
     setMessage(null);
     try {
-      await returnSacDigitalProtocolToInbox(
+      await returnSacDigitalProtocolToQueue(
         activeOrganizationId,
         selectedProtocol.external_protocol_id,
+        selectedProtocol.sector_id,
       );
       setRoutingOpen(false);
       setFinishConfirmOpen(false);

@@ -18,7 +18,10 @@ export function parsePagination(body, currentPage=1) {
   return {has_more:false,next_page:null};
 }
 export function operatorScopes(scopes, selectsProtocol=false) {
-  return [...new Set([...scopes,'profile',...(selectsProtocol ? ['protocol','edit'] : [])])].sort();
+  // Solicitar somente os escopos publicados para a operação. O antigo
+  // acréscimo de "profile" fazia algumas contas recusarem o login do operador
+  // com invalid_scope, embora o atendimento tivesse protocol/edit liberados.
+  return [...new Set([...scopes,...(selectsProtocol ? ['protocol','edit'] : [])])].sort();
 }
 export function importPhoneCandidates(value) {
   const normalized=String(value || '').replace(/\D/g,'');

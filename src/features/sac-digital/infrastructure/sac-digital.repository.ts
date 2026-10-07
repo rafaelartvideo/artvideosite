@@ -89,6 +89,7 @@ export type SacDigitalProtocolListItem = {
   status: string;
   operator_id: string | null;
   operator_name: string | null;
+  sector_id: string | null;
   department_name: string | null;
   channel_number: string | null;
   opened_at: string | null;
@@ -139,6 +140,7 @@ export async function listSacDigitalProtocols(organizationId: string) {
         status,
         operator_id,
         operator_name,
+        sector_id,
         department_name,
         channel_number,
         opened_at,
@@ -217,6 +219,7 @@ export async function listSacDigitalProtocols(organizationId: string) {
         status: "pending",
         operator_id: null,
         operator_name: null,
+        sector_id: null,
         department_name: null,
         channel_number: null,
         opened_at: null,
@@ -707,23 +710,35 @@ export function forwardSacDigitalProtocol(
   protocol: string,
   input: { departmentId?: string; operatorId?: string },
 ) {
-  return invokeSacDigitalApi({
-    action: "forward_protocol",
-    organization_id: organizationId,
-    protocol,
-    department_id: input.departmentId || "",
-    operator_id: input.operatorId || "",
-  });
+  if (input.operatorId) {
+    return operateSacDigitalResource(organizationId, 90, {
+      protocol,
+      to: "operator",
+      operator: input.operatorId,
+    });
+  }
+  if (input.departmentId) {
+    return operateSacDigitalResource(organizationId, 90, {
+      protocol,
+      to: "department",
+      department: input.departmentId,
+    });
+  }
+  throw new Error("Escolha um departamento ou operador.");
 }
 
-export function returnSacDigitalProtocolToInbox(
+export function returnSacDigitalProtocolToQueue(
   organizationId: string,
   protocol: string,
+  departmentId: string | null | undefined,
 ) {
-  return invokeSacDigitalApi({
-    action: "return_to_inbox",
-    organization_id: organizationId,
+  if (!departmentId) {
+    throw new Error("A SAC Digital não informou o departamento deste atendimento. Atualize o protocolo e tente novamente.");
+  }
+  return operateSacDigitalResource(organizationId, 90, {
     protocol,
+    to: "department",
+    department: departmentId,
   });
 }
 
@@ -732,9 +747,7 @@ export function finishSacDigitalProtocol(
   protocol: string,
   vote: number,
 ) {
-  return invokeSacDigitalApi({
-    action: "finish_protocol",
-    organization_id: organizationId,
+  return operateSacDigitalResource(organizationId, 92, {
     protocol,
     vote,
   });

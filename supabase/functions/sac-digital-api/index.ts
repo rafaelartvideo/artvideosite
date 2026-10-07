@@ -1015,18 +1015,74 @@ Deno.serve(async request => {
           const cacheKey = `${organizationId}:${userData.user.id}:${binding.id}:${binding.version}:${requestedScopes.join(',')}`;
           const cached = operatorSessionCache.get(cacheKey);
           if(cached && cached.expiresAt > Date.now()+60000) {operatorToken=cached.token;return;}
-          // Login is a separate authentication handshake; no manager-token fallback.
-          const auth = await fetchJson('https://api.sac.digital/v2/operator/auth2/login', {
-            method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
-            body:JSON.stringify({client:credentials.clientId,password:credentials.clientSecret,operator_id:binding.id,scopes:requestedScopes}),
-          });
-          operatorToken = typeof auth.body.token === 'string' ? auth.body.token : '';
-          if(!auth.response.ok || auth.body.success === false || !operatorToken) {
-            const error:any = new Error('Operator authentication contract refused'); error.code='operator_auth_contract_unverified';throw error;
+
+          // A documentação da SAC diverge entre "scopes" (descrição) e
+          // "scope" (painel). Tentar a forma principal e somente cair para as
+          // variantes documentadas quando a própria SAC responder
+          // invalid_scope/invalid_params. Nunca repetir invalid_auth.
+          const baseLogin = {
+            client: credentials.clientId,
+            password: credentials.clientSecret,
+            operator_id: binding.id,
+          };
+          const loginBodies: Array<{label:string;body:Record<string,unknown>}> = [
+            {label:'scopes-array',body:{...baseLogin,scopes:requestedScopes}},
+            {label:'scope-array',body:{...baseLogin,scope:requestedScopes}},
+            {label:'scope-string',body:{...baseLogin,scope:requestedScopes.join(' ')}},
+          ];
+
+          let auth: Awaited<ReturnType<typeof fetchJson>> | null = null;
+          let loginVariant = '';
+          for (const candidate of loginBodies) {
+            const attempt = await fetchJson('https://api.sac.digital/v2/operator/auth2/login', {
+              method:'POST',
+              headers:{'Content-Type':'application/json',Accept:'application/json'},
+              body:JSON.stringify(candidate.body),
+            });
+            auth = attempt;
+            loginVariant = candidate.label;
+            const tokenCandidate = typeof attempt.body.token === 'string'
+              ? attempt.body.token.trim()
+              : typeof attempt.body.access_token === 'string'
+                ? attempt.body.access_token.trim()
+                : '';
+            if(attempt.response.ok && attempt.body.success !== false && tokenCandidate) {
+              operatorToken=tokenCandidate;
+              break;
+            }
+
+            const providerType=String(attempt.body.type || '').trim().toLowerCase();
+            const credentialFailure=providerType==='invalid_auth'
+              || attempt.response.status===401
+              || attempt.response.status===403;
+            const contractFallback=providerType==='invalid_scope'
+              || providerType==='invalid_params'
+              || attempt.response.status===400
+              || attempt.response.status===422;
+            if(credentialFailure || !contractFallback) break;
           }
-          const profile=await fetchJson('https://api.sac.digital/v2/operator/perfil/info',{method:'GET',headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json'}});
-          if(!responseEnvelope(profile.body,profile.response.status).success) {const error:any=new Error('Operator token verification failed');error.code='operator_auth_contract_unverified';throw error;}
-          operatorSessionCache.set(cacheKey,{token:operatorToken,expiresAt:Date.now()+Math.min(3600,Math.max(120,Number(auth.body.expires_in)||3600))*1000});
+
+          if(!auth || !operatorToken) {
+            console.error('[SAC DIGITAL API] operator login failed', {
+              organization_id: organizationId,
+              operator_id: binding.id,
+              status: auth?.response.status || null,
+              type: String(auth?.body?.type || '').slice(0,80) || null,
+              request_id: String(auth?.body?.request_id || '').slice(0,120) || null,
+              variant: loginVariant || null,
+              scopes: requestedScopes,
+            });
+            const error:any = new Error('Operator authentication contract refused');
+            error.code='operator_auth_contract_unverified';
+            error.providerType=String(auth?.body?.type || '').slice(0,80);
+            throw error;
+          }
+
+          const expiresIn=Number(auth.body.expires_in || 3600);
+          operatorSessionCache.set(cacheKey,{
+            token:operatorToken,
+            expiresAt:Date.now()+Math.min(3600,Math.max(120,Number.isFinite(expiresIn)?expiresIn:3600))*1000,
+          });
         } : null,
         lease: async () => {
           const {data,error} = await admin.rpc('sac_digital_acquire_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});
