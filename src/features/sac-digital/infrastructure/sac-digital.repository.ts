@@ -339,6 +339,19 @@ export async function setSacDigitalOperatorBindingAdmin(
   });
 }
 
+export function linkSacDigitalCustomer(
+  organizationId: string,
+  contactId: string,
+  customerId: string,
+) {
+  return invokeSacDigitalApi({
+    action: "link_customer",
+    organization_id: organizationId,
+    contact_id: contactId,
+    customer_id: customerId,
+  });
+}
+
 export function assumeSacDigitalProtocol(
   organizationId: string,
   protocol: string,
