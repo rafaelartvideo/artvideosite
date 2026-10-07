@@ -34,7 +34,6 @@ export function OrderDetailsContent({
   orderImages,
   onViewImage,
   onWhatsApp,
-  sacDigitalAvailable = false,
 }: {
   detail: any;
   formatDate: (value?: string | null, time?: boolean) => string;
@@ -48,7 +47,6 @@ export function OrderDetailsContent({
   orderImages: OrderImage[];
   onViewImage: (image: OrderImage) => void;
   onWhatsApp?: () => void;
-  sacDigitalAvailable?: boolean;
 }) {
   const fmtDate = formatDate;
   const stateLabel = formatState;
@@ -106,11 +104,11 @@ export function OrderDetailsContent({
                   type="button"
                   onClick={onWhatsApp}
                   data-phone-number={`+${whatsappContact.phone}`}
-                  aria-label={sacDigitalAvailable ? "Conversar pelo SAC Digital" : "Abrir WhatsApp do cliente"}
+                  aria-label="Enviar WhatsApp pelo SAC Digital"
                   className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
-                  title={sacDigitalAvailable ? "Abrir SAC Digital para esta OS" : "Enviar WhatsApp"}
+                  title="Enviar mensagem pela SAC Digital"
                 >
-                  <MessageCircle size={14} /><span className={actionLabelClass}>{sacDigitalAvailable ? "SAC Digital" : "WhatsApp"}</span>
+                  <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
                 </button>
               ) : (
                 <a
