@@ -279,7 +279,7 @@ export function SacDigitalNewConversationDialog({
                           </span>
                         ) : candidate.whatsapp_available ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
-                            <CheckCircle2 size={10} /> Canal SAC disponível
+                            <CheckCircle2 size={10} /> Canal SAC associado
                           </span>
                         ) : (
                           <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 dark:text-amber-300">
@@ -349,7 +349,7 @@ export function SacDigitalNewConversationDialog({
                   </span>
                 ) : prepared.whatsapp_available ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
-                    <CheckCircle2 size={12} /> Canal SAC disponível
+                    <CheckCircle2 size={12} /> Canal SAC associado
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-800 dark:text-amber-300">
@@ -362,7 +362,7 @@ export function SacDigitalNewConversationDialog({
             {canCompose ? (
               <div>
                 <p className="mb-3 text-[11px] text-muted-foreground">
-                  O canal está disponível para envio, mas isso não confirma antecipadamente que o número esteja registrado no WhatsApp. A SAC Digital verifica ao processar a mensagem.
+                  O contato está associado a um canal SAC, mas isso não comprova que o canal esteja operacional nem que o número tenha WhatsApp. O envio depende da validação da SAC Digital.
                 </p>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Primeira mensagem
