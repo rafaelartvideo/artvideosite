@@ -435,18 +435,6 @@ export function SacDigitalToolPage({
         {
           event: "*",
           schema: "public",
-          table: "sac_digital_outbound_starts",
-          filter: `organization_id=eq.${activeOrganizationId}`,
-        },
-        () => {
-          void loadProtocols(false);
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
           table: "sac_digital_messages",
           filter: `organization_id=eq.${activeOrganizationId}`,
         },
@@ -472,8 +460,27 @@ export function SacDigitalToolPage({
       )
       .subscribe();
 
+    // Separar esta assinatura da principal: antes da migracao do recurso
+    // pendente, um erro no canal novo nao interrompe mensagens/protocolos.
+    const pendingRealtime = supabase
+      .channel(`sac-digital-outbound:${activeOrganizationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "sac_digital_outbound_starts",
+          filter: `organization_id=eq.${activeOrganizationId}`,
+        },
+        () => {
+          void loadProtocols(false);
+        },
+      )
+      .subscribe();
+
     return () => {
       void supabase.removeChannel(realtime);
+      void supabase.removeChannel(pendingRealtime);
     };
   }, [activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts, selectedProtocolId]);
 
