@@ -52,8 +52,13 @@ export function PaginationBar({
     const persistedPageSize = readPersistedPageSize(pageSizeOptions);
     if (persistedPageSize !== null && pageSize !== persistedPageSize) {
       onPageSizeChange(persistedPageSize);
+      return;
     }
-  }, [pageSize, pageSizeOptions, onPageSizeChange]);
+
+    if (!pageSizeOptions.includes(pageSize) && pageSize !== defaultPageSize) {
+      onPageSizeChange(defaultPageSize);
+    }
+  }, [pageSize, defaultPageSize, pageSizeOptions, onPageSizeChange]);
 
   const handlePageSizeChange = (nextPageSize: number) => {
     if (!pageSizeOptions.includes(nextPageSize)) return;
