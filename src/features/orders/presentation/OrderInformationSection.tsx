@@ -15,6 +15,8 @@ export function OrderInformationSection({
   situations,
   needsScheduling,
   setNeedsScheduling,
+  hasAccessories,
+  setHasAccessories,
   onFieldChange,
   onTechniciansChange,
   onSellersChange,
@@ -32,6 +34,8 @@ export function OrderInformationSection({
   situations: any[];
   needsScheduling: boolean;
   setNeedsScheduling: Dispatch<SetStateAction<boolean>>;
+  hasAccessories: boolean;
+  setHasAccessories: Dispatch<SetStateAction<boolean>>;
   onFieldChange: (field: string, value: any) => void;
   onTechniciansChange: Dispatch<SetStateAction<string[]>>;
   onSellersChange: Dispatch<SetStateAction<string[]>>;
@@ -62,19 +66,44 @@ export function OrderInformationSection({
                 <EmployeeMultiSelect label="Vendedores" employees={employees} selectedIds={selectedSellerIds} onChange={setSelectedSellerIds} disabled={!hasPermission("orders.assign")} placeholder="Selecionar vendedores" clearLabel="Limpar Vendedores" />
                 <FSelect label="Prioridade" value={form.priority} onChange={(e: any) => upF("priority", e.target.value)} options={[{ value: "baixa", label: "Baixa" }, { value: "normal", label: "Normal" }, { value: "alta", label: "Alta" }, { value: "urgente", label: "Urgente" }]} />
                 <FInput label="OS Externa" type="text" value={form.external_os_number} onChange={(e: any) => upF("external_os_number", e.target.value)} placeholder="Digite o número da OS externa" />
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Necessita agendamento</label>
-                  <AdminSegmentedControl
-                    value={needsScheduling ? "yes" : "no"}
-                    onChange={value => { const scheduling = value === "yes"; setNeedsScheduling(scheduling); if (!scheduling) upF("scheduled_at", ""); }}
-                    options={[{ value: "yes", label: "Sim" }, { value: "no", label: "Não" }]}
-                    className="w-fit grid-cols-2"
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Necessita agendamento</label>
+                    <AdminSegmentedControl
+                      value={needsScheduling ? "yes" : "no"}
+                      onChange={value => { const scheduling = value === "yes"; setNeedsScheduling(scheduling); if (!scheduling) upF("scheduled_at", ""); }}
+                      options={[{ value: "yes", label: "Sim" }, { value: "no", label: "Não" }]}
+                      className="w-fit grid-cols-2"
+                    />
+                  </div>
+                  {needsScheduling && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <FInput label="Data agendada" type="date" required value={form.scheduled_at.slice(0, 10)} onChange={(e: any) => upF("scheduled_at", `${e.target.value}${form.scheduled_at.slice(10) || "T"}`)} />
+                      <FInput label="Hora agendada" type="time" required value={form.scheduled_at.slice(11, 16)} onChange={(e: any) => upF("scheduled_at", `${form.scheduled_at.slice(0, 10)}T${e.target.value}`)} />
+                    </div>
+                  )}
                 </div>
-                {needsScheduling && <>
-                  <FInput label="Data agendada" type="date" required value={form.scheduled_at.slice(0, 10)} onChange={(e: any) => upF("scheduled_at", `${e.target.value}${form.scheduled_at.slice(10) || "T"}`)} />
-                  <FInput label="Hora agendada" type="time" required value={form.scheduled_at.slice(11, 16)} onChange={(e: any) => upF("scheduled_at", `${form.scheduled_at.slice(0, 10)}T${e.target.value}`)} />
-                </>}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Possui acessórios?</label>
+                    <AdminSegmentedControl
+                      value={hasAccessories ? "yes" : "no"}
+                      onChange={value => { const nextHasAccessories = value === "yes"; setHasAccessories(nextHasAccessories); if (!nextHasAccessories) upF("accessories", ""); }}
+                      options={[{ value: "yes", label: "Sim" }, { value: "no", label: "Não" }]}
+                      className="w-fit grid-cols-2"
+                    />
+                  </div>
+                  {hasAccessories && (
+                    <FInput
+                      label="Acessórios"
+                      type="text"
+                      required
+                      value={form.accessories}
+                      onChange={(e: any) => upF("accessories", e.target.value)}
+                      placeholder="Descreva os acessórios"
+                    />
+                  )}
+                </div>
               </div>
               <div className="mt-4 space-y-4">
                 <FTextarea label="Descrição do problema" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={4} />
