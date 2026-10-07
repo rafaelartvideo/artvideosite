@@ -29,6 +29,7 @@ import {
   usedItemsTotal,
 } from "@/features/orders/application/order-display-rules";
 import { getServiceOrderForRoute } from "@/features/orders/infrastructure/orders-list.repository";
+import { getOrderCustomerById } from "@/features/orders/infrastructure/orders-customer.repository";
 import {
   consumeQueueOsCode,
   releaseQueueOsCode,
@@ -49,6 +50,7 @@ type OrderDetailSubpage = "history" | "documents" | "part-requests" | "sla-recor
 type TabOrdersProps = {
   onNavigate?: (tab: AdminTab) => void;
   initialOrderId?: string | null;
+  initialCustomerId?: string | null;
   routeSubpage?: string | null;
   onOrderRouteChange?: (id: string | null, subpage?: string | null) => void;
   onOrderRouteClose?: () => void;
@@ -103,6 +105,7 @@ function isBlockedReadOnlyPermission(permission: string) {
 export function TabOrders({
   onNavigate,
   initialOrderId,
+  initialCustomerId,
   routeSubpage,
   onOrderRouteChange,
   onOrderRouteClose,
@@ -297,6 +300,27 @@ export function TabOrders({
   });
   const { selectCustomer, openNew, openEdit, save: saveOS } = orderEditor;
 
+  const loadInitialCustomerForNewOrder = async () => {
+    if (!initialCustomerId || !workspaceBase.organizationId) return;
+    try {
+      const { data, error } = await getOrderCustomerById(
+        workspaceBase.organizationId,
+        initialCustomerId,
+      );
+      if (error) throw error;
+      if (!data) {
+        setToast({ msg: "O cliente informado não foi encontrado nesta empresa.", type: "error" });
+        return;
+      }
+      selectCustomer(data);
+    } catch (error) {
+      setToast({
+        msg: `Não foi possível carregar o cliente na Nova OS: ${systemErrorMessage(error)}`,
+        type: "error",
+      });
+    }
+  };
+
   const listMutations = useOrderListMutations({
     orders,
     setOrders,
@@ -351,8 +375,12 @@ export function TabOrders({
         if (detail) closeDetail();
         if (!formOpen || editingOS) {
           if (queueSettingsLoading) return () => { cancelled = true; };
-          if (queueCodeRequired) setQueueGateOpen(true);
-          else openNew();
+          if (queueCodeRequired) {
+            setQueueGateOpen(true);
+          } else {
+            openNew();
+            void loadInitialCustomerForNewOrder();
+          }
         }
         return () => { cancelled = true; };
       }
@@ -425,7 +453,7 @@ export function TabOrders({
       });
 
     return () => { cancelled = true; };
-  }, [initialOrderId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly, queueSettingsLoading, queueCodeRequired]);
+  }, [initialOrderId, initialCustomerId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly, queueSettingsLoading, queueCodeRequired]);
 
   const openRoutedDetail = (order: any) => {
     closingRouteRef.current = null;
@@ -474,11 +502,13 @@ export function TabOrders({
       reservationId: reservation.id,
       ticketNumber: reservation.ticket_number,
     });
+    void loadInitialCustomerForNewOrder();
   };
 
   const openNewWithQueueOverride = (reason: string) => {
     setQueueGateOpen(false);
     openNew({ overrideReason: reason });
+    void loadInitialCustomerForNewOrder();
   };
 
   const openRoutedEdit = async (order: any) => {
