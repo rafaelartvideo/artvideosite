@@ -6,7 +6,7 @@ export function resultItems(data:unknown):any[];
 export function apiDiagnostic(payload:any):string;
 export function initialValues(fields:any[],protocol?:string):Record<string,any>;
 export class IntentLedger { constructor(create?:()=>string,storage?:Storage); begin(body:any):string; finish(body:any,outcome:string):void; }
-export function recordContext(fields:any[],row:any,area:string,protocol?:string):Record<string,any>;
+export function recordContext(fields:any[],row:any,area:string,protocol?:string,context?:{sourceEndpointId?:number;parent?:{groupId?:string;couponId?:string}}):Record<string,any>;
 export function friendlyEntries(value:any):Array<[string,any]>;
 export function actionLabel(endpoint:any):string;
 export function privateMediaIds(rows:any[]):string[];

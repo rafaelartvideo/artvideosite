@@ -1,4 +1,5 @@
 import { SacDigitalMenuConfiguration } from './SacDigitalMenuSettings';
+import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clipboard, MessageCircle, MessageSquare, Phone, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -13,7 +14,7 @@ import {
   PageHeader,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import {
   getSacDigitalIntegrationSettings,
   getSacDigitalOperatorBindingsAdmin,
@@ -45,6 +46,7 @@ function formatDate(value?: string | null) {
 export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canManage = hasPermission("sac_digital.settings.manage");
+  const [section, setSection] = useState("integration");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rotating, setRotating] = useState(false);
@@ -325,50 +327,15 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
 
   return <div className="min-w-0 space-y-5">
     <PageHeader
-      title="Integrações"
-      subtitle="Configure as conexões externas utilizadas pela empresa ativa."
+      title="Configurações · SAC Digital"
+      subtitle="Conta, operadores, webhooks e menus da empresa ativa."
+      actions={<BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
     />
 
-    <div className="grid gap-3 md:grid-cols-3">
-      <div className="rounded-xl border border-primary/30 bg-primary-soft/30 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary">
-            <MessageSquare size={20} />
-          </div>
-          <span className="text-[10px] font-semibold text-primary">
-            {settings?.enabled ? "Ativado" : "Disponível"}
-          </span>
-        </div>
-        <p className="mt-3 text-sm font-black text-foreground">SAC Digital</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Mensagens, operadores, protocolos e webhook da empresa ativa.
-        </p>
-      </div>
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-            <Phone size={20} />
-          </div>
-          <span className="text-[10px] font-semibold text-muted-foreground">Integração futura</span>
-        </div>
-        <p className="mt-3 text-sm font-black text-foreground">PABX</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Configuração dos ramais e telefonia, quando o conector estiver disponível.
-        </p>
-      </div>
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-            <MessageCircle size={20} />
-          </div>
-          <span className="text-[10px] font-semibold text-muted-foreground">Integração futura</span>
-        </div>
-        <p className="mt-3 text-sm font-black text-foreground">WhatsApp e outros canais</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Outras conexões de mensagens serão configuradas individualmente por empresa.
-        </p>
-      </div>
-    </div>
+    <AdminSubnav value={section} items={[
+      {id:"integration",label:"Conta e conexão"}, {id:"operators",label:"Operadores"},
+      {id:"webhook",label:"Webhooks"}, {id:"menus",label:"Menus personalizados"},
+    ]} onSelect={setSection} ariaLabel="Configurações SAC Digital" />
 
     {message && (
       <div className={`rounded-lg border px-3 py-2 text-sm font-semibold ${message.error
@@ -378,8 +345,8 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
       </div>
     )}
 
-    <Section
-      title="SAC Digital"
+    {section === "integration" && <Section
+      title="Conta e conexão"
       description="Credenciais, webhook e estado da integração desta empresa."
       actions={
         <AdminButton
@@ -466,6 +433,39 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
           />
         </div>
 
+
+        {settings?.last_event_type && (
+          <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+            <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+            <span>
+              Último evento recebido: <strong>{settings.last_event_type}</strong> em {formatDate(settings.last_webhook_at)}.
+            </span>
+          </div>
+        )}
+        {settings?.last_error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+            <p className="font-black">Último erro registrado na integração</p>
+            <p className="mt-1 break-words">{settings.last_error}</p>
+          </div>
+        )}
+      </div>
+    </Section>}
+
+    {section === "webhook" && <Section
+      title="Saúde do webhook"
+      description="Diagnóstico da empresa ativa, com contagem de falhas e eventos pendentes. O conteúdo das mensagens não é exibido aqui."
+      actions={
+        <AdminButton
+          variant="secondary"
+          onClick={() => void loadWebhookHealth()}
+          loading={webhookHealthLoading}
+          aria-label="Atualizar diagnóstico do webhook"
+        >
+          <RefreshCw size={15} /> Atualizar
+        </AdminButton>
+      }
+    >
+      <div className="space-y-3">
         <div>
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             Webhook da Union
@@ -473,6 +473,8 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
           {webhookUrl ? (
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
               <input
+                id="sac-webhook-url"
+                aria-label="Webhook da Union"
                 readOnly
                 value={webhookUrl}
                 className="admin-input min-w-0 flex-1 rounded-lg border border-border bg-muted/55 px-3 py-2.5 text-sm text-foreground outline-none"
@@ -502,38 +504,6 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
           </p>
         </div>
 
-        {settings?.last_event_type && (
-          <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
-            <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
-            <span>
-              Último evento recebido: <strong>{settings.last_event_type}</strong> em {formatDate(settings.last_webhook_at)}.
-            </span>
-          </div>
-        )}
-        {settings?.last_error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
-            <p className="font-black">Último erro registrado na integração</p>
-            <p className="mt-1 break-words">{settings.last_error}</p>
-          </div>
-        )}
-      </div>
-    </Section>
-
-    <Section
-      title="Saúde do webhook"
-      description="Diagnóstico da empresa ativa, com contagem de falhas e eventos pendentes. O conteúdo das mensagens não é exibido aqui."
-      actions={
-        <AdminButton
-          variant="secondary"
-          onClick={() => void loadWebhookHealth()}
-          loading={webhookHealthLoading}
-          aria-label="Atualizar diagnóstico do webhook"
-        >
-          <RefreshCw size={15} /> Atualizar
-        </AdminButton>
-      }
-    >
-      <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-border bg-card px-4 py-3">
             <p className="text-[10px] font-bold text-muted-foreground">Último evento</p>
@@ -598,11 +568,11 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
           Hashes, status e histórico de conversas permanecem preservados.
         </p>
       </div>
-    </Section>
+    </Section>}
 
-    {canManage && activeOrganizationId && <SacDigitalMenuConfiguration organizationId={activeOrganizationId} token={settings?.webhook_token} />}
+    {section === "menus" && canManage && activeOrganizationId && <SacDigitalMenuConfiguration organizationId={activeOrganizationId} token={settings?.webhook_token} />}
 
-    <Section
+    {section === "operators" && <Section
       title="Operadores e funcionários"
       description="O gestor define qual operador da SAC Digital corresponde a cada usuário da Union."
       actions={
@@ -665,29 +635,12 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
                     </div>
                   </div>
 
-                  <select
-                    value={selectedOperatorId}
+                  <FSelect label="Operador SAC Digital" value={selectedOperatorId}
                     disabled={bindingSavingUserId === employee.user_id}
-                    onChange={event => void saveOperatorBinding(employee.user_id, event.target.value)}
-                    className="admin-input h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
-                    aria-label={`Operador SAC de ${employee.full_name}`}
-                  >
-                    <option value="">Não vinculado</option>
-                    {operatorData.operators.map(operator => {
-                      const usedBy = usedByOther.get(operator.id);
-                      return (
-                        <option
-                          key={operator.id}
-                          value={operator.id}
-                          disabled={Boolean(usedBy)}
-                        >
-                          {operator.name}
-                          {operator.online ? " — online" : ""}
-                          {usedBy ? ` — vinculado a ${usedBy}` : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
+                    onChange={(event: any) => void saveOperatorBinding(employee.user_id, event.target.value)}
+                    options={[{value:"",label:"Não vinculado"}, ...operatorData.operators
+                      .filter(operator=>!usedByOther.has(operator.id) || operator.id===selectedOperatorId)
+                      .map(operator=>({value:operator.id,label:operator.name+(operator.online?" — online":"")}))]} />
                 </div>
               );
             })}
@@ -698,13 +651,12 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
       <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
         O botão “Assumir” usa este vínculo. Um operador SAC só pode ficar associado a um funcionário da Union por empresa.
       </p>
-    </Section>
+    </Section>}
 
-    <AdminStickyToolbar>
-      <BtnSecondary onClick={onBack} disabled={saving}>Voltar</BtnSecondary>
+    {section === "integration" && <AdminStickyToolbar className="justify-end">
       <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">
         Salvar configuração
       </BtnPrimary>
-    </AdminStickyToolbar>
+    </AdminStickyToolbar>}
   </div>;
 }

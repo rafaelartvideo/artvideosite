@@ -1,6 +1,9 @@
 import { SacDigitalDeliveryHistory } from './SacDigitalDeliveryHistory';
 import { syncSacDigitalResources } from '../infrastructure/sac-digital.repository';
 import { SacDigitalResources } from './SacDigitalResources';
+import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
+import { FInput, FSelect } from '@/shared/ui/admin/AdminFormControls';
+import { SAC_MODULE_SECTIONS } from './sac-navigation';
 import { mediaMaximum, deliveryLabel } from '../domain/resource-ui.mjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
@@ -11,9 +14,7 @@ import {
   MessageCircle,
   Paperclip,
   X,
-  Search,
   Send,
-  Settings,
   UserRound,
   Volume2,
 } from "lucide-react";
@@ -304,7 +305,7 @@ export function SacDigitalToolPage({
     const interval = window.setInterval(() => void reconcile(), 120_000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [activeOrganizationId, canViewMessages]);
-  const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [moduleSection, setModuleSection] = useState('conversations');
   const [loading, setLoading] = useState(true);
   const [inboxLoading, setInboxLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -701,7 +702,7 @@ export function SacDigitalToolPage({
       if (container) container.scrollTop = container.scrollHeight;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [messages.length, selectedProtocolId]);
+  }, [messages.length, selectedProtocolId, moduleSection]);
 
   useEffect(() => {
     if (!activeOrganizationId || !canViewMessages) return;
@@ -1189,11 +1190,9 @@ export function SacDigitalToolPage({
               Nova conversa
             </AdminButton>
           )}
-          <BtnSecondary onClick={() => setResourcesOpen(value => !value)}>{resourcesOpen ? "Fechar recursos" : "Recursos SAC"}</BtnSecondary>
           <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
           {canManage && onOpenSettings && (
             <AdminButton variant="secondary" onClick={onOpenSettings}>
-              <Settings size={15} />
               Configurações
             </AdminButton>
           )}
@@ -1201,7 +1200,9 @@ export function SacDigitalToolPage({
       }
     />
 
-    {resourcesOpen && <><SacDigitalResources organizationId={activeOrganizationId} hasPermission={hasPermission} protocol={selectedProtocol?.external_protocol_id} onInsertAnswer={text => { setDraft(text); setResourcesOpen(false); }} /><SacDigitalDeliveryHistory organizationId={activeOrganizationId} /></>}
+    <AdminSubnav value={moduleSection} items={SAC_MODULE_SECTIONS} onSelect={setModuleSection} ariaLabel="Seções do SAC Digital" />
+    {moduleSection === 'resources' && <SacDigitalResources organizationId={activeOrganizationId} hasPermission={hasPermission} protocol={selectedProtocol?.external_protocol_id} onOpenSettings={onOpenSettings} onInsertAnswer={text => { setDraft(text); setModuleSection('conversations'); }} />}
+    {(moduleSection === 'delivery_history' || moduleSection === 'sms_replies') && <SacDigitalDeliveryHistory key={moduleSection} organizationId={activeOrganizationId} kind={moduleSection} />}
 
     {message && (
       <div className={`rounded-lg border px-3 py-2 text-sm font-semibold ${message.error
@@ -1236,7 +1237,7 @@ export function SacDigitalToolPage({
       </div>
     )}
 
-    <div className="h-[680px] overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+    {moduleSection === "conversations" && <div className="h-[680px] overflow-hidden rounded-none border border-border bg-card shadow-sm">
       {!canViewMessages ? (
         <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
           Sua função não possui permissão para visualizar conversas do SAC Digital.
@@ -1254,7 +1255,7 @@ export function SacDigitalToolPage({
           </p>
         </div>
       ) : (
-        <div className="grid h-full min-h-0 grid-rows-[230px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
+        <div className="grid h-full min-h-0 grid-rows-[280px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
           <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
             <div className="border-b border-border bg-muted/35 p-3">
               <div className="min-w-0">
@@ -1263,46 +1264,16 @@ export function SacDigitalToolPage({
                   {protocols.length} conversa(s) · {unreadConversationCount > 0 ? `${unreadConversationCount} não lida(s)` : "tempo real"}
                 </p>
               </div>
-              <div className="relative mt-3">
-                <Search
-                  size={15}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                />
-                <input
-                  value={conversationSearch}
-                  onChange={event => setConversationSearch(event.target.value)}
-                  placeholder="Buscar conversa"
-                  className="admin-input h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <select
-                  value={statusFilter}
-                  onChange={event => setStatusFilter(event.target.value)}
-                  className="admin-input h-9 min-w-0 rounded-lg border border-border bg-card px-2 text-xs text-foreground"
-                  aria-label="Filtrar por situação"
-                >
-                  <option value="all">Todas</option>
-                  <option value="unread">Não lidas</option>
-                  <option value="unattended">Não atendidos</option>
-                  <option value="open">Abertas</option>
-                  <option value="in_att">Em atendimento</option>
-                  <option value="inbox">Caixa de entrada</option>
-                  <option value="pending">Aguardando protocolo</option>
-                  <option value="finished">Finalizadas</option>
-                </select>
-                <select
-                  value={operatorFilter}
-                  onChange={event => setOperatorFilter(event.target.value)}
-                  className="admin-input h-9 min-w-0 rounded-lg border border-border bg-card px-2 text-xs text-foreground"
-                  aria-label="Filtrar por atendente"
-                >
-                  <option value="all">Todos atendentes</option>
-                  <option value="unassigned">Sem atendente</option>
-                  {operatorFilterOptions.map(name => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
+              <div className="mt-3"><FInput label="Buscar conversa" aria-label="Buscar conversa" value={conversationSearch} onChange={(event: any) => setConversationSearch(event.target.value)} placeholder="Nome, telefone ou protocolo" /></div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <FSelect label="Situação" value={statusFilter} onChange={(event: any) => setStatusFilter(event.target.value)} options={[
+                  {value:'all',label:'Todas'}, {value:'unread',label:'Não lidas'}, {value:'unattended',label:'Não atendidos'},
+                  {value:'open',label:'Abertas'}, {value:'in_att',label:'Em atendimento'}, {value:'inbox',label:'Caixa de entrada'},
+                  {value:'pending',label:'Aguardando protocolo'}, {value:'finished',label:'Finalizadas'},
+                ]} />
+                <FSelect label="Atendente" value={operatorFilter} onChange={(event: any) => setOperatorFilter(event.target.value)} options={[
+                  {value:'all',label:'Todos'}, {value:'unassigned',label:'Sem atendente'}, ...operatorFilterOptions.map(name=>({value:name,label:name})),
+                ]} />
               </div>
             </div>
 
@@ -1545,18 +1516,13 @@ export function SacDigitalToolPage({
                     </div>
 
                     <form
-                      className="mt-3 flex min-w-0 gap-2"
+                      className="mt-3 flex min-w-0 flex-wrap items-end gap-2"
                       onSubmit={event => {
                         event.preventDefault();
                         void searchCustomerCandidates();
                       }}
                     >
-                      <input
-                        value={customerSearch}
-                        onChange={event => setCustomerSearch(event.target.value)}
-                        placeholder="Nome, CPF ou CNPJ"
-                        className="admin-input h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      />
+                      <div className="min-w-0 flex-1"><FInput label="Buscar cliente" aria-label="Buscar cliente" value={customerSearch} onChange={(event: any) => setCustomerSearch(event.target.value)} placeholder="Nome, CPF ou CNPJ" /></div>
                       <AdminButton
                         type="submit"
                         loading={customerSearchLoading}
@@ -1706,32 +1672,12 @@ export function SacDigitalToolPage({
                 {routingOpen && canManageProtocols && (
                   <div className="border-b border-border bg-muted/30 px-4 py-3">
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <select
-                        value={departmentId}
-                        onChange={event => setDepartmentId(event.target.value)}
+                      <FSelect label="Departamento" value={departmentId} onChange={(event: any) => setDepartmentId(event.target.value)}
                         disabled={protocolAction === "routing" || protocolAction === "forward"}
-                        className="admin-input h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
-                      >
-                        <option value="">Departamento (opcional)</option>
-                        {(routingOptions?.departments || [])
-                          .filter(item => item.active)
-                          .map(item => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
-                          ))}
-                      </select>
-                      <select
-                        value={operatorId}
-                        onChange={event => setOperatorId(event.target.value)}
+                        options={[{value:'',label:'Selecionar (opcional)'}, ...(routingOptions?.departments || []).filter(item=>item.active).map(item=>({value:item.id,label:item.name}))]} />
+                      <FSelect label="Operador" value={operatorId} onChange={(event: any) => setOperatorId(event.target.value)}
                         disabled={protocolAction === "routing" || protocolAction === "forward"}
-                        className="admin-input h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
-                      >
-                        <option value="">Operador (opcional)</option>
-                        {(routingOptions?.operators || []).map(item => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}{item.online ? " — online" : ""}
-                          </option>
-                        ))}
-                      </select>
+                        options={[{value:'',label:'Selecionar (opcional)'}, ...(routingOptions?.operators || []).map(item=>({value:item.id,label:item.name+(item.online?' — online':'')}))]} />
                     </div>
                     <div className="mt-2 flex justify-end gap-2">
                       <AdminButton
@@ -1761,7 +1707,7 @@ export function SacDigitalToolPage({
                     <p className="text-xs font-semibold">
                       Finalizar este atendimento na SAC Digital? Esta ação encerra o protocolo.
                     </p>
-                    <label className="text-xs font-semibold">Avaliação do atendimento<select aria-label="Avaliação do atendimento" className="admin-input ml-2 rounded border border-border p-2" value={finishVote} onChange={event => setFinishVote(event.target.value)}><option value="">Selecionar avaliação</option>{[0,1,2,3,4,5].map(vote => <option key={vote} value={vote}>{vote}</option>)}</select></label>
+                    <div className="w-full sm:w-60"><FSelect label="Avaliação do atendimento" value={finishVote} disabled={protocolAction === "finish"} onChange={(event: any) => setFinishVote(event.target.value)} options={[{value:"",label:"Selecionar avaliação"}, ...[0,1,2,3,4,5].map(vote=>({value:String(vote),label:String(vote)}))]} /></div>
                     <div className="flex gap-2">
                       <AdminButton
                         variant="secondary"
@@ -1974,6 +1920,7 @@ export function SacDigitalToolPage({
                           <Paperclip size={17} />
                         </AdminButton>
                         <textarea
+                          aria-label={attachment ? "Legenda do anexo" : "Mensagem"}
                           rows={1}
                           value={draft}
                           disabled={sending || !status?.enabled}
@@ -2014,7 +1961,7 @@ export function SacDigitalToolPage({
           </main>
         </div>
       )}
-    </div>
+    </div>}
 
     {quickCustomerOpen && selectedProtocol?.contact && (
       <QuickCustomerModal

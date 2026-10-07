@@ -1,7 +1,8 @@
 import { resultItems, usableChannels, cloudChannel, approvedTemplates } from '../domain/resource-ui.mjs';
+import { FInput, FSelect, FTextarea } from '@/shared/ui/admin/AdminFormControls';
 import { StructuredEditor } from './SacDigitalResources';
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, MessageCircle, Search, XCircle } from "lucide-react";
+import { CheckCircle2, MessageCircle, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
@@ -298,36 +299,19 @@ export function SacDigitalNewConversationDialog({
         {!prepared?.prepared ? (
           <>
             <form
-              className="flex min-w-0 flex-col gap-2 sm:flex-row"
+              className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end"
               onSubmit={event => {
                 event.preventDefault();
                 void search();
               }}
             >
-              <div className="relative min-w-0 flex-1">
-                <Search
-                  size={15}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                />
-                <input
-                  value={query}
-                  onChange={event => {
-                    // Descarta respostas de buscas/importações para o número anterior.
-                    searchRequestRef.current += 1;
-                    prepareRequestRef.current += 1;
-                    setQuery(event.target.value);
-                    setManualName("");
-                    setPrepared(null);
-                    setContacts([]);
-                    setCustomers([]);
-                    setSearching(false);
-                    setPreparingKey(null);
-                    setError("");
-                  }}
-                  placeholder="Nome ou número com DDD"
-                  className="admin-input h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  autoFocus
-                />
+              <div className="min-w-0 flex-1">
+                <FInput label="Buscar contato" aria-label="Buscar contato" value={query} placeholder="Nome ou número com DDD"
+                  onChange={(event: any) => {
+                    searchRequestRef.current += 1; prepareRequestRef.current += 1;
+                    setQuery(event.target.value); setManualName(""); setPrepared(null); setContacts([]); setCustomers([]);
+                    setSearching(false); setPreparingKey(null); setError("");
+                  }} />
               </div>
               <AdminButton
                 type="submit"
@@ -389,15 +373,7 @@ export function SacDigitalNewConversationDialog({
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-black text-foreground">Número novo — iniciar conversa</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{formatPhone(query)}</p>
-                    <label className="mt-3 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Nome do contato
-                    </label>
-                    <input
-                      value={manualName}
-                      onChange={event => setManualName(event.target.value)}
-                      placeholder="Opcional"
-                      className="admin-input mt-1 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    />
+                    <div className="mt-3"><FInput label="Nome do contato" aria-label="Nome do contato" value={manualName} onChange={(event: any) => setManualName(event.target.value)} placeholder="Opcional" /></div>
                   </div>
                   <AdminButton
                     onClick={() => void prepare()}
@@ -441,24 +417,36 @@ export function SacDigitalNewConversationDialog({
 
             {canCompose ? (
               <div>
-                <div className="mb-3 space-y-2"><label className="block text-sm">Canal de atendimento<select value={channel} disabled={channelLoading} onChange={e=>setChannel(e.target.value)} className="admin-input w-full rounded border border-border p-2"><option value="">{channelLoading?'Carregando canais…':'Selecione um canal ativo'}</option>{channels.map(item=><option key={item.id} value={item.id}>{item.name||item.title||'Canal'}{item.number?` · ${formatPhone(String(item.number))}`:''}{item.primary===true?' · Principal':item.primary===false?' · Secundário':''}{cloudChannel(item)?' · WhatsApp Cloud':''}</option>)}</select></label>{channelError&&<p role="alert" className="text-xs text-red-600">{channelError}</p>}<label className="block text-sm">Tipo de mensagem<select value={messageType} disabled={cloud} onChange={e=>setMessageType(e.target.value)} className="admin-input w-full rounded border border-border p-2"><option value="text">Texto</option><option value="template">Template aprovado</option></select></label>{cloud&&<p className="text-xs text-muted-foreground">Este canal WhatsApp Cloud exige template aprovado para iniciar a conversa.</p>}{messageType==='template'&&<><label className="block text-sm">Template aprovado<select value={template} disabled={templateLoading||!channel} onChange={e=>setTemplate(e.target.value)} className="admin-input w-full rounded border border-border p-2"><option value="">{templateLoading?'Carregando templates…':'Selecione um template aprovado'}</option>{templates.map(item=><option key={item.id??item.name} value={item.id??item.name}>{item.name||item.title||'Template aprovado'}{item.language?` · ${typeof item.language==='object'?item.language.code:item.language}`:''}</option>)}</select></label>{templateError&&<p role="alert" className="text-xs text-red-600">{templateError}</p>}{currentTemplate&&<div className="rounded bg-muted p-3 text-sm"><p className="font-semibold">Prévia do template</p>{Array.isArray(currentTemplate.components)?currentTemplate.components.map((component:any,index:number)=><p key={index}><strong>{({HEADER:'Cabeçalho',BODY:'Corpo',FOOTER:'Rodapé',BUTTONS:'Botões'} as Record<string,string>)[component.type]||'Conteúdo'}: </strong>{component.text||component.buttons?.map((button:any)=>button.text).filter(Boolean).join(' · ')||'Conteúdo de mídia'}</p>):<p>{currentTemplate.text||currentTemplate.body||currentTemplate.content||'A prévia textual não foi fornecida pela SAC para este template.'}</p>}</div>}<StructuredEditor field={{name:'variables',label:'Variáveis',type:'variables'}} value={variables} onChange={setVariables}/></>}</div>
+                <div className="mb-4 space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FSelect label="Canal de atendimento" value={channel} disabled={channelLoading || sending}
+                      onChange={(e: any) => setChannel(e.target.value)}
+                      options={[{value:"",label:channelLoading?"Carregando canais…":"Selecione um canal ativo"}, ...channels.map(item=>({value:String(item.id),label:(item.name||item.title||"Canal")+(item.number?" · "+formatPhone(String(item.number)):"")+(item.primary===true?" · Principal":item.primary===false?" · Secundário":"")+(cloudChannel(item)?" · WhatsApp Cloud":"")}))]} />
+                    <FSelect label="Tipo de mensagem" value={messageType} disabled={cloud || sending}
+                      onChange={(e: any) => setMessageType(e.target.value)}
+                      options={[{value:"text",label:"Texto"},{value:"template",label:"Template aprovado"}]} />
+                  </div>
+                  {channelError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{channelError}</p>}
+                  {cloud && <p className="text-xs text-muted-foreground">Este canal WhatsApp Cloud exige template aprovado para iniciar a conversa.</p>}
+                  {messageType === "template" && <>
+                    <FSelect label="Template aprovado" value={template} disabled={templateLoading || !channel || sending}
+                      onChange={(e: any) => setTemplate(e.target.value)}
+                      options={[{value:"",label:templateLoading?"Carregando templates…":"Selecione um template aprovado"}, ...templates.map(item=>({value:String(item.id??item.name),label:(item.name||item.title||"Template aprovado")+(item.language?" · "+(typeof item.language==="object"?item.language.code:item.language):"")}))]} />
+                    {templateError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{templateError}</p>}
+                    {currentTemplate && <div className="space-y-2 border-l-2 border-primary bg-muted/30 p-3 text-sm">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Prévia do template</p>
+                      {Array.isArray(currentTemplate.components)?currentTemplate.components.map((component:any,index:number)=><p key={index}><strong>{({HEADER:"Cabeçalho",BODY:"Corpo",FOOTER:"Rodapé",BUTTONS:"Botões"} as Record<string,string>)[component.type]||"Conteúdo"}: </strong>{component.text||component.buttons?.map((button:any)=>button.text).filter(Boolean).join(" · ")||"Conteúdo de mídia"}</p>):<p>{currentTemplate.text||currentTemplate.body||currentTemplate.content||"A prévia textual não foi fornecida pela SAC para este template."}</p>}
+                    </div>}
+                    <div><p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Variáveis do template</p><fieldset disabled={sending}><StructuredEditor field={{name:"variables",label:"Variáveis",type:"variables"}} value={variables} onChange={setVariables} /></fieldset></div>
+                  </>}
+                </div>
                 <p className="mb-3 text-[11px] text-muted-foreground">
                   {prepared.whatsapp_available
                     ? "O contato está associado a um canal SAC, mas o envio ainda depende da validação do WhatsApp pela SAC Digital."
                     : "O contato foi preparado, mas o canal ainda não está confirmado. Você pode tentar iniciar a conversa; se houver restrição, a SAC Digital informará o motivo."}
                 </p>
-                {messageType === "text" && <><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Primeira mensagem
-                </label>
-                <textarea
-                  rows={6}
-                  maxLength={5000}
-                  value={draft}
-                  onChange={event => setDraft(event.target.value)}
-                  placeholder="Digite a primeira mensagem"
-                  className="admin-input min-h-32 w-full resize-y rounded-lg border border-border bg-card px-3 py-2.5 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <p className="mt-1 text-right text-[9px] text-muted-foreground">{draft.length}/5000</p></>}
+                {messageType === "text" && <><FTextarea label="Primeira mensagem" aria-label="Primeira mensagem" rows={6} maxLength={5000} disabled={sending} value={draft} onChange={(event: any) => setDraft(event.target.value)} placeholder="Digite a primeira mensagem" />
+                <p className="mt-1 text-right text-[10px] text-muted-foreground">{draft.length}/5000</p></>}
               </div>
             ) : (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { FSelect, FTextarea } from '@/shared/ui/admin/AdminFormControls';
 import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
   listSacDigitalProtocols,
@@ -168,35 +169,13 @@ export function OrderSacDigitalDialog({
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-            Tipo de mensagem
-          </label>
-          <select
-            value={purpose}
-            disabled={sending}
-            onChange={event => {
-              const next = event.target.value as "initial" | "estimate" | "completion";
-              setPurpose(next);
-              setText(orderMessageFor(order, next));
+          <div className="mb-4"><FSelect label="Tipo de mensagem" value={purpose} disabled={sending}
+            onChange={(event: any) => {
+              const next=event.target.value as "initial" | "estimate" | "completion";
+              setPurpose(next); setText(orderMessageFor(order,next));
             }}
-            className="admin-input mb-3 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
-          >
-            <option value="initial">Contato sobre a OS</option>
-            <option value="estimate">Mensagem sobre orçamento</option>
-            <option value="completion">Confirmação / conclusão</option>
-          </select>
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-            Mensagem
-          </label>
-          <textarea
-            rows={6}
-            maxLength={5000}
-            value={text}
-            disabled={sending}
-            onChange={event => setText(event.target.value)}
-            placeholder="Digite a mensagem para o cliente"
-            className="admin-input min-h-32 w-full resize-y rounded-lg border border-border bg-card px-3 py-2.5 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
+            options={[{value:"initial",label:"Contato sobre a OS"},{value:"estimate",label:"Mensagem sobre orçamento"},{value:"completion",label:"Confirmação / conclusão"}]} /></div>
+          <FTextarea label="Mensagem" aria-label="Mensagem" rows={6} maxLength={5000} value={text} disabled={sending} onChange={(event: any) => setText(event.target.value)} placeholder="Digite a mensagem para o cliente" />
           <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
             <span>Revise o texto antes de enviar. A legenda é opcional ao anexar um documento.</span>
             <span className="shrink-0">{text.length}/5000</span>

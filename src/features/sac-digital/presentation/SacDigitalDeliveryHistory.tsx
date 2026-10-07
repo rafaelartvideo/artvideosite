@@ -1,12 +1,67 @@
-import {useEffect,useState} from 'react';
-import {supabase} from '@/lib/supabase';
-import {BtnSecondary} from '@/shared/ui/admin/AdminLayout';
-import {deliveryLabel,friendlyEntries} from '../domain/resource-ui.mjs';
-import {operateSacDigitalResource} from '../infrastructure/sac-digital.repository';
-export function SacDigitalDeliveryHistory({organizationId}:{organizationId:string}) {
- const [kind,setKind]=useState<'delivery_history'|'sms_replies'>('delivery_history');const [page,setPage]=useState(1);
- const [rows,setRows]=useState<any[]>([]),[more,setMore]=useState(false),[error,setError]=useState('');const [checking,setChecking]=useState<string|null>(null);
- useEffect(()=>{let alive=true,inFlight=false;async function load(){if(inFlight||document.visibilityState!=='visible')return;inFlight=true;try{const {data,error}=await supabase.functions.invoke('sac-digital-api',{body:{action:kind,organization_id:organizationId,page}});if(error||!data?.success)throw Error(data?.error||'Não foi possível carregar o histórico.');if(alive){setRows(data.data.list);setMore(data.has_more);setError('');}}catch(e){if(alive)setError(e instanceof Error?e.message:'Não foi possível carregar o histórico.');}finally{inFlight=false;}}void load();const timer=window.setInterval(load,60000);return()=>{alive=false;clearInterval(timer);};},[organizationId,kind,page]);
- async function inspect(row:any){setChecking(row.id);try{const result=await operateSacDigitalResource(organizationId,41,{id:row.notification_id});const entries=friendlyEntries(result.data);setError(entries.map(([label,value]:any)=>`${label}: ${typeof value==='object'?'Disponível':String(value)}`).join(' · ')||'A SAC recebeu a consulta. A entrega só aparece quando confirmada.');}catch(e){setError(e instanceof Error?e.message:'Não foi possível consultar esta notificação.');}finally{setChecking(null);}}
- return <section aria-label="Histórico de envios" className="mt-4 space-y-3 rounded border border-border bg-card p-4"><div className="flex gap-2"><BtnSecondary onClick={()=>{setKind('delivery_history');setPage(1);}}>Histórico de envios</BtnSecondary><BtnSecondary onClick={()=>{setKind('sms_replies');setPage(1);}}>Respostas SMS</BtnSecondary></div><p className="text-sm text-muted-foreground">Cada tentativa permanece registrada. Aceite e fila não confirmam entrega.</p>{error&&<p role="status" className="text-sm">{error}</p>}{rows.length===0?<p className="text-sm">Nenhum registro nesta página.</p>:rows.map((row:any)=><article key={row.id||row.source_event_hash} className="rounded border border-border p-3 text-sm">{kind==='delivery_history'?<><p><strong>{deliveryLabel({delivery_status:row.state})}</strong> · {new Date(row.created_at).toLocaleString('pt-BR')}</p>{row.protocol&&<p>Protocolo: {row.protocol}</p>}{row.notification_id&&<><p>Notificação: {row.notification_id}</p><BtnSecondary disabled={checking===row.id} onClick={()=>void inspect(row)}>Consultar confirmação</BtnSecondary></>}{row.message_id&&<p>Mensagem: {row.message_id}</p>}{row.error_type&&<p>Falha: {row.error_type}</p>}</>:<><p>{new Date(row.received_at).toLocaleString('pt-BR')}</p>{friendlyEntries(row.payload).map(([label,value]:any)=><p key={label}>{label}: {typeof value==='object'?'Resposta recebida':String(value)}</p>)}</>}</article>)}<div className="flex items-center gap-3"><BtnSecondary disabled={page<=1} onClick={()=>setPage(p=>p-1)}>Anterior</BtnSecondary><span className="text-sm">Página {page}</span><BtnSecondary disabled={!more} onClick={()=>setPage(p=>p+1)}>Próxima</BtnSecondary></div></section>;
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from '@/shared/ui/admin/AdminLayout';
+import { LoadingState } from '@/shared/ui/admin/AdminFeedback';
+import { deliveryLabel, friendlyEntries } from '../domain/resource-ui.mjs';
+import { operateSacDigitalResource } from '../infrastructure/sac-digital.repository';
+import { SacResourceValue } from './SacDigitalResources';
+
+export function SacDigitalDeliveryHistory({ organizationId, kind = 'delivery_history' }: {
+  organizationId: string; kind?: 'delivery_history' | 'sms_replies';
+}) {
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<any[]>([]);
+  const [more, setMore] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState('');
+  const [checking, setChecking] = useState<string | null>(null);
+  const sms = kind === 'sms_replies';
+  const reply = (row: any) => row.payload?.data && typeof row.payload.data === 'object' ? row.payload.data : row.payload || {};
+  useEffect(() => {
+    let alive = true, inFlight = false;
+    setLoading(true); setRows([]); setNotice('');
+    async function load() {
+      if (inFlight || document.visibilityState !== 'visible') return;
+      inFlight = true;
+      try {
+        const { data, error } = await supabase.functions.invoke('sac-digital-api', { body: { action: kind, organization_id: organizationId, page } });
+        if (error || !data?.success) throw Error(data?.error || 'Não foi possível carregar o histórico.');
+        if (alive) { setRows(data.data.list); setMore(data.has_more); setError(''); }
+      } catch (e) { if (alive) setError(e instanceof Error ? e.message : 'Não foi possível carregar o histórico.'); }
+      finally { inFlight = false; if (alive) setLoading(false); }
+    }
+    void load(); const timer = window.setInterval(load, 60000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [organizationId, kind, page]);
+  async function inspect(row: any) {
+    setChecking(row.id); setNotice('');
+    try {
+      const result = await operateSacDigitalResource(organizationId, 41, { id: row.notification_id });
+      setNotice(friendlyEntries(result.data).map(([label, value]: any) => label + ': ' + (typeof value === 'object' ? 'Disponível' : String(value))).join(' · ') || 'Consulta recebida pela SAC. A entrega só aparece quando confirmada.');
+    } catch (e) { setNotice(e instanceof Error ? e.message : 'Não foi possível consultar esta notificação.'); }
+    finally { setChecking(null); }
+  }
+  return <section aria-label={sms ? 'Respostas SMS' : 'Histórico de envios'} className="admin-operation-mobile-labels space-y-4">
+    <AdminCard square>
+      <AdminCardHeader><div><h2 className="text-sm font-black">{sms ? 'Respostas SMS' : 'Histórico de envios'}</h2><p className="mt-1 text-xs text-muted-foreground">{sms ? 'Respostas recebidas pelo webhook da empresa.' : 'Cada tentativa permanece registrada. Aceite e fila não confirmam entrega.'}</p></div><span className="shrink-0 text-xs text-muted-foreground">{rows.length} nesta página</span></AdminCardHeader>
+      {error && <div role="alert" className="m-4 border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
+      {notice && <div role="status" className="m-4 border-l-2 border-primary bg-muted/30 p-3 text-sm">{notice}</div>}
+      {loading ? <AdminCardContent><LoadingState text="Carregando histórico..." /></AdminCardContent>
+        : rows.length === 0 ? <AdminCardContent><p className="py-8 text-center text-sm text-muted-foreground">Nenhum registro nesta página.</p></AdminCardContent>
+        : <div className="overflow-x-auto"><table><thead><tr><th className="text-left">Data e hora</th>{sms ? <><th className="text-left">Contato</th><th className="text-left">Mensagem</th></> : <><th className="text-left">Entrega</th><th className="text-left">Protocolo</th><th className="text-left">Referência</th><th className="text-right">Ações</th></>}</tr></thead>
+          <tbody>{rows.map(row => <tr key={row.id || row.source_event_hash}>
+            <td data-mobile-label="Data e hora" className="whitespace-nowrap align-top"><SacResourceValue value={sms ? row.received_at : row.created_at} compact /></td>
+            {sms ? <><td data-mobile-label="Contato" className="align-top"><SacResourceValue value={reply(row).contact || reply(row).name || reply(row).number || reply(row).phone} compact /></td><td className="min-w-48 max-w-lg align-top"><p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground md:hidden">Mensagem</p><SacResourceValue value={reply(row).text || reply(row).message || reply(row).content || reply(row).body} /></td></>
+              : <><td data-mobile-label="Entrega" className="align-top"><p className="font-bold">{deliveryLabel({ delivery_status: row.state })}</p>{row.error_type && <p className="mt-1 text-xs text-red-700 dark:text-red-300">{row.error_type}</p>}</td>
+                <td data-mobile-label="Protocolo" className="align-top">{row.protocol || '—'}</td><td data-mobile-label="Referência" className="align-top">{row.notification_id || row.message_id || 'Aguardando referência'}</td>
+                <td data-mobile-label="Ações" className="align-top text-right">{row.notification_id ? <AdminButton variant="secondary" size="sm" loading={checking === row.id} onClick={() => void inspect(row)}>Consultar confirmação</AdminButton> : <span className="text-xs text-muted-foreground">Sem confirmação disponível</span>}</td></>}
+          </tr>)}</tbody></table></div>}
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border bg-muted/35 px-4 py-3">
+        <AdminButton variant="secondary" size="sm" disabled={page <= 1 || loading} onClick={() => setPage(p => p - 1)}>Anterior</AdminButton>
+        <span className="text-xs font-bold">Página {page}</span>
+        <AdminButton variant="secondary" size="sm" disabled={!more || loading} onClick={() => setPage(p => p + 1)}>Próxima</AdminButton>
+      </div>
+    </AdminCard>
+  </section>;
 }
