@@ -2045,12 +2045,21 @@ Deno.serve(async request => {
           // A mensagem ainda pode ser enviada; webhook/refresh completa a projeção local.
         }
 
-        const sendResult = await apiRequest(
-          organizationId,
-          credentials,
-          "/protocol/send",
+        // "Nova conversa" é uma ação institucional da conta SAC da empresa,
+        // assim como o envio disparado pela OS. Não passar pelo dispatcher
+        // operacional: ele transforma /protocol/send em /operator/att/send
+        // quando o protocolo já está em atendimento e pode tentar responder
+        // como um Operador diferente do atendente atualmente atribuído.
+        const companySession = await login(organizationId, credentials);
+        const sendResult = await fetchJson(
+          `${SAC_API_BASE_URL}/protocol/send`,
           {
             method: "POST",
+            headers: {
+              Authorization: `Bearer ${companySession.token}`,
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify({
               protocol,
               type: "text",
