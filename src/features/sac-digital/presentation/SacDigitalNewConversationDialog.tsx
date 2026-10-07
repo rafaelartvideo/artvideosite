@@ -69,7 +69,6 @@ export function SacDigitalNewConversationDialog({
   const [customers, setCustomers] = useState<SacDigitalNewConversationCandidate[]>([]);
   const [prepared, setPrepared] = useState<SacDigitalPreparedContact | null>(null);
   const [draft, setDraft] = useState("");
-  const [direct, setDirect] = useState(false);
   const [channel, setChannel] = useState("");
   const [channels,setChannels] = useState<any[]>([]);
   const [templates,setTemplates] = useState<any[]>([]);
@@ -123,7 +122,6 @@ export function SacDigitalNewConversationDialog({
   const reset = () => {
     searchRequestRef.current += 1;
     prepareRequestRef.current += 1;
-    setDirect(false);
     setChannel("");
     setTemplate("");
     setVariables({});
@@ -171,12 +169,6 @@ export function SacDigitalNewConversationDialog({
   };
 
   const prepare = async (candidate?: SacDigitalNewConversationCandidate) => {
-    if (!candidate?.external_contact_id) {
-      setDirect(true);
-      setPrepared({ prepared: true, imported: false, whatsapp_available: false, contact: { external_contact_id: "direct", customer_id: candidate?.customer_id || null, name: candidate?.name || manualName.trim() || query.trim(), phone: normalizePhone(candidate?.phone || query), channel_id: null, blocked: false } });
-      setDraft("Olá!");
-      return;
-    }
     setDirect(false);
     const key = candidate ? candidateKey(candidate) : "manual";
     if (preparingKey) return;
@@ -229,12 +221,20 @@ export function SacDigitalNewConversationDialog({
     setSending(true);
     setError("");
     try {
-      const result = direct || messageType === "template" ? await operateSacDigitalResource(organizationId, direct ? 40 : 39, { ...(direct ? {number: contact.phone, name: contact.name} : {contact: contact.external_contact_id}), channel: channel.trim(), type: messageType, ...(messageType === "template" ? {template: template.trim(), variables} : {text: message}) }) as unknown as Awaited<ReturnType<typeof startSacDigitalNewConversation>> : await startSacDigitalNewConversation(
-        organizationId,
-        contact.external_contact_id,
-        message,
-        channel,
-      );
+      const result = messageType === "template"
+        ? await operateSacDigitalResource(organizationId, 39, {
+            contact: contact.external_contact_id,
+            channel: channel.trim(),
+            type: messageType,
+            template: template.trim(),
+            variables,
+          }) as unknown as Awaited<ReturnType<typeof startSacDigitalNewConversation>>
+        : await startSacDigitalNewConversation(
+            organizationId,
+            contact.external_contact_id,
+            message,
+            channel,
+          );
       // O envio já foi confirmado pela SAC. Uma falha no refresh da tela
       // nunca pode ser tratada como falha de envio, evitando duplicação.
       reset();
