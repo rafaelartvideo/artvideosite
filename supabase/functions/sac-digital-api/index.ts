@@ -2477,6 +2477,155 @@ Deno.serve(async request => {
         }
       }
 
+      // Envio da OS deve tentar iniciar/recuperar um protocolo real antes
+      // da notificação avulsa, pois apenas protocolos aparecem no inbox.
+      const findSacOpenProtocol = async (): Promise<string | null> => {
+        const lookup = await apiRequest(
+          organizationId,
+          credentials,
+          `/contact/info/protocols?p=1&id=${encodeURIComponent(externalContactId)}`,
+          { method: "GET" },
+        );
+        if (!lookup.response.ok || lookup.body.status === false) return null;
+        const rows = Array.isArray(lookup.body.list)
+          ? lookup.body.list.filter(row => row && typeof row === "object" && !Array.isArray(row)) as Record<string, unknown>[]
+          : [];
+        const active = rows.find(row => row.is_open === true || row.is_att === true);
+        const value = String(active?.protocol || "").trim();
+        return value && validProtocol(value) ? value : null;
+      };
+
+      let newProtocol: string | null = await findSacOpenProtocol();
+      if (!newProtocol && await requirePermission("sac_digital.protocols.manage")) {
+        const binding = await resolveMyOperatorBinding();
+        if (binding?.id) {
+          const forwarded = await apiRequest(
+            organizationId,
+            credentials,
+            "/contact/forward",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                id: externalContactId,
+                operator: binding.id,
+              }),
+            },
+          );
+          if (forwarded.response.ok && forwarded.body.status !== false && forwarded.body.success !== false) {
+            for (let attempt = 0; attempt < 4 && !newProtocol; attempt += 1) {
+              if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 400));
+              newProtocol = await findSacOpenProtocol();
+            }
+          }
+        }
+      }
+
+      if (newProtocol) {
+        try {
+          await enrichProtocol(organizationId, newProtocol);
+        } catch {
+          // Pode haver atraso até o protocolo ser projetado; reconciliar no webhook.
+        }
+
+        const outgoing = await apiRequest(
+          organizationId,
+          credentials,
+          "/protocol/send",
+          { method: "POST", body: JSON.stringify({ protocol: newProtocol, type: "text", text }) },
+        );
+        if (!outgoing.response.ok || outgoing.body.status === false || outgoing.body.success === false) {
+          return json({
+            success: false,
+            error: typeof outgoing.body.message === "string" && outgoing.body.message.trim()
+              ? `SAC Digital: ${outgoing.body.message.trim()}`
+              : "A SAC Digital não conseguiu enviar a mensagem pelo atendimento.",
+          }, 400);
+        }
+
+        const { data: protocolRow } = await admin
+          .from("sac_digital_protocols")
+          .select("id")
+          .eq("organization_id", organizationId)
+          .eq("external_protocol_id", newProtocol)
+          .maybeSingle();
+
+        if (protocolRow?.id) {
+          const sentAt = new Date().toISOString();
+          const externalCandidate = outgoing.body.id ?? outgoing.body.message_id ?? outgoing.body.request_id;
+          const externalMessageId = typeof externalCandidate === "string" || typeof externalCandidate === "number"
+            ? `sac:${String(externalCandidate)}`
+            : null;
+          const { data: profile } = await admin
+            .from("profiles")
+            .select("full_name")
+            .eq("id", userData.user.id)
+            .maybeSingle();
+
+          const payload = {
+            organization_id: organizationId,
+            protocol_id: protocolRow.id,
+            external_message_id: externalMessageId,
+            direction: "outgoing",
+            message_type: "text",
+            body_text: text,
+            sender_id: userData.user.id,
+            sender_name: profile?.full_name || null,
+            sent_at: sentAt,
+            raw_metadata: {
+              sent_via_union: true,
+              sent_from_service_order: orderId,
+              api_response: outgoing.body,
+            },
+          };
+          const { error: insertedError } = await admin.from("sac_digital_messages").insert(payload);
+          if (insertedError?.code === "23505") {
+            await admin.from("sac_digital_messages").insert({
+              ...payload,
+              external_message_id: null,
+              raw_metadata: {
+                ...payload.raw_metadata,
+                external_id_conflict: true,
+              },
+            });
+          }
+
+          await admin
+            .from("sac_digital_protocols")
+            .update({ last_message_at: sentAt, updated_at: sentAt })
+            .eq("id", protocolRow.id);
+        }
+
+        await writeSacAudit({
+          action: "sac_digital.order.send_message",
+          operation: "send",
+          entityType: "service_order",
+          entityId: orderId,
+          contextType: "service_order",
+          contextId: orderId,
+          metadata: {
+            transport: "protocol",
+            protocol: newProtocol,
+            message_length: text.length,
+          },
+        });
+
+        EdgeRuntime.waitUntil((async () => {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          try {
+            await enrichProtocol(organizationId, newProtocol);
+            await syncProtocolHistory(organizationId, newProtocol);
+          } catch {
+            // Webhook/Realtime concluirá o histórico caso o SAC ainda esteja processando.
+          }
+        })());
+
+        return json({
+          success: true,
+          mode: "protocol",
+          protocol: newProtocol,
+        });
+      }
+
       const notification = await apiRequest(
         organizationId,
         credentials,
