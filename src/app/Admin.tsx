@@ -146,16 +146,22 @@ export function AdminDashboard({
     if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
-    if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled(tab, hasModule);
+    if (tab === "integrations" && isPlatformOperatorOrganization) return hasPermission("sac_digital.settings.manage");
+    if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
+      && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
     if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "operation") return operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "tools") return hasPermission("tools.view") && (
-      ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule))
-      || (hasModule("sac_digital") && hasPermission("sac_digital.view"))
-      || (isArtVideoOrganization && hasPermission("tools.uniq.use"))
+      ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
+        && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)))
+      || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
+      || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
+      || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
+      || ((isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view"))
+      || ((isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view"))
     );
     return hasPermission(permissionForTab[tab]) && isAdminModuleEnabled(tab, hasModule);
   };
@@ -232,16 +238,17 @@ export function AdminDashboard({
   const canAccessQueueTool = (isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue"))
     && hasPermission("queue.view");
   const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
-  const canAccessSacDigitalTool = hasModule("sac_digital") && hasPermission("sac_digital.view");
+  const canAccessSacDigitalTool = (isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
-    ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled("fieldTracking", hasModule) ? [
+    ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
+      && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)) ? [
       { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
     ] : []),
     ...(canAccessSacDigitalTool ? [
       { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Atenda clientes e responda mensagens sem sair da Union.", href: null },
     ] : []),
-    ...(isArtVideoOrganization && hasPermission("tools.uniq.use") ? [
+    ...((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use") ? [
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
     ] : []),
     ...(canAccessQueueTool ? [

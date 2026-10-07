@@ -45,7 +45,8 @@ export function AdminSidebar({
     if (isPlatformOperatorOrganization && ["quotes", "inventory", "pdv"].includes(tab)) return false;
     if (tab === "partnerCompanies" && !isPlatformOperatorOrganization) return false;
     if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
-    if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share")) && isAdminModuleEnabled(tab, hasModule);
+    if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
+      && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "inventory") {
       return (hasPermission("inventory.view") || hasPermission("products.view"))
         && isAdminModuleEnabled(tab, hasModule);
@@ -66,9 +67,12 @@ export function AdminSidebar({
   const canAccessTools = hasPermission("tools.view")
     && (
       canAccessTab("fieldTracking")
-      || (hasModule("sac_digital") && hasPermission("sac_digital.view"))
-      || (isArtVideoOrganization && hasPermission("tools.uniq.use"))
+      || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
+      || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
+      || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
+      || ((isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view"))
+      || ((isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view"))
     );
   const canAccessPlatformSettings = isPlatformOperatorOrganization && canAccessTab("settings");
   const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));

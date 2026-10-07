@@ -11,6 +11,13 @@ const PLATFORM_SHARED_PREFIXES = [
   "roles.",
   "users.",
   "settings.",
+  "field_tracking.",
+  "tools.",
+  "queue.",
+  "pbx.",
+  "marketplace.",
+  "ai.",
+  "sac_digital.",
 ] as const;
 
 const SITE_MODULES = ["site_categories", "site_brands", "site_services", "site_settings"] as const;
