@@ -1686,7 +1686,9 @@ export function SacDigitalToolPage({
                     )}
                     {canManageProtocols && selectedOperationalStatus === "in_att" && !isMyProtocol && (
                       <span className="shrink-0 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-700 dark:text-sky-300">
-                        Acompanhando como Gestor · ações do atendimento pertencem ao Operador
+                        {operatorBinding?.linked && operatorBinding.operator
+                          ? `Atendimento de ${selectedProtocol.operator_name || "outro Operador"} · você está vinculado a ${operatorBinding.operator.name}`
+                          : "Supervisão · vincule um Operador SAC para atuar"}
                       </span>
                     )}
                   </div>
@@ -2078,7 +2080,9 @@ export function SacDigitalToolPage({
                     </p>
                   ) : selectedOperationalStatus === "in_att" && !isMyProtocol ? (
                     <p className="py-2 text-center text-xs font-semibold text-sky-700 dark:text-sky-300">
-                      Você está acompanhando este atendimento como Gestor. Para responder, encaminhar ou finalizar pela API operacional, use o Operador SAC responsável.
+                      {operatorBinding?.linked && operatorBinding.operator
+                        ? `Este atendimento está com ${selectedProtocol.operator_name || "outro Operador SAC"}. Seu usuário está vinculado a ${operatorBinding.operator.name}; somente o operador responsável pode responder, encaminhar ou finalizar enquanto o atendimento estiver atribuído a ele.`
+                        : "Este atendimento pertence a um Operador SAC. Vincule seu usuário a um Operador para atuar em atendimentos atribuídos a ele."}
                     </p>
                   ) : canSendMessages ? (
                     <div className="mx-auto max-w-4xl space-y-2">
