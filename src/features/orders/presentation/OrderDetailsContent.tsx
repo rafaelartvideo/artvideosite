@@ -33,6 +33,7 @@ export function OrderDetailsContent({
   hasPermission,
   orderImages,
   onViewImage,
+  onWhatsApp,
 }: {
   detail: any;
   formatDate: (value?: string | null, time?: boolean) => string;
@@ -45,6 +46,7 @@ export function OrderDetailsContent({
   hasPermission: (permission: string) => boolean;
   orderImages: OrderImage[];
   onViewImage: (image: OrderImage) => void;
+  onWhatsApp?: () => void;
 }) {
   const fmtDate = formatDate;
   const stateLabel = formatState;
@@ -97,17 +99,30 @@ export function OrderDetailsContent({
               </button>
             )}
             {whatsappContact.whatsapp ? (
-              <a
-                href={whatsappContact.whatsapp}
-                target="_blank"
-                rel="noreferrer"
-                data-phone-number={`+${whatsappContact.phone}`}
-                aria-label="Abrir WhatsApp do cliente"
-                className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
-                title="Abrir conversa no WhatsApp"
-              >
-                <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
-              </a>
+              onWhatsApp ? (
+                <button
+                  type="button"
+                  onClick={onWhatsApp}
+                  data-phone-number={`+${whatsappContact.phone}`}
+                  aria-label="Enviar WhatsApp pelo SAC Digital"
+                  className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
+                  title="Enviar mensagem pela SAC Digital"
+                >
+                  <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
+                </button>
+              ) : (
+                <a
+                  href={whatsappContact.whatsapp}
+                  target="_blank"
+                  rel="noreferrer"
+                  data-phone-number={`+${whatsappContact.phone}`}
+                  aria-label="Abrir WhatsApp do cliente"
+                  className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
+                  title="Abrir conversa no WhatsApp"
+                >
+                  <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
+                </a>
+              )
             ) : (
               <button type="button" disabled aria-label="WhatsApp não disponível" title="WhatsApp não disponível" className={`${contactActionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
                 <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
