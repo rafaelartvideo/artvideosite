@@ -89,6 +89,7 @@ export type SacDigitalProtocolListItem = {
   department_name: string | null;
   channel_number: string | null;
   opened_at: string | null;
+  created_at?: string | null;
   closed_at: string | null;
   last_message_at: string | null;
   is_pending?: boolean;
@@ -134,6 +135,7 @@ export async function listSacDigitalProtocols(organizationId: string) {
       department_name,
       channel_number,
       opened_at,
+      created_at,
       closed_at,
       last_message_at,
       contact:sac_digital_contacts(
@@ -193,9 +195,8 @@ export async function listSacDigitalProtocols(organizationId: string) {
     const sentAt = new Date(String(row.sent_at)).getTime();
     return !protocols.some(protocol =>
       protocol.contact?.id === row.contact_id
-      && Boolean(protocol.opened_at)
       && Number.isFinite(sentAt)
-      && new Date(String(protocol.opened_at)).getTime() >= sentAt - 30_000,
+      && new Date(String(protocol.opened_at || protocol.created_at || "")).getTime() >= sentAt - 30_000,
     );
   }).map((row: any): SacDigitalProtocolListItem => {
     const contact = normalizeRelation<any>(row.contact);
