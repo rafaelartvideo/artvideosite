@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
-import { sendSacDigitalOrderMessage } from "../infrastructure/sac-digital.repository";
+import {
+  listSacDigitalProtocols,
+  sendSacDigitalMediaMessage,
+  sendSacDigitalOrderMessage,
+} from "../infrastructure/sac-digital.repository";
 
 function orderCustomerName(order: any) {
   const customer = order?.customer || {};
@@ -53,37 +57,62 @@ export function OrderSacDigitalDialog({
   const [text, setText] = useState("");
   const [purpose, setPurpose] = useState<"initial" | "estimate" | "completion">("initial");
   const [sending, setSending] = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const sendInFlightRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setPurpose("initial");
     setText(initialOrderMessage(order));
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setError("");
   }, [open, order?.id]);
 
   const send = async () => {
     const message = text.trim();
-    if (!message || !order?.id || !order?.organization_id || sending) return;
-
+    if ((!message && !attachment) || !order?.id || !order?.organization_id || sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
     setSending(true);
     setError("");
     try {
-      const result = await sendSacDigitalOrderMessage(
-        order.organization_id,
-        order.id,
-        message,
-      );
-      notifyAdmin(
-        result.mode === "protocol"
-          ? "Mensagem enviada pelo atendimento SAC Digital. A conversa aparecerá na caixa de entrada após a sincronização."
-          : "Mensagem enviada como notificação avulsa. A SAC ainda não abriu um protocolo; a conversa poderá aparecer quando houver atendimento.",
-        "success",
-      );
+      if (attachment) {
+        const available = (await listSacDigitalProtocols(order.organization_id))
+          .filter(item => item.contact?.customer_id === order.customer_id
+            && !item.is_pending && item.status !== "finished" && !item.closed_at
+            && Boolean(item.external_protocol_id));
+        if (available.length !== 1) {
+          throw new Error(available.length === 0
+            ? "Ainda não existe um protocolo ativo para enviar o arquivo. Use Abrir conversa para iniciar o atendimento e anexe o documento no chat."
+            : "Este cliente possui mais de um atendimento ativo. Abra a conversa e escolha o protocolo correto antes de enviar o arquivo.");
+        }
+        await sendSacDigitalMediaMessage(
+          order.organization_id,
+          available[0].external_protocol_id,
+          attachment,
+          message,
+        );
+        notifyAdmin("Documento enviado pelo atendimento SAC Digital.", "success");
+      } else {
+        const result = await sendSacDigitalOrderMessage(
+          order.organization_id,
+          order.id,
+          message,
+        );
+        notifyAdmin(
+          result.mode === "protocol"
+            ? "Mensagem enviada pelo atendimento SAC Digital."
+            : "Mensagem inicial aceita pela SAC Digital. O atendimento será exibido como aguardando protocolo quando ainda não estiver aberto.",
+          "success",
+        );
+      }
       onClose();
     } catch (caught) {
-      setError(systemErrorMessage(caught, "Não foi possível enviar a mensagem pela SAC Digital."));
+      setError(systemErrorMessage(caught, "Não foi possível enviar pela SAC Digital."));
     } finally {
+      sendInFlightRef.current = false;
       setSending(false);
     }
   };
@@ -111,7 +140,7 @@ export function OrderSacDigitalDialog({
             onClick={() => void send()}
             loading={sending}
             loadingText="Enviando..."
-            disabled={!text.trim()}
+            disabled={(!text.trim() && !attachment) || sending}
           >
             <MessageCircle size={15} />
             Enviar
@@ -163,8 +192,57 @@ export function OrderSacDigitalDialog({
             className="admin-input min-h-32 w-full resize-y rounded-lg border border-border bg-card px-3 py-2.5 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-            <span>Revise o texto antes de enviar. Documentos e PDFs podem ser anexados na conversa.</span>
+            <span>Revise o texto antes de enviar. A legenda é opcional ao anexar um documento.</span>
             <span className="shrink-0">{text.length}/5000</span>
+          </div>
+
+          <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/25 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold text-foreground">Documento / PDF</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Envie um arquivo do seu dispositivo pelo protocolo ativo (até 25 MB; imagens até 1 MB).
+                </p>
+              </div>
+              <BtnSecondary onClick={() => fileInputRef.current?.click()} disabled={sending}>
+                Selecionar arquivo
+              </BtnSecondary>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.xlsx,.csv,.txt,image/*,audio/*,video/*"
+              className="hidden"
+              aria-label="Selecionar documento para enviar pelo SAC Digital"
+              onChange={event => {
+                const file = event.target.files?.[0] || null;
+                if (!file) return;
+                if (file.size > 25 * 1024 * 1024 || (file.type.startsWith("image/") && file.size > 1024 * 1024)) {
+                  setError(file.type.startsWith("image/")
+                    ? "Imagens devem ter no máximo 1 MB." : "O arquivo deve ter no máximo 25 MB.");
+                  event.target.value = "";
+                  return;
+                }
+                setError("");
+                setAttachment(file);
+              }}
+            />
+            {attachment && (
+              <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
+                <span className="min-w-0 truncate font-semibold text-foreground">{attachment.name}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttachment(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  disabled={sending}
+                  className="shrink-0 text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  Remover
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
