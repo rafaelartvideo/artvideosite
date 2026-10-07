@@ -217,6 +217,7 @@ export function SacDigitalToolPage({
   const [operatorFilter, setOperatorFilter] = useState("all");
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const [incomingAlert, setIncomingAlert] = useState<{ protocolId: string } | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const sendingRef = useRef(false);
@@ -263,6 +264,7 @@ export function SacDigitalToolPage({
 
       const matchesStatus = statusFilter === "all"
         || (statusFilter === "unread" && Number(unreadCounts[protocol.id] || 0) > 0)
+        || (statusFilter === "unattended" && ["open", "inbox"].includes(protocol.status) && !protocol.operator_id)
         || protocol.status === statusFilter;
 
       const matchesOperator = operatorFilter === "all"
@@ -513,6 +515,12 @@ export function SacDigitalToolPage({
         payload => {
           void loadProtocols(false);
           const changedProtocolId = String((payload.new as any)?.protocol_id || (payload.old as any)?.protocol_id || "");
+          const newMessage = payload.new as any;
+          if (payload.eventType === "INSERT" && newMessage?.direction === "incoming"
+            && !newMessage?.raw_metadata?.history_synced
+            && changedProtocolId && changedProtocolId !== selectedProtocolId) {
+            setIncomingAlert({ protocolId: changedProtocolId });
+          }
           if (selectedProtocolId && (!changedProtocolId || changedProtocolId === selectedProtocolId)) {
             void (async () => {
               await loadMessages(selectedProtocolId, false);
@@ -969,6 +977,25 @@ export function SacDigitalToolPage({
       </div>
     )}
 
+    {incomingAlert && (
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/25 bg-primary-soft px-3 py-2 text-sm text-foreground">
+        <span className="font-semibold">Nova mensagem recebida no SAC Digital.</span>
+        <div className="flex items-center gap-2">
+          <AdminButton size="sm" onClick={() => {
+            setSelectedProtocolId(incomingAlert.protocolId);
+            setConversationSearch("");
+            setStatusFilter("all");
+            setOperatorFilter("all");
+            setIncomingAlert(null);
+          }}>Abrir conversa</AdminButton>
+          <button type="button" onClick={() => setIncomingAlert(null)}
+            className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Dispensar aviso">
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+    )}
+
     {!status?.enabled && (
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
         A integração SAC Digital está desativada. As conversas salvas continuam visíveis, mas novos envios ficam bloqueados.
@@ -1023,6 +1050,7 @@ export function SacDigitalToolPage({
                 >
                   <option value="all">Todas</option>
                   <option value="unread">Não lidas</option>
+                  <option value="unattended">Não atendidos</option>
                   <option value="open">Abertas</option>
                   <option value="in_att">Em atendimento</option>
                   <option value="inbox">Caixa de entrada</option>
@@ -1058,7 +1086,8 @@ export function SacDigitalToolPage({
                   onClick={() => setSelectedProtocolId(protocol.id)}
                   className={`flex w-full items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected
                     ? "bg-primary-soft"
-                    : "bg-card hover:bg-muted/55"}`}
+                    : unread > 0 ? "border-l-2 border-l-primary bg-primary-soft/45 hover:bg-primary-soft/65"
+                      : "bg-card hover:bg-muted/55"}`}
                 >
                   <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black ${selected
                     ? "bg-primary text-primary-foreground"
