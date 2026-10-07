@@ -1076,6 +1076,7 @@ export function SacDigitalToolPage({
         activeOrganizationId,
         selectedProtocol.external_protocol_id,
       );
+      await refreshSacDigitalProtocol(activeOrganizationId, selectedProtocol.external_protocol_id);
       const operator = result.operator && typeof result.operator === "object"
         ? result.operator as { id: string; name: string }
         : null;
