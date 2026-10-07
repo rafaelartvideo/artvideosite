@@ -7,9 +7,13 @@ import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FSelect, FTextarea } from '@/shared/ui/admin/AdminFormControls';
 import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
+  DEFAULT_SAC_ORDER_MESSAGE_PRESETS,
+  listSacDigitalOrderMessagePresets,
   listSacDigitalProtocols,
   sendSacDigitalMediaMessage,
   sendSacDigitalOrderMessage,
+  type SacDigitalOrderMessagePreset,
+  type SacDigitalOrderMessagePresetKey,
 } from "../infrastructure/sac-digital.repository";
 
 function orderCustomerName(order: any) {
@@ -22,29 +26,25 @@ function orderCustomerName(order: any) {
   ).trim();
 }
 
-function initialOrderMessage(order: any) {
-  const name = orderCustomerName(order);
-  const firstName = name.split(/\s+/).filter(Boolean)[0] || "";
-  const os = String(order?.os_number || order?.external_os_number || "").trim();
-  const greeting = firstName ? `Olá, ${firstName}!` : "Olá!";
-  return os
-    ? `${greeting} Estamos entrando em contato sobre a OS ${os}.`
-    : `${greeting} Estamos entrando em contato sobre seu atendimento.`;
+function renderOrderMessage(template: string, order: any) {
+  const fullName = orderCustomerName(order);
+  const firstName = fullName.split(/\s+/).filter(Boolean)[0] || "cliente";
+  const os = String(order?.os_number || order?.external_os_number || "").trim() || "—";
+  return String(template || "")
+    .replaceAll("{primeiro_nome}", firstName)
+    .replaceAll("{nome_cliente}", fullName || firstName)
+    .replaceAll("{os}", os);
 }
 
-function orderMessageFor(order: any, purpose: "initial" | "estimate" | "completion") {
-  if (purpose === "initial") return initialOrderMessage(order);
-  const name = orderCustomerName(order).split(/\s+/).filter(Boolean)[0] || "";
-  const greeting = name ? `Olá, ${name}!` : "Olá!";
-  const os = String(order?.os_number || order?.external_os_number || "").trim();
-  const reference = os ? `a OS ${os}` : "seu atendimento";
-  if (purpose === "estimate") {
-    const budgetReference = os ? `da OS ${os}` : "do seu atendimento";
-    return `${greeting} Gostaríamos de falar com você sobre o orçamento ${budgetReference}. Podemos esclarecer os valores e as próximas etapas por aqui.`;
-  }
-  return order?.completed_at
-    ? `${greeting} Informamos que ${reference} foi ${os ? "concluída" : "concluído"}. Podemos combinar os próximos passos por aqui.`
-    : `${greeting} Temos uma atualização sobre ${reference} e gostaríamos de confirmar os próximos passos com você.`;
+function presetMessage(
+  presets: SacDigitalOrderMessagePreset[],
+  key: SacDigitalOrderMessagePresetKey,
+  order: any,
+) {
+  const preset = presets.find(item => item.preset_key === key)
+    || DEFAULT_SAC_ORDER_MESSAGE_PRESETS.find(item => item.preset_key === key)
+    || DEFAULT_SAC_ORDER_MESSAGE_PRESETS[0];
+  return renderOrderMessage(preset.message_template, order);
 }
 
 export function OrderSacDigitalDialog({
@@ -63,7 +63,8 @@ export function OrderSacDigitalDialog({
   onBuildDocument?: (templateId: string) => Promise<File>;
 }) {
   const [text, setText] = useState("");
-  const [purpose, setPurpose] = useState<"initial" | "estimate" | "completion">("initial");
+  const [purpose, setPurpose] = useState<SacDigitalOrderMessagePresetKey>("initial");
+  const [messagePresets, setMessagePresets] = useState<SacDigitalOrderMessagePreset[]>(DEFAULT_SAC_ORDER_MESSAGE_PRESETS);
   const [sending, setSending] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [documentTemplateId, setDocumentTemplateId] = useState("");
@@ -73,13 +74,35 @@ export function OrderSacDigitalDialog({
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
     setPurpose("initial");
-    setText(initialOrderMessage(order));
+    setMessagePresets(DEFAULT_SAC_ORDER_MESSAGE_PRESETS);
+    setText(presetMessage(DEFAULT_SAC_ORDER_MESSAGE_PRESETS, "initial", order));
     setAttachment(null);
     setDocumentTemplateId("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setError("");
-  }, [open, order?.id]);
+
+    if (order?.organization_id) {
+      void listSacDigitalOrderMessagePresets(order.organization_id)
+        .then(presets => {
+          if (cancelled) return;
+          const active = presets.filter(item => item.is_active);
+          const next = active.length ? presets : DEFAULT_SAC_ORDER_MESSAGE_PRESETS;
+          const first = next.find(item => item.is_active) || next[0];
+          setMessagePresets(next);
+          if (first) {
+            setPurpose(first.preset_key);
+            setText(renderOrderMessage(first.message_template, order));
+          }
+        })
+        .catch(() => {
+          // Os modelos padrão permanecem disponíveis se a configuração não puder ser lida.
+        });
+    }
+
+    return () => { cancelled = true; };
+  }, [open, order?.id, order?.organization_id]);
 
   const send = async () => {
     const message = text.trim();
@@ -187,10 +210,14 @@ export function OrderSacDigitalDialog({
         <div>
           <div className="mb-4"><FSelect label="Tipo de mensagem" value={purpose} disabled={sending}
             onChange={(event: any) => {
-              const next=event.target.value as "initial" | "estimate" | "completion";
-              setPurpose(next); setText(orderMessageFor(order,next));
+              const next = event.target.value as SacDigitalOrderMessagePresetKey;
+              const preset = messagePresets.find(item => item.preset_key === next);
+              setPurpose(next);
+              if (preset) setText(renderOrderMessage(preset.message_template, order));
             }}
-            options={[{value:"initial",label:"Contato sobre a OS"},{value:"estimate",label:"Mensagem sobre orçamento"},{value:"completion",label:"Confirmação / conclusão"}]} /></div>
+            options={messagePresets
+              .filter(item => item.is_active)
+              .map(item => ({ value: item.preset_key, label: item.label }))} /></div>
           <FTextarea label="Mensagem" aria-label="Mensagem" rows={6} maxLength={5000} value={text} disabled={sending} onChange={(event: any) => setText(event.target.value)} placeholder="Digite a mensagem para o cliente" />
           <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
             <span>Revise o texto antes de enviar. A legenda é opcional ao anexar um documento.</span>
