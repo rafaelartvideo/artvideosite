@@ -1,6 +1,6 @@
 import { actionEnabled } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
 import { singleFlight } from '../domain/refresh-coordinator.mjs';
-import { mediaMaximum, apiDiagnostic, IntentLedger, privateMediaIds, hydrateMedia } from '../domain/resource-ui.mjs';
+import { mediaMaximum, apiDiagnostic, IntentLedger, privateMediaIds, hydrateMedia, resultItems } from '../domain/resource-ui.mjs';
 import { supabase, supabaseUrl } from "@/lib/supabase";
 
 export type SacDigitalConnectionStatus = "not_configured" | "configured" | "receiving" | "error";
@@ -649,15 +649,57 @@ export async function listSacDigitalCustomerOrders(
   })) as SacDigitalCustomerOrder[];
 }
 
-export function assumeSacDigitalProtocol(
+export type SacDigitalOperatorQueueItem = {
+  protocol: string;
+};
+
+function queueProtocolId(row: Record<string, any>) {
+  const nestedCandidates = [
+    row.attendance,
+    row.att,
+    row.info,
+    row.protocol_info,
+  ].filter(value => value && typeof value === "object" && !Array.isArray(value));
+
+  const direct = row.protocol ?? row.protocolo ?? row.protocol_id;
+  if (direct != null && String(direct).trim()) return String(direct).trim();
+
+  for (const nested of nestedCandidates) {
+    const value = nested.protocol ?? nested.protocolo ?? nested.protocol_id;
+    if (value != null && String(value).trim()) return String(value).trim();
+  }
+  return "";
+}
+
+export async function listSacDigitalOperatorQueue(
+  organizationId: string,
+): Promise<SacDigitalOperatorQueueItem[]> {
+  const result = await operateSacDigitalResource(organizationId, 72, {});
+  const seen = new Set<string>();
+  const queue: SacDigitalOperatorQueueItem[] = [];
+
+  for (const item of resultItems(result.data)) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const protocol = queueProtocolId(item as Record<string, any>);
+    if (!protocol || seen.has(protocol)) continue;
+    seen.add(protocol);
+    queue.push({ protocol });
+  }
+
+  return queue;
+}
+
+export async function assumeSacDigitalProtocol(
   organizationId: string,
   protocol: string,
 ) {
-  return invokeSacDigitalApi({
-    action: "assume_protocol",
-    organization_id: organizationId,
+  await operateSacDigitalResource(organizationId, 73, { protocol });
+  const binding = await getMySacDigitalOperatorBinding(organizationId);
+  return {
+    success: true as const,
     protocol,
-  });
+    operator: binding.operator,
+  };
 }
 
 export function forwardSacDigitalProtocol(
