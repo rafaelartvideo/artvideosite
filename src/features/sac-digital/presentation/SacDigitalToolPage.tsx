@@ -166,8 +166,8 @@ function effectiveMessageDirection(message: SacDigitalMessage): "incoming" | "ou
     ? raw.sac_history as Record<string, unknown>
     : null;
   const by = String(history?.by || "").trim().toLowerCase();
-  if (by === "operator") return "outgoing";
-  if (by === "contact" || by === "channel") return "incoming";
+  if (by === "operator" || by === "channel") return "outgoing";
+  if (by === "contact") return "incoming";
   return message.direction;
 }
 
@@ -183,6 +183,9 @@ function messageOperatorName(
   const history = raw.sac_history && typeof raw.sac_history === "object"
     ? raw.sac_history as Record<string, unknown>
     : {};
+  const by = String(history.by || "").trim().toLowerCase();
+  if (by === "channel") return "Automação SAC Digital";
+
   const operatorId = String(history.operator || "").trim();
   if (operatorId && protocol?.operator_id === operatorId && protocol.operator_name?.trim()) {
     return protocol.operator_name.trim();
