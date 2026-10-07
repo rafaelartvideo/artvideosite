@@ -418,6 +418,12 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
             </span>
           </div>
         )}
+        {settings?.last_error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+            <p className="font-black">Último erro registrado na integração</p>
+            <p className="mt-1 break-words">{settings.last_error}</p>
+          </div>
+        )}
       </div>
     </Section>
 
