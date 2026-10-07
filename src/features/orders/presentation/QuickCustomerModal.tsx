@@ -21,7 +21,7 @@ import {
 } from "@/shared/ui/admin/AdminFormControls";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
 import { ensureCpfAvailable, lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
-import { isValidCnpj, isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
+import { formatPhone, isValidCnpj, isValidCpf, todayDateOnly } from "@/shared/domain/formatters";
 import {
   createQuickCustomer,
   createQuickCustomerAddress,
@@ -57,12 +57,19 @@ function duplicateTaxIdField(error: unknown): "document" | "cnpj" | null {
   return null;
 }
 
-export function QuickCustomerModal({ onClose, onSaved }: {
+export function QuickCustomerModal({ onClose, onSaved, initialValues, description }: {
   onClose: () => void;
   onSaved: (customer: any) => void;
+  initialValues?: Partial<CustomerForm>;
+  description?: string;
 }) {
   const { hasPermission, activeOrganizationId } = useAuth();
-  const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
+  const [form, setForm] = useState<CustomerForm>(() => ({
+    ...emptyCustomerForm,
+    ...initialValues,
+    phone: formatPhone(initialValues?.phone || ""),
+    whatsapp: formatPhone(initialValues?.whatsapp || ""),
+  }));
   const [addresses, setAddresses] = useState<Address[]>(() => [newQuickCustomerAddress(true)]);
   const [createdCustomer, setCreatedCustomer] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -294,7 +301,7 @@ export function QuickCustomerModal({ onClose, onSaved }: {
     open
     onClose={() => { if (!saving) onClose(); }}
     title="Criar cliente"
-    description="Cadastre o cliente sem sair da Nova OS."
+    description={description || "Cadastre o cliente sem sair da Nova OS."}
     minimizedDescription={minimizedDescription}
     minimizable={!saving}
     className="max-w-4xl"
