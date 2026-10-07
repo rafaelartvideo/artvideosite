@@ -38,6 +38,7 @@ import {
   forwardSacDigitalProtocol,
   getMySacDigitalOperatorBinding,
   getSacDigitalIntegrationStatus,
+  getSacDigitalFinishedProtocolCount,
   listSacDigitalOperatorQueue,
   getSacDigitalRoutingOptions,
   getSacDigitalUnreadCounts,
@@ -370,6 +371,7 @@ export function SacDigitalToolPage({
 
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
   const [protocols, setProtocols] = useState<SacDigitalProtocolListItem[]>([]);
+  const [finishedProtocolCount, setFinishedProtocolCount] = useState(0);
   const [selectedProtocolId, setSelectedProtocolId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SacDigitalMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -496,8 +498,9 @@ export function SacDigitalToolPage({
       else if (operationalStatus === "in_att") counts.in_att += 1;
       else counts.finished += 1;
     }
+    counts.finished = Math.max(counts.finished, finishedProtocolCount);
     return counts;
-  }, [visibleProtocols, waitingProtocolSet]);
+  }, [finishedProtocolCount, visibleProtocols, waitingProtocolSet]);
 
   const filteredProtocols = useMemo(() => {
     const query = conversationSearch.trim().toLocaleLowerCase("pt-BR");
@@ -544,7 +547,11 @@ export function SacDigitalToolPage({
     }
     if (showLoading) setInboxLoading(true);
     try {
-      const next = await listSacDigitalProtocols(activeOrganizationId);
+      const [next, totalFinished] = await Promise.all([
+        listSacDigitalProtocols(activeOrganizationId),
+        getSacDigitalFinishedProtocolCount(activeOrganizationId),
+      ]);
+      setFinishedProtocolCount(totalFinished);
       const currentSelectedId = selectedProtocolIdRef.current;
       let resolvedSelectedId: string | null = null;
 
@@ -561,7 +568,7 @@ export function SacDigitalToolPage({
       setProtocols(currentProtocols => {
         const selectedIdToKeep = resolvedSelectedId || currentSelectedId;
         if (!selectedIdToKeep || next.some(protocol => protocol.id === selectedIdToKeep)) return next;
-        if (!canManage) return next;
+        if (!isSacManager) return next;
         const previousSelected = currentProtocols.find(protocol => protocol.id === selectedIdToKeep);
         return previousSelected ? [previousSelected, ...next] : next;
       });
@@ -577,7 +584,7 @@ export function SacDigitalToolPage({
     } finally {
       if (showLoading) setInboxLoading(false);
     }
-  }, [activeOrganizationId, canManage, canViewMessages, selectProtocol]);
+  }, [activeOrganizationId, canViewMessages, isSacManager, selectProtocol]);
 
   const loadMessages = useCallback(async (protocolId: string | null, showLoading = false) => {
     const requestId = ++messagesRequestIdRef.current;
@@ -1524,6 +1531,11 @@ export function SacDigitalToolPage({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+              {statusFilter === "finished" && finishedProtocolCount > visibleProtocols.filter(protocol => protocolOperationalStatus(protocol, waitingProtocolSet) === "finished").length && (
+                <div className="border-b border-border bg-muted/25 px-3 py-2 text-[10px] text-muted-foreground">
+                  Mostrando as finalizadas mais recentes. Total no histórico: {finishedProtocolCount}.
+                </div>
+              )}
               {filteredProtocols.length === 0 ? (
                 <div className="p-5 text-center text-xs text-muted-foreground">
                   Nenhuma conversa encontrada.

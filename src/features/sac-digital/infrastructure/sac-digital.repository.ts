@@ -130,39 +130,71 @@ function normalizeRelation<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
-export async function listSacDigitalProtocols(organizationId: string) {
-  return singleFlight(`${organizationId}:protocols`, async () => {
-    const { data, error } = await supabase
+export async function getSacDigitalFinishedProtocolCount(organizationId: string) {
+  return singleFlight(`${organizationId}:finished-count`, async () => {
+    const { count, error } = await supabase
       .from("sac_digital_protocols")
-      .select(`
-        id,
-        external_protocol_id,
-        status,
-        operator_id,
-        operator_name,
-        sector_id,
-        department_name,
-        channel_number,
-        opened_at,
-        created_at,
-        closed_at,
-        last_message_at,
-        contact:sac_digital_contacts(
-          id,
-          name,
-          phone,
-          avatar_url,
-          customer_id,
-          customer:customers(id,full_name)
-        )
-      `)
+      .select("id", { count: "exact", head: true })
       .eq("organization_id", organizationId)
-      .order("last_message_at", { ascending: false, nullsFirst: false })
-      .order("updated_at", { ascending: false });
+      .eq("status", "finished");
 
     if (error) throw error;
+    return Number(count || 0);
+  });
+}
 
-    const protocols = (data || []).map((row: any) => {
+export async function listSacDigitalProtocols(organizationId: string) {
+  return singleFlight(`${organizationId}:protocols`, async () => {
+    const selection = `
+      id,
+      external_protocol_id,
+      status,
+      operator_id,
+      operator_name,
+      sector_id,
+      department_name,
+      channel_number,
+      opened_at,
+      created_at,
+      closed_at,
+      last_message_at,
+      contact:sac_digital_contacts(
+        id,
+        name,
+        phone,
+        avatar_url,
+        customer_id,
+        customer:customers(id,full_name)
+      )
+    `;
+
+    // Atendimentos ativos precisam estar todos disponíveis. O histórico
+    // finalizado cresce continuamente e não deve ser transferido inteiro em
+    // toda abertura/refresh da caixa.
+    const [activeResult, finishedResult] = await Promise.all([
+      supabase
+        .from("sac_digital_protocols")
+        .select(selection)
+        .eq("organization_id", organizationId)
+        .neq("status", "finished")
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .order("updated_at", { ascending: false })
+        .limit(1000),
+      supabase
+        .from("sac_digital_protocols")
+        .select(selection)
+        .eq("organization_id", organizationId)
+        .eq("status", "finished")
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .order("updated_at", { ascending: false })
+        .limit(400),
+    ]);
+
+    if (activeResult.error) throw activeResult.error;
+    if (finishedResult.error) throw finishedResult.error;
+
+    const rows = [...(activeResult.data || []), ...(finishedResult.data || [])];
+    const protocols = rows.map((row: any) => {
       const contact = normalizeRelation<any>(row.contact);
       return {
         ...row,
