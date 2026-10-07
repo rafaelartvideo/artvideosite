@@ -1062,24 +1062,12 @@ Deno.serve(async request => {
       credentials: { clientId: string; clientSecret: string },
       operatorId: string,
     ) => {
-      const session = await authenticateSacOperator(credentials, operatorId, ['protocol','edit','send']);
-      const access = await fetchJson('https://api.sac.digital/v2/operator/att/access', {
-        method:'GET',
-        headers:{Authorization:`Bearer ${session.token}`,Accept:'application/json'},
-      });
-      if(access.response.ok && access.body.status !== false && access.body.success !== false) return;
-
-      const providerType=String(access.body.type || '').trim().toLowerCase();
-      const error:any = new Error(
-        providerType === 'invalid_auth' || access.response.status === 401 || access.response.status === 403
-          ? 'Esta conta não foi aceita nas rotas de Operador da SAC Digital. Contas Gestor não devem ser vinculadas como Operador de atendimento.'
-          : 'A SAC Digital não confirmou acesso operacional para este usuário.',
-      );
-      error.code = providerType === 'invalid_auth' || access.response.status === 401 || access.response.status === 403
-        ? 'operator_profile_incompatible'
-        : 'operator_auth_contract_unverified';
-      error.providerType=providerType;
-      throw error;
+      // O vínculo identifica qual perfil SAC representa o usuário da Union.
+      // Estar em /operator/all + autenticar como operador com o escopo mínimo
+      // "protocol" é evidência suficiente. Não usar /operator/att/access como
+      // gate: essa rota pode devolver 401/403 por estado/permissão operacional
+      // e estava rejeitando perfis válidos durante a configuração.
+      await authenticateSacOperator(credentials, operatorId, ['protocol']);
     };
 
     const runResourceOperation = async (endpointId: number, values: Record<string, unknown>, intentKey?: string) => {
