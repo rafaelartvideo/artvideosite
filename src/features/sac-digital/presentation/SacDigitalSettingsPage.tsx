@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clipboard, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
+import { CheckCircle2, Clipboard, MessageCircle, MessageSquare, Phone, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -236,6 +236,47 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
       title="Integrações"
       subtitle="Configure as conexões externas utilizadas pela empresa ativa."
     />
+
+    <div className="grid gap-3 md:grid-cols-3">
+      <div className="rounded-xl border border-primary/30 bg-primary-soft/30 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary">
+            <MessageSquare size={20} />
+          </div>
+          <span className="text-[10px] font-semibold text-primary">
+            {settings?.enabled ? "Ativado" : "Disponível"}
+          </span>
+        </div>
+        <p className="mt-3 text-sm font-black text-foreground">SAC Digital</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Mensagens, operadores, protocolos e webhook da empresa ativa.
+        </p>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <Phone size={20} />
+          </div>
+          <span className="text-[10px] font-semibold text-muted-foreground">Integração futura</span>
+        </div>
+        <p className="mt-3 text-sm font-black text-foreground">PABX</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Configuração dos ramais e telefonia, quando o conector estiver disponível.
+        </p>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <MessageCircle size={20} />
+          </div>
+          <span className="text-[10px] font-semibold text-muted-foreground">Integração futura</span>
+        </div>
+        <p className="mt-3 text-sm font-black text-foreground">WhatsApp e outros canais</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Outras conexões de mensagens serão configuradas individualmente por empresa.
+        </p>
+      </div>
+    </div>
 
     {message && (
       <div className={`rounded-lg border px-3 py-2 text-sm font-semibold ${message.error
