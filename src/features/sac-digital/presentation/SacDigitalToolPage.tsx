@@ -379,10 +379,13 @@ export function SacDigitalToolPage({
   const handledCustomerRouteRef = useRef("");
 
   const selectProtocol = useCallback((protocolId: string | null) => {
+    if (selectedProtocolIdRef.current === protocolId) return;
     selectedProtocolIdRef.current = protocolId;
     messagesRequestIdRef.current += 1;
     followLatestRef.current = true;
     setShowJumpToLatest(false);
+    setMessages([]);
+    setMessagesLoading(Boolean(protocolId));
     setSelectedProtocolId(protocolId);
   }, []);
 
