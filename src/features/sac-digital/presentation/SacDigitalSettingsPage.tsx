@@ -17,6 +17,7 @@ import {
   getSacDigitalIntegrationSettings,
   getSacDigitalOperatorBindingsAdmin,
   rotateSacDigitalWebhookToken,
+  retrySacDigitalWebhookEvent,
   sacDigitalWebhookUrl,
   saveSacDigitalIntegrationSettings,
   setSacDigitalOperatorBindingAdmin,
@@ -72,6 +73,7 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
   } | null>(null);
   const [webhookHealthLoading, setWebhookHealthLoading] = useState(false);
   const [webhookHealthError, setWebhookHealthError] = useState("");
+  const [retryingWebhookId, setRetryingWebhookId] = useState<number | null>(null);
 
   const webhookUrl = useMemo(
     () => sacDigitalWebhookUrl(settings?.webhook_token),
@@ -127,6 +129,31 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     void loadWebhookHealth();
   }, [loadWebhookHealth]);
+
+  const retryWebhookEvent = async (eventId: number) => {
+    if (!activeOrganizationId || !canManage || retryingWebhookId !== null) return;
+    setRetryingWebhookId(eventId);
+    setMessage(null);
+    try {
+      const result = await retrySacDigitalWebhookEvent(activeOrganizationId, eventId);
+      await loadWebhookHealth();
+      const updated = await getSacDigitalIntegrationSettings(activeOrganizationId);
+      setSettings(updated);
+      setMessage({
+        text: result.already_processed
+          ? "Este evento já estava processado."
+          : "Evento reprocessado. As mensagens e os protocolos foram atualizados sem duplicação.",
+      });
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível reprocessar este evento."),
+        error: true,
+      });
+      await loadWebhookHealth();
+    } finally {
+      setRetryingWebhookId(null);
+    }
+  };
 
   const load = async () => {
     if (!activeOrganizationId || !canManage) return;
@@ -539,13 +566,26 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
                     </p>
                   )}
                 </div>
-                <span className={`shrink-0 text-[10px] font-bold ${
-                  event.processing_error ? "text-red-600 dark:text-red-300"
-                    : event.processed_at ? "text-emerald-600 dark:text-emerald-300"
-                      : "text-amber-600 dark:text-amber-300"
-                }`}>
-                  {event.processing_error ? "Com erro" : event.processed_at ? "Processado" : "Pendente"}
-                </span>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <span className={`text-[10px] font-bold ${
+                    event.processing_error ? "text-red-600 dark:text-red-300"
+                      : event.processed_at ? "text-emerald-600 dark:text-emerald-300"
+                        : "text-amber-600 dark:text-amber-300"
+                  }`}>
+                    {event.processing_error ? "Com erro" : event.processed_at ? "Processado" : "Pendente"}
+                  </span>
+                  {(!event.processed_at || Boolean(event.processing_error)) && (
+                    <AdminButton
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void retryWebhookEvent(event.id)}
+                      loading={retryingWebhookId === event.id}
+                      disabled={retryingWebhookId !== null}
+                    >
+                      Reprocessar
+                    </AdminButton>
+                  )}
+                </div>
               </div>
             ))}
           </div>
