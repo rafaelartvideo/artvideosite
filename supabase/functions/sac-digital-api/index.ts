@@ -423,6 +423,79 @@ Deno.serve(async request => {
       throw new Error("Não foi possível vincular os dados do protocolo ao CRM.");
     }
 
+    // /protocol/info nem sempre traz o cadastro completo do contato.
+    // Quando o avatar ainda não existe, consultar /contact/info uma vez
+    // e guardar o resultado por 24h para não repetir chamadas desnecessárias.
+    const protocolInfo = body.info && typeof body.info === "object" && !Array.isArray(body.info)
+      ? body.info as Record<string, unknown>
+      : {};
+    const protocolContact = protocolInfo.contact && typeof protocolInfo.contact === "object"
+      && !Array.isArray(protocolInfo.contact)
+      ? protocolInfo.contact as Record<string, unknown>
+      : null;
+    const externalContactId = String(protocolContact?.id || "").trim();
+
+    if (externalContactId) {
+      const { data: localContact } = await admin
+        .from("sac_digital_contacts")
+        .select("id,avatar_url,raw_metadata")
+        .eq("organization_id", organizationId)
+        .eq("external_contact_id", externalContactId)
+        .maybeSingle();
+
+      const localMetadata = localContact?.raw_metadata && typeof localContact.raw_metadata === "object"
+        && !Array.isArray(localContact.raw_metadata)
+        ? localContact.raw_metadata as Record<string, unknown>
+        : {};
+      const directAvatar = String(protocolContact?.avatar || "").trim();
+      const checkedAt = new Date(String(localMetadata.avatar_checked_at || "")).getTime();
+      const checkedRecently = Number.isFinite(checkedAt) && Date.now() - checkedAt < 24 * 60 * 60 * 1000;
+
+      let hydratedContact = protocolContact;
+      if (!localContact?.avatar_url && !directAvatar && !checkedRecently) {
+        const contactResult = await apiRequest(
+          organizationId,
+          credentials,
+          `/contact/info?id=${encodeURIComponent(externalContactId)}`,
+          { method: "GET" },
+        );
+        if (contactResult.response.ok && contactResult.body.status !== false
+          && contactResult.body.info && typeof contactResult.body.info === "object"
+          && !Array.isArray(contactResult.body.info)) {
+          hydratedContact = {
+            ...protocolContact,
+            ...(contactResult.body.info as Record<string, unknown>),
+            id: externalContactId,
+          };
+        }
+      }
+
+      const avatar = String(hydratedContact?.avatar || directAvatar || "").trim();
+      const contactName = String(hydratedContact?.name || protocolContact?.name || "").trim();
+      const contactPhone = normalizeSacPhone(hydratedContact?.number || protocolContact?.number);
+      const nextMetadata = {
+        ...localMetadata,
+        ...(hydratedContact || {}),
+        avatar_checked_at: new Date().toISOString(),
+      };
+      const contactPatch: Record<string, unknown> = {
+        raw_metadata: nextMetadata,
+        updated_at: new Date().toISOString(),
+      };
+      if (avatar) contactPatch.avatar_url = avatar;
+      if (contactName) contactPatch.name = contactName;
+      if (contactPhone) contactPatch.phone = contactPhone;
+
+      const { error: avatarUpdateError } = await admin
+        .from("sac_digital_contacts")
+        .update(contactPatch)
+        .eq("organization_id", organizationId)
+        .eq("external_contact_id", externalContactId);
+      if (avatarUpdateError) {
+        console.warn("[SAC DIGITAL API] contact avatar refresh skipped", avatarUpdateError.code);
+      }
+    }
+
     return applied && typeof applied === "object" ? applied as Record<string, unknown> : {};
   };
 
