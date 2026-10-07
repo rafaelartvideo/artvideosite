@@ -22,6 +22,7 @@ import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
 import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
+import { adminPath } from "@/features/admin-shell/admin-routes";
 import { phoneContactLinks } from "../domain/order-contact-actions";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
@@ -101,6 +102,9 @@ export function OrderDetailsPage(props: Props) {
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
   const [sacMessageOpen, setSacMessageOpen] = useState(false);
   const [checkingSac, setCheckingSac] = useState(false);
+  const [sacEnabled, setSacEnabled] = useState(false);
+  const canSendSac = hasPermission("sac_digital.messages.send");
+  const canViewSac = hasPermission("sac_digital.view") && hasPermission("sac_digital.messages.view");
   const { statuses, situations } = workspace;
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
   const effectiveRouteSubpage = routeSubpage;
@@ -159,6 +163,23 @@ export function OrderDetailsPage(props: Props) {
     setDetailSection(initialSection);
   }, [detail?.id, initialSection]);
 
+  useEffect(() => {
+    let alive = true;
+    setSacEnabled(false);
+    if (!detail?.organization_id || monitorView || !canSendSac) return;
+    void getSacDigitalIntegrationStatus(detail.organization_id)
+      .then(result => { if (alive) setSacEnabled(result.enabled === true); })
+      .catch(() => { if (alive) setSacEnabled(false); });
+    return () => { alive = false; };
+  }, [detail?.organization_id, monitorView, canSendSac]);
+
+  const openSacConversation = () => {
+    const customerId = String(detail?.customer_id || "");
+    if (!canViewSac || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId)) return;
+    const url = `${adminPath("tools", "sac-digital")}?customer=${encodeURIComponent(customerId)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   const openCustomerWhatsApp = async () => {
     if (!detail || checkingSac) return;
     const customer = detail.customer as any;
@@ -174,6 +195,7 @@ export function OrderDetailsPage(props: Props) {
     try {
       const integration = await getSacDigitalIntegrationStatus(detail.organization_id);
       if (integration.enabled) {
+        setSacEnabled(true);
         setSacMessageOpen(true);
         return;
       }
@@ -292,6 +314,7 @@ export function OrderDetailsPage(props: Props) {
         open={sacMessageOpen}
         order={detail}
         onClose={() => setSacMessageOpen(false)}
+        onOpenChat={canViewSac ? openSacConversation : undefined}
       />
     )}
     {detail && labelUrl && <div aria-hidden="true" className="pointer-events-none absolute left-[-9999px] top-0 h-px w-px overflow-hidden opacity-0"><QRCodeCanvas ref={labelQrCanvasRef} value={labelUrl} size={256} level="M" marginSize={2} /></div>}
@@ -324,6 +347,7 @@ export function OrderDetailsPage(props: Props) {
             {hasPermission("orders.section.checklists") && <OrderChecklistToolbarButton orderId={detail.id} onClick={() => onOpenSubpage("checklists")} />}
             {hasPermission("orders.section.parts") && <button type="button" onClick={() => onOpenSubpage("part-requests")} className="inline-flex items-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#f0f6ff] px-3 py-2 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#e2edff]"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button>}
             {canOpenDocumentsPage && <button type="button" onClick={() => onOpenSubpage("documents")} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Documentos{visibleDocumentCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{visibleDocumentCount}</span>}</button>}
+            {sacEnabled && canSendSac && detail?.customer_id && <button type="button" onClick={() => setSacMessageOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-primary/25 bg-primary-soft px-3 py-2 text-xs font-bold text-primary hover:bg-primary-soft/80"><MessageCircle size={14} /> Conversar pelo SAC Digital</button>}
             {hasPermission("orders.section.history") && <button type="button" onClick={() => onOpenSubpage("history")} className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa]"><FileText size={14} /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button>}
           </div>
         </div>
@@ -349,7 +373,8 @@ export function OrderDetailsPage(props: Props) {
             hasPermission={hasPermission}
             orderImages={orderImages}
             onViewImage={setViewImage}
-            onWhatsApp={!monitorView && hasPermission("sac_digital.messages.send")
+            sacDigitalAvailable={sacEnabled}
+            onWhatsApp={!monitorView && canSendSac
               ? () => void openCustomerWhatsApp()
               : undefined}
           />
