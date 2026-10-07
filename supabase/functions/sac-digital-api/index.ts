@@ -31,6 +31,26 @@ function validProtocol(value: unknown) {
   return /^[A-Za-z0-9_-]{3,80}$/.test(String(value || "").trim());
 }
 
+function normalizeSacPhone(value: unknown) {
+  let digits = String(value || "").replace(/\D/g, "");
+  if ((digits.length === 10 || digits.length === 11) && !digits.startsWith("55")) {
+    digits = `55${digits}`;
+  }
+  return digits;
+}
+
+function sacPhoneKey(value: unknown) {
+  const digits = normalizeSacPhone(value);
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+    return digits.slice(2);
+  }
+  return digits;
+}
+
+function safeSearchText(value: unknown) {
+  return String(value || "").trim().replace(/[%(),]/g, " ").replace(/\s+/g, " ").slice(0, 120);
+}
+
 async function fetchJson(url: string, init: RequestInit, timeoutMs = 15000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -728,6 +748,602 @@ Deno.serve(async request => {
           name: String(customer.trade_name || customer.full_name || customer.legal_name || "Cliente"),
           phone: String(customer.whatsapp || customer.phone || ""),
         },
+      });
+    }
+
+    if (action === "new_conversation_search") {
+      if (!(await requirePermission("sac_digital.messages.send"))) {
+        return json({ success: false, error: "Sem permissão para iniciar conversas pelo SAC Digital." }, 403);
+      }
+
+      const search = safeSearchText(body.search);
+      if (search.length < 2) {
+        return json({ success: true, contacts: [], customers: [] });
+      }
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) {
+        return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+      }
+
+      const [contactsResult, channelsResult] = await Promise.all([
+        apiRequest(
+          organizationId,
+          credentials,
+          `/contact/search?p=1&filter=1&search=${encodeURIComponent(search)}`,
+          { method: "GET" },
+        ),
+        apiRequest(organizationId, credentials, "/channel/all", { method: "GET" }),
+      ]);
+
+      if (!contactsResult.response.ok || contactsResult.body.status === false) {
+        return json({ success: false, error: "Não foi possível pesquisar os contatos da SAC Digital." });
+      }
+
+      const activeChannelIds = new Set(
+        (Array.isArray(channelsResult.body.list) ? channelsResult.body.list : [])
+          .filter(item => item && typeof item === "object" && !Array.isArray(item))
+          .filter(item => (item as Record<string, unknown>).actived !== false)
+          .map(item => String((item as Record<string, unknown>).id || "").trim())
+          .filter(Boolean),
+      );
+
+      const sacRows = (Array.isArray(contactsResult.body.list) ? contactsResult.body.list : [])
+        .filter(item => item && typeof item === "object" && !Array.isArray(item))
+        .map(item => item as Record<string, unknown>)
+        .slice(0, 20);
+
+      const externalIds = sacRows.map(row => String(row.id || "").trim()).filter(Boolean);
+      const { data: localContactRows } = externalIds.length
+        ? await admin
+            .from("sac_digital_contacts")
+            .select("external_contact_id,customer_id")
+            .eq("organization_id", organizationId)
+            .in("external_contact_id", externalIds)
+        : { data: [] as Array<{ external_contact_id: string; customer_id: string | null }> };
+
+      const localContactByExternalId = new Map(
+        (localContactRows || []).map(row => [String(row.external_contact_id || ""), row]),
+      );
+
+      const contacts = sacRows
+        .map(row => {
+          const channel = row.channel && typeof row.channel === "object" && !Array.isArray(row.channel)
+            ? row.channel as Record<string, unknown>
+            : null;
+          const externalId = String(row.id || "").trim();
+          const channelId = String(channel?.id || "").trim();
+          const local = localContactByExternalId.get(externalId);
+          return {
+            source: "sac",
+            external_contact_id: externalId,
+            customer_id: local?.customer_id || null,
+            name: String(row.name || "").trim(),
+            phone: normalizeSacPhone(row.number),
+            channel_id: channelId || null,
+            channel_number: normalizeSacPhone(channel?.number),
+            whatsapp_available: Boolean(channelId && activeChannelIds.has(channelId)),
+            blocked: row.blocked === true,
+          };
+        })
+        .filter(contact => contact.external_contact_id && contact.phone);
+
+      let customers: Array<Record<string, unknown>> = [];
+      if (await hasOrganizationPermission("customers.view")) {
+        const digits = String(search).replace(/\D/g, "");
+        const safe = safeSearchText(search);
+        let customerQuery = admin
+          .from("customers")
+          .select("id,customer_type,full_name,trade_name,legal_name,phone,whatsapp")
+          .eq("organization_id", organizationId);
+
+        if (digits.length >= 6) {
+          const tail = digits.slice(-11);
+          customerQuery = customerQuery.or(`phone.ilike.%${tail}%,whatsapp.ilike.%${tail}%`);
+        } else {
+          customerQuery = customerQuery.or(
+            `full_name.ilike.%${safe}%,trade_name.ilike.%${safe}%,legal_name.ilike.%${safe}%`,
+          );
+        }
+
+        const { data: customerRows, error: customerError } = await customerQuery.limit(20);
+        if (!customerError) {
+          const exactSacByPhone = new Map(
+            contacts.map(contact => [sacPhoneKey(contact.phone), contact]),
+          );
+          customers = (customerRows || []).map(customer => {
+            const phone = normalizeSacPhone(customer.whatsapp || customer.phone);
+            const sacContact = exactSacByPhone.get(sacPhoneKey(phone));
+            return {
+              source: "customer",
+              customer_id: String(customer.id),
+              external_contact_id: sacContact?.external_contact_id || null,
+              name: String(customer.trade_name || customer.full_name || customer.legal_name || "Cliente"),
+              phone,
+              whatsapp_available: sacContact?.whatsapp_available === true,
+              customer_type: customer.customer_type || null,
+            };
+          }).filter(customer => Boolean(customer.phone));
+        }
+      }
+
+      return json({
+        success: true,
+        contacts,
+        customers,
+      });
+    }
+
+    if (action === "prepare_new_conversation_contact") {
+      if (!(await requirePermission("sac_digital.messages.send"))) {
+        return json({ success: false, error: "Sem permissão para iniciar conversas pelo SAC Digital." }, 403);
+      }
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) {
+        return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+      }
+
+      const requestedExternalId = String(body.external_contact_id || "").trim();
+      const customerId = String(body.customer_id || "").trim();
+      let name = safeSearchText(body.name);
+      let phone = normalizeSacPhone(body.phone);
+
+      if (customerId) {
+        if (!isUuid(customerId)) return json({ success: false, error: "Cliente inválido." }, 400);
+        if (!(await hasOrganizationPermission("customers.view"))) {
+          return json({ success: false, error: "Sem permissão para acessar clientes desta empresa." }, 403);
+        }
+
+        const { data: customer, error: customerError } = await admin
+          .from("customers")
+          .select("id,full_name,trade_name,legal_name,phone,whatsapp")
+          .eq("organization_id", organizationId)
+          .eq("id", customerId)
+          .maybeSingle();
+        if (customerError || !customer?.id) {
+          return json({ success: false, error: "Cliente não encontrado nesta empresa." }, 404);
+        }
+
+        name = name || String(customer.trade_name || customer.full_name || customer.legal_name || "Cliente").trim();
+        phone = phone || normalizeSacPhone(customer.whatsapp || customer.phone);
+      }
+
+      if (phone && (phone.length < 10 || phone.length > 15)) {
+        return json({
+          success: true,
+          prepared: false,
+          whatsapp_available: false,
+          error: "Número de telefone inválido.",
+        });
+      }
+
+      const loadChannels = async () => {
+        const result = await apiRequest(organizationId, credentials, "/channel/all", { method: "GET" });
+        const list = Array.isArray(result.body.list)
+          ? result.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+          : [];
+        return list;
+      };
+
+      const channels = await loadChannels();
+      const activeChannels = channels.filter(channel => channel.actived !== false && String(channel.id || "").trim());
+      const primaryChannel = activeChannels.find(channel => channel.primary === true) || activeChannels[0] || null;
+      const activeChannelIds = new Set(activeChannels.map(channel => String(channel.id || "").trim()));
+
+      let contact: Record<string, unknown> | null = null;
+      let imported = false;
+
+      if (requestedExternalId) {
+        const infoResult = await apiRequest(
+          organizationId,
+          credentials,
+          `/contact/info?id=${encodeURIComponent(requestedExternalId)}`,
+          { method: "GET" },
+        );
+        if (infoResult.response.ok && infoResult.body.status !== false && infoResult.body.info) {
+          contact = infoResult.body.info as Record<string, unknown>;
+          contact.id = requestedExternalId;
+        }
+      }
+
+      if (!contact && phone) {
+        const searchResult = await apiRequest(
+          organizationId,
+          credentials,
+          `/contact/search?p=1&filter=1&search=${encodeURIComponent(phone)}`,
+          { method: "GET" },
+        );
+        const list = Array.isArray(searchResult.body.list)
+          ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+          : [];
+        const key = sacPhoneKey(phone);
+        contact = list.find(item => sacPhoneKey(item.number) === key) || null;
+      }
+
+      if (!contact) {
+        if (!phone) {
+          return json({
+            success: true,
+            prepared: false,
+            whatsapp_available: false,
+            error: "Informe um número para iniciar a conversa.",
+          });
+        }
+
+        const fallbackName = name || `Contato ${phone.slice(-4)}`;
+        const importPayload: Record<string, unknown> = {
+          number: phone,
+          name: fallbackName,
+        };
+        if (primaryChannel?.id) importPayload.channel = String(primaryChannel.id);
+
+        const importResult = await apiRequest(
+          organizationId,
+          credentials,
+          "/contact/import",
+          {
+            method: "POST",
+            body: JSON.stringify(importPayload),
+          },
+        );
+
+        if (!importResult.response.ok || importResult.body.status === false || importResult.body.success === false) {
+          return json({
+            success: true,
+            prepared: false,
+            whatsapp_available: false,
+            error: typeof importResult.body.message === "string" && importResult.body.message.trim()
+              ? `SAC Digital: ${importResult.body.message.trim()}`
+              : "A SAC Digital não aceitou este número como contato.",
+          });
+        }
+
+        imported = true;
+        const importedId = String(
+          importResult.body.id
+          || (importResult.body.contact && typeof importResult.body.contact === "object"
+            ? (importResult.body.contact as Record<string, unknown>).id
+            : "")
+          || "",
+        ).trim();
+
+        if (importedId) {
+          const infoResult = await apiRequest(
+            organizationId,
+            credentials,
+            `/contact/info?id=${encodeURIComponent(importedId)}`,
+            { method: "GET" },
+          );
+          if (infoResult.response.ok && infoResult.body.status !== false && infoResult.body.info) {
+            contact = infoResult.body.info as Record<string, unknown>;
+            contact.id = importedId;
+          }
+        }
+
+        if (!contact) {
+          await new Promise(resolve => setTimeout(resolve, 250));
+          const searchResult = await apiRequest(
+            organizationId,
+            credentials,
+            `/contact/search?p=1&filter=1&search=${encodeURIComponent(phone)}`,
+            { method: "GET" },
+          );
+          const list = Array.isArray(searchResult.body.list)
+            ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+            : [];
+          const key = sacPhoneKey(phone);
+          contact = list.find(item => sacPhoneKey(item.number) === key) || null;
+        }
+      }
+
+      const externalContactId = String(contact?.id || "").trim();
+      const resolvedPhone = normalizeSacPhone(contact?.number || phone);
+      const resolvedName = String(contact?.name || name || `Contato ${resolvedPhone.slice(-4)}`).trim();
+      const channel = contact?.channel && typeof contact.channel === "object" && !Array.isArray(contact.channel)
+        ? contact.channel as Record<string, unknown>
+        : null;
+      const channelId = String(channel?.id || primaryChannel?.id || "").trim();
+      const whatsappAvailable = Boolean(externalContactId && channelId && activeChannelIds.has(channelId));
+
+      if (!externalContactId) {
+        return json({
+          success: true,
+          prepared: false,
+          whatsapp_available: false,
+          error: "O contato foi processado, mas a SAC Digital não retornou um identificador válido.",
+        });
+      }
+
+      const now = new Date().toISOString();
+      const { error: cacheError } = await admin
+        .from("sac_digital_contacts")
+        .upsert({
+          organization_id: organizationId,
+          external_contact_id: externalContactId,
+          customer_id: customerId || null,
+          name: resolvedName || null,
+          phone: resolvedPhone || null,
+          avatar_url: String(contact?.avatar || "").trim() || null,
+          raw_metadata: contact || {},
+          updated_at: now,
+        }, { onConflict: "organization_id,external_contact_id" });
+
+      if (cacheError) {
+        console.warn("[SAC DIGITAL API] new conversation contact cache skipped", {
+          organization_id: organizationId,
+          code: cacheError.code,
+        });
+      }
+
+      if (imported) {
+        await writeSacAudit({
+          action: "sac_digital.contact.import",
+          operation: "insert",
+          entityType: "sac_digital_contact",
+          entityId: externalContactId,
+          contextType: customerId ? "customer" : "contact",
+          contextId: customerId || externalContactId,
+          metadata: {
+            source: "new_conversation",
+            channel_id: channelId || null,
+          },
+        });
+      }
+
+      return json({
+        success: true,
+        prepared: true,
+        imported,
+        whatsapp_available: whatsappAvailable,
+        contact: {
+          external_contact_id: externalContactId,
+          customer_id: customerId || null,
+          name: resolvedName,
+          phone: resolvedPhone,
+          channel_id: channelId || null,
+          blocked: contact?.blocked === true,
+        },
+      });
+    }
+
+    if (action === "start_new_conversation") {
+      if (!(await requirePermission("sac_digital.messages.send"))) {
+        return json({ success: false, error: "Sem permissão para iniciar conversas pelo SAC Digital." }, 403);
+      }
+
+      const externalContactId = String(body.external_contact_id || "").trim();
+      const text = String(body.text || "").trim();
+      if (!externalContactId || externalContactId.length > 120) {
+        return json({ success: false, error: "Contato SAC inválido." }, 400);
+      }
+      if (!text) return json({ success: false, error: "Digite a primeira mensagem." }, 400);
+      if (text.length > 5000) return json({ success: false, error: "A mensagem é muito longa." }, 400);
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) {
+        return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+      }
+
+      const infoResult = await apiRequest(
+        organizationId,
+        credentials,
+        `/contact/info?id=${encodeURIComponent(externalContactId)}`,
+        { method: "GET" },
+      );
+      if (!infoResult.response.ok || infoResult.body.status === false || !infoResult.body.info) {
+        return json({ success: false, error: "Contato não encontrado na SAC Digital." }, 404);
+      }
+
+      const findOpenProtocol = async () => {
+        const result = await apiRequest(
+          organizationId,
+          credentials,
+          `/contact/info/protocols?p=1&id=${encodeURIComponent(externalContactId)}`,
+          { method: "GET" },
+        );
+        const list = Array.isArray(result.body.list)
+          ? result.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+          : [];
+        return list.find(item =>
+          item.is_open === true
+          || item.is_att === true
+          || (!item.closed_at && Boolean(item.protocol))
+        ) || null;
+      };
+
+      let openProtocol = await findOpenProtocol();
+
+      if (!openProtocol) {
+        const binding = await resolveMyOperatorBinding();
+        if (binding) {
+          const forwardResult = await apiRequest(
+            organizationId,
+            credentials,
+            "/contact/forward",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                id: externalContactId,
+                operator: binding.id,
+              }),
+            },
+          );
+
+          if (forwardResult.response.ok && forwardResult.body.status !== false && forwardResult.body.success !== false) {
+            for (let attempt = 0; attempt < 3 && !openProtocol; attempt += 1) {
+              if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 350));
+              openProtocol = await findOpenProtocol();
+            }
+          }
+        }
+      }
+
+      const protocol = String(openProtocol?.protocol || "").trim();
+
+      if (protocol && validProtocol(protocol)) {
+        try {
+          await enrichProtocol(organizationId, protocol);
+        } catch {
+          // A mensagem ainda pode ser enviada; webhook/refresh completa a projeção local.
+        }
+
+        const sendResult = await apiRequest(
+          organizationId,
+          credentials,
+          "/protocol/send",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              protocol,
+              type: "text",
+              text,
+            }),
+          },
+        );
+
+        if (!sendResult.response.ok || sendResult.body.status === false || sendResult.body.success === false) {
+          return json({
+            success: false,
+            error: typeof sendResult.body.message === "string" && sendResult.body.message.trim()
+              ? `SAC Digital: ${sendResult.body.message.trim()}`
+              : "A SAC Digital não conseguiu iniciar a conversa.",
+          });
+        }
+
+        const { data: protocolRow } = await admin
+          .from("sac_digital_protocols")
+          .select("id")
+          .eq("organization_id", organizationId)
+          .eq("external_protocol_id", protocol)
+          .maybeSingle();
+
+        if (protocolRow?.id) {
+          const sentAt = new Date().toISOString();
+          const externalCandidate = sendResult.body.id ?? sendResult.body.message_id ?? sendResult.body.request_id;
+          const externalMessageId = typeof externalCandidate === "string" || typeof externalCandidate === "number"
+            ? `sac:${String(externalCandidate)}`
+            : null;
+          const { data: profile } = await admin
+            .from("profiles")
+            .select("full_name")
+            .eq("id", userData.user.id)
+            .maybeSingle();
+
+          const localMessage = {
+            organization_id: organizationId,
+            protocol_id: protocolRow.id,
+            external_message_id: externalMessageId,
+            direction: "outgoing",
+            message_type: "text",
+            body_text: text,
+            sender_id: userData.user.id,
+            sender_name: profile?.full_name || null,
+            sent_at: sentAt,
+            raw_metadata: {
+              sent_via_union: true,
+              started_via_union: true,
+              api_response: sendResult.body,
+            },
+          };
+
+          let inserted = await admin.from("sac_digital_messages").insert(localMessage);
+          if (inserted.error?.code === "23505") {
+            inserted = await admin.from("sac_digital_messages").insert({
+              ...localMessage,
+              external_message_id: null,
+              raw_metadata: {
+                ...localMessage.raw_metadata,
+                external_id_conflict: true,
+              },
+            });
+          }
+
+          if (!inserted.error) {
+            await admin
+              .from("sac_digital_protocols")
+              .update({ last_message_at: sentAt, updated_at: sentAt })
+              .eq("id", protocolRow.id);
+          }
+        }
+
+        await writeSacAudit({
+          action: "sac_digital.conversation.start",
+          operation: "send",
+          entityType: "sac_digital_protocol",
+          entityId: protocol,
+          contextType: "protocol",
+          contextId: protocol,
+          metadata: {
+            external_contact_id: externalContactId,
+            transport: "protocol",
+            message_length: text.length,
+          },
+        });
+
+        EdgeRuntime.waitUntil((async () => {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          try {
+            await syncProtocolHistory(organizationId, protocol);
+          } catch {
+            // Próximo webhook/refresh reconcilia o histórico.
+          }
+        })());
+
+        return json({
+          success: true,
+          mode: "protocol",
+          protocol,
+          external_contact_id: externalContactId,
+        });
+      }
+
+      const notification = await apiRequest(
+        organizationId,
+        credentials,
+        "/notification/contact",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            contact: externalContactId,
+            type: "text",
+            text,
+          }),
+        },
+      );
+
+      if (!notification.response.ok || notification.body.status === false || notification.body.success === false) {
+        const apiMessage = typeof notification.body.message === "string"
+          ? notification.body.message.trim()
+          : "";
+        const looksUnavailable = /whatsapp|n[uú]mero|telefone|contato inv[aá]lido|invalid/i.test(apiMessage);
+        return json({
+          success: false,
+          error: apiMessage
+            ? `SAC Digital: ${apiMessage}`
+            : "A SAC Digital não conseguiu iniciar a conversa com este número.",
+          whatsapp_available: looksUnavailable ? false : null,
+        });
+      }
+
+      await writeSacAudit({
+        action: "sac_digital.conversation.start",
+        operation: "send",
+        entityType: "sac_digital_contact",
+        entityId: externalContactId,
+        contextType: "contact",
+        contextId: externalContactId,
+        metadata: {
+          transport: "notification",
+          message_length: text.length,
+        },
+      });
+
+      return json({
+        success: true,
+        mode: "notification",
+        protocol: null,
+        external_contact_id: externalContactId,
       });
     }
 
