@@ -1122,7 +1122,10 @@ Deno.serve(async request => {
       const result: Awaited<ReturnType<typeof executeSacOperation>> & { pending_start_id?: string; mode?: string } = await executeSacOperation({...operation, protocol: values.protocol}, {
         authorize: async (permission:string) => await requirePermission(permission) || (permission === 'sac_digital.messages.view' && await requirePermission('sac_digital.view')),
         operator: binding ? async () => {
-          const requestedScopes=operatorScopes(operation.scopes,Boolean(values.protocol));
+          const requestedScopes=operatorScopes(
+            operation.scopes,
+            Boolean(values.protocol) && operation.skipSelect !== true && !/\/select\//.test(operation.path),
+          );
           const cacheKey = `${organizationId}:${userData.user.id}:${binding.id}:${binding.version}:${requestedScopes.join(',')}`;
           const cached = operatorSessionCache.get(cacheKey);
           if(cached && cached.expiresAt > Date.now()+60000) {
@@ -2134,7 +2137,7 @@ Deno.serve(async request => {
         let apiBody: Record<string, unknown> = {};
         if (accessBinding.accessMode === "operator") {
           const operationalSend = await runResourceOperation(
-            78,
+            36,
             { protocol, type: "text", text },
             `${userData.user.id}:start:${protocol}:${Date.now()}`,
           );
@@ -3511,7 +3514,7 @@ Deno.serve(async request => {
         let outgoingBody: Record<string, unknown> = {};
         if (accessBinding.accessMode === "operator") {
           const operationalSend = await runResourceOperation(
-            78,
+            36,
             { protocol: openedProtocol, type: "text", text },
             `${userData.user.id}:order:${orderId}:${Date.now()}`,
           );
