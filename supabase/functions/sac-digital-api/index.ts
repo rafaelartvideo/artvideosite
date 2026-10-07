@@ -807,7 +807,8 @@ Deno.serve(async request => {
     const organizationId = String(body.organization_id || "").trim();
     if (!isUuid(organizationId)) return json({ success: false, error: "Empresa inválida." }, 400);
 
-    if (!actionEnabled(action, body.endpoint_id)) {
+    const legacyRoutingOperation = action === "resource_operation" && Number(body.endpoint_id) === 90;
+    if (!legacyRoutingOperation && !actionEnabled(action, body.endpoint_id)) {
       return json({success:false,error:"Este recurso está desativado na Union. Utilize o painel da SAC Digital."},410);
     }
     const authorization = bearerToken(request);
@@ -869,6 +870,31 @@ Deno.serve(async request => {
       if (error || !Array.isArray(data)) return false;
       return data.some((row: Record<string, unknown>) => String(row.permission_key || "") === permissionKey);
     };
+
+    const forwardSacContactWithRetry = async (
+      credentials: { clientId: string; clientSecret: string },
+      payload: Record<string, unknown>,
+    ) => {
+      let result = await apiRequest(
+        organizationId,
+        credentials,
+        "/contact/forward",
+        { method: "POST", body: JSON.stringify(payload) },
+      );
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const providerType = String(result.body.type || "").trim().toLowerCase();
+        if (providerType !== "operator_busy") break;
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        result = await apiRequest(
+          organizationId,
+          credentials,
+          "/contact/forward",
+          { method: "POST", body: JSON.stringify(payload) },
+        );
+      }
+      return result;
+    };
+
 
 
     let auditActorName: string | null | undefined;
@@ -1290,6 +1316,125 @@ Deno.serve(async request => {
     if(action === 'resource_operation') {
       if([1,61].includes(Number(body.endpoint_id))) return json({success:false,error:'A autenticação é privada e resolvida pelo servidor.'},400);
       if(!Number.isInteger(body.endpoint_id) || !body.values || typeof body.values !== 'object' || Array.isArray(body.values)) return json({success:false,error:'Recurso e campos inválidos.'},400);
+
+      // Compatibilidade para abas/cache anteriores à ação nomeada forward_protocol.
+      // O recurso 90 nunca deve autenticar o usuário atual como Operador para
+      // encaminhar/devolver: traduzimos para a ação institucional /contact/forward.
+      if(Number(body.endpoint_id) === 90) {
+        if(!(await requirePermission("sac_digital.protocols.manage"))) {
+          return json({success:false,error:"Sem permissão para encaminhar atendimentos do SAC Digital."},403);
+        }
+
+        const values = body.values as Record<string, unknown>;
+        const protocol = String(values.protocol || "").trim();
+        const to = String(values.to || "").trim();
+        const targetOperatorId = String(values.operator || "").trim();
+        const targetDepartmentId = String(values.department || "").trim();
+        if(!validProtocol(protocol)) return json({success:false,error:"Protocolo inválido."},400);
+        if(to === "operator" && !targetOperatorId) return json({success:false,error:"Operador de destino inválido."},400);
+        if(to === "department" && !targetDepartmentId) return json({success:false,error:"Departamento de destino inválido."},400);
+        if(!["operator","department"].includes(to)) return json({success:false,error:"Destino de encaminhamento inválido."},400);
+
+        const accessBinding = await resolveMySacAccessBinding();
+        if(!accessBinding) return json({success:false,type:"sac_profile_not_linked",error:"Seu usuário não possui Perfil SAC Digital vinculado."},409);
+
+        const credentials = await loadCredentials(organizationId);
+        if(!credentials.enabled) return json({success:false,error:"Integração SAC Digital está desativada."},400);
+
+        const state = await apiRequest(
+          organizationId,
+          credentials,
+          `/protocol/info?protocol=${encodeURIComponent(protocol)}`,
+          {method:"GET"},
+        );
+        if(!state.response.ok || state.body.status === false || !state.body.info || typeof state.body.info !== "object") {
+          return json({success:false,error:"Não foi possível confirmar o atendimento na SAC Digital."},409);
+        }
+        const info = state.body.info as Record<string, unknown>;
+        if(info.is_open === false || Boolean(info.closed_at) || Boolean(info.finished_at)) {
+          return json({success:false,error:"Este atendimento já está finalizado."},409);
+        }
+
+        const assigned = info.operator && typeof info.operator === "object" && !Array.isArray(info.operator)
+          ? info.operator as Record<string, unknown>
+          : {};
+        const assignedOperatorId = String(assigned.id || info.operator_id || "").trim();
+        const assignedOperatorName = String(assigned.name || info.operator_name || "").trim();
+        if(accessBinding.accessMode === "operator") {
+          const ownership = conversationOwnership({
+            accessMode:"operator",
+            boundOperatorId:accessBinding.id,
+            assignedOperatorId,
+            assignedOperatorName,
+          });
+          if(!ownership.allowed || ownership.needsAssignment) {
+            return json({
+              success:false,
+              type:"protocol_owned_by_other_operator",
+              operator_id:assignedOperatorId || null,
+              operator_name:assignedOperatorName || null,
+              error:assignedOperatorId
+                ? `Este atendimento pertence a ${assignedOperatorName || "outro Operador SAC"}.`
+                : "Este atendimento ainda não está atribuído ao seu Operador SAC.",
+            },409);
+          }
+        }
+
+        const {data:protocolRow,error:protocolError}=await admin
+          .from("sac_digital_protocols")
+          .select("contact_id")
+          .eq("organization_id",organizationId)
+          .eq("external_protocol_id",protocol)
+          .maybeSingle();
+        if(protocolError || !protocolRow?.contact_id) return json({success:false,error:"O protocolo ainda não possui um contato SAC vinculado."},409);
+
+        const {data:contactRow,error:contactError}=await admin
+          .from("sac_digital_contacts")
+          .select("external_contact_id")
+          .eq("organization_id",organizationId)
+          .eq("id",protocolRow.contact_id)
+          .maybeSingle();
+        const externalContactId=String(contactRow?.external_contact_id || "").trim();
+        if(contactError || !externalContactId) return json({success:false,error:"Não foi possível identificar o contato na SAC Digital."},409);
+
+        const forwardBody:Record<string,unknown>={id:externalContactId};
+        if(to === "operator") forwardBody.operator=targetOperatorId;
+        else forwardBody.department=targetDepartmentId;
+
+        const routed=await forwardSacContactWithRetry(credentials,forwardBody);
+        if(!routed.response.ok || routed.body.status === false || routed.body.success === false) {
+          const providerType=String(routed.body.type || "provider_rejected");
+          return json({
+            success:false,
+            type:providerType,
+            error:providerType === "operator_busy"
+              ? "SAC Digital: O operador de destino está ocupado executando outra operação. Tente novamente em alguns segundos."
+              : typeof routed.body.message === "string" && routed.body.message.trim()
+                ? `SAC Digital: ${routed.body.message.trim()}`
+                : "Não foi possível encaminhar o atendimento.",
+          },409);
+        }
+
+        try { await enrichProtocol(organizationId,protocol); } catch {}
+        await writeSacAudit({
+          action:"sac_digital.protocol.forward",
+          operation:"forward",
+          entityType:"sac_digital_protocol",
+          entityId:protocol,
+          contextType:"protocol",
+          contextId:protocol,
+          metadata:{
+            legacy_resource_90:true,
+            to,
+            operator_id:targetOperatorId || null,
+            department_id:targetDepartmentId || null,
+            transport:"client_contact_forward",
+          },
+        });
+
+        return json({success:true,data:routed.body,outcome:"accepted",has_more:false,next_page:null});
+      }
+
       return json(await runResourceOperation(Number(body.endpoint_id),body.values as Record<string,unknown>,typeof body.intent_key === 'string' ? `${userData.user.id}:${body.intent_key.slice(0,160)}` : undefined));
     }
     if(action === 'sync_resource' || action === 'bootstrap') {
@@ -2786,19 +2931,16 @@ Deno.serve(async request => {
       if (departmentId) forwardBody.department = departmentId;
       if (operatorId) forwardBody.operator = operatorId;
 
-      const result = await apiRequest(
-        organizationId,
-        credentials,
-        "/contact/forward",
-        { method: "POST", body: JSON.stringify(forwardBody) },
-      );
+      const result = await forwardSacContactWithRetry(credentials, forwardBody);
       if (!result.response.ok || result.body.status === false || result.body.success === false) {
         return json({
           success: false,
           type: String(result.body.type || "provider_rejected"),
-          error: typeof result.body.message === "string" && result.body.message.trim()
-            ? `SAC Digital: ${result.body.message.trim()}`
-            : "Não foi possível encaminhar o atendimento.",
+          error: String(result.body.type || "").trim().toLowerCase() === "operator_busy"
+            ? "SAC Digital: O operador de destino está ocupado executando outra operação. Tente novamente em alguns segundos."
+            : typeof result.body.message === "string" && result.body.message.trim()
+              ? `SAC Digital: ${result.body.message.trim()}`
+              : "Não foi possível encaminhar o atendimento.",
         }, 409);
       }
 
@@ -2915,14 +3057,9 @@ Deno.serve(async request => {
         return json({ success: false, error: "Não foi possível identificar o contato na SAC Digital." }, 409);
       }
 
-      const result = await apiRequest(
-        organizationId,
+      const result = await forwardSacContactWithRetry(
         credentials,
-        "/contact/forward",
-        {
-          method: "POST",
-          body: JSON.stringify({ id: externalContactId, department: departmentId }),
-        },
+        { id: externalContactId, department: departmentId },
       );
       if (!result.response.ok || result.body.status === false || result.body.success === false) {
         return json({
