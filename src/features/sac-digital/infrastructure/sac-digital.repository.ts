@@ -425,6 +425,7 @@ export function sendSacDigitalMediaMessage(
   file: File,
   caption = "",
   orderId?: string,
+  externalContactId?: string,
 ) {
   if (!file.size) throw new Error("O arquivo está vazio.");
   if (file.size > mediaMaximum(file.type)) throw new Error(`O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`);
@@ -437,6 +438,7 @@ export function sendSacDigitalMediaMessage(
   form.set("protocol", protocol);
   form.set("text", caption);
   if (orderId) form.set("order_id", orderId);
+  if (externalContactId) form.set("external_contact_id", externalContactId);
   form.set("file", file, file.name);
   return invokeSacDigitalApi(form);
 }

@@ -794,6 +794,8 @@ Deno.serve(async request => {
         organization_id: form.get("organization_id"),
         protocol: form.get("protocol"),
         text: form.get("text"),
+        order_id: form.get("order_id"),
+        external_contact_id: form.get("external_contact_id"),
       };
       const candidate = form.get("file");
       uploadFile = candidate instanceof File ? candidate : null;
@@ -2886,22 +2888,10 @@ Deno.serve(async request => {
         return json({ success: false, error: "Sem permissão para enviar anexos pelo SAC Digital." }, 403);
       }
 
-      const protocol = String(body.protocol || "").trim();
+      let protocol = String(body.protocol || "").trim();
       const orderId = String(body.order_id || "").trim();
+      const requestedExternalContactId = String(body.external_contact_id || "").trim();
       const text = String(body.text || "").trim();
-      if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
-      const { data: mediaProtocol, error: mediaProtocolError } = await admin
-        .from("sac_digital_protocols")
-        .select("id,status,closed_at")
-        .eq("organization_id", organizationId)
-        .eq("external_protocol_id", protocol)
-        .maybeSingle();
-      if (mediaProtocolError || !mediaProtocol?.id) {
-        return json({ success: false, error: "Protocolo não encontrado nesta empresa." }, 404);
-      }
-      if (mediaProtocol.status === "finished" || mediaProtocol.closed_at) {
-        return json({ success: false, error: "Não é possível enviar anexos a um protocolo finalizado." }, 409);
-      }
       if (!uploadFile || uploadFile.size <= 0) return json({ success: false, error: "Selecione um arquivo para enviar." }, 400);
       if (uploadFile.type.startsWith("image/") && uploadFile.size > 1024 * 1024) {
         return json({ success: false, error: "A SAC Digital aceita imagens de no máximo 1 MB." });
@@ -2913,19 +2903,218 @@ Deno.serve(async request => {
       if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
 
       let fromOrder = false;
+      let mediaAccessBinding: Awaited<ReturnType<typeof resolveMySacAccessBinding>> = null;
+
       if (orderId) {
         if (!isUuid(orderId)) return json({ success: false, error: "OS inválida." }, 400);
         const canViewOrder = await hasOrganizationPermission("orders.view")
           || await hasOrganizationPermission("orders.details.view");
         if (!canViewOrder) return json({ success: false, error: "Sem permissão para acessar esta OS." }, 403);
+
         const { data: sourceOrder, error: sourceOrderError } = await admin
           .from("service_orders")
-          .select("id")
+          .select("id,customer_id")
           .eq("organization_id", organizationId)
           .eq("id", orderId)
           .maybeSingle();
-        if (sourceOrderError || !sourceOrder?.id) return json({ success: false, error: "OS não encontrada nesta empresa." }, 404);
+        if (sourceOrderError || !sourceOrder?.id || !sourceOrder.customer_id) {
+          return json({ success: false, error: "OS ou cliente não encontrado nesta empresa." }, 404);
+        }
         fromOrder = true;
+        mediaAccessBinding = await resolveMySacAccessBinding();
+        if (!mediaAccessBinding) {
+          return json({
+            success: false,
+            type: "sac_profile_not_linked",
+            error: "Seu usuário não possui Perfil SAC Digital vinculado.",
+          }, 409);
+        }
+
+        if (!protocol) {
+          if (!requestedExternalContactId || requestedExternalContactId.length > 120) {
+            return json({ success: false, error: "Contato SAC inválido para esta OS." }, 400);
+          }
+
+          const { data: orderContact, error: orderContactError } = await admin
+            .from("sac_digital_contacts")
+            .select("external_contact_id,customer_id")
+            .eq("organization_id", organizationId)
+            .eq("external_contact_id", requestedExternalContactId)
+            .eq("customer_id", sourceOrder.customer_id)
+            .maybeSingle();
+          if (orderContactError || !orderContact?.external_contact_id) {
+            return json({
+              success: false,
+              error: "O contato SAC preparado não corresponde ao cliente desta OS.",
+            }, 409);
+          }
+
+          type MediaOpenProtocolState = {
+            protocol: string;
+            operatorId: string;
+            operatorName: string;
+          };
+
+          const findMediaOpenProtocol = async (): Promise<MediaOpenProtocolState | null> => {
+            const lookup = await apiRequest(
+              organizationId,
+              credentials,
+              `/contact/info/protocols?p=1&id=${encodeURIComponent(requestedExternalContactId)}`,
+              { method: "GET" },
+            );
+            if (!lookup.response.ok || lookup.body.status === false) return null;
+            const rows = Array.isArray(lookup.body.list)
+              ? lookup.body.list.filter(row => row && typeof row === "object" && !Array.isArray(row)) as Record<string, unknown>[]
+              : [];
+
+            for (const row of rows) {
+              if (row.is_open !== true || Boolean(row.closed_at)) continue;
+              const candidate = String(row.protocol || "").trim();
+              if (!validProtocol(candidate)) continue;
+              const detail = await apiRequest(
+                organizationId,
+                credentials,
+                `/protocol/info?protocol=${encodeURIComponent(candidate)}`,
+                { method: "GET" },
+              );
+              if (!detail.response.ok || detail.body.status === false) continue;
+              const info = detail.body.info && typeof detail.body.info === "object"
+                && !Array.isArray(detail.body.info)
+                ? detail.body.info as Record<string, unknown>
+                : null;
+              if (info?.is_open === true && !String(info.closed_at || "").trim()) {
+                const operator = info.operator && typeof info.operator === "object"
+                  && !Array.isArray(info.operator)
+                  ? info.operator as Record<string, unknown>
+                  : {};
+                return {
+                  protocol: candidate,
+                  operatorId: String(operator.id || info.operator_id || "").trim(),
+                  operatorName: String(operator.name || info.operator_name || "").trim(),
+                };
+              }
+            }
+            return null;
+          };
+
+          const mediaConflict = (state: MediaOpenProtocolState) => json({
+            success: false,
+            type: "protocol_owned_by_other_operator",
+            protocol: state.protocol,
+            operator_id: state.operatorId || null,
+            operator_name: state.operatorName || null,
+            error: `Este contato já está em atendimento com ${state.operatorName || "outro Operador SAC"}. Você não pode enviar o documento desta OS enquanto esse atendimento estiver atribuído a outro operador.`,
+          }, 409);
+
+          const assignMediaConversation = async (): Promise<MediaOpenProtocolState | null> => {
+            if (mediaAccessBinding?.accessMode !== "operator" || !mediaAccessBinding.id) return null;
+            const forwarded = await apiRequest(
+              organizationId,
+              credentials,
+              "/contact/forward",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  id: requestedExternalContactId,
+                  operator: mediaAccessBinding.id,
+                }),
+              },
+            );
+            if (!forwarded.response.ok || forwarded.body.status === false || forwarded.body.success === false) return null;
+
+            let current: MediaOpenProtocolState | null = null;
+            for (let attempt = 0; attempt < 5; attempt += 1) {
+              if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 400));
+              current = await findMediaOpenProtocol();
+              if (!current) continue;
+              if (current.operatorId === mediaAccessBinding.id) return current;
+              if (current.operatorId && current.operatorId !== mediaAccessBinding.id) return current;
+            }
+            return current;
+          };
+
+          let mediaOpenProtocol = await findMediaOpenProtocol();
+
+          if (mediaAccessBinding.accessMode === "operator") {
+            if (!mediaAccessBinding.id) {
+              return json({
+                success: false,
+                type: "sac_operator_not_linked",
+                error: "Seu usuário está configurado como Operador SAC, mas nenhum operador válido está vinculado.",
+              }, 409);
+            }
+
+            if (mediaOpenProtocol) {
+              const ownership = conversationOwnership({
+                accessMode: mediaAccessBinding.accessMode,
+                boundOperatorId: mediaAccessBinding.id,
+                assignedOperatorId: mediaOpenProtocol.operatorId,
+                assignedOperatorName: mediaOpenProtocol.operatorName,
+              });
+              if (!ownership.allowed && ownership.reason === "owned_by_other_operator") {
+                return mediaConflict(mediaOpenProtocol);
+              }
+              if (ownership.needsAssignment) {
+                const assigned = await assignMediaConversation();
+                if (assigned?.operatorId && assigned.operatorId !== mediaAccessBinding.id) {
+                  return mediaConflict(assigned);
+                }
+                if (!assigned || assigned.operatorId !== mediaAccessBinding.id) {
+                  return json({
+                    success: false,
+                    type: "operator_assignment_pending",
+                    error: `A SAC Digital ainda não confirmou o atendimento para ${mediaAccessBinding.name || "seu Operador SAC"}. Aguarde alguns segundos e tente novamente.`,
+                  }, 409);
+                }
+                mediaOpenProtocol = assigned;
+              }
+            } else {
+              const assigned = await assignMediaConversation();
+              if (assigned?.operatorId && assigned.operatorId !== mediaAccessBinding.id) {
+                return mediaConflict(assigned);
+              }
+              if (!assigned || assigned.operatorId !== mediaAccessBinding.id) {
+                return json({
+                  success: false,
+                  type: "operator_assignment_pending",
+                  error: `A SAC Digital ainda não criou/atribuiu o atendimento a ${mediaAccessBinding.name || "seu Operador SAC"}. Aguarde alguns segundos e tente novamente.`,
+                }, 409);
+              }
+              mediaOpenProtocol = assigned;
+            }
+          } else if (!mediaOpenProtocol) {
+            return json({
+              success: false,
+              type: "protocol_required_for_manager_media",
+              error: "Não existe atendimento aberto para este cliente. Como Gestor SAC, abra uma conversa antes de enviar o documento da OS.",
+            }, 409);
+          }
+
+          protocol = String(mediaOpenProtocol?.protocol || "").trim();
+        }
+      }
+
+      if (!validProtocol(protocol)) {
+        return json({ success: false, error: "Não foi possível determinar um protocolo ativo para o envio." }, 409);
+      }
+
+      try {
+        await enrichProtocol(organizationId, protocol);
+      } catch {
+        // O protocolo externo confirmado ainda pode estar aguardando projeção local.
+      }
+
+      const { data: mediaProtocol, error: mediaProtocolError } = await admin
+        .from("sac_digital_protocols")
+        .select("id,status,closed_at")
+        .eq("organization_id", organizationId)
+        .eq("external_protocol_id", protocol)
+        .maybeSingle();
+      if (mediaProtocolError || !mediaProtocol?.id) {
+        return json({ success: false, error: "Protocolo não encontrado nesta empresa." }, 404);
+      }
+      if (mediaProtocol.status === "finished" || mediaProtocol.closed_at) {
+        return json({ success: false, error: "Não é possível enviar anexos a um protocolo finalizado." }, 409);
       }
 
       const mediaType = uploadFile.type.startsWith("image/") ? "image"
@@ -2995,37 +3184,59 @@ Deno.serve(async request => {
       };
       if (text) apiPayload.text = text;
 
-      let mediaTransport = fromOrder ? "company-client-url" : "url";
-      let apiResult;
-      if (fromOrder) {
-        // Anexo enviado a partir da OS segue a mesma regra da mensagem da OS:
-        // usa a conta SAC da empresa e não se passa pelo Operador atribuído ao protocolo.
-        const companySession = await login(organizationId, credentials);
-        apiResult = await fetchJson(
-          `${SAC_API_BASE_URL}/protocol/send`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${companySession.token}`,
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(apiPayload),
-          },
+      let mediaTransport = fromOrder ? "order" : "url";
+      let response: Response;
+      let apiBody: Record<string, unknown>;
+
+      if (fromOrder && mediaAccessBinding?.accessMode === "operator") {
+        const operational = await runResourceOperation(
+          36,
+          apiPayload,
+          `${userData.user.id}:order-media:${orderId}:${protocol}:${Date.now()}`,
         );
+        if (!operational.success) {
+          await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
+          return json({
+            success: false,
+            type: operational.type || "provider_rejected",
+            error: operational.error || "A SAC Digital não conseguiu enviar o documento pelo Operador responsável.",
+          }, operational.outcome === "unknown" ? 502 : 409);
+        }
+        mediaTransport = "operator";
+        apiBody = operational.data && typeof operational.data === "object" && !Array.isArray(operational.data)
+          ? operational.data as Record<string, unknown>
+          : {};
+        response = new Response(JSON.stringify(apiBody), { status: 200 });
       } else {
-        apiResult = await apiRequest(
-          organizationId,
-          credentials,
-          "/protocol/send",
-          {
-            method: "POST",
-            body: JSON.stringify(apiPayload),
-          },
-        );
+        const companySession = fromOrder
+          ? await login(organizationId, credentials)
+          : null;
+        const apiResult = fromOrder
+          ? await fetchJson(
+              `${SAC_API_BASE_URL}/protocol/send`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${companySession!.token}`,
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiPayload),
+              },
+            )
+          : await apiRequest(
+              organizationId,
+              credentials,
+              "/protocol/send",
+              {
+                method: "POST",
+                body: JSON.stringify(apiPayload),
+              },
+            );
+        response = apiResult.response;
+        apiBody = apiResult.body;
+        if (fromOrder) mediaTransport = "manager-client";
       }
-      let response = apiResult.response;
-      let apiBody = apiResult.body;
 
       if (!response.ok || apiBody.status === false || apiBody.success === false) {
         await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);

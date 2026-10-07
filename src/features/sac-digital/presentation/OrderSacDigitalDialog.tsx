@@ -9,7 +9,7 @@ import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminL
 import {
   DEFAULT_SAC_ORDER_MESSAGE_PRESETS,
   listSacDigitalOrderMessagePresets,
-  listSacDigitalProtocols,
+  prepareSacDigitalNewConversationContact,
   sendSacDigitalMediaMessage,
   sendSacDigitalOrderMessage,
   type SacDigitalOrderMessagePreset,
@@ -116,14 +116,16 @@ export function OrderSacDigitalDialog({
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId)) {
           throw new Error("A OS precisa estar vinculada a um cliente válido antes de enviar documentos.");
         }
-        const available = (await listSacDigitalProtocols(order.organization_id))
-          .filter(item => item.contact?.customer_id === customerId
-            && !item.is_pending && item.status !== "finished" && !item.closed_at
-            && Boolean(item.external_protocol_id));
-        if (available.length !== 1) {
-          throw new Error(available.length === 0
-            ? "Ainda não existe um protocolo ativo para enviar o arquivo. Use Abrir conversa para iniciar o atendimento e anexe o documento no chat."
-            : "Este cliente possui mais de um atendimento ativo. Abra a conversa e escolha o protocolo correto antes de enviar o arquivo.");
+        const prepared = await prepareSacDigitalNewConversationContact(
+          order.organization_id,
+          { customerId },
+        );
+        const externalContactId = prepared.contact?.external_contact_id || "";
+        if (!prepared.prepared || !externalContactId) {
+          throw new Error(
+            prepared.error
+            || "A SAC Digital não conseguiu preparar o contato deste cliente para o envio.",
+          );
         }
 
         let fileToSend = attachment;
@@ -135,10 +137,11 @@ export function OrderSacDigitalDialog({
 
         await sendSacDigitalMediaMessage(
           order.organization_id,
-          available[0].external_protocol_id,
+          "",
           fileToSend,
           message,
           order.id,
+          externalContactId,
         );
         notifyAdmin("Documento enviado pelo atendimento SAC Digital.", "success");
       } else {
