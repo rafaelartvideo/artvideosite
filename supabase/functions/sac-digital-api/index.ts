@@ -1289,6 +1289,38 @@ Deno.serve(async request => {
     }
     if(action === 'sync_resource' || action === 'bootstrap') {
       if(!(await requirePermission('sac_digital.messages.view'))) return json({success:false,error:'Sem permissão para sincronizar.'},403);
+
+      // O bootstrap histórico é complementar ao webhook/worker. Várias abas ou
+      // usuários não podem importar a mesma empresa em paralelo e competir com
+      // o CRM por CPU/IO. O sync_resource manual continua sem cooldown.
+      if(action === 'bootstrap') {
+        const cutoff = new Date(Date.now() - 15 * 60_000).toISOString();
+        const recentCursor = await admin
+          .from('sac_digital_sync_cursors')
+          .select('updated_at')
+          .eq('organization_id', organizationId)
+          .gte('updated_at', cutoff)
+          .order('updated_at', {ascending:false})
+          .limit(1)
+          .maybeSingle();
+        if(recentCursor.error) throw recentCursor.error;
+        if(recentCursor.data?.updated_at) {
+          return json({
+            success:true,
+            data:[],
+            outcome:'accepted',
+            has_more:true,
+            next_page:null,
+            skipped:true,
+            reason:'bootstrap_cooldown',
+            retry_after_seconds:Math.max(
+              1,
+              Math.ceil((new Date(recentCursor.data.updated_at).getTime() + 15 * 60_000 - Date.now()) / 1000),
+            ),
+          });
+        }
+      }
+
       const resources = action === 'bootstrap' ? SAC_ENDPOINTS.filter((item:any)=>item.method === 'GET' && /\/(contact|protocol)\/all(?:\?|$)/.test(item.path)) : SAC_ENDPOINTS.filter((item:any)=>item.id === Number(body.endpoint_id) && item.method === 'GET');
       if(!resources.length) return json({success:false,error:'Recurso de sincronização inválido.'},400);
       const pages=[];
