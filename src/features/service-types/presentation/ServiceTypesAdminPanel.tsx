@@ -8,12 +8,14 @@ import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { deleteServiceType, loadServiceTypesConfiguration, saveServiceType, setServiceTypeActive } from "../infrastructure/service-types.repository";
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { LinkedOrdersDeleteDialog } from "@/shared/ui/admin/LinkedOrdersDeleteDialog";
 import { FHoursInput, FInput, FIntegerInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { formatDurationHours, formatNumber } from "@/shared/domain/formatters";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
+import { listOrdersUsingServiceType, type LinkedServiceOrder } from "@/features/orders/infrastructure/linked-orders.repository";
 
 type ServiceTypesAdminPanelProps = {
   onBack: () => void;
@@ -57,7 +59,10 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
   const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true, selectedSituations: [] as Array<{ situation_id: string; use_default_hours: boolean; sla_hours: string }> });
   const [fieldErrors, setFieldErrors] = useState<{ title?: string; forecast_days?: string; situations?: string; sla?: Record<string, string> }>({});
   const [saving, setSaving] = useState(false);
-  const [delId, setDelId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [linkedOrders, setLinkedOrders] = useState<LinkedServiceOrder[]>([]);
+  const [linkedOrdersLoading, setLinkedOrdersLoading] = useState(false);
+  const [linkedOrdersError, setLinkedOrdersError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -143,15 +148,52 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
     finally { setSaving(false); }
   };
   const toggle = async (item: any) => { if (!canToggleActive) return; try { await setServiceTypeActive(item.id, !item.is_active); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar tipo: ${systemErrorMessage(error)}`, type: "error" }); } };
-  const remove = async (id: string) => { if (!canDelete) return; try { await deleteServiceType(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível excluir: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const loadLinkedOrders = async (id: string) => {
+    setLinkedOrdersLoading(true);
+    setLinkedOrdersError(null);
+    try {
+      setLinkedOrders(await listOrdersUsingServiceType(id));
+    } catch (error) {
+      setLinkedOrdersError(`Não foi possível verificar as OS vinculadas: ${systemErrorMessage(error)}`);
+    } finally {
+      setLinkedOrdersLoading(false);
+    }
+  };
+  const requestDelete = (item: any) => {
+    if (!canDelete || monitoredServiceTypeIds.has(item.id)) return;
+    setDeleteTarget(item);
+    setLinkedOrders([]);
+    void loadLinkedOrders(item.id);
+  };
+  const closeDelete = () => {
+    setDeleteTarget(null);
+    setLinkedOrders([]);
+    setLinkedOrdersError(null);
+  };
+  const openLinkedOrder = (orderId: string) => {
+    const newTab = window.open(`/admin/orders/${encodeURIComponent(orderId)}`, "_blank");
+    if (newTab) newTab.opener = null;
+  };
+  const remove = async (id: string) => {
+    if (!canDelete) return;
+    try {
+      await deleteServiceType(id);
+      closeDelete();
+      setToast({ msg: "Tipo de atendimento excluído.", type: "success" });
+      await refresh();
+    } catch (error) {
+      setToast({ msg: `Não foi possível excluir: ${systemErrorMessage(error)}`, type: "error" });
+      await loadLinkedOrders(id);
+    }
+  };
   const slaSummary = (item: any) => { const links = situationLinks.filter(link => link.service_type_id === item.id); const totalHours = links.reduce((total, link) => { const situation = situations.find(current => current.id === link.situation_id); const hours = Number(link.use_default_hours ? situation?.hours : link.sla_hours); return Number.isFinite(hours) && hours > 0 ? total + hours : total; }, 0); return { count: links.length, totalHours }; };
 
   if (!canView) return null;
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {delId && <ConfirmDialog message="Excluir este tipo de atendimento? OS relacionadas ficarão sem tipo." onConfirm={() => remove(delId).finally(() => setDelId(null))} onCancel={() => setDelId(null)} />}
+    {deleteTarget && <LinkedOrdersDeleteDialog entityLabel="tipo de atendimento" entityName={deleteTarget.title || ""} orders={linkedOrders} loading={linkedOrdersLoading} error={linkedOrdersError} onRefresh={() => loadLinkedOrders(deleteTarget.id)} onDelete={() => remove(deleteTarget.id)} onCancel={closeDelete} onOpenOrder={openLinkedOrder} />}
     {!routeResourceId && <><PageHeader title="Tipos de Atendimento" subtitle="Configuração dos tipos utilizados nas ordens de serviço" />
-    {canViewTable && <AdminCard>{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={List} title="Nenhum tipo cadastrado" message="Crie tipos para disponibilizá-los na Nova OS." /> : <><div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr>{showType && <th className="text-left">Tipo de atendimento</th>}{showDescription && <th className="text-left">Descrição</th>}{showForecast && <th className="text-left">Previsão</th>}{showSla && <th className="text-left">SLA</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedItems.map(item => { const summary = slaSummary(item); const forecast = Number(item.forecast_days); const monitored = monitoredServiceTypeIds.has(item.id); return <tr key={item.id}>{showType && <td><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-[#0d1b2e]">{item.title}</p>{monitored && <span className="rounded-full bg-[#eef5ff] px-2 py-0.5 text-[10px] font-black text-[#0057e7]">Union</span>}</div></td>}{showDescription && <td><p className="max-w-sm break-words text-xs leading-relaxed text-[#5a6a82]">{item.description || "Sem descrição"}</p></td>}{showForecast && <td className="text-xs text-[#5a6a82]">{item.forecast_days == null ? "Não informada" : `${formatNumber(forecast, { maximumFractionDigits: 0 })} ${forecast === 1 ? "dia" : "dias"}`}</td>}{showSla && <td className="text-xs text-[#5a6a82]">{summary.count ? `${summary.count} ${summary.count === 1 ? "situação" : "situações"} · ${formatDurationHours(summary.totalHours)}` : "Não configurado"}</td>}{showStatus && <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar tipo" title="Editar" onClick={() => openEditPage(item)}><Edit2 size={14} /></AdminIconButton>}{canDelete && !monitored && <AdminIconButton ariaLabel="Excluir tipo" title="Excluir" variant="danger" onClick={() => setDelId(item.id)}><Trash2 size={14} /></AdminIconButton>}{canToggleActive && !monitored && <AdminActiveStateButton active={item.is_active} entityLabel="tipo de atendimento" onClick={() => void toggle(item)} iconSize={14} />}</div></td>}</tr>; })}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} /></>}</AdminCard>}<AdminStickyToolbar><BtnSecondary onClick={onBack}>Voltar</BtnSecondary>{canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>}</AdminStickyToolbar></>}
+    {canViewTable && <AdminCard>{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={List} title="Nenhum tipo cadastrado" message="Crie tipos para disponibilizá-los na Nova OS." /> : <><div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr>{showType && <th className="text-left">Tipo de atendimento</th>}{showDescription && <th className="text-left">Descrição</th>}{showForecast && <th className="text-left">Previsão</th>}{showSla && <th className="text-left">SLA</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedItems.map(item => { const summary = slaSummary(item); const forecast = Number(item.forecast_days); const monitored = monitoredServiceTypeIds.has(item.id); return <tr key={item.id}>{showType && <td><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-[#0d1b2e]">{item.title}</p>{monitored && <span className="rounded-full bg-[#eef5ff] px-2 py-0.5 text-[10px] font-black text-[#0057e7]">Union</span>}</div></td>}{showDescription && <td><p className="max-w-sm break-words text-xs leading-relaxed text-[#5a6a82]">{item.description || "Sem descrição"}</p></td>}{showForecast && <td className="text-xs text-[#5a6a82]">{item.forecast_days == null ? "Não informada" : `${formatNumber(forecast, { maximumFractionDigits: 0 })} ${forecast === 1 ? "dia" : "dias"}`}</td>}{showSla && <td className="text-xs text-[#5a6a82]">{summary.count ? `${summary.count} ${summary.count === 1 ? "situação" : "situações"} · ${formatDurationHours(summary.totalHours)}` : "Não configurado"}</td>}{showStatus && <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar tipo" title="Editar" onClick={() => openEditPage(item)}><Edit2 size={14} /></AdminIconButton>}{canDelete && !monitored && <AdminIconButton ariaLabel="Excluir tipo" title="Excluir" variant="danger" onClick={() => requestDelete(item)}><Trash2 size={14} /></AdminIconButton>}{canToggleActive && !monitored && <AdminActiveStateButton active={item.is_active} entityLabel="tipo de atendimento" onClick={() => void toggle(item)} iconSize={14} />}</div></td>}</tr>; })}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} /></>}</AdminCard>}<AdminStickyToolbar><BtnSecondary onClick={onBack}>Voltar</BtnSecondary>{canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>}</AdminStickyToolbar></>}
     {routeResourceId && !formOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
     <AdminPage open={formOpen} onClose={closeForm} breadcrumb="Operação > Tipos de Atendimento" title={editItem ? "Editar tipo de atendimento" : "Novo tipo de atendimento"} subtitle="Preencha os dados do tipo" maxW="max-w-xl">
       <div className="space-y-5 p-5">
