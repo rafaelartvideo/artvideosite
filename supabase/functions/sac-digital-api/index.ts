@@ -3007,6 +3007,8 @@ Deno.serve(async request => {
       if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
 
       let fromOrder = false;
+      let orderExternalContactId = "";
+      let orderContactLocalId = "";
 
       if (orderId) {
         if (!isUuid(orderId)) return json({ success: false, error: "OS inválida." }, 400);
@@ -3036,7 +3038,7 @@ Deno.serve(async request => {
 
           const { data: orderContact, error: orderContactError } = await admin
             .from("sac_digital_contacts")
-            .select("external_contact_id,customer_id")
+            .select("id,external_contact_id,customer_id")
             .eq("organization_id", organizationId)
             .eq("external_contact_id", requestedExternalContactId)
             .eq("customer_id", sourceOrder.customer_id)
@@ -3047,6 +3049,8 @@ Deno.serve(async request => {
               error: "O contato SAC preparado não corresponde ao cliente desta OS.",
             }, 409);
           }
+          orderExternalContactId = String(orderContact.external_contact_id);
+          orderContactLocalId = String(orderContact.id || "");
 
           const lookup = await apiRequest(
             organizationId,
@@ -3080,37 +3084,35 @@ Deno.serve(async request => {
             }
           }
 
-          if (!protocol) {
-            return json({
-              success: false,
-              type: "protocol_required_for_order_media",
-              error: "Ainda não existe atendimento aberto para este cliente. Inicie a conversa antes de enviar o documento da OS.",
-            }, 409);
-          }
         }
       }
 
-      if (!validProtocol(protocol)) {
+      if (protocol && !validProtocol(protocol)) {
+        return json({ success: false, error: "Protocolo inválido para o envio." }, 409);
+      }
+      if (!protocol && !fromOrder) {
         return json({ success: false, error: "Não foi possível determinar um protocolo ativo para o envio." }, 409);
       }
 
-      try {
-        await enrichProtocol(organizationId, protocol);
-      } catch {
-        // O protocolo externo confirmado ainda pode estar aguardando projeção local.
-      }
+      if (protocol) {
+        try {
+          await enrichProtocol(organizationId, protocol);
+        } catch {
+          // O protocolo externo confirmado ainda pode estar aguardando projeção local.
+        }
 
-      const { data: mediaProtocol, error: mediaProtocolError } = await admin
-        .from("sac_digital_protocols")
-        .select("id,status,closed_at")
-        .eq("organization_id", organizationId)
-        .eq("external_protocol_id", protocol)
-        .maybeSingle();
-      if (mediaProtocolError || !mediaProtocol?.id) {
-        return json({ success: false, error: "Protocolo não encontrado nesta empresa." }, 404);
-      }
-      if (mediaProtocol.status === "finished" || mediaProtocol.closed_at) {
-        return json({ success: false, error: "Não é possível enviar anexos a um protocolo finalizado." }, 409);
+        const { data: mediaProtocol, error: mediaProtocolError } = await admin
+          .from("sac_digital_protocols")
+          .select("id,status,closed_at")
+          .eq("organization_id", organizationId)
+          .eq("external_protocol_id", protocol)
+          .maybeSingle();
+        if (mediaProtocolError || !mediaProtocol?.id) {
+          return json({ success: false, error: "Protocolo não encontrado nesta empresa." }, 404);
+        }
+        if (mediaProtocol.status === "finished" || mediaProtocol.closed_at) {
+          return json({ success: false, error: "Não é possível enviar anexos a um protocolo finalizado." }, 409);
+        }
       }
 
       const mediaType = uploadFile.type.startsWith("image/") ? "image"
@@ -3179,10 +3181,10 @@ Deno.serve(async request => {
       }
 
       const apiPayload: Record<string, unknown> = {
-        protocol,
         type: mediaType,
         url: providerUrl,
       };
+      if (protocol) apiPayload.protocol = protocol;
       if (text) apiPayload.text = text;
 
       let mediaTransport = fromOrder ? "manager-client" : "url";
@@ -3190,21 +3192,40 @@ Deno.serve(async request => {
       let apiBody: Record<string, unknown>;
 
       if (fromOrder) {
-        const companySession = await login(organizationId, credentials);
-        const apiResult = await fetchJson(
-          `${SAC_API_BASE_URL}/protocol/send`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${companySession.token}`,
-              Accept: "application/json",
-              "Content-Type": "application/json",
+        if (protocol) {
+          const companySession = await login(organizationId, credentials);
+          const apiResult = await fetchJson(
+            `${SAC_API_BASE_URL}/protocol/send`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${companySession.token}`,
+                Accept: "application/json",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(apiPayload),
             },
-            body: JSON.stringify(apiPayload),
-          },
-        );
-        response = apiResult.response;
-        apiBody = apiResult.body;
+          );
+          response = apiResult.response;
+          apiBody = apiResult.body;
+          mediaTransport = "manager-client-protocol";
+        } else {
+          const notificationPayload: Record<string, unknown> = {
+            contact: orderExternalContactId,
+            type: mediaType,
+            url: providerUrl,
+          };
+          if (text) notificationPayload.text = text;
+          const apiResult = await apiRequest(
+            organizationId,
+            credentials,
+            "/notification/contact",
+            { method: "POST", body: JSON.stringify(notificationPayload) },
+          );
+          response = apiResult.response;
+          apiBody = apiResult.body;
+          mediaTransport = "manager-client-notification";
+        }
       } else {
         const apiResult = await apiRequest(
           organizationId,
@@ -3236,12 +3257,31 @@ Deno.serve(async request => {
         });
       }
 
-      const { data: protocolRow } = await admin
-        .from("sac_digital_protocols")
-        .select("id")
-        .eq("organization_id", organizationId)
-        .eq("external_protocol_id", protocol)
-        .maybeSingle();
+      if (fromOrder && !protocol && orderContactLocalId) {
+        const sentAt = new Date().toISOString();
+        await admin
+          .from("sac_digital_outbound_starts")
+          .upsert({
+            organization_id: organizationId,
+            contact_id: orderContactLocalId,
+            external_contact_id: orderExternalContactId,
+            message_text: text || `[Arquivo] ${uploadFile.name || "documento"}`,
+            sender_id: userData.user.id,
+            sent_at: sentAt,
+            updated_at: sentAt,
+            notification_id: apiBody.notification_id || apiBody.id || null,
+            delivery_state: "accepted",
+          }, { onConflict: "organization_id,external_contact_id" });
+      }
+
+      const { data: protocolRow } = protocol
+        ? await admin
+            .from("sac_digital_protocols")
+            .select("id")
+            .eq("organization_id", organizationId)
+            .eq("external_protocol_id", protocol)
+            .maybeSingle()
+        : { data: null };
 
       if (protocolRow?.id) {
         const sentAt = new Date().toISOString();
@@ -3815,63 +3855,9 @@ Deno.serve(async request => {
         return null;
       };
 
-      const accessBinding = await resolveMySacAccessBinding();
-      if (!accessBinding) {
-        return json({
-          success: false,
-          type: "sac_profile_not_linked",
-          error: "Seu usuário não possui Perfil SAC Digital vinculado. Configure Gestor SAC ou Operador SAC antes de enviar pela OS.",
-        }, 409);
-      }
+      const openProtocol = await findSacOpenProtocol();
 
-      const orderConflictResponse = (state: OrderOpenProtocolState) => json({
-        success: false,
-        type: "protocol_owned_by_other_operator",
-        protocol: state.protocol,
-        operator_id: state.operatorId || null,
-        operator_name: state.operatorName || null,
-        error: `Este contato já está em atendimento com ${state.operatorName || "outro Operador SAC"}. Você não pode enviar pela OS enquanto esse atendimento estiver atribuído a outro operador.`,
-      }, 409);
-
-      const assignOrderConversation = async (): Promise<OrderOpenProtocolState | null> => {
-        if (accessBinding.accessMode !== "operator" || !accessBinding.id) return null;
-        const forwarded = await apiRequest(
-          organizationId,
-          credentials,
-          "/contact/forward",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              id: externalContactId,
-              operator: accessBinding.id,
-            }),
-          },
-        );
-        if (!forwarded.response.ok || forwarded.body.status === false || forwarded.body.success === false) return null;
-
-        let current: OrderOpenProtocolState | null = null;
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-          if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 400));
-          current = await findSacOpenProtocol();
-          if (!current) continue;
-          if (current.operatorId === accessBinding.id) return current;
-          if (current.operatorId && current.operatorId !== accessBinding.id) return current;
-        }
-        return current;
-      };
-
-      let openProtocol = await findSacOpenProtocol();
-
-      if (accessBinding.accessMode === "operator") {
-        if (!accessBinding.id) {
-          return json({
-            success: false,
-            type: "sac_operator_not_linked",
-            error: "Seu usuário está configurado como Operador SAC, mas nenhum operador válido está vinculado.",
-          }, 409);
-        }
-
-        if (openProtocol) {
+      if (openProtocol) {
           const ownership = conversationOwnership({
             accessMode: accessBinding.accessMode,
             boundOperatorId: accessBinding.id,
@@ -3919,48 +3905,28 @@ Deno.serve(async request => {
           // Pode haver atraso até o protocolo ser projetado; reconciliar no webhook.
         }
 
-        let outgoingBody: Record<string, unknown> = {};
-        if (accessBinding.accessMode === "operator") {
-          const operationalSend = await runResourceOperation(
-            36,
-            { protocol: openedProtocol, type: "text", text },
-            `${userData.user.id}:order:${orderId}:${Date.now()}`,
-          );
-          if (!operationalSend.success) {
-            return json({
-              success: false,
-              type: operationalSend.type || "provider_rejected",
-              error: operationalSend.error || "A SAC Digital não conseguiu enviar a mensagem pelo Operador responsável.",
-            }, operationalSend.outcome === "unknown" ? 502 : 409);
-          }
-          outgoingBody = operationalSend.data && typeof operationalSend.data === "object"
-            && !Array.isArray(operationalSend.data)
-            ? operationalSend.data as Record<string, unknown>
-            : {};
-        } else {
-          const companySession = await login(organizationId, credentials);
-          const outgoing = await fetchJson(
-            `${SAC_API_BASE_URL}/protocol/send`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${companySession.token}`,
-                Accept: "application/json",
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ protocol: openedProtocol, type: "text", text }),
+        const companySession = await login(organizationId, credentials);
+        const outgoing = await fetchJson(
+          `${SAC_API_BASE_URL}/protocol/send`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${companySession.token}`,
+              Accept: "application/json",
+              "Content-Type": "application/json",
             },
-          );
-          if (!outgoing.response.ok || outgoing.body.status === false || outgoing.body.success === false) {
-            return json({
-              success: false,
-              error: typeof outgoing.body.message === "string" && outgoing.body.message.trim()
-                ? `SAC Digital: ${outgoing.body.message.trim()}`
-                : "A SAC Digital não conseguiu enviar a mensagem pelo atendimento.",
-            }, 409);
-          }
-          outgoingBody = outgoing.body;
+            body: JSON.stringify({ protocol: openedProtocol, type: "text", text }),
+          },
+        );
+        if (!outgoing.response.ok || outgoing.body.status === false || outgoing.body.success === false) {
+          return json({
+            success: false,
+            error: typeof outgoing.body.message === "string" && outgoing.body.message.trim()
+              ? `SAC Digital: ${outgoing.body.message.trim()}`
+              : "A SAC Digital não conseguiu enviar a mensagem pelo atendimento.",
+          }, 409);
         }
+        const outgoingBody = outgoing.body;
 
         const { data: protocolRow } = await admin
           .from("sac_digital_protocols")
