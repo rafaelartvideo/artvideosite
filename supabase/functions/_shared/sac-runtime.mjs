@@ -2,7 +2,7 @@
 // in the repository; reactivation must be an explicit code change.
 export const LEGACY_SAC_ENABLED = false;
 const resources = new Set([2,3,4,5,6,7,42,43,44]);
-const protocolControls = new Set([72,73]); // Queue/read and select used by conversation controls.
+const protocolControls = new Set([72,73,90]); // Queue/read and select used by conversation controls.
 const newConversationResources = new Set([14,15,39,40]); // Channels/templates + contact/direct notification used by the New conversation flow.
 const actions = new Set([
  'health','resource_health','test_connection','retry_webhook_event',
@@ -11,7 +11,7 @@ const actions = new Set([
  'sync_protocol_history','enrich_protocol','media_urls','refresh_protocol',
  'link_customer','new_conversation_search','prepare_new_conversation_contact',
  'start_new_conversation','my_operator_binding','assume_protocol','routing_options',
- 'forward_protocol','return_to_inbox','finish_protocol','send_media','send_order_message','send_signature_invite','send_message',
+ 'forward_protocol','return_to_inbox','return_to_queue','finish_protocol','send_media','send_order_message','send_signature_invite','send_message',
 ]);
 const events = new Set(['protocol_opened','protocol_finished','protocol_in_att','protocol_forward','protocol_new_message','protocol_new_inbox','contact_new']);
 export function resourceEnabled(id) { return LEGACY_SAC_ENABLED || resources.has(Number(id)); }

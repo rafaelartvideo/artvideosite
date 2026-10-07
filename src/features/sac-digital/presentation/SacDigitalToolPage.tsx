@@ -1736,7 +1736,7 @@ export function SacDigitalToolPage({
                       </AdminButton>
                     )}
 
-                    {canManageProtocols && selectedOperationalStatus === "in_att" && (isMyProtocol || isSacManager) && (
+                    {canManageProtocols && selectedOperationalStatus === "in_att" && isMyProtocol && (
                       <>
                         <AdminButton
                           variant="secondary"

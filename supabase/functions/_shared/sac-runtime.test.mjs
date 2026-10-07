@@ -8,7 +8,7 @@ test('only client reads and WhatsApp group reads remain in the resource catalog'
 });
 test('legacy actions are blocked before any provider work',()=>{
  for(const action of ['sms_replies','delivery_history','process_jobs'])assert.equal(runtime.actionEnabled(action),false,action);
- for(const action of ['send_message','send_media','refresh_protocol','bootstrap','start_new_conversation','routing_options','forward_protocol','return_to_inbox'])assert.equal(runtime.actionEnabled(action),true,action);
+ for(const action of ['send_message','send_media','refresh_protocol','bootstrap','start_new_conversation','routing_options','forward_protocol','return_to_inbox','return_to_queue'])assert.equal(runtime.actionEnabled(action),true,action);
  assert.equal(runtime.actionEnabled('resource_operation',45),false);
  assert.equal(runtime.actionEnabled('resource_operation',42),true);
 });
@@ -50,4 +50,9 @@ test('conversation ownership follows the SAC profile instead of the Union role',
  assert.equal(runtime.conversationOwnership({
   accessMode:null,boundOperatorId:'',assignedOperatorId:'',assignedOperatorName:'',
  }).reason,'profile_not_linked');
+});
+
+test('operational forwarding stays enabled for cached conversation controls',()=>{
+ assert.equal(runtime.actionEnabled('resource_operation',90),true);
+ assert.equal(runtime.actionEnabled('return_to_queue'),true);
 });
