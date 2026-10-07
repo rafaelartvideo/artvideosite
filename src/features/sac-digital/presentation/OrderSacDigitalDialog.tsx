@@ -36,10 +36,11 @@ function orderMessageFor(order: any, purpose: "initial" | "estimate" | "completi
   const os = String(order?.os_number || order?.external_os_number || "").trim();
   const reference = os ? `a OS ${os}` : "seu atendimento";
   if (purpose === "estimate") {
-    return `${greeting} Gostaríamos de falar com você sobre o orçamento referente ${reference}. Podemos esclarecer os valores e as próximas etapas por aqui.`;
+    const budgetReference = os ? `da OS ${os}` : "do seu atendimento";
+    return `${greeting} Gostaríamos de falar com você sobre o orçamento ${budgetReference}. Podemos esclarecer os valores e as próximas etapas por aqui.`;
   }
   return order?.completed_at
-    ? `${greeting} Informamos que ${reference} foi concluída. Podemos combinar os próximos passos por aqui.`
+    ? `${greeting} Informamos que ${reference} foi ${os ? "concluída" : "concluído"}. Podemos combinar os próximos passos por aqui.`
     : `${greeting} Temos uma atualização sobre ${reference} e gostaríamos de confirmar os próximos passos com você.`;
 }
 
@@ -180,7 +181,7 @@ export function OrderSacDigitalDialog({
             className="admin-input mb-3 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground"
           >
             <option value="initial">Contato sobre a OS</option>
-            <option value="estimate">Orçamento</option>
+            <option value="estimate">Mensagem sobre orçamento</option>
             <option value="completion">Confirmação / conclusão</option>
           </select>
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
