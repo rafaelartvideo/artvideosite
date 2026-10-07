@@ -32,6 +32,33 @@ test("copies computed layout and page-break styles before html2pdf cloning", () 
   assert.deepEqual(applied, names.map(name => [name, values[name], ""]));
 });
 
+test("skips theme variables and unsupported modern color functions during PDF capture", () => {
+  const names = ["--foreground", "color", "background-color", "display"];
+  const values = {
+    "--foreground": "oklch(0.2 0 0)",
+    color: "oklch(0.2 0 0)",
+    "background-color": "rgb(255, 255, 255)",
+    display: "block",
+  };
+  const source = {
+    length: names.length,
+    item(index) { return names[index] || ""; },
+    getPropertyValue(name) { return values[name] || ""; },
+    getPropertyPriority() { return ""; },
+  };
+  const applied = [];
+  const target = {
+    setProperty(name, value, priority) { applied.push([name, value, priority]); },
+  };
+
+  copyComputedStyle(source, target);
+
+  assert.deepEqual(applied, [
+    ["background-color", "rgb(255, 255, 255)", ""],
+    ["display", "block", ""],
+  ]);
+});
+
 test("maps template top-right-bottom-left margins to html2pdf top-left-bottom-right", () => {
   assert.deepEqual(html2pdfMarginOrder([10, 12, 14, 16]), [10, 16, 14, 12]);
 });
