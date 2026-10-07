@@ -2,7 +2,7 @@ function rounded(value) {
   return Number(Number(value).toFixed(3));
 }
 
-const UNSUPPORTED_CAPTURE_COLOR = /(?:^|[\\s,(])(?:oklch|oklab|lab|lch|color|color-mix)\\(/i;
+const UNSUPPORTED_CAPTURE_COLOR = /(?:^|[\s,(])(?:oklch|oklab|lab|lch|color|color-mix)\(/i;
 
 export function copyComputedStyle(sourceStyle, targetStyle) {
   const length = Number(sourceStyle?.length) || 0;
