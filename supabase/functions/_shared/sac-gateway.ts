@@ -85,7 +85,7 @@ export async function executeSacOperation(operation, dependencies) {
       leased = await dependencies.lease();
       if (!leased) {if(attempt) await dependencies.record(attempt.id,'rejected',{type:'operator_busy'});return fail('operator_busy','Este operador está executando outra operação.');}
       await dependencies.operator();
-      if (operation.protocol && !/\/select\//.test(operation.path)) {
+      if (operation.protocol && operation.skipSelect !== true && !/\/select\//.test(operation.path)) {
         const selected = await dependencies.transport({method:'PATCH',path:`/operator/att/select/${encodeURIComponent(operation.protocol)}`,mode:'operator'});
         const selection=responseEnvelope(selected.body,selected.response.status);
         if (!selection.success) {
