@@ -14,18 +14,22 @@ import {
   PageHeader,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import {
+  DEFAULT_SAC_ORDER_MESSAGE_PRESETS,
   getSacDigitalIntegrationSettings,
   getSacDigitalOperatorBindingsAdmin,
+  listSacDigitalOrderMessagePresets,
   rotateSacDigitalWebhookToken,
   retrySacDigitalWebhookEvent,
   sacDigitalWebhookUrl,
   saveSacDigitalIntegrationSettings,
+  saveSacDigitalOrderMessagePresets,
   setSacDigitalOperatorBindingAdmin,
   testSacDigitalConnection,
   type SacDigitalIntegrationSettings,
   type SacDigitalOperatorAdminData,
+  type SacDigitalOrderMessagePreset,
 } from "../infrastructure/sac-digital.repository";
 
 const SAC_API_BASE_URL = "https://api.sac.digital/v2/client";
@@ -55,6 +59,9 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
   const [bindingSavingUserId, setBindingSavingUserId] = useState<string | null>(null);
   const [operatorData, setOperatorData] = useState<SacDigitalOperatorAdminData | null>(null);
   const [settings, setSettings] = useState<SacDigitalIntegrationSettings | null>(null);
+  const [presetLoading, setPresetLoading] = useState(false);
+  const [presetSaving, setPresetSaving] = useState(false);
+  const [messagePresets, setMessagePresets] = useState<SacDigitalOrderMessagePreset[]>(DEFAULT_SAC_ORDER_MESSAGE_PRESETS);
   const [form, setForm] = useState({
     enabled: false,
     workspace_name: "",
@@ -221,6 +228,54 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
     settings?.enabled,
   ]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeOrganizationId || !canManage) {
+      setMessagePresets(DEFAULT_SAC_ORDER_MESSAGE_PRESETS);
+      return;
+    }
+    setPresetLoading(true);
+    void listSacDigitalOrderMessagePresets(activeOrganizationId)
+      .then(presets => {
+        if (!cancelled) setMessagePresets(presets);
+      })
+      .catch(error => {
+        if (!cancelled) {
+          setMessagePresets(DEFAULT_SAC_ORDER_MESSAGE_PRESETS);
+          setMessage({
+            text: systemErrorMessage(error, "Não foi possível carregar as mensagens predefinidas."),
+            error: true,
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPresetLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeOrganizationId, canManage]);
+
+  const saveMessagePresets = async () => {
+    if (!activeOrganizationId || !canManage || presetSaving) return;
+    if (messagePresets.some(item => !item.label.trim() || !item.message_template.trim())) {
+      setMessage({ text: "Informe o nome e o texto de todas as mensagens predefinidas.", error: true });
+      return;
+    }
+    setPresetSaving(true);
+    setMessage(null);
+    try {
+      const next = await saveSacDigitalOrderMessagePresets(activeOrganizationId, messagePresets);
+      setMessagePresets(next);
+      setMessage({ text: "Mensagens predefinidas do SAC Digital salvas." });
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível salvar as mensagens predefinidas."),
+        error: true,
+      });
+    } finally {
+      setPresetSaving(false);
+    }
+  };
+
   const saveOperatorBinding = async (userId: string, profileValue: string) => {
     if (!activeOrganizationId || !canManage || bindingSavingUserId) return;
     const accessMode = profileValue === "manager"
@@ -343,7 +398,7 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
 
     <AdminSubnav value={section} items={[
       {id:"integration",label:"Conta Gestor"}, {id:"operators",label:"Operadores de atendimento"},
-      {id:"webhook",label:"Webhooks"}, {id:"menus",label:"Menus personalizados"},
+      {id:"messages",label:"Mensagens"}, {id:"webhook",label:"Webhooks"}, {id:"menus",label:"Menus personalizados"},
     ]} onSelect={setSection} ariaLabel="Configurações SAC Digital" />
 
     {message && (
@@ -458,6 +513,51 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
           </div>
         )}
       </div>
+    </Section>}
+
+    {section === "messages" && <Section
+      title="Mensagens predefinidas"
+      description="Textos usados no envio pelo botão SAC Digital dentro da OS. Você pode alterar o nome do tipo, o texto e desativar opções que não usa."
+      actions={<AdminButton onClick={() => void saveMessagePresets()} loading={presetSaving} disabled={presetLoading}>Salvar mensagens</AdminButton>}
+    >
+      {presetLoading ? <LoadingState text="Carregando mensagens..." /> : <div className="space-y-4">
+        <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Variáveis disponíveis: <strong>{'{primeiro_nome}'}</strong>, <strong>{'{nome_cliente}'}</strong> e <strong>{'{os}'}</strong>. Elas são substituídas automaticamente ao abrir o envio da OS.
+        </div>
+        {messagePresets.map((preset, index) => (
+          <div key={preset.preset_key} className="space-y-3 rounded-xl border border-border bg-card p-4">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <FInput
+                label="Nome do tipo"
+                value={preset.label}
+                disabled={presetSaving}
+                maxLength={80}
+                onChange={(event: any) => setMessagePresets(current => current.map((item, itemIndex) =>
+                  itemIndex === index ? { ...item, label: event.target.value } : item
+                ))}
+              />
+              <FToggle
+                label="Disponível no envio"
+                checked={preset.is_active}
+                disabled={presetSaving}
+                onChange={is_active => setMessagePresets(current => current.map((item, itemIndex) =>
+                  itemIndex === index ? { ...item, is_active } : item
+                ))}
+              />
+            </div>
+            <FTextarea
+              label="Mensagem"
+              rows={4}
+              maxLength={5000}
+              value={preset.message_template}
+              disabled={presetSaving}
+              onChange={(event: any) => setMessagePresets(current => current.map((item, itemIndex) =>
+                itemIndex === index ? { ...item, message_template: event.target.value } : item
+              ))}
+            />
+          </div>
+        ))}
+      </div>}
     </Section>}
 
     {section === "webhook" && <Section
