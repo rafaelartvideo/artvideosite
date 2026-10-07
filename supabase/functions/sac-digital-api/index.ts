@@ -5,6 +5,7 @@ const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", 
 const SAC_OUTBOX_BUCKET = "sac-digital-outbox";
 const SAC_OUTBOX_MAX_BYTES = 25 * 1024 * 1024;
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+const operatorNameCache = new Map<string, { names: Map<string, string>; expiresAt: number }>();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -288,6 +289,38 @@ Deno.serve(async request => {
     return result;
   };
 
+  const loadSacOperatorNames = async (
+    organizationId: string,
+    credentials: { clientId: string; clientSecret: string },
+  ) => {
+    const cached = operatorNameCache.get(organizationId);
+    if (cached && cached.expiresAt > Date.now()) return cached.names;
+
+    const result = await apiRequest(
+      organizationId,
+      credentials,
+      "/operator/all?p=1",
+      { method: "GET" },
+    );
+    if (!result.response.ok || result.body.status === false || !Array.isArray(result.body.list)) {
+      return new Map<string, string>();
+    }
+
+    const names = new Map<string, string>();
+    for (const item of result.body.list) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const row = item as Record<string, unknown>;
+      const id = String(row.id || "").trim();
+      const name = String(row.name || "").trim();
+      if (id && name) names.set(id, name);
+    }
+    operatorNameCache.set(organizationId, {
+      names,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+    return names;
+  };
+
   const enrichProtocol = async (organizationId: string, protocol: string) => {
     const credentials = await loadCredentials(organizationId);
     if (!credentials.enabled) throw new Error("Integração SAC Digital está desativada.");
@@ -399,7 +432,7 @@ Deno.serve(async request => {
 
     const { data: protocolRow, error: protocolError } = await admin
       .from("sac_digital_protocols")
-      .select("id,last_message_at")
+      .select("id,last_message_at,operator_id,operator_name")
       .eq("organization_id", organizationId)
       .eq("external_protocol_id", protocol)
       .maybeSingle();
@@ -410,7 +443,7 @@ Deno.serve(async request => {
 
     const { data: localRows, error: localError } = await admin
       .from("sac_digital_messages")
-      .select("id,direction,message_type,body_text,media_url,sent_at,external_message_id,raw_metadata")
+      .select("id,direction,message_type,body_text,media_url,sender_name,sent_at,external_message_id,source_event_hash,raw_metadata")
       .eq("organization_id", organizationId)
       .eq("protocol_id", protocolRow.id)
       .order("sent_at", { ascending: true });
@@ -418,6 +451,10 @@ Deno.serve(async request => {
     if (localError) throw new Error("Não foi possível comparar o histórico local.");
 
     const localMessages = [...(localRows || [])] as Array<Record<string, any>>;
+    const historyHasOperatorMessages = history.some(entry => String(entry.by || "").toLowerCase() === "operator");
+    const operatorNames = historyHasOperatorMessages
+      ? await loadSacOperatorNames(organizationId, credentials)
+      : new Map<string, string>();
     let imported = 0;
     let matched = 0;
     let latestAt: string | null = null;
@@ -446,16 +483,77 @@ Deno.serve(async request => {
       }));
       const historyId = `sac-history:${fingerprint}`;
 
+      const historyBy = String(entry.by || "").toLowerCase();
+      const operatorId = String(entry.operator || "").trim();
+      const direction = historyBy === "operator" ? "outgoing" : "incoming";
+      const operatorName = direction === "outgoing"
+        ? operatorNames.get(operatorId)
+          || (operatorId && String(protocolRow.operator_id || "") === operatorId
+            ? String(protocolRow.operator_name || "").trim() : "")
+          || null
+        : null;
+      const targetTime = new Date(sentAt).getTime();
+
       const alreadyIndexed = localMessages.find(row => row.external_message_id === historyId);
       if (alreadyIndexed) {
+        const previousMetadata = alreadyIndexed.raw_metadata && typeof alreadyIndexed.raw_metadata === "object"
+          ? alreadyIndexed.raw_metadata : {};
+        const sentViaUnion = previousMetadata.sent_via_union === true;
+        const indexedPatch: Record<string, unknown> = {};
+        if (!sentViaUnion && alreadyIndexed.direction !== direction) indexedPatch.direction = direction;
+        if (!sentViaUnion && direction === "outgoing" && operatorName && !alreadyIndexed.sender_name) {
+          indexedPatch.sender_name = operatorName;
+        }
+        if (Object.keys(indexedPatch).length) {
+          const patched = await admin.from("sac_digital_messages")
+            .update(indexedPatch)
+            .eq("id", alreadyIndexed.id);
+          if (!patched.error) Object.assign(alreadyIndexed, indexedPatch);
+        }
+
+        const duplicate = localMessages
+          .filter(row => row.id !== alreadyIndexed.id && !reconciledRowIds.has(String(row.id)))
+          .map(row => {
+            const metadata = row.raw_metadata && typeof row.raw_metadata === "object" ? row.raw_metadata : {};
+            const localTime = new Date(String(row.sent_at || "")).getTime();
+            const diff = Number.isFinite(localTime) ? Math.abs(localTime - targetTime) : Number.POSITIVE_INFINITY;
+            return { row, metadata, diff };
+          })
+          .find(({ row, metadata, diff }) => {
+            if (diff > 15_000 || metadata.sent_via_union === true) return false;
+            if (!["protocol_new_message", "protocol_new_inbox"].includes(String(metadata.event || ""))) return false;
+            if (!row.source_event_hash) return false;
+            if (String(row.body_text || "").trim() !== String(shape.text || "").trim()) return false;
+            return shape.mediaUrl
+              ? String(row.message_type || "") === shape.messageType || Boolean(row.media_url)
+              : !row.media_url;
+          });
+        if (duplicate) {
+          const removed = await admin.from("sac_digital_messages")
+            .delete()
+            .eq("id", duplicate.row.id);
+          if (!removed.error) {
+            const index = localMessages.findIndex(row => row.id === duplicate.row.id);
+            if (index >= 0) localMessages.splice(index, 1);
+          }
+        }
+
+        reconciledRowIds.add(String(alreadyIndexed.id));
         matched += 1;
         continue;
       }
 
-      const targetTime = new Date(sentAt).getTime();
-      const direction = String(entry.by || "").toLowerCase() === "operator" ? "outgoing" : "incoming";
       const candidate = localMessages
-        .filter(row => row.direction === direction && !reconciledRowIds.has(String(row.id)))
+        .filter(row => {
+          if (reconciledRowIds.has(String(row.id))) return false;
+          if (row.direction === direction) return true;
+          const metadata = row.raw_metadata && typeof row.raw_metadata === "object" ? row.raw_metadata : {};
+          const localTime = new Date(String(row.sent_at || "")).getTime();
+          const diff = Number.isFinite(localTime) ? Math.abs(localTime - targetTime) : Number.POSITIVE_INFINITY;
+          return metadata.sent_via_union !== true
+            && ["protocol_new_message", "protocol_new_inbox"].includes(String(metadata.event || ""))
+            && diff <= 15_000;
+        })
         .map(row => {
           const localTime = new Date(String(row.sent_at || "")).getTime();
           return { row, diff: Number.isFinite(localTime) ? Math.abs(localTime - targetTime) : Number.POSITIVE_INFINITY };
@@ -480,8 +578,13 @@ Deno.serve(async request => {
           sac_history: entry,
           history_synced: true,
         };
+        const sentViaUnion = previousMetadata.sent_via_union === true;
         const patch: Record<string, unknown> = { raw_metadata: nextMetadata };
         if (!candidate.external_message_id) patch.external_message_id = historyId;
+        if (!sentViaUnion && candidate.direction !== direction) patch.direction = direction;
+        if (!sentViaUnion && direction === "outgoing" && operatorName && !candidate.sender_name) {
+          patch.sender_name = operatorName;
+        }
         if (shape.mediaUrl) {
           patch.media_url = shape.mediaUrl;
           patch.message_type = shape.messageType;
@@ -497,6 +600,8 @@ Deno.serve(async request => {
           .eq("id", candidate.id);
         if (!updateError) {
           if (!candidate.external_message_id) candidate.external_message_id = historyId;
+          if (patch.direction) candidate.direction = patch.direction;
+          if (patch.sender_name) candidate.sender_name = patch.sender_name;
           if (shape.mediaUrl) {
             candidate.media_url = shape.mediaUrl;
             candidate.message_type = shape.messageType;
@@ -516,8 +621,8 @@ Deno.serve(async request => {
         message_type: shape.messageType,
         body_text: shape.text,
         media_url: shape.mediaUrl,
-        sender_id: null,
-        sender_name: null,
+        sender_id: operatorId || null,
+        sender_name: operatorName,
         sent_at: sentAt,
         raw_metadata: {
           history_synced: true,
@@ -584,6 +689,20 @@ Deno.serve(async request => {
 
     const authorization = bearerToken(request);
     const internalRequest = authorization.length > 0 && authorization === serviceRoleKey;
+
+    if (action === "sync_protocol_history") {
+      if (!internalRequest) return json({ success: false, error: "Acesso interno negado." }, 403);
+      const protocol = String(body.protocol || "").trim();
+      if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+      const history = await syncProtocolHistory(organizationId, protocol);
+      return json({
+        success: true,
+        protocol,
+        history_total: history.total,
+        history_imported: history.imported,
+        history_matched: history.matched,
+      });
+    }
 
     if (action === "enrich_protocol") {
       if (!internalRequest) return json({ success: false, error: "Acesso interno negado." }, 403);
