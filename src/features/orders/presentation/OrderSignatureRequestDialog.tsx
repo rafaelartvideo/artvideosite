@@ -8,9 +8,8 @@ import {
   attachFrozenPrintPdf,
   cancelSignatureRequest,
   createSignatureRequest,
-  listDocumentSignatureEmployeeCandidates,
-  type DocumentSignatureEmployeeCandidate,
 } from "@/features/documents/infrastructure/document-signatures.repository";
+import { sendSacDigitalSignatureInvite } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
 import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -54,12 +53,17 @@ export function OrderSignatureRequestDialog({
   onCreated: (result: {
     link?: string | null;
     email_warning?: string | null;
+    whatsapp_warning?: string | null;
     finalization_warning?: string | null;
-    request?: { status?: string } | null;
+    request?: { id?: string; status?: string } | null;
   }) => void;
 }) {
   const onlineTemplates = useMemo(
-    () => templates.filter(template => template.is_active !== false && template.allow_online_signature === true),
+    () => templates.filter(template =>
+      template.is_active !== false
+      && template.allow_online_signature === true
+      && !(template.require_employee_signature === true && template.employee_signature_source === "manual")
+    ),
     [templates],
   );
   const [templateId, setTemplateId] = useState("");
@@ -68,16 +72,13 @@ export function OrderSignatureRequestDialog({
   const [contactDocument, setContactDocument] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
-  const [manualEmployeeEntityId, setManualEmployeeEntityId] = useState("");
-  const [employeeCandidates, setEmployeeCandidates] = useState<DocumentSignatureEmployeeCandidate[]>([]);
-  const [employeeLoading, setEmployeeLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     customer?: string;
     contactName?: string;
     contactDocument?: string;
     contactEmail?: string;
-    manualEmployeeEntityId?: string;
+    contactPhone?: string;
   }>({});
 
   const selectedTemplate = onlineTemplates.find(template => template.id === templateId) || null;
@@ -91,20 +92,8 @@ export function OrderSignatureRequestDialog({
     setContactDocument("");
     setContactEmail("");
     setContactPhone("");
-    setManualEmployeeEntityId("");
     setFieldErrors({});
   }, [open, order?.id, onlineTemplates]);
-
-  useEffect(() => {
-    if (!open || !order?.organization_id || selectedTemplate?.employee_signature_source !== "manual" || selectedTemplate.require_employee_signature !== true) return;
-    let cancelled = false;
-    setEmployeeLoading(true);
-    void listDocumentSignatureEmployeeCandidates(order.organization_id)
-      .then(rows => { if (!cancelled) setEmployeeCandidates(rows); })
-      .catch(loadError => { if (!cancelled) notifyAdmin(systemErrorMessage(loadError, "Não foi possível carregar os funcionários disponíveis."), "error"); })
-      .finally(() => { if (!cancelled) setEmployeeLoading(false); });
-    return () => { cancelled = true; };
-  }, [open, order?.organization_id, selectedTemplate?.id, selectedTemplate?.employee_signature_source, selectedTemplate?.require_employee_signature]);
 
   if (!open) return null;
 
@@ -117,16 +106,14 @@ export function OrderSignatureRequestDialog({
         if (!customerName(customer)) nextErrors.customer = "O cliente da OS não possui nome para assinatura.";
         else if (![11, 14].includes(normalizeDigits(customerDocument(customer)).length)) nextErrors.customer = "O cliente precisa ter CPF/CNPJ cadastrado para assinatura online.";
         else if (!String(customer.email || "").trim() || !isValidEmail(String(customer.email || ""))) nextErrors.customer = "O cliente precisa ter um e-mail válido cadastrado para receber o convite de assinatura.";
+        else if (normalizeDigits(customer.whatsapp || customer.phone).length < 10) nextErrors.customer = "O cliente precisa ter WhatsApp/telefone cadastrado para receber o link de assinatura.";
       } else {
         if (!contactName.trim()) nextErrors.contactName = "Informe o nome do responsável/contato.";
         if (![11, 14].includes(normalizeDigits(contactDocument).length)) nextErrors.contactDocument = "Informe um CPF/CNPJ válido do responsável/contato.";
         if (!contactEmail.trim() || !isValidEmail(contactEmail)) nextErrors.contactEmail = "Informe um e-mail válido do responsável/contato.";
+        if (normalizeDigits(contactPhone).length < 10) nextErrors.contactPhone = "Informe o WhatsApp/telefone do responsável/contato.";
       }
     }
-    if (selectedTemplate.require_employee_signature && selectedTemplate.employee_signature_source === "manual" && !manualEmployeeEntityId) {
-      nextErrors.manualEmployeeEntityId = "Selecione o funcionário que assinará o documento.";
-    }
-
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -187,14 +174,31 @@ export function OrderSignatureRequestDialog({
         print_template_id: selectedTemplate.id,
         snapshot,
         external_signer: externalSigner,
-        manual_employee_entity_id: manualEmployeeEntityId || null,
+        manual_employee_entity_id: null,
       });
       createdRequestId = result.request.id;
 
       const frozenResult = await attachFrozenPrintPdf(order.organization_id, result.request.id, frozenPdf);
+      let whatsappWarning: string | null = null;
+      if (result.link && result.request?.id && externalSigner?.phone) {
+        try {
+          await sendSacDigitalSignatureInvite(
+            order.organization_id,
+            order.id,
+            result.request.id,
+            result.link,
+          );
+        } catch (whatsappError) {
+          whatsappWarning = systemErrorMessage(
+            whatsappError,
+            "A solicitação foi criada, mas não foi possível enviar o link pelo WhatsApp.",
+          );
+        }
+      }
       onCreated({
         link: result.link,
         email_warning: result.email_warning,
+        whatsapp_warning: whatsappWarning,
         finalization_warning: frozenResult.final_pdf_hash ? null : result.finalization_warning,
         request: result.request,
       });
@@ -231,12 +235,11 @@ export function OrderSignatureRequestDialog({
         {onlineTemplates.length === 0 ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Nenhum modelo ativo está marcado com “Permitir assinatura online”.</div> : <>
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Modelo</label>
-            <AdminSelect value={templateId} onValueChange={value => { setTemplateId(value); setManualEmployeeEntityId(""); setFieldErrors({}); }} ariaLabel="Modelo de documento" options={onlineTemplates.map(template => ({ value: template.id, label: template.name }))} />
+            <AdminSelect value={templateId} onValueChange={value => { setTemplateId(value); setFieldErrors({}); }} ariaLabel="Modelo de documento" options={onlineTemplates.map(template => ({ value: template.id, label: template.name }))} />
           </div>
 
           {selectedTemplate && <div className="grid gap-2 rounded-xl border border-border bg-muted p-4 sm:grid-cols-2">
-            <Info label="Assinatura externa" value={selectedTemplate.require_external_signature ? "Obrigatória" : "Não exigida"} />
-            <Info label="Assinatura do funcionário" value={selectedTemplate.require_employee_signature ? "Obrigatória" : "Não exigida"} />
+            <Info label="Assinatura do cliente" value={selectedTemplate.require_external_signature ? "Obrigatória" : "Não exigida"} />
             <Info label="Validade do link" value={`${selectedTemplate.signature_link_ttl_hours || 72} horas`} />
             <Info label="OS" value={String(order.os_number || "—")} />
           </div>}
@@ -256,19 +259,11 @@ export function OrderSignatureRequestDialog({
               <Field label="Nome" error={fieldErrors.contactName}><input className={INPUT} value={contactName} onChange={event => { setFieldErrors(current => ({ ...current, contactName: undefined })); setContactName(event.target.value); }} /></Field>
               <Field label="CPF/CNPJ" error={fieldErrors.contactDocument}><input className={INPUT} value={contactDocument} onChange={event => { setFieldErrors(current => ({ ...current, contactDocument: undefined })); setContactDocument(event.target.value); }} inputMode="numeric" /></Field>
               <Field label="E-mail" error={fieldErrors.contactEmail}><input className={INPUT} value={contactEmail} onChange={event => { setFieldErrors(current => ({ ...current, contactEmail: undefined })); setContactEmail(event.target.value); }} type="email" /></Field>
-              <Field label="WhatsApp / telefone"><input className={INPUT} value={contactPhone} onChange={event => setContactPhone(event.target.value)} inputMode="tel" /></Field>
+              <Field label="WhatsApp / telefone" error={fieldErrors.contactPhone}><input className={INPUT} value={contactPhone} onChange={event => { setFieldErrors(current => ({ ...current, contactPhone: undefined })); setContactPhone(event.target.value); }} inputMode="tel" /></Field>
             </div>}
           </div>}
 
-          {selectedTemplate?.require_employee_signature && <div className="space-y-3 rounded-xl border border-border p-4">
-            <div><h3 className="text-sm font-black text-[#0d1b2e]">Assinatura do funcionário</h3><p className="mt-1 text-xs text-[#5a6a82]">A assinatura ativa será copiada e congelada nesta emissão.</p></div>
-            {selectedTemplate.employee_signature_source === "manual" ? <div>
-              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Funcionário</label>
-              <AdminSelect value={manualEmployeeEntityId} onValueChange={value => { setFieldErrors(current => ({ ...current, manualEmployeeEntityId: undefined })); setManualEmployeeEntityId(value); }} disabled={employeeLoading} ariaLabel="Funcionário para assinatura" options={[{ value: "", label: employeeLoading ? "Carregando funcionários..." : "Selecione o funcionário" }, ...employeeCandidates.map(candidate => ({ value: candidate.entity_id, label: `${candidate.employee_name} · assinatura v${candidate.signature_version}` }))]} />
-              {fieldErrors.manualEmployeeEntityId && <p className="mt-1 text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.manualEmployeeEntityId}</p>}
-              {!employeeLoading && employeeCandidates.length === 0 && <p className="mt-2 text-xs text-amber-700">Nenhum funcionário ativo possui assinatura cadastrada.</p>}
-            </div> : <p className="rounded-lg bg-[#edf3ff] px-3 py-2 text-xs font-semibold text-[#0057e7]">Origem configurada: {selectedTemplate.employee_signature_source === "responsible" ? "Responsável pela OS" : selectedTemplate.employee_signature_source === "technician" ? "Técnico da OS" : "Quem concluiu a OS"}.</p>}
-          </div>}
+/div>}
         </>}
 
     </div>
