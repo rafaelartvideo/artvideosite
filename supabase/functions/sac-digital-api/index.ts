@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const SAC_API_BASE_URL = "https://api.sac.digital/v2/client";
-const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", "inbox", "send", "write", "remove", "notification", "manager"];
+const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", "inbox", "send", "write", "import", "remove", "notification", "manager"];
 const SAC_OUTBOX_BUCKET = "sac-digital-outbox";
 const SAC_OUTBOX_MAX_BYTES = 25 * 1024 * 1024;
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
@@ -287,6 +287,71 @@ Deno.serve(async request => {
       }
     }
     return result;
+  };
+
+  const importSacContact = async (
+    organizationId: string,
+    credentials: { clientId: string; clientSecret: string },
+    phone: string,
+    name: string,
+    primaryChannel: Record<string, unknown> | null,
+  ) => {
+    const channelId = String(primaryChannel?.id || "").trim();
+
+    for (const candidatePhone of sacPhoneVariants(phone)) {
+      // O painel da SAC permite iniciar por um número que ainda não está na agenda.
+      // Por isso, primeiro importamos apenas o contato. Vincular um canal durante a
+      // importação força uma validação antecipada de WhatsApp que pode ser inconclusiva.
+      // Se a API exigir canal, repetimos com o canal ativo como compatibilidade.
+      const payloads: Array<{ payload: Record<string, unknown>; channelId: string | null }> = [
+        {
+          payload: { number: candidatePhone, name },
+          channelId: null,
+        },
+      ];
+      if (channelId) {
+        payloads.push({
+          payload: { number: candidatePhone, name, channel: channelId },
+          channelId,
+        });
+      }
+
+      for (let index = 0; index < payloads.length; index += 1) {
+        const candidate = payloads[index];
+        const attempt = await apiRequest(
+          organizationId,
+          credentials,
+          "/contact/import",
+          { method: "POST", body: JSON.stringify(candidate.payload) },
+        );
+
+        if (attempt.response.ok && attempt.body.status !== false && attempt.body.success !== false) {
+          return {
+            result: attempt,
+            phone: candidatePhone,
+            channelId: candidate.channelId,
+            failure: null,
+          };
+        }
+
+        const lastModeForPhone = index === payloads.length - 1;
+        if (!sacWhatsAppValidationInconclusive(attempt.body.message) && lastModeForPhone) {
+          return {
+            result: null,
+            phone: candidatePhone,
+            channelId: candidate.channelId,
+            failure: attempt,
+          };
+        }
+      }
+    }
+
+    return {
+      result: null,
+      phone,
+      channelId: null,
+      failure: null,
+    };
   };
 
   const loadSacOperatorNames = async (
@@ -1229,6 +1294,7 @@ Deno.serve(async request => {
       let contact: Record<string, unknown> | null = null;
       let imported = false;
       let importedPhone = phone;
+      let importedChannelId: string | null = null;
 
       if (requestedExternalId) {
         const infoResult = await apiRequest(
@@ -1270,46 +1336,38 @@ Deno.serve(async request => {
         }
 
         const fallbackName = name || `Contato ${phone.slice(-4)}`;
-        let importResult: Awaited<ReturnType<typeof apiRequest>> | null = null;
-        for (const candidatePhone of sacPhoneVariants(phone)) {
-          const importPayload: Record<string, unknown> = {
-            number: candidatePhone,
-            name: fallbackName,
-          };
-          if (primaryChannel?.id) importPayload.channel = String(primaryChannel.id);
+        const importAttempt = await importSacContact(
+          organizationId,
+          credentials,
+          phone,
+          fallbackName,
+          primaryChannel,
+        );
+        const importResult = importAttempt.result;
 
-          const attempt = await apiRequest(
-            organizationId,
-            credentials,
-            "/contact/import",
-            { method: "POST", body: JSON.stringify(importPayload) },
-          );
-
-          if (attempt.response.ok && attempt.body.status !== false && attempt.body.success !== false) {
-            imported = true;
-            importedPhone = candidatePhone;
-            importResult = attempt;
-            break;
-          }
-
-          if (!sacWhatsAppValidationInconclusive(attempt.body.message)) {
+        if (!importResult) {
+          if (importAttempt.failure) {
             return json({
               success: true,
               prepared: false,
               whatsapp_available: false,
-              error: sacContactImportError(attempt.body.message, "A SAC Digital não aceitou este número como contato."),
+              error: sacContactImportError(
+                importAttempt.failure.body.message,
+                "A SAC Digital não conseguiu preparar este número para uma nova conversa.",
+              ),
             });
           }
-        }
-
-        if (!importResult) {
           return json({
             success: true,
             prepared: false,
             whatsapp_available: false,
-            error: "A SAC Digital não conseguiu validar o WhatsApp com nenhuma das duas variantes do número (com ou sem nono dígito). Confira o canal e tente novamente.",
+            error: "A SAC Digital não conseguiu preparar este número para uma nova conversa. O contato não precisa estar previamente cadastrado; confira a conexão do canal e tente novamente.",
           });
         }
+
+        imported = true;
+        importedPhone = importAttempt.phone;
+        importedChannelId = importAttempt.channelId;
 
         const importedObject = importResult.body;
         const importedContact = importedObject.contact && typeof importedObject.contact === "object"
@@ -1353,8 +1411,8 @@ Deno.serve(async request => {
               id: importedId,
               number: importedPhone,
               name: fallbackName,
-              channel: primaryChannel
-                ? { id: String(primaryChannel.id || ""), number: String(primaryChannel.number || "") }
+              channel: importedChannelId
+                ? { id: importedChannelId, number: String(primaryChannel?.number || "") }
                 : null,
               imported: true,
             };
@@ -2627,46 +2685,32 @@ Deno.serve(async request => {
             || `Contato ${phone.slice(-4)}`
           ).trim();
 
-          let importResult: Awaited<ReturnType<typeof apiRequest>> | null = null;
-          for (const candidatePhone of sacPhoneVariants(phone)) {
-            const importPayload: Record<string, unknown> = {
-              number: candidatePhone,
-              name: customerName,
-            };
-            if (primaryChannel?.id) importPayload.channel = String(primaryChannel.id);
+          const importAttempt = await importSacContact(
+            organizationId,
+            credentials,
+            phone,
+            customerName,
+            primaryChannel,
+          );
+          const importResult = importAttempt.result;
 
-            const attempt = await apiRequest(
-              organizationId,
-              credentials,
-              "/contact/import",
-              { method: "POST", body: JSON.stringify(importPayload) },
-            );
-
-            if (attempt.response.ok && attempt.body.status !== false && attempt.body.success !== false) {
-              importResult = attempt;
-              matchedPhone = candidatePhone;
-              break;
-            }
-
-            // Só tentar sem/com 9 se a própria SAC não conseguiu validar WhatsApp.
-            // Outros erros (permissão, canal, parâmetros) não devem ser mascarados.
-            if (!sacWhatsAppValidationInconclusive(attempt.body.message)) {
+          if (!importResult) {
+            if (importAttempt.failure) {
               return json({
                 success: false,
                 error: sacContactImportError(
-                  attempt.body.message,
+                  importAttempt.failure.body.message,
                   "A SAC Digital não conseguiu preparar este número para envio.",
                 ),
               }, 400);
             }
-          }
-
-          if (!importResult) {
             return json({
               success: false,
-              error: "A SAC Digital não conseguiu validar o WhatsApp com o número cadastrado nem com sua variante com/sem nono dígito. Confira o canal e tente novamente.",
+              error: "A SAC Digital não conseguiu preparar este número para envio. O contato não precisa estar previamente cadastrado; confira a conexão do canal e tente novamente.",
             }, 400);
           }
+
+          matchedPhone = importAttempt.phone;
 
           const importedId = String(
             importResult.body.id
@@ -2717,7 +2761,7 @@ Deno.serve(async request => {
             contextId: customerId,
             metadata: {
               source: "service_order",
-              channel_id: primaryChannel?.id ? String(primaryChannel.id) : null,
+              channel_id: importAttempt.channelId,
               variant_used: matchedPhone === phone ? "registered" : "alternate",
             },
           });
