@@ -909,7 +909,7 @@ export function SacDigitalToolPage({
                     ) : null}
                     <AdminButton
                       variant="secondary"
-                      onClick={() => void openRouting()
+                      onClick={() => void openRouting()}
                       loading={protocolAction === "routing"}
                       disabled={Boolean(protocolAction && protocolAction !== "routing")}
                       className="shrink-0"
