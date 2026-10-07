@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, MessageCircle, Search, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -47,11 +47,13 @@ function candidateKey(candidate: SacDigitalNewConversationCandidate) {
 export function SacDigitalNewConversationDialog({
   open,
   organizationId,
+  initialContact,
   onClose,
   onStarted,
 }: {
   open: boolean;
   organizationId: string;
+  initialContact?: { phone: string; name: string } | null;
   onClose: () => void;
   onStarted: (result: Awaited<ReturnType<typeof startSacDigitalNewConversation>>) => Promise<void> | void;
 }) {
@@ -68,6 +70,22 @@ export function SacDigitalNewConversationDialog({
   const searchRequestRef = useRef(0);
   const prepareRequestRef = useRef(0);
   const sendInFlightRef = useRef(false);
+
+  // Pré-preencher somente: criar/importar o contato continua exigindo ação
+  // explícita de quem iniciou a conversa, sem envio automático.
+  useEffect(() => {
+    if (!open || !initialContact?.phone) return;
+    searchRequestRef.current += 1;
+    prepareRequestRef.current += 1;
+    setQuery(initialContact.phone);
+    setManualName(initialContact.name || "");
+    setContacts([]);
+    setCustomers([]);
+    setPrepared(null);
+    setSearching(false);
+    setPreparingKey(null);
+    setError("");
+  }, [open, initialContact?.phone, initialContact?.name]);
 
   const results = useMemo(() => {
     const combined = [...contacts, ...customers];
