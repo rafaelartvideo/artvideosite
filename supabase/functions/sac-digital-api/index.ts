@@ -47,6 +47,14 @@ function sacPhoneKey(value: unknown) {
   return digits;
 }
 
+function sacContactImportError(message: unknown, fallback: string) {
+  const detail = String(message || "").trim();
+  if (/validar se este n[uú]mero possui whatsapp/i.test(detail)) {
+    return "A SAC Digital não conseguiu confirmar se este número possui WhatsApp neste momento. Isso não significa que o número não tenha WhatsApp. Verifique o status do canal da SAC Digital e tente novamente.";
+  }
+  return detail ? `SAC Digital: ${detail}` : fallback;
+}
+
 function safeSearchText(value: unknown) {
   return String(value || "").trim().replace(/[%(),]/g, " ").replace(/\s+/g, " ").slice(0, 120);
 }
@@ -995,9 +1003,10 @@ Deno.serve(async request => {
             success: true,
             prepared: false,
             whatsapp_available: false,
-            error: typeof importResult.body.message === "string" && importResult.body.message.trim()
-              ? `SAC Digital: ${importResult.body.message.trim()}`
-              : "A SAC Digital não aceitou este número como contato.",
+            error: sacContactImportError(
+              importResult.body.message,
+              "A SAC Digital não conseguiu preparar o contato. Confira o número e o canal e tente novamente.",
+            ),
           });
         }
 
@@ -2316,9 +2325,10 @@ Deno.serve(async request => {
           if (!importResult.response.ok || importResult.body.status === false || importResult.body.success === false) {
             return json({
               success: false,
-              error: typeof importResult.body.message === "string" && importResult.body.message.trim()
-                ? `SAC Digital: ${importResult.body.message.trim()}`
-                : "A SAC Digital não conseguiu preparar este número para envio.",
+              error: sacContactImportError(
+                importResult.body.message,
+                "A SAC Digital não conseguiu preparar este número para envio.",
+              ),
               contact_not_found: true,
             }, 400);
           }
