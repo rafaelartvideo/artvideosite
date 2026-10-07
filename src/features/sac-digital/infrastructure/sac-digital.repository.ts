@@ -456,6 +456,21 @@ export function sendSacDigitalOrderMessage(
   });
 }
 
+export function sendSacDigitalSignatureInvite(
+  organizationId: string,
+  orderId: string,
+  requestId: string,
+  link: string,
+) {
+  return invokeSacDigitalApi({
+    action: "send_signature_invite",
+    organization_id: organizationId,
+    order_id: orderId,
+    request_id: requestId,
+    link,
+  });
+}
+
 export type SacDigitalOrderMessagePresetKey = "initial" | "estimate" | "completion";
 export type SacDigitalOrderMessagePreset = {
   preset_key: SacDigitalOrderMessagePresetKey;
