@@ -514,6 +514,7 @@ export type SacDigitalRoutingOptions = {
   operators: Array<{
     id: string;
     name: string;
+    email: string;
     online: boolean;
   }>;
   departments: Array<{
