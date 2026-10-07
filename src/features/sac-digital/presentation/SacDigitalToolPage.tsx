@@ -18,6 +18,7 @@ import {
   Send,
   UserRound,
   Volume2,
+  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -366,12 +367,47 @@ export function SacDigitalToolPage({
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [incomingAlert, setIncomingAlert] = useState<{ protocolId: string } | null>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const sendingRef = useRef(false);
+  const selectedProtocolIdRef = useRef<string | null>(null);
+  const messagesRequestIdRef = useRef(0);
+  const followLatestRef = useRef(true);
   const lastResumeRefreshRef = useRef(0);
   const activePendingContactIdRef = useRef<string | null>(null);
   const handledCustomerRouteRef = useRef("");
+
+  const selectProtocol = useCallback((protocolId: string | null) => {
+    selectedProtocolIdRef.current = protocolId;
+    messagesRequestIdRef.current += 1;
+    followLatestRef.current = true;
+    setShowJumpToLatest(false);
+    setSelectedProtocolId(protocolId);
+  }, []);
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
+    followLatestRef.current = true;
+    setShowJumpToLatest(false);
+    window.requestAnimationFrame(() => {
+      const container = messagesScrollRef.current;
+      if (!container) return;
+      container.scrollTo({ top: container.scrollHeight, behavior });
+    });
+  }, []);
+
+  const handleMessagesScroll = useCallback(() => {
+    const container = messagesScrollRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const atLatest = distanceFromBottom <= 72;
+    followLatestRef.current = atLatest;
+    setShowJumpToLatest(!atLatest);
+  }, []);
+
+  useEffect(() => {
+    selectedProtocolIdRef.current = selectedProtocolId;
+  }, [selectedProtocolId]);
 
   const selectedProtocol = useMemo(
     () => protocols.find(protocol => protocol.id === selectedProtocolId) || null,
@@ -456,25 +492,35 @@ export function SacDigitalToolPage({
   const loadProtocols = useCallback(async (showLoading = false) => {
     if (!activeOrganizationId || !canViewMessages) {
       setProtocols([]);
-      setSelectedProtocolId(null);
+      selectProtocol(null);
       return;
     }
     if (showLoading) setInboxLoading(true);
     try {
       const next = await listSacDigitalProtocols(activeOrganizationId);
-      setProtocols(next);
-      setSelectedProtocolId(current => {
-        if (current && next.some(protocol => protocol.id === current)) return current;
-        // A SAC abriu um protocolo: selecionar a conversa real no lugar da pendente.
-        if (current?.startsWith("pending:") && activePendingContactIdRef.current) {
-          const resolved = next.find(protocol =>
-            !protocol.is_pending && protocol.contact?.id === activePendingContactIdRef.current,
-          );
-          if (resolved) return resolved.id;
-        }
-        // Ao abrir/recarregar o SAC, não selecionar automaticamente a conversa mais recente.
-        return null;
+      const currentSelectedId = selectedProtocolIdRef.current;
+      let resolvedSelectedId: string | null = null;
+
+      // Uma conversa escolhida pelo usuário nunca deve trocar por causa de refresh/realtime.
+      // A única troca automática permitida é a conversa pendente virar o protocolo real
+      // do mesmo contato.
+      if (currentSelectedId?.startsWith("pending:") && activePendingContactIdRef.current) {
+        const resolved = next.find(protocol =>
+          !protocol.is_pending && protocol.contact?.id === activePendingContactIdRef.current,
+        );
+        resolvedSelectedId = resolved?.id || null;
+      }
+
+      setProtocols(currentProtocols => {
+        const selectedIdToKeep = resolvedSelectedId || currentSelectedId;
+        if (!selectedIdToKeep || next.some(protocol => protocol.id === selectedIdToKeep)) return next;
+        const previousSelected = currentProtocols.find(protocol => protocol.id === selectedIdToKeep);
+        return previousSelected ? [previousSelected, ...next] : next;
       });
+
+      if (resolvedSelectedId && resolvedSelectedId !== currentSelectedId) {
+        selectProtocol(resolvedSelectedId);
+      }
     } catch (error) {
       setMessage({
         text: systemErrorMessage(error, "Não foi possível carregar as conversas do SAC Digital."),
@@ -483,24 +529,28 @@ export function SacDigitalToolPage({
     } finally {
       if (showLoading) setInboxLoading(false);
     }
-  }, [activeOrganizationId, canViewMessages]);
+  }, [activeOrganizationId, canViewMessages, selectProtocol]);
 
   const loadMessages = useCallback(async (protocolId: string | null, showLoading = false) => {
+    const requestId = ++messagesRequestIdRef.current;
     if (!activeOrganizationId || !canViewMessages || !protocolId) {
       setMessages([]);
+      if (showLoading) setMessagesLoading(false);
       return;
     }
     if (showLoading) setMessagesLoading(true);
     try {
       const next = await listSacDigitalMessages(activeOrganizationId, protocolId);
+      if (requestId !== messagesRequestIdRef.current || selectedProtocolIdRef.current !== protocolId) return;
       setMessages(next);
     } catch (error) {
+      if (requestId !== messagesRequestIdRef.current || selectedProtocolIdRef.current !== protocolId) return;
       setMessage({
         text: systemErrorMessage(error, "Não foi possível carregar as mensagens deste atendimento."),
         error: true,
       });
     } finally {
-      if (showLoading) setMessagesLoading(false);
+      if (showLoading && requestId === messagesRequestIdRef.current) setMessagesLoading(false);
     }
   }, [activeOrganizationId, canViewMessages]);
 
@@ -568,7 +618,7 @@ export function SacDigitalToolPage({
       || protocols.find(item => item.contact?.customer_id === routeCustomerId && item.is_pending);
 
     if (match) {
-      setSelectedProtocolId(match.id);
+      selectProtocol(match.id);
       setConversationSearch("");
       setStatusFilter(match.status === "in_att" ? "in_att" : "waiting");
       setOperatorFilter("all");
@@ -609,7 +659,7 @@ export function SacDigitalToolPage({
         && (!item.contact.customer_id || item.contact.customer_id === routeCustomerId)
         && sacContactPhoneMatch(item.contact.phone, phone));
       if (byPhone.length === 1) {
-        setSelectedProtocolId(byPhone[0].id);
+        selectProtocol(byPhone[0].id);
         setConversationSearch("");
         setStatusFilter(byPhone[0].status === "in_att" ? "in_att" : "waiting");
         setOperatorFilter("all");
@@ -751,12 +801,28 @@ export function SacDigitalToolPage({
     selectedProtocol?.external_protocol_id, selectedProtocol?.id, selectedProtocol?.is_pending, status?.enabled]);
 
   useEffect(() => {
+    if (moduleSection !== "conversations" || !selectedProtocolId) return;
+    followLatestRef.current = true;
+    setShowJumpToLatest(false);
     const frame = window.requestAnimationFrame(() => {
       const container = messagesScrollRef.current;
       if (container) container.scrollTop = container.scrollHeight;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [messages.length, selectedProtocolId, moduleSection]);
+  }, [moduleSection, selectedProtocolId]);
+
+  useEffect(() => {
+    if (moduleSection !== "conversations" || !selectedProtocolId || messagesLoading) return;
+    if (!followLatestRef.current) {
+      if (messages.length > 0) setShowJumpToLatest(true);
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const container = messagesScrollRef.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages.length, messagesLoading, moduleSection, selectedProtocolId]);
 
   useEffect(() => {
     if (!activeOrganizationId || !canViewMessages) return;
@@ -875,6 +941,7 @@ export function SacDigitalToolPage({
     setDraft("");
     setAttachment(null);
     if (mediaInputRef.current) mediaInputRef.current.value = "";
+    scrollToLatest("smooth");
     try {
       await Promise.all([
         loadMessages(selectedProtocol.id, false),
@@ -912,7 +979,7 @@ export function SacDigitalToolPage({
     if (!protocol) {
       await loadProtocols(false);
       if (result.pending_start_id) {
-        setSelectedProtocolId(`pending:${result.pending_start_id}`);
+        selectProtocol(`pending:${result.pending_start_id}`);
       }
       setMessage({
         text: result.pending_start_id
@@ -935,7 +1002,7 @@ export function SacDigitalToolPage({
     }
 
     if (foundId) {
-      setSelectedProtocolId(foundId);
+      selectProtocol(foundId);
       setMessage({ text: "Conversa iniciada com sucesso." });
     } else {
       setMessage({
@@ -1285,7 +1352,7 @@ export function SacDigitalToolPage({
           <AdminButton size="sm" onClick={() => {
             const target = protocols.find(protocol => protocol.id === incomingAlert.protocolId);
             const targetStatus = target ? protocolOperationalStatus(target, waitingProtocolSet) : "waiting";
-            setSelectedProtocolId(incomingAlert.protocolId);
+            selectProtocol(incomingAlert.protocolId);
             setConversationSearch("");
             setStatusFilter(targetStatus === "in_att" ? "in_att" : targetStatus === "finished" ? "finished" : "waiting");
             setOperatorFilter("all");
@@ -1369,7 +1436,7 @@ export function SacDigitalToolPage({
                 return <button
                   key={protocol.id}
                   type="button"
-                  onClick={() => setSelectedProtocolId(protocol.id)}
+                  onClick={() => selectProtocol(protocol.id)}
                   className={`flex w-full items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected
                     ? "bg-primary-soft"
                     : unread > 0 ? "border-l-2 border-l-primary bg-primary-soft/45 hover:bg-primary-soft/65"
@@ -1815,14 +1882,16 @@ export function SacDigitalToolPage({
                   </div>
                 )}
 
-                <div
-                  ref={messagesScrollRef}
-                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
-                  style={{
-                    backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.18) 1px, transparent 0)",
-                    backgroundSize: "22px 22px",
-                  }}
-                >
+                <div className="relative min-h-0 flex-1">
+                  <div
+                    ref={messagesScrollRef}
+                    onScroll={handleMessagesScroll}
+                    className="h-full overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
+                    style={{
+                      backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.18) 1px, transparent 0)",
+                      backgroundSize: "22px 22px",
+                    }}
+                  >
                   {messagesLoading ? <LoadingState text="Carregando mensagens..." /> : messages.length === 0 ? (
                     <div className="flex min-h-64 items-center justify-center text-center text-xs text-muted-foreground">
                       Nenhuma mensagem registrada neste protocolo.
@@ -1861,6 +1930,9 @@ export function SacDigitalToolPage({
                                       src={mediaUrl}
                                       alt="Imagem recebida no SAC Digital"
                                       loading="lazy"
+                                      onLoad={() => {
+                                        if (followLatestRef.current) scrollToLatest("auto");
+                                      }}
                                       className="max-h-80 w-auto max-w-full rounded-md object-contain"
                                     />
                                   </a>
@@ -1937,6 +2009,18 @@ export function SacDigitalToolPage({
                         </div>;
                       })}
                     </div>
+                  )}
+                  </div>
+                  {showJumpToLatest && (
+                    <button
+                      type="button"
+                      onClick={() => scrollToLatest("smooth")}
+                      className="absolute bottom-4 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-lg transition hover:bg-muted sm:right-5"
+                      aria-label="Ir para a última mensagem"
+                      title="Ir para a última mensagem"
+                    >
+                      <ChevronDown size={19} />
+                    </button>
                   )}
                 </div>
 
