@@ -2521,8 +2521,9 @@ Deno.serve(async request => {
       }
 
       if (newProtocol) {
+        const openedProtocol = newProtocol;
         try {
-          await enrichProtocol(organizationId, newProtocol);
+          await enrichProtocol(organizationId, openedProtocol);
         } catch {
           // Pode haver atraso até o protocolo ser projetado; reconciliar no webhook.
         }
@@ -2531,7 +2532,7 @@ Deno.serve(async request => {
           organizationId,
           credentials,
           "/protocol/send",
-          { method: "POST", body: JSON.stringify({ protocol: newProtocol, type: "text", text }) },
+          { method: "POST", body: JSON.stringify({ protocol: openedProtocol, type: "text", text }) },
         );
         if (!outgoing.response.ok || outgoing.body.status === false || outgoing.body.success === false) {
           return json({
@@ -2546,7 +2547,7 @@ Deno.serve(async request => {
           .from("sac_digital_protocols")
           .select("id")
           .eq("organization_id", organizationId)
-          .eq("external_protocol_id", newProtocol)
+          .eq("external_protocol_id", openedProtocol)
           .maybeSingle();
 
         if (protocolRow?.id) {
@@ -2604,7 +2605,7 @@ Deno.serve(async request => {
           contextId: orderId,
           metadata: {
             transport: "protocol",
-            protocol: newProtocol,
+            protocol: openedProtocol,
             message_length: text.length,
           },
         });
@@ -2612,8 +2613,8 @@ Deno.serve(async request => {
         EdgeRuntime.waitUntil((async () => {
           await new Promise(resolve => setTimeout(resolve, 1200));
           try {
-            await enrichProtocol(organizationId, newProtocol);
-            await syncProtocolHistory(organizationId, newProtocol);
+            await enrichProtocol(organizationId, openedProtocol);
+            await syncProtocolHistory(organizationId, openedProtocol);
           } catch {
             // Webhook/Realtime concluirá o histórico caso o SAC ainda esteja processando.
           }
@@ -2622,7 +2623,7 @@ Deno.serve(async request => {
         return json({
           success: true,
           mode: "protocol",
-          protocol: newProtocol,
+          protocol: openedProtocol,
         });
       }
 
