@@ -98,6 +98,7 @@ export type SacDigitalProtocolListItem = {
     id: string;
     name: string | null;
     phone: string | null;
+    avatar_url: string | null;
     customer_id: string | null;
     customer: {
       id: string;
@@ -142,6 +143,7 @@ export async function listSacDigitalProtocols(organizationId: string) {
         id,
         name,
         phone,
+        avatar_url,
         customer_id,
         customer:customers(id,full_name)
       )
@@ -179,6 +181,7 @@ export async function listSacDigitalProtocols(organizationId: string) {
         id,
         name,
         phone,
+        avatar_url,
         customer_id,
         customer:customers(id,full_name)
       )
