@@ -7,11 +7,13 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatDurationHours } from "@/shared/domain/formatters";
-import { ConfirmDialog, EmptyState, isHexColor, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, isHexColor, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { LinkedOrdersDeleteDialog } from "@/shared/ui/admin/LinkedOrdersDeleteDialog";
 import { FHoursInput, FInput, FIntegerInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import { createOrderSituation, deleteOrderSituation, listOrderSituations, updateOrderSituation } from "../infrastructure/order-situations.repository";
+import { listOrdersUsingSituation, type LinkedServiceOrder } from "@/features/orders/infrastructure/linked-orders.repository";
 
 type OSSituationsViewProps = {
   onBack: () => void;
@@ -41,7 +43,10 @@ export function OSSituationsView({ onBack, routeResourceId, routeSubpage, onRout
   const [form, setForm] = useState({ name: "", color: "", hours: "", is_active: true, sort_order: 0 });
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; color?: string; hours?: string; sort_order?: string }>({});
   const [saving, setSaving] = useState(false);
-  const [delId, setDelId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [linkedOrders, setLinkedOrders] = useState<LinkedServiceOrder[]>([]);
+  const [linkedOrdersLoading, setLinkedOrdersLoading] = useState(false);
+  const [linkedOrdersError, setLinkedOrdersError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -85,14 +90,51 @@ export function OSSituationsView({ onBack, routeResourceId, routeSubpage, onRout
     } catch (error) { setToast({ msg: `Erro ao salvar situação: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const remove = async (id: string) => { if (!canDelete) return; try { await deleteOrderSituation(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível remover a situação: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const loadLinkedOrders = async (id: string) => {
+    setLinkedOrdersLoading(true);
+    setLinkedOrdersError(null);
+    try {
+      setLinkedOrders(await listOrdersUsingSituation(id));
+    } catch (error) {
+      setLinkedOrdersError(`Não foi possível verificar as OS vinculadas: ${systemErrorMessage(error)}`);
+    } finally {
+      setLinkedOrdersLoading(false);
+    }
+  };
+  const requestDelete = (item: any) => {
+    if (!canDelete) return;
+    setDeleteTarget(item);
+    setLinkedOrders([]);
+    void loadLinkedOrders(item.id);
+  };
+  const closeDelete = () => {
+    setDeleteTarget(null);
+    setLinkedOrders([]);
+    setLinkedOrdersError(null);
+  };
+  const openLinkedOrder = (orderId: string) => {
+    const newTab = window.open(`/admin/orders/${encodeURIComponent(orderId)}`, "_blank");
+    if (newTab) newTab.opener = null;
+  };
+  const remove = async (id: string) => {
+    if (!canDelete) return;
+    try {
+      await deleteOrderSituation(id);
+      closeDelete();
+      setToast({ msg: "Situação excluída.", type: "success" });
+      await refresh();
+    } catch (error) {
+      setToast({ msg: `Não foi possível remover a situação: ${systemErrorMessage(error)}`, type: "error" });
+      await loadLinkedOrders(id);
+    }
+  };
 
   if (!canView) return null;
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {delId && <ConfirmDialog message="Remover esta situação?" onConfirm={() => remove(delId).finally(() => setDelId(null))} onCancel={() => setDelId(null)} />}
+    {deleteTarget && <LinkedOrdersDeleteDialog entityLabel="situação" entityName={deleteTarget.name || ""} orders={linkedOrders} loading={linkedOrdersLoading} error={linkedOrdersError} onRefresh={() => loadLinkedOrders(deleteTarget.id)} onDelete={() => remove(deleteTarget.id)} onCancel={closeDelete} onOpenOrder={openLinkedOrder} />}
     {!routeResourceId && <><PageHeader title="Situações da OS" subtitle="Etapas de progresso das ordens de serviço" />
-    {canViewTable && <AdminCard>{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={List} title="Nenhuma situação" message="Crie situações para acompanhar as etapas das OS." /> : <><div className="overflow-x-auto"><table className="min-w-[660px]"><thead><tr>{showSortOrder && <th className="text-left">Ordem</th>}{showSituation && <th className="text-left">Situação</th>}{showSla && <th className="text-left">Prazo</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedItems.map(item => <tr key={item.id}>{showSortOrder && <td className="font-mono text-xs text-[#5a6a82]">{item.sort_order}</td>}{showSituation && <td><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color || "#0057e7" }} /><span className="font-semibold text-[#0d1b2e]">{item.name}</span></div></td>}{showSla && <td className="text-xs text-[#5a6a82]">{item.hours == null ? "Não informado" : formatDurationHours(item.hours)}</td>}{showStatus && <td><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", item.is_active ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active ? "Ativa" : "Inativa"}</span></td>}{showActions && <td><div className="flex justify-end gap-1">{canEdit && <AdminIconButton ariaLabel="Editar situação" title="Editar" onClick={() => openEditPage(item)}><Edit2 size={14} /></AdminIconButton>}{canDelete && <AdminIconButton ariaLabel="Excluir situação" title="Excluir" variant="danger" onClick={() => setDelId(item.id)}><Trash2 size={14} /></AdminIconButton>}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} /></>}</AdminCard>}<AdminStickyToolbar><BtnSecondary onClick={onBack}>Voltar</BtnSecondary>{canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>}</AdminStickyToolbar></>}
+    {canViewTable && <AdminCard>{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={List} title="Nenhuma situação" message="Crie situações para acompanhar as etapas das OS." /> : <><div className="overflow-x-auto"><table className="min-w-[660px]"><thead><tr>{showSortOrder && <th className="text-left">Ordem</th>}{showSituation && <th className="text-left">Situação</th>}{showSla && <th className="text-left">Prazo</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedItems.map(item => <tr key={item.id}>{showSortOrder && <td className="font-mono text-xs text-[#5a6a82]">{item.sort_order}</td>}{showSituation && <td><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color || "#0057e7" }} /><span className="font-semibold text-[#0d1b2e]">{item.name}</span></div></td>}{showSla && <td className="text-xs text-[#5a6a82]">{item.hours == null ? "Não informado" : formatDurationHours(item.hours)}</td>}{showStatus && <td><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", item.is_active ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active ? "Ativa" : "Inativa"}</span></td>}{showActions && <td><div className="flex justify-end gap-1">{canEdit && <AdminIconButton ariaLabel="Editar situação" title="Editar" onClick={() => openEditPage(item)}><Edit2 size={14} /></AdminIconButton>}{canDelete && <AdminIconButton ariaLabel="Excluir situação" title="Excluir" variant="danger" onClick={() => requestDelete(item)}><Trash2 size={14} /></AdminIconButton>}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} /></>}</AdminCard>}<AdminStickyToolbar><BtnSecondary onClick={onBack}>Voltar</BtnSecondary>{canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>}</AdminStickyToolbar></>}
     {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
     {drawerOpen && <AdminPage open={true} onClose={closeEditor} breadcrumb="Situações da OS" title={editItem ? "Editar situação" : "Nova situação"} maxW="max-w-md"><div className="space-y-4 p-4 sm:p-5"><FInput label="Nome" disabled={saving} error={fieldErrors.name} value={form.name} required onChange={(e: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm({ ...form, name: e.target.value }); }} /><FInput label="Cor" type="color" disabled={saving} error={fieldErrors.color} value={form.color || "#0057e7"} onChange={(e: any) => { setFieldErrors(current => ({ ...current, color: undefined })); setForm({ ...form, color: e.target.value }); }} /><FHoursInput label="Horas" disabled={saving} error={fieldErrors.hours} value={form.hours} onChange={(e: any) => { setFieldErrors(current => ({ ...current, hours: undefined })); setForm({ ...form, hours: e.target.value }); }} /><FIntegerInput label="Ordem de exibição" disabled={saving} error={fieldErrors.sort_order} value={form.sort_order} onChange={(e: any) => { setFieldErrors(current => ({ ...current, sort_order: undefined })); setForm({ ...form, sort_order: Number(e.target.value || 0) }); }} /><FToggle label="Situação ativa" disabled={saving} checked={form.is_active} onChange={is_active => setForm({ ...form, is_active })} /></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div></AdminPage>}
   </div>;
