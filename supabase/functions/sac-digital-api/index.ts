@@ -47,6 +47,28 @@ function sacPhoneKey(value: unknown) {
   return digits;
 }
 
+// Brasil: a SAC pode reconhecer o WhatsApp com ou sem o nono dígito.
+// Nunca modificar o telefone cadastrado no CRM: são apenas variantes de consulta/importação.
+function sacPhoneVariants(value: unknown) {
+  const phone = normalizeSacPhone(value);
+  const variants = [phone];
+  if (phone.startsWith("55") && phone.length === 13 && phone[4] === "9") {
+    variants.push(phone.slice(0, 4) + phone.slice(5));
+  } else if (phone.startsWith("55") && phone.length === 12 && /^[6-9]$/.test(phone[4])) {
+    variants.push(phone.slice(0, 4) + "9" + phone.slice(4));
+  }
+  return [...new Set(variants.filter(Boolean))];
+}
+
+function sacPhoneMatches(value: unknown, expected: unknown) {
+  const keys = new Set(sacPhoneVariants(expected).map(sacPhoneKey));
+  return sacPhoneVariants(value).some(candidate => keys.has(sacPhoneKey(candidate)));
+}
+
+function sacWhatsAppValidationInconclusive(message: unknown) {
+  return /(?:n[aã]o conseguimos validar|n[aã]o foi poss[ií]vel validar).*?(?:whatsapp|n[uú]mero)|(?:whatsapp|n[uú]mero).*?(?:n[aã]o conseguimos validar|n[aã]o foi poss[ií]vel validar)/i.test(String(message || ""));
+}
+
 function sacContactImportError(message: unknown, fallback: string) {
   const detail = String(message || "").trim();
   if (/validar se este n[uú]mero possui whatsapp/i.test(detail)) {
@@ -776,17 +798,18 @@ Deno.serve(async request => {
         return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
       }
 
-      const [contactsResult, channelsResult] = await Promise.all([
-        apiRequest(
+      const searchPhones = searchDigits.length >= 6 ? sacPhoneVariants(apiSearch) : [apiSearch];
+      const [contactResults, channelsResult] = await Promise.all([
+        Promise.all(searchPhones.map(candidate => apiRequest(
           organizationId,
           credentials,
-          `/contact/search?p=1&filter=1&search=${encodeURIComponent(apiSearch)}`,
+          `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidate)}`,
           { method: "GET" },
-        ),
+        ))),
         apiRequest(organizationId, credentials, "/channel/all", { method: "GET" }),
       ]);
 
-      if (!contactsResult.response.ok || contactsResult.body.status === false) {
+      if (contactResults.every(result => !result.response.ok || result.body.status === false)) {
         return json({ success: false, error: "Não foi possível pesquisar os contatos da SAC Digital." });
       }
 
@@ -798,9 +821,18 @@ Deno.serve(async request => {
           .filter(Boolean),
       );
 
-      const sacRows = (Array.isArray(contactsResult.body.list) ? contactsResult.body.list : [])
+      const seenSacContactIds = new Set<string>();
+      const sacRows = contactResults
+        .filter(result => result.response.ok && result.body.status !== false)
+        .flatMap(result => Array.isArray(result.body.list) ? result.body.list : [])
         .filter(item => item && typeof item === "object" && !Array.isArray(item))
         .map(item => item as Record<string, unknown>)
+        .filter(item => {
+          const id = String(item.id || "");
+          if (!id || seenSacContactIds.has(id)) return false;
+          seenSacContactIds.add(id);
+          return true;
+        })
         .slice(0, 20);
 
       const externalIds = sacRows.map(row => String(row.id || "").trim()).filter(Boolean);
@@ -858,9 +890,13 @@ Deno.serve(async request => {
 
         const { data: customerRows, error: customerError } = await customerQuery.limit(20);
         if (!customerError) {
-          const exactSacByPhone = new Map(
-            contacts.map(contact => [sacPhoneKey(contact.phone), contact]),
-          );
+          const exactSacByPhone = new Map<string, typeof contacts[number]>();
+          for (const contact of contacts) {
+            for (const variant of sacPhoneVariants(contact.phone)) {
+              const key = sacPhoneKey(variant);
+              if (!exactSacByPhone.has(key)) exactSacByPhone.set(key, contact);
+            }
+          }
           customers = (customerRows || []).map(customer => {
             const phone = normalizeSacPhone(customer.whatsapp || customer.phone);
             const sacContact = exactSacByPhone.get(sacPhoneKey(phone));
