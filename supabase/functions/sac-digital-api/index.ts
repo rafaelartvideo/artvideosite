@@ -1465,6 +1465,35 @@ Deno.serve(async request => {
         });
       }
 
+      // Notificacoes a contato podem ser aceitas sem abrir protocolo.
+      // Persistir o envio como pendente para exibir na caixa de conversas;
+      // uma falha na gravacao NAO desfaz o envio nem deve sugerir reenvio.
+      let pendingStartId: string | null = null;
+      if (localContact?.id) {
+        const sentAt = new Date().toISOString();
+        const { data: pendingStart, error: pendingError } = await admin
+          .from("sac_digital_outbound_starts")
+          .upsert({
+            organization_id: organizationId,
+            contact_id: localContact.id,
+            external_contact_id: externalContactId,
+            message_text: text,
+            sender_id: userData.user.id,
+            sent_at: sentAt,
+            updated_at: sentAt,
+          }, { onConflict: "organization_id,external_contact_id" })
+          .select("id")
+          .maybeSingle();
+        if (pendingError) {
+          console.error("[SAC DIGITAL API] pending conversation registration failed", {
+            organization_id: organizationId,
+            code: pendingError.code,
+          });
+        } else {
+          pendingStartId = String(pendingStart?.id || "") || null;
+        }
+      }
+
       await writeSacAudit({
         action: "sac_digital.conversation.start",
         operation: "send",
@@ -1482,6 +1511,7 @@ Deno.serve(async request => {
         success: true,
         mode: "notification",
         protocol: null,
+        pending_start_id: pendingStartId,
         external_contact_id: externalContactId,
       });
     }
