@@ -81,6 +81,27 @@ function formatPhone(value?: string | null) {
   return value || "";
 }
 
+function sacContactPhoneMatch(left: string | null | undefined, right: string | null | undefined) {
+  const phoneDigits = (value: string | null | undefined) => {
+    const digits = String(value || "").replace(/\D/g, "");
+    return digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
+      ? digits.slice(2) : digits;
+  };
+  const l = phoneDigits(left);
+  const r = phoneDigits(right);
+  if (!l || !r) return false;
+  if (l === r) return true;
+
+  // O WhatsApp brasileiro pode indexar o celular com ou sem o nono digito.
+  const withoutNinth = (value: string) => value.length === 11 && value[2] === "9"
+    ? value.slice(0, 2) + value.slice(3) : value;
+  const mobile = (value: string) => /^[1-9]\d[6-9]/.test(value);
+  return (l.length === 10 || l.length === 11)
+    && (r.length === 10 || r.length === 11)
+    && mobile(withoutNinth(l)) && mobile(withoutNinth(r))
+    && withoutNinth(l) === withoutNinth(r);
+}
+
 function protocolDisplayName(protocol: SacDigitalProtocolListItem) {
   return protocol.contact?.customer?.full_name
     || protocol.contact?.name
@@ -425,6 +446,30 @@ export function SacDigitalToolPage({
         setMessage({ text: "O cliente não tem telefone cadastrado para iniciar o atendimento.", error: true });
         return;
       }
+
+      // O protocolo pode ter chegado pelo webhook antes de existir vinculo no CRM.
+      // Nao abrir automaticamente conversa de outro cliente, mesmo com telefone igual.
+      const byPhone = protocols.filter(item => item.status !== "finished"
+        && item.contact?.phone
+        && (!item.contact.customer_id || item.contact.customer_id === routeCustomerId)
+        && sacContactPhoneMatch(item.contact.phone, phone));
+      if (byPhone.length === 1) {
+        setSelectedProtocolId(byPhone[0].id);
+        setConversationSearch("");
+        setStatusFilter("all");
+        setOperatorFilter("all");
+        return;
+      }
+      if (byPhone.length > 1) {
+        setConversationSearch(phone.replace(/\D/g, "").slice(-8));
+        setStatusFilter("all");
+        setOperatorFilter("all");
+        setMessage({
+          text: "Encontramos mais de um atendimento com este telefone. Selecione a conversa correta na lista.",
+        });
+        return;
+      }
+
       setNewConversationStarter({
         phone,
         name: String(customer.trade_name || customer.full_name || customer.legal_name || "").trim(),
