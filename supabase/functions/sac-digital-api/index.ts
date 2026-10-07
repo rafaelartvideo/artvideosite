@@ -526,6 +526,15 @@ Deno.serve(async request => {
     };
 
 
+    const hasOrganizationPermission = async (permissionKey: string) => {
+      const { data, error } = await userClient.rpc("my_organization_permissions", {
+        p_organization_id: organizationId,
+      });
+      if (error || !Array.isArray(data)) return false;
+      return data.some((row: Record<string, unknown>) => String(row.permission_key || "") === permissionKey);
+    };
+
+
     const loadSacOperators = async () => {
       const credentials = await loadCredentials(organizationId);
       if (!credentials.enabled) throw new Error("Integração SAC Digital está desativada.");
@@ -600,6 +609,59 @@ Deno.serve(async request => {
         history_total: history.total,
         history_imported: history.imported,
         history_matched: history.matched,
+      });
+    }
+
+    if (action === "link_customer") {
+      if (!(await requirePermission("sac_digital.messages.view"))) {
+        return json({ success: false, error: "Sem permissão para visualizar conversas do SAC Digital." }, 403);
+      }
+      if (!(await hasOrganizationPermission("customers.view"))) {
+        return json({ success: false, error: "Sem permissão para acessar clientes desta empresa." }, 403);
+      }
+
+      const contactId = String(body.contact_id || "").trim();
+      const customerId = String(body.customer_id || "").trim();
+      if (!isUuid(contactId)) return json({ success: false, error: "Contato SAC inválido." }, 400);
+      if (!isUuid(customerId)) return json({ success: false, error: "Cliente inválido." }, 400);
+
+      const { data: contact, error: contactError } = await admin
+        .from("sac_digital_contacts")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("id", contactId)
+        .maybeSingle();
+      if (contactError || !contact?.id) {
+        return json({ success: false, error: "Contato SAC não encontrado nesta empresa." }, 404);
+      }
+
+      const { data: customer, error: customerError } = await admin
+        .from("customers")
+        .select("id,full_name,trade_name,legal_name,phone,whatsapp")
+        .eq("organization_id", organizationId)
+        .eq("id", customerId)
+        .maybeSingle();
+      if (customerError || !customer?.id) {
+        return json({ success: false, error: "Cliente não encontrado nesta empresa." }, 404);
+      }
+
+      const { error: updateError } = await admin
+        .from("sac_digital_contacts")
+        .update({
+          customer_id: customer.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("organization_id", organizationId)
+        .eq("id", contactId);
+      if (updateError) throw new Error("Não foi possível vincular o cliente ao contato SAC.");
+
+      return json({
+        success: true,
+        customer: {
+          id: String(customer.id),
+          name: String(customer.trade_name || customer.full_name || customer.legal_name || "Cliente"),
+          phone: String(customer.whatsapp || customer.phone || ""),
+        },
       });
     }
 
