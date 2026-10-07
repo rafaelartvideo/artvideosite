@@ -978,6 +978,110 @@ Deno.serve(async request => {
       };
     };
 
+    const authenticateSacOperator = async (
+      credentials: { clientId: string; clientSecret: string },
+      operatorId: string,
+      scopes: string[],
+    ) => {
+      const requestedScopes = [...new Set(scopes)].sort();
+      const baseLogin = {
+        client: credentials.clientId,
+        password: credentials.clientSecret,
+        operator_id: operatorId,
+      };
+      const loginBodies: Array<{label:string;body:Record<string,unknown>}> = [
+        {label:'scopes-array',body:{...baseLogin,scopes:requestedScopes}},
+        {label:'scope-array',body:{...baseLogin,scope:requestedScopes}},
+        {label:'scope-string',body:{...baseLogin,scope:requestedScopes.join(' ')}},
+      ];
+
+      let auth: Awaited<ReturnType<typeof fetchJson>> | null = null;
+      let loginVariant = '';
+      for (const candidate of loginBodies) {
+        const attempt = await fetchJson('https://api.sac.digital/v2/operator/auth2/login', {
+          method:'POST',
+          headers:{'Content-Type':'application/json',Accept:'application/json'},
+          body:JSON.stringify(candidate.body),
+        });
+        auth = attempt;
+        loginVariant = candidate.label;
+
+        const tokenCandidate = typeof attempt.body.token === 'string'
+          ? attempt.body.token.trim()
+          : typeof attempt.body.access_token === 'string'
+            ? attempt.body.access_token.trim()
+            : '';
+        if(attempt.response.ok && attempt.body.success !== false && tokenCandidate) {
+          const expiresIn=Number(attempt.body.expires_in || 3600);
+          return {
+            token: tokenCandidate,
+            expiresIn: Math.min(3600,Math.max(120,Number.isFinite(expiresIn)?expiresIn:3600)),
+            variant: loginVariant,
+          };
+        }
+
+        const providerType=String(attempt.body.type || '').trim().toLowerCase();
+        const credentialFailure=providerType==='invalid_auth'
+          || attempt.response.status===401
+          || attempt.response.status===403;
+        const contractFallback=providerType==='invalid_scope'
+          || providerType==='invalid_params'
+          || attempt.response.status===400
+          || attempt.response.status===422;
+        if(credentialFailure || !contractFallback) break;
+      }
+
+      const providerType=String(auth?.body?.type || '').trim().toLowerCase();
+      console.error('[SAC DIGITAL API] operator login failed', {
+        organization_id: organizationId,
+        operator_id: operatorId,
+        status: auth?.response.status || null,
+        type: providerType.slice(0,80) || null,
+        request_id: String(auth?.body?.request_id || '').slice(0,120) || null,
+        variant: loginVariant || null,
+        scopes: requestedScopes,
+      });
+
+      const error:any = new Error(
+        providerType === 'invalid_auth' || auth?.response.status === 401 || auth?.response.status === 403
+          ? 'A conta selecionada não autentica como Operador da SAC Digital. Gestor e Operador são perfis diferentes; vincule um usuário que possua acesso operacional.'
+          : providerType === 'invalid_scope'
+            ? 'O Operador SAC não possui as permissões de API necessárias para atendimento.'
+            : 'Não foi possível validar a autenticação do Operador na SAC Digital.',
+      );
+      error.code = providerType === 'invalid_auth' || auth?.response.status === 401 || auth?.response.status === 403
+        ? 'operator_profile_incompatible'
+        : providerType === 'invalid_scope'
+          ? 'operator_scope_missing'
+          : 'operator_auth_contract_unverified';
+      error.providerType=providerType;
+      throw error;
+    };
+
+    const validateSacOperatorForBinding = async (
+      credentials: { clientId: string; clientSecret: string },
+      operatorId: string,
+    ) => {
+      const session = await authenticateSacOperator(credentials, operatorId, ['protocol','edit','send']);
+      const access = await fetchJson('https://api.sac.digital/v2/operator/att/access', {
+        method:'GET',
+        headers:{Authorization:`Bearer ${session.token}`,Accept:'application/json'},
+      });
+      if(access.response.ok && access.body.status !== false && access.body.success !== false) return;
+
+      const providerType=String(access.body.type || '').trim().toLowerCase();
+      const error:any = new Error(
+        providerType === 'invalid_auth' || access.response.status === 401 || access.response.status === 403
+          ? 'Esta conta não foi aceita nas rotas de Operador da SAC Digital. Contas Gestor não devem ser vinculadas como Operador de atendimento.'
+          : 'A SAC Digital não confirmou acesso operacional para este usuário.',
+      );
+      error.code = providerType === 'invalid_auth' || access.response.status === 401 || access.response.status === 403
+        ? 'operator_profile_incompatible'
+        : 'operator_auth_contract_unverified';
+      error.providerType=providerType;
+      throw error;
+    };
+
     const runResourceOperation = async (endpointId: number, values: Record<string, unknown>, intentKey?: string) => {
       const requested=SAC_ENDPOINTS.find(item=>item.id===endpointId);
       if(!requested) return {success:false,data:null,has_more:false,next_page:null,outcome:'rejected',type:'invalid_contract',error:'Operação desconhecida.'};
@@ -1024,74 +1128,16 @@ Deno.serve(async request => {
           const requestedScopes=operatorScopes(operation.scopes,Boolean(values.protocol));
           const cacheKey = `${organizationId}:${userData.user.id}:${binding.id}:${binding.version}:${requestedScopes.join(',')}`;
           const cached = operatorSessionCache.get(cacheKey);
-          if(cached && cached.expiresAt > Date.now()+60000) {operatorToken=cached.token;return;}
-
-          // A documentação da SAC diverge entre "scopes" (descrição) e
-          // "scope" (painel). Tentar a forma principal e somente cair para as
-          // variantes documentadas quando a própria SAC responder
-          // invalid_scope/invalid_params. Nunca repetir invalid_auth.
-          const baseLogin = {
-            client: credentials.clientId,
-            password: credentials.clientSecret,
-            operator_id: binding.id,
-          };
-          const loginBodies: Array<{label:string;body:Record<string,unknown>}> = [
-            {label:'scopes-array',body:{...baseLogin,scopes:requestedScopes}},
-            {label:'scope-array',body:{...baseLogin,scope:requestedScopes}},
-            {label:'scope-string',body:{...baseLogin,scope:requestedScopes.join(' ')}},
-          ];
-
-          let auth: Awaited<ReturnType<typeof fetchJson>> | null = null;
-          let loginVariant = '';
-          for (const candidate of loginBodies) {
-            const attempt = await fetchJson('https://api.sac.digital/v2/operator/auth2/login', {
-              method:'POST',
-              headers:{'Content-Type':'application/json',Accept:'application/json'},
-              body:JSON.stringify(candidate.body),
-            });
-            auth = attempt;
-            loginVariant = candidate.label;
-            const tokenCandidate = typeof attempt.body.token === 'string'
-              ? attempt.body.token.trim()
-              : typeof attempt.body.access_token === 'string'
-                ? attempt.body.access_token.trim()
-                : '';
-            if(attempt.response.ok && attempt.body.success !== false && tokenCandidate) {
-              operatorToken=tokenCandidate;
-              break;
-            }
-
-            const providerType=String(attempt.body.type || '').trim().toLowerCase();
-            const credentialFailure=providerType==='invalid_auth'
-              || attempt.response.status===401
-              || attempt.response.status===403;
-            const contractFallback=providerType==='invalid_scope'
-              || providerType==='invalid_params'
-              || attempt.response.status===400
-              || attempt.response.status===422;
-            if(credentialFailure || !contractFallback) break;
+          if(cached && cached.expiresAt > Date.now()+60000) {
+            operatorToken=cached.token;
+            return;
           }
 
-          if(!auth || !operatorToken) {
-            console.error('[SAC DIGITAL API] operator login failed', {
-              organization_id: organizationId,
-              operator_id: binding.id,
-              status: auth?.response.status || null,
-              type: String(auth?.body?.type || '').slice(0,80) || null,
-              request_id: String(auth?.body?.request_id || '').slice(0,120) || null,
-              variant: loginVariant || null,
-              scopes: requestedScopes,
-            });
-            const error:any = new Error('Operator authentication contract refused');
-            error.code='operator_auth_contract_unverified';
-            error.providerType=String(auth?.body?.type || '').slice(0,80);
-            throw error;
-          }
-
-          const expiresIn=Number(auth.body.expires_in || 3600);
+          const session = await authenticateSacOperator(credentials,binding.id,requestedScopes);
+          operatorToken=session.token;
           operatorSessionCache.set(cacheKey,{
             token:operatorToken,
-            expiresAt:Date.now()+Math.min(3600,Math.max(120,Number.isFinite(expiresIn)?expiresIn:3600))*1000,
+            expiresAt:Date.now()+session.expiresIn*1000,
           });
         } : null,
         lease: async () => {
@@ -1122,6 +1168,10 @@ Deno.serve(async request => {
           return fetchJson(`https://api.sac.digital/v2${op.path}`,{method:op.method,headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})});
         },
       });
+      if(operation.mode === 'operator' && !result.success && String(result.type || '').toLowerCase() === 'invalid_auth') {
+        result.type='operator_profile_incompatible';
+        result.error='A conta vinculada não foi aceita como Operador da SAC Digital. Gestor e Operador são perfis diferentes; vincule um Operador de atendimento em Configurações > SAC Digital > Operadores.';
+      }
       if(operation.method === 'GET') Object.assign(result,parsePagination(result.data || {},Number(values.p)||1));
       if([39,40].includes(endpointId) && (result.success || result.outcome === 'unknown')) {
         const phone=normalizeSacPhone(values.number);
@@ -2242,6 +2292,7 @@ Deno.serve(async request => {
         operators: operators.map(operator => ({
           id: operator.id,
           name: operator.name,
+          email: operator.email,
           online: operator.online,
         })),
       });
@@ -2291,6 +2342,21 @@ Deno.serve(async request => {
       const operators = await loadSacOperators();
       const operator = operators.find(item => item.id === operatorId);
       if (!operator) return json({ success: false, error: "Operador SAC não encontrado." }, 400);
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) {
+        return json({ success: false, error: "Integração SAC Digital está desativada." }, 409);
+      }
+      try {
+        await validateSacOperatorForBinding(credentials, operator.id);
+      } catch (error) {
+        const code = String((error as any)?.code || "operator_auth_contract_unverified");
+        return json({
+          success: false,
+          error: error instanceof Error ? error.message : "Não foi possível validar este Operador na SAC Digital.",
+          type: code,
+        }, 409);
+      }
 
       const { data: usedByOther, error: usedError } = await admin
         .from("sac_digital_operator_links")
@@ -2360,61 +2426,28 @@ Deno.serve(async request => {
       if (!binding) {
         return json({
           success: false,
-          error: "Seu usuário ainda não está vinculado a um operador SAC. Peça ao gestor para configurar em Operação > Integrações > SAC Digital.",
+          error: "Seu usuário precisa estar vinculado a um Operador SAC de atendimento. Conta Gestor e Operador são acessos diferentes.",
           needs_operator_binding: true,
-        });
+        }, 409);
       }
 
-      const credentials = await loadCredentials(organizationId);
-      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
-
-      const { data: protocolRow, error: protocolError } = await admin
-        .from("sac_digital_protocols")
-        .select("contact_id")
-        .eq("organization_id", organizationId)
-        .eq("external_protocol_id", protocol)
-        .maybeSingle();
-      if (protocolError || !protocolRow?.contact_id) {
-        return json({ success: false, error: "O protocolo ainda não possui um contato SAC vinculado." }, 400);
-      }
-
-      const { data: contactRow, error: contactError } = await admin
-        .from("sac_digital_contacts")
-        .select("external_contact_id")
-        .eq("organization_id", organizationId)
-        .eq("id", protocolRow.contact_id)
-        .maybeSingle();
-      const externalContactId = String(contactRow?.external_contact_id || "").trim();
-      if (contactError || !externalContactId) {
-        return json({ success: false, error: "Não foi possível identificar o contato na SAC Digital." }, 400);
-      }
-
-      const result = await apiRequest(
-        organizationId,
-        credentials,
-        "/contact/forward",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            id: externalContactId,
-            operator: binding.id,
-          }),
-        },
-      );
-
-      if (!result.response.ok || result.body.status === false || result.body.success === false) {
+      const intentKey = typeof body.intent_key === "string"
+        ? `${userData.user.id}:${body.intent_key.slice(0,160)}`
+        : undefined;
+      const selected = await runResourceOperation(73, { protocol }, intentKey);
+      if (!selected.success) {
         return json({
           success: false,
-          error: typeof result.body.message === "string" && result.body.message.trim()
-            ? `SAC Digital: ${result.body.message.trim()}`
-            : "Não foi possível assumir o atendimento.",
-        });
+          error: selected.error || "Não foi possível selecionar o atendimento.",
+          outcome: selected.outcome,
+          type: selected.type,
+        }, selected.outcome === "unknown" ? 502 : 409);
       }
 
       try {
         await enrichProtocol(organizationId, protocol);
       } catch {
-        // O webhook/realtime concluirá a atualização caso a SAC ainda não reflita a troca.
+        // Webhook/realtime concluirá a atualização caso a SAC ainda não reflita a seleção.
       }
 
       await writeSacAudit({
@@ -2427,6 +2460,7 @@ Deno.serve(async request => {
         metadata: {
           operator_id: binding.id,
           operator_name: binding.name,
+          transport: "operator_select",
         },
       });
 
