@@ -432,7 +432,7 @@ export function SacDigitalToolPage({
       setNewConversationOpen(true);
     })();
     return () => { cancelled = true; };
-  }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, protocols, routeCustomerId, status?.enabled]);
+  }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, routeCustomerId, status?.enabled]);
 
   useEffect(() => {
     let cancelled = false;
